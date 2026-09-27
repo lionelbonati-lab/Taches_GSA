@@ -13,16 +13,21 @@ npm run dev        # http://localhost:5173 (accessible aussi depuis un télépho
 npm run build      # version statique dans dist/
 ```
 
-## Comptes de démo (clic sur le nom, sans mot de passe)
+## Données et comptes de démo
 
-| Utilisateur | Poste | Rôle(s) |
-|---|---|---|
-| Marc Rochat | Président | Admin – tout, y compris la console admin |
-| Claire Dubois | Secrétaire | Secrétaire – voit/gère tout sauf la console admin et les listes |
-| Julien Meylan | Trésorier | Comité **+** Trésorier (gère toutes les tâches de la section Finances) |
-| Sophie, Luca, Emma, Nicolas, Thomas | Membres | Comité – voit tout, ne modifie que ses propres tâches |
-| Léa Rey | Bénévole buvette | Bénévole manifestations – ne voit que la section Manifestations |
-| Anne Perrin | Ancienne membre | Compte désactivé |
+Les données de départ viennent du tableau **« Suivi des tâches » du G.S. Ajoie** (108 tâches, 12 sections, séances de comité 2026-27, événements du club). Les délais en formule du tableau (`=Comité_3+7`, `=AG_2027`) sont devenus des **délais liés** à la séance / l'AG, et les responsables en formule (`=Caissier`, `=Secretaire`) servent à l'**attribution par poste** des tâches annuelles.
+
+Le site étant public : prénoms + initiale du nom uniquement, noms de tiers masqués (démissions, radiations, relances, remboursements), emails fictifs (`@gsajoie.example`), pas de téléphones.
+
+Connexion par simple clic sur un nom (sans mot de passe) :
+
+| Qui | Rôle(s) |
+|---|---|
+| Lionel B. (Président) | Admin – tout, dont la console admin et la Création du PV |
+| Maxime R. (Secrétaire) | Secrétaire – voit/gère tout sauf console admin, listes et PV |
+| Marie-France J. (Caissier) | Comité **+** Caissier (gère toutes les tâches de Comptabilité) |
+| Damien, Christophe, Ismaël, Noah, Stéphanie | Comité – voit tout, modifie ses propres tâches |
+| Dieter, Clément, Christian, Romain, Heinz, Sarah, Jérôme, Aude, Mèg, Alphonse | Responsable d'activité – uniquement ses propres tâches |
 
 ## Rôles et permissions
 
@@ -53,6 +58,18 @@ Le délai **suit ensuite automatiquement** la date : si le tournoi est déplacé
 
 Champ **Répétition** d'une tâche : chaque semaine, mois, trimestre, semestre ou année (repère 🔁, filtre « Tâches récurrentes »).
 Quand la tâche passe à un statut de clôture (« Terminé »), la suivante est **créée automatiquement** avec le délai décalé, le statut « À faire » et la checklist remise à zéro. Elle est attribuée **au poste** (ex. Trésorier) : si le titulaire a changé entre-temps, elle va à son successeur. Une tâche rouverte puis refermée ne crée pas de doublon.
+
+## Création du PV
+
+Onglet **📝 Création du PV** (droit « Onglet Création du PV », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare un document A4 pour la **prochaine séance et la suivante**, sur le modèle des PV du club :
+
+- en-tête : séance, date, heure de début, lieu, **convoqués** (avec initiales) et tableau **Présent / Excusé** à cocher ;
+- ordre du jour de la séance (si saisi dans l'onglet Comité) ;
+- **tâches en retard**, **à faire d'ici la séance**, **à faire d'ici la séance suivante**, **bilan** des tâches terminées depuis la séance précédente ;
+- regroupement par section (comme l'ordre du jour), par responsable ou sans regroupement ; colonne vide « Suivi / décision » et cadre de notes à remplir pendant la séance ; prochaine séance en pied de page.
+
+Réglages (mémorisés) : séances, parties affichées, regroupement et tri, colonnes, statuts et sections inclus, titre, nom du club, orientation, taille du texte.
+Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans l'onglet Comité), **Envoyer par email** aux membres du comité, **Copier le texte** (pour WhatsApp, Word…).
 
 ## Mobile et installation (PWA)
 

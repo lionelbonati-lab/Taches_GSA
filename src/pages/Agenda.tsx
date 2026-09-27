@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, Meeting } from '../data/types';
-import { daysUntil, isDone, today, uid } from '../data/utils';
+import type { ClubEvent, Meeting, PvArchive } from '../data/types';
+import { daysUntil, fmtDateTime, fullName, isDone, today, uid } from '../data/utils';
 import { Empty, Modal } from '../components/ui';
 import { Progress } from './Dashboard';
 
@@ -11,6 +12,7 @@ import { Progress } from './Dashboard';
 export function Meetings() {
   const { data, can, update } = useStore();
   const [edit, setEdit] = useState<Meeting | null>(null);
+  const [viewPv, setViewPv] = useState<{ meeting: Meeting; pv: PvArchive } | null>(null);
   const manage = can('meetings.manage');
   const sorted = [...data.meetings].sort((a, b) => a.date.localeCompare(b.date));
   const save = (m: Meeting) => {
@@ -26,7 +28,7 @@ export function Meetings() {
     <div>
       <div className="page-head">
         <h1>Séances du comité</h1>
-        {manage && <button className="btn primary" onClick={() => setEdit({ id: uid('m'), titre: `Séance de comité n°${data.meetings.length + 1}`, date: today(), lieu: 'Club-house', ordreDuJour: '1. PV de la dernière séance\n2. \n3. Divers', notes: '' })}>+ Nouvelle séance</button>}
+        {manage && <button className="btn primary" onClick={() => setEdit({ id: uid('m'), titre: `Comité ${data.meetings.length + 1}`, date: today(), heure: '19:30', lieu: 'À définir', ordreDuJour: '', notes: '' })}>+ Nouvelle séance</button>}
       </div>
       <div className="agenda">
         {sorted.map((m) => {
@@ -37,13 +39,22 @@ export function Meetings() {
               <DateBlock date={m.date} />
               <div className="grow">
                 <strong>{m.titre}</strong>
-                <div className="muted">{m.lieu}{!past && ` · dans ${daysUntil(m.date)} j`}</div>
+                <div className="muted">{m.heure && `${m.heure.replace(':', 'h')} · `}{m.lieu}{!past && ` · dans ${daysUntil(m.date)} j`}</div>
                 <details>
                   <summary>Ordre du jour {m.notes && '& notes'}</summary>
                   <pre className="odj">{m.ordreDuJour}</pre>
                   {m.notes && <p><em>Notes / PV :</em> {m.notes}</p>}
                 </details>
                 <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) liée(s) →</Link>
+                {(m.pvArchives?.length ?? 0) > 0 && (
+                  <div className="pv-archives">
+                    {m.pvArchives!.map((pv) => (
+                      <button key={pv.id} className="chip" onClick={() => setViewPv({ meeting: m, pv })} title={`Archivé le ${fmtDateTime(pv.at)}`}>
+                        📄 {pv.titre} · {fmtDateTime(pv.at)}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {manage && <button className="btn small" onClick={() => setEdit(m)}>Modifier</button>}
             </article>
@@ -51,12 +62,26 @@ export function Meetings() {
         })}
         {!sorted.length && <Empty>Aucune séance.</Empty>}
       </div>
+      {viewPv && (
+        <PvViewer
+          pv={viewPv.pv}
+          canDelete={manage || can('tab.pv')}
+          onDelete={() => {
+            update((d) => {
+              const x = d.meetings.find((y) => y.id === viewPv.meeting.id)!;
+              x.pvArchives = (x.pvArchives ?? []).filter((p) => p.id !== viewPv.pv.id);
+            }, `Suppression du PV archivé « ${viewPv.pv.titre} »`);
+            setViewPv(null);
+          }}
+          onClose={() => setViewPv(null)}
+        />
+      )}
       {edit && (
         <ItemModal
           title="Séance de comité"
           item={edit}
           note={linkedNote(data.tasks.filter((t) => t.meetingId === edit.id && t.delaiRef?.type === 'meeting').length)}
-          fields={[['titre', 'Titre', 'text'], ['date', 'Date', 'date'], ['lieu', 'Lieu', 'text'], ['ordreDuJour', 'Ordre du jour', 'area'], ['notes', 'Notes / PV', 'area']]}
+          fields={[['titre', 'Titre', 'text'], ['date', 'Date', 'date'], ['heure', 'Heure', 'time'], ['lieu', 'Lieu', 'text'], ['ordreDuJour', 'Ordre du jour', 'area'], ['notes', 'Notes / PV', 'area']]}
           onSave={save}
           onDelete={data.meetings.some((x) => x.id === edit.id) ? remove : undefined}
           onClose={() => setEdit(null)}
@@ -121,6 +146,36 @@ export function Events() {
   );
 }
 
+/** Consultation d'un PV archivé (copie figée), imprimable tel quel. */
+function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDelete: boolean; onDelete: () => void; onClose: () => void }) {
+  const { data } = useStore();
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', k);
+    document.body.classList.add('printing-archive');
+    return () => {
+      window.removeEventListener('keydown', k);
+      document.body.classList.remove('printing-archive');
+    };
+  }, [onClose]);
+  return createPortal(
+    <div className="pv-overlay">
+      <style>{`@page { size: A4 ${pv.orientation === 'paysage' ? 'landscape' : 'portrait'}; margin: 12mm; }`}</style>
+      <div className="pv-overlay-bar no-print">
+        <strong>📄 {pv.titre}</strong>
+        <small>archivé le {fmtDateTime(pv.at)} par {fullName(data.people.find((p) => p.id === pv.by))}</small>
+        <span className="grow" />
+        <button className="btn primary" onClick={() => window.print()}>🖨 Imprimer / PDF</button>
+        {canDelete && <button className="btn danger" onClick={() => confirm('Supprimer ce PV archivé ?') && onDelete()}>Supprimer</button>}
+        <button className="btn" onClick={onClose}>Fermer</button>
+      </div>
+      {/* Contenu généré par l'application elle-même (textes déjà échappés à la création). */}
+      <div className="pv-preview" dangerouslySetInnerHTML={{ __html: pv.html }} />
+    </div>,
+    document.body,
+  );
+}
+
 const linkedNote = (n: number) =>
   n ? `🔗 ${n} tâche(s) ont un délai lié à cette date : si tu la changes, leurs délais suivront automatiquement.` : undefined;
 
@@ -139,7 +194,7 @@ export function ItemModal<T extends { id: string }>({ title, item, fields, onSav
   title: string;
   note?: string;
   item: T;
-  fields: [keyof T & string, string, 'text' | 'date' | 'area' | 'email' | 'tel'][];
+  fields: [keyof T & string, string, 'text' | 'date' | 'time' | 'area' | 'email' | 'tel'][];
   onSave: (t: T) => void;
   onDelete?: (t: T) => void;
   onClose: () => void;

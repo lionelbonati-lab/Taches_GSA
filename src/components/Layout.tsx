@@ -13,6 +13,7 @@ export const TABS: { to: string; label: string; icon: string; perm?: Permission;
   { to: '/comite', label: 'Comité', icon: '🗓️', perm: 'tab.meetings', mobile: true },
   { to: '/evenements', label: 'Événements', icon: '🎉', perm: 'tab.events', mobile: true },
   { to: '/responsables', label: 'Responsables', icon: '👥', perm: 'tab.people' },
+  { to: '/pv', label: 'Création du PV', icon: '📝', perm: 'tab.pv' },
   { to: '/reglages', label: 'Réglages', icon: '⚙️' },
   { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access' },
 ];

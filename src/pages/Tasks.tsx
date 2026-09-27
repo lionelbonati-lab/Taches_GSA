@@ -40,6 +40,7 @@ export function Tasks() {
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
       if (f.event && t.eventId !== f.event) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
+      if (f.delai && ['passe', '7', '30'].includes(f.delai) && !t.delai) return false;
       if (f.delai) {
         const n = daysUntil(t.delai);
         if (f.delai === 'passe' && n >= 0) return false;
@@ -58,7 +59,7 @@ export function Tasks() {
         case 'titre': return t.titre.toLowerCase();
         case 'responsable': return respNames(t);
         case 'statut': return data.statuses.findIndex((s) => s.id === t.statusId);
-        case 'delai': return t.delai;
+        case 'delai': return t.delai || (sort.dir === 1 ? '9999' : '0000'); // sans délai : en fin de liste
       }
     };
     return res.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir);

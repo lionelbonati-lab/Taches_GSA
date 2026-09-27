@@ -9,6 +9,7 @@ export type Permission =
   | 'tab.meetings'
   | 'tab.events'
   | 'tab.people'
+  | 'tab.pv'
   | 'meetings.manage'
   | 'events.manage'
   | 'people.manage'
@@ -18,6 +19,8 @@ export type Permission =
 export interface Person {
   id: string;
   poste: string;
+  /** Autres fonctions occupées, séparées par des virgules (ex. « Course à pied, Camp de Pentecôte »). */
+  autresPostes?: string;
   nom: string;
   prenom: string;
   email: string;
@@ -84,6 +87,8 @@ export interface Task {
   postesResp?: string[];
   /** Occurrence suivante déjà créée (évite les doublons si on rouvre puis referme la tâche). */
   suivanteId?: string;
+  /** Date de clôture (passage à un statut « terminé »), pour le bilan du PV. */
+  termineeLe?: string;
   createdBy: string;
   updatedAt: string;
 }
@@ -92,9 +97,44 @@ export interface Meeting {
   id: string;
   titre: string;
   date: string;
+  /** Heure de début (ex. 19:30). */
+  heure?: string;
   lieu: string;
   ordreDuJour: string;
   notes: string;
+  /** Documents PV archivés pour cette séance (copie figée du document généré). */
+  pvArchives?: PvArchive[];
+}
+
+export interface PvArchive {
+  id: string;
+  at: string;
+  by: string;
+  titre: string;
+  html: string;
+  orientation?: 'portrait' | 'paysage';
+}
+
+export interface PvSettings {
+  titre: string;
+  club: string;
+  afficherClub: boolean;
+  parts: {
+    ordreDuJour: boolean;
+    presences: boolean;
+    retards: boolean;
+    avantProchaine: boolean;
+    avantSuivante: boolean;
+    bilan: boolean;
+    notes: boolean;
+  };
+  groupBy: 'section' | 'responsable' | 'aucun';
+  tri: 'delai' | 'statut' | 'titre';
+  colonnes: { sousSection: boolean; statut: boolean; remarque: boolean; checklist: boolean; suivi: boolean };
+  statutsExclus: string[];
+  sectionsExclues: string[];
+  orientation: 'portrait' | 'paysage';
+  taille: 'petite' | 'normale' | 'grande';
 }
 
 export interface ClubEvent {
@@ -116,6 +156,7 @@ export interface Prefs {
   theme: 'clair' | 'sombre' | 'auto';
   vueDefaut: 'mes' | 'toutes';
   affichage: 'tableau' | 'kanban';
+  pv?: Partial<PvSettings>;
 }
 
 export interface AppData {

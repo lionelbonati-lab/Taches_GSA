@@ -246,6 +246,68 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 }
 @media (max-width: 767px) { .toast { bottom: calc(80px + env(safe-area-inset-bottom)); } }
 
+/* ---------- Création du PV ---------- */
+.pv-layout { display: grid; grid-template-columns: 290px 1fr; gap: 20px; align-items: start; }
+.pv-settings { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; box-shadow: var(--shadow); }
+.pv-settings details { border-bottom: 1px solid var(--border); padding: 6px 0 10px; }
+.pv-settings summary { font-weight: 700; cursor: pointer; padding: 4px 0; color: var(--text); }
+.pv-settings label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); margin-top: 8px; }
+.pv-settings label.inline { flex-direction: row; align-items: center; color: var(--text); gap: 8px; margin-top: 6px; }
+.pv-settings .chips { margin: 4px 0 8px; }
+.pv-settings select, .pv-settings input:not([type='checkbox']) { color: var(--text); }
+.pv-settings .small { font-size: 0.8rem; }
+.pv-msg { background: var(--primary-soft); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
+.pv-preview { overflow-x: auto; background: var(--surface2); border-radius: var(--radius); padding: 16px; }
+.pv-sheet {
+  background: #fff; color: #111; margin: 0 auto; padding: 14mm; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
+  width: 210mm; min-height: 297mm; font-family: system-ui, 'Segoe UI', Roboto, sans-serif; line-height: 1.35;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+}
+.pv-sheet.paysage { width: 297mm; min-height: 210mm; }
+.pv-sheet.t-petite { font-size: 9pt; }
+.pv-sheet.t-normale { font-size: 10.5pt; }
+.pv-sheet.t-grande { font-size: 12pt; }
+.pv-head { border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; margin-bottom: 10px; }
+.pv-club { display: flex; align-items: center; gap: 8px; color: #1d4ed8; font-weight: 700; font-size: 0.9em; }
+.pv-sheet h1 { font-size: 1.9em; margin: 4px 0 2px; color: #111; }
+.pv-sheet h2 { font-size: 1.2em; margin: 16px 0 6px; color: #1d4ed8; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; }
+.pv-sheet h3 { font-size: 1em; margin: 10px 0 4px; color: #111; text-transform: uppercase; letter-spacing: 0.03em; }
+.pv-meta { margin: 0; color: #333; }
+.pv-convoques { margin: 8px 0; }
+.pv-count { font-size: 0.75em; background: #e2e8f0; color: #334155; border-radius: 999px; padding: 1px 8px; vertical-align: middle; }
+.pv-table { width: 100%; border-collapse: collapse; margin: 2px 0 6px; }
+.pv-table th, .pv-table td { border: 1px solid #cbd5e1; padding: 3px 6px; text-align: left; vertical-align: top; }
+.pv-table th { background: #f1f5f9; font-size: 0.85em; }
+.pv-table .c-titre { width: 32%; }
+.pv-table .c-sec { width: 12%; }
+.pv-table .c-sous { width: 14%; color: #334155; }
+.pv-table .c-resp { width: 9%; white-space: nowrap; }
+.pv-table .c-delai { width: 11%; white-space: nowrap; }
+.pv-table .c-statut { width: 9%; }
+.pv-table .c-rem { width: 17%; color: #334155; font-size: 0.92em; }
+.pv-table .c-suivi { width: 18%; }
+.pv-table tr.pv-late td { background: #fff1f2; }
+.pv-presence { width: auto; min-width: 60%; }
+.pv-presence .pv-box { text-align: center; font-size: 1.2em; width: 70px; }
+.pv-checklist { display: block; color: #475569; font-size: 0.88em; }
+.pv-odj { font-family: inherit; white-space: pre-wrap; margin: 0; }
+.pv-empty { color: #64748b; font-style: italic; margin: 4px 0; }
+.pv-lines { height: 60mm; background-image: repeating-linear-gradient(#fff 0, #fff 7.5mm, #cbd5e1 7.5mm, #cbd5e1 calc(7.5mm + 1px)); border: 1px solid #cbd5e1; }
+.pv-next { margin: 14px 0 4px; padding: 6px 10px; background: #eff6ff; border-left: 3px solid #1d4ed8; }
+.pv-foot { margin-top: 12px; color: #64748b; font-size: 0.8em; border-top: 1px solid #e2e8f0; padding-top: 4px; }
+.pv-archives { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pv-overlay { position: fixed; inset: 0; z-index: 70; background: var(--bg); overflow: auto; }
+.pv-overlay-bar { position: sticky; top: 0; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--border); z-index: 1; }
+.pv-overlay-bar small { color: var(--muted); }
+@media (max-width: 1000px) {
+  .pv-layout { grid-template-columns: 1fr; }
+  .pv-settings { position: static; max-height: none; }
+}
+@media (max-width: 767px) {
+  .pv-preview { padding: 8px; }
+  .pv-sheet { padding: 8mm; }
+}
+
 /* ---------- Installation (PWA) ---------- */
 .install-help { background: var(--primary-soft); color: var(--text); border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; font-size: 0.9rem; }
 .btn.install { border-color: var(--primary); color: var(--primary); }
@@ -302,7 +364,14 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 
 /* ---------- Impression ---------- */
 @media print {
-  .topbar, .bottomnav, .fab, .actions, .filters, .mobile-only { display: none !important; }
+  .topbar, .bottomnav, .fab, .actions, .filters, .mobile-only, .no-print, .toast { display: none !important; }
+  .pv-layout { display: block; }
+  .pv-preview { overflow: visible; padding: 0; background: none; }
+  .pv-sheet { width: auto !important; min-height: 0 !important; box-shadow: none; padding: 0; margin: 0; }
+  .pv-table tr, .pv-next, .pv-lines { break-inside: avoid; }
+  .pv-sheet h2, .pv-sheet h3 { break-after: avoid; }
+  body.printing-archive #root { display: none !important; }
+  .pv-overlay { position: static; overflow: visible; background: none; }
   .desktop-only { display: table !important; }
   .print-only { display: block; }
   body { background: #fff; color: #000; }

@@ -29,10 +29,10 @@ export function People() {
             <article key={p.id} className="panel person">
               <Avatar id={p.id} size={48} />
               <div className="grow">
-                <small className="muted">{p.poste}</small>
+                <small className="muted">{p.poste}{p.autresPostes && ` · ${p.autresPostes}`}</small>
                 <strong>{p.prenom} {p.nom}</strong>
                 <a href={`mailto:${p.email}`}>✉ {p.email}</a>
-                <a href={`tel:${p.telephone.replace(/\s/g, '')}`}>📱 {p.telephone}</a>
+                {p.telephone && <a href={`tel:${p.telephone.replace(/\s/g, '')}`}>📱 {p.telephone}</a>}
                 <Link to={`/taches?resp=${p.id}`} className="muted">{open} tâche(s) ouverte(s) →</Link>
               </div>
               {manage && <button className="btn small" onClick={() => setEdit(p)}>Modifier</button>}
@@ -44,7 +44,7 @@ export function People() {
         <ItemModal
           title="Responsable"
           item={edit}
-          fields={[['poste', 'Poste', 'text'], ['nom', 'Nom', 'text'], ['prenom', 'Prénom', 'text'], ['email', 'Adresse email', 'email'], ['telephone', 'Téléphone portable', 'tel']]}
+          fields={[['poste', 'Poste', 'text'], ['autresPostes', 'Autres fonctions (séparées par des virgules)', 'text'], ['nom', 'Nom', 'text'], ['prenom', 'Prénom', 'text'], ['email', 'Adresse email', 'email'], ['telephone', 'Téléphone portable', 'tel']]}
           onSave={save}
           onClose={() => setEdit(null)}
         />

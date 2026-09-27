@@ -8,8 +8,18 @@ export const fmtDate = (s?: string) =>
 export const fmtDateTime = (s: string) =>
   new Date(s).toLocaleString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-export const fullName = (p?: Person) => (p ? `${p.prenom} ${p.nom}` : 'Inconnu');
-export const initials = (p?: Person) => (p ? p.prenom[0] + p.nom[0] : '?');
+export const fullName = (p?: Person) => (p ? `${p.prenom} ${p.nom}`.trim() : 'Inconnu');
+export const shortName = (p?: Person) => (p ? `${p.prenom}${p.nom ? ` ${p.nom[0]}.` : ''}` : '?');
+export function initials(p?: Person) {
+  if (!p) return '?';
+  const first = p.prenom.split('-').map((x) => x[0]).join('').slice(0, 2);
+  // Sans nom de famille : deux premières lettres du prénom (Sarah → SA).
+  if (!p.nom) return (first.length > 1 ? first : p.prenom.slice(0, 2)).toUpperCase();
+  return (first + p.nom[0]).toUpperCase();
+}
+
+/** Toutes les fonctions d'une personne (poste principal + autres). */
+export const postesDe = (p: Person) => [p.poste, ...(p.autresPostes ?? '').split(',').map((x) => x.trim())].filter(Boolean);
 
 export const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
@@ -129,7 +139,7 @@ export function postesFor(data: AppData, t: Task, before?: Task): string[] | und
  */
 export function nextResponsables(data: AppData, t: Task): string[] {
   const ids = new Set<string>();
-  for (const poste of t.postesResp ?? []) data.people.filter((p) => p.actif && p.poste === poste).forEach((p) => ids.add(p.id));
+  for (const poste of t.postesResp ?? []) data.people.filter((p) => p.actif && postesDe(p).includes(poste)).forEach((p) => ids.add(p.id));
   if (!ids.size) t.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)).forEach((id) => ids.add(id));
   if (!ids.size) {
     const admin = data.people.find((p) => p.actif && p.roles.includes('admin'));
@@ -145,7 +155,7 @@ export function nextOccurrence(data: AppData, t: Task): Task {
     ...t,
     id: uid('t'),
     statusId: open.id,
-    delai: nextDate(t.delai, t.recurrence!),
+    delai: t.delai ? nextDate(t.delai, t.recurrence!) : '',
     responsables: nextResponsables(data, t),
     checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
     // L'événement / la séance de cette année ne concernent pas l'occurrence suivante.

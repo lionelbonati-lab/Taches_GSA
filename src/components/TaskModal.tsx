@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { Recurrence, Task } from '../data/types';
-import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, fmtDate, fmtDateTime, fullName, nextDate, nextResponsables, postesFor, today, uid } from '../data/utils';
+import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, fmtDate, fmtDateTime, fullName, nextDate, shortName, nextResponsables, postesFor, today, uid } from '../data/utils';
 import { Modal } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
@@ -42,7 +42,6 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
   const submit = () => {
     if (!t.titre.trim()) return setErr('Le titre de la tâche est obligatoire.');
     if (!t.sectionId) return setErr('Choisis une section.');
-    if (t.responsables.length === 0) return setErr('Au moins un responsable est requis.');
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
       return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
     saveTask({ ...t, titre: t.titre.trim() }, isNew);
@@ -100,7 +99,7 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
         )}
         {!quick && t.recurrence && (
           <p className="full recur-note">
-            🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement pour le <b>{fmtDate(nextDate(t.delai, t.recurrence))}</b>
+            🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement{t.delai ? <> pour le <b>{fmtDate(nextDate(t.delai, t.recurrence))}</b></> : ' (sans délai)'}
             {postes.length > 0 && <> et attribuée au poste <b>{postes.join(', ')}</b></>}
             {' '}(aujourd’hui : {nextResponsables(data, { ...t, postesResp: postes }).map((id) => fullName(data.people.find((p) => p.id === id))).join(', ')}).
             {task.suivanteId && <><br />Occurrence suivante déjà créée.</>}
@@ -111,7 +110,7 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
           <div className="chips">
             {assignable.map((p) => (
               <button type="button" key={p.id} disabled={dis} className={`chip ${t.responsables.includes(p.id) ? 'on' : ''}`} onClick={() => toggleResp(p.id)}>
-                {p.prenom} {p.nom[0]}.
+                {shortName(p)}
               </button>
             ))}
             {/* Responsables déjà assignés mais hors de la liste sélectionnable (inactif / autres) */}
