@@ -84,7 +84,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
         key: `seance:${next.id}:${next.date}${pv ? ':pv' : ''}`,
         icon: '🗓️',
         text: `${next.titre} ${n === 0 ? 'aujourd’hui' : n === 1 ? 'demain' : `dans ${n} jours`}`,
-        sub: `${fmtDate(next.date)}${next.heure ? ` à ${next.heure.replace(':', 'h')}` : ''} · ${next.lieu || 'lieu à définir'}${pv ? ' · PV disponible' : ''}`,
+        sub: `${fmtDate(next.date)}${next.heure ? ` à ${next.heure.replace(':', 'h')}` : ''} · ${next.lieu || 'lieu à définir'}${pv ? ' · ordre du jour disponible' : ''}`,
         link: '/comite',
         at: now,
         kind: 'alerte',

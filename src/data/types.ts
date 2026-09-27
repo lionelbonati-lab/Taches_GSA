@@ -87,7 +87,7 @@ export interface Task {
   postesResp?: string[];
   /** Occurrence suivante déjà créée (évite les doublons si on rouvre puis referme la tâche). */
   suivanteId?: string;
-  /** Date de clôture (passage à un statut « terminé »), pour le bilan du PV. */
+  /** Date de clôture (passage à un statut « terminé »), pour le bilan de l'ordre du jour. */
   termineeLe?: string;
   createdBy: string;
   updatedAt: string;
@@ -102,7 +102,7 @@ export interface Meeting {
   lieu: string;
   ordreDuJour: string;
   notes: string;
-  /** Documents PV archivés pour cette séance (copie figée du document généré). */
+  /** Ordres du jour archivés pour cette séance (copie figée du document généré). */
   pvArchives?: PvArchive[];
 }
 
@@ -130,7 +130,11 @@ export interface PvSettings {
   };
   groupBy: 'section' | 'responsable' | 'aucun';
   tri: 'delai' | 'statut' | 'titre';
-  colonnes: { sousSection: boolean; statut: boolean; remarque: boolean; checklist: boolean; suivi: boolean };
+  /** false : tout sous chaque section (retards, séance, suivante, terminées ensemble). */
+  separerParEcheance: boolean;
+  /** Afficher aussi les sections sans tâche (« Rien à signaler »), comme l'ordre du jour. */
+  sectionsVides: boolean;
+  colonnes: { sousSection: boolean; echeance: boolean; statut: boolean; remarque: boolean; checklist: boolean; suivi: boolean };
   statutsExclus: string[];
   sectionsExclues: string[];
   orientation: 'portrait' | 'paysage';

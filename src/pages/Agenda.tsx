@@ -70,7 +70,7 @@ export function Meetings() {
             update((d) => {
               const x = d.meetings.find((y) => y.id === viewPv.meeting.id)!;
               x.pvArchives = (x.pvArchives ?? []).filter((p) => p.id !== viewPv.pv.id);
-            }, `Suppression du PV archivé « ${viewPv.pv.titre} »`);
+            }, `Suppression de l’ordre du jour archivé « ${viewPv.pv.titre} »`);
             setViewPv(null);
           }}
           onClose={() => setViewPv(null)}
@@ -81,7 +81,7 @@ export function Meetings() {
           title="Séance de comité"
           item={edit}
           note={linkedNote(data.tasks.filter((t) => t.meetingId === edit.id && t.delaiRef?.type === 'meeting').length)}
-          fields={[['titre', 'Titre', 'text'], ['date', 'Date', 'date'], ['heure', 'Heure', 'time'], ['lieu', 'Lieu', 'text'], ['ordreDuJour', 'Ordre du jour', 'area'], ['notes', 'Notes / PV', 'area']]}
+          fields={[['titre', 'Titre', 'text'], ['date', 'Date', 'date'], ['heure', 'Heure', 'time'], ['lieu', 'Lieu', 'text'], ['ordreDuJour', 'Points particuliers à l’ordre du jour', 'area'], ['notes', 'Notes / PV', 'area']]}
           onSave={save}
           onDelete={data.meetings.some((x) => x.id === edit.id) ? remove : undefined}
           onClose={() => setEdit(null)}
@@ -146,7 +146,7 @@ export function Events() {
   );
 }
 
-/** Consultation d'un PV archivé (copie figée), imprimable tel quel. */
+/** Consultation d'un ordre du jour archivé (copie figée), imprimable tel quel. */
 function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDelete: boolean; onDelete: () => void; onClose: () => void }) {
   const { data } = useStore();
   useEffect(() => {
@@ -166,7 +166,7 @@ function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDele
         <small>archivé le {fmtDateTime(pv.at)} par {fullName(data.people.find((p) => p.id === pv.by))}</small>
         <span className="grow" />
         <button className="btn primary" onClick={() => window.print()}>🖨 Imprimer / PDF</button>
-        {canDelete && <button className="btn danger" onClick={() => confirm('Supprimer ce PV archivé ?') && onDelete()}>Supprimer</button>}
+        {canDelete && <button className="btn danger" onClick={() => confirm('Supprimer cet ordre du jour archivé ?') && onDelete()}>Supprimer</button>}
         <button className="btn" onClick={onClose}>Fermer</button>
       </div>
       {/* Contenu généré par l'application elle-même (textes déjà échappés à la création). */}

@@ -740,8 +740,7 @@ export const tasks: AppData['tasks'] = [
     "remarque": "Mail pour mise à jour envoyé",
     "checklist": [],
     "createdBy": "p1",
-    "updatedAt": "2026-09-20T18:00:00.000Z",
-    "termineeLe": "2026-09-03"
+    "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
     "id": "t7",
@@ -782,7 +781,6 @@ export const tasks: AppData['tasks'] = [
       "type": "event",
       "joursAvant": 0
     },
-    "termineeLe": "2027-03-13",
     "recurrence": "annuelle",
     "postesResp": [
       "Secrétaire"
@@ -807,7 +805,6 @@ export const tasks: AppData['tasks'] = [
       "type": "event",
       "joursAvant": 0
     },
-    "termineeLe": "2027-03-13",
     "recurrence": "annuelle",
     "postesResp": [
       "Secrétaire"
@@ -832,7 +829,6 @@ export const tasks: AppData['tasks'] = [
       "type": "event",
       "joursAvant": 0
     },
-    "termineeLe": "2027-03-13",
     "recurrence": "annuelle",
     "postesResp": [
       "Secrétaire"
@@ -1396,8 +1392,7 @@ export const tasks: AppData['tasks'] = [
     "remarque": "Modification QR, URL",
     "checklist": [],
     "createdBy": "p1",
-    "updatedAt": "2026-09-20T18:00:00.000Z",
-    "termineeLe": "2026-09-03"
+    "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
     "id": "t42",
@@ -2311,8 +2306,7 @@ export const tasks: AppData['tasks'] = [
     "remarque": "Au cas par cas selon marges",
     "checklist": [],
     "createdBy": "p1",
-    "updatedAt": "2026-09-20T18:00:00.000Z",
-    "termineeLe": "2026-09-03"
+    "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
     "id": "t88",
@@ -2403,8 +2397,7 @@ export const tasks: AppData['tasks'] = [
     "remarque": "Récupérer les identifiants FB et Instagram",
     "checklist": [],
     "createdBy": "p1",
-    "updatedAt": "2026-09-20T18:00:00.000Z",
-    "termineeLe": "2026-09-03"
+    "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
     "id": "t94",

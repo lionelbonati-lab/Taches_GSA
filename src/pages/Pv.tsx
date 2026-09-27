@@ -1,11 +1,12 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
-import type { Meeting, Person, PvSettings, Task } from '../data/types';
+import type { Meeting, Person, PvSettings, Section, Task } from '../data/types';
 import { addDays, fmtDate, fullName, initials, isDone, isLate, shortName, today, uid } from '../data/utils';
 
-// Onglet « Création du PV » : document imprimable préparant la prochaine séance de comité
-// (et la suivante), sur le modèle des PV du club : en-tête, présences, ordre du jour par section.
+// Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
+// (et la suivante), sur le modèle des ordres du jour du club : en-tête, convoqués, tâches par section.
+// (Identifiants internes « pv » conservés pour les données déjà enregistrées.)
 
 export const DEFAULT_PV: PvSettings = {
   titre: '',
@@ -14,7 +15,9 @@ export const DEFAULT_PV: PvSettings = {
   parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, notes: true },
   groupBy: 'section',
   tri: 'delai',
-  colonnes: { sousSection: true, statut: true, remarque: true, checklist: true, suivi: true },
+  separerParEcheance: false,
+  sectionsVides: true,
+  colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, suivi: true },
   statutsExclus: [],
   sectionsExclues: [],
   orientation: 'portrait',
@@ -89,6 +92,17 @@ export function Pv() {
     ...(s.parts.bilan ? [{ key: 'bilan', titre: `✓ Terminées depuis ${s0 ? `le ${s0.titre} (${fmtDate(s0.date)})` : '60 jours'}`, tasks: bilan, bilan: true }] : []),
   ];
 
+  // Échéance de chaque tâche retenue (retard, séance, séance suivante, terminée).
+  type Bucket = 'late' | 'p1' | 'p2' | 'bilan';
+  const bucketOf = new Map<string, Bucket>();
+  late.forEach((t) => bucketOf.set(t.id, 'late'));
+  avant1.forEach((t) => bucketOf.set(t.id, 'p1'));
+  avant2.forEach((t) => bucketOf.set(t.id, 'p2'));
+  bilan.forEach((t) => bucketOf.set(t.id, 'bilan'));
+  const RANK: Record<Bucket, number> = { late: 0, p1: 1, p2: 2, bilan: 3 };
+  const rank = (t: Task) => RANK[bucketOf.get(t.id) ?? 'p1'];
+  const unified = [...late, ...avant1, ...avant2, ...bilan];
+
   const statusIndex = (t: Task) => data.statuses.findIndex((x) => x.id === t.statusId);
   const sortTasks = (list: Task[]) =>
     [...list].sort((a, b) => {
@@ -96,28 +110,49 @@ export function Pv() {
       if (s.tri === 'titre') return a.titre.localeCompare(b.titre, 'fr');
       return (a.delai || '9999').localeCompare(b.delai || '9999');
     });
-
-  const group = (list: Task[]): Group[] => {
-    if (s.groupBy === 'aucun') return [{ key: 'all', label: '', tasks: sortTasks(list) }];
-    if (s.groupBy === 'section')
-      return data.sections
-        .map((sec) => ({
-          key: sec.id,
-          label: sec.nom,
-          // Dans une section : ordre des sous-sections (comme l'ordre du jour), puis tri choisi.
-          tasks: sortTasks(list.filter((t) => t.sectionId === sec.id)).sort(
-            (a, b) => sec.sousSections.indexOf(a.sousSection) - sec.sousSections.indexOf(b.sousSection),
-          ),
-        }))
-        .filter((g) => g.tasks.length);
-    const groups: Group[] = data.people
-      .map((p) => ({ key: p.id, label: `${fullName(p)} – ${p.poste}`, tasks: sortTasks(list.filter((t) => t.responsables.includes(p.id))) }))
-      .filter((g) => g.tasks.length);
-    const none = list.filter((t) => t.responsables.length === 0);
-    return none.length ? [...groups, { key: 'none', label: 'Sans responsable', tasks: sortTasks(none) }] : groups;
+  // Ordre dans un groupe : sous-sections (comme l'ordre du jour), puis retards → séance → suivante → terminées, puis tri choisi.
+  const order = (list: Task[], sec?: Section) => {
+    let r = sortTasks(list);
+    if (!s.separerParEcheance) r = r.sort((a, b) => rank(a) - rank(b));
+    if (sec) r = r.sort((a, b) => sec.sousSections.indexOf(a.sousSection) - sec.sousSections.indexOf(b.sousSection));
+    return r;
   };
 
+  const group = (list: Task[], keepEmpty = false): Group[] => {
+    if (s.groupBy === 'aucun') return [{ key: 'all', label: '', tasks: order(list) }];
+    if (s.groupBy === 'section')
+      return data.sections
+        .filter((sec) => !s.sectionsExclues.includes(sec.id))
+        .map((sec) => ({ key: sec.id, label: sec.nom, tasks: order(list.filter((t) => t.sectionId === sec.id), sec) }))
+        .filter((g) => g.tasks.length || keepEmpty);
+    const groups: Group[] = data.people
+      .map((p) => ({ key: p.id, label: `${fullName(p)} – ${p.poste}`, tasks: order(list.filter((t) => t.responsables.includes(p.id))) }))
+      .filter((g) => g.tasks.length);
+    const none = list.filter((t) => t.responsables.length === 0);
+    return none.length ? [...groups, { key: 'none', label: 'Sans responsable', tasks: order(none) }] : groups;
+  };
+  const unifiedGroups = group(unified, s.sectionsVides);
+
+  const pourLabel = (t: Task) => {
+    const b = bucketOf.get(t.id);
+    return b === 'late' ? '⚠ Retard' : b === 'bilan' ? '✓ Fait' : b === 'p2' ? s2?.titre ?? '' : s1?.titre ?? '';
+  };
+  const summary = [
+    s.parts.retards && `${late.length} en retard`,
+    s1 && s.parts.avantProchaine && `${avant1.length} pour le ${s1.titre}`,
+    s2 && s.parts.avantSuivante && `${avant2.length} pour le ${s2.titre}`,
+    s.parts.bilan && `${bilan.length} terminée${bilan.length > 1 ? 's' : ''} depuis ${s0 ? `le ${s0.titre}` : '60 jours'}`,
+  ].filter(Boolean).join(' · ');
+
   const titre = s.titre.trim() || (s1 ? `Comité ${shortDate(s1.date)}` : 'Comité');
+  // Nom proposé à l'enregistrement en PDF (le navigateur reprend le titre de la page).
+  useEffect(() => {
+    const before = document.title;
+    document.title = `Ordre du jour ${titre}`;
+    return () => {
+      document.title = before;
+    };
+  }, [titre]);
   const respText = (t: Task) => t.responsables.map((id) => initials(person(id))).join(', ') || '—';
 
   // ---------- Actions ----------
@@ -129,22 +164,31 @@ export function Pv() {
     update((d) => {
       const m = d.meetings.find((x) => x.id === s1.id)!;
       m.pvArchives = [{ id: uid('pv'), at: new Date().toISOString(), by: user.id, titre, html, orientation: s.orientation }, ...(m.pvArchives ?? [])].slice(0, 10);
-    }, `PV « ${titre} » archivé dans la séance ${s1.titre}`);
+    }, `Ordre du jour « ${titre} » archivé dans la séance ${s1.titre}`);
     setMsg(`📁 Archivé dans « ${s1.titre} » (onglet Comité).`);
   };
 
   const plainText = () => {
-    const lines: string[] = [titre.toUpperCase()];
+    const lines: string[] = [`ORDRE DU JOUR – ${titre.toUpperCase()}`];
     if (s1) lines.push(`${longDate(s1.date)}${heure(s1) ? `, ${heure(s1)}` : ''} – ${s1.lieu}`);
-    if (s1?.ordreDuJour && s.parts.ordreDuJour) lines.push('', 'ORDRE DU JOUR', s1.ordreDuJour);
-    for (const part of parts) {
-      lines.push('', part.titre.toUpperCase() + ` (${part.tasks.length})`);
-      for (const g of group(part.tasks)) {
-        if (g.label) lines.push(`${g.label}`);
-        for (const t of g.tasks)
-          lines.push(`  - ${t.sousSection ? `${t.sousSection} : ` : ''}${t.titre} [${respText(t)}]${t.delai ? ` – ${fmtDate(t.delai)}` : ''}${t.remarque ? ` (${t.remarque})` : ''}`);
+    if (s1?.ordreDuJour && s.parts.ordreDuJour) lines.push('', 'POINTS PARTICULIERS', s1.ordreDuJour);
+    const line = (t: Task, pour = false) =>
+      `  - ${pour ? `[${pourLabel(t)}] ` : ''}${t.sousSection ? `${t.sousSection} : ` : ''}${t.titre} [${respText(t)}]${t.delai ? ` – ${fmtDate(t.delai)}` : ''}${t.remarque ? ` (${t.remarque})` : ''}`;
+    if (!s.separerParEcheance) {
+      lines.push('', 'SUIVI DES TÂCHES PAR SECTION', summary);
+      for (const g of unifiedGroups) {
+        lines.push('', g.label.toUpperCase());
+        if (!g.tasks.length) lines.push('  (rien à signaler)');
+        g.tasks.forEach((t) => lines.push(line(t, true)));
       }
-    }
+    } else
+      for (const part of parts) {
+        lines.push('', part.titre.toUpperCase() + ` (${part.tasks.length})`);
+        for (const g of group(part.tasks)) {
+          if (g.label) lines.push(`${g.label}`);
+          g.tasks.forEach((t) => lines.push(line(t)));
+        }
+      }
     if (s2) lines.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu}`);
     return lines.join('\n');
   };
@@ -152,8 +196,8 @@ export function Pv() {
   const email = () => {
     const to = committee.map((p) => p.email).filter(Boolean).join(',');
     let body = plainText();
-    if (body.length > 1800) body = body.slice(0, 1800) + '\n…\n(liste complète dans le PV imprimé)';
-    window.location.href = `mailto:${to}?subject=${encodeURIComponent(`${titre} – tâches à faire`)}&body=${encodeURIComponent(body)}`;
+    if (body.length > 1800) body = body.slice(0, 1800) + '\n…\n(liste complète dans l’ordre du jour imprimé)';
+    window.location.href = `mailto:${to}?subject=${encodeURIComponent(`${titre} – ordre du jour`)}&body=${encodeURIComponent(body)}`;
   };
 
   const copy = async () => {
@@ -171,13 +215,15 @@ export function Pv() {
     { k: 'titre', label: 'Tâche' },
     s.groupBy !== 'responsable' && { k: 'resp', label: 'Resp.' },
     { k: 'delai', label: 'Délai' },
+    !s.separerParEcheance && s.colonnes.echeance && { k: 'pour', label: 'Pour' },
     s.colonnes.statut && { k: 'statut', label: 'Statut' },
     s.colonnes.remarque && { k: 'rem', label: 'Remarque' },
     s.colonnes.suivi && { k: 'suivi', label: 'Suivi / décision' },
   ].filter(Boolean) as { k: string; label: string }[];
 
-  const cell = (t: Task, k: string, bilanPart?: boolean) => {
+  const cell = (t: Task, k: string) => {
     const st = data.statuses.find((x) => x.id === t.statusId);
+    const bilanPart = bucketOf.get(t.id) === 'bilan';
     switch (k) {
       case 'sec': return secName(t.sectionId);
       case 'sous': return t.sousSection;
@@ -191,12 +237,29 @@ export function Pv() {
           </>
         );
       case 'resp': return respText(t);
+      case 'pour': return pourLabel(t);
       case 'delai': return bilanPart ? `✓ ${fmtDate(t.termineeLe)}` : t.delai ? fmtDate(t.delai) + (isLate(data, t) ? ' ⚠' : '') : 'libre';
       case 'statut': return st?.label ?? '';
       case 'rem': return t.remarque;
       case 'suivi': return '';
     }
   };
+
+  const table = (tasks: Task[], bilanHeader = false) => (
+    <table className="pv-table">
+      <thead><tr>{cols.map((c) => <th key={c.k} className={`c-${c.k}`}>{c.k === 'delai' && bilanHeader ? 'Terminée' : c.label}</th>)}</tr></thead>
+      <tbody>
+        {tasks.map((t) => {
+          const b = bucketOf.get(t.id);
+          return (
+            <tr key={t.id} className={b === 'late' ? 'pv-late' : b === 'bilan' ? 'pv-done' : ''}>
+              {cols.map((c) => <td key={c.k} className={`c-${c.k}`}>{cell(t, c.k)}</td>)}
+            </tr>
+          );
+        })}
+      </tbody>
+    </table>
+  );
 
   const openStatuses = data.statuses.filter((x) => !x.done);
   const toggleIn = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -205,7 +268,7 @@ export function Pv() {
     <div className="pv-page">
       <style>{`@page { size: A4 ${s.orientation === 'paysage' ? 'landscape' : 'portrait'}; margin: 12mm; @bottom-right { content: counter(page) " / " counter(pages); font-size: 9pt; color: #666; } }`}</style>
       <div className="page-head no-print">
-        <h1>Création du PV</h1>
+        <h1>Ordre du jour</h1>
         <div className="actions">
           <button className="btn primary" onClick={print}>🖨 Imprimer / PDF</button>
           <button className="btn" onClick={archive} disabled={!s1 || !can('tab.pv')}>📁 Archiver dans la séance</button>
@@ -238,11 +301,11 @@ export function Pv() {
             <summary>Contenu</summary>
             {([
               ['presences', 'En-tête : convoqués et présences'],
-              ['ordreDuJour', 'Ordre du jour de la séance'],
+              ['ordreDuJour', 'Points particuliers saisis dans la séance'],
               ['retards', 'Tâches en retard'],
-              ['avantProchaine', 'À faire d’ici la séance'],
-              ['avantSuivante', 'À faire d’ici la séance suivante'],
-              ['bilan', 'Bilan : terminées depuis la dernière séance'],
+              ['avantProchaine', 'Tâches à faire d’ici la séance'],
+              ['avantSuivante', 'Tâches à faire d’ici la séance suivante'],
+              ['bilan', 'Tâches terminées depuis la dernière séance'],
               ['notes', 'Cadre de notes et décisions'],
             ] as [keyof PvSettings['parts'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
@@ -258,6 +321,16 @@ export function Pv() {
                 <option value="aucun">Pas de regroupement</option>
               </select>
             </label>
+            <label className="inline">
+              <input type="checkbox" checked={s.separerParEcheance} onChange={(e) => set({ separerParEcheance: e.target.checked })} />
+              Séparer par échéance (retards, séance, suivante, terminées en parties distinctes)
+            </label>
+            {!s.separerParEcheance && s.groupBy === 'section' && (
+              <label className="inline">
+                <input type="checkbox" checked={s.sectionsVides} onChange={(e) => set({ sectionsVides: e.target.checked })} />
+                Afficher les sections sans tâche
+              </label>
+            )}
             <label>
               Trier par
               <select value={s.tri} onChange={(e) => set({ tri: e.target.value as PvSettings['tri'] })}>
@@ -271,6 +344,7 @@ export function Pv() {
             <summary>Colonnes</summary>
             {([
               ['sousSection', 'Sous-section'],
+              ['echeance', 'Colonne « Pour » (retard, séance, fait)'],
               ['statut', 'Statut'],
               ['remarque', 'Remarque'],
               ['checklist', 'Checklist sous la tâche'],
@@ -329,6 +403,7 @@ export function Pv() {
           <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`}>
             <header className="pv-head">
               {s.afficherClub && <div className="pv-club"><img src="./icon.svg" alt="" width={22} height={22} /> {s.club}</div>}
+              <p className="pv-kicker">Ordre du jour</p>
               <h1>{titre}</h1>
               {s1 && (
                 <p className="pv-meta">
@@ -355,35 +430,43 @@ export function Pv() {
 
             {s.parts.ordreDuJour && s1?.ordreDuJour && (
               <section>
-                <h2>Ordre du jour</h2>
+                <h2>Points particuliers</h2>
                 <pre className="pv-odj">{s1.ordreDuJour}</pre>
               </section>
             )}
 
-            {parts.map((part) => (
-              <section key={part.key} className="pv-part">
-                <h2>{part.titre} <span className="pv-count">{part.tasks.length}</span></h2>
-                {part.tasks.length === 0 ? (
+            {!s.separerParEcheance ? (
+              <section className="pv-part">
+                <h2>Suivi des tâches par {s.groupBy === 'responsable' ? 'responsable' : 'section'} <span className="pv-count">{unified.length}</span></h2>
+                {summary && <p className="pv-summary">{summary}</p>}
+                {unifiedGroups.length === 0 ? (
                   <p className="pv-empty">Aucune tâche.</p>
                 ) : (
-                  group(part.tasks).map((g) => (
+                  unifiedGroups.map((g) => (
                     <div key={g.key} className="pv-group">
                       {g.label && <h3>{g.label}</h3>}
-                      <table className="pv-table">
-                        <thead><tr>{cols.map((c) => <th key={c.k} className={`c-${c.k}`}>{c.k === 'delai' && part.bilan ? 'Terminée' : c.label}</th>)}</tr></thead>
-                        <tbody>
-                          {g.tasks.map((t) => (
-                            <tr key={t.id} className={!part.bilan && isLate(data, t) ? 'pv-late' : ''}>
-                              {cols.map((c) => <td key={c.k} className={`c-${c.k}`}>{cell(t, c.k, part.bilan)}</td>)}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                      {g.tasks.length ? table(g.tasks) : <p className="pv-empty">Rien à signaler.</p>}
                     </div>
                   ))
                 )}
               </section>
-            ))}
+            ) : (
+              parts.map((part) => (
+                <section key={part.key} className="pv-part">
+                  <h2>{part.titre} <span className="pv-count">{part.tasks.length}</span></h2>
+                  {part.tasks.length === 0 ? (
+                    <p className="pv-empty">Aucune tâche.</p>
+                  ) : (
+                    group(part.tasks).map((g) => (
+                      <div key={g.key} className="pv-group">
+                        {g.label && <h3>{g.label}</h3>}
+                        {table(g.tasks, part.bilan)}
+                      </div>
+                    ))
+                  )}
+                </section>
+              ))
+            )}
 
             {s.parts.notes && (
               <section className="pv-part">

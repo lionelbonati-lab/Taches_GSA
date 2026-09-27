@@ -23,8 +23,8 @@ Connexion par simple clic sur un nom (sans mot de passe) :
 
 | Qui | Rôle(s) |
 |---|---|
-| Lionel B. (Président) | Admin – tout, dont la console admin et la Création du PV |
-| Maxime R. (Secrétaire) | Secrétaire – voit/gère tout sauf console admin, listes et PV |
+| Lionel B. (Président) | Admin – tout, dont la console admin et l'Ordre du jour |
+| Maxime R. (Secrétaire) | Secrétaire – voit/gère tout sauf console admin, listes et Ordre du jour |
 | Marie-France J. (Caissier) | Comité **+** Caissier (gère toutes les tâches de Comptabilité) |
 | Damien, Christophe, Ismaël, Noah, Stéphanie | Comité – voit tout, modifie ses propres tâches |
 | Dieter, Clément, Christian, Romain, Heinz, Sarah, Jérôme, Aude, Mèg, Alphonse | Responsable d'activité – uniquement ses propres tâches |
@@ -59,16 +59,16 @@ Le délai **suit ensuite automatiquement** la date : si le tournoi est déplacé
 Champ **Répétition** d'une tâche : chaque semaine, mois, trimestre, semestre ou année (repère 🔁, filtre « Tâches récurrentes »).
 Quand la tâche passe à un statut de clôture (« Terminé »), la suivante est **créée automatiquement** avec le délai décalé, le statut « À faire » et la checklist remise à zéro. Elle est attribuée **au poste** (ex. Trésorier) : si le titulaire a changé entre-temps, elle va à son successeur. Une tâche rouverte puis refermée ne crée pas de doublon.
 
-## Création du PV
+## Ordre du jour
 
-Onglet **📝 Création du PV** (droit « Onglet Création du PV », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare un document A4 pour la **prochaine séance et la suivante**, sur le modèle des PV du club :
+Onglet **📝 Ordre du jour** (droit « Onglet Ordre du jour », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare le document A4 de la **prochaine séance**, sur le modèle des ordres du jour du club :
 
 - en-tête : séance, date, heure de début, lieu, **convoqués** (avec initiales) et tableau **Présent / Excusé** à cocher ;
-- ordre du jour de la séance (si saisi dans l'onglet Comité) ;
-- **tâches en retard**, **à faire d'ici la séance**, **à faire d'ici la séance suivante**, **bilan** des tâches terminées depuis la séance précédente ;
-- regroupement par section (comme l'ordre du jour), par responsable ou sans regroupement ; colonne vide « Suivi / décision » et cadre de notes à remplir pendant la séance ; prochaine séance en pied de page.
+- points particuliers saisis dans la séance (onglet Comité) ;
+- **toutes les tâches sous chaque section**, dans l'ordre des sous-sections : en retard, à faire pour la séance, pour la séance suivante et terminées depuis la séance précédente, ensemble ; colonne **« Pour »** (⚠ Retard, Comité 5, Comité 6, ✓ Fait) ; sections sans tâche affichées « Rien à signaler » ;
+- colonne vide « Suivi / décision », cadre de notes, prochaine séance en pied de page.
 
-Réglages (mémorisés) : séances, parties affichées, regroupement et tri, colonnes, statuts et sections inclus, titre, nom du club, orientation, taille du texte.
+Réglages (mémorisés) : séances, éléments inclus, regroupement (section, responsable, aucun) et tri, option « Séparer par échéance » (retards / séance / suivante / terminées en parties distinctes), colonnes, statuts et sections inclus, titre, nom du club, orientation, taille du texte.
 Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans l'onglet Comité), **Envoyer par email** aux membres du comité, **Copier le texte** (pour WhatsApp, Word…).
 
 ## Notifications (démo)
@@ -79,7 +79,7 @@ Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de n
 - ✏️ une de tes tâches est modifiée par quelqu'un d'autre (statut, délai, contenu) ; 🔁 tâche récurrente reconduite ;
 - ⏰ échéance proche (le jour même à 14 jours avant, réglable) ;
 - ⚠️ résumé quotidien de tes tâches en retard ;
-- 🗓️ prochaine séance de comité (et « PV disponible » s'il a été archivé).
+- 🗓️ prochaine séance de comité (et « ordre du jour disponible » s'il a été archivé).
 
 Un clic ouvre directement la tâche (ou la liste filtrée / l'onglet Comité). Réglages → Notifications : choix des types, délais de prévenance, et **notifications de l'appareil** (téléphone / ordinateur, après autorisation) avec un bouton de test.
 

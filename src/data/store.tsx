@@ -6,7 +6,7 @@ import type { ActivityNotif, AppData, Permission, Person, Prefs, Role, Section, 
 
 // Couche de données de la démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Pour passer à une vraie base (ex. Supabase), seul ce fichier devra être remplacé.
-const KEY = 'taches-gsa-demo-v4';
+const KEY = 'taches-gsa-demo-v5';
 const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
@@ -114,7 +114,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
       task.postesResp = postesFor(data, task, before);
 
-      // Date de clôture (pour le bilan du PV).
+      // Date de clôture (pour le bilan de l'ordre du jour).
       if (!isDone(data, task)) task.termineeLe = undefined;
       else if (!(before && isDone(data, before))) task.termineeLe = new Date().toISOString().slice(0, 10);
 

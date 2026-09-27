@@ -270,7 +270,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   .bell-panel { position: fixed; left: 8px; right: 8px; width: auto; top: calc(56px + env(safe-area-inset-top)); max-height: calc(100vh - 150px); }
 }
 
-/* ---------- Création du PV ---------- */
+/* ---------- Ordre du jour (document imprimable) ---------- */
 .pv-layout { display: grid; grid-template-columns: 290px 1fr; gap: 20px; align-items: start; }
 .pv-settings { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; box-shadow: var(--shadow); }
 .pv-settings details { border-bottom: 1px solid var(--border); padding: 6px 0 10px; }
@@ -293,7 +293,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-sheet.t-grande { font-size: 12pt; }
 .pv-head { border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; margin-bottom: 10px; }
 .pv-club { display: flex; align-items: center; gap: 8px; color: #1d4ed8; font-weight: 700; font-size: 0.9em; }
-.pv-sheet h1 { font-size: 1.9em; margin: 4px 0 2px; color: #111; }
+.pv-kicker { margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8em; font-weight: 700; color: #64748b; }
+.pv-sheet h1 { font-size: 1.9em; margin: 0 0 2px; color: #111; }
 .pv-sheet h2 { font-size: 1.2em; margin: 16px 0 6px; color: #1d4ed8; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; }
 .pv-sheet h3 { font-size: 1em; margin: 10px 0 4px; color: #111; text-transform: uppercase; letter-spacing: 0.03em; }
 .pv-meta { margin: 0; color: #333; }
@@ -311,6 +312,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-table .c-rem { width: 17%; color: #334155; font-size: 0.92em; }
 .pv-table .c-suivi { width: 18%; }
 .pv-table tr.pv-late td { background: #fff1f2; }
+.pv-table tr.pv-done td { color: #64748b; }
+.pv-table .c-pour { width: 10%; white-space: nowrap; font-size: 0.9em; }
+.pv-summary { margin: 0 0 6px; color: #334155; font-weight: 600; }
 .pv-presence { width: auto; min-width: 60%; }
 .pv-presence .pv-box { text-align: center; font-size: 1.2em; width: 70px; }
 .pv-checklist { display: block; color: #475569; font-size: 0.88em; }

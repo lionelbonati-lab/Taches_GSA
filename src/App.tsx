@@ -23,7 +23,8 @@ export function App() {
           {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
           {can('tab.events') && <Route path="evenements" element={<Events />} />}
           {can('tab.people') && <Route path="responsables" element={<People />} />}
-          {can('tab.pv') && <Route path="pv" element={<Pv />} />}
+          {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
+          <Route path="pv" element={<Navigate to="/ordre-du-jour" replace />} />
           <Route path="reglages" element={<Settings />} />
           {can('admin.access') && <Route path="admin" element={<Admin />} />}
           <Route path="*" element={<Navigate to="/" replace />} />
