@@ -1,0 +1,96 @@
+import { useEffect, useState } from 'react';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
+import { useStore } from '../data/store';
+import { roleLabel } from '../data/permissions';
+import type { Permission } from '../data/types';
+import { TaskModal, newTask } from './TaskModal';
+import { Avatar } from './ui';
+
+export const TABS: { to: string; label: string; icon: string; perm?: Permission; mobile?: boolean }[] = [
+  { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
+  { to: '/taches', label: 'Tâches', icon: '✅', mobile: true },
+  { to: '/comite', label: 'Comité', icon: '🗓️', mobile: true },
+  { to: '/evenements', label: 'Événements', icon: '🎉', mobile: true },
+  { to: '/responsables', label: 'Responsables', icon: '👥' },
+  { to: '/reglages', label: 'Réglages', icon: '⚙️' },
+  { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access' },
+];
+
+export function Layout() {
+  const { user, can, login, prefs } = useStore();
+  const [quick, setQuick] = useState(false);
+  const [menu, setMenu] = useState(false);
+  const loc = useLocation();
+  useEffect(() => setMenu(false), [loc.pathname]);
+
+  useEffect(() => {
+    const dark = prefs.theme === 'sombre' || (prefs.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  }, [prefs.theme]);
+
+  if (!user) return null;
+  const tabs = TABS.filter((t) => !t.perm || can(t.perm));
+
+  return (
+    <div className="app">
+      <header className="topbar">
+        <div className="brand">
+          <img src="./icon.svg" alt="" width={28} height={28} />
+          <span>Tâches GSA</span>
+          <span className="demo-tag">DÉMO</span>
+        </div>
+        <nav className="tabs">
+          {tabs.map((t) => (
+            <NavLink key={t.to} to={t.to} end={t.to === '/'}>{t.label}</NavLink>
+          ))}
+        </nav>
+        <div className="who">
+          <Avatar id={user.id} size={32} />
+          <div className="who-text">
+            <strong>{user.prenom} {user.nom}</strong>
+            <small>{user.poste} · {roleLabel(user.role)}</small>
+          </div>
+          <button className="btn small" onClick={() => login(null)} title="Changer d'utilisateur">Changer</button>
+        </div>
+      </header>
+
+      <main className="content">
+        <Outlet />
+      </main>
+
+      <button className="fab" onClick={() => setQuick(true)} aria-label="Ajout rapide de tâche">+</button>
+
+      <nav className="bottomnav">
+        {tabs.filter((t) => t.mobile).map((t) => (
+          <NavLink key={t.to} to={t.to} end={t.to === '/'}>
+            <span>{t.icon}</span>
+            {t.label}
+          </NavLink>
+        ))}
+        <button className={menu ? 'active' : ''} onClick={() => setMenu(!menu)}>
+          <span>☰</span>Plus
+        </button>
+      </nav>
+      {menu && (
+        <div className="sheet-back" onClick={() => setMenu(false)}>
+          <div className="sheet" onClick={(e) => e.stopPropagation()}>
+            <div className="sheet-user">
+              <Avatar id={user.id} size={40} />
+              <div>
+                <strong>{user.prenom} {user.nom}</strong>
+                <br />
+                <small>{user.poste} · {roleLabel(user.role)}</small>
+              </div>
+            </div>
+            {tabs.filter((t) => !t.mobile).map((t) => (
+              <NavLink key={t.to} to={t.to} className="sheet-link">{t.icon} {t.label}</NavLink>
+            ))}
+            <button className="sheet-link" onClick={() => login(null)}>🔄 Changer d'utilisateur</button>
+          </div>
+        </div>
+      )}
+
+      {quick && <TaskModal quick isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
+    </div>
+  );
+}
