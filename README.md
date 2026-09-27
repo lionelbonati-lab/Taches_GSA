@@ -1,5 +1,7 @@
 # Tâches GSA – démo
 
+👉 **Version en ligne : https://lionelbonati-lab.github.io/Taches_GSA/** (installable sur ordinateur et téléphone)
+
 Application de démonstration pour gérer les tâches du comité du club.
 **Aucune base de données** : les données sont fictives et les modifications sont gardées uniquement dans le navigateur (localStorage). Le bouton « Réinitialiser la démo » (écran de connexion ou Réglages) recharge les données d'origine.
 
@@ -57,7 +59,15 @@ L'application peut s'installer comme une vraie appli (icône, fenêtre dédiée,
 
 Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche** et **Mes tâches**.
 
-⚠️ Les navigateurs n'autorisent l'installation que depuis une adresse **https://** (ou `localhost` sur l'ordinateur qui fait tourner l'appli). Pour tester sur ordinateur : `npm run build && npm run preview` puis ouvrir http://localhost:4173. Pour l'installer sur un téléphone, il faut publier le dossier `dist/` sur un hébergement HTTPS (GitHub Pages, Netlify, Vercel…).
+L'installation n'est possible que depuis une adresse **https://** : utilise la version en ligne ci-dessus (ou `npm run build && npm run preview` puis http://localhost:4173 sur l'ordinateur qui fait tourner l'appli).
+
+## Publication (GitHub Pages)
+
+Le workflow `.github/workflows/deploy-pages.yml` construit et publie l'application à chaque push sur la branche principale ; on peut aussi le relancer à la main (onglet **Actions › Publication GitHub Pages › Run workflow**). L'application installée se met à jour d'elle-même au lancement suivant.
+
+Réglages GitHub nécessaires (une seule fois) :
+1. **Settings › General › Danger Zone › Change visibility › Public** (Pages n'est pas disponible sur un dépôt privé avec un compte gratuit).
+2. **Settings › Pages › Build and deployment › Source : GitHub Actions**.
 
 ## Pour la suite
 
