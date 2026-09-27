@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import { rolesLabel } from '../data/permissions';
 import type { Permission } from '../data/types';
 import { TaskModal, newTask } from './TaskModal';
-import { Avatar } from './ui';
+import { Avatar, Toast } from './ui';
 import { InstallButton } from './InstallButton';
 
 export const TABS: { to: string; label: string; icon: string; perm?: Permission; mobile?: boolean }[] = [
@@ -101,6 +101,7 @@ export function Layout() {
         </div>
       )}
 
+      <Toast />
       {quick && <TaskModal quick isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
     </div>
   );

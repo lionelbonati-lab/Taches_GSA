@@ -55,6 +55,7 @@ export function Meetings() {
         <ItemModal
           title="Séance de comité"
           item={edit}
+          note={linkedNote(data.tasks.filter((t) => t.meetingId === edit.id && t.delaiRef?.type === 'meeting').length)}
           fields={[['titre', 'Titre', 'text'], ['date', 'Date', 'date'], ['lieu', 'Lieu', 'text'], ['ordreDuJour', 'Ordre du jour', 'area'], ['notes', 'Notes / PV', 'area']]}
           onSave={save}
           onDelete={data.meetings.some((x) => x.id === edit.id) ? remove : undefined}
@@ -109,6 +110,7 @@ export function Events() {
         <ItemModal
           title="Événement"
           item={edit}
+          note={linkedNote(data.tasks.filter((t) => t.eventId === edit.id && t.delaiRef?.type === 'event').length)}
           fields={[['nom', 'Événement', 'text'], ['date', 'Date', 'date'], ['lieu', 'Lieu', 'text'], ['description', 'Description', 'area']]}
           onSave={save}
           onDelete={data.events.some((x) => x.id === edit.id) ? remove : undefined}
@@ -118,6 +120,9 @@ export function Events() {
     </div>
   );
 }
+
+const linkedNote = (n: number) =>
+  n ? `🔗 ${n} tâche(s) ont un délai lié à cette date : si tu la changes, leurs délais suivront automatiquement.` : undefined;
 
 function DateBlock({ date }: { date: string }) {
   const d = new Date(date + 'T12:00:00');
@@ -130,8 +135,9 @@ function DateBlock({ date }: { date: string }) {
   );
 }
 
-export function ItemModal<T extends { id: string }>({ title, item, fields, onSave, onDelete, onClose }: {
+export function ItemModal<T extends { id: string }>({ title, item, fields, onSave, onDelete, onClose, note }: {
   title: string;
+  note?: string;
   item: T;
   fields: [keyof T & string, string, 'text' | 'date' | 'area' | 'email' | 'tel'][];
   onSave: (t: T) => void;
@@ -159,6 +165,7 @@ export function ItemModal<T extends { id: string }>({ title, item, fields, onSav
           </label>
         ))}
       </div>
+      {note && <p className="muted">{note}</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         {onDelete && <button className="btn danger" onClick={() => { if (confirm('Supprimer définitivement ?')) { onDelete(item); onClose(); } }}>Supprimer</button>}

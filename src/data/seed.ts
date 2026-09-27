@@ -1,5 +1,6 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
-import type { AppData, ChecklistItem, Role, Task } from './types';
+import type { AppData, ChecklistItem, DelaiRef, Recurrence, Role, Task } from './types';
+import { applyDelaiRef, postesOf } from './utils';
 
 // Les dates sont calculées par rapport à aujourd'hui pour que la démo reste « vivante ».
 const d = (offset: number) => {
@@ -129,12 +130,50 @@ const tasks: Task[] = rows.map(([sectionId, sousSection, titre, responsables, st
   updatedAt: new Date(Date.now() - (rows.length - i) * 3600_000 * 7).toISOString(),
 }));
 
+// Délais liés à la date d'un événement / d'une séance (jours avant).
+const LINKED: Record<string, DelaiRef> = {
+  'Envoyer la convocation à l’AG': { type: 'event', joursAvant: 20 },
+  'Préparer le rapport du président': { type: 'event', joursAvant: 7 },
+  'Réviser l’article 12 des statuts': { type: 'event', joursAvant: 3 },
+  'Campagne Instagram tournoi d’automne': { type: 'event', joursAvant: 14 },
+  'Organiser le tableau du tournoi': { type: 'event', joursAvant: 7 },
+  'Réserver tentes et tables tournoi': { type: 'event', joursAvant: 21 },
+  'Planning des bénévoles tournoi': { type: 'event', joursAvant: 14 },
+  'Commander les boissons buvette': { type: 'event', joursAvant: 7 },
+  'Choisir le traiteur soirée annuelle': { type: 'event', joursAvant: 30 },
+  'Communiqué de presse soirée annuelle': { type: 'event', joursAvant: 7 },
+  'Trouver des bénévoles marché de Noël': { type: 'event', joursAvant: 21 },
+  'Organiser le camp d’entraînement': { type: 'event', joursAvant: 30 },
+  'Devis rénovation des vestiaires': { type: 'meeting', joursAvant: 3 },
+  'Planning des entraînements d’hiver': { type: 'meeting', joursAvant: 7 },
+};
+
+// Tâches qui reviennent régulièrement.
+const RECURRING: Record<string, Recurrence> = {
+  'Envoyer la convocation à l’AG': 'annuelle',
+  'Préparer le rapport du président': 'annuelle',
+  'Finaliser le budget prévisionnel': 'annuelle',
+  'Renouveler l’assurance RC': 'annuelle',
+  'Relancer les cotisations impayées': 'trimestrielle',
+  'Déposer la demande de subvention communale': 'annuelle',
+  'Rédiger la newsletter mensuelle': 'mensuelle',
+  'Mettre à jour le calendrier sur le site': 'mensuelle',
+  'Inventaire du matériel': 'annuelle',
+  'Planning des entraînements d’hiver': 'annuelle',
+};
+
 export function makeSeed(): AppData {
+  const base = { people, events, meetings } as AppData;
+  const seeded = tasks.map((t) => {
+    const x: Task = { ...t, delaiRef: LINKED[t.titre], recurrence: RECURRING[t.titre] };
+    if (x.recurrence) x.postesResp = postesOf(base, x.responsables);
+    return applyDelaiRef(base, x);
+  });
   return {
     people,
     statuses,
     sections,
-    tasks,
+    tasks: seeded,
     meetings,
     events,
     roles: structuredClone(roles),

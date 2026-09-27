@@ -57,6 +57,15 @@ export interface ChecklistItem {
   done: boolean;
 }
 
+export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle';
+
+/** Délai calculé à partir de la date de l'événement (eventId) ou de la séance (meetingId) liés. */
+export interface DelaiRef {
+  type: 'event' | 'meeting';
+  /** Nombre de jours avant la date de référence (négatif = après). */
+  joursAvant: number;
+}
+
 export interface Task {
   id: string;
   sectionId: string;
@@ -69,6 +78,12 @@ export interface Task {
   eventId?: string;
   meetingId?: string;
   checklist: ChecklistItem[];
+  delaiRef?: DelaiRef;
+  recurrence?: Recurrence;
+  /** Postes des responsables : l'occurrence suivante va à la personne qui occupe alors le poste. */
+  postesResp?: string[];
+  /** Occurrence suivante déjà créée (évite les doublons si on rouvre puis referme la tâche). */
+  suivanteId?: string;
   createdBy: string;
   updatedAt: string;
 }

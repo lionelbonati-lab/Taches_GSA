@@ -1,7 +1,7 @@
 import { useEffect, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
-import { initials, isLate, fullName } from '../data/utils';
+import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -45,4 +45,26 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
 
 export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
+}
+
+/** Petits repères : 🔁 tâche récurrente, 🔗 délai lié à un événement / une séance. */
+export function RecurIcon({ task }: { task: Task }) {
+  return task.recurrence ? <span className="ticon" title={`Tâche récurrente : ${recurrenceLabel(task.recurrence).toLowerCase()}`}>🔁</span> : null;
+}
+
+export function LinkIcon({ task }: { task: Task }) {
+  const { data } = useStore();
+  const target = delaiTarget(data, task);
+  if (!target || !task.delaiRef) return null;
+  return <span className="ticon" title={`${offsetLabel(task.delaiRef.joursAvant)} « ${target.nom} » (${fmtDate(target.date)})`}>🔗</span>;
+}
+
+export function Toast() {
+  const { toast, setToast } = useStore();
+  useEffect(() => {
+    if (!toast) return;
+    const id = setTimeout(() => setToast(null), 6000);
+    return () => clearTimeout(id);
+  }, [toast, setToast]);
+  return toast ? <div className="toast" role="status" onClick={() => setToast(null)}>{toast}</div> : null;
 }

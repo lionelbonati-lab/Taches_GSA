@@ -1,11 +1,12 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { makeSeed } from './seed';
 import { hasPermission, userRoles } from './permissions';
+import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor } from './utils';
 import type { AppData, Permission, Person, Prefs, Role, Section, Task } from './types';
 
 // Couche de données de la démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Pour passer à une vraie base (ex. Supabase), seul ce fichier devra être remplacé.
-const KEY = 'taches-gsa-demo-v2';
+const KEY = 'taches-gsa-demo-v3';
 const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
@@ -39,6 +40,9 @@ interface Store {
   update: (fn: (d: AppData) => void, action: string) => void;
   setPrefs: (p: Partial<Prefs>) => void;
   saveTask: (t: Task, isNew: boolean) => void;
+  /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
+  toast: string | null;
+  setToast: (msg: string | null) => void;
   reset: () => void;
 }
 
@@ -46,6 +50,7 @@ const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [data, setData] = useState<AppData>(load);
+  const [toast, setToast] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(() => {
     try {
       return localStorage.getItem(USER_KEY);
@@ -80,6 +85,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       setData((prev) => {
         const next = structuredClone(prev);
         fn(next);
+        // Les délais liés suivent automatiquement la date de leur événement / séance.
+        next.tasks = next.tasks.map((t) => applyDelaiRef(next, t));
         next.log.unshift({ id: `l${Date.now()}${Math.random()}`, at: new Date().toISOString(), userId: userId ?? '?', action });
         next.log = next.log.slice(0, 300);
         return next;
@@ -100,13 +107,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const saveTask = useCallback(
     (t: Task, isNew: boolean) => {
-      const task = { ...t, updatedAt: new Date().toISOString() };
-      update((d) => {
-        if (isNew) d.tasks.unshift(task);
-        else d.tasks = d.tasks.map((x) => (x.id === task.id ? task : x));
-      }, `${isNew ? 'Création' : 'Modification'} de la tâche « ${t.titre} »`);
+      const task: Task = { ...t, updatedAt: new Date().toISOString() };
+      const before = data.tasks.find((x) => x.id === task.id);
+      // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
+      task.postesResp = postesFor(data, task, before);
+
+      // Clôture d'une tâche récurrente → création de l'occurrence suivante.
+      let next: Task | undefined;
+      if (task.recurrence && !task.suivanteId && isDone(data, task) && !(before && isDone(data, before))) {
+        next = nextOccurrence(data, task);
+        task.suivanteId = next.id;
+      }
+
+      const who = next?.responsables.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
+      update(
+        (d) => {
+          if (isNew) d.tasks.unshift(task);
+          else d.tasks = d.tasks.map((x) => (x.id === task.id ? task : x));
+          if (next) d.tasks.unshift(next);
+        },
+        `${isNew ? 'Création' : 'Modification'} de la tâche « ${t.titre} »` +
+          (next ? ` — tâche récurrente : prochaine occurrence le ${fmtDate(next.delai)} pour ${who}` : ''),
+      );
+      if (next) setToast(`🔁 Tâche récurrente reconduite au ${fmtDate(next.delai)} · ${who}`);
     },
-    [update],
+    [update, data],
   );
 
   const reset = useCallback(() => {
@@ -131,6 +156,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     update,
     setPrefs,
     saveTask,
+    toast,
+    setToast,
     reset,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -235,6 +235,17 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .role-pill { font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; color: #fff; font-weight: 600; white-space: nowrap; }
 .role-pill.off { background: var(--surface2); color: var(--muted); }
 
+/* ---------- Délais liés / récurrence ---------- */
+.ticon { font-size: 0.85em; cursor: help; }
+.delai-calc { color: var(--primary); font-weight: 600; }
+.recur-note { margin: 0; background: var(--primary-soft); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; }
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 60;
+  background: #0f172a; color: #fff; padding: 12px 18px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+  max-width: min(560px, calc(100vw - 32px)); cursor: pointer; font-size: 0.95rem;
+}
+@media (max-width: 767px) { .toast { bottom: calc(80px + env(safe-area-inset-bottom)); } }
+
 /* ---------- Installation (PWA) ---------- */
 .install-help { background: var(--primary-soft); color: var(--text); border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; font-size: 0.9rem; }
 .btn.install { border-color: var(--primary); color: var(--primary); }

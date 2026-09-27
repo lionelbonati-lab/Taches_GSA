@@ -2,9 +2,9 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
-import { daysUntil, fmtDate, fullName, isDone, isLate } from '../data/utils';
+import { daysUntil, fmtDate, fullName, isDone, isLate, recurrenceLabel } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
-import { Avatar, Empty, StatusBadge } from '../components/ui';
+import { Avatar, Empty, LinkIcon, RecurIcon, StatusBadge } from '../components/ui';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
@@ -45,6 +45,8 @@ export function Tasks() {
         if (f.delai === 'passe' && n >= 0) return false;
         if (f.delai === '7' && (n < 0 || n > 7)) return false;
         if (f.delai === '30' && (n < 0 || n > 30)) return false;
+        if (f.delai === 'recurrente' && !t.recurrence) return false;
+        if (f.delai === 'lie' && !t.delaiRef) return false;
       }
       if (q && !`${t.titre} ${t.remarque} ${t.sousSection} ${sectionName(t.sectionId)} ${respNames(t)}`.toLowerCase().includes(q)) return false;
       return true;
@@ -73,10 +75,10 @@ export function Tasks() {
   };
 
   const exportCsv = () => {
-    const head = ['Section', 'Sous-section', 'Tâche', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Remarque'];
+    const head = ['Section', 'Sous-section', 'Tâche', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Répétition', 'Remarque'];
     const rows = list.map((t) => [
       sectionName(t.sectionId), t.sousSection, t.titre, respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
-      data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', t.remarque,
+      data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', recurrenceLabel(t.recurrence), t.remarque,
     ]);
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const a = document.createElement('a');
@@ -147,6 +149,8 @@ export function Tasks() {
           <option value="passe">Délai dépassé</option>
           <option value="7">7 prochains jours</option>
           <option value="30">30 prochains jours</option>
+          <option value="lie">🔗 Délai lié à un événement / une séance</option>
+          <option value="recurrente">🔁 Tâches récurrentes</option>
         </select>
         <label className="inline hide-toggle"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminées</label>
         {activeFilters > 0 && <button className="btn link" onClick={() => setF(EMPTY_FILTERS)}>Effacer</button>}
@@ -176,12 +180,12 @@ export function Tasks() {
                   <td>{sectionName(t.sectionId)}</td>
                   <td className="muted">{t.sousSection}</td>
                   <td>
-                    <strong>{t.titre}</strong>
+                    <strong>{t.titre}</strong> <RecurIcon task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
                   </td>
                   <td><span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={24} />)}</span></td>
                   <td><StatusBadge task={t} /></td>
-                  <td className="nowrap">{fmtDate(t.delai)}</td>
+                  <td className="nowrap">{fmtDate(t.delai)} <LinkIcon task={t} /></td>
                   <td className="muted"><span className="clip">{t.remarque}</span></td>
                 </tr>
               ))}
@@ -201,10 +205,10 @@ export function Tasks() {
                 {col.map((t) => (
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t)} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
-                    <strong>{t.titre}</strong>
+                    <strong>{t.titre} <RecurIcon task={t} /></strong>
                     <div className="kmeta">
                       <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={22} />)}</span>
-                      <span className={isLate(data, t) ? 'late-text' : 'muted'}>{fmtDate(t.delai)}</span>
+                      <span className={isLate(data, t) ? 'late-text' : 'muted'}>{fmtDate(t.delai)} <LinkIcon task={t} /></span>
                     </div>
                   </div>
                 ))}
@@ -231,12 +235,12 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         <small className="muted">{sectionName}{t.sousSection && ` › ${t.sousSection}`}</small>
         <StatusBadge task={t} />
       </div>
-      <strong>{t.titre}</strong>
+      <strong>{t.titre} <RecurIcon task={t} /></strong>
       {t.remarque && <small className="muted clip">{t.remarque}</small>}
       <div className="tcard-bottom">
         <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={24} />)}</span>
         <span className={late ? 'late-text' : 'muted'}>
-          {fmtDate(t.delai)} {late ? `(${-n} j de retard)` : n === 0 ? "(aujourd'hui)" : n > 0 && n <= 7 ? `(J-${n})` : ''}
+          <LinkIcon task={t} /> {fmtDate(t.delai)} {late ? `(${-n} j de retard)` : n === 0 ? "(aujourd'hui)" : n > 0 && n <= 7 ? `(J-${n})` : ''}
         </span>
       </div>
       {editable && (
