@@ -1,4 +1,5 @@
 import { useStore } from '../data/store';
+import { InstallButton } from '../components/InstallButton';
 
 export function Settings() {
   const { prefs, setPrefs, can, reset, login } = useStore();
@@ -31,6 +32,11 @@ export function Settings() {
             <option value="kanban">Kanban</option>
           </select>
         </label>
+      </section>
+      <section className="panel">
+        <h2>Application</h2>
+        <p className="muted">Installe Tâches GSA comme une application sur ton ordinateur ou ton téléphone : icône sur le bureau / l’écran d’accueil, fenêtre dédiée, ouverture même hors connexion.</p>
+        <InstallButton />
       </section>
       <section className="panel">
         <h2>Données de démonstration</h2>

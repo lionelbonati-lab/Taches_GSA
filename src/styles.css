@@ -142,6 +142,18 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .table tr.row-late td:first-child { box-shadow: inset 3px 0 var(--late); }
 .table tr.inactive { opacity: 0.55; }
 .matrix td:first-child { font-weight: 500; }
+.table-scroll { overflow-x: auto; border-radius: var(--radius); box-shadow: var(--shadow); }
+.table-scroll .table { box-shadow: none; }
+.matrix th { vertical-align: bottom; text-transform: none; letter-spacing: 0; min-width: 110px; }
+.matrix tbody tr { cursor: default; }
+.matrix td:first-child, .matrix th:first-child { position: sticky; left: 0; background: var(--surface); z-index: 1; min-width: 200px; }
+.matrix th:first-child { background: var(--surface2); }
+.matrix .group-row td { background: var(--surface2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; padding: 6px 12px; }
+.role-head { border: none; background: none; cursor: pointer; font-weight: 700; color: var(--text); display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; font-size: 0.85rem; }
+.role-head:hover { background: var(--surface); }
+.dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+.scope { display: block; font-weight: 400; font-size: 0.72rem; color: var(--muted); }
+.chip.role-chip.on { color: #fff; }
 
 /* ---------- Cards ---------- */
 .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
@@ -219,9 +231,14 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .login-user:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); }
 .login-user > span:nth-child(2) { flex: 1; display: flex; flex-direction: column; }
 .login-user small { color: var(--muted); }
-.role-pill { font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; background: var(--surface2); color: var(--muted); font-weight: 600; }
-.role-pill.r-admin { background: #fef3c7; color: #92400e; }
-.role-pill.r-secretaire { background: #fce7f3; color: #9d174d; }
+.role-pills { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.role-pill { font-size: 0.72rem; padding: 3px 8px; border-radius: 999px; color: #fff; font-weight: 600; white-space: nowrap; }
+.role-pill.off { background: var(--surface2); color: var(--muted); }
+
+/* ---------- Installation (PWA) ---------- */
+.install-help { background: var(--primary-soft); color: var(--text); border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; font-size: 0.9rem; }
+.btn.install { border-color: var(--primary); color: var(--primary); }
+.sheet .install-help { margin: 0 10px 8px; }
 
 /* ---------- Mobile ---------- */
 .fab, .bottomnav, .mobile-only, .sheet-back { display: none; }
@@ -242,6 +259,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   .kanban { grid-auto-columns: 82%; }
   .table { font-size: 0.85rem; }
   .table th, .table td { padding: 8px 6px; }
+  .matrix td:first-child, .matrix th:first-child { min-width: 140px; max-width: 150px; }
+  .matrix th { min-width: 96px; }
   .modal-back { align-items: flex-end; padding: 0; }
   .modal, .modal.wide { max-width: none; border-radius: 16px 16px 0 0; max-height: 94vh; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
 

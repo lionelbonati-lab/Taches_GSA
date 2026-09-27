@@ -1,9 +1,24 @@
 {
+  "id": "./",
   "name": "Tâches GSA – Comité",
   "short_name": "Tâches GSA",
+  "description": "Gestion des tâches du comité du club (démo).",
+  "lang": "fr",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "orientation": "any",
+  "background_color": "#f4f6fa",
   "theme_color": "#1d4ed8",
-  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+  "categories": ["productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "Ajout rapide d'une tâche", "short_name": "Nouvelle tâche", "url": "./#/?ajout=1", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Mes tâches", "short_name": "Mes tâches", "url": "./#/taches", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
 }

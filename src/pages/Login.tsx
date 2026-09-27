@@ -1,6 +1,7 @@
 import { useStore } from '../data/store';
-import { roleLabel } from '../data/permissions';
+import { userRoles } from '../data/permissions';
 import { Avatar } from '../components/ui';
+import { InstallButton } from '../components/InstallButton';
 
 export function Login() {
   const { data, login, reset } = useStore();
@@ -18,10 +19,15 @@ export function Login() {
                 <strong>{p.prenom} {p.nom}</strong>
                 <small>{p.poste}</small>
               </span>
-              <span className={`role-pill r-${p.role}`}>{p.actif ? roleLabel(p.role) : 'Désactivé'}</span>
+              <span className="role-pills">
+                {p.actif
+                  ? userRoles(data.roles, p).map((r) => <span key={r.id} className="role-pill" style={{ background: r.couleur }}>{r.label}</span>)
+                  : <span className="role-pill off">Désactivé</span>}
+              </span>
             </button>
           ))}
         </div>
+        <InstallButton variant="compact" hideWhenUnavailable />
         <button className="btn link" onClick={() => confirm('Réinitialiser toutes les données de démonstration ?') && reset()}>Réinitialiser la démo</button>
       </div>
     </div>

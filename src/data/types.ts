@@ -1,10 +1,14 @@
-export type RoleId = 'admin' | 'secretaire' | 'comite';
+export type RoleId = string;
 
 export type Permission =
   | 'tasks.viewAll'
   | 'tasks.createAny'
   | 'tasks.editAny'
   | 'tasks.editOwn'
+  | 'tasks.delete'
+  | 'tab.meetings'
+  | 'tab.events'
+  | 'tab.people'
   | 'meetings.manage'
   | 'events.manage'
   | 'people.manage'
@@ -18,9 +22,20 @@ export interface Person {
   prenom: string;
   email: string;
   telephone: string;
-  role: RoleId;
+  roles: RoleId[];
   actif: boolean;
   couleur: string;
+}
+
+export interface Role {
+  id: RoleId;
+  label: string;
+  couleur: string;
+  permissions: Permission[];
+  /** Sections sur lesquelles portent les droits « tâches » du rôle. Vide = toutes. */
+  sections: string[];
+  /** Rôle système (Admin) : non modifiable, non supprimable. */
+  locked?: boolean;
 }
 
 export interface Status {
@@ -95,7 +110,7 @@ export interface AppData {
   tasks: Task[];
   meetings: Meeting[];
   events: ClubEvent[];
-  permissions: Record<RoleId, Permission[]>;
+  roles: Role[];
   log: LogEntry[];
   prefs: Record<string, Prefs>;
 }

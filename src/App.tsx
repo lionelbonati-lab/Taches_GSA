@@ -19,9 +19,9 @@ export function App() {
           <Route index element={<Dashboard />} />
           {/* La clé force la remise à zéro des filtres quand on arrive via un lien ?event=… */}
           <Route path="taches" element={<TasksRoute />} />
-          <Route path="comite" element={<Meetings />} />
-          <Route path="evenements" element={<Events />} />
-          <Route path="responsables" element={<People />} />
+          {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
+          {can('tab.events') && <Route path="evenements" element={<Events />} />}
+          {can('tab.people') && <Route path="responsables" element={<People />} />}
           <Route path="reglages" element={<Settings />} />
           {can('admin.access') && <Route path="admin" element={<Admin />} />}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,5 +1,5 @@
-import { DEFAULT_PERMISSIONS } from './permissions';
-import type { AppData, ChecklistItem, Task } from './types';
+import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
+import type { AppData, ChecklistItem, Role, Task } from './types';
 
 // Les dates sont calculées par rapport à aujourd'hui pour que la démo reste « vivante ».
 const d = (offset: number) => {
@@ -9,15 +9,25 @@ const d = (offset: number) => {
 };
 
 const people: AppData['people'] = [
-  { id: 'p1', poste: 'Président', nom: 'Rochat', prenom: 'Marc', email: 'marc.rochat@gsa-club.ch', telephone: '079 412 33 10', role: 'admin', actif: true, couleur: '#1d4ed8' },
-  { id: 'p2', poste: 'Vice-présidente', nom: 'Favre', prenom: 'Sophie', email: 'sophie.favre@gsa-club.ch', telephone: '078 655 21 04', role: 'comite', actif: true, couleur: '#7c3aed' },
-  { id: 'p3', poste: 'Secrétaire', nom: 'Dubois', prenom: 'Claire', email: 'claire.dubois@gsa-club.ch', telephone: '076 318 90 22', role: 'secretaire', actif: true, couleur: '#db2777' },
-  { id: 'p4', poste: 'Trésorier', nom: 'Meylan', prenom: 'Julien', email: 'julien.meylan@gsa-club.ch', telephone: '079 201 45 67', role: 'comite', actif: true, couleur: '#059669' },
-  { id: 'p5', poste: 'Responsable sportif', nom: 'Bonvin', prenom: 'Luca', email: 'luca.bonvin@gsa-club.ch', telephone: '077 540 12 88', role: 'comite', actif: true, couleur: '#ea580c' },
-  { id: 'p6', poste: 'Responsable communication', nom: 'Pittet', prenom: 'Emma', email: 'emma.pittet@gsa-club.ch', telephone: '078 902 67 31', role: 'comite', actif: true, couleur: '#0891b2' },
-  { id: 'p7', poste: 'Responsable manifestations', nom: 'Girard', prenom: 'Nicolas', email: 'nicolas.girard@gsa-club.ch', telephone: '079 733 04 59', role: 'comite', actif: true, couleur: '#ca8a04' },
-  { id: 'p8', poste: 'Responsable infrastructures', nom: 'Morel', prenom: 'Thomas', email: 'thomas.morel@gsa-club.ch', telephone: '076 488 16 70', role: 'comite', actif: true, couleur: '#475569' },
-  { id: 'p9', poste: 'Ancien membre', nom: 'Perrin', prenom: 'Anne', email: 'anne.perrin@gsa-club.ch', telephone: '078 111 22 33', role: 'comite', actif: false, couleur: '#94a3b8' },
+  { id: 'p1', poste: 'Président', nom: 'Rochat', prenom: 'Marc', email: 'marc.rochat@gsa-club.ch', telephone: '079 412 33 10', roles: ['admin'], actif: true, couleur: '#1d4ed8' },
+  { id: 'p2', poste: 'Vice-présidente', nom: 'Favre', prenom: 'Sophie', email: 'sophie.favre@gsa-club.ch', telephone: '078 655 21 04', roles: ['comite'], actif: true, couleur: '#7c3aed' },
+  { id: 'p3', poste: 'Secrétaire', nom: 'Dubois', prenom: 'Claire', email: 'claire.dubois@gsa-club.ch', telephone: '076 318 90 22', roles: ['secretaire'], actif: true, couleur: '#db2777' },
+  { id: 'p4', poste: 'Trésorier', nom: 'Meylan', prenom: 'Julien', email: 'julien.meylan@gsa-club.ch', telephone: '079 201 45 67', roles: ['comite', 'tresorier'], actif: true, couleur: '#059669' },
+  { id: 'p5', poste: 'Responsable sportif', nom: 'Bonvin', prenom: 'Luca', email: 'luca.bonvin@gsa-club.ch', telephone: '077 540 12 88', roles: ['comite'], actif: true, couleur: '#ea580c' },
+  { id: 'p6', poste: 'Responsable communication', nom: 'Pittet', prenom: 'Emma', email: 'emma.pittet@gsa-club.ch', telephone: '078 902 67 31', roles: ['comite'], actif: true, couleur: '#0891b2' },
+  { id: 'p7', poste: 'Responsable manifestations', nom: 'Girard', prenom: 'Nicolas', email: 'nicolas.girard@gsa-club.ch', telephone: '079 733 04 59', roles: ['comite'], actif: true, couleur: '#ca8a04' },
+  { id: 'p8', poste: 'Responsable infrastructures', nom: 'Morel', prenom: 'Thomas', email: 'thomas.morel@gsa-club.ch', telephone: '076 488 16 70', roles: ['comite'], actif: true, couleur: '#475569' },
+  { id: 'p10', poste: 'Bénévole buvette', nom: 'Rey', prenom: 'Léa', email: 'lea.rey@gsa-club.ch', telephone: '079 820 55 41', roles: ['benevole'], actif: true, couleur: '#be123c' },
+  { id: 'p9', poste: 'Ancien membre', nom: 'Perrin', prenom: 'Anne', email: 'anne.perrin@gsa-club.ch', telephone: '078 111 22 33', roles: ['comite'], actif: false, couleur: '#94a3b8' },
+];
+
+const roles: Role[] = [
+  { id: ADMIN_ROLE_ID, label: 'Admin (Président)', couleur: '#b45309', permissions: ALL_PERMISSIONS, sections: [], locked: true },
+  { id: 'secretaire', label: 'Secrétaire', couleur: '#be185d', permissions: ALL_PERMISSIONS.filter((p) => p !== 'admin.access' && p !== 'settings.lists'), sections: [] },
+  { id: 'comite', label: 'Comité', couleur: '#1d4ed8', permissions: ['tasks.viewAll', 'tasks.editOwn', 'tab.meetings', 'tab.events', 'tab.people'], sections: [] },
+  // Exemples de rôles ajoutés par l'admin : droits limités à certaines sections.
+  { id: 'tresorier', label: 'Trésorier', couleur: '#047857', permissions: ['tasks.viewAll', 'tasks.createAny', 'tasks.editAny', 'tasks.editOwn'], sections: ['sec2'] },
+  { id: 'benevole', label: 'Bénévole manifestations', couleur: '#9333ea', permissions: ['tasks.viewAll', 'tasks.editOwn', 'tab.events'], sections: ['sec5'] },
 ];
 
 const statuses: AppData['statuses'] = [
@@ -87,11 +97,11 @@ const rows: Row[] = [
   ['sec4', 'Juniors', 'Organiser le camp d’entraînement', ['p5', 'p7'], 's1', 90, '', 'e5'],
   ['sec4', 'Arbitrage', 'Former 2 nouveaux arbitres', ['p5'], 's2', 45, ''],
   ['sec5', 'Logistique', 'Réserver tentes et tables tournoi', ['p7'], 's2', 15, '', 'e2', undefined, cl(['Tentes', true], ['Tables', false], ['Sonorisation', false])],
-  ['sec5', 'Bénévoles', 'Planning des bénévoles tournoi', ['p7', 'p3'], 's1', 25, '', 'e2'],
-  ['sec5', 'Buvette', 'Commander les boissons buvette', ['p7'], 's1', 30, '', 'e2'],
+  ['sec5', 'Bénévoles', 'Planning des bénévoles tournoi', ['p7', 'p3', 'p10'], 's1', 25, '', 'e2'],
+  ['sec5', 'Buvette', 'Commander les boissons buvette', ['p10'], 's1', 30, '', 'e2'],
   ['sec5', 'Autorisations', 'Demande de patente pour le tournoi', ['p7'], 's3', -1, 'Formulaire refusé, à corriger.', 'e2'],
   ['sec5', 'Logistique', 'Choisir le traiteur soirée annuelle', ['p7', 'p2'], 's2', 18, '', 'e3', 'm4'],
-  ['sec5', 'Bénévoles', 'Trouver des bénévoles marché de Noël', ['p7'], 's1', 60, '', 'e4'],
+  ['sec5', 'Bénévoles', 'Trouver des bénévoles marché de Noël', ['p10', 'p7'], 's1', 60, '', 'e4'],
   ['sec5', 'Buvette', 'Bilan financier buvette tournoi d’été', ['p4', 'p7'], 's4', -12, '', 'e6'],
   ['sec6', 'Terrain', 'Faire réparer l’arrosage automatique', ['p8'], 's3', -14, 'Pièce en commande.'],
   ['sec6', 'Vestiaires', 'Devis rénovation des vestiaires', ['p8', 'p4'], 's2', 8, '', undefined, 'm4', cl(['Devis entreprise A', true], ['Devis entreprise B', false])],
@@ -127,7 +137,7 @@ export function makeSeed(): AppData {
     tasks,
     meetings,
     events,
-    permissions: structuredClone(DEFAULT_PERMISSIONS),
+    roles: structuredClone(roles),
     log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Initialisation des données de démonstration' }],
     prefs: {},
   };

@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
-import { canEditTask } from '../data/permissions';
 import type { Task } from '../data/types';
 import { fmtDateTime, fullName, today, uid } from '../data/utils';
 import { Modal } from './ui';
@@ -23,15 +22,17 @@ export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
 }
 
 export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: boolean; onClose: () => void; quick?: boolean }) {
-  const { data, user, perms, can, saveTask, update } = useStore();
+  const { data, user, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update } = useStore();
   const [t, setT] = useState<Task>(task);
   const [newItem, setNewItem] = useState('');
   const [err, setErr] = useState('');
   if (!user) return null;
 
-  const editable = isNew ? true : canEditTask(perms, user.id, task);
-  const canAssignOthers = can('tasks.createAny') || can('tasks.editAny');
+  const editable = isNew ? true : canEditTask(task);
+  const canAssignOthers = t.sectionId ? canAssign(t.sectionId) : creatableSections().some((s) => canAssign(s.id));
   const section = data.sections.find((s) => s.id === t.sectionId);
+  // Sections proposées : celles où le rôle permet de créer (+ la section actuelle en modification).
+  const sectionChoices = data.sections.filter((s) => creatableSections().some((c) => c.id === s.id) || s.id === task.sectionId);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const assignable = data.people.filter((p) => p.actif && (canAssignOthers || p.id === user.id));
 
@@ -42,6 +43,8 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
     if (!t.titre.trim()) return setErr('Le titre de la tâche est obligatoire.');
     if (!t.sectionId) return setErr('Choisis une section.');
     if (t.responsables.length === 0) return setErr('Au moins un responsable est requis.');
+    if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
+      return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
     saveTask({ ...t, titre: t.titre.trim() }, isNew);
     onClose();
   };
@@ -66,7 +69,7 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
           Section
           <select value={t.sectionId} disabled={dis} onChange={(e) => setT((x) => ({ ...x, sectionId: e.target.value, sousSection: '' }))}>
             <option value="">— Choisir —</option>
-            {data.sections.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+            {sectionChoices.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
           </select>
         </label>
         {!quick && (
@@ -101,7 +104,7 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
               <span key={id} className="chip on locked">{fullName(data.people.find((p) => p.id === id))}</span>
             ))}
           </div>
-          {!canAssignOthers && <small className="muted">Ton rôle ne permet de créer des tâches que pour toi-même.</small>}
+          {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </fieldset>
         {!quick && (
           <>
@@ -158,7 +161,7 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && editable && (can('tasks.editAny') || task.createdBy === user.id) && <button className="btn danger" onClick={remove}>Supprimer</button>}
+        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove}>Supprimer</button>}
         <span className="grow" />
         <button className="btn" onClick={onClose}>{editable ? 'Annuler' : 'Fermer'}</button>
         {editable && <button className="btn primary" onClick={submit}>{isNew ? 'Créer' : 'Enregistrer'}</button>}

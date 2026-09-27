@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { canEditTask } from '../data/permissions';
 import type { Task } from '../data/types';
 import { daysUntil, fmtDate, fullName, isDone, isLate } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
@@ -12,7 +11,7 @@ type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 
 const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '' };
 
 export function Tasks() {
-  const { data, user, perms, can, prefs, setPrefs, saveTask } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, prefs, setPrefs, saveTask } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(params.get('event') || params.get('meeting') || params.get('resp') ? 'toutes' : prefs.vueDefaut);
   const [f, setF] = useState({ ...EMPTY_FILTERS, event: params.get('event') ?? '', meeting: params.get('meeting') ?? '', resp: params.get('resp') ?? '' });
@@ -33,7 +32,7 @@ export function Tasks() {
     if (!user) return [];
     const q = f.q.trim().toLowerCase();
     const res = data.tasks.filter((t) => {
-      if (effScope === 'mes' && !t.responsables.includes(user.id)) return false;
+      if (effScope === 'mes' ? !t.responsables.includes(user.id) : !canSeeTask(t)) return false;
       if (hideDone && view !== 'kanban' && !f.statut && isDone(data, t)) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
@@ -69,7 +68,7 @@ export function Tasks() {
   const activeFilters = Object.entries(f).filter(([, v]) => v).length;
 
   const setStatus = (t: Task, statusId: string) => {
-    if (t.statusId === statusId || !canEditTask(perms, user.id, t)) return;
+    if (t.statusId === statusId || !canEditTask(t)) return;
     saveTask({ ...t, statusId }, false);
   };
 
@@ -118,7 +117,7 @@ export function Tasks() {
         <input className="search" placeholder="🔍 Rechercher…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
         <select value={f.section} onChange={(e) => setF({ ...f, section: e.target.value, sous: '' })}>
           <option value="">Toutes sections</option>
-          {data.sections.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+          {data.sections.filter((s) => effScope === 'mes' || can('tasks.viewAll', s.id)).map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
         </select>
         <select value={f.sous} disabled={!sec} onChange={(e) => setF({ ...f, sous: e.target.value })}>
           <option value="">Toutes sous-sections</option>
@@ -200,7 +199,7 @@ export function Tasks() {
               <div key={s.id} className="kcol" onDragOver={(e) => e.preventDefault()} onDrop={() => { const t = list.find((x) => x.id === dragId); if (t) setStatus(t, s.id); setDragId(null); }}>
                 <div className="khead" style={{ borderColor: s.couleur }}>{s.label} <span className="count">{col.length}</span></div>
                 {col.map((t) => (
-                  <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(perms, user.id, t)} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
+                  <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t)} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
                     <strong>{t.titre}</strong>
                     <div className="kmeta">
@@ -221,8 +220,8 @@ export function Tasks() {
 }
 
 export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void; onStatus: (t: Task, s: string) => void }) {
-  const { data, user, perms } = useStore();
-  const editable = !!user && canEditTask(perms, user.id, t);
+  const { data, canEditTask } = useStore();
+  const editable = canEditTask(t);
   const sectionName = data.sections.find((s) => s.id === t.sectionId)?.nom ?? '';
   const late = isLate(data, t);
   const n = daysUntil(t.delai);

@@ -1,34 +1,37 @@
-import type { Permission, RoleId, Task } from './types';
+import type { Permission, Person, Role } from './types';
 
-export const ROLES: { id: RoleId; label: string }[] = [
-  { id: 'admin', label: 'Admin (Président)' },
-  { id: 'secretaire', label: 'Secrétaire' },
-  { id: 'comite', label: 'Comité' },
+export const PERMISSION_GROUPS = ['Tâches', 'Onglets visibles', 'Gestion', 'Administration'] as const;
+
+export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMISSION_GROUPS)[number]; sectionScoped?: boolean }[] = [
+  { id: 'tasks.viewAll', label: 'Voir toutes les tâches', group: 'Tâches', sectionScoped: true },
+  { id: 'tasks.createAny', label: 'Créer / assigner des tâches à d’autres', group: 'Tâches', sectionScoped: true },
+  { id: 'tasks.editAny', label: 'Modifier toutes les tâches', group: 'Tâches', sectionScoped: true },
+  { id: 'tasks.editOwn', label: 'Créer et modifier ses propres tâches', group: 'Tâches', sectionScoped: true },
+  { id: 'tasks.delete', label: 'Supprimer des tâches', group: 'Tâches', sectionScoped: true },
+  { id: 'tab.meetings', label: 'Onglet Comité', group: 'Onglets visibles' },
+  { id: 'tab.events', label: 'Onglet Événements', group: 'Onglets visibles' },
+  { id: 'tab.people', label: 'Onglet Responsables', group: 'Onglets visibles' },
+  { id: 'meetings.manage', label: 'Gérer les séances de comité', group: 'Gestion' },
+  { id: 'events.manage', label: 'Gérer les événements', group: 'Gestion' },
+  { id: 'people.manage', label: 'Gérer les responsables', group: 'Gestion' },
+  { id: 'settings.lists', label: 'Gérer sections / statuts', group: 'Administration' },
+  { id: 'admin.access', label: 'Accès console admin', group: 'Administration' },
 ];
 
-export const PERMISSIONS: { id: Permission; label: string }[] = [
-  { id: 'tasks.viewAll', label: 'Voir toutes les tâches' },
-  { id: 'tasks.createAny', label: 'Créer / assigner des tâches à tous' },
-  { id: 'tasks.editAny', label: 'Modifier toutes les tâches' },
-  { id: 'tasks.editOwn', label: 'Modifier ses propres tâches' },
-  { id: 'meetings.manage', label: 'Gérer les séances de comité' },
-  { id: 'events.manage', label: 'Gérer les événements' },
-  { id: 'people.manage', label: 'Gérer les responsables' },
-  { id: 'settings.lists', label: 'Gérer sections / statuts' },
-  { id: 'admin.access', label: 'Accès console admin' },
-];
+export const ALL_PERMISSIONS = PERMISSIONS.map((p) => p.id);
+export const ADMIN_ROLE_ID = 'admin';
 
-const ALL = PERMISSIONS.map((p) => p.id);
+export const userRoles = (roles: Role[], p?: Person | null) => (p ? roles.filter((r) => p.roles.includes(r.id)) : []);
 
-export const DEFAULT_PERMISSIONS: Record<RoleId, Permission[]> = {
-  admin: ALL,
-  secretaire: ALL.filter((p) => p !== 'admin.access' && p !== 'settings.lists'),
-  comite: ['tasks.viewAll', 'tasks.editOwn'],
-};
+export const rolesLabel = (roles: Role[], p?: Person | null) =>
+  userRoles(roles, p).map((r) => r.label).join(' + ') || 'Aucun rôle';
 
-export const roleLabel = (r: RoleId) => ROLES.find((x) => x.id === r)?.label ?? r;
-
-export function canEditTask(perms: Permission[], userId: string, t: Task) {
-  if (perms.includes('tasks.editAny')) return true;
-  return perms.includes('tasks.editOwn') && (t.responsables.includes(userId) || t.createdBy === userId);
+/**
+ * Un droit est accordé si au moins un des rôles de la personne le contient
+ * et couvre la section demandée (rôle sans restriction = toutes les sections).
+ */
+export function hasPermission(roles: Role[], perm: Permission, sectionId?: string) {
+  return roles.some(
+    (r) => (r.locked || r.permissions.includes(perm)) && (!sectionId || r.sections.length === 0 || r.sections.includes(sectionId)),
+  );
 }

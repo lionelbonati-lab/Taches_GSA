@@ -8,7 +8,7 @@ import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
 
 export function Dashboard() {
-  const { data, user, saveTask } = useStore();
+  const { data, user, can, saveTask } = useStore();
   const [edit, setEdit] = useState<Task | null>(null);
   if (!user) return null;
 
@@ -44,16 +44,16 @@ export function Dashboard() {
           {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Aucune échéance cette semaine.</Empty>}
         </section>
         <aside>
-          <h2>Prochaine séance</h2>
-          {nextMeeting ? (
+          {can('tab.meetings') && <h2>Prochaine séance</h2>}
+          {!can('tab.meetings') ? null : nextMeeting ? (
             <Link to="/comite" className="panel link-panel">
               <strong>{nextMeeting.titre}</strong>
               <span>{fmtDate(nextMeeting.date)} · {nextMeeting.lieu} <em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em></span>
               <pre className="odj">{nextMeeting.ordreDuJour}</pre>
             </Link>
           ) : <Empty>Aucune séance planifiée.</Empty>}
-          <h2>Prochains événements</h2>
-          {nextEvents.map((e) => {
+          {can('tab.events') && <h2>Prochains événements</h2>}
+          {can('tab.events') && nextEvents.map((e) => {
             const tasks = data.tasks.filter((t) => t.eventId === e.id);
             const done = tasks.filter((t) => isDone(data, t)).length;
             return (

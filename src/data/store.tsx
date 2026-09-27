@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { makeSeed } from './seed';
-import type { AppData, Permission, Person, Prefs, Task } from './types';
+import { hasPermission, userRoles } from './permissions';
+import type { AppData, Permission, Person, Prefs, Role, Section, Task } from './types';
 
 // Couche de données de la démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Pour passer à une vraie base (ex. Supabase), seul ce fichier devra être remplacé.
-const KEY = 'taches-gsa-demo-v1';
+const KEY = 'taches-gsa-demo-v2';
 const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
@@ -22,8 +23,16 @@ function load(): AppData {
 interface Store {
   data: AppData;
   user: Person | null;
-  perms: Permission[];
-  can: (p: Permission) => boolean;
+  /** Rôles de l'utilisateur connecté. */
+  myRoles: Role[];
+  /** Droit accordé par au moins un rôle, éventuellement pour une section donnée. */
+  can: (p: Permission, sectionId?: string) => boolean;
+  canSeeTask: (t: Task) => boolean;
+  canEditTask: (t: Task) => boolean;
+  canDeleteTask: (t: Task) => boolean;
+  canAssignOthers: (sectionId: string) => boolean;
+  /** Sections dans lesquelles l'utilisateur peut créer une tâche. */
+  creatableSections: () => Section[];
   prefs: Prefs;
   login: (id: string | null) => void;
   /** Applique une modification et l'inscrit au journal d'activité. */
@@ -54,12 +63,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [data]);
 
   const user = data.people.find((p) => p.id === userId && p.actif) ?? null;
-  const perms = useMemo<Permission[]>(() => {
-    if (!user) return [];
-    const list = data.permissions[user.role] ?? [];
-    // L'admin garde toujours l'accès à la console pour ne pas se bloquer.
-    return user.role === 'admin' ? Array.from(new Set<Permission>([...list, 'admin.access'])) : list;
-  }, [user, data.permissions]);
+  const myRoles = useMemo(() => userRoles(data.roles, user), [data.roles, user]);
 
   const login = useCallback((id: string | null) => {
     setUserId(id);
@@ -109,11 +113,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setData(makeSeed());
   }, []);
 
+  const can = (p: Permission, sectionId?: string) => hasPermission(myRoles, p, sectionId);
+  const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
+
   const value: Store = {
     data,
     user,
-    perms,
-    can: (p) => perms.includes(p),
+    myRoles,
+    can,
+    canSeeTask: (t) => (!!user && t.responsables.includes(user.id)) || can('tasks.viewAll', t.sectionId),
+    canEditTask: (t) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t)),
+    canDeleteTask: (t) => can('tasks.delete', t.sectionId),
+    canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
+    creatableSections: () => data.sections.filter((s) => can('tasks.createAny', s.id) || can('tasks.editOwn', s.id)),
     prefs,
     login,
     update,

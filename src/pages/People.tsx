@@ -20,7 +20,7 @@ export function People() {
     <div>
       <div className="page-head">
         <h1>Responsables</h1>
-        {manage && <button className="btn primary" onClick={() => setEdit({ id: uid('p'), poste: '', nom: '', prenom: '', email: '', telephone: '', role: 'comite', actif: true, couleur: '#0f766e' })}>+ Nouveau responsable</button>}
+        {manage && <button className="btn primary" onClick={() => setEdit({ id: uid('p'), poste: '', nom: '', prenom: '', email: '', telephone: '', roles: ['comite'], actif: true, couleur: '#0f766e' })}>+ Nouveau responsable</button>}
       </div>
       <div className="people">
         {people.map((p) => {
