@@ -152,11 +152,35 @@ export interface LogEntry {
   action: string;
 }
 
+export interface NotifPrefs {
+  assign: boolean;
+  modif: boolean;
+  echeance: boolean;
+  echeanceJours: number;
+  retard: boolean;
+  seance: boolean;
+  seanceJours: number;
+  /** Notifications de l'appareil (système), en plus de la cloche. */
+  systeme: boolean;
+}
+
 export interface Prefs {
   theme: 'clair' | 'sombre' | 'auto';
   vueDefaut: 'mes' | 'toutes';
   affichage: 'tableau' | 'kanban';
   pv?: Partial<PvSettings>;
+  notif?: Partial<NotifPrefs>;
+}
+
+/** Notification d'activité enregistrée (les rappels d'échéance sont calculés à la volée). */
+export interface ActivityNotif {
+  id: string;
+  userId: string;
+  type: 'assign' | 'modif' | 'recur';
+  taskId: string;
+  by: string;
+  at: string;
+  detail?: string;
 }
 
 export interface AppData {
@@ -169,4 +193,7 @@ export interface AppData {
   roles: Role[];
   log: LogEntry[];
   prefs: Record<string, Prefs>;
+  notifications?: ActivityNotif[];
+  /** Clés des notifications déjà vues, par utilisateur. */
+  notifLues?: Record<string, string[]>;
 }

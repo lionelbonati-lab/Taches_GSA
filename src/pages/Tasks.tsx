@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { daysUntil, fmtDate, fullName, isDone, isLate, recurrenceLabel } from '../data/utils';
@@ -13,11 +13,22 @@ const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', even
 export function Tasks() {
   const { data, user, can, canSeeTask, canEditTask, prefs, setPrefs, saveTask } = useStore();
   const [params] = useSearchParams();
-  const [scope, setScope] = useState<'mes' | 'toutes'>(params.get('event') || params.get('meeting') || params.get('resp') ? 'toutes' : prefs.vueDefaut);
-  const [f, setF] = useState({ ...EMPTY_FILTERS, event: params.get('event') ?? '', meeting: params.get('meeting') ?? '', resp: params.get('resp') ?? '' });
+  const [scope, setScope] = useState<'mes' | 'toutes'>(
+    params.get('statut') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') ? 'toutes' : prefs.vueDefaut,
+  );
+  const [f, setF] = useState({ ...EMPTY_FILTERS, event: params.get('event') ?? '', meeting: params.get('meeting') ?? '', resp: params.get('resp') ?? '', statut: params.get('statut') ?? '' });
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'delai', dir: 1 });
-  const [edit, setEdit] = useState<{ task: Task; isNew: boolean } | null>(null);
-  const [showFilters, setShowFilters] = useState(false);
+  const navigate = useNavigate();
+  // Lien depuis une notification : /taches?tache=<id> ouvre directement la tâche.
+  const [edit, setEdit] = useState<{ task: Task; isNew: boolean } | null>(() => {
+    const t = data.tasks.find((x) => x.id === params.get('tache'));
+    return t ? { task: t, isNew: false } : null;
+  });
+  const closeEdit = () => {
+    setEdit(null);
+    if (params.get('tache')) navigate('/taches', { replace: true });
+  };
+  const [showFilters, setShowFilters] = useState(!!params.get('statut'));
   const [hideDone, setHideDone] = useState(true);
   const [dragId, setDragId] = useState<string | null>(null);
   const view = prefs.affichage;
@@ -219,7 +230,7 @@ export function Tasks() {
         </div>
       )}
 
-      {edit && <TaskModal task={edit.task} isNew={edit.isNew} onClose={() => setEdit(null)} />}
+      {edit && <TaskModal task={edit.task} isNew={edit.isNew} onClose={closeEdit} />}
     </div>
   );
 }

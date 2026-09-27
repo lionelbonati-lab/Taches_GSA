@@ -1,8 +1,8 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { makeSeed } from './seed';
 import { hasPermission, userRoles } from './permissions';
-import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor } from './utils';
-import type { AppData, Permission, Person, Prefs, Role, Section, Task } from './types';
+import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
+import type { ActivityNotif, AppData, Permission, Person, Prefs, Role, Section, Task } from './types';
 
 // Couche de données de la démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Pour passer à une vraie base (ex. Supabase), seul ce fichier devra être remplacé.
@@ -43,6 +43,8 @@ interface Store {
   /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
   toast: string | null;
   setToast: (msg: string | null) => void;
+  /** Marque des notifications comme vues (sans entrée au journal). */
+  markNotifsRead: (keys: string[]) => void;
   reset: () => void;
 }
 
@@ -124,18 +126,52 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       }
 
       const who = next?.responsables.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
+
+      // Notifications d'activité pour les autres responsables.
+      const actor = userId ?? '?';
+      const now = new Date().toISOString();
+      const notifs: ActivityNotif[] = [];
+      const push = (uidTo: string, type: ActivityNotif['type'], taskId: string, detail?: string) =>
+        uidTo !== actor && notifs.push({ id: uid('n'), userId: uidTo, type, taskId, by: actor, at: now, detail });
+      const added = task.responsables.filter((id) => !before?.responsables.includes(id));
+      added.forEach((id) => push(id, 'assign', task.id));
+      if (before) {
+        const st = data.statuses.find((x) => x.id === task.statusId)?.label;
+        const detail =
+          before.statusId !== task.statusId ? `statut : ${st}`
+          : before.delai !== task.delai ? `délai : ${fmtDate(task.delai)}`
+          : before.titre !== task.titre || before.remarque !== task.remarque ? 'contenu modifié'
+          : undefined;
+        if (detail) task.responsables.filter((id) => !added.includes(id)).forEach((id) => push(id, 'modif', task.id, detail));
+      }
+      next?.responsables.forEach((id) => push(id, 'recur', next!.id, fmtDate(next!.delai)));
+
       update(
         (d) => {
           if (isNew) d.tasks.unshift(task);
           else d.tasks = d.tasks.map((x) => (x.id === task.id ? task : x));
           if (next) d.tasks.unshift(next);
+          if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
         },
         `${isNew ? 'Création' : 'Modification'} de la tâche « ${t.titre} »` +
           (next ? ` — tâche récurrente : prochaine occurrence le ${fmtDate(next.delai)} pour ${who}` : ''),
       );
       if (next) setToast(`🔁 Tâche récurrente reconduite au ${fmtDate(next.delai)} · ${who}`);
     },
-    [update, data],
+    [update, data, userId],
+  );
+
+  const markNotifsRead = useCallback(
+    (keys: string[]) => {
+      if (!userId || !keys.length) return;
+      setData((prev) => {
+        const seen = new Set(prev.notifLues?.[userId] ?? []);
+        if (keys.every((k) => seen.has(k))) return prev;
+        keys.forEach((k) => seen.add(k));
+        return { ...prev, notifLues: { ...prev.notifLues, [userId]: [...seen].slice(-800) } };
+      });
+    },
+    [userId],
   );
 
   const reset = useCallback(() => {
@@ -162,6 +198,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     saveTask,
     toast,
     setToast,
+    markNotifsRead,
     reset,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

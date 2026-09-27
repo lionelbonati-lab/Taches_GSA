@@ -6,6 +6,8 @@ import type { Permission } from '../data/types';
 import { TaskModal, newTask } from './TaskModal';
 import { Avatar, Toast } from './ui';
 import { InstallButton } from './InstallButton';
+import { Bell } from './Bell';
+import { showSystemNotification, useNotifications } from '../notifications';
 
 export const TABS: { to: string; label: string; icon: string; perm?: Permission; mobile?: boolean }[] = [
   { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
@@ -38,6 +40,25 @@ export function Layout() {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light';
   }, [prefs.theme]);
 
+  // Démo : à l'ouverture (ou au changement d'utilisateur), résumé envoyé en notification de l'appareil.
+  const { unread, prefs: notifPrefs } = useNotifications();
+  useEffect(() => {
+    if (!user || !notifPrefs.systeme || !unread.length) return;
+    const flag = `taches-gsa-notif-${user.id}`;
+    try {
+      if (sessionStorage.getItem(flag)) return;
+      sessionStorage.setItem(flag, '1');
+    } catch {
+      /* ignore */
+    }
+    showSystemNotification(
+      `Tâches GSA · ${unread.length} notification${unread.length > 1 ? 's' : ''}`,
+      unread.slice(0, 3).map((n) => `${n.icon} ${n.text}`).join('\n'),
+      unread[0].link,
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
   if (!user) return null;
   const tabs = TABS.filter((t) => !t.perm || can(t.perm));
 
@@ -54,6 +75,7 @@ export function Layout() {
             <NavLink key={t.to} to={t.to} end={t.to === '/'}>{t.label}</NavLink>
           ))}
         </nav>
+        <Bell />
         <div className="who">
           <InstallButton variant="compact" hideWhenUnavailable />
           <Avatar id={user.id} size={32} />

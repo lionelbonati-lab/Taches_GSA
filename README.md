@@ -71,6 +71,20 @@ Onglet **📝 Création du PV** (droit « Onglet Création du PV », donné au P
 Réglages (mémorisés) : séances, parties affichées, regroupement et tri, colonnes, statuts et sections inclus, titre, nom du club, orientation, taille du texte.
 Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans l'onglet Comité), **Envoyer par email** aux membres du comité, **Copier le texte** (pour WhatsApp, Word…).
 
+## Notifications (démo)
+
+Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de notifications non lues :
+
+- 🆕 une tâche t'est attribuée par quelqu'un d'autre ;
+- ✏️ une de tes tâches est modifiée par quelqu'un d'autre (statut, délai, contenu) ; 🔁 tâche récurrente reconduite ;
+- ⏰ échéance proche (le jour même à 14 jours avant, réglable) ;
+- ⚠️ résumé quotidien de tes tâches en retard ;
+- 🗓️ prochaine séance de comité (et « PV disponible » s'il a été archivé).
+
+Un clic ouvre directement la tâche (ou la liste filtrée / l'onglet Comité). Réglages → Notifications : choix des types, délais de prévenance, et **notifications de l'appareil** (téléphone / ordinateur, après autorisation) avec un bouton de test.
+
+Limite de la démo : sans serveur, les notifications sont calculées dans le navigateur et celles de l'appareil ne partent qu'à l'ouverture de l'appli. La version réelle (base partagée + serveur) pourra les envoyer application fermée, y compris sur iPhone une fois l'appli installée.
+
 ## Mobile et installation (PWA)
 
 Sous 768 px : barre de navigation en bas, tâches en cartes avec changement de statut d'un tap, bouton **+** pour l'ajout rapide.

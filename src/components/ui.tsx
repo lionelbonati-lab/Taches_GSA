@@ -7,7 +7,7 @@ export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
   const p = data.people.find((x) => x.id === id);
   return (
-    <span className="avatar" title={fullName(p)} style={{ background: p?.couleur ?? '#999', width: size, height: size, fontSize: size * 0.4 }}>
+    <span className="avatar" title={fullName(p)} style={{ background: p?.couleur ?? '#999', width: size, height: size, fontSize: size * (initials(p).length > 2 ? 0.31 : 0.4) }}>
       {initials(p)}
     </span>
   );

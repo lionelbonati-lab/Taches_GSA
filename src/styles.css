@@ -159,9 +159,11 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .cards { display: grid; gap: 10px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
 .tcard { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; display: flex; flex-direction: column; gap: 6px; cursor: pointer; box-shadow: var(--shadow); }
 .tcard.late { border-left: 4px solid var(--late); }
-.tcard-top, .tcard-bottom { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.status-tap { display: flex; gap: 4px; margin-top: 4px; }
-.status-tap button { flex: 1; border: 1px solid var(--border); background: var(--surface2); border-radius: 6px; padding: 7px 2px; font-size: 0.75rem; cursor: pointer; }
+.tcard { min-width: 0; }
+.tcard-top, .tcard-bottom { display: flex; justify-content: space-between; align-items: center; gap: 6px 8px; flex-wrap: wrap; }
+.status-tap { display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 4px; margin-top: 4px; }
+.status-tap button { padding: 6px 2px; font-size: 0.7rem; line-height: 1.15; }
+.status-tap button { border: 1px solid var(--border); background: var(--surface2); border-radius: 6px; padding: 7px 2px; font-size: 0.75rem; cursor: pointer; }
 .status-tap button.on { color: #fff; font-weight: 600; }
 
 /* ---------- Kanban ---------- */
@@ -245,6 +247,28 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   max-width: min(560px, calc(100vw - 32px)); cursor: pointer; font-size: 0.95rem;
 }
 @media (max-width: 767px) { .toast { bottom: calc(80px + env(safe-area-inset-bottom)); } }
+
+/* ---------- Notifications ---------- */
+.bell-wrap { position: relative; margin-left: auto; }
+.bell { position: relative; border: none; background: none; font-size: 1.3rem; cursor: pointer; padding: 6px 8px; border-radius: 8px; line-height: 1; }
+.bell:hover { background: var(--surface2); }
+.bell-badge { position: absolute; top: 0; right: 0; background: var(--late); color: #fff; font-size: 0.65rem; font-weight: 700; min-width: 17px; height: 17px; border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--surface); }
+.bell-panel { position: absolute; right: 0; top: calc(100% + 8px); width: 390px; max-height: 72vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2); z-index: 40; }
+.bell-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+.bell-panel ul { list-style: none; margin: 0; padding: 4px; }
+.bell-item { display: flex; gap: 10px; width: 100%; text-align: left; border: none; background: none; padding: 10px; border-radius: 8px; cursor: pointer; align-items: flex-start; }
+.bell-item:hover { background: var(--surface2); }
+.bell-item.unread { background: var(--primary-soft); }
+.bell-icon { font-size: 1.1rem; line-height: 1.3; }
+.bell-text { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.bell-text small { color: var(--muted); overflow: hidden; text-overflow: ellipsis; }
+.bell-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--primary); margin-top: 6px; flex-shrink: 0; }
+.bell-empty { padding: 24px; text-align: center; color: var(--muted); margin: 0; }
+.bell-foot { width: 100%; border: none; border-top: 1px solid var(--border); background: none; padding: 10px; cursor: pointer; color: var(--muted); position: sticky; bottom: 0; background: var(--surface); }
+.notif-device { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; border-top: 1px solid var(--border); padding-top: 10px; }
+@media (max-width: 767px) {
+  .bell-panel { position: fixed; left: 8px; right: 8px; width: auto; top: calc(56px + env(safe-area-inset-top)); max-height: calc(100vh - 150px); }
+}
 
 /* ---------- Création du PV ---------- */
 .pv-layout { display: grid; grid-template-columns: 290px 1fr; gap: 20px; align-items: start; }

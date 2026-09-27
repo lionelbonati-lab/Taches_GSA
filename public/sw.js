@@ -1,7 +1,7 @@
 // Service worker de l'application installée (PWA).
 // - Pages : réseau d'abord, repli sur la dernière version en cache (hors-ligne).
 // - Fichiers /assets/ (noms uniques à chaque build) : cache d'abord.
-const CACHE = 'taches-gsa-v2';
+const CACHE = 'taches-gsa-v3';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon.svg'];
 
 self.addEventListener('install', (e) => {
@@ -44,5 +44,18 @@ self.addEventListener('fetch', (e) => {
         return res;
       })
       .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html'))),
+  );
+});
+
+// Clic sur une notification : ouvre (ou ramène au premier plan) l'application sur la bonne page.
+self.addEventListener('notificationclick', (e) => {
+  e.notification.close();
+  const url = new URL(e.notification.data?.url || './', self.registration.scope).href;
+  e.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      const win = list.find((c) => c.url.startsWith(self.registration.scope));
+      if (win) return win.focus().then(() => win.navigate(url));
+      return self.clients.openWindow(url);
+    }),
   );
 });
