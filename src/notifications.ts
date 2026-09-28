@@ -94,6 +94,21 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
     }
   }
 
+  if (p.seance && hasPermission(userRoles(data.roles, user), 'tab.meetings'))
+    for (const m of data.meetings) {
+      const pv = m.minutesArchives?.[0];
+      if (!pv || pv.by === user.id || daysUntil(pv.at.slice(0, 10)) < -14) continue;
+      items.push({
+        key: `pvdispo:${pv.id}`,
+        icon: '📝',
+        text: `PV du ${m.titre} disponible`,
+        sub: `validé le ${fmtDate(pv.at.slice(0, 10))}`,
+        link: '/comite',
+        at: pv.at,
+        kind: 'activite',
+      });
+    }
+
   if (p.sondage)
     for (const poll of data.polls ?? []) {
       if (!isOpen(poll) || !poll.votants.includes(user.id) || poll.votes[user.id]) continue;

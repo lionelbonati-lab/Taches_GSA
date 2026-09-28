@@ -12,7 +12,7 @@ import { Progress } from './Dashboard';
 export function Meetings() {
   const { data, can, update } = useStore();
   const [edit, setEdit] = useState<Meeting | null>(null);
-  const [viewPv, setViewPv] = useState<{ meeting: Meeting; pv: PvArchive } | null>(null);
+  const [viewPv, setViewPv] = useState<{ meeting: Meeting; pv: PvArchive; kind: 'odj' | 'pv' } | null>(null);
   const manage = can('meetings.manage');
   const sorted = [...data.meetings].sort((a, b) => a.date.localeCompare(b.date));
   const save = (m: Meeting) => {
@@ -46,13 +46,19 @@ export function Meetings() {
                   {m.notes && <p><em>Notes / PV :</em> {m.notes}</p>}
                 </details>
                 <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) liée(s) →</Link>
-                {(m.pvArchives?.length ?? 0) > 0 && (
+                {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
                   <div className="pv-archives">
-                    {m.pvArchives!.map((pv) => (
-                      <button key={pv.id} className="chip" onClick={() => setViewPv({ meeting: m, pv })} title={`Archivé le ${fmtDateTime(pv.at)}`}>
-                        📄 {pv.titre} · {fmtDateTime(pv.at)}
+                    {(m.minutesArchives ?? []).map((pv, i) => (
+                      <button key={pv.id} className="chip on" onClick={() => setViewPv({ meeting: m, pv, kind: 'pv' })} title={`Validé le ${fmtDateTime(pv.at)}`}>
+                        📝 {pv.titre}{i > 0 ? ` (version du ${fmtDateTime(pv.at)})` : ''}
                       </button>
                     ))}
+                    {(m.pvArchives ?? []).map((pv) => (
+                      <button key={pv.id} className="chip" onClick={() => setViewPv({ meeting: m, pv, kind: 'odj' })} title={`Archivé le ${fmtDateTime(pv.at)}`}>
+                        📄 Ordre du jour · {fmtDateTime(pv.at)}
+                      </button>
+                    ))}
+                    {can('tab.minutes') && <Link className="chip" to={`/pv?seance=${m.id}`}>🖊️ {m.minutes ? 'Reprendre le PV' : 'Prendre les notes du PV'}</Link>}
                   </div>
                 )}
               </div>
@@ -65,12 +71,13 @@ export function Meetings() {
       {viewPv && (
         <PvViewer
           pv={viewPv.pv}
-          canDelete={manage || can('tab.pv')}
+          canDelete={viewPv.kind === 'pv' ? can('tab.minutes') : manage || can('tab.pv')}
           onDelete={() => {
             update((d) => {
               const x = d.meetings.find((y) => y.id === viewPv.meeting.id)!;
-              x.pvArchives = (x.pvArchives ?? []).filter((p) => p.id !== viewPv.pv.id);
-            }, `Suppression de l’ordre du jour archivé « ${viewPv.pv.titre} »`);
+              if (viewPv.kind === 'pv') x.minutesArchives = (x.minutesArchives ?? []).filter((p) => p.id !== viewPv.pv.id);
+              else x.pvArchives = (x.pvArchives ?? []).filter((p) => p.id !== viewPv.pv.id);
+            }, `Suppression ${viewPv.kind === 'pv' ? 'du PV' : 'de l’ordre du jour'} archivé « ${viewPv.pv.titre} »`);
             setViewPv(null);
           }}
           onClose={() => setViewPv(null)}

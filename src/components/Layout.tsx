@@ -17,6 +17,7 @@ export const TABS: { to: string; label: string; icon: string; perm?: Permission;
   { to: '/sondages', label: 'Sondages', icon: '📊' },
   { to: '/responsables', label: 'Responsables', icon: '👥', perm: 'tab.people' },
   { to: '/ordre-du-jour', label: 'Ordre du jour', icon: '📝', perm: 'tab.pv' },
+  { to: '/pv', label: 'PV', icon: '🖊️', perm: 'tab.minutes' },
   { to: '/reglages', label: 'Réglages', icon: '⚙️' },
   { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access' },
 ];

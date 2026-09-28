@@ -12,10 +12,23 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
+export const SCHEMA = 8;
+
+/** Mises à niveau des données déjà enregistrées dans le navigateur (évite de tout réinitialiser). */
+function migrate(d: AppData): AppData {
+  if ((d.schema ?? 7) < 8) {
+    // v8 : onglet PV, donné par défaut au Secrétaire.
+    const sec = d.roles.find((r) => r.id === 'secretaire');
+    if (sec && !sec.permissions.includes('tab.minutes')) sec.permissions.push('tab.minutes');
+  }
+  d.schema = SCHEMA;
+  return d;
+}
+
 function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return JSON.parse(raw);
+    if (raw) return migrate(JSON.parse(raw));
   } catch {
     /* stockage indisponible : on repart des données fictives */
   }
@@ -39,6 +52,8 @@ interface Store {
   login: (id: string | null) => void;
   /** Applique une modification et l'inscrit au journal d'activité. */
   update: (fn: (d: AppData) => void, action: string) => void;
+  /** Modification sans entrée au journal (prise de notes, présences…). */
+  updateSilent: (fn: (d: AppData) => void) => void;
   setPrefs: (p: Partial<Prefs>) => void;
   saveTask: (t: Task, isNew: boolean) => void;
   /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
@@ -102,6 +117,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     },
     [userId],
   );
+
+  const updateSilent = useCallback((fn: (d: AppData) => void) => {
+    setData((prev) => {
+      const next = structuredClone(prev);
+      fn(next);
+      return next;
+    });
+  }, []);
 
   const prefs = { ...DEFAULT_PREFS, ...(userId ? data.prefs[userId] : {}) };
 
@@ -242,6 +265,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     prefs,
     login,
     update,
+    updateSilent,
     setPrefs,
     saveTask,
     toast,

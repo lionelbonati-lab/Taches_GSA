@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { Meeting, Person, PvSettings, Section, Task } from '../data/types';
-import { addDays, fmtDate, fullName, initials, isDone, isLate, shortName, today, uid } from '../data/utils';
+import { fmtDate, fullName, initials, isLate, shortName, today, uid } from '../data/utils';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
+import { selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
@@ -12,6 +13,7 @@ import type { Poll } from '../data/types';
 
 export const DEFAULT_PV: PvSettings = {
   presentation: 'liste',
+  detail: 'complet',
   titre: '',
   club: 'G.S. Ajoie – Comité',
   afficherClub: true,
@@ -75,18 +77,15 @@ export function Pv() {
   const person = (id: string) => data.people.find((p) => p.id === id);
   const committee: Person[] = data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
 
-  // ---------- Sélection des tâches ----------
-  const eligible = (t: Task) => !s.sectionsExclues.includes(t.sectionId);
-  const open = data.tasks.filter((t) => !isDone(data, t) && eligible(t) && !s.statutsExclus.includes(t.statusId));
-  const late = s.parts.retards ? open.filter((t) => isLate(data, t)) : [];
-  const rest = open.filter((t) => !late.includes(t));
-  const avant1 = s1 && s.parts.avantProchaine ? rest.filter((t) => t.meetingId === s1.id || !t.delai || t.delai <= s1.date) : [];
-  const avant2 =
-    s2 && s.parts.avantSuivante ? rest.filter((t) => !avant1.includes(t) && (t.meetingId === s2.id || (!!t.delai && t.delai <= s2.date))) : [];
-  const since = s0?.date ?? addDays(today(), -60);
-  const bilan = s.parts.bilan
-    ? data.tasks.filter((t) => isDone(data, t) && eligible(t) && !!t.termineeLe && t.termineeLe >= since && data.statuses.find((x) => x.id === t.statusId)?.label !== 'Info')
-    : [];
+  // ---------- Sélection des tâches (partagée avec l'onglet PV) ----------
+  const { late, avant1, avant2, bilan, since } = selectAgenda(data, s0, s1, s2, {
+    retards: s.parts.retards,
+    avantProchaine: s.parts.avantProchaine,
+    avantSuivante: s.parts.avantSuivante,
+    bilan: s.parts.bilan,
+    statutsExclus: s.statutsExclus,
+    sectionsExclues: s.sectionsExclues,
+  });
 
   const parts: Part[] = [
     ...(late.length ? [{ key: 'late', titre: `⚠ Tâches en retard`, tasks: late }] : []),
@@ -407,8 +406,10 @@ export function Pv() {
     );
   };
   // Niveaux : 1. section · a. point · ■ sous-point · ◦ détail
+  // Niveau de détail : sections seulement (0), + sous-sections (1), complet.
+  const maxDepth = s.detail === 'sections' ? -1 : s.detail === 'sousSections' ? 0 : 9;
   const renderItems = (items: OItem[], depth: number): ReactNode => {
-    if (!items.length) return null;
+    if (!items.length || depth > maxDepth) return null;
     const cls = ['odj-l1', 'odj-l2', 'odj-l3'][Math.min(depth, 2)];
     const inner = items.map((it) => (
       <li key={it.key}>
@@ -422,7 +423,7 @@ export function Pv() {
     secs.length === 0 ? (
       <p className="pv-empty">Aucun point.</p>
     ) : secs.every((x) => !x.label) ? (
-      <ol className="odj">{secs.flatMap((x) => x.items).map((it) => <li key={it.key}>{itemNode(it)}{renderItems(it.children, 1)}</li>)}</ol>
+      <ol className="odj">{secs.flatMap((x) => x.items).map((it) => <li key={it.key}>{itemNode(it)}{maxDepth >= 1 && renderItems(it.children, 1)}</li>)}</ol>
     ) : (
       <ol className="odj">
         {secs.map((sec) => (
@@ -436,6 +437,7 @@ export function Pv() {
   const outlineText = (secs: OSec[]) => {
     const out: string[] = [];
     const walk = (items: OItem[], depth: number) =>
+      depth <= maxDepth &&
       items.forEach((it, j) => {
         const pad = '   '.repeat(depth + 1);
         out.push(`${pad}${depth === 0 ? `${letter(j)}.` : depth === 1 ? '■' : '◦'} ${itemText(it)}`);
@@ -509,6 +511,16 @@ export function Pv() {
                 <option value="tableaux">Tableaux</option>
               </select>
             </label>
+            {s.presentation === 'liste' && (
+              <label>
+                Niveau de détail
+                <select value={s.detail} onChange={(e) => set({ detail: e.target.value as PvSettings['detail'] })}>
+                  <option value="complet">Complet (sections, sous-sections, points)</option>
+                  <option value="sousSections">Sections et sous-sections</option>
+                  <option value="sections">Sections seulement</option>
+                </select>
+              </label>
+            )}
           </details>
           <details open>
             <summary>Regroupement et tri</summary>

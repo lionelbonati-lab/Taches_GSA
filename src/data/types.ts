@@ -10,6 +10,7 @@ export type Permission =
   | 'tab.events'
   | 'tab.people'
   | 'tab.pv'
+  | 'tab.minutes'
   | 'polls.create'
   | 'polls.manage'
   | 'meetings.manage'
@@ -149,6 +150,36 @@ export interface Meeting {
   notes: string;
   /** Ordres du jour archivés pour cette séance (copie figée du document généré). */
   pvArchives?: PvArchive[];
+  /** Prise de notes du PV pendant la séance. */
+  minutes?: MeetingMinutes;
+  /** PV validés (copie figée du document envoyé). */
+  minutesArchives?: PvArchive[];
+}
+
+/** État d'une tâche au début de la séance, pour repérer ce qui a changé pendant la séance. */
+export interface TaskSnapshot {
+  statusId: string;
+  delai: string;
+  responsables: string[];
+  titre: string;
+}
+
+export interface MeetingMinutes {
+  presents: string[];
+  excuses: string[];
+  invites?: string;
+  heureDebut?: string;
+  heureFin?: string;
+  demarreLe?: string;
+  /** Notes par point : 'sec:<id>', 'task:<id>', 'poll:<id>', 'divers'. */
+  notes: Record<string, string>;
+  snapshot?: Record<string, TaskSnapshot>;
+  /** Points de l'ordre du jour au début de la séance (restent affichés même s'ils sont reportés). */
+  pointIds?: string[];
+  /** Afficher dans le PV tous les points de l'ordre du jour (sinon seulement ceux avec notes ou changements). */
+  tousLesPoints?: boolean;
+  valideLe?: string;
+  validePar?: string;
 }
 
 export interface PvArchive {
@@ -163,6 +194,8 @@ export interface PvArchive {
 export interface PvSettings {
   /** Liste numérotée (1. / a. / ■, comme les ordres du jour du club) ou tableaux. */
   presentation: 'liste' | 'tableaux';
+  /** Liste : ordre du jour complet, sections + sous-sections, ou sections seulement. */
+  detail: 'complet' | 'sousSections' | 'sections';
   titre: string;
   club: string;
   afficherClub: boolean;
@@ -246,6 +279,8 @@ export interface AppData {
   roles: Role[];
   log: LogEntry[];
   prefs: Record<string, Prefs>;
+  /** Version du format des données (migrations au chargement). */
+  schema?: number;
   notifications?: ActivityNotif[];
   polls?: Poll[];
   /** Clés des notifications déjà vues, par utilisateur. */
