@@ -15,7 +15,7 @@ npm run build      # version statique dans dist/
 
 ## Données et comptes de démo
 
-Les données de départ viennent du tableau **« Suivi des tâches » du G.S. Ajoie** (108 tâches, 12 sections, séances de comité 2026-27, événements du club). Les délais en formule du tableau (`=Comité_3+7`, `=AG_2027`) sont devenus des **délais liés** à la séance / l'AG, et les responsables en formule (`=Caissier`, `=Secretaire`) servent à l'**attribution par poste** des tâches annuelles.
+Les données de départ viennent du tableau **« Suivi des tâches » du G.S. Ajoie** (12 sections, séances de comité 2026-27, événements du club). Seules les tâches à partir du 01.09.2026 sont reprises (63 tâches) ; les tâches sans délai sont conservées, sauf celles d'événements antérieurs. Les délais en formule du tableau (`=Comité_3+7`, `=AG_2027`) sont devenus des **délais liés** à la séance / l'AG, et les responsables en formule (`=Caissier`, `=Secretaire`) servent à l'**attribution par poste** des tâches annuelles.
 
 Le site étant public : prénoms + initiale du nom uniquement, noms de tiers masqués (démissions, radiations, relances, remboursements), emails fictifs (`@gsajoie.example`), pas de téléphones.
 
