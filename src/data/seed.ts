@@ -71,7 +71,7 @@ export function makeSeed(): AppData {
     events: structuredClone(events),
     roles: structuredClone(roles),
     polls: demoPolls(),
-    schema: 8,
+    schema: 9,
     log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Import du tableau « Suivi des tâches » (G.S. Ajoie)' }],
     prefs: {},
   };

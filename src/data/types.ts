@@ -178,8 +178,27 @@ export interface MeetingMinutes {
   pointIds?: string[];
   /** Afficher dans le PV tous les points de l'ordre du jour (sinon seulement ceux avec notes ou changements). */
   tousLesPoints?: boolean;
+  /** Changements de tâches faits depuis l'onglet PV (seuls ceux-ci figurent dans le PV). */
+  journal?: MinutesChange[];
+  /** Tâches créées pendant la séance (« nouvelle tâche décidée »). */
+  nouvelles?: string[];
+  /** Intitulés des tâches supprimées depuis l'onglet PV. */
+  supprimees?: string[];
   valideLe?: string;
   validePar?: string;
+  /** Numéro de la dernière version validée (1, 2…). */
+  version?: number;
+  /** PV validé rouvert pour correction (la validation créera la version suivante). */
+  enCorrection?: boolean;
+  /** Copie de la dernière version validée, pour pouvoir annuler une correction. */
+  derniereValidee?: Omit<MeetingMinutes, 'derniereValidee'>;
+}
+
+export interface MinutesChange {
+  taskId: string;
+  titre: string;
+  changes: string[];
+  at: string;
 }
 
 export interface PvArchive {

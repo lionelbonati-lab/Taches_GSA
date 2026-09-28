@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 /** Zone de notes enregistrée automatiquement (pendant la frappe et en quittant le champ). */
-export function NoteField({ value, onCommit, placeholder, autoFocus }: { value: string; onCommit: (v: string) => void; placeholder?: string; autoFocus?: boolean }) {
+export function NoteField({ value, onCommit, placeholder, autoFocus, readOnly }: { value: string; onCommit: (v: string) => void; placeholder?: string; autoFocus?: boolean; readOnly?: boolean }) {
   const [v, setV] = useState(value);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -36,7 +36,8 @@ export function NoteField({ value, onCommit, placeholder, autoFocus }: { value: 
       rows={1}
       value={v}
       autoFocus={autoFocus}
-      placeholder={placeholder}
+      readOnly={readOnly}
+      placeholder={readOnly ? '' : placeholder}
       onChange={(e) => {
         setV(e.target.value);
         clearTimeout(timer.current);

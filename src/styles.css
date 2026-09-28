@@ -335,6 +335,13 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .note-field { width: 100%; resize: none; overflow: hidden; margin: 4px 0; font-size: 0.92rem; background: var(--surface2); border-style: dashed; min-height: 34px; }
 .note-field:focus { background: var(--surface); border-style: solid; }
 .min-pv-actions { margin-bottom: 12px; }
+.min-banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; }
+.min-banner.locked { background: #dcfce7; color: #14532d; }
+.min-banner.editing { background: #fef3c7; color: #78350f; }
+:root[data-theme='dark'] .min-banner.locked { background: #123524; color: #bbf7d0; }
+:root[data-theme='dark'] .min-banner.editing { background: #3b2a0a; color: #fde68a; }
+.pv-version { margin: 2px 0 0; font-weight: 600; color: #b45309; }
+.note-field[readonly] { background: transparent; border-style: solid; border-color: transparent; padding-left: 0; }
 .min-pv-note { margin: 2px 0 4px; white-space: pre-wrap; color: #111; }
 .min-pv-change { margin: 0 0 4px; color: #1d4ed8; font-size: 0.9em; }
 @media (max-width: 1000px) {

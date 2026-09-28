@@ -4,6 +4,7 @@ import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
 import type { ActivityNotif, AppData, Permission, Person, Poll, Prefs, Role, Section, Task } from './types';
 import { clearFiles } from './files';
+import { snapshotToJournal } from './minutes';
 
 // Couche de données de la démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Pour passer à une vraie base (ex. Supabase), seul ce fichier devra être remplacé.
@@ -12,7 +13,7 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 8;
+export const SCHEMA = 9;
 
 /** Mises à niveau des données déjà enregistrées dans le navigateur (évite de tout réinitialiser). */
 function migrate(d: AppData): AppData {
@@ -20,6 +21,10 @@ function migrate(d: AppData): AppData {
     // v8 : onglet PV, donné par défaut au Secrétaire.
     const sec = d.roles.find((r) => r.id === 'secretaire');
     if (sec && !sec.permissions.includes('tab.minutes')) sec.permissions.push('tab.minutes');
+  }
+  if ((d.schema ?? 7) < 9) {
+    // v9 : le PV garde un journal des changements faits depuis l'onglet PV (au lieu d'un état de départ).
+    d.meetings.forEach((m) => m.minutes && snapshotToJournal(d, m.minutes));
   }
   d.schema = SCHEMA;
   return d;

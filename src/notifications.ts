@@ -101,7 +101,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
       items.push({
         key: `pvdispo:${pv.id}`,
         icon: '📝',
-        text: `PV du ${m.titre} disponible`,
+        text: (m.minutes?.version ?? 1) > 1 ? `PV du ${m.titre} corrigé (version ${m.minutes!.version})` : `PV du ${m.titre} disponible`,
         sub: `validé le ${fmtDate(pv.at.slice(0, 10))}`,
         link: '/comite',
         at: pv.at,
