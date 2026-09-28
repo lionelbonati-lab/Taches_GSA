@@ -133,14 +133,6 @@ export function Pv() {
     const none = list.filter((t) => t.responsables.length === 0);
     return none.length ? [...groups, { key: 'none', label: 'Sans responsable', tasks: order(none) }] : groups;
   };
-  const unifiedGroups = group(unified, true).filter(
-    (g) => g.tasks.length || s.sectionsVides || (s.groupBy === 'section' && polls.some((p) => pollSection(data, p) === g.key)),
-  );
-
-  const pourLabel = (t: Task) => {
-    const b = bucketOf.get(t.id);
-    return b === 'late' ? '⚠ Retard' : b === 'bilan' ? '✓ Fait' : b === 'p2' ? s2?.titre ?? '' : s1?.titre ?? '';
-  };
   // Sondages : en cours, ou clôturés depuis la séance précédente ; placés sous leur section.
   const polls: Poll[] = s.parts.sondages
     ? (data.polls ?? []).filter((p) => {
@@ -151,6 +143,14 @@ export function Pv() {
     : [];
   const pollsOf = (secId?: string) => polls.filter((p) => pollSection(data, p) === secId);
   const pollsWithoutSection = polls.filter((p) => !pollSection(data, p) || !data.sections.some((x) => x.id === pollSection(data, p)));
+  const unifiedGroups = group(unified, true).filter(
+    (g) => g.tasks.length || s.sectionsVides || (s.groupBy === 'section' && polls.some((p) => pollSection(data, p) === g.key)),
+  );
+
+  const pourLabel = (t: Task) => {
+    const b = bucketOf.get(t.id);
+    return b === 'late' ? '⚠ Retard' : b === 'bilan' ? '✓ Fait' : b === 'p2' ? s2?.titre ?? '' : s1?.titre ?? '';
+  };
   const pollBlock = (list: Poll[]) =>
     list.length > 0 && (
       <div className="pv-polls">
