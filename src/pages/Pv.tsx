@@ -3,6 +3,8 @@ import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { Meeting, Person, PvSettings, Section, Task } from '../data/types';
 import { addDays, fmtDate, fullName, initials, isDone, isLate, shortName, today, uid } from '../data/utils';
+import { isOpen, pollSection, pollSummary } from '../data/polls';
+import type { Poll } from '../data/types';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête, convoqués, tâches par section.
@@ -12,12 +14,12 @@ export const DEFAULT_PV: PvSettings = {
   titre: '',
   club: 'G.S. Ajoie – Comité',
   afficherClub: true,
-  parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, notes: true },
+  parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true },
   groupBy: 'section',
   tri: 'delai',
   separerParEcheance: false,
   sectionsVides: true,
-  colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, suivi: true },
+  colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, documents: true, suivi: true },
   statutsExclus: [],
   sectionsExclues: [],
   orientation: 'portrait',
@@ -131,17 +133,39 @@ export function Pv() {
     const none = list.filter((t) => t.responsables.length === 0);
     return none.length ? [...groups, { key: 'none', label: 'Sans responsable', tasks: order(none) }] : groups;
   };
-  const unifiedGroups = group(unified, s.sectionsVides);
+  const unifiedGroups = group(unified, true).filter(
+    (g) => g.tasks.length || s.sectionsVides || (s.groupBy === 'section' && polls.some((p) => pollSection(data, p) === g.key)),
+  );
 
   const pourLabel = (t: Task) => {
     const b = bucketOf.get(t.id);
     return b === 'late' ? '⚠ Retard' : b === 'bilan' ? '✓ Fait' : b === 'p2' ? s2?.titre ?? '' : s1?.titre ?? '';
   };
+  // Sondages : en cours, ou clôturés depuis la séance précédente ; placés sous leur section.
+  const polls: Poll[] = s.parts.sondages
+    ? (data.polls ?? []).filter((p) => {
+        const sec = pollSection(data, p);
+        if (sec && s.sectionsExclues.includes(sec)) return false;
+        return isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= since;
+      })
+    : [];
+  const pollsOf = (secId?: string) => polls.filter((p) => pollSection(data, p) === secId);
+  const pollsWithoutSection = polls.filter((p) => !pollSection(data, p) || !data.sections.some((x) => x.id === pollSection(data, p)));
+  const pollBlock = (list: Poll[]) =>
+    list.length > 0 && (
+      <div className="pv-polls">
+        {list.map((p) => (
+          <p key={p.id}><b>📊 {p.question}</b> — {pollSummary(p)}</p>
+        ))}
+      </div>
+    );
+
   const summary = [
     s.parts.retards && `${late.length} en retard`,
     s1 && s.parts.avantProchaine && `${avant1.length} pour le ${s1.titre}`,
     s2 && s.parts.avantSuivante && `${avant2.length} pour le ${s2.titre}`,
     s.parts.bilan && `${bilan.length} terminée${bilan.length > 1 ? 's' : ''} depuis ${s0 ? `le ${s0.titre}` : '60 jours'}`,
+    s.parts.sondages && polls.length > 0 && `${polls.length} sondage${polls.length > 1 ? 's' : ''}`,
   ].filter(Boolean).join(' · ');
 
   const titre = s.titre.trim() || (s1 ? `Comité ${shortDate(s1.date)}` : 'Comité');
@@ -178,8 +202,15 @@ export function Pv() {
       lines.push('', 'SUIVI DES TÂCHES PAR SECTION', summary);
       for (const g of unifiedGroups) {
         lines.push('', g.label.toUpperCase());
-        if (!g.tasks.length) lines.push('  (rien à signaler)');
+        const gp = s.groupBy === 'section' ? pollsOf(g.key) : [];
+        if (!g.tasks.length && !gp.length) lines.push('  (rien à signaler)');
         g.tasks.forEach((t) => lines.push(line(t, true)));
+        gp.forEach((p) => lines.push(`  📊 ${p.question} — ${pollSummary(p)}`));
+      }
+      const rest = s.groupBy === 'section' ? pollsWithoutSection : polls;
+      if (rest.length) {
+        lines.push('', 'SONDAGES');
+        rest.forEach((p) => lines.push(`  📊 ${p.question} — ${pollSummary(p)}`));
       }
     } else
       for (const part of parts) {
@@ -189,6 +220,10 @@ export function Pv() {
           g.tasks.forEach((t) => lines.push(line(t)));
         }
       }
+    if (s.separerParEcheance && polls.length) {
+      lines.push('', 'SONDAGES');
+      polls.forEach((p) => lines.push(`  📊 ${p.question} — ${pollSummary(p)}`));
+    }
     if (s2) lines.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu}`);
     return lines.join('\n');
   };
@@ -233,6 +268,9 @@ export function Pv() {
             {t.titre}
             {s.colonnes.checklist && t.checklist.length > 0 && (
               <span className="pv-checklist">{t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join('   ')}</span>
+            )}
+            {s.colonnes.documents && (t.documents?.length ?? 0) > 0 && (
+              <span className="pv-docs">📎 {t.documents!.map((d) => d.nom).join(', ')}</span>
             )}
           </>
         );
@@ -306,6 +344,7 @@ export function Pv() {
               ['avantProchaine', 'Tâches à faire d’ici la séance'],
               ['avantSuivante', 'Tâches à faire d’ici la séance suivante'],
               ['bilan', 'Tâches terminées depuis la dernière séance'],
+              ['sondages', 'Sondages en cours et récents'],
               ['notes', 'Cadre de notes et décisions'],
             ] as [keyof PvSettings['parts'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
@@ -348,6 +387,7 @@ export function Pv() {
               ['statut', 'Statut'],
               ['remarque', 'Remarque'],
               ['checklist', 'Checklist sous la tâche'],
+              ['documents', 'Documents joints sous la tâche'],
               ['suivi', 'Colonne vide « Suivi / décision »'],
             ] as [keyof PvSettings['colonnes'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
@@ -442,12 +482,22 @@ export function Pv() {
                 {unifiedGroups.length === 0 ? (
                   <p className="pv-empty">Aucune tâche.</p>
                 ) : (
-                  unifiedGroups.map((g) => (
-                    <div key={g.key} className="pv-group">
-                      {g.label && <h3>{g.label}</h3>}
-                      {g.tasks.length ? table(g.tasks) : <p className="pv-empty">Rien à signaler.</p>}
-                    </div>
-                  ))
+                  unifiedGroups.map((g) => {
+                    const gp = s.groupBy === 'section' ? pollsOf(g.key) : [];
+                    return (
+                      <div key={g.key} className="pv-group">
+                        {g.label && <h3>{g.label}</h3>}
+                        {g.tasks.length ? table(g.tasks) : !gp.length && <p className="pv-empty">Rien à signaler.</p>}
+                        {pollBlock(gp)}
+                      </div>
+                    );
+                  })
+                )}
+                {(s.groupBy === 'section' ? pollsWithoutSection : polls).length > 0 && (
+                  <div className="pv-group">
+                    <h3>Sondages</h3>
+                    {pollBlock(s.groupBy === 'section' ? pollsWithoutSection : polls)}
+                  </div>
                 )}
               </section>
             ) : (
@@ -466,6 +516,12 @@ export function Pv() {
                   )}
                 </section>
               ))
+            )}
+            {s.separerParEcheance && polls.length > 0 && (
+              <section className="pv-part">
+                <h2>📊 Sondages <span className="pv-count">{polls.length}</span></h2>
+                {pollBlock(polls)}
+              </section>
             )}
 
             {s.parts.notes && (

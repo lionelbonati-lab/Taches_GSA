@@ -1,4 +1,4 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
@@ -25,13 +25,18 @@ export function StatusBadge({ task }: { task: Task }) {
 }
 
 export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      const all = document.querySelectorAll('.modal-back');
+      if (all[all.length - 1] === ref.current) onClose(); // seulement la fenêtre du dessus
+    };
     window.addEventListener('keydown', k);
     return () => window.removeEventListener('keydown', k);
   }, [onClose]);
   return (
-    <div className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div ref={ref} className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
         <div className="modal-head">
           <h2>{title}</h2>
@@ -57,6 +62,18 @@ export function LinkIcon({ task }: { task: Task }) {
   const target = delaiTarget(data, task);
   if (!target || !task.delaiRef) return null;
   return <span className="ticon" title={`${offsetLabel(task.delaiRef.joursAvant)} « ${target.nom} » (${fmtDate(target.date)})`}>🔗</span>;
+}
+
+export function DocPollIcons({ task }: { task: Task }) {
+  const { data } = useStore();
+  const n = task.documents?.length ?? 0;
+  const polls = (data.polls ?? []).filter((p) => p.taskId === task.id).length;
+  return (
+    <>
+      {n > 0 && <span className="ticon" title={`${n} document(s)`}>📎{n > 1 ? n : ''}</span>}
+      {polls > 0 && <span className="ticon" title="Sondage lié">📊</span>}
+    </>
+  );
 }
 
 export function Toast() {

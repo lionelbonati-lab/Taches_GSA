@@ -15,6 +15,8 @@ export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMIS
   { id: 'meetings.manage', label: 'Gérer les séances de comité', group: 'Gestion' },
   { id: 'events.manage', label: 'Gérer les événements', group: 'Gestion' },
   { id: 'people.manage', label: 'Gérer les responsables', group: 'Gestion' },
+  { id: 'polls.create', label: 'Créer des sondages', group: 'Gestion' },
+  { id: 'polls.manage', label: 'Gérer tous les sondages (clôturer, supprimer)', group: 'Gestion' },
   { id: 'settings.lists', label: 'Gérer sections / statuts', group: 'Administration' },
   { id: 'admin.access', label: 'Accès console admin', group: 'Administration' },
 ];

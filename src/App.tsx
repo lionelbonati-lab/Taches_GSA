@@ -9,6 +9,7 @@ import { People } from './pages/People';
 import { Settings } from './pages/Settings';
 import { Admin } from './pages/Admin';
 import { Pv } from './pages/Pv';
+import { Polls } from './pages/Polls';
 
 export function App() {
   const { user, can } = useStore();
@@ -25,6 +26,7 @@ export function App() {
           {can('tab.people') && <Route path="responsables" element={<People />} />}
           {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
           <Route path="pv" element={<Navigate to="/ordre-du-jour" replace />} />
+          <Route path="sondages" element={<Polls />} />
           <Route path="reglages" element={<Settings />} />
           {can('admin.access') && <Route path="admin" element={<Admin />} />}
           <Route path="*" element={<Navigate to="/" replace />} />

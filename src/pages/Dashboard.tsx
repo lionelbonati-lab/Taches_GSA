@@ -6,6 +6,7 @@ import { daysUntil, fmtDate, isDone, isLate, today } from '../data/utils';
 import { TaskCard } from './Tasks';
 import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
+import { isOpen } from '../data/polls';
 
 export function Dashboard() {
   const { data, user, can, saveTask } = useStore();
@@ -44,6 +45,20 @@ export function Dashboard() {
           {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Aucune échéance cette semaine.</Empty>}
         </section>
         <aside>
+          {(() => {
+            const toVote = (data.polls ?? []).filter((p) => isOpen(p) && p.votants.includes(user.id) && !p.votes[user.id]);
+            return toVote.length > 0 ? (
+              <>
+                <h2>📊 Sondages à voter</h2>
+                {toVote.map((p) => (
+                  <Link key={p.id} to={`/sondages?id=${p.id}`} className="panel link-panel">
+                    <strong>{p.question}</strong>
+                    <span className="muted">{p.dateLimite ? `Réponds avant le ${fmtDate(p.dateLimite)}` : 'En attente de ta réponse'}</span>
+                  </Link>
+                ))}
+              </>
+            ) : null;
+          })()}
           {can('tab.meetings') && <h2>Prochaine séance</h2>}
           {!can('tab.meetings') ? null : nextMeeting ? (
             <Link to="/comite" className="panel link-panel">

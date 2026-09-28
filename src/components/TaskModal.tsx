@@ -1,4 +1,8 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { DocsField, type DocTracking } from './DocsField';
+import { PollCard } from './PollCard';
+import { PollEditor } from './PollEditor';
+import { deleteFiles } from '../data/files';
 import { useStore } from '../data/store';
 import type { Recurrence, Task } from '../data/types';
 import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, fmtDate, fmtDateTime, fullName, nextDate, shortName, nextResponsables, postesFor, today, uid } from '../data/utils';
@@ -22,10 +26,12 @@ export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
 }
 
 export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: boolean; onClose: () => void; quick?: boolean }) {
-  const { data, user, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update } = useStore();
   const [t, setT] = useState<Task>(task);
   const [newItem, setNewItem] = useState('');
   const [err, setErr] = useState('');
+  const track = useRef<DocTracking>({ added: [], removed: [] });
+  const [newPoll, setNewPoll] = useState(false);
   if (!user) return null;
 
   const editable = isNew ? true : canEditTask(task);
@@ -45,6 +51,13 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
       return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
     saveTask({ ...t, titre: t.titre.trim() }, isNew);
+    deleteFiles(track.current.removed); // fichiers retirés : effacés seulement une fois la tâche enregistrée
+    onClose();
+  };
+
+  // Annuler : on efface les fichiers ajoutés pendant cette édition.
+  const cancel = () => {
+    deleteFiles(track.current.added);
     onClose();
   };
 
@@ -52,14 +65,22 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
     if (!confirm(`Supprimer la tâche « ${task.titre} » ?`)) return;
     update((d) => {
       d.tasks = d.tasks.filter((x) => x.id !== task.id);
+      // Les sondages liés restent, rattachés à la section de la tâche.
+      (d.polls ?? []).forEach((p) => {
+        if (p.taskId === task.id) {
+          p.taskId = undefined;
+          p.sectionId = p.sectionId ?? task.sectionId;
+        }
+      });
     }, `Suppression de la tâche « ${task.titre} »`);
+    deleteFiles([...(task.documents ?? []).filter((d) => d.kind === 'fichier').map((d) => d.id), ...track.current.added]);
     onClose();
   };
 
   const dis = !editable;
   const postes = postesFor(data, t, isNew ? undefined : task) ?? [];
   return (
-    <Modal title={quick ? 'Ajout rapide' : isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'} onClose={onClose} wide={!quick}>
+    <Modal title={quick ? 'Ajout rapide' : isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'} onClose={cancel} wide={!quick}>
       <div className="form">
         <label className="full">
           Tâche
@@ -120,6 +141,9 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
           </div>
           {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </fieldset>
+        {quick && (
+          <DocsField compact docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track.current} />
+        )}
         {!quick && (
           <>
             <label>
@@ -169,6 +193,17 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
                 </div>
               )}
             </fieldset>
+            <DocsField docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track.current} />
+            <fieldset className="full">
+              <legend>Sondages</legend>
+              {(data.polls ?? []).filter((p) => p.taskId === task.id).map((p) => <PollCard key={p.id} poll={p} compact />)}
+              {isNew ? (
+                <small className="muted">Enregistre d’abord la tâche pour y ajouter un sondage.</small>
+              ) : (
+                can('polls.create') && <button type="button" className="btn small" onClick={() => setNewPoll(true)}>📊 Créer un sondage</button>
+              )}
+              {!isNew && <a className="small-link" href="#/sondages">Voir tous les sondages →</a>}
+            </fieldset>
             {!isNew && <small className="muted full">Dernière modification : {fmtDateTime(task.updatedAt)} · créée par {fullName(data.people.find((p) => p.id === task.createdBy))}</small>}
           </>
         )}
@@ -177,9 +212,10 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
       <div className="modal-foot">
         {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove}>Supprimer</button>}
         <span className="grow" />
-        <button className="btn" onClick={onClose}>{editable ? 'Annuler' : 'Fermer'}</button>
+        <button className="btn" onClick={cancel}>{editable ? 'Annuler' : 'Fermer'}</button>
         {editable && <button className="btn primary" onClick={submit}>{isNew ? 'Créer' : 'Enregistrer'}</button>}
       </div>
+      {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
     </Modal>
   );
 }

@@ -14,6 +14,7 @@ export const TABS: { to: string; label: string; icon: string; perm?: Permission;
   { to: '/taches', label: 'Tâches', icon: '✅', mobile: true },
   { to: '/comite', label: 'Comité', icon: '🗓️', perm: 'tab.meetings', mobile: true },
   { to: '/evenements', label: 'Événements', icon: '🎉', perm: 'tab.events', mobile: true },
+  { to: '/sondages', label: 'Sondages', icon: '📊' },
   { to: '/responsables', label: 'Responsables', icon: '👥', perm: 'tab.people' },
   { to: '/ordre-du-jour', label: 'Ordre du jour', icon: '📝', perm: 'tab.pv' },
   { to: '/reglages', label: 'Réglages', icon: '⚙️' },

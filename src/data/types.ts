@@ -10,6 +10,8 @@ export type Permission =
   | 'tab.events'
   | 'tab.people'
   | 'tab.pv'
+  | 'polls.create'
+  | 'polls.manage'
   | 'meetings.manage'
   | 'events.manage'
   | 'people.manage'
@@ -69,6 +71,48 @@ export interface DelaiRef {
   joursAvant: number;
 }
 
+/** Document joint à une tâche : fichier (contenu gardé à part, voir files.ts) ou lien. */
+export interface TaskDoc {
+  id: string;
+  nom: string;
+  kind: 'fichier' | 'lien';
+  url?: string;
+  mime?: string;
+  taille?: number;
+  par: string;
+  le: string;
+}
+
+export type PollType = 'ouinon' | 'choix' | 'dates';
+
+export interface PollOption {
+  id: string;
+  label: string;
+  date?: string;
+  heure?: string;
+}
+
+export interface Poll {
+  id: string;
+  question: string;
+  description?: string;
+  type: PollType;
+  /** Choix multiple autorisé (toujours vrai pour un sondage de dates). */
+  multiple: boolean;
+  options: PollOption[];
+  votants: string[];
+  anonyme: boolean;
+  dateLimite?: string;
+  taskId?: string;
+  /** Section de l'ordre du jour (sinon celle de la tâche liée). */
+  sectionId?: string;
+  creePar: string;
+  creeLe: string;
+  clotureLe?: string;
+  /** Réponses : personne → options choisies. */
+  votes: Record<string, string[]>;
+}
+
 export interface Task {
   id: string;
   sectionId: string;
@@ -81,6 +125,7 @@ export interface Task {
   eventId?: string;
   meetingId?: string;
   checklist: ChecklistItem[];
+  documents?: TaskDoc[];
   delaiRef?: DelaiRef;
   recurrence?: Recurrence;
   /** Postes des responsables : l'occurrence suivante va à la personne qui occupe alors le poste. */
@@ -126,6 +171,7 @@ export interface PvSettings {
     avantProchaine: boolean;
     avantSuivante: boolean;
     bilan: boolean;
+    sondages: boolean;
     notes: boolean;
   };
   groupBy: 'section' | 'responsable' | 'aucun';
@@ -134,7 +180,7 @@ export interface PvSettings {
   separerParEcheance: boolean;
   /** Afficher aussi les sections sans tâche (« Rien à signaler »), comme l'ordre du jour. */
   sectionsVides: boolean;
-  colonnes: { sousSection: boolean; echeance: boolean; statut: boolean; remarque: boolean; checklist: boolean; suivi: boolean };
+  colonnes: { sousSection: boolean; echeance: boolean; statut: boolean; remarque: boolean; checklist: boolean; documents: boolean; suivi: boolean };
   statutsExclus: string[];
   sectionsExclues: string[];
   orientation: 'portrait' | 'paysage';
@@ -164,6 +210,7 @@ export interface NotifPrefs {
   retard: boolean;
   seance: boolean;
   seanceJours: number;
+  sondage: boolean;
   /** Notifications de l'appareil (système), en plus de la cloche. */
   systeme: boolean;
 }
@@ -198,6 +245,7 @@ export interface AppData {
   log: LogEntry[];
   prefs: Record<string, Prefs>;
   notifications?: ActivityNotif[];
+  polls?: Poll[];
   /** Clés des notifications déjà vues, par utilisateur. */
   notifLues?: Record<string, string[]>;
 }

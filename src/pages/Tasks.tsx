@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { daysUntil, fmtDate, fullName, isDone, isLate, recurrenceLabel } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
-import { Avatar, Empty, LinkIcon, RecurIcon, StatusBadge } from '../components/ui';
+import { Avatar, DocPollIcons, Empty, LinkIcon, RecurIcon, StatusBadge } from '../components/ui';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
@@ -192,7 +192,7 @@ export function Tasks() {
                   <td>{sectionName(t.sectionId)}</td>
                   <td className="muted">{t.sousSection}</td>
                   <td>
-                    <strong>{t.titre}</strong> <RecurIcon task={t} />
+                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
                   </td>
                   <td><span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={24} />)}</span></td>
@@ -217,7 +217,7 @@ export function Tasks() {
                 {col.map((t) => (
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t)} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
-                    <strong>{t.titre} <RecurIcon task={t} /></strong>
+                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /></strong>
                     <div className="kmeta">
                       <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={22} />)}</span>
                       <span className={isLate(data, t) ? 'late-text' : 'muted'}>{fmtDate(t.delai)} <LinkIcon task={t} /></span>
@@ -247,7 +247,7 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         <small className="muted">{sectionName}{t.sousSection && ` › ${t.sousSection}`}</small>
         <StatusBadge task={t} />
       </div>
-      <strong>{t.titre} <RecurIcon task={t} /></strong>
+      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /></strong>
       {t.remarque && <small className="muted clip">{t.remarque}</small>}
       <div className="tcard-bottom">
         <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={24} />)}</span>

@@ -2,11 +2,12 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { makeSeed } from './seed';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
-import type { ActivityNotif, AppData, Permission, Person, Prefs, Role, Section, Task } from './types';
+import type { ActivityNotif, AppData, Permission, Person, Poll, Prefs, Role, Section, Task } from './types';
+import { clearFiles } from './files';
 
 // Couche de données de la démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Pour passer à une vraie base (ex. Supabase), seul ce fichier devra être remplacé.
-const KEY = 'taches-gsa-demo-v6';
+const KEY = 'taches-gsa-demo-v7';
 const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
@@ -45,6 +46,11 @@ interface Store {
   setToast: (msg: string | null) => void;
   /** Marque des notifications comme vues (sans entrée au journal). */
   markNotifsRead: (keys: string[]) => void;
+  savePoll: (p: Poll, isNew: boolean) => void;
+  votePoll: (pollId: string, optionIds: string[]) => void;
+  closePoll: (pollId: string, closed: boolean) => void;
+  deletePoll: (pollId: string) => void;
+  canManagePoll: (p: Poll) => boolean;
   reset: () => void;
 }
 
@@ -176,7 +182,49 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const reset = useCallback(() => {
     setData(makeSeed());
+    clearFiles();
   }, []);
+
+  const savePoll = useCallback(
+    (p: Poll, isNew: boolean) =>
+      update((d) => {
+        d.polls = isNew ? [p, ...(d.polls ?? [])] : (d.polls ?? []).map((x) => (x.id === p.id ? p : x));
+      }, `${isNew ? 'Création' : 'Modification'} du sondage « ${p.question} »`),
+    [update],
+  );
+  const votePoll = useCallback(
+    (pollId: string, optionIds: string[]) => {
+      if (!userId) return;
+      const p = data.polls?.find((x) => x.id === pollId);
+      update((d) => {
+        const x = d.polls?.find((y) => y.id === pollId);
+        if (x) x.votes = { ...x.votes, [userId]: optionIds };
+      }, `Réponse au sondage « ${p?.question ?? ''} »`);
+    },
+    [update, userId, data.polls],
+  );
+  const closePoll = useCallback(
+    (pollId: string, closed: boolean) => {
+      const p = data.polls?.find((x) => x.id === pollId);
+      update((d) => {
+        const x = d.polls?.find((y) => y.id === pollId);
+        if (!x) return;
+        x.clotureLe = closed ? new Date().toISOString().slice(0, 10) : undefined;
+        // Rouvrir un sondage dont la date limite est passée : on retire la date limite.
+        if (!closed && x.dateLimite && x.dateLimite < new Date().toISOString().slice(0, 10)) x.dateLimite = undefined;
+      }, `Sondage « ${p?.question ?? ''} » ${closed ? 'clôturé' : 'rouvert'}`);
+    },
+    [update, data.polls],
+  );
+  const deletePoll = useCallback(
+    (pollId: string) => {
+      const p = data.polls?.find((x) => x.id === pollId);
+      update((d) => {
+        d.polls = (d.polls ?? []).filter((x) => x.id !== pollId);
+      }, `Suppression du sondage « ${p?.question ?? ''} »`);
+    },
+    [update, data.polls],
+  );
 
   const can = (p: Permission, sectionId?: string) => hasPermission(myRoles, p, sectionId);
   const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
@@ -199,6 +247,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     toast,
     setToast,
     markNotifsRead,
+    savePoll,
+    votePoll,
+    closePoll,
+    deletePoll,
+    canManagePoll: (p) => !!user && (p.creePar === user.id || can('polls.manage')),
     reset,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

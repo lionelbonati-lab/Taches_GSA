@@ -1,5 +1,6 @@
 import { useStore } from './data/store';
 import type { AppData, NotifPrefs, Person } from './data/types';
+import { isOpen } from './data/polls';
 import { daysUntil, fmtDate, fullName, isDone, isLate, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
 
@@ -14,6 +15,7 @@ export const DEFAULT_NOTIF: NotifPrefs = {
   retard: true,
   seance: true,
   seanceJours: 7,
+  sondage: true,
   systeme: false,
 };
 
@@ -91,6 +93,20 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
       });
     }
   }
+
+  if (p.sondage)
+    for (const poll of data.polls ?? []) {
+      if (!isOpen(poll) || !poll.votants.includes(user.id) || poll.votes[user.id]) continue;
+      items.push({
+        key: `sondage:${poll.id}`,
+        icon: '📊',
+        text: `Sondage : « ${poll.question} »`,
+        sub: poll.dateLimite ? `réponds avant le ${fmtDate(poll.dateLimite)}` : 'en attente de ta réponse',
+        link: `/sondages?id=${poll.id}`,
+        at: poll.creeLe,
+        kind: 'alerte',
+      });
+    }
 
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
