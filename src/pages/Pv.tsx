@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
-import type { Meeting, Person, PvSettings, Section, Task } from '../data/types';
+import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '../data/types';
 import { fmtDate, fullName, initials, isLate, shortName, today, uid } from '../data/utils';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { selectAgenda } from '../data/agenda';
@@ -177,6 +177,8 @@ export function Pv() {
       document.title = before;
     };
   }, [titre]);
+  // Sous-tâche : case, intitulé et initiales de la personne chargée.
+  const checkText = (c: ChecklistItem) => `${c.done ? '☑' : '☐'} ${c.label}${c.assigneeId ? ` (${initials(person(c.assigneeId))})` : ''}`;
   const respText = (t: Task) => t.responsables.map((id) => initials(person(id))).join(', ') || '—';
 
   // ---------- Actions ----------
@@ -282,7 +284,7 @@ export function Pv() {
           <>
             {t.titre}
             {s.colonnes.checklist && t.checklist.length > 0 && (
-              <span className="pv-checklist">{t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join('   ')}</span>
+              <span className="pv-checklist">{t.checklist.map(checkText).join('   ')}</span>
             )}
             {s.colonnes.documents && (t.documents?.length ?? 0) > 0 && (
               <span className="pv-docs">📎 {t.documents!.map((d) => d.nom).join(', ')}</span>
@@ -335,7 +337,7 @@ export function Pv() {
     key: t.id,
     task: t,
     children: [
-      ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, `${c.done ? '☑' : '☐'} ${c.label}`)) : []),
+      ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, checkText(c))) : []),
       ...(s.colonnes.documents && t.documents?.length ? [textItem(`${t.id}-docs`, `📎 ${t.documents.map((d) => d.nom).join(', ')}`)] : []),
       ...(withPolls ? polls.filter((p) => p.taskId === t.id).map(pollItem) : []),
     ],

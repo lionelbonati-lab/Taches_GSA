@@ -11,7 +11,7 @@ type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 
 const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '' };
 
 export function Tasks() {
-  const { data, user, can, canSeeTask, canEditTask, prefs, setPrefs, saveTask } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, hasSubtask, prefs, setPrefs, saveTask } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
     params.get('statut') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') ? 'toutes' : prefs.vueDefaut,
@@ -20,9 +20,10 @@ export function Tasks() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'delai', dir: 1 });
   const navigate = useNavigate();
   // Lien depuis une notification : /taches?tache=<id> ouvre directement la tâche.
-  const [edit, setEdit] = useState<{ task: Task; isNew: boolean } | null>(() => {
+  // …&email=<id> ouvre en plus l'email programmé à envoyer.
+  const [edit, setEdit] = useState<{ task: Task; isNew: boolean; email?: string } | null>(() => {
     const t = data.tasks.find((x) => x.id === params.get('tache'));
-    return t ? { task: t, isNew: false } : null;
+    return t ? { task: t, isNew: false, email: params.get('email') ?? undefined } : null;
   });
   const closeEdit = () => {
     setEdit(null);
@@ -43,11 +44,11 @@ export function Tasks() {
     if (!user) return [];
     const q = f.q.trim().toLowerCase();
     const res = data.tasks.filter((t) => {
-      if (effScope === 'mes' ? !t.responsables.includes(user.id) : !canSeeTask(t)) return false;
+      if (effScope === 'mes' ? !t.responsables.includes(user.id) && !hasSubtask(t) : !canSeeTask(t)) return false;
       if (hideDone && view !== 'kanban' && !f.statut && isDone(data, t)) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
-      if (f.resp && !t.responsables.includes(f.resp)) return false;
+      if (f.resp && !t.responsables.includes(f.resp) && !t.checklist.some((c) => c.assigneeId === f.resp)) return false;
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
       if (f.event && t.eventId !== f.event) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
@@ -59,6 +60,7 @@ export function Tasks() {
         if (f.delai === '30' && (n < 0 || n > 30)) return false;
         if (f.delai === 'recurrente' && !t.recurrence) return false;
         if (f.delai === 'lie' && !t.delaiRef) return false;
+        if (f.delai === 'email' && !(data.emails ?? []).some((e) => e.taskId === t.id && e.statut === 'programme')) return false;
       }
       if (q && !`${t.titre} ${t.remarque} ${t.sousSection} ${sectionName(t.sectionId)} ${respNames(t)}`.toLowerCase().includes(q)) return false;
       return true;
@@ -87,10 +89,12 @@ export function Tasks() {
   };
 
   const exportCsv = () => {
-    const head = ['Section', 'Sous-section', 'Tâche', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Répétition', 'Remarque'];
+    const head = ['Section', 'Sous-section', 'Tâche', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Répétition', 'Remarque', 'Sous-tâches'];
+    const subs = (t: Task) =>
+      t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}${c.assigneeId ? ` (${fullName(data.people.find((p) => p.id === c.assigneeId))})` : ''}`).join(' | ');
     const rows = list.map((t) => [
       sectionName(t.sectionId), t.sousSection, t.titre, respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
-      data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', recurrenceLabel(t.recurrence), t.remarque,
+      data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', recurrenceLabel(t.recurrence), t.remarque, subs(t),
     ]);
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const a = document.createElement('a');
@@ -163,6 +167,7 @@ export function Tasks() {
           <option value="30">30 prochains jours</option>
           <option value="lie">🔗 Délai lié à un événement / une séance</option>
           <option value="recurrente">🔁 Tâches récurrentes</option>
+          <option value="email">📧 Avec email programmé</option>
         </select>
         <label className="inline hide-toggle"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminées</label>
         {activeFilters > 0 && <button className="btn link" onClick={() => setF(EMPTY_FILTERS)}>Effacer</button>}
@@ -194,8 +199,9 @@ export function Tasks() {
                   <td>
                     <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
+                    <MySubtask t={t} />
                   </td>
-                  <td><span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={24} />)}</span></td>
+                  <td><Responsables t={t} size={24} /></td>
                   <td><StatusBadge task={t} /></td>
                   <td className="nowrap">{fmtDate(t.delai)} <LinkIcon task={t} /></td>
                   <td className="muted"><span className="clip">{t.remarque}</span></td>
@@ -218,8 +224,9 @@ export function Tasks() {
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t)} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
                     <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /></strong>
+                    <MySubtask t={t} />
                     <div className="kmeta">
-                      <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={22} />)}</span>
+                      <Responsables t={t} size={22} />
                       <span className={isLate(data, t) ? 'late-text' : 'muted'}>{fmtDate(t.delai)} <LinkIcon task={t} /></span>
                     </div>
                   </div>
@@ -230,7 +237,7 @@ export function Tasks() {
         </div>
       )}
 
-      {edit && <TaskModal task={edit.task} isNew={edit.isNew} onClose={closeEdit} />}
+      {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} onClose={closeEdit} />}
     </div>
   );
 }
@@ -248,9 +255,10 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         <StatusBadge task={t} />
       </div>
       <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /></strong>
+      <MySubtask t={t} />
       {t.remarque && <small className="muted clip">{t.remarque}</small>}
       <div className="tcard-bottom">
-        <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={24} />)}</span>
+        <Responsables t={t} size={24} />
         <span className={late ? 'late-text' : 'muted'}>
           <LinkIcon task={t} /> {fmtDate(t.delai)} {late ? `(${-n} j de retard)` : n === 0 ? "(aujourd'hui)" : n > 0 && n <= 7 ? `(J-${n})` : ''}
         </span>
@@ -265,5 +273,29 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         </div>
       )}
     </div>
+  );
+}
+
+/** Responsables de la tâche, suivis (en plus petit) des personnes chargées d'une sous-tâche. */
+export function Responsables({ t, size }: { t: Task; size: number }) {
+  const subs = Array.from(new Set(t.checklist.map((c) => c.assigneeId).filter((id): id is string => !!id && !t.responsables.includes(id))));
+  return (
+    <span className="avatars">
+      {t.responsables.map((id) => <Avatar key={id} id={id} size={size} />)}
+      {subs.map((id) => <span key={id} className="avatar-sub" title="Sous-tâche"><Avatar id={id} size={Math.round(size * 0.8)} /></span>)}
+    </span>
+  );
+}
+
+/** Repère « ma sous-tâche » (sous-tâches ouvertes confiées à l'utilisateur connecté). */
+export function MySubtask({ t }: { t: Task }) {
+  const { user } = useStore();
+  const mine = t.checklist.filter((c) => c.assigneeId === user?.id);
+  if (!mine.length) return null;
+  const open = mine.filter((c) => !c.done);
+  return (
+    <small className={`my-sub ${open.length ? '' : 'done'}`} title={mine.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join('\n')}>
+      ☑ {open.length ? `Ma sous-tâche : ${open.map((c) => c.label).join(', ')}` : 'Ma sous-tâche est faite'}
+    </small>
   );
 }

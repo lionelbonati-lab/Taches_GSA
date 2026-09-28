@@ -68,10 +68,12 @@ export function DocPollIcons({ task }: { task: Task }) {
   const { data } = useStore();
   const n = task.documents?.length ?? 0;
   const polls = (data.polls ?? []).filter((p) => p.taskId === task.id).length;
+  const emails = (data.emails ?? []).filter((e) => e.taskId === task.id && e.statut === 'programme').length;
   return (
     <>
       {n > 0 && <span className="ticon" title={`${n} document(s)`}>📎{n > 1 ? n : ''}</span>}
       {polls > 0 && <span className="ticon" title="Sondage lié">📊</span>}
+      {emails > 0 && <span className="ticon" title={`${emails} email(s) programmé(s)`}>📧</span>}
     </>
   );
 }

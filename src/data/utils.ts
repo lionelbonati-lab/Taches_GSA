@@ -157,7 +157,13 @@ export function nextOccurrence(data: AppData, t: Task): Task {
     statusId: open.id,
     delai: t.delai ? nextDate(t.delai, t.recurrence!) : '',
     responsables: nextResponsables(data, t),
-    checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
+    // Les sous-tâches restent confiées aux mêmes personnes (si elles sont toujours actives).
+    checklist: t.checklist.map((c) => ({
+      ...c,
+      id: uid('c'),
+      done: false,
+      assigneeId: data.people.some((p) => p.id === c.assigneeId && p.actif) ? c.assigneeId : undefined,
+    })),
     // L'événement / la séance de cette année ne concernent pas l'occurrence suivante.
     eventId: undefined,
     meetingId: undefined,

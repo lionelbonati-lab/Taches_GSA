@@ -41,8 +41,8 @@ Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au 
 
 ## Onglets
 
-- **Accueil** : mes tâches en retard, échéances à 7 jours, prochaine séance, avancement des événements.
-- **Tâches** : section, sous-section, tâche, responsable(s), statut, délai, remarque, checklist ; « Mes tâches / Toutes », filtres, tri, vue tableau ou kanban (glisser-déposer), export CSV, impression.
+- **Accueil** : mes tâches en retard, échéances à 7 jours, mes sous-tâches, emails à envoyer, prochaine séance, avancement des événements.
+- **Tâches** : section, sous-section, tâche, responsable(s), statut, délai, remarque, sous-tâches ; « Mes tâches / Toutes », filtres, tri, vue tableau ou kanban (glisser-déposer), export CSV, impression.
 - **Comité** : séances (date, lieu, ordre du jour, notes/PV) et tâches liées.
 - **Événements** : événements du club, avancement des tâches liées.
 - **Responsables** : poste, nom, prénom, email, portable (liens mail / appel).
@@ -58,6 +58,27 @@ Le délai **suit ensuite automatiquement** la date : si le tournoi est déplacé
 
 Champ **Répétition** d'une tâche : chaque semaine, mois, trimestre, semestre ou année (repère 🔁, filtre « Tâches récurrentes »).
 Quand la tâche passe à un statut de clôture (« Terminé »), la suivante est **créée automatiquement** avec le délai décalé, le statut « À faire » et la checklist remise à zéro. Elle est attribuée **au poste** (ex. Trésorier) : si le titulaire a changé entre-temps, elle va à son successeur. Une tâche rouverte puis refermée ne crée pas de doublon.
+
+## Sous-tâches confiées à une personne
+
+Chaque ligne de la checklist d'une tâche peut être **confiée à une personne**, même si elle n'est pas responsable de la tâche (liste « Confier à… » à l'ajout, puis menu sur chaque ligne ; ★ = responsable de la tâche).
+
+- La personne chargée est **notifiée** 🔔 (« Lionel t'a confié la sous-tâche … »), voit la tâche dans **« Mes tâches »** avec le repère « ☑ Ma sous-tâche » et la retrouve dans **« Mes sous-tâches »** sur l'accueil.
+- Elle peut **cocher sa sous-tâche** (sur l'accueil ou dans la tâche) même si son rôle ne lui permet pas de modifier la tâche ; les responsables sont alors prévenus.
+- Ses échéances et retards comptent dans ses rappels. Dans les listes, les personnes chargées d'une sous-tâche apparaissent en petit (contour pointillé) après les responsables ; le filtre « Responsable » les inclut.
+- Ordre du jour : initiales de la personne après la sous-tâche (« ☐ Photos de la saison (DH) ») ; export CSV : colonne « Sous-tâches ».
+- Tâche récurrente : les sous-tâches de l'occurrence suivante restent confiées aux mêmes personnes.
+
+## Emails programmés
+
+Dans une tâche, **📧 Programmer un email** : destinataires (responsables cochés par défaut, autres membres, adresses supplémentaires), **quand** (1 mois / 2 semaines / 1 semaine / 3 jours avant le délai, la veille, le jour même, 1 à 7 jours après pour une relance, ou date précise) et heure, objet et message avec champs automatiques ({tâche}, {délai}, {section}, {responsables}, {statut}, {remarque}, {lien}, {expéditeur}) et aperçu. Option « Ne pas envoyer si la tâche est déjà terminée ».
+
+- Un email calé sur le délai **suit le délai** s'il change (y compris un délai lié à un événement).
+- États : 🕓 programmé, 📨 à envoyer, ✅ envoyé (date), ⛔ annulé, ✔️ pas envoyé car tâche terminée ; actions Envoyer maintenant, Modifier, Annuler, Reprogrammer, Supprimer. Repère 📧 et filtre « Avec email programmé » dans Tâches.
+- Tâche récurrente : les emails sont reconduits avec l'occurrence suivante (destinataires qui suivent le poste).
+- Trois exemples programmés par le président (dont un déjà à envoyer).
+
+Limite de la démo : sans serveur, l'appli ne peut pas envoyer d'email elle-même. À l'heure prévue, l'auteur reçoit une notification 🔔 (et de l'appareil si activée) ; **✉ Envoyer** ouvre l'email déjà rempli dans sa messagerie, puis « Marquer comme envoyé ». La version réelle l'enverra automatiquement à l'heure prévue.
 
 ## Documents joints
 
@@ -103,7 +124,8 @@ Onglet **🖊️ PV** (droit « Onglet PV », donné au Secrétaire et à l'Admi
 
 Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de notifications non lues :
 
-- 🆕 une tâche t'est attribuée par quelqu'un d'autre ;
+- 🆕 une tâche t'est attribuée par quelqu'un d'autre ; ☑️ une sous-tâche t'est confiée ;
+- 📧 un email que tu as programmé arrive à son heure d'envoi (message à l'écran si l'appli est ouverte) ;
 - ✏️ une de tes tâches est modifiée par quelqu'un d'autre (statut, délai, contenu) ; 🔁 tâche récurrente reconduite ;
 - ⏰ échéance proche (le jour même à 14 jours avant, réglable) ;
 - ⚠️ résumé quotidien de tes tâches en retard ;

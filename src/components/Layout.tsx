@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { rolesLabel } from '../data/permissions';
@@ -23,7 +23,7 @@ export const TABS: { to: string; label: string; icon: string; perm?: Permission;
 ];
 
 export function Layout() {
-  const { data, user, can, login, prefs } = useStore();
+  const { data, user, can, login, prefs, setToast } = useStore();
   const [quick, setQuick] = useState(false);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
@@ -60,6 +60,23 @@ export function Layout() {
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
+
+  // Un email programmé arrive à son heure pendant que l'appli est ouverte : message + notification de l'appareil.
+  const emailKeys = useRef<{ user?: string; keys: Set<string> }>({ keys: new Set() });
+  const dueEmails = unread.filter((n) => n.key.startsWith('email:'));
+  useEffect(() => {
+    const ref = emailKeys.current;
+    if (ref.user !== user?.id) {
+      emailKeys.current = { user: user?.id, keys: new Set(dueEmails.map((n) => n.key)) };
+      return;
+    }
+    const fresh = dueEmails.filter((n) => !ref.keys.has(n.key));
+    if (!fresh.length) return;
+    fresh.forEach((n) => ref.keys.add(n.key));
+    setToast(`📧 ${fresh[0].text}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''} — voir la cloche 🔔`);
+    if (notifPrefs.systeme) showSystemNotification('Tâches GSA · email à envoyer', fresh.map((n) => n.text).join('\n'), fresh[0].link);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 
   if (!user) return null;
   const tabs = TABS.filter((t) => !t.perm || can(t.perm));

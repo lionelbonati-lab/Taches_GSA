@@ -1,10 +1,11 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { makeSeed } from './seed';
+import { demoEmails, demoSubtasks, makeSeed } from './seed';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
-import type { ActivityNotif, AppData, Permission, Person, Poll, Prefs, Role, Section, Task } from './types';
+import type { ActivityNotif, AppData, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
 import { clearFiles } from './files';
 import { snapshotToJournal } from './minutes';
+import { emailsForNext } from './emails';
 
 // Couche de données de la démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Pour passer à une vraie base (ex. Supabase), seul ce fichier devra être remplacé.
@@ -13,7 +14,7 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 9;
+export const SCHEMA = 10;
 
 /** Mises à niveau des données déjà enregistrées dans le navigateur (évite de tout réinitialiser). */
 function migrate(d: AppData): AppData {
@@ -25,6 +26,11 @@ function migrate(d: AppData): AppData {
   if ((d.schema ?? 7) < 9) {
     // v9 : le PV garde un journal des changements faits depuis l'onglet PV (au lieu d'un état de départ).
     d.meetings.forEach((m) => m.minutes && snapshotToJournal(d, m.minutes));
+  }
+  if ((d.schema ?? 7) < 10) {
+    // v10 : sous-tâches attribuées à une personne et emails programmés (exemples ajoutés).
+    demoSubtasks(d.tasks);
+    if (!d.emails) d.emails = demoEmails(d.tasks);
   }
   d.schema = SCHEMA;
   return d;
@@ -48,6 +54,8 @@ interface Store {
   /** Droit accordé par au moins un rôle, éventuellement pour une section donnée. */
   can: (p: Permission, sectionId?: string) => boolean;
   canSeeTask: (t: Task) => boolean;
+  /** Sous-tâche attribuée à l'utilisateur connecté (hors responsables de la tâche). */
+  hasSubtask: (t: Task) => boolean;
   canEditTask: (t: Task) => boolean;
   canDeleteTask: (t: Task) => boolean;
   canAssignOthers: (sectionId: string) => boolean;
@@ -71,6 +79,11 @@ interface Store {
   closePoll: (pollId: string, closed: boolean) => void;
   deletePoll: (pollId: string) => void;
   canManagePoll: (p: Poll) => boolean;
+  /** Coche / décoche une sous-tâche tout de suite (même sans droit de modifier la tâche, si elle m'est attribuée). */
+  toggleSubtask: (taskId: string, itemId: string) => void;
+  saveEmail: (e: ScheduledEmail, isNew: boolean) => void;
+  setEmailStatus: (id: string, statut: ScheduledEmail['statut']) => void;
+  deleteEmail: (id: string) => void;
   reset: () => void;
 }
 
@@ -179,12 +192,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (detail) task.responsables.filter((id) => !added.includes(id)).forEach((id) => push(id, 'modif', task.id, detail));
       }
       next?.responsables.forEach((id) => push(id, 'recur', next!.id, fmtDate(next!.delai)));
+      // Sous-tâches nouvellement attribuées à quelqu'un.
+      for (const c of task.checklist) {
+        const prev = before?.checklist.find((x) => x.id === c.id);
+        if (c.assigneeId && !c.done && prev?.assigneeId !== c.assigneeId) push(c.assigneeId, 'subtask', task.id, c.label);
+      }
+      const nextEmails = next ? emailsForNext(data, task, next) : [];
 
       update(
         (d) => {
           if (isNew) d.tasks.unshift(task);
           else d.tasks = d.tasks.map((x) => (x.id === task.id ? task : x));
           if (next) d.tasks.unshift(next);
+          if (nextEmails.length) d.emails = [...(d.emails ?? []), ...nextEmails];
           if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
         },
         `${isNew ? 'Création' : 'Modification'} de la tâche « ${t.titre} »` +
@@ -254,15 +274,71 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [update, data.polls],
   );
 
+  const toggleSubtask = useCallback(
+    (taskId: string, itemId: string) => {
+      const t = data.tasks.find((x) => x.id === taskId);
+      const c = t?.checklist.find((x) => x.id === itemId);
+      if (!t || !c) return;
+      const actor = userId ?? '?';
+      const now = new Date().toISOString();
+      // Les responsables sont prévenus quand quelqu'un d'autre termine sa sous-tâche.
+      const notifs: ActivityNotif[] = c.done
+        ? []
+        : t.responsables.filter((id) => id !== actor).map((id) => ({ id: uid('n'), userId: id, type: 'modif' as const, taskId, by: actor, at: now, detail: `sous-tâche « ${c.label} » faite` }));
+      update((d) => {
+        const x = d.tasks.find((y) => y.id === taskId)?.checklist.find((y) => y.id === itemId);
+        if (x) x.done = !x.done;
+        if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
+      }, `Sous-tâche « ${c.label} » ${c.done ? 'rouverte' : 'faite'} (tâche « ${t.titre} »)`);
+    },
+    [update, data.tasks, userId],
+  );
+
+  const taskTitle = (id: string) => data.tasks.find((t) => t.id === id)?.titre ?? '';
+  const saveEmail = useCallback(
+    (e: ScheduledEmail, isNew: boolean) =>
+      update((d) => {
+        d.emails = isNew ? [...(d.emails ?? []), e] : (d.emails ?? []).map((x) => (x.id === e.id ? e : x));
+      }, `${isNew ? 'Email programmé' : 'Modification de l’email programmé'} « ${e.objet} » (tâche « ${taskTitle(e.taskId)} »)`),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [update, data.tasks],
+  );
+  const setEmailStatus = useCallback(
+    (id: string, statut: ScheduledEmail['statut']) => {
+      const e = data.emails?.find((x) => x.id === id);
+      if (!e) return;
+      update((d) => {
+        const x = d.emails?.find((y) => y.id === id);
+        if (!x) return;
+        x.statut = statut;
+        x.envoyeLe = statut === 'envoye' ? new Date().toISOString() : undefined;
+        x.envoyePar = statut === 'envoye' ? userId ?? undefined : undefined;
+      }, `Email « ${e.objet} » (tâche « ${taskTitle(e.taskId)} ») ${statut === 'envoye' ? 'envoyé' : statut === 'annule' ? 'annulé' : 'reprogrammé'}`);
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [update, data.emails, data.tasks, userId],
+  );
+  const deleteEmail = useCallback(
+    (id: string) => {
+      const e = data.emails?.find((x) => x.id === id);
+      update((d) => {
+        d.emails = (d.emails ?? []).filter((x) => x.id !== id);
+      }, `Suppression de l’email programmé « ${e?.objet ?? ''} »`);
+    },
+    [update, data.emails],
+  );
+
   const can = (p: Permission, sectionId?: string) => hasPermission(myRoles, p, sectionId);
   const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
+  const hasSubtask = (t: Task) => !!user && t.checklist.some((c) => c.assigneeId === user.id);
 
   const value: Store = {
     data,
     user,
     myRoles,
     can,
-    canSeeTask: (t) => (!!user && t.responsables.includes(user.id)) || can('tasks.viewAll', t.sectionId),
+    canSeeTask: (t) => (!!user && t.responsables.includes(user.id)) || hasSubtask(t) || can('tasks.viewAll', t.sectionId),
+    hasSubtask,
     canEditTask: (t) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t)),
     canDeleteTask: (t) => can('tasks.delete', t.sectionId),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
@@ -281,6 +357,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     closePoll,
     deletePoll,
     canManagePoll: (p) => !!user && (p.creePar === user.id || can('polls.manage')),
+    toggleSubtask,
+    saveEmail,
+    setEmailStatus,
+    deleteEmail,
     reset,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

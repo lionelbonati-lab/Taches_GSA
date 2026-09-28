@@ -1,5 +1,6 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
-import type { AppData, Poll, Role } from './types';
+import type { AppData, ChecklistItem, Poll, Role, ScheduledEmail, Task } from './types';
+import { DEFAULT_MESSAGE, DEFAULT_OBJET } from './emails';
 import { applyDelaiRef } from './utils';
 import { COMMITTEE_IDS, COMPTA_SECTION, events, meetings, people, sections, statuses, tasks } from './seedData';
 import { OUINON } from './polls';
@@ -60,18 +61,50 @@ function demoPolls(): Poll[] {
   ];
 }
 
+// Exemple de sous-tâches confiées à d'autres personnes que les responsables de la tâche.
+export function demoSubtasks(list: Task[]) {
+  const t = list.find((x) => x.id === 't36');
+  if (!t || t.checklist.length) return;
+  const items: ChecklistItem[] = [
+    { id: 'c36a', label: 'Photos de la saison', done: false, assigneeId: 'p2' },
+    { id: 'c36b', label: 'Chiffres des membres', done: false, assigneeId: 'p3' },
+    { id: 'c36c', label: 'Comptes de l’année', done: false, assigneeId: 'p4' },
+  ];
+  t.checklist = items;
+}
+
+// Exemples d'emails programmés par le président (l'un est déjà à envoyer).
+export function demoEmails(list: Task[]): ScheduledEmail[] {
+  const base = { creePar: 'p1', creeLe: '2026-09-20T18:00:00.000Z', statut: 'programme' as const, siNonTerminee: true, objet: DEFAULT_OBJET, message: DEFAULT_MESSAGE };
+  const mk = (id: string, taskId: string, quand: ScheduledEmail['quand'], extra: Partial<ScheduledEmail> = {}): ScheduledEmail | null => {
+    const t = list.find((x) => x.id === taskId);
+    return t ? { ...base, id, taskId, destinataires: [...t.responsables], quand, ...extra } : null;
+  };
+  return [
+    mk('e1', 't48', { type: 'delai', jours: 14, heure: '08:00' }),
+    mk('e2', 't26', { type: 'delai', jours: 7, heure: '18:00' }),
+    mk('e3', 't62', { type: 'delai', jours: -1, heure: '09:00' }, {
+      objet: 'Relance : {tâche}',
+      message: 'Bonjour,\n\nLe délai de la tâche « {tâche} » était le {délai}. Peux-tu me dire où tu en es ?\n\nVoir la tâche : {lien}\n\nMerci et à bientôt\n{expéditeur}',
+    }),
+  ].filter((x): x is ScheduledEmail => !!x);
+}
+
 export function makeSeed(): AppData {
   const base = { people, events, meetings } as AppData;
+  const list = tasks.map((t) => applyDelaiRef(base, structuredClone(t)));
+  demoSubtasks(list);
   return {
     people: structuredClone(people),
     statuses: structuredClone(statuses),
     sections: structuredClone(sections),
-    tasks: tasks.map((t) => applyDelaiRef(base, structuredClone(t))),
+    tasks: list,
     meetings: structuredClone(meetings),
     events: structuredClone(events),
     roles: structuredClone(roles),
     polls: demoPolls(),
-    schema: 9,
+    emails: demoEmails(list),
+    schema: 10,
     log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Import du tableau « Suivi des tâches » (G.S. Ajoie)' }],
     prefs: {},
   };

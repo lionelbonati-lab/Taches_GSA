@@ -61,6 +61,8 @@ export interface ChecklistItem {
   id: string;
   label: string;
   done: boolean;
+  /** Personne chargée de la sous-tâche (peut être différente des responsables de la tâche). */
+  assigneeId?: string;
 }
 
 export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle';
@@ -112,6 +114,29 @@ export interface Poll {
   clotureLe?: string;
   /** Réponses : personne → options choisies. */
   votes: Record<string, string[]>;
+}
+
+/** Quand partir : date et heure fixes, ou N jours avant (négatif = après) le délai de la tâche. */
+export type EmailWhen = { type: 'date'; date: string; heure: string } | { type: 'delai'; jours: number; heure: string };
+
+/** Email programmé au sujet d'une tâche. */
+export interface ScheduledEmail {
+  id: string;
+  taskId: string;
+  /** Personnes destinataires (leur adresse vient de l'onglet Responsables). */
+  destinataires: string[];
+  /** Adresses supplémentaires, séparées par des virgules. */
+  autres?: string;
+  objet: string;
+  message: string;
+  quand: EmailWhen;
+  /** Ne pas envoyer si la tâche est déjà terminée à ce moment-là. */
+  siNonTerminee: boolean;
+  statut: 'programme' | 'envoye' | 'annule';
+  envoyeLe?: string;
+  envoyePar?: string;
+  creePar: string;
+  creeLe: string;
 }
 
 export interface Task {
@@ -265,6 +290,8 @@ export interface NotifPrefs {
   seance: boolean;
   seanceJours: number;
   sondage: boolean;
+  /** Un email programmé arrive à son heure d'envoi. */
+  email: boolean;
   /** Notifications de l'appareil (système), en plus de la cloche. */
   systeme: boolean;
 }
@@ -281,7 +308,7 @@ export interface Prefs {
 export interface ActivityNotif {
   id: string;
   userId: string;
-  type: 'assign' | 'modif' | 'recur';
+  type: 'assign' | 'modif' | 'recur' | 'subtask';
   taskId: string;
   by: string;
   at: string;
@@ -302,6 +329,7 @@ export interface AppData {
   schema?: number;
   notifications?: ActivityNotif[];
   polls?: Poll[];
+  emails?: ScheduledEmail[];
   /** Clés des notifications déjà vues, par utilisateur. */
   notifLues?: Record<string, string[]>;
 }

@@ -1,7 +1,9 @@
+import { useEffect, useState } from 'react';
 import { useStore } from './data/store';
+import { dueAt, emailState, fillTemplate } from './data/emails';
 import type { AppData, NotifPrefs, Person } from './data/types';
 import { isOpen } from './data/polls';
-import { daysUntil, fmtDate, fullName, isDone, isLate, today } from './data/utils';
+import { daysUntil, fmtDate, fullName, isDone, isLate, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
 
 // Notifications de la démo : calculées dans le navigateur à partir des données.
@@ -16,6 +18,7 @@ export const DEFAULT_NOTIF: NotifPrefs = {
   seance: true,
   seanceJours: 7,
   sondage: true,
+  email: true,
   systeme: false,
 };
 
@@ -45,7 +48,10 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items: Omit<NotifItem, 'unread'>[] = [];
   const now = new Date().toISOString();
-  const mine = data.tasks.filter((t) => t.responsables.includes(user.id) && !isDone(data, t));
+  // Mes tâches, et celles où une sous-tâche ouverte m'est confiée.
+  const mine = data.tasks.filter(
+    (t) => (t.responsables.includes(user.id) || t.checklist.some((c) => c.assigneeId === user.id && !c.done)) && !isDone(data, t),
+  );
 
   if (p.retard) {
     const late = mine.filter((t) => isLate(data, t));
@@ -123,20 +129,42 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
       });
     }
 
+  // Emails programmés arrivés à leur heure : l'auteur est prévenu pour l'envoyer (démo).
+  if (p.email)
+    for (const e of data.emails ?? []) {
+      if (e.creePar !== user.id) continue;
+      const t = data.tasks.find((x) => x.id === e.taskId);
+      if (!t || emailState(data, t, e) !== 'aEnvoyer') continue;
+      const at = dueAt(t, e.quand)!;
+      const to = e.destinataires.map((id) => shortName(data.people.find((x) => x.id === id)));
+      items.push({
+        key: `email:${e.id}:${at}`,
+        icon: '📧',
+        text: `Email à envoyer : « ${fillTemplate(data, t, e, e.objet)} »`,
+        sub: `${to.length ? `à ${to.join(', ')} · ` : ''}prévu le ${fmtDate(at.slice(0, 10))} à ${at.slice(11).replace(':', 'h')}`,
+        link: `/taches?tache=${t.id}&email=${e.id}`,
+        at: now,
+        kind: 'alerte',
+      });
+    }
+
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    if ((n.type === 'assign' && !p.assign) || (n.type !== 'assign' && !p.modif)) continue;
+    const isAssign = n.type === 'assign' || n.type === 'subtask';
+    if ((isAssign && !p.assign) || (!isAssign && !p.modif)) continue;
     const t = data.tasks.find((x) => x.id === n.taskId);
     if (!t) continue;
     const by = fullName(data.people.find((x) => x.id === n.by));
     items.push({
       key: n.id,
-      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : '✏️',
+      icon: n.type === 'assign' ? '🆕' : n.type === 'subtask' ? '☑️' : n.type === 'recur' ? '🔁' : '✏️',
       text:
         n.type === 'assign' ? `${by} t’a attribué « ${t.titre} »`
+        : n.type === 'subtask' ? `${by} t’a confié la sous-tâche « ${n.detail} »`
         : n.type === 'recur' ? `Tâche récurrente reconduite : « ${t.titre} »`
         : `${by} a modifié « ${t.titre} »`,
-      sub: n.type === 'recur' ? `nouveau délai : ${n.detail}` : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
+      sub: n.type === 'subtask' ? `dans « ${t.titre} »${t.delai ? ` · délai ${fmtDate(t.delai)}` : ''}`
+        : n.type === 'recur' ? `nouveau délai : ${n.detail}` : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
       link: `/taches?tache=${t.id}`,
       at: n.at,
       kind: 'activite',
@@ -150,6 +178,12 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
 
 export function useNotifications() {
   const { data, user, prefs } = useStore();
+  // Recalcul chaque minute : un email programmé ou une échéance peut arriver pendant que l'appli est ouverte.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((x) => x + 1), 60000);
+    return () => clearInterval(id);
+  }, []);
   const p = { ...DEFAULT_NOTIF, ...prefs.notif };
   const items = user ? computeNotifications(data, user, p) : [];
   return { items, unread: items.filter((x) => x.unread), prefs: p };

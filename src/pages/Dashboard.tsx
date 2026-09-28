@@ -1,16 +1,19 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { Task } from '../data/types';
+import type { ScheduledEmail, Task } from '../data/types';
 import { daysUntil, fmtDate, isDone, isLate, today } from '../data/utils';
 import { TaskCard } from './Tasks';
 import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
 import { isOpen } from '../data/polls';
+import { dueAt, emailState, fillTemplate, whenLabel } from '../data/emails';
+import { EmailSend } from '../components/EmailsField';
 
 export function Dashboard() {
-  const { data, user, can, saveTask } = useStore();
+  const { data, user, can, saveTask, toggleSubtask } = useStore();
   const [edit, setEdit] = useState<Task | null>(null);
+  const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
   if (!user) return null;
 
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
@@ -20,6 +23,20 @@ export function Dashboard() {
   const nextMeeting = [...data.meetings].filter((m) => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
   const nextEvents = [...data.events].filter((e) => e.date >= today()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
   const onStatus = (t: Task, s: string) => saveTask({ ...t, statusId: s }, false);
+  // Sous-tâches ouvertes qui me sont confiées (dans des tâches pas encore terminées).
+  const mySubs = data.tasks
+    .filter((t) => !isDone(data, t))
+    .flatMap((t) => t.checklist.filter((c) => c.assigneeId === user.id && !c.done).map((c) => ({ t, c })))
+    .sort((a, b) => (a.t.delai || '9999').localeCompare(b.t.delai || '9999'));
+  // Emails que j'ai programmés : à envoyer maintenant, puis les prochains.
+  const myEmails = (data.emails ?? [])
+    .filter((e) => e.creePar === user.id)
+    .map((e) => ({ e, t: data.tasks.find((t) => t.id === e.taskId)! }))
+    .filter((x) => x.t)
+    .map((x) => ({ ...x, st: emailState(data, x.t, x.e), at: dueAt(x.t, x.e.quand) ?? '9999' }))
+    .sort((a, b) => a.at.localeCompare(b.at));
+  const toSend = myEmails.filter((x) => x.st === 'aEnvoyer');
+  const upcoming = myEmails.filter((x) => x.st === 'programme').slice(0, 3);
 
   return (
     <div>
@@ -43,8 +60,47 @@ export function Dashboard() {
           {late.length ? <div className="cards">{late.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Rien en retard, bravo !</Empty>}
           <h2>📅 À faire dans les 7 jours</h2>
           {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Aucune échéance cette semaine.</Empty>}
+          {mySubs.length > 0 && (
+            <>
+              <h2>☑ Mes sous-tâches</h2>
+              <div className="panel sub-list">
+                {mySubs.map(({ t, c }) => (
+                  <div key={c.id} className="sub-item">
+                    <input type="checkbox" checked={false} onChange={() => toggleSubtask(t.id, c.id)} aria-label={`Marquer « ${c.label} » comme faite`} />
+                    <button className="sub-open" onClick={() => setEdit(t)}>
+                      <strong>{c.label}</strong>
+                      <small className={isLate(data, t) ? 'late-text' : 'muted'}>dans « {t.titre} »{t.delai ? ` · délai ${fmtDate(t.delai)}` : ''}</small>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
         </section>
         <aside>
+          {toSend.length > 0 && (
+            <>
+              <h2>📧 Emails à envoyer</h2>
+              {toSend.map(({ e, t }) => (
+                <div key={e.id} className="panel email-due">
+                  <strong>{fillTemplate(data, t, e, e.objet)}</strong>
+                  <span className="muted">{whenLabel(t, e.quand)}</span>
+                  <button className="btn small primary" onClick={() => setSend({ task: t, email: e })}>✉ Envoyer</button>
+                </div>
+              ))}
+            </>
+          )}
+          {upcoming.length > 0 && (
+            <>
+              <h2>🕓 Prochains emails programmés</h2>
+              {upcoming.map(({ e, t }) => (
+                <button key={e.id} className="panel link-panel email-next" onClick={() => setEdit(t)}>
+                  <strong>{fillTemplate(data, t, e, e.objet)}</strong>
+                  <span className="muted">{whenLabel(t, e.quand)}</span>
+                </button>
+              ))}
+            </>
+          )}
           {(() => {
             const toVote = (data.polls ?? []).filter((p) => isOpen(p) && p.votants.includes(user.id) && !p.votes[user.id]);
             return toVote.length > 0 ? (
@@ -82,6 +138,7 @@ export function Dashboard() {
         </aside>
       </div>
       {edit && <TaskModal task={edit} isNew={false} onClose={() => setEdit(null)} />}
+      {send && <EmailSend task={send.task} email={send.email} onClose={() => setSend(null)} />}
     </div>
   );
 }

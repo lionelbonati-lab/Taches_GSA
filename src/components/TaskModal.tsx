@@ -2,11 +2,12 @@ import { useRef, useState } from 'react';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
+import { EmailsField } from './EmailsField';
 import { deleteFiles } from '../data/files';
 import { useStore } from '../data/store';
-import type { Recurrence, Task } from '../data/types';
+import type { ChecklistItem, Recurrence, Task } from '../data/types';
 import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, fmtDate, fmtDateTime, fullName, nextDate, shortName, nextResponsables, postesFor, today, uid } from '../data/utils';
-import { Modal } from './ui';
+import { Avatar, Modal } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
   return {
@@ -25,10 +26,11 @@ export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
   };
 }
 
-export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: boolean; onClose: () => void; quick?: boolean }) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update } = useStore();
+export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: Task; isNew: boolean; onClose: () => void; quick?: boolean; openEmailId?: string }) {
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, toggleSubtask } = useStore();
   const [t, setT] = useState<Task>(task);
   const [newItem, setNewItem] = useState('');
+  const [newWho, setNewWho] = useState('');
   const [err, setErr] = useState('');
   const track = useRef<DocTracking>({ added: [], removed: [] });
   const [newPoll, setNewPoll] = useState(false);
@@ -41,6 +43,20 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
   const sectionChoices = data.sections.filter((s) => creatableSections().some((c) => c.id === s.id) || s.id === task.sectionId);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const assignable = data.people.filter((p) => p.actif && (canAssignOthers || p.id === user.id));
+
+  // Sous-tâches : on peut les confier à n'importe quelle personne active, même hors des responsables.
+  const subPeople = data.people.filter((p) => p.actif);
+  const addItem = () => {
+    if (!newItem.trim()) return;
+    set('checklist', [...t.checklist, { id: uid('c'), label: newItem.trim(), done: false, assigneeId: newWho || undefined }]);
+    setNewItem('');
+  };
+  const patchItem = (id: string, patch: Partial<ChecklistItem>) => setT((x) => ({ ...x, checklist: x.checklist.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
+  const tick = (c: ChecklistItem) => {
+    // Sans droit de modifier la tâche, la personne chargée coche sa sous-tâche directement.
+    if (!editable) toggleSubtask(task.id, c.id);
+    patchItem(c.id, { done: !c.done });
+  };
 
   const toggleResp = (id: string) =>
     set('responsables', t.responsables.includes(id) ? t.responsables.filter((x) => x !== id) : [...t.responsables, id]);
@@ -65,6 +81,7 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
     if (!confirm(`Supprimer la tâche « ${task.titre} » ?`)) return;
     update((d) => {
       d.tasks = d.tasks.filter((x) => x.id !== task.id);
+      d.emails = (d.emails ?? []).filter((e) => e.taskId !== task.id);
       // Les sondages liés restent, rattachés à la section de la tâche.
       (d.polls ?? []).forEach((p) => {
         if (p.taskId === task.id) {
@@ -166,17 +183,32 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
             </label>
             <fieldset className="full">
               <legend>Checklist / sous-tâches</legend>
-              {t.checklist.map((c) => (
-                <div key={c.id} className="check-row">
-                  <label className="inline">
-                    <input type="checkbox" checked={c.done} disabled={dis} onChange={() => set('checklist', t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)))} />
-                    <span className={c.done ? 'strike' : ''}>{c.label}</span>
-                  </label>
-                  {!dis && <button type="button" className="icon-btn" onClick={() => set('checklist', t.checklist.filter((x) => x.id !== c.id))} aria-label="Retirer">✕</button>}
-                </div>
-              ))}
+              {t.checklist.map((c) => {
+                const mine = c.assigneeId === user.id;
+                const who = data.people.find((p) => p.id === c.assigneeId);
+                return (
+                  <div key={c.id} className={`check-row ${mine ? 'mine' : ''}`}>
+                    <label className="inline">
+                      <input type="checkbox" checked={c.done} disabled={dis && !(mine && !isNew)} onChange={() => tick(c)} />
+                      <span className={c.done ? 'strike' : ''}>{c.label}</span>
+                    </label>
+                    <span className="check-who">
+                      {dis ? (
+                        who && <span className="sub-who" title={`Sous-tâche confiée à ${fullName(who)}`}><Avatar id={who.id} size={20} /> {mine ? 'Moi' : shortName(who)}</span>
+                      ) : (
+                        <select className="sub-assign" value={c.assigneeId ?? ''} aria-label={`Personne chargée de « ${c.label} »`} onChange={(e) => patchItem(c.id, { assigneeId: e.target.value || undefined })}>
+                          <option value="">— Personne —</option>
+                          {subPeople.map((p) => <option key={p.id} value={p.id}>{shortName(p)}{t.responsables.includes(p.id) ? ' ★' : ''}</option>)}
+                          {who && !who.actif && <option value={who.id}>{shortName(who)} (inactif)</option>}
+                        </select>
+                      )}
+                      {!dis && <button type="button" className="icon-btn" onClick={() => set('checklist', t.checklist.filter((x) => x.id !== c.id))} aria-label="Retirer">✕</button>}
+                    </span>
+                  </div>
+                );
+              })}
               {!dis && (
-                <div className="row">
+                <div className="row sub-add">
                   <input
                     value={newItem}
                     placeholder="Ajouter une sous-tâche…"
@@ -184,13 +216,19 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && newItem.trim()) {
                         e.preventDefault();
-                        set('checklist', [...t.checklist, { id: uid('c'), label: newItem.trim(), done: false }]);
-                        setNewItem('');
+                        addItem();
                       }
                     }}
                   />
-                  <button type="button" className="btn" onClick={() => { if (newItem.trim()) { set('checklist', [...t.checklist, { id: uid('c'), label: newItem.trim(), done: false }]); setNewItem(''); } }}>Ajouter</button>
+                  <select value={newWho} onChange={(e) => setNewWho(e.target.value)} aria-label="Confier la sous-tâche à">
+                    <option value="">Confier à… (facultatif)</option>
+                    {subPeople.map((p) => <option key={p.id} value={p.id}>{shortName(p)}{t.responsables.includes(p.id) ? ' ★' : ''}</option>)}
+                  </select>
+                  <button type="button" className="btn" onClick={addItem}>Ajouter</button>
                 </div>
+              )}
+              {!dis && t.checklist.some((c) => c.assigneeId && !t.responsables.includes(c.assigneeId)) && (
+                <small className="muted">La personne chargée d’une sous-tâche voit la tâche dans « Mes tâches » et peut cocher sa sous-tâche. ★ = responsable de la tâche.</small>
               )}
             </fieldset>
             <DocsField docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track.current} />
@@ -204,6 +242,7 @@ export function TaskModal({ task, isNew, onClose, quick }: { task: Task; isNew: 
               )}
               {!isNew && <a className="small-link" href="#/sondages">Voir tous les sondages →</a>}
             </fieldset>
+            <EmailsField task={task} isNew={isNew} openEmailId={openEmailId} />
             {!isNew && <small className="muted full">Dernière modification : {fmtDateTime(task.updatedAt)} · créée par {fullName(data.people.find((p) => p.id === task.createdBy))}</small>}
           </>
         )}
