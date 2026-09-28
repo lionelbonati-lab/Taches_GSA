@@ -78,15 +78,15 @@ Droits : « Créer des sondages » (Admin, Secrétaire, Comité par défaut) et 
 
 ## Ordre du jour
 
-Onglet **📝 Ordre du jour** (droit « Onglet Ordre du jour », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare le document A4 de la **prochaine séance**, sur le modèle des ordres du jour du club :
+Onglet **📝 Ordre du jour** (droit « Onglet Ordre du jour », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare le document de la **prochaine séance**, présenté comme les ordres du jour Word du club, **sans tableau** :
 
-- en-tête : séance, date, heure de début, lieu, **convoqués** (avec initiales) et tableau **Présent / Excusé** à cocher ;
-- points particuliers saisis dans la séance (onglet Comité) ;
-- **toutes les tâches sous chaque section**, dans l'ordre des sous-sections : en retard, à faire pour la séance, pour la séance suivante et terminées depuis la séance précédente, ensemble ; colonne **« Pour »** (⚠ Retard, Comité 5, Comité 6, ✓ Fait) ; sections sans tâche affichées « Rien à signaler » ;
-- colonne vide « Suivi / décision », cadre de notes, prochaine séance en pied de page.
+- en-tête : « Comité 29.10.26 », début de séance, lieu, **convoqués** (avec initiales), ligne **Excusés** à compléter ;
+- **Ordre du jour** numéroté : **1. Section** (gras) › **a. Sous-section** › **■ point** (tâche avec initiales du responsable, délai, et selon le cas « ⚠ en retard », « pour le Comité 6 », « ✓ fait », statut, remarque) › **◦ détails** (checklist, documents joints, sondage lié) ;
+- toutes les tâches de la section ensemble (retards, séance, séance suivante, terminées), sections sans point affichées seules ; sondages sous leur section ; points particuliers de la séance en fin de liste ;
+- cadre de notes et prochaine séance en pied de page.
 
-Réglages (mémorisés) : séances, éléments inclus, regroupement (section, responsable, aucun) et tri, option « Séparer par échéance » (retards / séance / suivante / terminées en parties distinctes), colonnes, statuts et sections inclus, titre, nom du club, orientation, taille du texte.
-Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans l'onglet Comité), **Envoyer par email** aux membres du comité, **Copier le texte** (pour WhatsApp, Word…).
+Réglages (mémorisés) : mise en forme **Liste numérotée** ou **Tableaux**, séances, éléments inclus, regroupement (section, responsable, aucun) et tri, option « Séparer par échéance », détails affichés, statuts et sections inclus, titre, nom du club, orientation, taille du texte.
+Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans l'onglet Comité), **Envoyer par email** aux membres du comité, **Copier le texte** (même numérotation, prêt à coller dans Word, un email ou WhatsApp).
 
 ## Notifications (démo)
 

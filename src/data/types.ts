@@ -161,6 +161,8 @@ export interface PvArchive {
 }
 
 export interface PvSettings {
+  /** Liste numérotée (1. / a. / ■, comme les ordres du jour du club) ou tableaux. */
+  presentation: 'liste' | 'tableaux';
   titre: string;
   club: string;
   afficherClub: boolean;

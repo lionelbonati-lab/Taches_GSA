@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { Meeting, Person, PvSettings, Section, Task } from '../data/types';
@@ -11,6 +11,7 @@ import type { Poll } from '../data/types';
 // (Identifiants internes « pv » conservés pour les données déjà enregistrées.)
 
 export const DEFAULT_PV: PvSettings = {
+  presentation: 'liste',
   titre: '',
   club: 'G.S. Ajoie – Comité',
   afficherClub: true,
@@ -193,6 +194,21 @@ export function Pv() {
   };
 
   const plainText = () => {
+    if (s.presentation === 'liste') {
+      const out: string[] = [titre];
+      if (s1 && heure(s1)) out.push(`Début de séance : ${heure(s1)}`);
+      if (s1) out.push(`Lieu : ${s1.lieu || 'à définir'}`);
+      if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, 'Excusés : ');
+      out.push('', 'Ordre du jour');
+      if (!s.separerParEcheance) out.push(...outlineText(listSecs));
+      else {
+        for (const part of parts) out.push('', part.titre, ...outlineText(buildOutline(group(part.tasks), false)));
+        const extra = extraSections(true).map((x) => (x.key === 'polls' ? { ...x, items: polls.map(pollItem) } : x));
+        if (extra.length) out.push('', 'Autres points', ...outlineText(extra));
+      }
+      if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
+      return out.join('\n');
+    }
     const lines: string[] = [`ORDRE DU JOUR – ${titre.toUpperCase()}`];
     if (s1) lines.push(`${longDate(s1.date)}${heure(s1) ? `, ${heure(s1)}` : ''} – ${s1.lieu}`);
     if (s1?.ordreDuJour && s.parts.ordreDuJour) lines.push('', 'POINTS PARTICULIERS', s1.ordreDuJour);
@@ -299,6 +315,140 @@ export function Pv() {
     </table>
   );
 
+  // ---------- Présentation en liste numérotée (1. section / a. sous-section / ■ point) ----------
+  interface OItem {
+    key: string;
+    task?: Task;
+    poll?: Poll;
+    text?: string;
+    children: OItem[];
+  }
+  interface OSec {
+    key: string;
+    label: string;
+    items: OItem[];
+  }
+  const firstOpen = data.statuses.find((x) => !x.done)?.id;
+  const pollItem = (p: Poll): OItem => ({ key: p.id, poll: p, children: [] });
+  const textItem = (key: string, text: string): OItem => ({ key, text, children: [] });
+  // Sous-points d'une tâche : checklist, documents, sondages liés.
+  const taskItem = (t: Task, withPolls: boolean): OItem => ({
+    key: t.id,
+    task: t,
+    children: [
+      ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, `${c.done ? '☑' : '☐'} ${c.label}`)) : []),
+      ...(s.colonnes.documents && t.documents?.length ? [textItem(`${t.id}-docs`, `📎 ${t.documents.map((d) => d.nom).join(', ')}`)] : []),
+      ...(withPolls ? polls.filter((p) => p.taskId === t.id).map(pollItem) : []),
+    ],
+  });
+  const buildOutline = (groups: Group[], withPolls: boolean): OSec[] =>
+    groups.map((g) => {
+      const items: OItem[] = [];
+      const bySub = new Map<string, OItem>();
+      for (const t of g.tasks) {
+        const sub = s.groupBy === 'section' ? (s.colonnes.sousSection ? t.sousSection : '') : secName(t.sectionId);
+        if (!sub) {
+          items.push(taskItem(t, withPolls));
+          continue;
+        }
+        let head = bySub.get(sub);
+        if (!head) {
+          head = textItem(`${g.key}:${sub}`, sub);
+          bySub.set(sub, head);
+          items.push(head);
+        }
+        head.children.push(taskItem(t, withPolls));
+      }
+      if (withPolls && s.groupBy === 'section')
+        pollsOf(g.key).filter((p) => !g.tasks.some((t) => t.id === p.taskId)).forEach((p) => items.push(pollItem(p)));
+      return { key: g.key, label: g.label, items };
+    });
+  const extraSections = (withPolls: boolean): OSec[] => [
+    ...(withPolls && (s.groupBy === 'section' ? pollsWithoutSection : polls).length
+      ? [{ key: 'polls', label: 'Sondages', items: (s.groupBy === 'section' ? pollsWithoutSection : polls).map(pollItem) }]
+      : []),
+    ...(s.parts.ordreDuJour && s1?.ordreDuJour?.trim()
+      ? [{ key: 'points', label: 'Points particuliers', items: s1.ordreDuJour.split('\n').map((l) => l.trim()).filter(Boolean).map((l, i) => textItem(`pt${i}`, l)) }]
+      : []),
+  ];
+
+  const letter = (i: number) => {
+    let r = '';
+    for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) r = String.fromCharCode(97 + ((n - 1) % 26)) + r;
+    return r;
+  };
+  const taskMeta = (t: Task) => {
+    const b = bucketOf.get(t.id);
+    const st = data.statuses.find((x) => x.id === t.statusId);
+    return [
+      respText(t) !== '—' && respText(t),
+      b !== 'bilan' && t.delai && shortDate(t.delai),
+      s.colonnes.echeance && (b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? `pour le ${s2.titre}` : b === 'bilan' ? `✓ fait${t.termineeLe ? ` le ${shortDate(t.termineeLe)}` : ''}` : ''),
+      s.colonnes.statut && b !== 'bilan' && t.statusId !== firstOpen && st?.label,
+    ].filter(Boolean) as string[];
+  };
+  const itemText = (it: OItem) =>
+    it.task
+      ? `${it.task.titre}${taskMeta(it.task).length ? ` (${taskMeta(it.task).join(' · ')})` : ''}${s.colonnes.remarque && it.task.remarque ? ` – ${it.task.remarque}` : ''}`
+      : it.poll
+        ? `📊 Sondage : ${it.poll.question} — ${pollSummary(it.poll)}`
+        : it.text ?? '';
+  const itemNode = (it: OItem): ReactNode => {
+    if (!it.task) return it.poll ? <span className="odj-poll">{itemText(it)}</span> : it.text;
+    const t = it.task;
+    const b = bucketOf.get(t.id);
+    const meta = taskMeta(t);
+    return (
+      <span className={`odj-task ${b === 'late' ? 'late' : b === 'bilan' ? 'done' : ''}`}>
+        {t.titre}
+        {meta.length > 0 && <span className="odj-meta"> ({meta.join(' · ')})</span>}
+        {s.colonnes.remarque && t.remarque && <span className="odj-rem"> – {t.remarque}</span>}
+      </span>
+    );
+  };
+  // Niveaux : 1. section · a. point · ■ sous-point · ◦ détail
+  const renderItems = (items: OItem[], depth: number): ReactNode => {
+    if (!items.length) return null;
+    const cls = ['odj-l1', 'odj-l2', 'odj-l3'][Math.min(depth, 2)];
+    const inner = items.map((it) => (
+      <li key={it.key}>
+        {itemNode(it)}
+        {renderItems(it.children, depth + 1)}
+      </li>
+    ));
+    return depth === 0 ? <ol className={cls}>{inner}</ol> : <ul className={cls}>{inner}</ul>;
+  };
+  const renderOutline = (secs: OSec[]) =>
+    secs.length === 0 ? (
+      <p className="pv-empty">Aucun point.</p>
+    ) : secs.every((x) => !x.label) ? (
+      <ol className="odj">{secs.flatMap((x) => x.items).map((it) => <li key={it.key}>{itemNode(it)}{renderItems(it.children, 1)}</li>)}</ol>
+    ) : (
+      <ol className="odj">
+        {secs.map((sec) => (
+          <li key={sec.key}>
+            <span className="odj-sec">{sec.label}</span>
+            {renderItems(sec.items, 0)}
+          </li>
+        ))}
+      </ol>
+    );
+  const outlineText = (secs: OSec[]) => {
+    const out: string[] = [];
+    const walk = (items: OItem[], depth: number) =>
+      items.forEach((it, j) => {
+        const pad = '   '.repeat(depth + 1);
+        out.push(`${pad}${depth === 0 ? `${letter(j)}.` : depth === 1 ? '■' : '◦'} ${itemText(it)}`);
+        walk(it.children, depth + 1);
+      });
+    secs.forEach((sec, i) => {
+      out.push(`${i + 1}. ${sec.label}`);
+      walk(sec.items, 0);
+    });
+    return out;
+  };
+  const listSecs = !s.separerParEcheance ? [...buildOutline(unifiedGroups, true), ...extraSections(true)] : [];
+
   const openStatuses = data.statuses.filter((x) => !x.done);
   const toggleIn = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
@@ -351,6 +501,16 @@ export function Pv() {
             ))}
           </details>
           <details open>
+            <summary>Présentation</summary>
+            <label>
+              Mise en forme
+              <select value={s.presentation} onChange={(e) => set({ presentation: e.target.value as PvSettings['presentation'] })}>
+                <option value="liste">Liste numérotée (1. / a. / ■)</option>
+                <option value="tableaux">Tableaux</option>
+              </select>
+            </label>
+          </details>
+          <details open>
             <summary>Regroupement et tri</summary>
             <label>
               Regrouper par
@@ -380,15 +540,15 @@ export function Pv() {
             </label>
           </details>
           <details>
-            <summary>Colonnes</summary>
+            <summary>Détails affichés</summary>
             {([
               ['sousSection', 'Sous-section'],
-              ['echeance', 'Colonne « Pour » (retard, séance, fait)'],
+              ['echeance', 'Échéance : en retard, séance suivante, fait'],
               ['statut', 'Statut'],
               ['remarque', 'Remarque'],
               ['checklist', 'Checklist sous la tâche'],
               ['documents', 'Documents joints sous la tâche'],
-              ['suivi', 'Colonne vide « Suivi / décision »'],
+              ...(s.presentation === 'tableaux' ? [['suivi', 'Colonne vide « Suivi / décision »']] : []),
             ] as [keyof PvSettings['colonnes'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
             ))}
@@ -443,18 +603,35 @@ export function Pv() {
           <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`}>
             <header className="pv-head">
               {s.afficherClub && <div className="pv-club"><img src="./icon.svg" alt="" width={22} height={22} /> {s.club}</div>}
-              <p className="pv-kicker">Ordre du jour</p>
+              {s.presentation === 'tableaux' && <p className="pv-kicker">Ordre du jour</p>}
               <h1>{titre}</h1>
               {s1 && (
                 <p className="pv-meta">
                   {longDate(s1.date)}
-                  {heure(s1) && <> · Début de séance : <b>{heure(s1)}</b></>}
-                  {' '}· Lieu : <b>{s1.lieu || 'à définir'}</b>
+                  {s.presentation === 'tableaux' && (
+                    <>
+                      {heure(s1) && <> · Début de séance : <b>{heure(s1)}</b></>}
+                      {' '}· Lieu : <b>{s1.lieu || 'à définir'}</b>
+                    </>
+                  )}
                 </p>
               )}
             </header>
 
-            {s.parts.presences && (
+            {s.presentation === 'liste' && (
+              <section className="odj-head">
+                {s1 && heure(s1) && <p><b>Début de séance :</b> {heure(s1)}</p>}
+                {s1 && <p><b>Lieu :</b> {s1.lieu || 'à définir'}</p>}
+                {s.parts.presences && (
+                  <>
+                    <p><b>Convoqués :</b> {committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}</p>
+                    <p className="odj-fill-line"><b>Excusés :</b> <span className="odj-fill" /></p>
+                  </>
+                )}
+              </section>
+            )}
+
+            {s.presentation === 'tableaux' && s.parts.presences && (
               <section>
                 <p className="pv-convoques"><b>Convoqués :</b> {committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}</p>
                 <table className="pv-table pv-presence">
@@ -468,14 +645,36 @@ export function Pv() {
               </section>
             )}
 
-            {s.parts.ordreDuJour && s1?.ordreDuJour && (
+            {s.presentation === 'tableaux' && s.parts.ordreDuJour && s1?.ordreDuJour && (
               <section>
                 <h2>Points particuliers</h2>
                 <pre className="pv-odj">{s1.ordreDuJour}</pre>
               </section>
             )}
 
-            {!s.separerParEcheance ? (
+            {s.presentation === 'liste' ? (
+              !s.separerParEcheance ? (
+                <section className="pv-part">
+                  <h2>Ordre du jour</h2>
+                  {renderOutline(listSecs)}
+                </section>
+              ) : (
+                <>
+                  {parts.map((part) => (
+                    <section key={part.key} className="pv-part">
+                      <h2>{part.titre} <span className="pv-count">{part.tasks.length}</span></h2>
+                      {part.tasks.length === 0 ? <p className="pv-empty">Aucune tâche.</p> : renderOutline(buildOutline(group(part.tasks), false))}
+                    </section>
+                  ))}
+                  {(polls.length > 0 || (s.parts.ordreDuJour && s1?.ordreDuJour?.trim())) && (
+                    <section className="pv-part">
+                      <h2>Autres points</h2>
+                      {renderOutline(extraSections(true).map((x) => (x.key === 'polls' ? { ...x, items: polls.map(pollItem) } : x)))}
+                    </section>
+                  )}
+                </>
+              )
+            ) : !s.separerParEcheance ? (
               <section className="pv-part">
                 <h2>Suivi des tâches par {s.groupBy === 'responsable' ? 'responsable' : 'section'} <span className="pv-count">{unified.length}</span></h2>
                 {summary && <p className="pv-summary">{summary}</p>}
@@ -517,7 +716,7 @@ export function Pv() {
                 </section>
               ))
             )}
-            {s.separerParEcheance && polls.length > 0 && (
+            {s.presentation === 'tableaux' && s.separerParEcheance && polls.length > 0 && (
               <section className="pv-part">
                 <h2>📊 Sondages <span className="pv-count">{polls.length}</span></h2>
                 {pollBlock(polls)}
