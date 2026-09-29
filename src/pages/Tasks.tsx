@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
-import { daysUntil, fmtDate, fullName, isDone, isLate, recurrenceLabel } from '../data/utils';
+import { daysUntil, fmtDate, fullName, isDone, isLate, nextDue, recurrenceLabel, today } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { Avatar, DocPollIcons, Empty, LinkIcon, RecurIcon, StatusBadge } from '../components/ui';
 
@@ -52,9 +52,9 @@ export function Tasks() {
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
       if (f.event && t.eventId !== f.event) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
-      if (f.delai && ['passe', '7', '30'].includes(f.delai) && !t.delai) return false;
+      if (f.delai && ['passe', '7', '30'].includes(f.delai) && !nextDue(t)) return false;
       if (f.delai) {
-        const n = daysUntil(t.delai);
+        const n = daysUntil(nextDue(t));
         if (f.delai === 'passe' && n >= 0) return false;
         if (f.delai === '7' && (n < 0 || n > 7)) return false;
         if (f.delai === '30' && (n < 0 || n > 30)) return false;
@@ -91,7 +91,9 @@ export function Tasks() {
   const exportCsv = () => {
     const head = ['Section', 'Sous-section', 'Tâche', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Répétition', 'Remarque', 'Sous-tâches'];
     const subs = (t: Task) =>
-      t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}${c.assigneeId ? ` (${fullName(data.people.find((p) => p.id === c.assigneeId))})` : ''}`).join(' | ');
+      t.checklist
+        .map((c) => `${c.done ? '☑' : '☐'} ${c.label}${c.assigneeId ? ` (${fullName(data.people.find((p) => p.id === c.assigneeId))})` : ''}${c.delai ? ` – ${fmtDate(c.delai)}` : ''}`)
+        .join(' | ');
     const rows = list.map((t) => [
       sectionName(t.sectionId), t.sousSection, t.titre, respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
       data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', recurrenceLabel(t.recurrence), t.remarque, subs(t),
@@ -203,7 +205,7 @@ export function Tasks() {
                   </td>
                   <td><Responsables t={t} size={24} /></td>
                   <td><StatusBadge task={t} /></td>
-                  <td className="nowrap">{fmtDate(t.delai)} <LinkIcon task={t} /></td>
+                  <td className="nowrap">{fmtDate(t.delai)} <LinkIcon task={t} /><NextSub t={t} /></td>
                   <td className="muted"><span className="clip">{t.remarque}</span></td>
                 </tr>
               ))}
@@ -247,7 +249,7 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
   const editable = canEditTask(t);
   const sectionName = data.sections.find((s) => s.id === t.sectionId)?.nom ?? '';
   const late = isLate(data, t);
-  const n = daysUntil(t.delai);
+  const n = daysUntil(nextDue(t) || t.delai);
   return (
     <div className={`tcard ${late ? 'late' : ''}`} onClick={onOpen}>
       <div className="tcard-top">
@@ -261,6 +263,7 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         <Responsables t={t} size={24} />
         <span className={late ? 'late-text' : 'muted'}>
           <LinkIcon task={t} /> {fmtDate(t.delai)} {late ? `(${-n} j de retard)` : n === 0 ? "(aujourd'hui)" : n > 0 && n <= 7 ? `(J-${n})` : ''}
+          <NextSub t={t} />
         </span>
       </div>
       {editable && (
@@ -296,6 +299,19 @@ export function MySubtask({ t }: { t: Task }) {
   return (
     <small className={`my-sub ${open.length ? '' : 'done'}`} title={mine.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join('\n')}>
       ☑ {open.length ? `Ma sous-tâche : ${open.map((c) => c.label).join(', ')}` : 'Ma sous-tâche est faite'}
+    </small>
+  );
+}
+
+/** Prochaine sous-tâche à faire quand elle arrive avant le délai de la tâche. */
+export function NextSub({ t }: { t: Task }) {
+  const due = nextDue(t);
+  if (!due || due === t.delai) return null;
+  const c = t.checklist.find((x) => !x.done && x.delai === due);
+  const late = due < today();
+  return (
+    <small className={`next-sub ${late ? 'late-text' : 'muted'}`} title={c ? `Prochaine sous-tâche : ${c.label}` : undefined}>
+      {late ? '⚠' : '▸'} {c?.label ? `${c.label.length > 28 ? c.label.slice(0, 27) + '…' : c.label} · ` : ''}{fmtDate(due)}
     </small>
   );
 }

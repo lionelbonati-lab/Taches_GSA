@@ -209,7 +209,8 @@ details summary { cursor: pointer; color: var(--muted); margin: 4px 0; }
 .person .grow { display: flex; flex-direction: column; gap: 3px; }
 
 /* ---------- Forms / modal ---------- */
-.form { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.form { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.form > * { min-width: 0; }
 .form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
 .form label.inline { flex-direction: row; color: var(--text); font-weight: 400; font-size: 0.95rem; }
 .form .full, .form h2 { grid-column: 1 / -1; }
@@ -271,11 +272,20 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 
 /* ---------- Sous-tâches confiées ---------- */
 .check-row { gap: 8px; padding: 2px 4px; border-radius: 8px; min-width: 0; }
-.check-row > label { min-width: 0; flex: 1; }
+.check-row { flex-wrap: wrap; }
+.check-row > label { min-width: 0; flex: 1 1 220px; }
+.check-row .check-who { margin-left: auto; max-width: 100%; flex-shrink: 1; min-width: 0; }
+.check-row .sub-date { flex: 0 1 132px; min-width: 0; }
+.check-row .sub-assign { flex: 0 1 150px; min-width: 0; }
 .check-row.mine { background: var(--primary-soft); }
 .check-who { display: inline-flex; align-items: center; gap: 4px; flex-shrink: 0; }
 .sub-who { display: inline-flex; align-items: center; gap: 4px; font-size: 0.85rem; color: var(--muted); white-space: nowrap; }
 .sub-assign { padding: 3px 6px; font-size: 0.85rem; max-width: 150px; }
+.sub-date { padding: 3px 6px; font-size: 0.85rem; width: 132px; }
+.sub-date.late { border-color: var(--late); color: var(--late); }
+.sub-add .sub-date { flex: 0 1 140px; }
+.check-who { flex-wrap: wrap; justify-content: flex-end; }
+.next-sub { display: block; font-size: 0.75rem; white-space: nowrap; }
 .sub-add { flex-wrap: wrap; }
 .sub-add input { flex: 2 1 200px; }
 .sub-add select { flex: 1 1 140px; }
@@ -379,6 +389,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .min-status { padding: 4px 6px; font-size: 0.85rem; }
 .min-date { padding: 3px 6px; font-size: 0.85rem; width: 140px; }
 .min-changes { color: var(--primary); font-size: 0.85rem; margin-top: 2px; }
+.min-subs { list-style: none; margin: 4px 0 0; padding: 0 0 0 14px; display: flex; flex-direction: column; gap: 1px; font-size: 0.9rem; }
+.min-subs li { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.min-subs label { min-width: 0; }
 .note-field { width: 100%; resize: none; overflow: hidden; margin: 4px 0; font-size: 0.92rem; background: var(--surface2); border-style: dashed; min-height: 34px; }
 .note-field:focus { background: var(--surface); border-style: solid; }
 .min-pv-actions { margin-bottom: 12px; }
@@ -526,7 +539,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   h1 { font-size: 1.3rem; }
   .cards { grid-template-columns: 1fr; }
   .grid2 { grid-template-columns: 1fr; gap: 0; }
-  .form { grid-template-columns: 1fr; }
+  .form { grid-template-columns: minmax(0, 1fr); }
+  .check-row .sub-assign { flex-basis: 116px; }
   .actions { width: 100%; }
   .actions .btn.primary { display: none; }
   .filters.open > * { flex: 1 1 45%; }

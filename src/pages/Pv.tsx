@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '../data/types';
-import { fmtDate, fullName, initials, isLate, shortName, today, uid } from '../data/utils';
+import { fmtDate, fullName, initials, isLate, isSubLate, shortName, today, uid } from '../data/utils';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
@@ -178,7 +178,10 @@ export function Pv() {
     };
   }, [titre]);
   // Sous-tâche : case, intitulé et initiales de la personne chargée.
-  const checkText = (c: ChecklistItem) => `${c.done ? '☑' : '☐'} ${c.label}${c.assigneeId ? ` (${initials(person(c.assigneeId))})` : ''}`;
+  const checkText = (t: Task, c: ChecklistItem) => {
+    const meta = [c.assigneeId && initials(person(c.assigneeId)), !c.done && c.delai && `${shortDate(c.delai)}${isSubLate(t, c) ? ' ⚠' : ''}`].filter(Boolean);
+    return `${c.done ? '☑' : '☐'} ${c.label}${meta.length ? ` (${meta.join(' · ')})` : ''}`;
+  };
   const respText = (t: Task) => t.responsables.map((id) => initials(person(id))).join(', ') || '—';
 
   // ---------- Actions ----------
@@ -284,7 +287,7 @@ export function Pv() {
           <>
             {t.titre}
             {s.colonnes.checklist && t.checklist.length > 0 && (
-              <span className="pv-checklist">{t.checklist.map(checkText).join('   ')}</span>
+              <span className="pv-checklist">{t.checklist.map((c) => checkText(t, c)).join('   ')}</span>
             )}
             {s.colonnes.documents && (t.documents?.length ?? 0) > 0 && (
               <span className="pv-docs">📎 {t.documents!.map((d) => d.nom).join(', ')}</span>
@@ -337,7 +340,7 @@ export function Pv() {
     key: t.id,
     task: t,
     children: [
-      ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, checkText(c))) : []),
+      ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, checkText(t, c))) : []),
       ...(s.colonnes.documents && t.documents?.length ? [textItem(`${t.id}-docs`, `📎 ${t.documents.map((d) => d.nom).join(', ')}`)] : []),
       ...(withPolls ? polls.filter((p) => p.taskId === t.id).map(pollItem) : []),
     ],
@@ -358,7 +361,11 @@ export function Pv() {
           bySub.set(sub, head);
           items.push(head);
         }
-        head.children.push(taskItem(t, withPolls));
+        // Tâche qui porte le nom de sa sous-section (sous-tâches regroupées) : elle devient la ligne de la sous-section.
+        if (!head.task && t.titre.trim().toLowerCase() === sub.trim().toLowerCase()) {
+          head.task = t;
+          head.children = [...taskItem(t, withPolls).children, ...head.children];
+        } else head.children.push(taskItem(t, withPolls));
       }
       if (withPolls && s.groupBy === 'section')
         pollsOf(g.key).filter((p) => !g.tasks.some((t) => t.id === p.taskId)).forEach((p) => items.push(pollItem(p)));

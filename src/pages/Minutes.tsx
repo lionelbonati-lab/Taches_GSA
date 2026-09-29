@@ -5,7 +5,7 @@ import { FULL_AGENDA, meetingContext, selectAgenda, sortedMeetings } from '../da
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
 import type { MeetingMinutes, Poll, Task, TaskSnapshot } from '../data/types';
-import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
+import { fmtDate, fmtDateTime, fullName, initials, isDone, isSubLate, today, uid } from '../data/utils';
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
 
@@ -330,6 +330,26 @@ export function Minutes() {
             </span>
           )}
         </div>
+        {t.checklist.length > 0 && (
+          <ul className="min-subs">
+            {t.checklist.map((c) => (
+              <li key={c.id}>
+                <label className="inline">
+                  <input
+                    type="checkbox"
+                    checked={c.done}
+                    disabled={!(editable && (can2 || c.assigneeId === user?.id))}
+                    onChange={() => quickChange(t, { checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)) })}
+                  />
+                  <span className={c.done ? 'strike' : ''}>{c.label}</span>
+                </label>
+                <small className={isSubLate(t, c) ? 'late-text' : 'muted'}>
+                  {[c.assigneeId && initials(person(c.assigneeId)), !c.done && c.delai && shortDate(c.delai)].filter(Boolean).join(' · ')}
+                </small>
+              </li>
+            ))}
+          </ul>
+        )}
         {ch.length > 0 && <div className="min-changes">↻ {ch.join(' · ')}</div>}
         {noteToggle(`task:${t.id}`, 'Note / décision sur ce point…')}
       </div>

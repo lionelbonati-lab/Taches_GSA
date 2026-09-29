@@ -10,7 +10,13 @@ export const shortDate = (d: string) => {
   return `${j}.${m}.${y.slice(2)}`;
 };
 
-export const stateOf = (t: Task): TaskSnapshot => ({ statusId: t.statusId, delai: t.delai, responsables: [...t.responsables], titre: t.titre });
+export const stateOf = (t: Task): TaskSnapshot => ({
+  statusId: t.statusId,
+  delai: t.delai,
+  responsables: [...t.responsables],
+  titre: t.titre,
+  sous: Object.fromEntries(t.checklist.map((c) => [c.id, c.done])),
+});
 
 /** Description lisible des changements entre deux états d'une tâche. */
 export function diffTask(data: AppData, before: TaskSnapshot, after: Task): string[] {
@@ -21,6 +27,11 @@ export function diffTask(data: AppData, before: TaskSnapshot, after: Task): stri
   if (before.delai !== after.delai) out.push(`délai : ${before.delai ? shortDate(before.delai) : 'libre'} → ${after.delai ? shortDate(after.delai) : 'libre'}`);
   if (before.responsables.join() !== after.responsables.join()) out.push(`responsable : ${who(before.responsables)} → ${who(after.responsables)}`);
   if (before.titre !== after.titre) out.push('intitulé modifié');
+  if (before.sous)
+    for (const c of after.checklist) {
+      if (!(c.id in before.sous)) out.push(`sous-tâche ajoutée : ${c.label}`);
+      else if (before.sous[c.id] !== c.done) out.push(`sous-tâche « ${c.label} » ${c.done ? 'faite' : 'rouverte'}`);
+    }
   return out;
 }
 

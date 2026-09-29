@@ -15,7 +15,11 @@ npm run build      # version statique dans dist/
 
 ## Données et comptes de démo
 
-Les données de départ viennent du tableau **« Suivi des tâches » du G.S. Ajoie** (12 sections, séances de comité 2026-27, événements du club). Seules les tâches à partir du 01.09.2026 sont reprises (63 tâches) ; les tâches sans délai sont conservées, sauf celles d'événements antérieurs. Les délais en formule du tableau (`=Comité_3+7`, `=AG_2027`) sont devenus des **délais liés** à la séance / l'AG, et les responsables en formule (`=Caissier`, `=Secretaire`) servent à l'**attribution par poste** des tâches annuelles.
+Les données de départ viennent du tableau **« Suivi des tâches » du G.S. Ajoie** (12 sections, séances de comité 2026-27, événements du club). Seules les lignes à partir du 01.09.2026 sont reprises (63 lignes) ; les lignes sans délai sont conservées, sauf celles d'événements antérieurs.
+
+- **Une sous-section présente plusieurs fois devient une seule tâche** (du nom de la sous-section, ex. « AG 13.03.2027 », « Prochain comité », « Newsletter ») dont **chaque ligne est une sous-tâche** : confiée à la personne de la ligne, avec son délai (lié à la séance si c'était une formule) et cochée si la ligne était terminée. Les remarques des lignes sont reprises dans la remarque de la tâche. Résultat : **38 tâches**, dont 11 à sous-tâches.
+- **Statuts simplifiés** : À faire, En cours, En attente, Terminé, Annulé (« A valider » → En cours, « A discuter » → À faire, « Sans nouvelles » → En attente, « OK » et « Info » → Terminé). La liste reste modifiable dans la console admin.
+- Les données déjà enregistrées dans le navigateur sont mises à niveau automatiquement : tâches du tableau remplacées, tâches créées dans l'appli gardées (statut converti), sondages / emails / PV rattachés à la tâche regroupée. Les délais en formule du tableau (`=Comité_3+7`, `=AG_2027`) sont devenus des **délais liés** à la séance / l'AG, et les responsables en formule (`=Caissier`, `=Secretaire`) servent à l'**attribution par poste** des tâches annuelles.
 
 Le site étant public : prénoms + initiale du nom uniquement, noms de tiers masqués (démissions, radiations, relances, remboursements), emails fictifs (`@gsajoie.example`), pas de téléphones.
 
@@ -66,8 +70,10 @@ Chaque ligne de la checklist d'une tâche peut être **confiée à une personne*
 - La personne chargée est **notifiée** 🔔 (« Lionel t'a confié la sous-tâche … »), voit la tâche dans **« Mes tâches »** avec le repère « ☑ Ma sous-tâche » et la retrouve dans **« Mes sous-tâches »** sur l'accueil.
 - Elle peut **cocher sa sous-tâche** (sur l'accueil ou dans la tâche) même si son rôle ne lui permet pas de modifier la tâche ; les responsables sont alors prévenus.
 - Ses échéances et retards comptent dans ses rappels. Dans les listes, les personnes chargées d'une sous-tâche apparaissent en petit (contour pointillé) après les responsables ; le filtre « Responsable » les inclut.
-- Ordre du jour : initiales de la personne après la sous-tâche (« ☐ Photos de la saison (DH) ») ; export CSV : colonne « Sous-tâches ».
-- Tâche récurrente : les sous-tâches de l'occurrence suivante restent confiées aux mêmes personnes.
+- **Délai par sous-tâche** (facultatif, sinon celui de la tâche ; 🔗 = lié à une séance / un événement et suit sa date). La tâche est « en retard » dès qu'une sous-tâche ouverte l'est ; la liste des tâches indique la prochaine sous-tâche à faire (▸ / ⚠) et une tâche entre dans l'ordre du jour dès que sa prochaine sous-tâche arrive à échéance.
+- Ordre du jour : initiales et délai après la sous-tâche (« ☐ Reserver le lieu (MFJ · 03.09.26 ⚠) ») ; une tâche qui porte le nom de sa sous-section s'affiche directement sur la ligne de la sous-section. Export CSV : colonne « Sous-tâches ».
+- Onglet PV : les sous-tâches s'affichent sous chaque point et se cochent pendant la séance (« sous-tâche … faite » dans le PV).
+- Tâche récurrente : les sous-tâches de l'occurrence suivante restent confiées aux mêmes personnes, délais décalés d'un an.
 
 ## Emails programmés
 

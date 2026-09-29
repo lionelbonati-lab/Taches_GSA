@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './data/store';
 import { dueAt, emailState, fillTemplate } from './data/emails';
-import type { AppData, NotifPrefs, Person } from './data/types';
+import type { AppData, NotifPrefs, Person, Task } from './data/types';
 import { isOpen } from './data/polls';
-import { daysUntil, fmtDate, fullName, isDone, isLate, shortName, today } from './data/utils';
+import { daysUntil, fmtDate, fullName, isDone, nextDue, shortName, subDelai, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
 
 // Notifications de la démo : calculées dans le navigateur à partir des données.
@@ -52,15 +52,20 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
   const mine = data.tasks.filter(
     (t) => (t.responsables.includes(user.id) || t.checklist.some((c) => c.assigneeId === user.id && !c.done)) && !isDone(data, t),
   );
+  // Échéance qui me concerne : celle de la tâche (ou de sa prochaine sous-tâche) si j'en suis responsable, sinon celle de mes sous-tâches.
+  const dueFor = (t: Task) =>
+    t.responsables.includes(user.id)
+      ? nextDue(t)
+      : (t.checklist.filter((c) => c.assigneeId === user.id && !c.done).map((c) => subDelai(t, c)).filter(Boolean).sort()[0] ?? '');
 
   if (p.retard) {
-    const late = mine.filter((t) => isLate(data, t));
+    const late = mine.filter((t) => !!dueFor(t) && dueFor(t) < today());
     if (late.length)
       items.push({
         key: `retard:${today()}:${late.length}`,
         icon: '⚠️',
         text: late.length === 1 ? `« ${late[0].titre} » est en retard` : `${late.length} de tes tâches sont en retard`,
-        sub: late.length === 1 ? `délai : ${fmtDate(late[0].delai)}` : late.slice(0, 3).map((t) => t.titre).join(' · ') + (late.length > 3 ? '…' : ''),
+        sub: late.length === 1 ? `délai : ${fmtDate(dueFor(late[0]))}` : late.slice(0, 3).map((t) => t.titre).join(' · ') + (late.length > 3 ? '…' : ''),
         link: late.length === 1 ? `/taches?tache=${late[0].id}` : '/taches?statut=retard',
         at: now,
         kind: 'alerte',
@@ -69,14 +74,15 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
 
   if (p.echeance)
     for (const t of mine) {
-      if (!t.delai) continue;
-      const n = daysUntil(t.delai);
+      const due = dueFor(t);
+      if (!due) continue;
+      const n = daysUntil(due);
       if (n < 0 || n > p.echeanceJours) continue;
       items.push({
-        key: `echeance:${t.id}:${t.delai}:${n === 0 ? 'j0' : 'avant'}`,
+        key: `echeance:${t.id}:${due}:${n === 0 ? 'j0' : 'avant'}`,
         icon: '⏰',
         text: n === 0 ? `« ${t.titre} » est à faire aujourd’hui` : `« ${t.titre} » est à faire dans ${n} jour${n > 1 ? 's' : ''}`,
-        sub: `délai : ${fmtDate(t.delai)}`,
+        sub: `délai : ${fmtDate(due)}`,
         link: `/taches?tache=${t.id}`,
         at: now,
         kind: 'alerte',

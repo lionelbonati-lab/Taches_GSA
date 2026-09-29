@@ -6,7 +6,7 @@ import { EmailsField } from './EmailsField';
 import { deleteFiles } from '../data/files';
 import { useStore } from '../data/store';
 import type { ChecklistItem, Recurrence, Task } from '../data/types';
-import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, fmtDate, fmtDateTime, fullName, nextDate, shortName, nextResponsables, postesFor, today, uid } from '../data/utils';
+import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, fmtDate, fmtDateTime, fullName, isSubLate, nextDate, offsetLabel, shortName, nextResponsables, postesFor, today, uid } from '../data/utils';
 import { Avatar, Modal } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
@@ -31,6 +31,7 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
   const [t, setT] = useState<Task>(task);
   const [newItem, setNewItem] = useState('');
   const [newWho, setNewWho] = useState('');
+  const [newDate, setNewDate] = useState('');
   const [err, setErr] = useState('');
   const track = useRef<DocTracking>({ added: [], removed: [] });
   const [newPoll, setNewPoll] = useState(false);
@@ -48,8 +49,15 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
   const subPeople = data.people.filter((p) => p.actif);
   const addItem = () => {
     if (!newItem.trim()) return;
-    set('checklist', [...t.checklist, { id: uid('c'), label: newItem.trim(), done: false, assigneeId: newWho || undefined }]);
+    set('checklist', [...t.checklist, { id: uid('c'), label: newItem.trim(), done: false, assigneeId: newWho || undefined, delai: newDate || undefined }]);
     setNewItem('');
+    setNewDate('');
+  };
+  // Sous-tâche au délai lié à une séance / un événement.
+  const refTitle = (c: ChecklistItem) => {
+    if (!c.ref) return undefined;
+    const target = c.ref.type === 'meeting' ? data.meetings.find((m) => m.id === c.ref!.id)?.titre : data.events.find((e) => e.id === c.ref!.id)?.nom;
+    return `${offsetLabel(c.ref.joursAvant)} « ${target} » · suit sa date (la changer retire le lien)`;
   };
   const patchItem = (id: string, patch: Partial<ChecklistItem>) => setT((x) => ({ ...x, checklist: x.checklist.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
   const tick = (c: ChecklistItem) => {
@@ -194,6 +202,19 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
                     </label>
                     <span className="check-who">
                       {dis ? (
+                        c.delai && <small className={isSubLate(t, c) ? 'late-text' : 'muted'} title={refTitle(c)}>{fmtDate(c.delai)}{c.ref ? ' 🔗' : ''}</small>
+                      ) : (
+                        <input
+                          type="date"
+                          className={`sub-date ${isSubLate(t, c) ? 'late' : ''}`}
+                          value={c.delai ?? ''}
+                          title={refTitle(c) ?? 'Délai de la sous-tâche (vide : délai de la tâche)'}
+                          aria-label={`Délai de « ${c.label} »`}
+                          onChange={(e) => patchItem(c.id, { delai: e.target.value || undefined, ref: undefined })}
+                        />
+                      )}
+                      {!dis && c.ref && <span className="ticon" title={refTitle(c)}>🔗</span>}
+                      {dis ? (
                         who && <span className="sub-who" title={`Sous-tâche confiée à ${fullName(who)}`}><Avatar id={who.id} size={20} /> {mine ? 'Moi' : shortName(who)}</span>
                       ) : (
                         <select className="sub-assign" value={c.assigneeId ?? ''} aria-label={`Personne chargée de « ${c.label} »`} onChange={(e) => patchItem(c.id, { assigneeId: e.target.value || undefined })}>
@@ -220,6 +241,7 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
                       }
                     }}
                   />
+                  <input type="date" className="sub-date" value={newDate} onChange={(e) => setNewDate(e.target.value)} aria-label="Délai de la sous-tâche (facultatif)" title="Délai (facultatif, sinon celui de la tâche)" />
                   <select value={newWho} onChange={(e) => setNewWho(e.target.value)} aria-label="Confier la sous-tâche à">
                     <option value="">Confier à… (facultatif)</option>
                     {subPeople.map((p) => <option key={p.id} value={p.id}>{shortName(p)}{t.responsables.includes(p.id) ? ' ★' : ''}</option>)}

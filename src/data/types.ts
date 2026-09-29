@@ -63,6 +63,10 @@ export interface ChecklistItem {
   done: boolean;
   /** Personne chargée de la sous-tâche (peut être différente des responsables de la tâche). */
   assigneeId?: string;
+  /** Délai propre à la sous-tâche (sinon celui de la tâche). */
+  delai?: string;
+  /** Délai lié à une séance / un événement : suit sa date. */
+  ref?: { type: 'event' | 'meeting'; id: string; joursAvant: number };
 }
 
 export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle';
@@ -187,6 +191,8 @@ export interface TaskSnapshot {
   delai: string;
   responsables: string[];
   titre: string;
+  /** Sous-tâches : identifiant → faite. */
+  sous?: Record<string, boolean>;
 }
 
 export interface MeetingMinutes {

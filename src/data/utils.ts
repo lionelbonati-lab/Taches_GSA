@@ -1,4 +1,4 @@
-import type { AppData, Person, Recurrence, Task } from './types';
+import type { AppData, ChecklistItem, Person, Recurrence, Task } from './types';
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -27,9 +27,22 @@ export function isDone(data: AppData, t: Task) {
   return data.statuses.find((s) => s.id === t.statusId)?.done ?? false;
 }
 
-export function isLate(data: AppData, t: Task) {
-  return !isDone(data, t) && !!t.delai && t.delai < today();
+/** Délai d'une sous-tâche (le sien, sinon celui de la tâche). */
+export const subDelai = (t: Task, c: ChecklistItem) => c.delai || t.delai;
+
+/** Prochaine échéance : le délai de la tâche, ou plus tôt celui d'une sous-tâche pas encore faite. */
+export function nextDue(t: Task) {
+  return [t.delai, ...t.checklist.filter((c) => !c.done && c.delai).map((c) => c.delai!)].filter(Boolean).sort()[0] ?? '';
 }
+
+/** En retard : le délai de la tâche ou celui d'une de ses sous-tâches ouvertes est dépassé. */
+export function isLate(data: AppData, t: Task) {
+  const due = nextDue(t);
+  return !isDone(data, t) && !!due && due < today();
+}
+
+/** Sous-tâche ouverte dont le délai est dépassé. */
+export const isSubLate = (t: Task, c: ChecklistItem) => !c.done && !!subDelai(t, c) && subDelai(t, c) < today();
 
 export function daysUntil(date: string) {
   const a = new Date(today() + 'T12:00:00').getTime();
@@ -87,12 +100,26 @@ export function delaiTarget(data: AppData, t: Task): { nom: string; date: string
   return m ? { nom: m.titre, date: m.date } : null;
 }
 
-/** Recalcule le délai lié (ou retire le lien si l'événement / la séance n'existe plus). */
+const refDate = (data: AppData, type: 'event' | 'meeting', id: string) =>
+  (type === 'event' ? data.events.find((x) => x.id === id) : data.meetings.find((x) => x.id === id))?.date;
+
+/** Recalcule les délais liés de la tâche et de ses sous-tâches (ou retire le lien si l'événement / la séance n'existe plus). */
 export function applyDelaiRef<T extends Task>(data: AppData, t: T): T {
-  if (!t.delaiRef) return t;
-  const target = delaiTarget(data, t);
-  if (!target) return { ...t, delaiRef: undefined };
-  return { ...t, delai: addDays(target.date, -t.delaiRef.joursAvant) };
+  let r = t;
+  if (t.delaiRef) {
+    const target = delaiTarget(data, t);
+    r = target ? { ...t, delai: addDays(target.date, -t.delaiRef.joursAvant) } : { ...t, delaiRef: undefined };
+  }
+  if (r.checklist?.some((c) => c.ref))
+    r = {
+      ...r,
+      checklist: r.checklist.map((c) => {
+        if (!c.ref) return c;
+        const d = refDate(data, c.ref.type, c.ref.id);
+        return d ? { ...c, delai: addDays(d, -c.ref.joursAvant) } : { ...c, ref: undefined };
+      }),
+    };
+  return r;
 }
 
 // ---------- Tâches récurrentes ----------
@@ -163,6 +190,9 @@ export function nextOccurrence(data: AppData, t: Task): Task {
       id: uid('c'),
       done: false,
       assigneeId: data.people.some((p) => p.id === c.assigneeId && p.actif) ? c.assigneeId : undefined,
+      // Délai propre décalé de la même période ; le lien à la séance / l'événement de cette année est retiré.
+      delai: c.delai ? nextDate(c.delai, t.recurrence!) : undefined,
+      ref: undefined,
     })),
     // L'événement / la séance de cette année ne concernent pas l'occurrence suivante.
     eventId: undefined,

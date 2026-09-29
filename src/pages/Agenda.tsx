@@ -87,7 +87,7 @@ export function Meetings() {
         <ItemModal
           title="Séance de comité"
           item={edit}
-          note={linkedNote(data.tasks.filter((t) => t.meetingId === edit.id && t.delaiRef?.type === 'meeting').length)}
+          note={linkedNote(data.tasks.filter((t) => (t.meetingId === edit.id && t.delaiRef?.type === 'meeting') || t.checklist.some((c) => c.ref?.id === edit.id)).length)}
           fields={[['titre', 'Titre', 'text'], ['date', 'Date', 'date'], ['heure', 'Heure', 'time'], ['lieu', 'Lieu', 'text'], ['ordreDuJour', 'Points particuliers à l’ordre du jour', 'area'], ['notes', 'Notes / PV', 'area']]}
           onSave={save}
           onDelete={data.meetings.some((x) => x.id === edit.id) ? remove : undefined}
@@ -142,7 +142,7 @@ export function Events() {
         <ItemModal
           title="Événement"
           item={edit}
-          note={linkedNote(data.tasks.filter((t) => t.eventId === edit.id && t.delaiRef?.type === 'event').length)}
+          note={linkedNote(data.tasks.filter((t) => (t.eventId === edit.id && t.delaiRef?.type === 'event') || t.checklist.some((c) => c.ref?.id === edit.id)).length)}
           fields={[['nom', 'Événement', 'text'], ['date', 'Date', 'date'], ['lieu', 'Lieu', 'text'], ['description', 'Description', 'area']]}
           onSave={save}
           onDelete={data.events.some((x) => x.id === edit.id) ? remove : undefined}

@@ -1,8 +1,8 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
-import type { AppData, ChecklistItem, Poll, Role, ScheduledEmail, Task } from './types';
+import type { AppData, Poll, Role, ScheduledEmail, Task } from './types';
 import { DEFAULT_MESSAGE, DEFAULT_OBJET } from './emails';
 import { applyDelaiRef } from './utils';
-import { COMMITTEE_IDS, COMPTA_SECTION, events, meetings, people, sections, statuses, tasks } from './seedData';
+import { COMMITTEE_IDS, COMPTA_SECTION, MERGED, events, meetings, people, sections, statuses, tasks } from './seedData';
 import { OUINON } from './polls';
 
 // Données du G.S. Ajoie (tableau « Suivi des tâches »), voir seedData.ts.
@@ -21,7 +21,8 @@ function demoPolls(): Poll[] {
   const byTitle = (s: string) => tasks.find((t) => t.titre.startsWith(s));
   const sec = (nom: string) => sections.find((s) => s.nom === nom)?.id;
   const swiss = byTitle('Décider avec le comité si on enregistre');
-  const lieu = tasks.find((t) => t.titre === 'Définir le lieu' && t.meetingId === 'm5');
+  // « Définir le lieu » du Comité 5, désormais sous-tâche de « Prochain comité ».
+  const lieu = tasks.find((t) => t.id === (MERGED.t53 ?? 't53'));
   const base = { creePar: 'p1', creeLe: '2026-09-25T18:00:00.000Z', votes: {}, votants: [...COMMITTEE_IDS] };
   return [
     {
@@ -61,24 +62,13 @@ function demoPolls(): Poll[] {
   ];
 }
 
-// Exemple de sous-tâches confiées à d'autres personnes que les responsables de la tâche.
-export function demoSubtasks(list: Task[]) {
-  const t = list.find((x) => x.id === 't36');
-  if (!t || t.checklist.length) return;
-  const items: ChecklistItem[] = [
-    { id: 'c36a', label: 'Photos de la saison', done: false, assigneeId: 'p2' },
-    { id: 'c36b', label: 'Chiffres des membres', done: false, assigneeId: 'p3' },
-    { id: 'c36c', label: 'Comptes de l’année', done: false, assigneeId: 'p4' },
-  ];
-  t.checklist = items;
-}
-
 // Exemples d'emails programmés par le président (l'un est déjà à envoyer).
 export function demoEmails(list: Task[]): ScheduledEmail[] {
   const base = { creePar: 'p1', creeLe: '2026-09-20T18:00:00.000Z', statut: 'programme' as const, siNonTerminee: true, objet: DEFAULT_OBJET, message: DEFAULT_MESSAGE };
   const mk = (id: string, taskId: string, quand: ScheduledEmail['quand'], extra: Partial<ScheduledEmail> = {}): ScheduledEmail | null => {
-    const t = list.find((x) => x.id === taskId);
-    return t ? { ...base, id, taskId, destinataires: [...t.responsables], quand, ...extra } : null;
+    // Ligne regroupée dans une tâche à sous-tâches : l'email va à cette tâche.
+    const t = list.find((x) => x.id === taskId) ?? list.find((x) => x.id === MERGED[taskId]);
+    return t ? { ...base, id, taskId: t.id, destinataires: [...t.responsables], quand, ...extra } : null;
   };
   return [
     mk('e1', 't48', { type: 'delai', jours: 14, heure: '08:00' }),
@@ -93,7 +83,6 @@ export function demoEmails(list: Task[]): ScheduledEmail[] {
 export function makeSeed(): AppData {
   const base = { people, events, meetings } as AppData;
   const list = tasks.map((t) => applyDelaiRef(base, structuredClone(t)));
-  demoSubtasks(list);
   return {
     people: structuredClone(people),
     statuses: structuredClone(statuses),
@@ -104,7 +93,7 @@ export function makeSeed(): AppData {
     roles: structuredClone(roles),
     polls: demoPolls(),
     emails: demoEmails(list),
-    schema: 10,
+    schema: 11,
     log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Import du tableau « Suivi des tâches » (G.S. Ajoie)' }],
     prefs: {},
   };

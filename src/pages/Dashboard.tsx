@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ScheduledEmail, Task } from '../data/types';
-import { daysUntil, fmtDate, isDone, isLate, today } from '../data/utils';
+import { daysUntil, fmtDate, isDone, isLate, isSubLate, nextDue, subDelai, today } from '../data/utils';
 import { TaskCard } from './Tasks';
 import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
@@ -18,8 +18,10 @@ export function Dashboard() {
 
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
   const open = mine.filter((t) => !isDone(data, t));
-  const late = open.filter((t) => isLate(data, t)).sort((a, b) => a.delai.localeCompare(b.delai));
-  const soon = open.filter((t) => { const n = daysUntil(t.delai); return n >= 0 && n <= 7; }).sort((a, b) => a.delai.localeCompare(b.delai));
+  // Échéances : délai de la tâche ou de sa prochaine sous-tâche ouverte.
+  const byDue = (a: Task, b: Task) => nextDue(a).localeCompare(nextDue(b));
+  const late = open.filter((t) => isLate(data, t)).sort(byDue);
+  const soon = open.filter((t) => { const n = nextDue(t) ? daysUntil(nextDue(t)) : -1; return n >= 0 && n <= 7; }).sort(byDue);
   const nextMeeting = [...data.meetings].filter((m) => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
   const nextEvents = [...data.events].filter((e) => e.date >= today()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
   const onStatus = (t: Task, s: string) => saveTask({ ...t, statusId: s }, false);
@@ -27,7 +29,7 @@ export function Dashboard() {
   const mySubs = data.tasks
     .filter((t) => !isDone(data, t))
     .flatMap((t) => t.checklist.filter((c) => c.assigneeId === user.id && !c.done).map((c) => ({ t, c })))
-    .sort((a, b) => (a.t.delai || '9999').localeCompare(b.t.delai || '9999'));
+    .sort((a, b) => (subDelai(a.t, a.c) || '9999').localeCompare(subDelai(b.t, b.c) || '9999'));
   // Emails que j'ai programmés : à envoyer maintenant, puis les prochains.
   const myEmails = (data.emails ?? [])
     .filter((e) => e.creePar === user.id)
@@ -69,7 +71,7 @@ export function Dashboard() {
                     <input type="checkbox" checked={false} onChange={() => toggleSubtask(t.id, c.id)} aria-label={`Marquer « ${c.label} » comme faite`} />
                     <button className="sub-open" onClick={() => setEdit(t)}>
                       <strong>{c.label}</strong>
-                      <small className={isLate(data, t) ? 'late-text' : 'muted'}>dans « {t.titre} »{t.delai ? ` · délai ${fmtDate(t.delai)}` : ''}</small>
+                      <small className={isSubLate(t, c) ? 'late-text' : 'muted'}>dans « {t.titre} »{subDelai(t, c) ? ` · délai ${fmtDate(subDelai(t, c))}` : ''}</small>
                     </button>
                   </div>
                 ))}

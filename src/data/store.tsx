@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { demoEmails, demoSubtasks, makeSeed } from './seed';
+import { demoEmails, makeSeed } from './seed';
+import { MERGED } from './seedData';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
-import type { ActivityNotif, AppData, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
+import type { ActivityNotif, AppData, MeetingMinutes, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
 import { clearFiles } from './files';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
@@ -14,7 +15,7 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 10;
+export const SCHEMA = 11;
 
 /** Mises à niveau des données déjà enregistrées dans le navigateur (évite de tout réinitialiser). */
 function migrate(d: AppData): AppData {
@@ -28,12 +29,56 @@ function migrate(d: AppData): AppData {
     d.meetings.forEach((m) => m.minutes && snapshotToJournal(d, m.minutes));
   }
   if ((d.schema ?? 7) < 10) {
-    // v10 : sous-tâches attribuées à une personne et emails programmés (exemples ajoutés).
-    demoSubtasks(d.tasks);
+    // v10 : emails programmés (exemples ajoutés).
     if (!d.emails) d.emails = demoEmails(d.tasks);
   }
+  if ((d.schema ?? 7) < 11) reimport(d);
   d.schema = SCHEMA;
   return d;
+}
+
+/** Anciens statuts → statuts simplifiés (A valider → En cours, A discuter → À faire, Sans nouvelles → En attente, Info → Terminé). */
+const STATUS_MAP: Record<string, string> = { s4: 's2', s5: 's1', s6: 's3', s8: 's7' };
+
+/**
+ * v11 : données du tableau reprises — une sous-section présente plusieurs fois devient une seule tâche
+ * dont chaque ligne est une sous-tâche ; statuts simplifiés. Les tâches créées dans l'appli sont gardées
+ * et tout ce qui visait une ligne regroupée (sondages, emails, notifications, PV) vise désormais sa tâche.
+ */
+function reimport(d: AppData) {
+  const seed = makeSeed();
+  const tid = (id: string) => MERGED[id] ?? id;
+  const known = new Set(seed.statuses.map((s) => s.id));
+  const sid = (id: string) => (known.has(id) ? id : STATUS_MAP[id] ?? seed.statuses[0].id);
+  const own = d.tasks.filter((t) => !/^t\d+$/.test(t.id)).map((t) => ({ ...t, statusId: sid(t.statusId) }));
+  d.statuses = seed.statuses;
+  d.tasks = [...seed.tasks.map((t) => applyDelaiRef(d, t)), ...own];
+  for (const s of seed.sections) {
+    const x = d.sections.find((y) => y.id === s.id);
+    if (!x) d.sections.push(s);
+    else s.sousSections.forEach((ss) => x.sousSections.includes(ss) || x.sousSections.push(ss));
+  }
+  d.polls?.forEach((p) => p.taskId && (p.taskId = tid(p.taskId)));
+  d.emails?.forEach((e) => (e.taskId = tid(e.taskId)));
+  d.notifications?.forEach((n) => (n.taskId = tid(n.taskId)));
+  const remapMinutes = (m?: Omit<MeetingMinutes, 'derniereValidee'>) => {
+    if (!m) return;
+    if (m.pointIds) m.pointIds = [...new Set(m.pointIds.map(tid))];
+    if (m.nouvelles) m.nouvelles = [...new Set(m.nouvelles.map(tid))];
+    m.journal?.forEach((j) => (j.taskId = tid(j.taskId)));
+  };
+  d.meetings.forEach((m) => {
+    remapMinutes(m.minutes);
+    remapMinutes(m.minutes?.derniereValidee);
+  });
+  // Statuts exclus de l'ordre du jour : on retire ceux qui n'existent plus (exclure « Info » ne doit pas exclure « Terminé »).
+  Object.values(d.prefs).forEach((p) => p.pv?.statutsExclus && (p.pv.statutsExclus = p.pv.statutsExclus.filter((id) => known.has(id))));
+  d.log.unshift({
+    id: `l${Date.now()}v11`,
+    at: new Date().toISOString(),
+    userId: 'p1',
+    action: 'Données du tableau reprises : sous-sections regroupées en tâches à sous-tâches, statuts simplifiés',
+  });
 }
 
 function load(): AppData {
