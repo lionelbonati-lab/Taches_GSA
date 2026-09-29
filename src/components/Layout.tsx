@@ -9,17 +9,18 @@ import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
 import { showSystemNotification, useNotifications } from '../notifications';
 
-export const TABS: { to: string; label: string; icon: string; perm?: Permission; mobile?: boolean }[] = [
+export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean }[] = [
   { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
   { to: '/taches', label: 'Tâches', icon: '✅', mobile: true },
+  { to: '/agenda', label: 'Agenda', icon: '📅', mobile: true },
   { to: '/comite', label: 'Comité', icon: '🗓️', perm: 'tab.meetings', mobile: true },
-  { to: '/evenements', label: 'Événements', icon: '🎉', perm: 'tab.events', mobile: true },
+  { to: '/evenements', label: 'Événements', icon: '🎉', perm: 'tab.events' },
   { to: '/sondages', label: 'Sondages', icon: '📊' },
   { to: '/responsables', label: 'Responsables', icon: '👥', perm: 'tab.people' },
   { to: '/ordre-du-jour', label: 'Ordre du jour', icon: '📝', perm: 'tab.pv' },
   { to: '/pv', label: 'PV', icon: '🖊️', perm: 'tab.minutes' },
   { to: '/reglages', label: 'Réglages', icon: '⚙️' },
-  { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access' },
+  { to: '/admin', label: 'Console admin', short: 'Admin', icon: '🛡️', perm: 'admin.access' },
 ];
 
 export function Layout() {
@@ -91,7 +92,7 @@ export function Layout() {
         </div>
         <nav className="tabs">
           {tabs.map((t) => (
-            <NavLink key={t.to} to={t.to} end={t.to === '/'}>{t.label}</NavLink>
+            <NavLink key={t.to} to={t.to} end={t.to === '/'} title={t.label}>{t.short ?? t.label}</NavLink>
           ))}
         </nav>
         <Bell />

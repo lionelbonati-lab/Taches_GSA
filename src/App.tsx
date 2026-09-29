@@ -11,6 +11,7 @@ import { Admin } from './pages/Admin';
 import { Pv } from './pages/Pv';
 import { Polls } from './pages/Polls';
 import { Minutes } from './pages/Minutes';
+import { Calendar } from './pages/Calendar';
 
 export function App() {
   const { user, can } = useStore();
@@ -22,6 +23,7 @@ export function App() {
           <Route index element={<Dashboard />} />
           {/* La clé force la remise à zéro des filtres quand on arrive via un lien ?event=… */}
           <Route path="taches" element={<TasksRoute />} />
+          <Route path="agenda" element={<Calendar />} />
           {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
           {can('tab.events') && <Route path="evenements" element={<Events />} />}
           {can('tab.people') && <Route path="responsables" element={<People />} />}

@@ -47,6 +47,7 @@ Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au 
 
 - **Accueil** : mes tâches en retard, échéances à 7 jours, mes sous-tâches, emails à envoyer, prochaine séance, avancement des événements.
 - **Tâches** : section, sous-section, tâche, responsable(s), statut, délai, remarque, sous-tâches ; « Mes tâches / Toutes », filtres, tri, vue tableau ou kanban (glisser-déposer), export CSV, impression.
+- **Agenda** : vue **mensuelle** (lundi → dimanche) des séances de comité, événements, délais des tâches et des sous-tâches, fins de sondage ; filtres par type, « Mes tâches / Toutes », tâches terminées au choix. **+** sur chaque jour (ou boutons du panneau du jour) pour **ajouter une séance de comité, une tâche ou un événement** à cette date (selon les droits ; nouvelle séance numérotée d'après la précédente, 19h30). Clic sur un élément pour l'ouvrir ; **glisser-déposer** sur un autre jour pour changer sa date (une séance déplacée entraîne les délais qui lui sont liés). Sur mobile : pastilles de couleur par jour, liste du jour touché en dessous.
 - **Comité** : séances (date, lieu, ordre du jour, notes/PV) et tâches liées.
 - **Événements** : événements du club, avancement des tâches liées.
 - **Responsables** : poste, nom, prénom, email, portable (liens mail / appel).

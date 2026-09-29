@@ -2,33 +2,71 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, Meeting, PvArchive } from '../data/types';
+import type { ClubEvent, Meeting, PvArchive, Task } from '../data/types';
 import { daysUntil, fmtDateTime, fullName, isDone, today, uid } from '../data/utils';
 import { Empty, Modal } from '../components/ui';
 import { Progress } from './Dashboard';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
 
+/** Enregistrement / suppression des séances et événements (onglets Comité, Événements et Agenda). */
+export function useAgendaActions() {
+  const { data, update } = useStore();
+  return {
+    saveMeeting: (m: Meeting) => {
+      const isNew = !data.meetings.some((x) => x.id === m.id);
+      update((d) => { d.meetings = isNew ? [...d.meetings, m] : d.meetings.map((x) => (x.id === m.id ? m : x)); }, `${isNew ? 'Ajout' : 'Modification'} de la séance « ${m.titre} »`);
+    },
+    removeMeeting: (m: Meeting) => update((d) => {
+      d.meetings = d.meetings.filter((x) => x.id !== m.id);
+      d.tasks.forEach((t) => { if (t.meetingId === m.id) t.meetingId = undefined; });
+    }, `Suppression de la séance « ${m.titre} »`),
+    saveEvent: (e: ClubEvent) => {
+      const isNew = !data.events.some((x) => x.id === e.id);
+      update((d) => { d.events = isNew ? [...d.events, e] : d.events.map((x) => (x.id === e.id ? e : x)); }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »`);
+    },
+    removeEvent: (e: ClubEvent) => update((d) => {
+      d.events = d.events.filter((x) => x.id !== e.id);
+      d.tasks.forEach((t) => { if (t.eventId === e.id) t.eventId = undefined; });
+    }, `Suppression de l'événement « ${e.nom} »`),
+  };
+}
+
+export const MEETING_FIELDS: [keyof Meeting & string, string, 'text' | 'date' | 'time' | 'area'][] = [
+  ['titre', 'Titre', 'text'], ['date', 'Date', 'date'], ['heure', 'Heure', 'time'], ['lieu', 'Lieu', 'text'],
+  ['ordreDuJour', 'Points particuliers à l’ordre du jour', 'area'], ['notes', 'Notes / PV', 'area'],
+];
+export const EVENT_FIELDS: [keyof ClubEvent & string, string, 'text' | 'date' | 'area'][] = [
+  ['nom', 'Événement', 'text'], ['date', 'Date', 'date'], ['lieu', 'Lieu', 'text'], ['description', 'Description', 'area'],
+];
+
+/** Nouvelle séance : numérotée d'après la précédente (Comité 5 → Comité 6). */
+export function newMeeting(meetings: Meeting[], date = today()): Meeting {
+  const prev = [...meetings].filter((m) => m.date <= date).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const n = Number(prev?.titre.match(/Comité (\d+)/)?.[1] ?? 0) + 1;
+  // Séance intercalée entre deux comités numérotés : pas de doublon de titre.
+  const titre = meetings.some((m) => m.titre === `Comité ${n}`) ? 'Séance extraordinaire' : `Comité ${n}`;
+  return { id: uid('m'), titre, date, heure: '19:30', lieu: 'À définir', ordreDuJour: '', notes: '' };
+}
+export const newEvent = (date = today()): ClubEvent => ({ id: uid('e'), nom: '', date, lieu: '', description: '' });
+
+/** Avertissement : tâches dont le délai suit la date de la séance / de l'événement. */
+export const linkedTasksNote = (tasks: Task[], id: string, type: 'meeting' | 'event') =>
+  linkedNote(tasks.filter((t) => ((type === 'meeting' ? t.meetingId : t.eventId) === id && t.delaiRef?.type === type) || t.checklist.some((c) => c.ref?.id === id)).length);
+
 export function Meetings() {
   const { data, can, update } = useStore();
+  const { saveMeeting: save, removeMeeting: remove } = useAgendaActions();
   const [edit, setEdit] = useState<Meeting | null>(null);
   const [viewPv, setViewPv] = useState<{ meeting: Meeting; pv: PvArchive; kind: 'odj' | 'pv' } | null>(null);
   const manage = can('meetings.manage');
   const sorted = [...data.meetings].sort((a, b) => a.date.localeCompare(b.date));
-  const save = (m: Meeting) => {
-    const isNew = !data.meetings.some((x) => x.id === m.id);
-    update((d) => { d.meetings = isNew ? [...d.meetings, m] : d.meetings.map((x) => (x.id === m.id ? m : x)); }, `${isNew ? 'Ajout' : 'Modification'} de la séance « ${m.titre} »`);
-  };
-  const remove = (m: Meeting) => update((d) => {
-    d.meetings = d.meetings.filter((x) => x.id !== m.id);
-    d.tasks.forEach((t) => { if (t.meetingId === m.id) t.meetingId = undefined; });
-  }, `Suppression de la séance « ${m.titre} »`);
 
   return (
     <div>
       <div className="page-head">
         <h1>Séances du comité</h1>
-        {manage && <button className="btn primary" onClick={() => setEdit({ id: uid('m'), titre: `Comité ${data.meetings.length + 1}`, date: today(), heure: '19:30', lieu: 'À définir', ordreDuJour: '', notes: '' })}>+ Nouvelle séance</button>}
+        {manage && <button className="btn primary" onClick={() => setEdit(newMeeting(data.meetings))}>+ Nouvelle séance</button>}
       </div>
       <div className="agenda">
         {sorted.map((m) => {
@@ -87,8 +125,8 @@ export function Meetings() {
         <ItemModal
           title="Séance de comité"
           item={edit}
-          note={linkedNote(data.tasks.filter((t) => (t.meetingId === edit.id && t.delaiRef?.type === 'meeting') || t.checklist.some((c) => c.ref?.id === edit.id)).length)}
-          fields={[['titre', 'Titre', 'text'], ['date', 'Date', 'date'], ['heure', 'Heure', 'time'], ['lieu', 'Lieu', 'text'], ['ordreDuJour', 'Points particuliers à l’ordre du jour', 'area'], ['notes', 'Notes / PV', 'area']]}
+          note={linkedTasksNote(data.tasks, edit.id, 'meeting')}
+          fields={MEETING_FIELDS}
           onSave={save}
           onDelete={data.meetings.some((x) => x.id === edit.id) ? remove : undefined}
           onClose={() => setEdit(null)}
@@ -99,24 +137,17 @@ export function Meetings() {
 }
 
 export function Events() {
-  const { data, can, update } = useStore();
+  const { data, can } = useStore();
+  const { saveEvent: save, removeEvent: remove } = useAgendaActions();
   const [edit, setEdit] = useState<ClubEvent | null>(null);
   const manage = can('events.manage');
   const sorted = [...data.events].sort((a, b) => a.date.localeCompare(b.date));
-  const save = (e: ClubEvent) => {
-    const isNew = !data.events.some((x) => x.id === e.id);
-    update((d) => { d.events = isNew ? [...d.events, e] : d.events.map((x) => (x.id === e.id ? e : x)); }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »`);
-  };
-  const remove = (e: ClubEvent) => update((d) => {
-    d.events = d.events.filter((x) => x.id !== e.id);
-    d.tasks.forEach((t) => { if (t.eventId === e.id) t.eventId = undefined; });
-  }, `Suppression de l'événement « ${e.nom} »`);
 
   return (
     <div>
       <div className="page-head">
         <h1>Événements</h1>
-        {manage && <button className="btn primary" onClick={() => setEdit({ id: uid('e'), nom: '', date: today(), lieu: '', description: '' })}>+ Nouvel événement</button>}
+        {manage && <button className="btn primary" onClick={() => setEdit(newEvent())}>+ Nouvel événement</button>}
       </div>
       <div className="agenda">
         {sorted.map((e) => {
@@ -142,8 +173,8 @@ export function Events() {
         <ItemModal
           title="Événement"
           item={edit}
-          note={linkedNote(data.tasks.filter((t) => (t.eventId === edit.id && t.delaiRef?.type === 'event') || t.checklist.some((c) => c.ref?.id === edit.id)).length)}
-          fields={[['nom', 'Événement', 'text'], ['date', 'Date', 'date'], ['lieu', 'Lieu', 'text'], ['description', 'Description', 'area']]}
+          note={linkedTasksNote(data.tasks, edit.id, 'event')}
+          fields={EVENT_FIELDS}
           onSave={save}
           onDelete={data.events.some((x) => x.id === edit.id) ? remove : undefined}
           onClose={() => setEdit(null)}
