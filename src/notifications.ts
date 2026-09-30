@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './data/store';
 import { dueAt, emailState, fillTemplate } from './data/emails';
-import type { AppData, NotifPrefs, Person, Task } from './data/types';
+import type { AppData, NotifPrefs, Person } from './data/types';
 import { isOpen } from './data/polls';
-import { daysUntil, fmtDate, fullName, isDone, nextDue, shortName, subDelai, today } from './data/utils';
+import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
 
 // Notifications de la démo : calculées dans le navigateur à partir des données.
@@ -48,24 +48,16 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items: Omit<NotifItem, 'unread'>[] = [];
   const now = new Date().toISOString();
-  // Mes tâches, et celles où une sous-tâche ouverte m'est confiée.
-  const mine = data.tasks.filter(
-    (t) => (t.responsables.includes(user.id) || t.checklist.some((c) => c.assigneeId === user.id && !c.done)) && !isDone(data, t),
-  );
-  // Échéance qui me concerne : celle de la tâche (ou de sa prochaine sous-tâche) si j'en suis responsable, sinon celle de mes sous-tâches.
-  const dueFor = (t: Task) =>
-    t.responsables.includes(user.id)
-      ? nextDue(t)
-      : (t.checklist.filter((c) => c.assigneeId === user.id && !c.done).map((c) => subDelai(t, c)).filter(Boolean).sort()[0] ?? '');
+  const mine = data.tasks.filter((t) => t.responsables.includes(user.id) && !isDone(data, t));
 
   if (p.retard) {
-    const late = mine.filter((t) => !!dueFor(t) && dueFor(t) < today());
+    const late = mine.filter((t) => !!t.delai && t.delai < today());
     if (late.length)
       items.push({
         key: `retard:${today()}:${late.length}`,
         icon: '⚠️',
         text: late.length === 1 ? `« ${late[0].titre} » est en retard` : `${late.length} de tes tâches sont en retard`,
-        sub: late.length === 1 ? `délai : ${fmtDate(dueFor(late[0]))}` : late.slice(0, 3).map((t) => t.titre).join(' · ') + (late.length > 3 ? '…' : ''),
+        sub: late.length === 1 ? `délai : ${fmtDate(late[0].delai)}` : late.slice(0, 3).map((t) => t.titre).join(' · ') + (late.length > 3 ? '…' : ''),
         link: late.length === 1 ? `/taches?tache=${late[0].id}` : '/taches?statut=retard',
         at: now,
         kind: 'alerte',
@@ -74,7 +66,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
 
   if (p.echeance)
     for (const t of mine) {
-      const due = dueFor(t);
+      const due = t.delai;
       if (!due) continue;
       const n = daysUntil(due);
       if (n < 0 || n > p.echeanceJours) continue;
@@ -156,21 +148,18 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
 
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    const isAssign = n.type === 'assign' || n.type === 'subtask';
-    if ((isAssign && !p.assign) || (!isAssign && !p.modif)) continue;
+    if ((n.type === 'assign' && !p.assign) || (n.type !== 'assign' && !p.modif)) continue;
     const t = data.tasks.find((x) => x.id === n.taskId);
     if (!t) continue;
     const by = fullName(data.people.find((x) => x.id === n.by));
     items.push({
       key: n.id,
-      icon: n.type === 'assign' ? '🆕' : n.type === 'subtask' ? '☑️' : n.type === 'recur' ? '🔁' : '✏️',
+      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : '✏️',
       text:
         n.type === 'assign' ? `${by} t’a attribué « ${t.titre} »`
-        : n.type === 'subtask' ? `${by} t’a confié la sous-tâche « ${n.detail} »`
         : n.type === 'recur' ? `Tâche récurrente reconduite : « ${t.titre} »`
         : `${by} a modifié « ${t.titre} »`,
-      sub: n.type === 'subtask' ? `dans « ${t.titre} »${t.delai ? ` · délai ${fmtDate(t.delai)}` : ''}`
-        : n.type === 'recur' ? `nouveau délai : ${n.detail}` : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
+      sub: n.type === 'recur' ? `nouveau délai : ${n.detail}` : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
       link: `/taches?tache=${t.id}`,
       at: n.at,
       kind: 'activite',

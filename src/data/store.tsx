@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { demoEmails, makeSeed } from './seed';
-import { MERGED } from './seedData';
+import { GROUPS } from './seedData';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
-import type { ActivityNotif, AppData, MeetingMinutes, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
+import type { ActivityNotif, AppData, ChecklistItem, MeetingMinutes, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
 import { clearFiles } from './files';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
@@ -15,7 +15,7 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 11;
+export const SCHEMA = 12;
 
 /** Mises à niveau des données déjà enregistrées dans le navigateur (évite de tout réinitialiser). */
 function migrate(d: AppData): AppData {
@@ -33,6 +33,7 @@ function migrate(d: AppData): AppData {
     if (!d.emails) d.emails = demoEmails(d.tasks);
   }
   if ((d.schema ?? 7) < 11) reimport(d);
+  if ((d.schema ?? 7) < 12) linkSubtasks(d);
   d.schema = SCHEMA;
   return d;
 }
@@ -41,13 +42,12 @@ function migrate(d: AppData): AppData {
 const STATUS_MAP: Record<string, string> = { s4: 's2', s5: 's1', s6: 's3', s8: 's7' };
 
 /**
- * v11 : données du tableau reprises — une sous-section présente plusieurs fois devient une seule tâche
- * dont chaque ligne est une sous-tâche ; statuts simplifiés. Les tâches créées dans l'appli sont gardées
- * et tout ce qui visait une ligne regroupée (sondages, emails, notifications, PV) vise désormais sa tâche.
+ * v11 : données du tableau reprises — une sous-section présente plusieurs fois devient une tâche principale
+ * dont chaque ligne est une tâche liée ; statuts simplifiés. Les tâches créées dans l'appli sont gardées
+ * (statut converti) ; sondages, emails et PV visent toujours la même ligne du tableau.
  */
 function reimport(d: AppData) {
   const seed = makeSeed();
-  const tid = (id: string) => MERGED[id] ?? id;
   const known = new Set(seed.statuses.map((s) => s.id));
   const sid = (id: string) => (known.has(id) ? id : STATUS_MAP[id] ?? seed.statuses[0].id);
   const own = d.tasks.filter((t) => !/^t\d+$/.test(t.id)).map((t) => ({ ...t, statusId: sid(t.statusId) }));
@@ -58,9 +58,84 @@ function reimport(d: AppData) {
     if (!x) d.sections.push(s);
     else s.sousSections.forEach((ss) => x.sousSections.includes(ss) || x.sousSections.push(ss));
   }
+  // Statuts exclus de l'ordre du jour : on retire ceux qui n'existent plus (exclure « Info » ne doit pas exclure « Terminé »).
+  Object.values(d.prefs).forEach((p) => p.pv?.statutsExclus && (p.pv.statutsExclus = p.pv.statutsExclus.filter((id) => known.has(id))));
+  d.log.unshift({
+    id: `l${Date.now()}v11`,
+    at: new Date().toISOString(),
+    userId: 'p1',
+    action: 'Données du tableau reprises : sous-sections regroupées en tâches principales avec tâches liées, statuts simplifiés',
+  });
+}
+
+/** Ancien format des sous-tâches (v10-v11) : personne chargée et délai propre. */
+type OldItem = ChecklistItem & { assigneeId?: string; delai?: string; ref?: { type: 'event' | 'meeting'; id: string; joursAvant: number } };
+
+/**
+ * v12 : les sous-tâches deviennent des tâches liées à une tâche principale ; les sous-tâches restantes
+ * redeviennent de simples cases à cocher (sans délai ni personne chargée).
+ * - Tâche regroupée en v11 (sous-section du tableau) : elle devient la tâche principale (identifiant du groupe)
+ *   et chaque ligne du tableau redevient une vraie tâche (responsable, délai lié, statut, remarque, répétition),
+ *   cochée → terminée. Tout ce qui visait la tâche regroupée vise la tâche principale.
+ * - Autre sous-tâche avec personne chargée ou délai : devient une tâche liée.
+ */
+function linkSubtasks(d: AppData) {
+  const seed = makeSeed();
+  const seedById = new Map(seed.tasks.map((t) => [t.id, t]));
+  const doneId = d.statuses.find((s) => s.done)?.id ?? 's7';
+  const openId = d.statuses.find((s) => !s.done)?.id ?? 's1';
+  const isDoneId = (id: string) => !!d.statuses.find((s) => s.id === id)?.done;
+  const renamed = new Map<string, string>();
+  const now = new Date().toISOString();
+  const strip = (c: OldItem): ChecklistItem => ({ id: c.id, label: c.label, done: c.done });
+  const out: Task[] = [];
+  for (const t of d.tasks) {
+    const items = t.checklist as OldItem[];
+    const pid = GROUPS[t.id];
+    const rows = pid ? items.filter((c) => /^ct\d+$/.test(c.id) && seedById.has(c.id.slice(1))) : [];
+    if (pid && rows.length) {
+      renamed.set(t.id, pid);
+      const seedParent = seedById.get(pid);
+      // Tâche regroupée jamais modifiée : on reprend la tâche principale telle qu'importée.
+      const base = seedParent && t.updatedAt === seedParent.updatedAt ? { ...structuredClone(seedParent), checklist: [] } : { ...t, remarque: '', checklist: [] };
+      out.push(applyDelaiRef(d, { ...base, id: pid, checklist: items.filter((c) => !rows.includes(c)).map(strip) }));
+      for (const c of rows) {
+        const child = applyDelaiRef(d, { ...structuredClone(seedById.get(c.id.slice(1))!), parentId: pid });
+        if (c.done !== isDoneId(child.statusId)) {
+          child.statusId = c.done ? doneId : openId;
+          child.termineeLe = c.done ? now.slice(0, 10) : undefined;
+        }
+        out.push(child);
+      }
+      continue;
+    }
+    const toTask = items.filter((c) => c.assigneeId || c.delai);
+    out.push({ ...t, checklist: items.filter((c) => !toTask.includes(c)).map(strip) });
+    for (const c of toTask)
+      out.push(
+        applyDelaiRef(d, {
+          id: uid('t'),
+          sectionId: t.sectionId,
+          sousSection: t.sousSection,
+          titre: c.label,
+          responsables: c.assigneeId ? [c.assigneeId] : [...t.responsables],
+          statusId: c.done ? doneId : openId,
+          delai: c.delai || t.delai,
+          remarque: '',
+          checklist: [],
+          parentId: t.id,
+          ...(c.ref ? { [c.ref.type === 'meeting' ? 'meetingId' : 'eventId']: c.ref.id, delaiRef: { type: c.ref.type, joursAvant: c.ref.joursAvant } } : {}),
+          termineeLe: c.done ? now.slice(0, 10) : undefined,
+          createdBy: t.createdBy,
+          updatedAt: now,
+        }),
+      );
+  }
+  const tid = (id: string) => renamed.get(id) ?? id;
+  d.tasks = out.map((t) => (t.suivanteId ? { ...t, suivanteId: tid(t.suivanteId) } : t));
   d.polls?.forEach((p) => p.taskId && (p.taskId = tid(p.taskId)));
   d.emails?.forEach((e) => (e.taskId = tid(e.taskId)));
-  d.notifications?.forEach((n) => (n.taskId = tid(n.taskId)));
+  d.notifications = (d.notifications ?? []).filter((n) => (n.type as string) !== 'subtask').map((n) => ({ ...n, taskId: tid(n.taskId) }));
   const remapMinutes = (m?: Omit<MeetingMinutes, 'derniereValidee'>) => {
     if (!m) return;
     if (m.pointIds) m.pointIds = [...new Set(m.pointIds.map(tid))];
@@ -71,14 +146,8 @@ function reimport(d: AppData) {
     remapMinutes(m.minutes);
     remapMinutes(m.minutes?.derniereValidee);
   });
-  // Statuts exclus de l'ordre du jour : on retire ceux qui n'existent plus (exclure « Info » ne doit pas exclure « Terminé »).
-  Object.values(d.prefs).forEach((p) => p.pv?.statutsExclus && (p.pv.statutsExclus = p.pv.statutsExclus.filter((id) => known.has(id))));
-  d.log.unshift({
-    id: `l${Date.now()}v11`,
-    at: new Date().toISOString(),
-    userId: 'p1',
-    action: 'Données du tableau reprises : sous-sections regroupées en tâches à sous-tâches, statuts simplifiés',
-  });
+  if (renamed.size || out.length !== d.tasks.length)
+    d.log.unshift({ id: `l${Date.now()}v12`, at: now, userId: 'p1', action: 'Sous-tâches transformées en tâches liées à leur tâche principale' });
 }
 
 function load(): AppData {
@@ -99,8 +168,6 @@ interface Store {
   /** Droit accordé par au moins un rôle, éventuellement pour une section donnée. */
   can: (p: Permission, sectionId?: string) => boolean;
   canSeeTask: (t: Task) => boolean;
-  /** Sous-tâche attribuée à l'utilisateur connecté (hors responsables de la tâche). */
-  hasSubtask: (t: Task) => boolean;
   canEditTask: (t: Task) => boolean;
   canDeleteTask: (t: Task) => boolean;
   canAssignOthers: (sectionId: string) => boolean;
@@ -124,8 +191,8 @@ interface Store {
   closePoll: (pollId: string, closed: boolean) => void;
   deletePoll: (pollId: string) => void;
   canManagePoll: (p: Poll) => boolean;
-  /** Coche / décoche une sous-tâche tout de suite (même sans droit de modifier la tâche, si elle m'est attribuée). */
-  toggleSubtask: (taskId: string, itemId: string) => void;
+  /** Lie une tâche à une tâche principale (ou la délie avec undefined). */
+  linkTask: (taskId: string, parentId: string | undefined) => void;
   saveEmail: (e: ScheduledEmail, isNew: boolean) => void;
   setEmailStatus: (id: string, statut: ScheduledEmail['statut']) => void;
   deleteEmail: (id: string) => void;
@@ -237,18 +304,23 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         if (detail) task.responsables.filter((id) => !added.includes(id)).forEach((id) => push(id, 'modif', task.id, detail));
       }
       next?.responsables.forEach((id) => push(id, 'recur', next!.id, fmtDate(next!.delai)));
-      // Sous-tâches nouvellement attribuées à quelqu'un.
-      for (const c of task.checklist) {
-        const prev = before?.checklist.find((x) => x.id === c.id);
-        if (c.assigneeId && !c.done && prev?.assigneeId !== c.assigneeId) push(c.assigneeId, 'subtask', task.id, c.label);
-      }
       const nextEmails = next ? emailsForNext(data, task, next) : [];
 
       update(
         (d) => {
           if (isNew) d.tasks.unshift(task);
           else d.tasks = d.tasks.map((x) => (x.id === task.id ? task : x));
-          if (next) d.tasks.unshift(next);
+          if (next) {
+            d.tasks.unshift(next);
+            // Tâche principale reconduite : les occurrences suivantes de ses tâches liées la rejoignent.
+            d.tasks
+              .filter((x) => x.parentId === task.id)
+              .forEach((c) => {
+                let x = c;
+                for (let y = d.tasks.find((z) => z.id === x.suivanteId); y; y = d.tasks.find((z) => z.id === x.suivanteId)) x = y;
+                if (x !== c && !x.parentId) x.parentId = next!.id;
+              });
+          }
           if (nextEmails.length) d.emails = [...(d.emails ?? []), ...nextEmails];
           if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
         },
@@ -319,24 +391,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     [update, data.polls],
   );
 
-  const toggleSubtask = useCallback(
-    (taskId: string, itemId: string) => {
+  const linkTask = useCallback(
+    (taskId: string, parentId: string | undefined) => {
       const t = data.tasks.find((x) => x.id === taskId);
-      const c = t?.checklist.find((x) => x.id === itemId);
-      if (!t || !c) return;
-      const actor = userId ?? '?';
-      const now = new Date().toISOString();
-      // Les responsables sont prévenus quand quelqu'un d'autre termine sa sous-tâche.
-      const notifs: ActivityNotif[] = c.done
-        ? []
-        : t.responsables.filter((id) => id !== actor).map((id) => ({ id: uid('n'), userId: id, type: 'modif' as const, taskId, by: actor, at: now, detail: `sous-tâche « ${c.label} » faite` }));
+      const p = parentId ? data.tasks.find((x) => x.id === parentId) : data.tasks.find((x) => x.id === t?.parentId);
+      if (!t) return;
       update((d) => {
-        const x = d.tasks.find((y) => y.id === taskId)?.checklist.find((y) => y.id === itemId);
-        if (x) x.done = !x.done;
-        if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
-      }, `Sous-tâche « ${c.label} » ${c.done ? 'rouverte' : 'faite'} (tâche « ${t.titre} »)`);
+        const x = d.tasks.find((y) => y.id === taskId);
+        if (x) {
+          x.parentId = parentId;
+          x.updatedAt = new Date().toISOString();
+        }
+      }, parentId ? `Tâche « ${t.titre} » liée à « ${p?.titre ?? ''} »` : `Tâche « ${t.titre} » déliée de « ${p?.titre ?? ''} »`);
     },
-    [update, data.tasks, userId],
+    [update, data.tasks],
   );
 
   const taskTitle = (id: string) => data.tasks.find((t) => t.id === id)?.titre ?? '';
@@ -375,15 +443,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const can = (p: Permission, sectionId?: string) => hasPermission(myRoles, p, sectionId);
   const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
-  const hasSubtask = (t: Task) => !!user && t.checklist.some((c) => c.assigneeId === user.id);
 
   const value: Store = {
     data,
     user,
     myRoles,
     can,
-    canSeeTask: (t) => (!!user && t.responsables.includes(user.id)) || hasSubtask(t) || can('tasks.viewAll', t.sectionId),
-    hasSubtask,
+    canSeeTask: (t) => (!!user && t.responsables.includes(user.id)) || can('tasks.viewAll', t.sectionId),
     canEditTask: (t) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t)),
     canDeleteTask: (t) => can('tasks.delete', t.sectionId),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
@@ -402,7 +468,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     closePoll,
     deletePoll,
     canManagePoll: (p) => !!user && (p.creePar === user.id || can('polls.manage')),
-    toggleSubtask,
+    linkTask,
     saveEmail,
     setEmailStatus,
     deleteEmail,

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '../data/types';
-import { fmtDate, fullName, initials, isLate, isSubLate, shortName, today, uid } from '../data/utils';
+import { fmtDate, fullName, initials, isLate, shortName, today, uid } from '../data/utils';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
@@ -178,10 +178,7 @@ export function Pv() {
     };
   }, [titre]);
   // Sous-tâche : case, intitulé et initiales de la personne chargée.
-  const checkText = (t: Task, c: ChecklistItem) => {
-    const meta = [c.assigneeId && initials(person(c.assigneeId)), !c.done && c.delai && `${shortDate(c.delai)}${isSubLate(t, c) ? ' ⚠' : ''}`].filter(Boolean);
-    return `${c.done ? '☑' : '☐'} ${c.label}${meta.length ? ` (${meta.join(' · ')})` : ''}`;
-  };
+  const checkText = (_t: Task, c: ChecklistItem) => `${c.done ? '☑' : '☐'} ${c.label}`;
   const respText = (t: Task) => t.responsables.map((id) => initials(person(id))).join(', ') || '—';
 
   // ---------- Actions ----------
@@ -285,6 +282,7 @@ export function Pv() {
       case 'titre':
         return (
           <>
+            {t.parentId && <span className="pv-parent">↳ {data.tasks.find((x) => x.id === t.parentId)?.titre} · </span>}
             {t.titre}
             {s.colonnes.checklist && t.checklist.length > 0 && (
               <span className="pv-checklist">{t.checklist.map((c) => checkText(t, c)).join('   ')}</span>
@@ -349,10 +347,17 @@ export function Pv() {
     groups.map((g) => {
       const items: OItem[] = [];
       const bySub = new Map<string, OItem>();
+      // Tâches liées dont la tâche principale figure aussi ici : placées sous elle.
+      const ids = new Set(g.tasks.map((t) => t.id));
+      const underParent = (t: Task) => !!t.parentId && ids.has(t.parentId);
+      const itemOf = new Map<string, OItem>();
       for (const t of g.tasks) {
+        if (underParent(t)) continue;
         const sub = s.groupBy === 'section' ? (s.colonnes.sousSection ? t.sousSection : '') : secName(t.sectionId);
         if (!sub) {
-          items.push(taskItem(t, withPolls));
+          const it = taskItem(t, withPolls);
+          itemOf.set(t.id, it);
+          items.push(it);
           continue;
         }
         let head = bySub.get(sub);
@@ -361,12 +366,18 @@ export function Pv() {
           bySub.set(sub, head);
           items.push(head);
         }
-        // Tâche qui porte le nom de sa sous-section (sous-tâches regroupées) : elle devient la ligne de la sous-section.
+        // Tâche qui porte le nom de sa sous-section (tâche principale d'un groupe) : elle devient la ligne de la sous-section.
         if (!head.task && t.titre.trim().toLowerCase() === sub.trim().toLowerCase()) {
           head.task = t;
           head.children = [...taskItem(t, withPolls).children, ...head.children];
-        } else head.children.push(taskItem(t, withPolls));
+          itemOf.set(t.id, head);
+        } else {
+          const it = taskItem(t, withPolls);
+          itemOf.set(t.id, it);
+          head.children.push(it);
+        }
       }
+      g.tasks.filter(underParent).forEach((t) => itemOf.get(t.parentId!)?.children.push(taskItem(t, withPolls)));
       if (withPolls && s.groupBy === 'section')
         pollsOf(g.key).filter((p) => !g.tasks.some((t) => t.id === p.taskId)).forEach((p) => items.push(pollItem(p)));
       return { key: g.key, label: g.label, items };

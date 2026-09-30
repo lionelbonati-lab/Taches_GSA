@@ -17,7 +17,7 @@ npm run build      # version statique dans dist/
 
 Les données de départ viennent du tableau **« Suivi des tâches » du G.S. Ajoie** (12 sections, séances de comité 2026-27, événements du club). Seules les lignes à partir du 01.09.2026 sont reprises (63 lignes) ; les lignes sans délai sont conservées, sauf celles d'événements antérieurs.
 
-- **Une sous-section présente plusieurs fois devient une seule tâche** (du nom de la sous-section, ex. « AG 13.03.2027 », « Prochain comité », « Newsletter ») dont **chaque ligne est une sous-tâche** : confiée à la personne de la ligne, avec son délai (lié à la séance si c'était une formule) et cochée si la ligne était terminée. Les remarques des lignes sont reprises dans la remarque de la tâche. Résultat : **38 tâches**, dont 11 à sous-tâches.
+- **Une sous-section présente plusieurs fois devient une tâche principale** (du nom de la sous-section, ex. « AG 13.03.2027 », « Prochain comité », « Newsletter ») et **chaque ligne devient une tâche liée** avec tout ce qu'elle avait dans le tableau : responsable(s), délai (lié à la séance si c'était une formule), statut, remarque, répétition. Résultat : 74 tâches, dont 11 tâches principales et 36 tâches liées.
 - **Statuts simplifiés** : À faire, En cours, En attente, Terminé, Annulé (« A valider » → En cours, « A discuter » → À faire, « Sans nouvelles » → En attente, « OK » et « Info » → Terminé). La liste reste modifiable dans la console admin.
 - Les données déjà enregistrées dans le navigateur sont mises à niveau automatiquement : tâches du tableau remplacées, tâches créées dans l'appli gardées (statut converti), sondages / emails / PV rattachés à la tâche regroupée. Les délais en formule du tableau (`=Comité_3+7`, `=AG_2027`) sont devenus des **délais liés** à la séance / l'AG, et les responsables en formule (`=Caissier`, `=Secretaire`) servent à l'**attribution par poste** des tâches annuelles.
 
@@ -45,9 +45,9 @@ Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au 
 
 ## Onglets
 
-- **Accueil** : mes tâches en retard, échéances à 7 jours, mes sous-tâches, emails à envoyer, prochaine séance, avancement des événements.
-- **Tâches** : section, sous-section, tâche, responsable(s), statut, délai, remarque, sous-tâches ; « Mes tâches / Toutes », filtres, tri, vue tableau ou kanban (glisser-déposer), export CSV, impression.
-- **Agenda** : vue **mensuelle** (lundi → dimanche) des séances de comité, événements, délais des tâches et des sous-tâches, fins de sondage ; filtres par type, « Mes tâches / Toutes », tâches terminées au choix. **+** sur chaque jour (ou boutons du panneau du jour) pour **ajouter une séance de comité, une tâche ou un événement** à cette date (selon les droits ; nouvelle séance numérotée d'après la précédente, 19h30). Clic sur un élément pour l'ouvrir ; **glisser-déposer** sur un autre jour pour changer sa date (une séance déplacée entraîne les délais qui lui sont liés). Sur mobile : pastilles de couleur par jour, liste du jour touché en dessous.
+- **Accueil** : compteurs de mes tâches par statut (**un clic ouvre la liste filtrée**, « En retard » compris), mes tâches en retard, échéances à 7 jours, emails à envoyer, prochaine séance, avancement des événements.
+- **Tâches** : section, sous-section, tâche, responsable(s), statut, délai, remarque, tâche principale / tâches liées, sous-tâches ; « Mes tâches / Toutes », filtres, tri, vue tableau ou kanban (glisser-déposer), export CSV, impression.
+- **Agenda** : vue **mensuelle** (lundi → dimanche) des séances de comité, événements, délais des tâches, fins de sondage ; filtres par type, « Mes tâches / Toutes », tâches terminées au choix. **+** sur chaque jour (ou boutons du panneau du jour) pour **ajouter une séance de comité, une tâche ou un événement** à cette date (selon les droits ; nouvelle séance numérotée d'après la précédente, 19h30). Clic sur un élément pour l'ouvrir ; **glisser-déposer** sur un autre jour pour changer sa date (une séance déplacée entraîne les délais qui lui sont liés). Sur mobile : pastilles de couleur par jour, liste du jour touché en dessous.
 - **Comité** : séances (date, lieu, ordre du jour, notes/PV) et tâches liées.
 - **Événements** : événements du club, avancement des tâches liées.
 - **Responsables** : poste, nom, prénom, email, portable (liens mail / appel).
@@ -64,17 +64,18 @@ Le délai **suit ensuite automatiquement** la date : si le tournoi est déplacé
 Champ **Répétition** d'une tâche : chaque semaine, mois, trimestre, semestre ou année (repère 🔁, filtre « Tâches récurrentes »).
 Quand la tâche passe à un statut de clôture (« Terminé »), la suivante est **créée automatiquement** avec le délai décalé, le statut « À faire » et la checklist remise à zéro. Elle est attribuée **au poste** (ex. Trésorier) : si le titulaire a changé entre-temps, elle va à son successeur. Une tâche rouverte puis refermée ne crée pas de doublon.
 
-## Sous-tâches confiées à une personne
+## Tâches liées et sous-tâches
 
-Chaque ligne de la checklist d'une tâche peut être **confiée à une personne**, même si elle n'est pas responsable de la tâche (liste « Confier à… » à l'ajout, puis menu sur chaque ligne ; ★ = responsable de la tâche).
+Une tâche peut être **liée à une tâche principale** (un niveau) : par ex. « AG 13.03.2027 » avec « Reserver le lieu », « Organiser le repas », « Préparer le PowerPoint »… Chaque tâche liée est une tâche à part entière (responsables, délai lié, statut, remarque, documents, sondages, emails, répétition).
 
-- La personne chargée est **notifiée** 🔔 (« Lionel t'a confié la sous-tâche … »), voit la tâche dans **« Mes tâches »** avec le repère « ☑ Ma sous-tâche » et la retrouve dans **« Mes sous-tâches »** sur l'accueil.
-- Elle peut **cocher sa sous-tâche** (sur l'accueil ou dans la tâche) même si son rôle ne lui permet pas de modifier la tâche ; les responsables sont alors prévenus.
-- Ses échéances et retards comptent dans ses rappels. Dans les listes, les personnes chargées d'une sous-tâche apparaissent en petit (contour pointillé) après les responsables ; le filtre « Responsable » les inclut.
-- **Délai par sous-tâche** (facultatif, sinon celui de la tâche ; 🔗 = lié à une séance / un événement et suit sa date). La tâche est « en retard » dès qu'une sous-tâche ouverte l'est ; la liste des tâches indique la prochaine sous-tâche à faire (▸ / ⚠) et une tâche entre dans l'ordre du jour dès que sa prochaine sous-tâche arrive à échéance.
-- Ordre du jour : initiales et délai après la sous-tâche (« ☐ Reserver le lieu (MFJ · 03.09.26 ⚠) ») ; une tâche qui porte le nom de sa sous-section s'affiche directement sur la ligne de la sous-section. Export CSV : colonne « Sous-tâches ».
-- Onglet PV : les sous-tâches s'affichent sous chaque point et se cochent pendant la séance (« sous-tâche … faite » dans le PV).
-- Tâche récurrente : les sous-tâches de l'occurrence suivante restent confiées aux mêmes personnes, délais décalés d'un an.
+- Dans une tâche : champ **Tâche principale** (liste par section) ; une tâche liée affiche en haut « ↳ Tâche liée à … » (clic pour ouvrir la tâche principale).
+- Dans une tâche principale : section **Tâches liées** avec avancement (« 3/8 terminées »), statut, responsables et délai de chacune (clic pour l'ouvrir), **+ Nouvelle tâche liée** (section, sous-section et délai repris), **🔗 Lier une tâche existante**, ✕ pour délier (la tâche reste), « Voir dans la liste ».
+- Liste des tâches : repères « ↳ tâche principale » et « 🔗 3/8 tâches liées », filtre « Tâche principale » (la tâche et ses tâches liées), filtres « Tâches principales » / « Tâches liées » ; export CSV : colonne « Tâche principale ».
+- Ordre du jour : les tâches liées s'affichent sous leur tâche principale ; une tâche principale qui porte le nom de sa sous-section devient la ligne de la sous-section. Onglet PV : tâches liées en retrait sous leur tâche principale.
+- Tâche récurrente : l'occurrence suivante d'une tâche liée est rattachée à l'occurrence suivante de sa tâche principale.
+- Supprimer une tâche principale garde ses tâches liées (sans tâche principale).
+
+Les **sous-tâches** restent une simple checklist (case à cocher + intitulé), cochables aussi pendant la séance dans l'onglet PV.
 
 ## Emails programmés
 
@@ -131,7 +132,7 @@ Onglet **🖊️ PV** (droit « Onglet PV », donné au Secrétaire et à l'Admi
 
 Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de notifications non lues :
 
-- 🆕 une tâche t'est attribuée par quelqu'un d'autre ; ☑️ une sous-tâche t'est confiée ;
+- 🆕 une tâche t'est attribuée par quelqu'un d'autre ;
 - 📧 un email que tu as programmé arrive à son heure d'envoi (message à l'écran si l'appli est ouverte) ;
 - ✏️ une de tes tâches est modifiée par quelqu'un d'autre (statut, délai, contenu) ; 🔁 tâche récurrente reconduite ;
 - ⏰ échéance proche (le jour même à 14 jours avant, réglable) ;

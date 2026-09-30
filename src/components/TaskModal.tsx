@@ -5,9 +5,9 @@ import { PollEditor } from './PollEditor';
 import { EmailsField } from './EmailsField';
 import { deleteFiles } from '../data/files';
 import { useStore } from '../data/store';
-import type { ChecklistItem, Recurrence, Task } from '../data/types';
-import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, fmtDate, fmtDateTime, fullName, isSubLate, nextDate, offsetLabel, shortName, nextResponsables, postesFor, today, uid } from '../data/utils';
-import { Avatar, Modal } from './ui';
+import type { Recurrence, Task } from '../data/types';
+import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, childrenOf, fmtDate, fmtDateTime, fullName, isDone, isLate, nextDate, parentOf, shortName, nextResponsables, postesFor, today, uid } from '../data/utils';
+import { Avatar, Modal, StatusBadge } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
   return {
@@ -27,11 +27,12 @@ export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
 }
 
 export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: Task; isNew: boolean; onClose: () => void; quick?: boolean; openEmailId?: string }) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, toggleSubtask } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask } = useStore();
   const [t, setT] = useState<Task>(task);
   const [newItem, setNewItem] = useState('');
-  const [newWho, setNewWho] = useState('');
-  const [newDate, setNewDate] = useState('');
+  // Tâche liée (ou principale) ouverte par-dessus cette fenêtre.
+  const [other, setOther] = useState<{ task: Task; isNew: boolean } | null>(null);
+  const [linking, setLinking] = useState(false);
   const [err, setErr] = useState('');
   const track = useRef<DocTracking>({ added: [], removed: [] });
   const [newPoll, setNewPoll] = useState(false);
@@ -45,26 +46,22 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const assignable = data.people.filter((p) => p.actif && (canAssignOthers || p.id === user.id));
 
-  // Sous-tâches : on peut les confier à n'importe quelle personne active, même hors des responsables.
-  const subPeople = data.people.filter((p) => p.actif);
   const addItem = () => {
     if (!newItem.trim()) return;
-    set('checklist', [...t.checklist, { id: uid('c'), label: newItem.trim(), done: false, assigneeId: newWho || undefined, delai: newDate || undefined }]);
+    set('checklist', [...t.checklist, { id: uid('c'), label: newItem.trim(), done: false }]);
     setNewItem('');
-    setNewDate('');
   };
-  // Sous-tâche au délai lié à une séance / un événement.
-  const refTitle = (c: ChecklistItem) => {
-    if (!c.ref) return undefined;
-    const target = c.ref.type === 'meeting' ? data.meetings.find((m) => m.id === c.ref!.id)?.titre : data.events.find((e) => e.id === c.ref!.id)?.nom;
-    return `${offsetLabel(c.ref.joursAvant)} « ${target} » · suit sa date (la changer retire le lien)`;
-  };
-  const patchItem = (id: string, patch: Partial<ChecklistItem>) => setT((x) => ({ ...x, checklist: x.checklist.map((c) => (c.id === id ? { ...c, ...patch } : c)) }));
-  const tick = (c: ChecklistItem) => {
-    // Sans droit de modifier la tâche, la personne chargée coche sa sous-tâche directement.
-    if (!editable) toggleSubtask(task.id, c.id);
-    patchItem(c.id, { done: !c.done });
-  };
+
+  // Tâches liées : un seul niveau (une tâche principale n'est pas elle-même liée à une autre).
+  const kids = isNew ? [] : childrenOf(data, task.id).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
+  const parent = parentOf(data, t);
+  const parentChoices = data.tasks
+    .filter((x) => x.id === t.parentId || (x.id !== task.id && !x.parentId && !isDone(data, x)))
+    .sort((a, b) => a.titre.localeCompare(b.titre));
+  const linkable = data.tasks.filter((x) => x.id !== task.id && !x.parentId && !childrenOf(data, x.id).length && !isDone(data, x));
+  const secName = (id: string) => data.sections.find((s) => s.id === id)?.nom ?? '';
+  const bySection = <T extends Task>(list: T[]) =>
+    data.sections.map((sec) => ({ sec, list: list.filter((x) => x.sectionId === sec.id) })).filter((g) => g.list.length);
 
   const toggleResp = (id: string) =>
     set('responsables', t.responsables.includes(id) ? t.responsables.filter((x) => x !== id) : [...t.responsables, id]);
@@ -89,6 +86,8 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
     if (!confirm(`Supprimer la tâche « ${task.titre} » ?`)) return;
     update((d) => {
       d.tasks = d.tasks.filter((x) => x.id !== task.id);
+      // Ses tâches liées restent, sans tâche principale.
+      d.tasks.forEach((x) => { if (x.parentId === task.id) x.parentId = undefined; });
       d.emails = (d.emails ?? []).filter((e) => e.taskId !== task.id);
       // Les sondages liés restent, rattachés à la section de la tâche.
       (d.polls ?? []).forEach((p) => {
@@ -107,6 +106,11 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
   return (
     <Modal title={quick ? 'Ajout rapide' : isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'} onClose={cancel} wide={!quick}>
       <div className="form">
+        {!quick && parent && (
+          <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>
+            ↳ Tâche liée à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
+          </button>
+        )}
         <label className="full">
           Tâche
           <input autoFocus value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ?" />
@@ -185,51 +189,97 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
                 {data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>)}
               </select>
             </label>
+            {!kids.length && (
+              <label className="full">
+                Tâche principale
+                <select
+                  value={t.parentId ?? ''}
+                  disabled={dis}
+                  onChange={(e) => {
+                    const p = data.tasks.find((x) => x.id === e.target.value);
+                    setT((x) => ({ ...x, parentId: p?.id, ...(p && !x.sectionId ? { sectionId: p.sectionId, sousSection: p.sousSection } : {}) }));
+                  }}
+                >
+                  <option value="">Aucune (tâche indépendante)</option>
+                  {bySection(parentChoices).map((g) => (
+                    <optgroup key={g.sec.id} label={g.sec.nom}>
+                      {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              </label>
+            )}
             <label className="full">
               Remarque
               <textarea rows={3} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} />
             </label>
+            {!t.parentId && (
+              <fieldset className="full linked">
+                <legend>Tâches liées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</legend>
+                {isNew ? (
+                  <small className="muted">Enregistre d’abord la tâche pour lui lier d’autres tâches.</small>
+                ) : (
+                  <>
+                    {kids.length > 0 && (
+                      <>
+                        <div className="progress"><div style={{ width: `${Math.round((kids.filter((k) => isDone(data, k)).length / kids.length) * 100)}%` }} /></div>
+                        <ul className="linked-list">
+                          {kids.map((k) => (
+                            <li key={k.id} className={isDone(data, k) ? 'done' : ''}>
+                              <button type="button" className="linked-row" onClick={() => setOther({ task: k, isNew: false })}>
+                                <span className="linked-title">{k.titre}</span>
+                                <span className="avatars">{k.responsables.slice(0, 3).map((id) => <Avatar key={id} id={id} size={20} />)}</span>
+                                <span className={`linked-date ${isLate(data, k) ? 'late-text' : 'muted'}`}>{k.delai ? fmtDate(k.delai) : '—'}</span>
+                                <StatusBadge task={k} />
+                              </button>
+                              {editable && <button type="button" className="icon-btn" title="Délier (la tâche reste, sans tâche principale)" onClick={() => linkTask(k.id, undefined)}>✕</button>}
+                            </li>
+                          ))}
+                        </ul>
+                      </>
+                    )}
+                    {!kids.length && <small className="muted">Aucune tâche liée. Une tâche liée a son propre responsable, délai et statut.</small>}
+                    {editable && (
+                      <div className="row wrap">
+                        <button
+                          type="button"
+                          className="btn small"
+                          onClick={() => setOther({ task: newTask(user.id, { parentId: task.id, sectionId: task.sectionId, sousSection: task.sousSection, delai: task.delai }), isNew: true })}
+                        >
+                          + Nouvelle tâche liée
+                        </button>
+                        {!linking ? (
+                          linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}>🔗 Lier une tâche existante</button>
+                        ) : (
+                          <select autoFocus defaultValue="" onChange={(e) => { if (e.target.value) linkTask(e.target.value, task.id); setLinking(false); }} onBlur={() => setLinking(false)}>
+                            <option value="">— Choisir la tâche à lier —</option>
+                            {bySection(linkable).map((g) => (
+                              <optgroup key={g.sec.id} label={g.sec.nom}>
+                                {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
+                              </optgroup>
+                            ))}
+                          </select>
+                        )}
+                        {kids.length > 0 && <a className="small-link" href={`#/taches?parent=${task.id}`}>Voir dans la liste →</a>}
+                      </div>
+                    )}
+                  </>
+                )}
+              </fieldset>
+            )}
             <fieldset className="full">
               <legend>Checklist / sous-tâches</legend>
-              {t.checklist.map((c) => {
-                const mine = c.assigneeId === user.id;
-                const who = data.people.find((p) => p.id === c.assigneeId);
-                return (
-                  <div key={c.id} className={`check-row ${mine ? 'mine' : ''}`}>
-                    <label className="inline">
-                      <input type="checkbox" checked={c.done} disabled={dis && !(mine && !isNew)} onChange={() => tick(c)} />
-                      <span className={c.done ? 'strike' : ''}>{c.label}</span>
-                    </label>
-                    <span className="check-who">
-                      {dis ? (
-                        c.delai && <small className={isSubLate(t, c) ? 'late-text' : 'muted'} title={refTitle(c)}>{fmtDate(c.delai)}{c.ref ? ' 🔗' : ''}</small>
-                      ) : (
-                        <input
-                          type="date"
-                          className={`sub-date ${isSubLate(t, c) ? 'late' : ''}`}
-                          value={c.delai ?? ''}
-                          title={refTitle(c) ?? 'Délai de la sous-tâche (vide : délai de la tâche)'}
-                          aria-label={`Délai de « ${c.label} »`}
-                          onChange={(e) => patchItem(c.id, { delai: e.target.value || undefined, ref: undefined })}
-                        />
-                      )}
-                      {!dis && c.ref && <span className="ticon" title={refTitle(c)}>🔗</span>}
-                      {dis ? (
-                        who && <span className="sub-who" title={`Sous-tâche confiée à ${fullName(who)}`}><Avatar id={who.id} size={20} /> {mine ? 'Moi' : shortName(who)}</span>
-                      ) : (
-                        <select className="sub-assign" value={c.assigneeId ?? ''} aria-label={`Personne chargée de « ${c.label} »`} onChange={(e) => patchItem(c.id, { assigneeId: e.target.value || undefined })}>
-                          <option value="">— Personne —</option>
-                          {subPeople.map((p) => <option key={p.id} value={p.id}>{shortName(p)}{t.responsables.includes(p.id) ? ' ★' : ''}</option>)}
-                          {who && !who.actif && <option value={who.id}>{shortName(who)} (inactif)</option>}
-                        </select>
-                      )}
-                      {!dis && <button type="button" className="icon-btn" onClick={() => set('checklist', t.checklist.filter((x) => x.id !== c.id))} aria-label="Retirer">✕</button>}
-                    </span>
-                  </div>
-                );
-              })}
+              {t.checklist.map((c) => (
+                <div key={c.id} className="check-row">
+                  <label className="inline">
+                    <input type="checkbox" checked={c.done} disabled={dis} onChange={() => set('checklist', t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)))} />
+                    <span className={c.done ? 'strike' : ''}>{c.label}</span>
+                  </label>
+                  {!dis && <button type="button" className="icon-btn" onClick={() => set('checklist', t.checklist.filter((x) => x.id !== c.id))} aria-label="Retirer">✕</button>}
+                </div>
+              ))}
               {!dis && (
-                <div className="row sub-add">
+                <div className="row">
                   <input
                     value={newItem}
                     placeholder="Ajouter une sous-tâche…"
@@ -241,16 +291,8 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
                       }
                     }}
                   />
-                  <input type="date" className="sub-date" value={newDate} onChange={(e) => setNewDate(e.target.value)} aria-label="Délai de la sous-tâche (facultatif)" title="Délai (facultatif, sinon celui de la tâche)" />
-                  <select value={newWho} onChange={(e) => setNewWho(e.target.value)} aria-label="Confier la sous-tâche à">
-                    <option value="">Confier à… (facultatif)</option>
-                    {subPeople.map((p) => <option key={p.id} value={p.id}>{shortName(p)}{t.responsables.includes(p.id) ? ' ★' : ''}</option>)}
-                  </select>
                   <button type="button" className="btn" onClick={addItem}>Ajouter</button>
                 </div>
-              )}
-              {!dis && t.checklist.some((c) => c.assigneeId && !t.responsables.includes(c.assigneeId)) && (
-                <small className="muted">La personne chargée d’une sous-tâche voit la tâche dans « Mes tâches » et peut cocher sa sous-tâche. ★ = responsable de la tâche.</small>
               )}
             </fieldset>
             <DocsField docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track.current} />
@@ -277,6 +319,7 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
         {editable && <button className="btn primary" onClick={submit}>{isNew ? 'Créer' : 'Enregistrer'}</button>}
       </div>
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
+      {other && <TaskModal task={other.task} isNew={other.isNew} onClose={() => setOther(null)} />}
     </Modal>
   );
 }

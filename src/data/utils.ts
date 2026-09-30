@@ -1,4 +1,4 @@
-import type { AppData, ChecklistItem, Person, Recurrence, Task } from './types';
+import type { AppData, Person, Recurrence, Task } from './types';
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -27,22 +27,16 @@ export function isDone(data: AppData, t: Task) {
   return data.statuses.find((s) => s.id === t.statusId)?.done ?? false;
 }
 
-/** Délai d'une sous-tâche (le sien, sinon celui de la tâche). */
-export const subDelai = (t: Task, c: ChecklistItem) => c.delai || t.delai;
-
-/** Prochaine échéance : le délai de la tâche, ou plus tôt celui d'une sous-tâche pas encore faite. */
-export function nextDue(t: Task) {
-  return [t.delai, ...t.checklist.filter((c) => !c.done && c.delai).map((c) => c.delai!)].filter(Boolean).sort()[0] ?? '';
-}
-
-/** En retard : le délai de la tâche ou celui d'une de ses sous-tâches ouvertes est dépassé. */
 export function isLate(data: AppData, t: Task) {
-  const due = nextDue(t);
-  return !isDone(data, t) && !!due && due < today();
+  return !isDone(data, t) && !!t.delai && t.delai < today();
 }
 
-/** Sous-tâche ouverte dont le délai est dépassé. */
-export const isSubLate = (t: Task, c: ChecklistItem) => !c.done && !!subDelai(t, c) && subDelai(t, c) < today();
+// ---------- Tâches liées ----------
+
+/** Tâches liées à une tâche principale. */
+export const childrenOf = (data: AppData, id: string) => data.tasks.filter((t) => t.parentId === id);
+/** Tâche principale d'une tâche liée. */
+export const parentOf = (data: AppData, t: Task) => (t.parentId ? data.tasks.find((x) => x.id === t.parentId) : undefined);
 
 export function daysUntil(date: string) {
   const a = new Date(today() + 'T12:00:00').getTime();
@@ -100,26 +94,12 @@ export function delaiTarget(data: AppData, t: Task): { nom: string; date: string
   return m ? { nom: m.titre, date: m.date } : null;
 }
 
-const refDate = (data: AppData, type: 'event' | 'meeting', id: string) =>
-  (type === 'event' ? data.events.find((x) => x.id === id) : data.meetings.find((x) => x.id === id))?.date;
-
-/** Recalcule les délais liés de la tâche et de ses sous-tâches (ou retire le lien si l'événement / la séance n'existe plus). */
+/** Recalcule le délai lié (ou retire le lien si l'événement / la séance n'existe plus). */
 export function applyDelaiRef<T extends Task>(data: AppData, t: T): T {
-  let r = t;
-  if (t.delaiRef) {
-    const target = delaiTarget(data, t);
-    r = target ? { ...t, delai: addDays(target.date, -t.delaiRef.joursAvant) } : { ...t, delaiRef: undefined };
-  }
-  if (r.checklist?.some((c) => c.ref))
-    r = {
-      ...r,
-      checklist: r.checklist.map((c) => {
-        if (!c.ref) return c;
-        const d = refDate(data, c.ref.type, c.ref.id);
-        return d ? { ...c, delai: addDays(d, -c.ref.joursAvant) } : { ...c, ref: undefined };
-      }),
-    };
-  return r;
+  if (!t.delaiRef) return t;
+  const target = delaiTarget(data, t);
+  if (!target) return { ...t, delaiRef: undefined };
+  return { ...t, delai: addDays(target.date, -t.delaiRef.joursAvant) };
 }
 
 // ---------- Tâches récurrentes ----------
@@ -175,6 +155,18 @@ export function nextResponsables(data: AppData, t: Task): string[] {
   return [...ids];
 }
 
+/**
+ * Tâche principale de l'occurrence suivante d'une tâche liée : l'occurrence suivante de sa tâche principale
+ * si elle existe déjà ; aucune tant qu'une tâche principale récurrente n'a pas été reconduite (elle la
+ * rejoindra à ce moment-là) ; sinon la même tâche principale (ex. « Paiements »).
+ */
+function nextParent(data: AppData, t: Task) {
+  const parent = t.parentId ? data.tasks.find((x) => x.id === t.parentId) : undefined;
+  if (!parent) return undefined;
+  if (parent.suivanteId) return parent.suivanteId;
+  return parent.recurrence ? undefined : parent.id;
+}
+
 /** Prépare l'occurrence suivante d'une tâche récurrente qui vient d'être clôturée. */
 export function nextOccurrence(data: AppData, t: Task): Task {
   const open = data.statuses.find((s) => !s.done) ?? data.statuses[0];
@@ -184,16 +176,8 @@ export function nextOccurrence(data: AppData, t: Task): Task {
     statusId: open.id,
     delai: t.delai ? nextDate(t.delai, t.recurrence!) : '',
     responsables: nextResponsables(data, t),
-    // Les sous-tâches restent confiées aux mêmes personnes (si elles sont toujours actives).
-    checklist: t.checklist.map((c) => ({
-      ...c,
-      id: uid('c'),
-      done: false,
-      assigneeId: data.people.some((p) => p.id === c.assigneeId && p.actif) ? c.assigneeId : undefined,
-      // Délai propre décalé de la même période ; le lien à la séance / l'événement de cette année est retiré.
-      delai: c.delai ? nextDate(c.delai, t.recurrence!) : undefined,
-      ref: undefined,
-    })),
+    checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
+    parentId: nextParent(data, t),
     // L'événement / la séance de cette année ne concernent pas l'occurrence suivante.
     eventId: undefined,
     meetingId: undefined,

@@ -1,29 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ChecklistItem, ClubEvent, Meeting, Poll, Task } from '../data/types';
-import { addDays, fmtDate, isDone, isLate, isSubLate, shortName, today } from '../data/utils';
+import type { ClubEvent, Meeting, Poll, Task } from '../data/types';
+import { addDays, fmtDate, isDone, isLate, parentOf, today } from '../data/utils';
 import { isOpen } from '../data/polls';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { Avatar, StatusBadge } from '../components/ui';
 import { EVENT_FIELDS, ItemModal, MEETING_FIELDS, linkedTasksNote, newEvent, newMeeting, useAgendaActions } from './Agenda';
 
-// Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches / sous-tâches et fins de sondage.
+// Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
 
-type Kind = 'meeting' | 'event' | 'task' | 'sub' | 'poll';
+type Kind = 'meeting' | 'event' | 'task' | 'poll';
 type Item =
   | { kind: 'meeting'; key: string; date: string; m: Meeting }
   | { kind: 'event'; key: string; date: string; e: ClubEvent }
   | { kind: 'task'; key: string; date: string; t: Task }
-  | { kind: 'sub'; key: string; date: string; t: Task; c: ChecklistItem }
   | { kind: 'poll'; key: string; date: string; p: Poll };
 
 const KINDS: { id: Kind; label: string }[] = [
   { id: 'meeting', label: '🗓️ Séances' },
   { id: 'event', label: '🎉 Événements' },
   { id: 'task', label: '✅ Tâches' },
-  { id: 'sub', label: '☑ Sous-tâches' },
   { id: 'poll', label: '📊 Sondages' },
 ];
 const WEEKDAYS = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'];
@@ -43,12 +41,12 @@ function longDate(date: string) {
 }
 
 export function Calendar() {
-  const { data, user, can, canSeeTask, canEditTask, hasSubtask, creatableSections, prefs, saveTask, setToast } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, saveTask, setToast } = useStore();
   const { saveMeeting, removeMeeting, saveEvent, removeEvent } = useAgendaActions();
   const navigate = useNavigate();
   const [month, setMonth] = useState(monthOf(today()));
   const [selected, setSelected] = useState(today());
-  const [kinds, setKinds] = useState<Kind[]>(['meeting', 'event', 'task', 'sub', 'poll']);
+  const [kinds, setKinds] = useState<Kind[]>(['meeting', 'event', 'task', 'poll']);
   const [scope, setScope] = useState<'mes' | 'toutes'>(prefs.vueDefaut);
   const [showDone, setShowDone] = useState(false);
   const [menu, setMenu] = useState<string | null>(null);
@@ -95,7 +93,7 @@ export function Calendar() {
       if (it.date < from || it.date > to) return;
       map.set(it.date, [...(map.get(it.date) ?? []), it]);
     };
-    const mine = (t: Task) => t.responsables.includes(user.id) || hasSubtask(t);
+    const mine = (t: Task) => t.responsables.includes(user.id);
     const visible = (t: Task) => (effScope === 'mes' ? mine(t) : canSeeTask(t)) && (showDone || !isDone(data, t));
     if (seeMeetings && kinds.includes('meeting')) data.meetings.forEach((m) => push({ kind: 'meeting', key: m.id, date: m.date, m }));
     if (seeEvents && kinds.includes('event')) data.events.forEach((e) => push({ kind: 'event', key: e.id, date: e.date, e }));
@@ -104,17 +102,11 @@ export function Calendar() {
     for (const t of data.tasks) {
       if (!visible(t)) continue;
       if (kinds.includes('task') && t.delai) push({ kind: 'task', key: t.id, date: t.delai, t });
-      if (kinds.includes('sub'))
-        t.checklist.forEach(
-          (c) =>
-            c.delai && c.delai !== t.delai && (showDone || !c.done) && (effScope === 'toutes' || t.responsables.includes(user.id) || c.assigneeId === user.id) &&
-            push({ kind: 'sub', key: `${t.id}:${c.id}`, date: c.delai, t, c }),
-        );
     }
-    const rank: Record<Kind, number> = { meeting: 0, event: 1, poll: 2, task: 3, sub: 4 };
+    const rank: Record<Kind, number> = { meeting: 0, event: 1, poll: 2, task: 3 };
     map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind]));
     return map;
-  }, [data, user, days, kinds, effScope, showDone, seeMeetings, seeEvents, canSeeTask, hasSubtask]);
+  }, [data, user, days, kinds, effScope, showDone, seeMeetings, seeEvents, canSeeTask]);
 
   if (!user) return null;
 
@@ -138,7 +130,7 @@ export function Calendar() {
   ].filter(Boolean) as { kind: 'meeting' | 'task' | 'event'; label: string }[];
 
   const open = (it: Item) => {
-    if (it.kind === 'task' || it.kind === 'sub') setTask({ t: it.t, isNew: false });
+    if (it.kind === 'task') setTask({ t: it.t, isNew: false });
     else if (it.kind === 'meeting') (addMeeting ? setMeeting(it.m) : navigate('/comite'));
     else if (it.kind === 'event') (addEvent ? setEvent(it.e) : navigate('/evenements'));
     else navigate(`/sondages?id=${it.p.id}`);
@@ -146,14 +138,14 @@ export function Calendar() {
 
   // ---------- Glisser-déposer : changer la date ----------
   const canMove = (it: Item) =>
-    it.kind === 'meeting' ? addMeeting : it.kind === 'event' ? addEvent : it.kind === 'task' || it.kind === 'sub' ? canEditTask(it.t) : false;
+    it.kind === 'meeting' ? addMeeting : it.kind === 'event' ? addEvent : it.kind === 'task' ? canEditTask(it.t) : false;
   const move = (it: Item, date: string) => {
     if (it.date === date) return;
     const when = fmtDate(date);
     if (it.kind === 'meeting') {
-      const n = data.tasks.filter((t) => (t.meetingId === it.m.id && t.delaiRef?.type === 'meeting') || t.checklist.some((c) => c.ref?.id === it.m.id)).length;
+      const n = data.tasks.filter((t) => t.meetingId === it.m.id && t.delaiRef?.type === 'meeting').length;
       saveMeeting({ ...it.m, date });
-      setToast(`🗓️ ${it.m.titre} déplacé au ${when}${n ? ` · ${n} tâche(s) liée(s) suivent` : ''}`);
+      setToast(`🗓️ ${it.m.titre} déplacé au ${when}${n ? ` · le délai de ${n} tâche(s) suit` : ''}`);
     } else if (it.kind === 'event') {
       saveEvent({ ...it.e, date });
       setToast(`🎉 ${it.e.nom} déplacé au ${when}`);
@@ -161,9 +153,6 @@ export function Calendar() {
       if (it.t.delaiRef && !confirm(`Le délai de « ${it.t.titre} » suit une séance ou un événement. Le fixer au ${when} retire ce lien. Continuer ?`)) return;
       saveTask({ ...it.t, delai: date, delaiRef: undefined }, false);
       setToast(`✅ « ${it.t.titre} » : délai au ${when}`);
-    } else if (it.kind === 'sub') {
-      saveTask({ ...it.t, checklist: it.t.checklist.map((c) => (c.id === it.c.id ? { ...c, delai: date, ref: undefined } : c)) }, false);
-      setToast(`☑ « ${it.c.label} » : délai au ${when}`);
     }
   };
 
@@ -172,7 +161,6 @@ export function Calendar() {
       case 'meeting': return `${it.m.heure ? it.m.heure.replace(':', 'h') + ' ' : ''}${it.m.titre}`;
       case 'event': return it.e.nom;
       case 'task': return it.t.titre;
-      case 'sub': return it.c.label;
       case 'poll': return `Fin : ${it.p.question}`;
     }
   };
@@ -180,14 +168,16 @@ export function Calendar() {
     switch (it.kind) {
       case 'meeting': return `Séance : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
       case 'event': return `Événement : ${it.e.nom}${it.e.lieu ? ` · ${it.e.lieu}` : ''}`;
-      case 'task': return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}`;
-      case 'sub': return `Sous-tâche de « ${it.t.titre} »${it.c.assigneeId ? ` · ${shortName(data.people.find((p) => p.id === it.c.assigneeId))}` : ''}`;
+      case 'task': {
+        const p = parentOf(data, it.t);
+        return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · liée à « ${p.titre} »` : ''}`;
+      }
       case 'poll': return `Sondage : ${it.p.question} (date limite)`;
     }
   };
   const chipClass = (it: Item) => {
-    const late = (it.kind === 'task' && isLate(data, it.t)) || (it.kind === 'sub' && isSubLate(it.t, it.c));
-    const done = (it.kind === 'task' && isDone(data, it.t)) || (it.kind === 'sub' && it.c.done);
+    const late = it.kind === 'task' && isLate(data, it.t);
+    const done = it.kind === 'task' && isDone(data, it.t);
     return `cal-chip k-${it.kind}${late ? ' late' : ''}${done ? ' done' : ''}`;
   };
   const chipStyle = (it: Item) => (it.kind === 'task' ? { borderLeftColor: data.statuses.find((s) => s.id === it.t.statusId)?.couleur } : undefined);
@@ -303,20 +293,18 @@ export function Calendar() {
                 <li key={it.key}>
                   <button className={`cal-row k-${it.kind}`} onClick={() => open(it)}>
                     <span className="cal-row-main">
-                      <strong className={(it.kind === 'task' && isDone(data, it.t)) || (it.kind === 'sub' && it.c.done) ? 'strike' : ''}>
-                        {{ meeting: '🗓️', event: '🎉', task: '✅', sub: '☑', poll: '📊' }[it.kind]} {chipText(it)}
+                      <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
+                        {{ meeting: '🗓️', event: '🎉', task: '✅', poll: '📊' }[it.kind]} {chipText(it)}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}
                         {it.kind === 'event' && (it.e.lieu || 'Événement du club')}
-                        {it.kind === 'task' && [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › ')}
-                        {it.kind === 'sub' && `dans « ${it.t.titre} »`}
+                        {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
                         {it.kind === 'poll' && 'date limite pour répondre'}
                       </small>
                     </span>
                     {it.kind === 'task' && <StatusBadge task={it.t} />}
                     {it.kind === 'task' && <span className="avatars">{it.t.responsables.slice(0, 3).map((id) => <Avatar key={id} id={id} size={22} />)}</span>}
-                    {it.kind === 'sub' && it.c.assigneeId && <Avatar id={it.c.assigneeId} size={22} />}
                   </button>
                 </li>
               ))}

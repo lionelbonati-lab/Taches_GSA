@@ -5,7 +5,7 @@ import { FULL_AGENDA, meetingContext, selectAgenda, sortedMeetings } from '../da
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
 import type { MeetingMinutes, Poll, Task, TaskSnapshot } from '../data/types';
-import { fmtDate, fmtDateTime, fullName, initials, isDone, isSubLate, today, uid } from '../data/utils';
+import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
 
@@ -144,6 +144,12 @@ export function Minutes() {
       let g = subs.find((x) => x.key === key);
       if (!g) subs.push((g = { key, label: t.sousSection, tasks: [] }));
       g.tasks.push(t);
+    }
+    // Tâches liées placées juste après leur tâche principale (si elle est dans la même sous-section).
+    for (const g of subs) {
+      const ids = new Set(g.tasks.map((t) => t.id));
+      const kids = g.tasks.filter((t) => t.parentId && ids.has(t.parentId));
+      g.tasks = g.tasks.filter((t) => !kids.includes(t)).flatMap((t) => [t, ...kids.filter((k) => k.parentId === t.id)]);
     }
     return { sec, subs, polls: polls.filter((p) => pollSection(data, p) === sec.id) };
   });
@@ -305,14 +311,17 @@ export function Minutes() {
       <NoteField value={m.notes[key] ?? ''} onCommit={(v) => setNote(key, v)} placeholder={label} autoFocus={openNotes[key] && !noteOf(key)} readOnly={!editable} />
     ) : null;
 
+  // Tâche liée dont la tâche principale est aussi un point de la séance : affichée en retrait sous elle.
+  const isChild = (t: Task) => !!t.parentId && points.some((x) => x.id === t.parentId && x.sectionId === t.sectionId && x.sousSection === t.sousSection);
   const taskRow = (t: Task) => {
     const ch = changesOf(t);
     const b = bucket.get(t.id);
     const can2 = editable && canEditTask(t);
     return (
-      <div key={t.id} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''}`}>
+      <div key={t.id} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild(t) ? 'child' : ''}`}>
         <div className="min-task-head">
           <span className="min-title">
+            {isChild(t) && <span className="muted">↳ </span>}
             {t.titre} <span className="odj-meta">({meta(t).join(' · ')})</span>
             {t.remarque && <span className="odj-rem"> – {t.remarque}</span>}
           </span>
@@ -338,14 +347,11 @@ export function Minutes() {
                   <input
                     type="checkbox"
                     checked={c.done}
-                    disabled={!(editable && (can2 || c.assigneeId === user?.id))}
+                    disabled={!(editable && can2)}
                     onChange={() => quickChange(t, { checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)) })}
                   />
                   <span className={c.done ? 'strike' : ''}>{c.label}</span>
                 </label>
-                <small className={isSubLate(t, c) ? 'late-text' : 'muted'}>
-                  {[c.assigneeId && initials(person(c.assigneeId)), !c.done && c.delai && shortDate(c.delai)].filter(Boolean).join(' · ')}
-                </small>
               </li>
             ))}
           </ul>

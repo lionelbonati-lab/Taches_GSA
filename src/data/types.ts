@@ -57,16 +57,11 @@ export interface Section {
   sousSections: string[];
 }
 
+/** Sous-tâche : simple case à cocher (pour une étape avec responsable ou délai, créer une tâche liée). */
 export interface ChecklistItem {
   id: string;
   label: string;
   done: boolean;
-  /** Personne chargée de la sous-tâche (peut être différente des responsables de la tâche). */
-  assigneeId?: string;
-  /** Délai propre à la sous-tâche (sinon celui de la tâche). */
-  delai?: string;
-  /** Délai lié à une séance / un événement : suit sa date. */
-  ref?: { type: 'event' | 'meeting'; id: string; joursAvant: number };
 }
 
 export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle';
@@ -155,6 +150,8 @@ export interface Task {
   eventId?: string;
   meetingId?: string;
   checklist: ChecklistItem[];
+  /** Tâche principale à laquelle cette tâche est liée (un seul niveau). */
+  parentId?: string;
   documents?: TaskDoc[];
   delaiRef?: DelaiRef;
   recurrence?: Recurrence;
@@ -314,7 +311,7 @@ export interface Prefs {
 export interface ActivityNotif {
   id: string;
   userId: string;
-  type: 'assign' | 'modif' | 'recur' | 'subtask';
+  type: 'assign' | 'modif' | 'recur';
   taskId: string;
   by: string;
   at: string;

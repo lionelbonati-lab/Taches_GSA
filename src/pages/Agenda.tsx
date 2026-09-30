@@ -52,7 +52,7 @@ export const newEvent = (date = today()): ClubEvent => ({ id: uid('e'), nom: '',
 
 /** Avertissement : tâches dont le délai suit la date de la séance / de l'événement. */
 export const linkedTasksNote = (tasks: Task[], id: string, type: 'meeting' | 'event') =>
-  linkedNote(tasks.filter((t) => ((type === 'meeting' ? t.meetingId : t.eventId) === id && t.delaiRef?.type === type) || t.checklist.some((c) => c.ref?.id === id)).length);
+  linkedNote(tasks.filter((t) => (type === 'meeting' ? t.meetingId : t.eventId) === id && t.delaiRef?.type === type).length);
 
 export function Meetings() {
   const { data, can, update } = useStore();
@@ -83,7 +83,7 @@ export function Meetings() {
                   <pre className="odj">{m.ordreDuJour}</pre>
                   {m.notes && <p><em>Notes / PV :</em> {m.notes}</p>}
                 </details>
-                <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) liée(s) →</Link>
+                <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
                 {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
                   <div className="pv-archives">
                     {(m.minutesArchives ?? []).map((pv, i) => (

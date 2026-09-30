@@ -662,7 +662,7 @@ export const tasks: AppData['tasks'] = [
     "termineeLe": "2026-09-06"
   },
   {
-    "id": "t5",
+    "id": "g5",
     "sectionId": "sec1",
     "sousSection": "Clubdesk",
     "titre": "Clubdesk",
@@ -671,19 +671,8 @@ export const tasks: AppData['tasks'] = [
     ],
     "statusId": "s2",
     "delai": "2027-01-26",
-    "remarque": "Mettre à jour les numéro de téléphone : Mail pour mise à jour envoyé",
-    "checklist": [
-      {
-        "id": "ct5",
-        "label": "Mettre à jour les numéro de téléphone",
-        "done": true
-      },
-      {
-        "id": "ct6",
-        "label": "Mise à jour des groupes de tri par âge",
-        "done": false
-      }
-    ],
+    "remarque": "",
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z",
     "meetingId": "m7",
@@ -693,7 +682,44 @@ export const tasks: AppData['tasks'] = [
     }
   },
   {
-    "id": "t7",
+    "id": "t5",
+    "sectionId": "sec1",
+    "sousSection": "Clubdesk",
+    "titre": "Mettre à jour les numéro de téléphone",
+    "responsables": [
+      "p3"
+    ],
+    "statusId": "s7",
+    "delai": "",
+    "remarque": "Mail pour mise à jour envoyé",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g5"
+  },
+  {
+    "id": "t6",
+    "sectionId": "sec1",
+    "sousSection": "Clubdesk",
+    "titre": "Mise à jour des groupes de tri par âge",
+    "responsables": [
+      "p3"
+    ],
+    "statusId": "s1",
+    "delai": "2027-01-26",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "meetingId": "m7",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g5"
+  },
+  {
+    "id": "g7",
     "sectionId": "sec1",
     "sousSection": "Partenaire",
     "titre": "Partenaire",
@@ -703,23 +729,7 @@ export const tasks: AppData['tasks'] = [
     "statusId": "s7",
     "delai": "2027-03-13",
     "remarque": "",
-    "checklist": [
-      {
-        "id": "ct7",
-        "label": "Liste membres pour Boldaire",
-        "done": true
-      },
-      {
-        "id": "ct8",
-        "label": "Liste membres pour Olivélo",
-        "done": true
-      },
-      {
-        "id": "ct9",
-        "label": "Liste membres pour Aristote",
-        "done": true
-      }
-    ],
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z",
     "eventId": "e12",
@@ -731,6 +741,81 @@ export const tasks: AppData['tasks'] = [
     "postesResp": [
       "Secrétaire"
     ]
+  },
+  {
+    "id": "t7",
+    "sectionId": "sec1",
+    "sousSection": "Partenaire",
+    "titre": "Liste membres pour Boldaire",
+    "responsables": [
+      "p3"
+    ],
+    "statusId": "s7",
+    "delai": "2027-03-13",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "delaiRef": {
+      "type": "event",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Secrétaire"
+    ],
+    "parentId": "g7"
+  },
+  {
+    "id": "t8",
+    "sectionId": "sec1",
+    "sousSection": "Partenaire",
+    "titre": "Liste membres pour Olivélo",
+    "responsables": [
+      "p3"
+    ],
+    "statusId": "s7",
+    "delai": "2027-03-13",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "delaiRef": {
+      "type": "event",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Secrétaire"
+    ],
+    "parentId": "g7"
+  },
+  {
+    "id": "t9",
+    "sectionId": "sec1",
+    "sousSection": "Partenaire",
+    "titre": "Liste membres pour Aristote",
+    "responsables": [
+      "p3"
+    ],
+    "statusId": "s7",
+    "delai": "2027-03-13",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "delaiRef": {
+      "type": "event",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Secrétaire"
+    ],
+    "parentId": "g7"
   },
   {
     "id": "t10",
@@ -796,7 +881,7 @@ export const tasks: AppData['tasks'] = [
     "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
-    "id": "t13",
+    "id": "g13",
     "sectionId": "sec2",
     "sousSection": "Paiements",
     "titre": "Paiements",
@@ -805,19 +890,8 @@ export const tasks: AppData['tasks'] = [
     ],
     "statusId": "s2",
     "delai": "2027-01-26",
-    "remarque": "Vérifier la modification du compte de paiement signalée par la banque : Notification du 17.09.2026",
-    "checklist": [
-      {
-        "id": "ct13",
-        "label": "Paiement assurance Mobilière",
-        "done": false
-      },
-      {
-        "id": "ct57",
-        "label": "Vérifier la modification du compte de paiement signalée par la banque",
-        "done": false
-      }
-    ],
+    "remarque": "",
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z",
     "meetingId": "m7",
@@ -825,6 +899,47 @@ export const tasks: AppData['tasks'] = [
       "type": "meeting",
       "joursAvant": 0
     }
+  },
+  {
+    "id": "t13",
+    "sectionId": "sec2",
+    "sousSection": "Paiements",
+    "titre": "Paiement assurance Mobilière",
+    "responsables": [
+      "p4"
+    ],
+    "statusId": "s3",
+    "delai": "2027-01-26",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "meetingId": "m7",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Caissier"
+    ],
+    "parentId": "g13"
+  },
+  {
+    "id": "t57",
+    "sectionId": "sec2",
+    "sousSection": "Paiements",
+    "titre": "Vérifier la modification du compte de paiement signalée par la banque",
+    "responsables": [
+      "p4"
+    ],
+    "statusId": "s2",
+    "delai": "",
+    "remarque": "Notification du 17.09.2026",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g13"
   },
   {
     "id": "t14",
@@ -862,7 +977,7 @@ export const tasks: AppData['tasks'] = [
     "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
-    "id": "t16",
+    "id": "g16",
     "sectionId": "sec3",
     "sousSection": "Trophée Jurassien",
     "titre": "Trophée Jurassien",
@@ -870,33 +985,65 @@ export const tasks: AppData['tasks'] = [
     "statusId": "s7",
     "delai": "2026-10-18",
     "remarque": "",
-    "checklist": [
-      {
-        "id": "ct16",
-        "label": "252 Marches",
-        "done": true,
-        "delai": "2026-09-06"
-      },
-      {
-        "id": "ct17",
-        "label": "Course du Montbautier",
-        "done": true,
-        "delai": "2026-09-13"
-      },
-      {
-        "id": "ct18",
-        "label": "Tour du val Terbi",
-        "done": true,
-        "delai": "2026-09-19"
-      },
-      {
-        "id": "ct19",
-        "label": "Tabeillon",
-        "done": true
-      }
-    ],
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z"
+  },
+  {
+    "id": "t16",
+    "sectionId": "sec3",
+    "sousSection": "Trophée Jurassien",
+    "titre": "252 Marches",
+    "responsables": [],
+    "statusId": "s7",
+    "delai": "2026-09-06",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g16"
+  },
+  {
+    "id": "t17",
+    "sectionId": "sec3",
+    "sousSection": "Trophée Jurassien",
+    "titre": "Course du Montbautier",
+    "responsables": [],
+    "statusId": "s7",
+    "delai": "2026-09-13",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g16"
+  },
+  {
+    "id": "t18",
+    "sectionId": "sec3",
+    "sousSection": "Trophée Jurassien",
+    "titre": "Tour du val Terbi",
+    "responsables": [],
+    "statusId": "s7",
+    "delai": "2026-09-19",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g16"
+  },
+  {
+    "id": "t19",
+    "sectionId": "sec3",
+    "sousSection": "Trophée Jurassien",
+    "titre": "Tabeillon",
+    "responsables": [],
+    "statusId": "s7",
+    "delai": "2026-10-18",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g16"
   },
   {
     "id": "t20",
@@ -1034,7 +1181,7 @@ export const tasks: AppData['tasks'] = [
     }
   },
   {
-    "id": "t27",
+    "id": "g27",
     "sectionId": "sec8",
     "sousSection": "Soirée récréative 28.11",
     "titre": "Soirée récréative 28.11",
@@ -1046,26 +1193,8 @@ export const tasks: AppData['tasks'] = [
     ],
     "statusId": "s1",
     "delai": "2026-10-29",
-    "remarque": "Organiser le repas : Choucroute",
-    "checklist": [
-      {
-        "id": "ct27",
-        "label": "Organiser le repas",
-        "done": false,
-        "assigneeId": "p5"
-      },
-      {
-        "id": "ct28",
-        "label": "Planifier les animations – Noah R., Lionel B.",
-        "done": false
-      },
-      {
-        "id": "ct29",
-        "label": "Boissons (minérales, vin, bière, café)",
-        "done": false,
-        "assigneeId": "p2"
-      }
-    ],
+    "remarque": "",
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z",
     "eventId": "e10",
@@ -1074,6 +1203,73 @@ export const tasks: AppData['tasks'] = [
       "type": "meeting",
       "joursAvant": 0
     }
+  },
+  {
+    "id": "t27",
+    "sectionId": "sec8",
+    "sousSection": "Soirée récréative 28.11",
+    "titre": "Organiser le repas",
+    "responsables": [
+      "p5"
+    ],
+    "statusId": "s1",
+    "delai": "2026-10-29",
+    "remarque": "Choucroute",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e10",
+    "meetingId": "m5",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g27"
+  },
+  {
+    "id": "t28",
+    "sectionId": "sec8",
+    "sousSection": "Soirée récréative 28.11",
+    "titre": "Planifier les animations",
+    "responsables": [
+      "p7",
+      "p1"
+    ],
+    "statusId": "s1",
+    "delai": "2026-10-29",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e10",
+    "meetingId": "m5",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g27"
+  },
+  {
+    "id": "t29",
+    "sectionId": "sec8",
+    "sousSection": "Soirée récréative 28.11",
+    "titre": "Boissons (minérales, vin, bière, café)",
+    "responsables": [
+      "p2"
+    ],
+    "statusId": "s1",
+    "delai": "2026-10-29",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e10",
+    "meetingId": "m5",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g27"
   },
   {
     "id": "t30",
@@ -1133,7 +1329,7 @@ export const tasks: AppData['tasks'] = [
     "eventId": "e11"
   },
   {
-    "id": "t33",
+    "id": "g33",
     "sectionId": "sec8",
     "sousSection": "AG 13.03.2027",
     "titre": "AG 13.03.2027",
@@ -1146,84 +1342,7 @@ export const tasks: AppData['tasks'] = [
     "statusId": "s1",
     "delai": "2027-03-13",
     "remarque": "",
-    "checklist": [
-      {
-        "id": "ct33",
-        "label": "Reserver le lieu",
-        "done": false,
-        "assigneeId": "p4",
-        "delai": "2026-09-03",
-        "ref": {
-          "type": "meeting",
-          "id": "m4",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct34",
-        "label": "Organiser le repas",
-        "done": false,
-        "assigneeId": "p1",
-        "delai": "2027-01-26",
-        "ref": {
-          "type": "meeting",
-          "id": "m7",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct35",
-        "label": "Préparer l'ordre du jour",
-        "done": false,
-        "assigneeId": "p1",
-        "delai": "2027-02-25",
-        "ref": {
-          "type": "meeting",
-          "id": "m8",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct36",
-        "label": "Préparer le PowerPoint – Lionel B., Maxime R.",
-        "done": false,
-        "delai": "2027-02-25",
-        "ref": {
-          "type": "meeting",
-          "id": "m8",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct37",
-        "label": "Beamer",
-        "done": false,
-        "assigneeId": "p8"
-      },
-      {
-        "id": "ct38",
-        "label": "Liste remerciements",
-        "done": false,
-        "assigneeId": "p1",
-        "delai": "2027-02-25",
-        "ref": {
-          "type": "meeting",
-          "id": "m8",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct39",
-        "label": "Chercher bons remerciements",
-        "done": false,
-        "assigneeId": "p4"
-      },
-      {
-        "id": "ct40",
-        "label": "Distribuer bons remerciements – tout le comité",
-        "done": false
-      }
-    ],
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z",
     "eventId": "e12",
@@ -1240,7 +1359,227 @@ export const tasks: AppData['tasks'] = [
     ]
   },
   {
-    "id": "t41",
+    "id": "t33",
+    "sectionId": "sec8",
+    "sousSection": "AG 13.03.2027",
+    "titre": "Reserver le lieu",
+    "responsables": [
+      "p4"
+    ],
+    "statusId": "s1",
+    "delai": "2026-09-03",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "meetingId": "m4",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Caissier"
+    ],
+    "parentId": "g33"
+  },
+  {
+    "id": "t34",
+    "sectionId": "sec8",
+    "sousSection": "AG 13.03.2027",
+    "titre": "Organiser le repas",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s1",
+    "delai": "2027-01-26",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "meetingId": "m7",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Président"
+    ],
+    "parentId": "g33"
+  },
+  {
+    "id": "t35",
+    "sectionId": "sec8",
+    "sousSection": "AG 13.03.2027",
+    "titre": "Préparer l'ordre du jour",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s1",
+    "delai": "2027-02-25",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "meetingId": "m8",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Président"
+    ],
+    "parentId": "g33"
+  },
+  {
+    "id": "t36",
+    "sectionId": "sec8",
+    "sousSection": "AG 13.03.2027",
+    "titre": "Préparer le PowerPoint",
+    "responsables": [
+      "p1",
+      "p3"
+    ],
+    "statusId": "s1",
+    "delai": "2027-02-25",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "meetingId": "m8",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Président",
+      "Secrétaire"
+    ],
+    "parentId": "g33"
+  },
+  {
+    "id": "t37",
+    "sectionId": "sec8",
+    "sousSection": "AG 13.03.2027",
+    "titre": "Beamer",
+    "responsables": [
+      "p8"
+    ],
+    "statusId": "s1",
+    "delai": "2027-03-13",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "delaiRef": {
+      "type": "event",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Gruppetto"
+    ],
+    "parentId": "g33"
+  },
+  {
+    "id": "t38",
+    "sectionId": "sec8",
+    "sousSection": "AG 13.03.2027",
+    "titre": "Liste remerciements",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s1",
+    "delai": "2027-02-25",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "meetingId": "m8",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Président"
+    ],
+    "parentId": "g33"
+  },
+  {
+    "id": "t39",
+    "sectionId": "sec8",
+    "sousSection": "AG 13.03.2027",
+    "titre": "Chercher bons remerciements",
+    "responsables": [
+      "p4"
+    ],
+    "statusId": "s1",
+    "delai": "2027-03-13",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "delaiRef": {
+      "type": "event",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Caissier"
+    ],
+    "parentId": "g33"
+  },
+  {
+    "id": "t40",
+    "sectionId": "sec8",
+    "sousSection": "AG 13.03.2027",
+    "titre": "Distribuer bons remerciements",
+    "responsables": [
+      "p1",
+      "p3",
+      "p5",
+      "p6",
+      "p7",
+      "p2",
+      "p8",
+      "p4"
+    ],
+    "statusId": "s1",
+    "delai": "2027-03-13",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "eventId": "e12",
+    "delaiRef": {
+      "type": "event",
+      "joursAvant": 0
+    },
+    "recurrence": "annuelle",
+    "postesResp": [
+      "Président",
+      "Secrétaire",
+      "Compétition",
+      "Ecole Cyclisme",
+      "Vice-Président",
+      "Gruppetto",
+      "Caissier"
+    ],
+    "parentId": "g33"
+  },
+  {
+    "id": "g41",
     "sectionId": "sec9",
     "sousSection": "Cyclisme",
     "titre": "Cyclisme",
@@ -1251,20 +1590,43 @@ export const tasks: AppData['tasks'] = [
     "statusId": "s1",
     "delai": "",
     "remarque": "",
-    "checklist": [
-      {
-        "id": "ct41",
-        "label": "Combinaison 1 pièce cyclisme",
-        "done": false
-      },
-      {
-        "id": "ct42",
-        "label": "Combinaison triathlon",
-        "done": false
-      }
-    ],
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z"
+  },
+  {
+    "id": "t41",
+    "sectionId": "sec9",
+    "sousSection": "Cyclisme",
+    "titre": "Combinaison 1 pièce cyclisme",
+    "responsables": [
+      "p5",
+      "p8"
+    ],
+    "statusId": "s1",
+    "delai": "",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g41"
+  },
+  {
+    "id": "t42",
+    "sectionId": "sec9",
+    "sousSection": "Cyclisme",
+    "titre": "Combinaison triathlon",
+    "responsables": [
+      "p5",
+      "p8"
+    ],
+    "statusId": "s1",
+    "delai": "",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g41"
   },
   {
     "id": "t43",
@@ -1298,7 +1660,7 @@ export const tasks: AppData['tasks'] = [
     "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
-    "id": "t45",
+    "id": "g45",
     "sectionId": "sec10",
     "sousSection": "Partenariat Boldaire",
     "titre": "Partenariat Boldaire",
@@ -1309,25 +1671,46 @@ export const tasks: AppData['tasks'] = [
     ],
     "statusId": "s2",
     "delai": "",
-    "remarque": "Négocier meilleur % sur habits : Au cas par cas selon marges · Sponsoring futurs maillots : Recontacter le moment venu",
-    "checklist": [
-      {
-        "id": "ct45",
-        "label": "Négocier meilleur % sur habits",
-        "done": true,
-        "assigneeId": "p1"
-      },
-      {
-        "id": "ct46",
-        "label": "Sponsoring futurs maillots – Christophe T., Ismaël R.",
-        "done": false
-      }
-    ],
+    "remarque": "",
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
-    "id": "t47",
+    "id": "t45",
+    "sectionId": "sec10",
+    "sousSection": "Partenariat Boldaire",
+    "titre": "Négocier meilleur % sur habits",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s7",
+    "delai": "",
+    "remarque": "Au cas par cas selon marges",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g45"
+  },
+  {
+    "id": "t46",
+    "sectionId": "sec10",
+    "sousSection": "Partenariat Boldaire",
+    "titre": "Sponsoring futurs maillots",
+    "responsables": [
+      "p5",
+      "p6"
+    ],
+    "statusId": "s3",
+    "delai": "",
+    "remarque": "Recontacter le moment venu",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g45"
+  },
+  {
+    "id": "g47",
     "sectionId": "sec11",
     "sousSection": "Newsletter",
     "titre": "Newsletter",
@@ -1336,22 +1719,42 @@ export const tasks: AppData['tasks'] = [
     ],
     "statusId": "s1",
     "delai": "2026-10-10",
-    "remarque": "Programme hivernale : Fichier fourni par Lionel",
-    "checklist": [
-      {
-        "id": "ct47",
-        "label": "Marche familiale",
-        "done": false,
-        "delai": "2026-09-05"
-      },
-      {
-        "id": "ct48",
-        "label": "Programme hivernale",
-        "done": false
-      }
-    ],
+    "remarque": "",
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z"
+  },
+  {
+    "id": "t47",
+    "sectionId": "sec11",
+    "sousSection": "Newsletter",
+    "titre": "Marche familiale",
+    "responsables": [
+      "p3"
+    ],
+    "statusId": "s1",
+    "delai": "2026-09-05",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g47"
+  },
+  {
+    "id": "t48",
+    "sectionId": "sec11",
+    "sousSection": "Newsletter",
+    "titre": "Programme hivernale",
+    "responsables": [
+      "p3"
+    ],
+    "statusId": "s1",
+    "delai": "2026-10-10",
+    "remarque": "Fichier fourni par Lionel",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g47"
   },
   {
     "id": "t49",
@@ -1399,7 +1802,7 @@ export const tasks: AppData['tasks'] = [
     "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
-    "id": "t52",
+    "id": "g52",
     "sectionId": "sec12",
     "sousSection": "Prochain comité",
     "titre": "Prochain comité",
@@ -1408,58 +1811,8 @@ export const tasks: AppData['tasks'] = [
     ],
     "statusId": "s2",
     "delai": "2027-02-25",
-    "remarque": "Définir le lieu – Comité 4 : Chez Ismaël",
-    "checklist": [
-      {
-        "id": "ct52",
-        "label": "Définir le lieu – Comité 4",
-        "done": false,
-        "delai": "2026-09-03",
-        "ref": {
-          "type": "meeting",
-          "id": "m4",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct53",
-        "label": "Définir le lieu – Comité 5",
-        "done": false,
-        "delai": "2026-10-29",
-        "ref": {
-          "type": "meeting",
-          "id": "m5",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct54",
-        "label": "Définir le lieu – Comité 6",
-        "done": false,
-        "delai": "2026-12-03",
-        "ref": {
-          "type": "meeting",
-          "id": "m6",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct55",
-        "label": "Définir le lieu – Comité 7",
-        "done": false,
-        "delai": "2027-01-26",
-        "ref": {
-          "type": "meeting",
-          "id": "m7",
-          "joursAvant": 0
-        }
-      },
-      {
-        "id": "ct56",
-        "label": "Définir le lieu – Comité 8",
-        "done": false
-      }
-    ],
+    "remarque": "",
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z",
     "meetingId": "m8",
@@ -1467,6 +1820,111 @@ export const tasks: AppData['tasks'] = [
       "type": "meeting",
       "joursAvant": 0
     }
+  },
+  {
+    "id": "t52",
+    "sectionId": "sec12",
+    "sousSection": "Prochain comité",
+    "titre": "Définir le lieu",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s2",
+    "delai": "2026-09-03",
+    "remarque": "Chez Ismaël",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "meetingId": "m4",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g52"
+  },
+  {
+    "id": "t53",
+    "sectionId": "sec12",
+    "sousSection": "Prochain comité",
+    "titre": "Définir le lieu",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s1",
+    "delai": "2026-10-29",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "meetingId": "m5",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g52"
+  },
+  {
+    "id": "t54",
+    "sectionId": "sec12",
+    "sousSection": "Prochain comité",
+    "titre": "Définir le lieu",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s1",
+    "delai": "2026-12-03",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "meetingId": "m6",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g52"
+  },
+  {
+    "id": "t55",
+    "sectionId": "sec12",
+    "sousSection": "Prochain comité",
+    "titre": "Définir le lieu",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s1",
+    "delai": "2027-01-26",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "meetingId": "m7",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g52"
+  },
+  {
+    "id": "t56",
+    "sectionId": "sec12",
+    "sousSection": "Prochain comité",
+    "titre": "Définir le lieu",
+    "responsables": [
+      "p1"
+    ],
+    "statusId": "s1",
+    "delai": "2027-02-25",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "meetingId": "m8",
+    "delaiRef": {
+      "type": "meeting",
+      "joursAvant": 0
+    },
+    "parentId": "g52"
   },
   {
     "id": "t58",
@@ -1500,7 +1958,7 @@ export const tasks: AppData['tasks'] = [
     "updatedAt": "2026-09-20T18:00:00.000Z"
   },
   {
-    "id": "t60",
+    "id": "g60",
     "sectionId": "sec6",
     "sousSection": "Conférence Yannis",
     "titre": "Conférence Yannis",
@@ -1510,29 +1968,58 @@ export const tasks: AppData['tasks'] = [
     ],
     "statusId": "s2",
     "delai": "2026-10-21",
-    "remarque": "Commander pizzas familiales (Bella-Ciao) pour les jeunes : Dernier entraînement de la saison · Contacter Manu et Eric (anciens coachs de Yannis) : Demandé par Lionel à Yannis",
-    "checklist": [
-      {
-        "id": "ct60",
-        "label": "Réserver la cabane du Banné (ou aula école, plan B météo)",
-        "done": false,
-        "assigneeId": "p18"
-      },
-      {
-        "id": "ct62",
-        "label": "Commander pizzas familiales (Bella-Ciao) pour les jeunes",
-        "done": false,
-        "assigneeId": "p7"
-      },
-      {
-        "id": "ct63",
-        "label": "Contacter Manu et Eric (anciens coachs de Yannis)",
-        "done": false,
-        "assigneeId": "p7"
-      }
-    ],
+    "remarque": "",
+    "checklist": [],
     "createdBy": "p1",
     "updatedAt": "2026-09-20T18:00:00.000Z"
+  },
+  {
+    "id": "t60",
+    "sectionId": "sec6",
+    "sousSection": "Conférence Yannis",
+    "titre": "Réserver la cabane du Banné (ou aula école, plan B météo)",
+    "responsables": [
+      "p18"
+    ],
+    "statusId": "s2",
+    "delai": "2026-10-21",
+    "remarque": "",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g60"
+  },
+  {
+    "id": "t62",
+    "sectionId": "sec6",
+    "sousSection": "Conférence Yannis",
+    "titre": "Commander pizzas familiales (Bella-Ciao) pour les jeunes",
+    "responsables": [
+      "p7"
+    ],
+    "statusId": "s2",
+    "delai": "2026-10-21",
+    "remarque": "Dernier entraînement de la saison",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g60"
+  },
+  {
+    "id": "t63",
+    "sectionId": "sec6",
+    "sousSection": "Conférence Yannis",
+    "titre": "Contacter Manu et Eric (anciens coachs de Yannis)",
+    "responsables": [
+      "p7"
+    ],
+    "statusId": "s2",
+    "delai": "2026-10-21",
+    "remarque": "Demandé par Lionel à Yannis",
+    "checklist": [],
+    "createdBy": "p1",
+    "updatedAt": "2026-09-20T18:00:00.000Z",
+    "parentId": "g60"
   },
   {
     "id": "t61",
@@ -1551,33 +2038,19 @@ export const tasks: AppData['tasks'] = [
   }
 ];
 
-/** Ancien identifiant d'une ligne regroupée → tâche qui la contient désormais (mise à niveau des données enregistrées). */
-export const MERGED: Record<string, string> = {
-  "t6": "t5",
-  "t8": "t7",
-  "t9": "t7",
-  "t57": "t13",
-  "t17": "t16",
-  "t18": "t16",
-  "t19": "t16",
-  "t28": "t27",
-  "t29": "t27",
-  "t34": "t33",
-  "t35": "t33",
-  "t36": "t33",
-  "t37": "t33",
-  "t38": "t33",
-  "t39": "t33",
-  "t40": "t33",
-  "t42": "t41",
-  "t46": "t45",
-  "t48": "t47",
-  "t53": "t52",
-  "t54": "t52",
-  "t55": "t52",
-  "t56": "t52",
-  "t62": "t60",
-  "t63": "t60"
+/** Première ligne d'un groupe → tâche principale du groupe (mise à niveau des données enregistrées en v11). */
+export const GROUPS: Record<string, string> = {
+  "t5": "g5",
+  "t7": "g7",
+  "t13": "g13",
+  "t16": "g16",
+  "t27": "g27",
+  "t33": "g33",
+  "t41": "g41",
+  "t45": "g45",
+  "t47": "g47",
+  "t52": "g52",
+  "t60": "g60"
 };
 
 export const COMMITTEE_IDS = ["p1", "p3", "p5", "p6", "p7", "p2", "p8", "p4"];

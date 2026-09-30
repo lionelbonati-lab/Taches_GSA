@@ -1,5 +1,5 @@
 import type { AppData, Meeting, Task } from './types';
-import { addDays, isDone, isLate, nextDue, today } from './utils';
+import { addDays, isDone, isLate, today } from './utils';
 
 // Sélection des points de l'ordre du jour d'une séance, partagée par les onglets Ordre du jour et PV.
 
@@ -40,10 +40,9 @@ export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting
   const open = data.tasks.filter((t) => !isDone(data, t) && eligible(t) && !o.statutsExclus.includes(t.statusId));
   const late = o.retards ? open.filter((t) => isLate(data, t)) : [];
   const rest = open.filter((t) => !late.includes(t));
-  // Une tâche à sous-tâches entre dans l'ordre du jour dès que sa prochaine sous-tâche arrive à échéance.
-  const avant1 = s1 && o.avantProchaine ? rest.filter((t) => t.meetingId === s1.id || !nextDue(t) || nextDue(t) <= s1.date) : [];
+  const avant1 = s1 && o.avantProchaine ? rest.filter((t) => t.meetingId === s1.id || !t.delai || t.delai <= s1.date) : [];
   const avant2 =
-    s2 && o.avantSuivante ? rest.filter((t) => !avant1.includes(t) && (t.meetingId === s2.id || (!!nextDue(t) && nextDue(t) <= s2.date))) : [];
+    s2 && o.avantSuivante ? rest.filter((t) => !avant1.includes(t) && (t.meetingId === s2.id || (!!t.delai && t.delai <= s2.date))) : [];
   const since = s0?.date ?? addDays(today(), -60);
   const bilan = o.bilan
     ? data.tasks.filter(

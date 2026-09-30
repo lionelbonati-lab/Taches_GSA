@@ -2,21 +2,28 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
-import { daysUntil, fmtDate, fullName, isDone, isLate, nextDue, recurrenceLabel, today } from '../data/utils';
+import { childrenOf, daysUntil, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { Avatar, DocPollIcons, Empty, LinkIcon, RecurIcon, StatusBadge } from '../components/ui';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
-const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '' };
+const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '' };
 
 export function Tasks() {
-  const { data, user, can, canSeeTask, canEditTask, hasSubtask, prefs, setPrefs, saveTask } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, prefs, setPrefs, saveTask } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
-    params.get('statut') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') ? 'toutes' : prefs.vueDefaut,
+    params.get('statut') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') ? 'toutes' : prefs.vueDefaut,
   );
-  const [f, setF] = useState({ ...EMPTY_FILTERS, event: params.get('event') ?? '', meeting: params.get('meeting') ?? '', resp: params.get('resp') ?? '', statut: params.get('statut') ?? '' });
+  const [f, setF] = useState({
+    ...EMPTY_FILTERS,
+    event: params.get('event') ?? '',
+    meeting: params.get('meeting') ?? '',
+    resp: params.get('resp') ?? '',
+    statut: params.get('statut') ?? '',
+    parent: params.get('parent') ?? '',
+  });
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'delai', dir: 1 });
   const navigate = useNavigate();
   // Lien depuis une notification : /taches?tache=<id> ouvre directement la tâche.
@@ -44,22 +51,25 @@ export function Tasks() {
     if (!user) return [];
     const q = f.q.trim().toLowerCase();
     const res = data.tasks.filter((t) => {
-      if (effScope === 'mes' ? !t.responsables.includes(user.id) && !hasSubtask(t) : !canSeeTask(t)) return false;
+      if (effScope === 'mes' ? !t.responsables.includes(user.id) : !canSeeTask(t)) return false;
       if (hideDone && view !== 'kanban' && !f.statut && isDone(data, t)) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
-      if (f.resp && !t.responsables.includes(f.resp) && !t.checklist.some((c) => c.assigneeId === f.resp)) return false;
+      if (f.resp && !t.responsables.includes(f.resp)) return false;
+      if (f.parent && t.id !== f.parent && t.parentId !== f.parent) return false;
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
       if (f.event && t.eventId !== f.event) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
-      if (f.delai && ['passe', '7', '30'].includes(f.delai) && !nextDue(t)) return false;
+      if (f.delai && ['passe', '7', '30'].includes(f.delai) && !t.delai) return false;
       if (f.delai) {
-        const n = daysUntil(nextDue(t));
+        const n = daysUntil(t.delai);
         if (f.delai === 'passe' && n >= 0) return false;
         if (f.delai === '7' && (n < 0 || n > 7)) return false;
         if (f.delai === '30' && (n < 0 || n > 30)) return false;
         if (f.delai === 'recurrente' && !t.recurrence) return false;
         if (f.delai === 'lie' && !t.delaiRef) return false;
+        if (f.delai === 'principale' && !childrenOf(data, t.id).length) return false;
+        if (f.delai === 'liee' && !t.parentId) return false;
         if (f.delai === 'email' && !(data.emails ?? []).some((e) => e.taskId === t.id && e.statut === 'programme')) return false;
       }
       if (q && !`${t.titre} ${t.remarque} ${t.sousSection} ${sectionName(t.sectionId)} ${respNames(t)}`.toLowerCase().includes(q)) return false;
@@ -89,13 +99,10 @@ export function Tasks() {
   };
 
   const exportCsv = () => {
-    const head = ['Section', 'Sous-section', 'Tâche', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Répétition', 'Remarque', 'Sous-tâches'];
-    const subs = (t: Task) =>
-      t.checklist
-        .map((c) => `${c.done ? '☑' : '☐'} ${c.label}${c.assigneeId ? ` (${fullName(data.people.find((p) => p.id === c.assigneeId))})` : ''}${c.delai ? ` – ${fmtDate(c.delai)}` : ''}`)
-        .join(' | ');
+    const head = ['Section', 'Sous-section', 'Tâche', 'Tâche principale', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Répétition', 'Remarque', 'Sous-tâches'];
+    const subs = (t: Task) => t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join(' | ');
     const rows = list.map((t) => [
-      sectionName(t.sectionId), t.sousSection, t.titre, respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
+      sectionName(t.sectionId), t.sousSection, t.titre, parentOf(data, t)?.titre ?? '', respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
       data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', recurrenceLabel(t.recurrence), t.remarque, subs(t),
     ]);
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
@@ -170,6 +177,12 @@ export function Tasks() {
           <option value="lie">🔗 Délai lié à un événement / une séance</option>
           <option value="recurrente">🔁 Tâches récurrentes</option>
           <option value="email">📧 Avec email programmé</option>
+          <option value="principale">🔗 Tâches principales</option>
+          <option value="liee">↳ Tâches liées</option>
+        </select>
+        <select value={f.parent} onChange={(e) => setF({ ...f, parent: e.target.value })}>
+          <option value="">Toutes tâches principales</option>
+          {data.tasks.filter((t) => childrenOf(data, t.id).length).map((t) => <option key={t.id} value={t.id}>🔗 {t.titre}</option>)}
         </select>
         <label className="inline hide-toggle"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminées</label>
         {activeFilters > 0 && <button className="btn link" onClick={() => setF(EMPTY_FILTERS)}>Effacer</button>}
@@ -201,11 +214,11 @@ export function Tasks() {
                   <td>
                     <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
-                    <MySubtask t={t} />
+                    <Linked t={t} />
                   </td>
-                  <td><Responsables t={t} size={24} /></td>
+                  <td><span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={24} />)}</span></td>
                   <td><StatusBadge task={t} /></td>
-                  <td className="nowrap">{fmtDate(t.delai)} <LinkIcon task={t} /><NextSub t={t} /></td>
+                  <td className="nowrap">{fmtDate(t.delai)} <LinkIcon task={t} /></td>
                   <td className="muted"><span className="clip">{t.remarque}</span></td>
                 </tr>
               ))}
@@ -226,9 +239,9 @@ export function Tasks() {
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t)} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
                     <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /></strong>
-                    <MySubtask t={t} />
+                    <Linked t={t} />
                     <div className="kmeta">
-                      <Responsables t={t} size={22} />
+                      <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={22} />)}</span>
                       <span className={isLate(data, t) ? 'late-text' : 'muted'}>{fmtDate(t.delai)} <LinkIcon task={t} /></span>
                     </div>
                   </div>
@@ -249,7 +262,7 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
   const editable = canEditTask(t);
   const sectionName = data.sections.find((s) => s.id === t.sectionId)?.nom ?? '';
   const late = isLate(data, t);
-  const n = daysUntil(nextDue(t) || t.delai);
+  const n = daysUntil(t.delai);
   return (
     <div className={`tcard ${late ? 'late' : ''}`} onClick={onOpen}>
       <div className="tcard-top">
@@ -257,13 +270,12 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         <StatusBadge task={t} />
       </div>
       <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /></strong>
-      <MySubtask t={t} />
+      <Linked t={t} />
       {t.remarque && <small className="muted clip">{t.remarque}</small>}
       <div className="tcard-bottom">
-        <Responsables t={t} size={24} />
+        <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={24} />)}</span>
         <span className={late ? 'late-text' : 'muted'}>
           <LinkIcon task={t} /> {fmtDate(t.delai)} {late ? `(${-n} j de retard)` : n === 0 ? "(aujourd'hui)" : n > 0 && n <= 7 ? `(J-${n})` : ''}
-          <NextSub t={t} />
         </span>
       </div>
       {editable && (
@@ -279,39 +291,17 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
   );
 }
 
-/** Responsables de la tâche, suivis (en plus petit) des personnes chargées d'une sous-tâche. */
-export function Responsables({ t, size }: { t: Task; size: number }) {
-  const subs = Array.from(new Set(t.checklist.map((c) => c.assigneeId).filter((id): id is string => !!id && !t.responsables.includes(id))));
+/** Repères : « ↳ tâche principale » pour une tâche liée, « 🔗 x/y » pour une tâche principale. */
+export function Linked({ t }: { t: Task }) {
+  const { data } = useStore();
+  const parent = parentOf(data, t);
+  const kids = childrenOf(data, t.id);
+  if (parent) return <small className="linked-to" title={`Tâche liée à « ${parent.titre} »`}>↳ {parent.titre}</small>;
+  if (!kids.length) return null;
+  const done = kids.filter((k) => isDone(data, k)).length;
   return (
-    <span className="avatars">
-      {t.responsables.map((id) => <Avatar key={id} id={id} size={size} />)}
-      {subs.map((id) => <span key={id} className="avatar-sub" title="Sous-tâche"><Avatar id={id} size={Math.round(size * 0.8)} /></span>)}
-    </span>
-  );
-}
-
-/** Repère « ma sous-tâche » (sous-tâches ouvertes confiées à l'utilisateur connecté). */
-export function MySubtask({ t }: { t: Task }) {
-  const { user } = useStore();
-  const mine = t.checklist.filter((c) => c.assigneeId === user?.id);
-  if (!mine.length) return null;
-  const open = mine.filter((c) => !c.done);
-  return (
-    <small className={`my-sub ${open.length ? '' : 'done'}`} title={mine.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join('\n')}>
-      ☑ {open.length ? `Ma sous-tâche : ${open.map((c) => c.label).join(', ')}` : 'Ma sous-tâche est faite'}
-    </small>
-  );
-}
-
-/** Prochaine sous-tâche à faire quand elle arrive avant le délai de la tâche. */
-export function NextSub({ t }: { t: Task }) {
-  const due = nextDue(t);
-  if (!due || due === t.delai) return null;
-  const c = t.checklist.find((x) => !x.done && x.delai === due);
-  const late = due < today();
-  return (
-    <small className={`next-sub ${late ? 'late-text' : 'muted'}`} title={c ? `Prochaine sous-tâche : ${c.label}` : undefined}>
-      {late ? '⚠' : '▸'} {c?.label ? `${c.label.length > 28 ? c.label.slice(0, 27) + '…' : c.label} · ` : ''}{fmtDate(due)}
+    <small className={`linked-count ${done === kids.length ? 'all' : ''}`} title={`${kids.length} tâche(s) liée(s), ${done} terminée(s)`}>
+      🔗 {done}/{kids.length} tâches liées
     </small>
   );
 }
