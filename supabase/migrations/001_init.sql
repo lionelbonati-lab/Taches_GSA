@@ -68,6 +68,11 @@ do $$ begin
   end if;
 end $$;
 
+-- CREATE TABLE IF NOT EXISTS ne complète pas une table existante.
+-- Garantir la colonne utilisée par les policies d'affectation.
+alter table if exists public.tasks
+  add column if not exists responsables uuid[] not null default '{}';
+
 create table if not exists public.meetings (
   id uuid primary key default gen_random_uuid(),
   committee_id uuid not null references public.committees(id) on delete cascade,
