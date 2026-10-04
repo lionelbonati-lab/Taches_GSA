@@ -12,6 +12,8 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - Règles : lecture/écriture des éléments pour les membres ; seuls les admins modifient les rôles et les comptes administrateurs (déclencheur `gsa_items_guard`) ; `gsa_members` en lecture seule (sauf le propriétaire qui choisit sa fiche).
 - Bucket privé `gsa-fichiers` : fichiers joints, chemin `<comité>/<fichier>`, réservé aux membres du comité.
 
+`supabase/migrations/004_gsa_droits.sql` (appliqué) : droits sur les tables pour les comptes connectés et la fonction serveur. Le projet n'ouvre pas automatiquement les nouvelles tables à l'API ; sans ces droits, l'appli affiche « permission denied for table gsa_members ».
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

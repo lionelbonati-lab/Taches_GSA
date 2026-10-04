@@ -122,13 +122,15 @@ export function CloudApp() {
       );
     case 'choixComite':
       return <ChooseCommittee list={phase.list} onSignOut={signOut} onChoose={(m) => session && void open(session, m).catch((e) => setPhase({ k: 'erreur', text: (e as Error).message }))} />;
-    case 'erreur':
+    case 'erreur': {
+      const offline = /fetch|network/i.test(phase.text);
       return (
-        <Message title="Serveur injoignable" onSignOut={signOut}>
-          <p>{/fetch|network/i.test(phase.text) ? 'Pas de connexion Internet, ou le serveur ne répond pas.' : phase.text}</p>
+        <Message title={offline ? 'Serveur injoignable' : 'Erreur du serveur'} onSignOut={signOut}>
+          <p>{offline ? 'Pas de connexion Internet, ou le serveur ne répond pas.' : phase.text}</p>
           <p><button className="btn primary" onClick={retry}>Réessayer</button></p>
         </Message>
       );
+    }
     case 'pasPret':
       return (
         <Message title={phase.m.committeeName} onSignOut={signOut}>
