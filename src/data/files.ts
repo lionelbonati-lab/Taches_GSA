@@ -1,13 +1,24 @@
+import { supabase } from '../lib/supabase';
+
 // Contenu des fichiers joints aux tâches. Dans la démo, gardé dans le navigateur (IndexedDB),
 // à part des autres données (le localStorage est limité à quelques Mo).
-// Dans la version réelle : stockage de fichiers du serveur.
+// Dans la version réelle : stockage de fichiers du serveur (bucket privé « gsa-fichiers », dossier du comité).
 
 const DB_NAME = 'taches-gsa-fichiers';
 const STORE = 'fichiers';
+const BUCKET = 'gsa-fichiers';
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-const memory = new Map<string, Blob>(); // repli si IndexedDB est indisponible (navigation privée…)
+const memory = new Map<string, Blob>(); // repli si IndexedDB est indisponible (navigation privée…) ; cache en version réelle
 let dbPromise: Promise<IDBDatabase | null> | null = null;
+let cloudCommittee: string | null = null;
+
+/** Version réelle : les fichiers vont dans le stockage du serveur, dossier du comité. */
+export function setServerFiles(committeeId: string) {
+  cloudCommittee = committeeId;
+}
+const bucket = () => supabase!.storage.from(BUCKET);
+const path = (id: string) => `${cloudCommittee}/${id}`;
 
 function db(): Promise<IDBDatabase | null> {
   if (!dbPromise)
@@ -38,22 +49,38 @@ function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<
 }
 
 export async function saveFile(id: string, blob: Blob) {
+  if (cloudCommittee) {
+    const { error } = await bucket().upload(path(id), blob, { contentType: blob.type || 'application/octet-stream', upsert: true });
+    if (error) throw new Error(`envoi impossible (${error.message})`);
+    memory.set(id, blob);
+    return;
+  }
   memory.set(id, blob);
   await run('readwrite', (s) => s.put(blob, id));
 }
 
 export async function getFile(id: string): Promise<Blob | undefined> {
-  return memory.get(id) ?? (await run<Blob>('readonly', (s) => s.get(id)));
+  const cached = memory.get(id);
+  if (cached) return cached;
+  if (cloudCommittee) {
+    const { data } = await bucket().download(path(id));
+    if (data) memory.set(id, data);
+    return data ?? undefined;
+  }
+  return run<Blob>('readonly', (s) => s.get(id));
 }
 
 export async function deleteFiles(ids: string[]) {
   ids.forEach((id) => memory.delete(id));
-  if (ids.length) await run('readwrite', (s) => void ids.forEach((id) => s.delete(id)));
+  if (!ids.length) return;
+  if (cloudCommittee) await bucket().remove(ids.map(path));
+  else await run('readwrite', (s) => void ids.forEach((id) => s.delete(id)));
 }
 
+/** Vide les fichiers de ce navigateur (démo). En version réelle, les fichiers du comité restent sur le serveur. */
 export async function clearFiles() {
   memory.clear();
-  await run('readwrite', (s) => s.clear());
+  if (!cloudCommittee) await run('readwrite', (s) => s.clear());
 }
 
 /** Réduit les photos lourdes (appareil photo du téléphone) : max 1800 px, JPEG. */

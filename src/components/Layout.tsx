@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { useStore } from '../data/store';
+import { useStore, useSyncStatus } from '../data/store';
 import { rolesLabel } from '../data/permissions';
 import type { Permission } from '../data/types';
 import { TaskModal, newTask } from './TaskModal';
@@ -24,7 +24,7 @@ export const TABS: { to: string; label: string; short?: string; icon: string; pe
 ];
 
 export function Layout() {
-  const { data, user, can, login, prefs, setToast } = useStore();
+  const { data, user, can, login, prefs, setToast, cloud } = useStore();
   const [quick, setQuick] = useState(false);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
@@ -88,7 +88,7 @@ export function Layout() {
         <div className="brand">
           <img src="./icon.svg" alt="" width={28} height={28} />
           <span>Tâches GSA</span>
-          <span className="demo-tag">DÉMO</span>
+          {cloud ? <SyncBadge /> : <span className="demo-tag">DÉMO</span>}
         </div>
         <nav className="tabs">
           {tabs.map((t) => (
@@ -103,7 +103,7 @@ export function Layout() {
             <strong>{user.prenom} {user.nom}</strong>
             <small>{user.poste} · {rolesLabel(data.roles, user)}</small>
           </div>
-          <button className="btn small" onClick={() => login(null)} title="Changer d'utilisateur">Changer</button>
+          {!cloud && <button className="btn small" onClick={() => login(null)} title="Changer d'utilisateur">Changer</button>}
         </div>
       </header>
 
@@ -139,7 +139,7 @@ export function Layout() {
               <NavLink key={t.to} to={t.to} className="sheet-link">{t.icon} {t.label}</NavLink>
             ))}
             <InstallButton variant="sheet" />
-            <button className="sheet-link" onClick={() => login(null)}>🔄 Changer d'utilisateur</button>
+            <button className="sheet-link" onClick={() => login(null)}>{cloud ? '🚪 Se déconnecter' : '🔄 Changer d\'utilisateur'}</button>
           </div>
         </div>
       )}
@@ -148,4 +148,13 @@ export function Layout() {
       {quick && <TaskModal quick isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
     </div>
   );
+}
+
+/** Version réelle : état de l'enregistrement sur le serveur. */
+function SyncBadge() {
+  const { status, pending } = useSyncStatus();
+  if (status === 'horsLigne')
+    return <span className="sync-tag off" title="Les modifications seront envoyées dès le retour de la connexion">⚠ Hors ligne{pending ? ` · ${pending} en attente` : ''}</span>;
+  if (status === 'envoi') return <span className="sync-tag busy" title="Envoi au serveur">⏳ Envoi…</span>;
+  return <span className="sync-tag" title="Tout est enregistré sur le serveur">☁ À jour</span>;
 }

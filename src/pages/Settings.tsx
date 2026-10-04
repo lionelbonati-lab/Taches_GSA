@@ -5,9 +5,11 @@ import { backupSummary, downloadBackup, lastBackupAt, makeBackup, readBackup, re
 import { fmtDateTime, fullName } from '../data/utils';
 import { DEFAULT_NOTIF, showSystemNotification, useNotifications } from '../notifications';
 import type { NotifPrefs } from '../data/types';
+import { PasswordForm } from './Real';
 
 export function Settings() {
-  const { data, user, prefs, setPrefs, can, reset, restore, login } = useStore();
+  const { data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
+  const [pwd, setPwd] = useState<'ferme' | 'ouvert' | 'ok'>('ferme');
   const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [last, setLast] = useState(lastBackupAt());
   const fileRef = useRef<HTMLInputElement>(null);
@@ -23,7 +25,8 @@ export function Settings() {
     if (!file) return;
     try {
       const b = await readBackup(file);
-      if (!confirm(`Remplacer toutes les données de ce navigateur par la sauvegarde du ${fmtDateTime(b.exportedAt)} ?\n${backupSummary(b)}`)) return;
+      const where = cloud ? `toutes les données du comité (pour tous les membres)` : 'toutes les données de ce navigateur';
+      if (!confirm(`Remplacer ${where} par la sauvegarde du ${fmtDateTime(b.exportedAt)} ?\n${backupSummary(b)}`)) return;
       await restoreFiles(b.files);
       restore(b.data, `la sauvegarde du ${fmtDateTime(b.exportedAt)}`);
       setBackupMsg({ ok: true, text: `✅ Données restaurées : ${backupSummary(b)}.` });
@@ -56,6 +59,20 @@ export function Settings() {
   return (
     <div className="narrow">
       <h1>Réglages</h1>
+      {cloud && (
+        <section className="panel account">
+          <h2>Mon compte</h2>
+          <p>
+            Connecté en tant que <b>{cloud.email}</b> · {cloud.membership.committeeName}
+          </p>
+          <div className="row wrap">
+            <button className="btn" onClick={() => setPwd(pwd === 'ouvert' ? 'ferme' : 'ouvert')}>🔑 Changer mon mot de passe</button>
+            <button className="btn" onClick={cloud.signOut}>Se déconnecter</button>
+          </div>
+          {pwd === 'ouvert' && <PasswordForm onDone={() => setPwd('ok')} />}
+          {pwd === 'ok' && <p className="backup-ok">✅ Mot de passe changé.</p>}
+        </section>
+      )}
       <section className="panel form">
         <h2 className="full">Préférences personnelles</h2>
         <label>
@@ -128,11 +145,18 @@ export function Settings() {
       </section>
       <section className="panel backup">
         <h2>Sauvegarde des données</h2>
-        <p className="muted">
-          Dans la démo, les données ne sont enregistrées <b>que dans ce navigateur</b>, sur cet appareil. Une sauvegarde contient tout : tâches, séances, PV,
-          sondages, emails, responsables, rôles, réglages et fichiers joints. Elle sert à passer à un autre appareil et à <b>reprendre tes données dans la
-          version définitive</b>.
-        </p>
+        {cloud ? (
+          <p className="muted">
+            Les données du comité sont enregistrées sur le serveur et partagées entre les membres. Une sauvegarde en garde une copie complète
+            (tâches, séances, PV, sondages, emails, responsables, rôles, réglages et fichiers joints), par exemple chaque fin de saison.
+          </p>
+        ) : (
+          <p className="muted">
+            Dans la démo, les données ne sont enregistrées <b>que dans ce navigateur</b>, sur cet appareil. Une sauvegarde contient tout : tâches, séances, PV,
+            sondages, emails, responsables, rôles, réglages et fichiers joints. Elle sert à passer à un autre appareil et à <b>reprendre tes données dans la
+            version réelle</b> (première mise en route).
+          </p>
+        )}
         <div className="row wrap">
           <button className="btn primary" onClick={exportAll}>⬇ Télécharger une sauvegarde</button>
           {can('admin.access') && (
@@ -145,11 +169,11 @@ export function Settings() {
         <small className="muted">{last ? `Dernière sauvegarde depuis ce navigateur : ${fmtDateTime(last)}` : 'Aucune sauvegarde téléchargée depuis ce navigateur.'}</small>
         {backupMsg && <p className={backupMsg.ok ? 'backup-ok' : 'error'}>{backupMsg.text}</p>}
       </section>
-      <section className="panel">
+      {!cloud && <section className="panel">
         <h2>Données de démonstration</h2>
         <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club) et efface tout ce qui a été saisi : télécharge d’abord une sauvegarde.</p>
         <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
-      </section>
+      </section>}
     </div>
   );
 }

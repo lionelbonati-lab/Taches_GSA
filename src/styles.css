@@ -675,3 +675,25 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 /* ---------- Sauvegarde ---------- */
 .backup .row { margin: 4px 0 8px; }
 .backup-ok { color: #16a34a; margin: 8px 0 0; }
+
+/* Version réelle : écran d'accueil, connexion, mise en route, état de l'envoi, accès */
+.login-card.wide { max-width: 640px; }
+.mode-choice { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 18px 0 12px; }
+.mode-card { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: inherit; cursor: pointer; font: inherit; }
+.mode-card:hover { border-color: var(--primary); background: var(--primary-soft); }
+.mode-card strong { font-size: 1.05rem; }
+.mode-card small { color: var(--muted); line-height: 1.35; }
+.mode-icon { font-size: 1.6rem; }
+.login-form { display: flex; flex-direction: column; gap: 10px; margin: 16px 0 8px; text-align: left; }
+.login-form label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+.login-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.login-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin-top: 12px; }
+.small-note { font-size: 0.85rem; text-align: left; }
+.loading-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); background: var(--bg); }
+.sync-tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #dcfce7; color: #166534; white-space: nowrap; }
+.sync-tag.busy { background: #e0f2fe; color: #075985; }
+.sync-tag.off { background: #fee2e2; color: #991b1b; }
+.access { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+.access .row { margin-top: 4px; }
+code.password { font-size: 1.1rem; padding: 2px 8px; border-radius: 6px; background: var(--primary-soft); user-select: all; }
+.account p { margin: 0 0 8px; }

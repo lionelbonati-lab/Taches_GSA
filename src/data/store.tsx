@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { demoEmails, makeSeed } from './seed';
 import { GROUPS } from './seedData';
 import { hasPermission, userRoles } from './permissions';
@@ -7,9 +7,11 @@ import type { ActivityNotif, AppData, ChecklistItem, MeetingMinutes, Permission,
 import { clearFiles } from './files';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
+import { applyRows, type CloudSync, type Membership } from './cloud';
+import type { Mode } from './mode';
 
-// Couche de données de la démo : tout vit en mémoire et dans le localStorage du navigateur.
-// Pour passer à une vraie base (ex. Supabase), seul ce fichier devra être remplacé.
+// Couche de données. Démo : tout vit en mémoire et dans le localStorage du navigateur.
+// Version réelle : mêmes données, synchronisées avec le serveur par CloudSync (voir cloud.ts).
 const KEY = 'taches-gsa-demo-v7';
 const USER_KEY = 'taches-gsa-user';
 
@@ -17,8 +19,11 @@ const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tabl
 
 export const SCHEMA = 12;
 
-/** Mises à niveau des données déjà enregistrées dans le navigateur (évite de tout réinitialiser). */
-function migrate(d: AppData): AppData {
+/**
+ * Mises à niveau des données déjà enregistrées (évite de tout réinitialiser).
+ * Les étapes v8 à v12 ne concernent que la démo : les données réelles partent du format v12.
+ */
+export function migrate(d: AppData): AppData {
   if ((d.schema ?? 7) < 8) {
     // v8 : onglet PV, donné par défaut au Secrétaire.
     const sec = d.roles.find((r) => r.id === 'secretaire');
@@ -160,7 +165,20 @@ function load(): AppData {
   return makeSeed();
 }
 
+/** Version réelle : connexion au serveur et données du comité chargées. */
+export interface CloudMode {
+  sync: CloudSync;
+  initial: AppData;
+  personId: string;
+  membership: Membership;
+  email: string;
+  signOut: () => void;
+}
+
 interface Store {
+  mode: Mode;
+  /** Version réelle (null en démo). */
+  cloud: CloudMode | null;
   data: AppData;
   user: Person | null;
   /** Rôles de l'utilisateur connecté. */
@@ -203,10 +221,11 @@ interface Store {
 
 const Ctx = createContext<Store | null>(null);
 
-export function StoreProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<AppData>(load);
+export function StoreProvider({ children, cloud = null }: { children: ReactNode; cloud?: CloudMode | null }) {
+  const [data, setData] = useState<AppData>(() => (cloud ? cloud.initial : load()));
   const [toast, setToast] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(() => {
+    if (cloud) return cloud.personId;
     try {
       return localStorage.getItem(USER_KEY);
     } catch {
@@ -215,17 +234,35 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    // Version réelle : envoi des éléments modifiés au serveur ; démo : enregistrement dans le navigateur.
+    if (cloud) return cloud.sync.schedule(data);
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
     } catch {
       /* ignore */
     }
-  }, [data]);
+  }, [data, cloud]);
+
+  // Version réelle : modifications des autres membres reçues en direct ; modification refusée → version du serveur.
+  useEffect(() => {
+    if (!cloud) return;
+    const { sync } = cloud;
+    sync.onRejected = async (message, rows) => {
+      setToast(`⚠️ Modification refusée par le serveur : ${message}`);
+      const fresh = await sync.fetchRows(rows);
+      setData((prev) => applyRows(prev, fresh, sync.posOf));
+    };
+    return sync.listen((rows) => setData((prev) => applyRows(prev, rows, sync.posOf)));
+  }, [cloud]);
 
   const user = data.people.find((p) => p.id === userId && p.actif) ?? null;
   const myRoles = useMemo(() => userRoles(data.roles, user), [data.roles, user]);
 
   const login = useCallback((id: string | null) => {
+    if (cloud) {
+      if (!id) cloud.signOut();
+      return;
+    }
     setUserId(id);
     try {
       if (id) localStorage.setItem(USER_KEY, id);
@@ -233,7 +270,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     } catch {
       /* ignore */
     }
-  }, []);
+  }, [cloud]);
 
   const update = useCallback(
     (fn: (d: AppData) => void, action: string) => {
@@ -348,9 +385,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   );
 
   const reset = useCallback(() => {
+    if (cloud) return;
     setData(makeSeed());
     clearFiles();
-  }, []);
+  }, [cloud]);
 
   const restore = useCallback(
     (d: AppData, label: string) => {
@@ -456,6 +494,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
 
   const value: Store = {
+    mode: cloud ? 'reel' : 'demo',
+    cloud,
     data,
     user,
     myRoles,
@@ -493,4 +533,14 @@ export function useStore() {
   const s = useContext(Ctx);
   if (!s) throw new Error('StoreProvider manquant');
   return s;
+}
+
+const noSync = () => () => {};
+/** Version réelle : état de l'envoi au serveur (à jour, envoi en cours, hors ligne) et nombre d'éléments en attente. */
+export function useSyncStatus() {
+  const { cloud } = useStore();
+  const sync = cloud?.sync;
+  const status = useSyncExternalStore(sync ? sync.subscribe : noSync, () => (sync ? `${sync.status}:${sync.pendingCount}` : 'ok:0'));
+  const [s, n] = status.split(':');
+  return { status: s as CloudSync['status'], pending: Number(n) };
 }

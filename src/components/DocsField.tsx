@@ -31,7 +31,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track }: {
   compact?: boolean;
   track: DocTracking;
 }) {
-  const { data, user } = useStore();
+  const { data, user, cloud } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const [link, setLink] = useState<{ url: string; nom: string } | null>(null);
@@ -50,7 +50,12 @@ export function DocsField({ docs, setDocs, disabled, compact, track }: {
         continue;
       }
       const id = uid('d');
-      await saveFile(id, blob);
+      try {
+        await saveFile(id, blob);
+      } catch (e) {
+        setErr(`« ${f.name} » : ${(e as Error).message}.`);
+        continue;
+      }
       track.added.push(id);
       const stamp = new Date().toLocaleString('fr-CH', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(/[/:, ]+/g, '-');
       const ext = (blob.type.split('/')[1] ?? 'jpg').replace('jpeg', 'jpg');
@@ -91,7 +96,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track }: {
 
   const open = async (doc: TaskDoc) => {
     if (doc.kind === 'lien') return window.open(doc.url, '_blank', 'noopener');
-    if (!(await openFile(doc.id, doc.nom))) setErr('Fichier introuvable dans ce navigateur (données de démonstration).');
+    if (!(await openFile(doc.id, doc.nom))) setErr(cloud ? 'Fichier introuvable sur le serveur (ou pas de connexion).' : 'Fichier introuvable dans ce navigateur (données de démonstration).');
   };
 
   return (

@@ -1,0 +1,127 @@
+// Tâches GSA – accès des membres à la version réelle (fonction Supabase « gsa-acces »).
+// Appelée depuis la console admin : un admin du comité crée, réinitialise ou retire l'accès d'un responsable.
+// Les comptes sont créés ici (clé secrète, jamais dans le navigateur), adresse confirmée d'office :
+// aucun email n'est envoyé, l'admin transmet lui-même le mot de passe provisoire, à changer à la 1re connexion.
+import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+
+const cors = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+};
+const json = (body: unknown, status = 200) =>
+  new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+
+function secretKey() {
+  try {
+    const keys = JSON.parse(Deno.env.get('SUPABASE_SECRET_KEYS') ?? '{}');
+    if (keys.default) return keys.default as string;
+  } catch {
+    /* clé héritée ci-dessous */
+  }
+  return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+}
+
+const ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function tempPassword() {
+  const s = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => ALPHABET[b % ALPHABET.length]).join('');
+  return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
+}
+
+type Db = SupabaseClient;
+
+async function isAdmin(db: Db, committeeId: string, userId: string) {
+  const { data: m } = await db.from('gsa_members').select('owner, person_id').eq('committee_id', committeeId).eq('user_id', userId).maybeSingle();
+  if (!m) return false;
+  if (m.owner) return true;
+  if (!m.person_id) return false;
+  const { data: p } = await db.from('gsa_items').select('data, deleted').eq('committee_id', committeeId).eq('kind', 'people').eq('id', m.person_id).maybeSingle();
+  return !!p && !p.deleted && p.data?.actif !== false && Array.isArray(p.data?.roles) && p.data.roles.includes('admin');
+}
+
+async function findUser(db: Db, email: string) {
+  for (let page = 1; page < 50; page++) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data.users.length) return null;
+    const u = data.users.find((x) => x.email?.toLowerCase() === email);
+    if (u) return u;
+  }
+  return null;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
+  if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
+
+  const db = createClient(Deno.env.get('SUPABASE_URL')!, secretKey(), { auth: { persistSession: false, autoRefreshToken: false } });
+  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const { data: me } = await db.auth.getUser(token);
+  if (!me?.user) return json({ error: 'Connexion requise.' }, 401);
+
+  let body: Record<string, string>;
+  try {
+    body = await req.json();
+  } catch {
+    return json({ error: 'Requête invalide.' }, 400);
+  }
+  const { action, committeeId, personId } = body;
+  if (!committeeId || !(await isAdmin(db, committeeId, me.user.id))) return json({ error: 'Réservé aux administrateurs du comité.' }, 403);
+
+  // Liste des accès du comité (avec l'adresse du compte et la dernière connexion).
+  if (action === 'liste') {
+    const { data: rows } = await db.from('gsa_members').select('user_id, person_id, owner').eq('committee_id', committeeId);
+    const out = [];
+    for (const r of rows ?? []) {
+      const { data: u } = await db.auth.admin.getUserById(r.user_id);
+      out.push({ personId: r.person_id, owner: r.owner, email: u.user?.email, derniereConnexion: u.user?.last_sign_in_at, provisoire: !!u.user?.user_metadata?.doit_changer_mdp });
+    }
+    return json({ acces: out });
+  }
+
+  if (!personId) return json({ error: 'Responsable manquant.' }, 400);
+  const { data: person } = await db.from('gsa_items').select('data, deleted').eq('committee_id', committeeId).eq('kind', 'people').eq('id', personId).maybeSingle();
+  const { data: link } = await db.from('gsa_members').select('user_id, owner').eq('committee_id', committeeId).eq('person_id', personId).maybeSingle();
+
+  if (action === 'creer') {
+    if (!person || person.deleted) return json({ error: 'Fiche introuvable : enregistre d’abord le responsable.' }, 404);
+    if (person.data?.actif === false) return json({ error: 'Ce responsable est désactivé.' }, 400);
+    if (link) return json({ error: 'Ce responsable a déjà un accès.' }, 409);
+    const email = String(body.email ?? person.data?.email ?? '').trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'Adresse email invalide.' }, 400);
+    const fullName = `${person.data?.prenom ?? ''} ${person.data?.nom ?? ''}`.trim();
+    let user = await findUser(db, email);
+    let password: string | undefined;
+    if (user) {
+      const { data: other } = await db.from('gsa_members').select('person_id').eq('committee_id', committeeId).eq('user_id', user.id).maybeSingle();
+      if (other) return json({ error: 'Ce compte est déjà lié à une autre fiche de ce comité.' }, 409);
+    } else {
+      password = tempPassword();
+      const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: fullName, doit_changer_mdp: true } });
+      if (error || !data.user) return json({ error: error?.message ?? 'Création du compte impossible.' }, 400);
+      user = data.user;
+    }
+    const { error } = await db.from('gsa_members').insert({ committee_id: committeeId, user_id: user.id, person_id: personId });
+    if (error) return json({ error: error.message }, 400);
+    return json({ email, password, existant: !password });
+  }
+
+  if (action === 'reinitialiser') {
+    if (!link) return json({ error: 'Ce responsable n’a pas d’accès.' }, 404);
+    if (link.owner && link.user_id !== me.user.id) return json({ error: 'Seul le propriétaire peut réinitialiser son propre mot de passe.' }, 403);
+    const { data: u } = await db.auth.admin.getUserById(link.user_id);
+    const password = tempPassword();
+    const { error } = await db.auth.admin.updateUserById(link.user_id, { password, user_metadata: { ...(u.user?.user_metadata ?? {}), doit_changer_mdp: true } });
+    if (error) return json({ error: error.message }, 400);
+    return json({ email: u.user?.email, password });
+  }
+
+  if (action === 'retirer') {
+    if (!link) return json({ ok: true });
+    if (link.owner) return json({ error: 'L’accès du propriétaire ne peut pas être retiré.' }, 403);
+    const { error } = await db.from('gsa_members').delete().eq('committee_id', committeeId).eq('user_id', link.user_id);
+    if (error) return json({ error: error.message }, 400);
+    return json({ ok: true });
+  }
+
+  return json({ error: 'Action inconnue.' }, 400);
+});
