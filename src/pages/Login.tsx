@@ -2,6 +2,7 @@ import { useStore } from '../data/store';
 import { userRoles } from '../data/permissions';
 import { Avatar } from '../components/ui';
 import { InstallButton } from '../components/InstallButton';
+import { switchMode } from '../data/mode';
 
 export function Login() {
   const { data, login, reset } = useStore();
@@ -28,7 +29,10 @@ export function Login() {
           ))}
         </div>
         <InstallButton variant="compact" hideWhenUnavailable />
-        <button className="btn link" onClick={() => confirm('Réinitialiser toutes les données de démonstration ?') && reset()}>Réinitialiser la démo</button>
+        <div className="login-foot">
+          <button className="btn link" onClick={() => switchMode('reel')}>🔐 Version réelle (membres du comité)</button>
+          <button className="btn link" onClick={() => confirm('Réinitialiser toutes les données de démonstration ?') && reset()}>Réinitialiser la démo</button>
+        </div>
       </div>
     </div>
   );

@@ -26,3 +26,19 @@ export function switchMode(m: Mode | null) {
   window.location.hash = '';
   window.location.reload();
 }
+
+/** Lien direct vers un mode : …/Taches_GSA/?demo (à envoyer aux testeurs) ou ?reel. Le paramètre est retiré de l'adresse. */
+export function modeFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const m = params.has('demo') ? 'demo' : params.has('reel') ? 'reel' : null;
+  if (!m) return;
+  try {
+    localStorage.setItem(KEY, m);
+  } catch {
+    /* ignore */
+  }
+  params.delete('demo');
+  params.delete('reel');
+  const q = params.toString();
+  history.replaceState(null, '', window.location.pathname + (q ? `?${q}` : '') + window.location.hash);
+}

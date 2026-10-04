@@ -1,16 +1,29 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { StoreProvider } from './data/store';
+import { getMode, modeFromUrl } from './data/mode';
 import { App } from './App';
+import { CloudApp } from './CloudApp';
+import { Welcome } from './pages/Real';
 import { initPwa } from './pwa';
 import './styles.css';
 
 initPwa();
+modeFromUrl();
+
+// Démo (données fictives dans ce navigateur), version réelle (serveur) ou, au premier passage, l'écran de choix.
+const mode = getMode();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <StoreProvider>
-      <App />
-    </StoreProvider>
+    {mode === 'reel' ? (
+      <CloudApp />
+    ) : mode === 'demo' ? (
+      <StoreProvider>
+        <App />
+      </StoreProvider>
+    ) : (
+      <Welcome />
+    )}
   </StrictMode>,
 );

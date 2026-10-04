@@ -6,6 +6,7 @@ import { fmtDateTime, fullName } from '../data/utils';
 import { DEFAULT_NOTIF, showSystemNotification, useNotifications } from '../notifications';
 import type { NotifPrefs } from '../data/types';
 import { PasswordForm } from './Real';
+import { switchMode } from '../data/mode';
 
 export function Settings() {
   const { data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
@@ -172,7 +173,10 @@ export function Settings() {
       {!cloud && <section className="panel">
         <h2>Données de démonstration</h2>
         <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club) et efface tout ce qui a été saisi : télécharge d’abord une sauvegarde.</p>
-        <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
+        <div className="row wrap">
+          <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
+          <button className="btn" onClick={() => switchMode('reel')}>🔐 Passer à la version réelle</button>
+        </div>
       </section>}
     </div>
   );

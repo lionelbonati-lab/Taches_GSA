@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-d
 import { useStore } from './data/store';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
+import { Message } from './pages/Real';
 import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
 import { Events, Meetings } from './pages/Agenda';
@@ -14,7 +15,13 @@ import { Minutes } from './pages/Minutes';
 import { Calendar } from './pages/Calendar';
 
 export function App() {
-  const { user, can } = useStore();
+  const { user, can, cloud } = useStore();
+  if (!user && cloud)
+    return (
+      <Message title="Accès désactivé" onSignOut={cloud.signOut}>
+        <p>Ta fiche de responsable a été désactivée ou retirée dans ce comité. Renseigne-toi auprès du président.</p>
+      </Message>
+    );
   if (!user) return <Login />;
   return (
     <HashRouter>

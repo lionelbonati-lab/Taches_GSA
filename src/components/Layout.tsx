@@ -87,7 +87,7 @@ export function Layout() {
       <header className="topbar">
         <div className="brand">
           <img src="./icon.svg" alt="" width={28} height={28} />
-          <span>Tâches GSA</span>
+          <span className="brand-name">Tâches GSA</span>
           {cloud ? <SyncBadge /> : <span className="demo-tag">DÉMO</span>}
         </div>
         <nav className="tabs">
@@ -154,7 +154,7 @@ export function Layout() {
 function SyncBadge() {
   const { status, pending } = useSyncStatus();
   if (status === 'horsLigne')
-    return <span className="sync-tag off" title="Les modifications seront envoyées dès le retour de la connexion">⚠ Hors ligne{pending ? ` · ${pending} en attente` : ''}</span>;
-  if (status === 'envoi') return <span className="sync-tag busy" title="Envoi au serveur">⏳ Envoi…</span>;
-  return <span className="sync-tag" title="Tout est enregistré sur le serveur">☁ À jour</span>;
+    return <span className="sync-tag off" title="Les modifications seront envoyées dès le retour de la connexion">⚠<span className="sync-text"> Hors ligne{pending ? ` · ${pending} en attente` : ''}</span></span>;
+  if (status === 'envoi') return <span className="sync-tag busy" title="Envoi au serveur">⏳<span className="sync-text"> Envoi…</span></span>;
+  return <span className="sync-tag" title="Tout est enregistré sur le serveur">☁<span className="sync-text"> À jour</span></span>;
 }

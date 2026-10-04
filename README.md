@@ -172,9 +172,13 @@ Réglages GitHub nécessaires (une seule fois) :
 1. **Settings › General › Danger Zone › Change visibility › Public** (Pages n'est pas disponible sur un dépôt privé avec un compte gratuit).
 2. **Settings › Pages › Build and deployment › Source : GitHub Actions**.
 
-## Version réelle (Supabase) – en préparation
+## Version réelle (Supabase)
 
-La version réelle utilise la même appli, à la même adresse : un écran d'accueil propose **Version réelle** (membres du comité, email + mot de passe, données partagées en direct) ou **Démo** (données fictives dans le navigateur, pour faire essayer). Elle n'est pas encore activée sur le site publié : il reste à brancher l'écran d'accueil (`src/main.tsx`).
+La version réelle utilise la même appli, à la même adresse : au premier passage, un écran d'accueil propose **Version réelle** (membres du comité, email + mot de passe, données partagées en direct) ou **Démo** (données fictives dans le navigateur, pour faire essayer). Le choix est retenu sur l'appareil ; on change depuis la page de connexion ou les Réglages.
+
+Liens directs : https://lionelbonati-lab.github.io/Taches_GSA/?demo (à envoyer aux testeurs) et https://lionelbonati-lab.github.io/Taches_GSA/?reel (membres du comité).
+
+- **Synchronisation** : le badge en haut à gauche indique ☁ À jour, ⏳ Envoi… ou ⚠ Hors ligne (avec le nombre de modifications en attente, envoyées au retour du réseau).
 
 - **Données** : chaque élément (tâche, séance, responsable, entrée du journal…) est une ligne de la table `gsa_items` ; seuls les éléments modifiés sont envoyés, avec une file d'attente en cas de coupure, et les modifications des autres membres arrivent en direct (`src/data/cloud.ts`).
 - **Accès** : console admin › Utilisateurs › **Créer l'accès** crée le compte d'un responsable avec un mot de passe provisoire (à lui transmettre), qu'il remplace à la première connexion. Désactiver une fiche coupe l'accès. Aucun email n'est envoyé par le serveur.
