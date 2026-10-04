@@ -143,6 +143,10 @@ Un clic ouvre directement la tâche (ou la liste filtrée / l'onglet Comité). R
 
 Limite de la démo : sans serveur, les notifications sont calculées dans le navigateur et celles de l'appareil ne partent qu'à l'ouverture de l'appli. La version réelle (base partagée + serveur) pourra les envoyer application fermée, y compris sur iPhone une fois l'appli installée.
 
+## Sauvegarde des données
+
+Réglages → **Sauvegarde des données** : **⬇ Télécharger une sauvegarde** crée un fichier `.json` avec tout (tâches, séances, PV, sondages, emails, responsables, rôles, réglages et fichiers joints) ; **⬆ Restaurer une sauvegarde** (admin) remplace les données de ce navigateur par celles du fichier (format mis à niveau automatiquement). Sert à passer d'un appareil à l'autre et à reprendre les données saisies dans la démo dans la version définitive. Ne pas déposer ce fichier dans le dépôt GitHub (public).
+
 ## Mobile et installation (PWA)
 
 Sous 768 px : barre de navigation en bas, tâches en cartes avec changement de statut d'un tap, bouton **+** pour l'ajout rapide.

@@ -671,3 +671,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   .cal-chip.k-poll { background: var(--poll-fg); }
   .cal-chip.late { background: var(--late); }
 }
+
+/* ---------- Sauvegarde ---------- */
+.backup .row { margin: 4px 0 8px; }
+.backup-ok { color: #16a34a; margin: 8px 0 0; }

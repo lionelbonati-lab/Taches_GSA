@@ -197,6 +197,8 @@ interface Store {
   setEmailStatus: (id: string, statut: ScheduledEmail['statut']) => void;
   deleteEmail: (id: string) => void;
   reset: () => void;
+  /** Remplace toutes les données par celles d'une sauvegarde (mise à niveau du format comprise). */
+  restore: (d: AppData, label: string) => void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -350,6 +352,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     clearFiles();
   }, []);
 
+  const restore = useCallback(
+    (d: AppData, label: string) => {
+      const next = migrate(structuredClone(d));
+      next.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `Données restaurées depuis ${label}` });
+      setData(next);
+    },
+    [userId],
+  );
+
   const savePoll = useCallback(
     (p: Poll, isNew: boolean) =>
       update((d) => {
@@ -473,6 +484,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setEmailStatus,
     deleteEmail,
     reset,
+    restore,
   };
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }

@@ -1,11 +1,38 @@
 import { useStore } from '../data/store';
 import { InstallButton } from '../components/InstallButton';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
+import { backupSummary, downloadBackup, lastBackupAt, makeBackup, readBackup, restoreFiles, setLastBackupAt } from '../data/backup';
+import { fmtDateTime, fullName } from '../data/utils';
 import { DEFAULT_NOTIF, showSystemNotification, useNotifications } from '../notifications';
 import type { NotifPrefs } from '../data/types';
 
 export function Settings() {
-  const { prefs, setPrefs, can, reset, login } = useStore();
+  const { data, user, prefs, setPrefs, can, reset, restore, login } = useStore();
+  const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [last, setLast] = useState(lastBackupAt());
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const exportAll = async () => {
+    const b = await makeBackup(data, fullName(user ?? undefined));
+    downloadBackup(b);
+    setLastBackupAt(b.exportedAt);
+    setLast(b.exportedAt);
+    setBackupMsg({ ok: true, text: `✅ Sauvegarde téléchargée : ${backupSummary(b)}.` });
+  };
+  const importFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const b = await readBackup(file);
+      if (!confirm(`Remplacer toutes les données de ce navigateur par la sauvegarde du ${fmtDateTime(b.exportedAt)} ?\n${backupSummary(b)}`)) return;
+      await restoreFiles(b.files);
+      restore(b.data, `la sauvegarde du ${fmtDateTime(b.exportedAt)}`);
+      setBackupMsg({ ok: true, text: `✅ Données restaurées : ${backupSummary(b)}.` });
+    } catch (e) {
+      setBackupMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
   const { unread } = useNotifications();
   const n: NotifPrefs = { ...DEFAULT_NOTIF, ...prefs.notif };
   const setN = (patch: Partial<NotifPrefs>) => setPrefs({ notif: { ...n, ...patch } });
@@ -99,10 +126,29 @@ export function Settings() {
         <p className="muted">Installe Tâches GSA comme une application sur ton ordinateur ou ton téléphone : icône sur le bureau / l’écran d’accueil, fenêtre dédiée, ouverture même hors connexion.</p>
         <InstallButton />
       </section>
+      <section className="panel backup">
+        <h2>Sauvegarde des données</h2>
+        <p className="muted">
+          Dans la démo, les données ne sont enregistrées <b>que dans ce navigateur</b>, sur cet appareil. Une sauvegarde contient tout : tâches, séances, PV,
+          sondages, emails, responsables, rôles, réglages et fichiers joints. Elle sert à passer à un autre appareil et à <b>reprendre tes données dans la
+          version définitive</b>.
+        </p>
+        <div className="row wrap">
+          <button className="btn primary" onClick={exportAll}>⬇ Télécharger une sauvegarde</button>
+          {can('admin.access') && (
+            <>
+              <button className="btn" onClick={() => fileRef.current?.click()}>⬆ Restaurer une sauvegarde…</button>
+              <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
+            </>
+          )}
+        </div>
+        <small className="muted">{last ? `Dernière sauvegarde depuis ce navigateur : ${fmtDateTime(last)}` : 'Aucune sauvegarde téléchargée depuis ce navigateur.'}</small>
+        {backupMsg && <p className={backupMsg.ok ? 'backup-ok' : 'error'}>{backupMsg.text}</p>}
+      </section>
       <section className="panel">
         <h2>Données de démonstration</h2>
-        <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club).</p>
-        <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration ?')) { reset(); login(null); } }}>Réinitialiser la démo</button>
+        <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club) et efface tout ce qui a été saisi : télécharge d’abord une sauvegarde.</p>
+        <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
       </section>
     </div>
   );
