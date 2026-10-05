@@ -2,6 +2,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { AppData, CentralAccess, Guest, MyRequest, OrgMember, OrgUnit, UnitType } from './types';
 import { UNIT_COLORS } from './units';
+import { isImage } from './logo';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -35,6 +36,8 @@ export interface UnitInfo {
   archive?: boolean;
   /** Accès du comité central (réglé par les admins de l'entité, contrôlé par le serveur). */
   central?: CentralAccess;
+  /** Logo (data URL PNG, JPEG ou WebP, 200 Ko au plus : contrôlé par le serveur). */
+  logo?: string;
 }
 
 /**
@@ -475,6 +478,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     date: m.info.date,
     archive: !!m.info.archive,
     central: m.info.central,
+    logo: isImage(m.info.logo) ? m.info.logo : undefined,
     membres: [],
     moi: !m.guest,
     moiAdmin: false,
@@ -498,6 +502,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       date: info.date,
       archive: !!info.archive,
       central: info.central,
+      logo: isImage(info.logo) ? info.logo : undefined,
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined })),
       moi: u.moi,
       moiAdmin: u.moiAdmin,

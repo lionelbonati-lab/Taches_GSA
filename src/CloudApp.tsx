@@ -7,6 +7,7 @@ import { setServerFiles } from './data/files';
 import type { AppData, Person } from './data/types';
 import { App } from './App';
 import { CloudClub } from './CloudClub';
+import { AppLogo } from './components/ui';
 import { ChooseCommittee, FirstPassword, Message, RealLogin, Setup, WhoAreYou } from './pages/Real';
 
 // Version réelle : connexion, choix du comité, mise en route, puis l'appli avec les données du serveur.
@@ -127,7 +128,7 @@ export function CloudApp() {
 
   switch (phase.k) {
     case 'chargement':
-      return <div className="loading-screen"><img src="./icon.svg" alt="" width={56} height={56} /><p>{phase.text}</p></div>;
+      return <div className="loading-screen"><AppLogo size={56} /><p>{phase.text}</p></div>;
     case 'connexion':
       return <RealLogin />;
     case 'motDePasse':

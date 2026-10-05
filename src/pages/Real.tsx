@@ -2,6 +2,7 @@ import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { switchMode } from '../data/mode';
 import { InstallButton } from '../components/InstallButton';
+import { AppLogo } from '../components/ui';
 import { backupSummary, readBackup, restoreFiles, type Backup } from '../data/backup';
 import { linkMyPerson, type CloudSync, type Membership } from '../data/cloud';
 import { makeSeed } from '../data/seed';
@@ -17,7 +18,7 @@ function Card({ children, wide }: { children: ReactNode; wide?: boolean }) {
   return (
     <div className="login">
       <div className={`login-card ${wide ? 'wide' : ''}`}>
-        <img src="./icon.svg" alt="" width={56} height={56} />
+        <AppLogo size={56} />
         <h1>Tâches GSA</h1>
         {children}
       </div>

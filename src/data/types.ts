@@ -353,6 +353,25 @@ export interface AppData {
   emails?: ScheduledEmail[];
   /** Clés des notifications déjà vues, par utilisateur. */
   notifLues?: Record<string, string[]>;
+  /** En-têtes des documents imprimés (sans réglage : logo et nom de l'entité ; PV : celui de l'ordre du jour). */
+  entetes?: { odj?: Entete; pv?: Entete };
+}
+
+/** En-tête d'un document imprimé (ordre du jour, PV), commun à toute l'entité. */
+export interface Entete {
+  /** Image : logo de l'entité (ou du club), image propre (ex. papier à lettres du club), ou aucune. */
+  image: 'logo' | 'perso' | 'aucune';
+  /** Image propre (data URL réduite). */
+  imagePerso?: string;
+  /** Hauteur de l'image ; « pleine » : toute la largeur de la page (bannière), le texte dessous. */
+  taille: 'petite' | 'moyenne' | 'grande' | 'pleine';
+  /** Une ligne par ligne, la première en gras : nom du club, adresse, site… */
+  texte: string;
+  /** Image à gauche et texte à côté, image à gauche et texte à droite, image au-dessus du texte centré, ou image à droite. */
+  disposition: 'gauche' | 'opposes' | 'centre' | 'droite';
+  couleur: string;
+  /** Trait sous l'en-tête. */
+  trait: boolean;
 }
 
 /**
@@ -376,6 +395,8 @@ export interface Unit {
   archive?: boolean;
   /** Ce que le comité central peut faire des données de l'entité (réglage de ses admins ; absent = rien). */
   central?: CentralAccess;
+  /** Logo (image réduite, data URL) : en-tête de l'appli, documents, icône. Sans logo, celui du club. */
+  logo?: string;
 }
 
 /** Accès du comité central aux données d'une entité : rien voir, consulter, ou aussi ajouter et modifier des tâches. */

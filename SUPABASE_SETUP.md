@@ -30,6 +30,12 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - Fichiers (`gsa-fichiers`) : lecture si un niveau est ouvert, envoi en `ecriture` (`gsa_file_reader`, `gsa_file_writer`) ; suppression réservée aux membres.
 - Correction de 005 : la lecture de `committees` (`gsa_committees_select`) inclut les entités du comité central dont on est membre, sans quoi ses admins ne pouvaient pas modifier une entité dont ils ne font pas partie.
 
+`supabase/migrations/007_gsa_logo.sql` (appliqué le 05.10.2026) : logo des entités. Ajout pur : aucune donnée modifiée.
+
+- Logo gardé dans `committees.info.logo` (data URL), modifiable comme la couleur par les admins de l'entité et du comité central ; renvoyé par `gsa_organigramme` et la lecture de `committees`.
+- `gsa_committees_guard` (mêmes règles que 006) refuse un logo qui n'est pas une image PNG, JPEG ou WebP en base64, ou qui dépasse 200 Ko (code `22023`, « Logo refusé… ») : pas de SVG ni de script. L'appli réduit l'image à 256 px avant de l'envoyer.
+- Les en-têtes de l'ordre du jour et du PV sont des réglages de l'entité (`gsa_items`, ligne `meta` / `entetes`), soumis aux règles existantes.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

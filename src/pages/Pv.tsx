@@ -6,6 +6,9 @@ import { fmtDate, fullName, initials, isLate, shortName, today, uid } from '../d
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
+import { useClubOptional } from '../data/club';
+import { archiveHtml, defaultTexte, enteteOf } from '../data/entete';
+import { DocEntete, EnteteEditor, useUnitLogo } from '../components/Entete';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête, convoqués, tâches par section.
@@ -72,6 +75,12 @@ export function Pv() {
 
   const sheetRef = useRef<HTMLDivElement>(null);
   const [msg, setMsg] = useState('');
+  // En-tête commun à l'entité (sans réglage : logo et nom saisi auparavant dans « Mise en page »).
+  const club = useClubOptional();
+  const logo = useUnitLogo();
+  const [enteteEdit, setEnteteEdit] = useState(false);
+  const texteDefaut = s.club && s.club !== DEFAULT_PV.club ? s.club : defaultTexte(club?.current);
+  const entete = enteteOf(data, 'odj', texteDefaut);
 
   const secName = (id: string) => data.sections.find((x) => x.id === id)?.nom ?? '';
   const person = (id: string) => data.people.find((p) => p.id === id);
@@ -186,7 +195,7 @@ export function Pv() {
 
   const archive = () => {
     if (!s1 || !sheetRef.current || !user) return;
-    const html = sheetRef.current.outerHTML;
+    const html = archiveHtml(sheetRef.current.outerHTML);
     update((d) => {
       const m = d.meetings.find((x) => x.id === s1.id)!;
       m.pvArchives = [{ id: uid('pv'), at: new Date().toISOString(), by: user.id, titre, html, orientation: s.orientation }, ...(m.pvArchives ?? [])].slice(0, 10);
@@ -606,11 +615,8 @@ export function Pv() {
               Titre
               <input value={s.titre} placeholder={s1 ? `Comité ${shortDate(s1.date)}` : 'Comité'} onChange={(e) => set({ titre: e.target.value })} />
             </label>
-            <label>
-              Nom du club
-              <input value={s.club} onChange={(e) => set({ club: e.target.value })} />
-            </label>
-            <label className="inline"><input type="checkbox" checked={s.afficherClub} onChange={(e) => set({ afficherClub: e.target.checked })} /> Afficher le logo et le nom du club</label>
+            <label className="inline"><input type="checkbox" checked={s.afficherClub} onChange={(e) => set({ afficherClub: e.target.checked })} /> Afficher l’en-tête (logo, nom du club…)</label>
+            {can('tab.pv') && <button className="btn small" onClick={() => setEnteteEdit(true)}>✏️ Modifier l’en-tête…</button>}
             <label>
               Orientation
               <select value={s.orientation} onChange={(e) => set({ orientation: e.target.value as PvSettings['orientation'] })}>
@@ -634,7 +640,7 @@ export function Pv() {
         <div className="pv-preview">
           <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`}>
             <header className="pv-head">
-              {s.afficherClub && <div className="pv-club"><img src="./icon.svg" alt="" width={22} height={22} /> {s.club}</div>}
+              {s.afficherClub && <DocEntete e={entete.e} source={entete.source} logo={logo} />}
               {s.presentation === 'tableaux' && <p className="pv-kicker">Ordre du jour</p>}
               <h1>{titre}</h1>
               {s1 && (
@@ -771,6 +777,7 @@ export function Pv() {
           </div>
         </div>
       </div>
+      {enteteEdit && <EnteteEditor doc="odj" texte={texteDefaut} onClose={() => setEnteteEdit(false)} />}
     </div>
   );
 }

@@ -63,7 +63,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
             owner: false,
             type: u.type,
             parentId: u.parentId ?? null,
-            info: { couleur: u.couleur, description: u.description, date: u.date, archive: u.archive, central: u.central },
+            info: { couleur: u.couleur, description: u.description, date: u.date, archive: u.archive, central: u.central, logo: u.logo },
             guest: { person: guestPerson(me), niveau },
           };
         }
@@ -100,6 +100,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
             archive: next.archive || undefined,
             // Réglage de l'entité : le serveur garde l'ancienne valeur si l'auteur n'en est pas admin.
             central: next.central && next.central !== 'aucun' ? next.central : undefined,
+            logo: next.logo || undefined,
           },
         });
         refresh();

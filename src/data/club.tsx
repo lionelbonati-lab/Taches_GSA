@@ -81,7 +81,7 @@ export interface Club {
   switchUnit: (id: string) => void;
   refresh: () => void;
   createUnit: (u: NewUnit) => Promise<CreatedUnit>;
-  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'archive' | 'central'>>) => Promise<void>;
+  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'archive' | 'central' | 'logo'>>) => Promise<void>;
   /** Envoie une tâche au comité central (depuis une autre entité). */
   proposeTask: (r: NewRequest) => Promise<void>;
   /** Demandes envoyées au comité central par l'entité ouverte, avec leur suivi. */

@@ -4,7 +4,8 @@ import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data
 import { CENTRAL_ACCESS, centralAccess, directory, orgMembers, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type DirectoryEntry } from '../data/units';
 import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
 import { fmtDate, posteBesideName } from '../data/utils';
-import { Empty, Initials, Modal } from '../components/ui';
+import { Empty, Initials, Modal, UnitMark } from '../components/ui';
+import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from './Admin';
 import { CentralAccessChoice } from '../components/CentralAccess';
 
@@ -105,7 +106,7 @@ function UnitCard({ u, onEdit }: { u: OrgUnit; onEdit?: () => void }) {
   return (
     <article className={`panel org-card ${u.archive ? 'archived' : ''}`} style={{ borderTopColor: u.couleur }}>
       <div className="org-card-head">
-        <span className="org-icon" style={{ background: u.couleur }}>{t.icon}</span>
+        <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
         <div className="grow">
           <strong>{u.nom}</strong>
           <small className="muted">
@@ -204,6 +205,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
   const [date, setDate] = useState(unit?.date ?? '');
   const [description, setDescription] = useState(unit?.description ?? '');
   const [archive, setArchive] = useState(!!unit?.archive);
+  const [logo, setLogo] = useState(unit?.logo);
   // Accès du comité central : réglé par les admins de l'entité seulement.
   const [central, setCentral] = useState<CentralAccess>(unit ? centralAccess(unit) : 'aucun');
   const ownsAccess = !!unit && !isCentral && unit.moiAdmin;
@@ -239,7 +241,8 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
         onCreated(await club.createUnit(n), n);
       } else {
         const access = ownsAccess ? { central } : {};
-        await club.updateUnit(unit.id, manage ? { ...base, type, archive, ...access } : { ...base, ...access });
+        const image = logo !== unit.logo ? { logo } : {};
+        await club.updateUnit(unit.id, manage ? { ...base, type, archive, ...access, ...image } : { ...base, ...access, ...image });
         if (ownsAccess && central !== centralAccess(unit) && unit.id === club.current.id) update(() => {}, `Accès du comité central : ${CENTRAL_ACCESS[central].label}`);
         onClose();
       }
@@ -281,6 +284,13 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
             ))}
           </div>
         </div>
+        {!isNew && (
+          <div className="full">
+            <span className="field-label">{isCentral ? 'Logo du club' : 'Logo (ex. celui de la manifestation)'}</span>
+            <ImagePicker kind="logo" value={logo} onChange={setLogo} empty={isCentral ? 'Pas de logo : icône de l’appli' : 'Pas de logo : celui du club'} />
+            <small className="muted">Affiché en haut de l’appli et sur l’ordre du jour et le PV ; il devient aussi l’icône de l’appli.</small>
+          </div>
+        )}
         <label className="full">
           Description
           <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ce que fait l’entité (facultatif)" />

@@ -3,7 +3,7 @@ import { InstallButton } from '../components/InstallButton';
 import { switchMode } from '../data/mode';
 import { directory } from '../data/units';
 import type { OrgUnit } from '../data/types';
-import { Initials } from '../components/ui';
+import { AppLogo, Initials } from '../components/ui';
 import { posteBesideName } from '../data/utils';
 
 /** Démo : connexion en choisissant une personne de l'annuaire du club (sans mot de passe). */
@@ -14,7 +14,7 @@ export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (k
   return (
     <div className="login">
       <div className="login-card wide">
-        <img src="./icon.svg" alt="" width={56} height={56} />
+        <AppLogo src={units.find((u) => u.type === 'central')?.logo ?? null} size={56} />
         <h1>Tâches GSA</h1>
         <p className="muted">
           Démonstration – choisis un poste du club pour te connecter.

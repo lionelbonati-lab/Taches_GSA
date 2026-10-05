@@ -3,12 +3,13 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
 import type { Permission } from '../data/types';
 import { TaskModal, newTask } from './TaskModal';
-import { Avatar, Toast } from './ui';
+import { AppLogo, Avatar, Toast, UnitMark } from './ui';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { useClubOptional } from '../data/club';
 import { CENTRAL_ACCESS, centralAccess, UNIT_TYPES } from '../data/units';
+import { applyAppIcon, cacheLogo } from '../data/logo';
 
 export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean; club?: boolean }[] = [
   { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
@@ -82,6 +83,15 @@ export function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 
+  // Logo de l'entité ouverte, sinon celui du club : en-tête et icône de l'appli.
+  const logo = club?.current.logo ?? club?.central?.logo;
+  const logoReady = !!logo || !club?.loading;
+  useEffect(() => {
+    if (!logoReady) return;
+    cacheLogo(logo);
+    void applyAppIcon(logo);
+  }, [logo, logoReady]);
+
   if (!user) return null;
   const rolesText = myRoles.map((r) => r.label).join(' + ') || 'Aucun rôle';
   const canCreate = creatableSections().length > 0;
@@ -95,7 +105,7 @@ export function Layout() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <img src="./icon.svg" alt="" width={28} height={28} />
+          <AppLogo src={logoReady ? logo ?? null : undefined} size={30} />
           <span className="brand-name">Tâches GSA</span>
           {cloud ? <SyncBadge /> : <span className="demo-tag">DÉMO</span>}
         </div>
@@ -175,7 +185,7 @@ function UnitSwitch() {
   return (
     <div className="unit-switch">
       <button className="unit-btn" onClick={() => setOpen(!open)} aria-expanded={open} title={`${UNIT_TYPES[current.type].label} · changer d’entité`} style={{ borderColor: current.couleur }}>
-        <span className="unit-dot" style={{ background: current.couleur }}>{UNIT_TYPES[current.type].icon}</span>
+        <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icon={UNIT_TYPES[current.type].icon} />
         <span className="unit-name">{current.nom}</span>
         <span className="unit-caret">▾</span>
       </button>
@@ -185,13 +195,13 @@ function UnitSwitch() {
           <div className="unit-menu" role="menu">
             <small className="muted">Entité ouverte</small>
             <div className="unit-item on">
-              <span className="unit-dot" style={{ background: current.couleur }}>{UNIT_TYPES[current.type].icon}</span>
+              <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icon={UNIT_TYPES[current.type].icon} />
               <span><b>{current.nom}</b><small className="muted">{UNIT_TYPES[current.type].label}{visiting ? ` · ${CENTRAL_ACCESS[centralAccess(current)].icon} ouverte au comité central` : ''}</small></span>
             </div>
             {others.length > 0 && <small className="muted">Mes autres entités</small>}
             {others.map((u) => (
               <button key={u.id} className="unit-item" role="menuitem" onClick={() => { setOpen(false); club.switchUnit(u.id); }}>
-                <span className="unit-dot" style={{ background: u.couleur }}>{UNIT_TYPES[u.type].icon}</span>
+                <UnitMark className="unit-dot" logo={u.logo} couleur={u.couleur} icon={UNIT_TYPES[u.type].icon} />
                 <span><b>{u.nom}</b><small className="muted">{UNIT_TYPES[u.type].label}{u.moiAdmin ? ' · ★ admin' : ''}</small></span>
               </button>
             ))}
@@ -200,7 +210,7 @@ function UnitSwitch() {
               const a = CENTRAL_ACCESS[centralAccess(u)];
               return (
                 <button key={u.id} className="unit-item" role="menuitem" onClick={() => { setOpen(false); club.switchUnit(u.id); }}>
-                  <span className="unit-dot" style={{ background: u.couleur }}>{UNIT_TYPES[u.type].icon}</span>
+                  <UnitMark className="unit-dot" logo={u.logo} couleur={u.couleur} icon={UNIT_TYPES[u.type].icon} />
                   <span><b>{u.nom}</b><small className="muted">{a.icon} {a.label}</small></span>
                 </button>
               );

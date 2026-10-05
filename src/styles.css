@@ -100,6 +100,8 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 }
 .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 1.1rem; }
 .demo-tag { font-size: 0.65rem; background: #f59e0b; color: #fff; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em; }
+.app-logo { width: auto; object-fit: contain; display: block; flex-shrink: 0; }
+.login-card .app-logo { margin: 0 auto; }
 .tabs { display: flex; gap: 2px; flex: 1; overflow-x: auto; }
 .tabs a { padding: 8px 10px; border-radius: 8px; color: var(--muted); white-space: nowrap; font-weight: 500; font-size: 0.95rem; }
 /* Écrans moyens : on garde tous les onglets visibles (nom de l'utilisateur masqué, onglets resserrés). */
@@ -471,6 +473,26 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-sheet.t-grande { font-size: 12pt; }
 .pv-head { border-bottom: 2px solid #1d4ed8; padding-bottom: 8px; margin-bottom: 10px; }
 .pv-club { display: flex; align-items: center; gap: 8px; color: #1d4ed8; font-weight: 700; font-size: 0.9em; }
+/* En-tête des documents (réglage de l'entité) */
+.doc-entete { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+.doc-entete.trait { border-bottom: 2px solid; padding-bottom: 6px; margin-bottom: 8px; }
+.doc-entete-img { display: block; object-fit: contain; flex-shrink: 0; max-width: 45%; }
+.doc-entete.t-petite .doc-entete-img { height: 26px; }
+.doc-entete.t-moyenne .doc-entete-img { height: 48px; }
+.doc-entete.t-grande .doc-entete-img { height: 80px; }
+.doc-entete-texte { display: flex; flex-direction: column; line-height: 1.3; font-size: 0.9em; min-width: 0; }
+.doc-entete-texte strong { font-size: 1.05em; }
+.doc-entete-texte span { color: #475569; font-size: 0.92em; }
+.doc-entete.d-opposes { justify-content: space-between; }
+.doc-entete.d-opposes .doc-entete-texte { text-align: right; }
+.doc-entete.d-droite { flex-direction: row-reverse; justify-content: space-between; }
+.doc-entete.d-centre { flex-direction: column; text-align: center; gap: 4px; }
+.doc-entete.t-pleine { flex-direction: column; align-items: stretch; gap: 4px; }
+.doc-entete.t-pleine .doc-entete-img { width: 100%; height: auto; max-width: 100%; max-height: 45mm; }
+.doc-entete.t-pleine.d-centre .doc-entete-texte { text-align: center; }
+.doc-entete.t-pleine.d-opposes .doc-entete-texte { text-align: right; }
+.entete-apercu { background: var(--surface2); border-radius: 10px; padding: 10px; margin: 6px 0 10px; overflow: hidden; }
+.entete-apercu .pv-sheet { width: auto; min-height: 0; padding: 12px 16px; margin: 0; }
 .pv-kicker { margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8em; font-weight: 700; color: #64748b; }
 .pv-sheet h1 { font-size: 1.9em; margin: 0 0 2px; color: #111; }
 .pv-sheet h2 { font-size: 1.2em; margin: 16px 0 6px; color: #1d4ed8; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; }
@@ -710,6 +732,8 @@ code.password { font-size: 1.1rem; padding: 2px 8px; border-radius: 6px; backgro
 .unit-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unit-caret { color: var(--muted); font-size: 0.75rem; }
 .unit-dot { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; font-size: 0.8rem; flex-shrink: 0; }
+.unit-dot.has-logo, .org-icon.has-logo { background: #fff; border: 1px solid; overflow: hidden; }
+.unit-dot.has-logo img, .org-icon.has-logo img { width: 100%; height: 100%; object-fit: contain; padding: 1px; }
 .unit-back { position: fixed; inset: 0; z-index: 40; }
 .unit-menu { position: absolute; top: calc(100% + 6px); left: 0; z-index: 41; min-width: 260px; max-width: calc(100vw - 24px); background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.18); padding: 8px; display: flex; flex-direction: column; gap: 2px; }
 .unit-menu > small { padding: 6px 8px 2px; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -772,3 +796,16 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .request { display: flex; flex-direction: column; gap: 4px; }
 .request-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
 .request.done { opacity: 0.7; }
+
+/* Choix d'une image (logo, image d'en-tête) */
+.image-picker { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.image-preview { display: flex; align-items: center; justify-content: center; border: 1px dashed var(--border); border-radius: 10px; padding: 6px;
+  background: repeating-conic-gradient(#e2e8f0 0% 25%, #fff 0% 50%) 50% / 16px 16px; }
+.image-picker.logo .image-preview { width: 96px; height: 96px; }
+.image-picker.banniere .image-preview { width: 100%; min-height: 64px; max-height: 160px; }
+.image-preview img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.image-picker.banniere .image-preview img { max-height: 146px; }
+.image-preview .muted { font-size: 0.8rem; text-align: center; background: var(--surface); padding: 2px 6px; border-radius: 6px; }
+.logo-panel .image-picker { margin: 8px 0; }
+/* Thème sombre : le logo garde un fond clair (logos sombres sur fond transparent). */
+:root[data-theme='dark'] .brand .app-logo, :root[data-theme='dark'] .login-card .app-logo { background: #fff; border-radius: 6px; padding: 2px; }

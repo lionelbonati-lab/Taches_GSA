@@ -66,6 +66,7 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
   - 👁 **Consulter** : les membres du comité central ouvrent l'entité (bouton **👁 Consulter** sur sa carte, ou rubrique « Ouvertes au comité central » du menu des entités) et voient tout en lecture seule : tâches, séances, événements, membres, fichiers. Rien n'est modifié, pas même les réglages d'affichage.
   - ✏️ **Consulter et modifier / ajouter** : en plus, ils créent et modifient des tâches (avec emails programmés, notifications et fichiers joints). Ces tâches portent le badge **🏛️ Comité central**, et le journal de l'entité note « … par Prénom Nom (comité central) ». Pas de suppression, et pas de membres, rôles, séances ni réglages de l'entité.
   - Un bandeau rappelle qu'on visite l'entité, avec un bouton de retour au comité central. Le visiteur n'est pas ajouté aux membres de l'entité, et la visite n'est pas reprise au prochain lancement.
+- **Logo** : le comité central met le **logo du club**, et chaque entité peut avoir le sien (ex. le logo de la manifestation), dans **Console admin › Logo** ou la fiche de l'entité dans l'organigramme (admins de l'entité et du comité central). L'image choisie (PNG, JPEG, WebP, GIF ou SVG) est réduite à 256 px avant d'être enregistrée. Le logo remplace celui de l'appli en haut à gauche, s'affiche sur les cartes de l'organigramme et dans le menu des entités, et sert d'image par défaut à l'en-tête de l'ordre du jour et du PV. Une entité sans logo affiche celui du club ; sans logo du club, l'icône de l'appli reste.
 
 ## Onglets
 
@@ -139,7 +140,16 @@ Onglet **📝 Ordre du jour** (droit « Onglet Ordre du jour », donné au Prés
 - toutes les tâches de la section ensemble (retards, séance, séance suivante, terminées), sections sans point affichées seules ; sondages sous leur section ; points particuliers de la séance en fin de liste ;
 - cadre de notes et prochaine séance en pied de page.
 
-Réglages (mémorisés) : mise en forme **Liste numérotée** ou **Tableaux**, **niveau de détail** (complet / sections et sous-sections / sections seulement), séances, éléments inclus, regroupement (section, responsable, aucun) et tri, option « Séparer par échéance », détails affichés, statuts et sections inclus, titre, nom du club, orientation, taille du texte.
+Réglages (mémorisés) : mise en forme **Liste numérotée** ou **Tableaux**, **niveau de détail** (complet / sections et sous-sections / sections seulement), séances, éléments inclus, regroupement (section, responsable, aucun) et tri, option « Séparer par échéance », détails affichés, statuts et sections inclus, titre, en-tête, orientation, taille du texte.
+**En-tête** (Mise en page › **✏️ Modifier l'en-tête…**, avec le droit « Onglet Ordre du jour ») : commun à toute l'entité, avec aperçu :
+
+- image : le **logo de l'entité**, une **image propre** (ex. l'en-tête du papier à lettres du club, réduite à 1400 px de large) ou aucune ; taille petite, moyenne, grande ou **toute la largeur** (bannière) ;
+- texte libre sur plusieurs lignes (nom du club, adresse, site… ; la première ligne en gras), ou vide pour n'avoir que l'image ;
+- disposition (image à gauche, image et texte opposés, centré, image à droite), couleur, trait sous l'en-tête ;
+- la case « Afficher l'en-tête » le masque sur l'ordre du jour.
+
+Par défaut : logo de l'entité et « G.S. Ajoie – Comité » (ou le nom de l'entité). Les ordres du jour et PV archivés reprennent l'image actuelle de l'en-tête (elle n'est pas recopiée dans chaque archive).
+
 Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans l'onglet Comité), **Envoyer par email** aux membres du comité, **Copier le texte** (même numérotation, prêt à coller dans Word, un email ou WhatsApp).
 
 ## PV (secrétaire)
@@ -150,6 +160,7 @@ Onglet **🖊️ PV** (droit « Onglet PV », donné au Secrétaire et à l'Admi
 - **Séance** : ▶ Démarrer (heure de début, état des tâches mémorisé) / ⏹ Terminer ; présences (Présent / Excusé, « Tous présents »), invités.
 - **Mise à jour des tâches pendant la séance** : statut et délai directement sur la ligne, ✏️ modification complète, **+ Nouvelle tâche décidée** (échéance : prochaine séance) ; les tâches modifiées sont surlignées avec le détail du changement (↻ statut / délai / responsable). Seules les modifications faites depuis l'onglet PV figurent dans le PV (pas celles faites plus tard dans l'onglet Tâches).
 - **📄 PV** : document « Procès-verbal – Comité 29.10.26 » avec heures, lieu, présents / excusés / absents / invités, points traités numérotés (notes, décisions, changements), nouvelles tâches décidées et prochaine séance ; option « Inclure tous les points de l'ordre du jour ».
+- **✏️ En-tête…** (avec le droit « Onglet PV ») : même réglage que pour l'ordre du jour. Tant qu'il n'est pas modifié, le PV reprend l'en-tête de l'ordre du jour ; « Revenir à l'en-tête de l'ordre du jour » annule un en-tête propre au PV.
 - **Imprimer / PDF**, **Copier le texte**, **Envoyer par email** au comité, **✅ Valider et archiver** : la secrétaire valide seule ; le PV validé est archivé dans la séance (onglet Comité, 📝) et le comité est notifié 🔔.
 - **Correction après coup** : un PV validé passe en lecture seule ; **✏️ Corriger le PV** rouvre notes, présences et points (modifications de tâches comprises), **Annuler la correction** revient à la version validée. La nouvelle validation crée la **version 2** (« corrigée le … », email « PV corrigé »), l'ancienne version reste archivée et le comité est notifié.
 
@@ -186,6 +197,8 @@ L'application peut s'installer comme une vraie appli (icône, fenêtre dédiée,
 | iPhone / iPad – Safari | Bouton Partager › Sur l'écran d'accueil |
 
 Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche** et **Mes tâches**.
+
+**Icône avec le logo** : quand le club (ou l'entité ouverte) a un logo, il devient l'icône de l'appli : onglet du navigateur, icône proposée par « Sur l'écran d'accueil » (iPhone / iPad) et à l'installation (Chrome / Edge / Android). Le dernier logo est gardé sur l'appareil et repris dès le lancement. Une appli **déjà installée garde son ancienne icône** : la supprimer puis la réinstaller (ou la rajouter à l'écran d'accueil) pour prendre le nouveau logo.
 
 L'installation n'est possible que depuis une adresse **https://** : utilise la version en ligne ci-dessus (ou `npm run build && npm run preview` puis http://localhost:4173 sur l'ordinateur qui fait tourner l'appli).
 

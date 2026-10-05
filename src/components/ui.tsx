@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
+import { cachedLogo, isImage } from '../data/logo';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -21,6 +22,25 @@ export function Initials({ prenom, nom, couleur, size = 28 }: { prenom: string; 
     <span className="avatar" title={`${prenom} ${nom}`.trim()} style={{ background: couleur || '#999', width: size, height: size, fontSize: size * (txt.length > 2 ? 0.31 : 0.4) }}>
       {txt}
     </span>
+  );
+}
+
+/** Logo du club ou de l'entité, sinon l'icône de l'appli ; logo pas encore connu (`src` absent) : le dernier affiché sur cet appareil. */
+export function AppLogo({ src, size }: { src?: string | null; size: number }) {
+  const logo = isImage(src) ? src : src === undefined ? cachedLogo() : undefined;
+  return logo ? (
+    <img className="app-logo" src={logo} alt="" style={{ height: size, maxWidth: size * 2.5 }} />
+  ) : (
+    <img src="./icon.svg" alt="" width={size} height={size} />
+  );
+}
+
+/** Pastille d'une entité : son logo, sinon l'icône de son type sur sa couleur. */
+export function UnitMark({ logo, couleur, icon, className }: { logo?: string; couleur: string; icon: string; className: string }) {
+  return isImage(logo) ? (
+    <span className={`${className} has-logo`} style={{ borderColor: couleur }}><img src={logo} alt="" /></span>
+  ) : (
+    <span className={className} style={{ background: couleur }}>{icon}</span>
   );
 }
 

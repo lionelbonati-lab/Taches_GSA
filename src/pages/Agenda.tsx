@@ -6,6 +6,8 @@ import type { ClubEvent, Meeting, PvArchive, Task } from '../data/types';
 import { daysUntil, fmtDateTime, fullName, isDone, today, uid } from '../data/utils';
 import { Empty, Modal } from '../components/ui';
 import { Progress } from './Dashboard';
+import { hydrateArchive } from '../data/entete';
+import { useUnitLogo } from '../components/Entete';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
 
@@ -187,6 +189,7 @@ export function Events() {
 /** Consultation d'un ordre du jour archivé (copie figée), imprimable tel quel. */
 function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDelete: boolean; onDelete: () => void; onClose: () => void }) {
   const { data } = useStore();
+  const logo = useUnitLogo();
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
@@ -207,8 +210,8 @@ function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDele
         {canDelete && <button className="btn danger" onClick={() => confirm('Supprimer cet ordre du jour archivé ?') && onDelete()}>Supprimer</button>}
         <button className="btn" onClick={onClose}>Fermer</button>
       </div>
-      {/* Contenu généré par l'application elle-même (textes déjà échappés à la création). */}
-      <div className="pv-preview" dangerouslySetInnerHTML={{ __html: pv.html }} />
+      {/* Contenu généré par l'application elle-même (textes déjà échappés à la création) ; images de l'en-tête remises (data URL contrôlées). */}
+      <div className="pv-preview" dangerouslySetInnerHTML={{ __html: hydrateArchive(pv.html, data, logo) }} />
     </div>,
     document.body,
   );
