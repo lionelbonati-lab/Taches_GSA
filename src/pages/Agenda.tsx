@@ -7,7 +7,9 @@ import { daysUntil, fmtDateTime, fullName, isDone, today, uid } from '../data/ut
 import { Empty, Modal } from '../components/ui';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
+import { cleanHtml } from '../data/sanitize';
 import { useUnitLogo } from '../components/Entete';
+import { hasPermission, userRoles } from '../data/permissions';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
 
@@ -56,6 +58,49 @@ export const newEvent = (date = today()): ClubEvent => ({ id: uid('e'), nom: '',
 export const linkedTasksNote = (tasks: Task[], id: string, type: 'meeting' | 'event') =>
   linkedNote(tasks.filter((t) => (type === 'meeting' ? t.meetingId : t.eventId) === id && t.delaiRef?.type === type).length);
 
+/** Excusés d'une séance, et « Je serai absent(e) » pour les membres convoqués. */
+function Excuses({ m, past }: { m: Meeting; past: boolean }) {
+  const { data, user, update } = useStore();
+  const [open, setOpen] = useState(false);
+  const [motif, setMotif] = useState('');
+  const list = m.excuses ?? [];
+  const mine = user ? list.find((e) => e.personId === user.id) : undefined;
+  const convoque = !!user && user.actif && hasPermission(userRoles(data.roles, user), 'tab.meetings') && data.people.some((p) => p.id === user.id);
+  const set = (excuse: boolean) => {
+    if (!user) return;
+    update((d) => {
+      const x = d.meetings.find((y) => y.id === m.id)!;
+      const others = (x.excuses ?? []).filter((e) => e.personId !== user.id);
+      x.excuses = excuse ? [...others, { personId: user.id, le: today(), ...(motif.trim() ? { motif: motif.trim() } : {}) }] : others;
+    }, excuse ? `${fullName(user)} s’excuse pour ${m.titre}` : `${fullName(user)} sera finalement présent(e) à ${m.titre}`);
+    setOpen(false);
+    setMotif('');
+  };
+  const names = list.map((e) => {
+    const p = data.people.find((x) => x.id === e.personId);
+    return p ? `${fullName(p)}${e.motif ? ` (${e.motif})` : ''}` : '';
+  }).filter(Boolean);
+  if (!names.length && (past || !convoque)) return null;
+  return (
+    <div className="excuses">
+      {names.length > 0 && <p className="muted">🙋 Excusé{names.length > 1 ? 's' : ''} : {names.join(', ')}</p>}
+      {!past && convoque && (
+        mine ? (
+          <p><span className="chip on">✓ Tu es excusé(e)</span> <button className="btn small link" onClick={() => set(false)}>Je serai finalement présent(e)</button></p>
+        ) : open ? (
+          <div className="row wrap">
+            <input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif (facultatif)" aria-label="Motif" maxLength={120} />
+            <button className="btn small primary" onClick={() => set(true)}>Confirmer mon absence</button>
+            <button className="btn small" onClick={() => setOpen(false)}>Annuler</button>
+          </div>
+        ) : (
+          <button className="btn small" onClick={() => setOpen(true)}>🙋 Je serai absent(e)</button>
+        )
+      )}
+    </div>
+  );
+}
+
 export function Meetings() {
   const { data, can, update } = useStore();
   const { saveMeeting: save, removeMeeting: remove } = useAgendaActions();
@@ -85,6 +130,7 @@ export function Meetings() {
                   <pre className="odj">{m.ordreDuJour}</pre>
                   {m.notes && <p><em>Notes / PV :</em> {m.notes}</p>}
                 </details>
+                <Excuses m={m} past={past} />
                 <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
                 {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
                   <div className="pv-archives">
@@ -211,7 +257,7 @@ function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDele
         <button className="btn" onClick={onClose}>Fermer</button>
       </div>
       {/* Contenu généré par l'application elle-même (textes déjà échappés à la création) ; images de l'en-tête remises (data URL contrôlées). */}
-      <div className="pv-preview" dangerouslySetInnerHTML={{ __html: hydrateArchive(pv.html, data, logo) }} />
+      <div className="pv-preview" dangerouslySetInnerHTML={{ __html: cleanHtml(hydrateArchive(pv.html, data, logo)) }} />
     </div>,
     document.body,
   );

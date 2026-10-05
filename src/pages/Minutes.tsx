@@ -55,7 +55,10 @@ export function Minutes() {
 
   const s1 = meetings.find((m) => m.id === meetingId);
   const { s0, s2 } = meetingContext(data, s1);
-  const m: MeetingMinutes = { ...EMPTY_MINUTES, ...s1?.minutes };
+  // Excuses annoncées avant la séance : reprises dans les présences tant que le PV n'est pas validé.
+  const withExcuses = (mm: MeetingMinutes, pre: { personId: string }[] = []): MeetingMinutes =>
+    mm.valideLe && !mm.enCorrection ? mm : { ...mm, excuses: [...new Set([...mm.excuses, ...pre.map((e) => e.personId).filter((id) => !mm.presents.includes(id))])] };
+  const m: MeetingMinutes = withExcuses({ ...EMPTY_MINUTES, ...s1?.minutes }, s1?.excuses);
   const committee = committeeOf(data);
   const person = (id: string) => data.people.find((p) => p.id === id);
   const titre = s1 ? `Comité ${shortDate(s1.date)}` : 'Comité';
@@ -78,9 +81,11 @@ export function Minutes() {
     s1 &&
     updateSilent((d) => {
       const x = d.meetings.find((y) => y.id === s1.id)!;
-      const mm: MeetingMinutes = structuredClone({ ...EMPTY_MINUTES, ...x.minutes });
+      const mm: MeetingMinutes = structuredClone(withExcuses({ ...EMPTY_MINUTES, ...x.minutes }, x.excuses));
       fn(mm);
       x.minutes = mm;
+      // Excusé retiré (ou finalement présent) dans le PV : l'excuse annoncée tombe aussi.
+      if (x.excuses) x.excuses = x.excuses.filter((e) => mm.excuses.includes(e.personId));
     });
   const setNote = (key: string, v: string) =>
     setMinutes((x) => {

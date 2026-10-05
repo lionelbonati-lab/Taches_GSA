@@ -202,6 +202,17 @@ export interface Meeting {
   minutes?: MeetingMinutes;
   /** PV validés (copie figée du document envoyé). */
   minutesArchives?: PvArchive[];
+  /** Excuses annoncées avant la séance (onglet Comité ou ordre du jour). */
+  excuses?: Excuse[];
+  /** Ordre du jour modifié à la main : remplace le document généré tant qu'on ne revient pas à celui-ci. */
+  odjEdite?: { html: string; le: string; par: string };
+}
+
+export interface Excuse {
+  personId: string;
+  motif?: string;
+  /** Date de l'annonce. */
+  le: string;
 }
 
 /** État d'une tâche au début de la séance, pour repérer ce qui a changé pendant la séance. */

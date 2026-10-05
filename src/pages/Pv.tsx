@@ -2,12 +2,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '../data/types';
-import { fmtDate, fullName, initials, isLate, shortName, today, uid } from '../data/utils';
+import { fmtDate, fmtDateTime, fullName, initials, isLate, shortName, today, uid } from '../data/utils';
+import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
 import { useClubOptional } from '../data/club';
-import { archiveHtml, defaultTexte, enteteOf } from '../data/entete';
+import { archiveHtml, defaultTexte, enteteOf, hydrateArchive } from '../data/entete';
 import { DocEntete, EnteteEditor, useUnitLogo } from '../components/Entete';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
@@ -85,6 +86,32 @@ export function Pv() {
   const secName = (id: string) => data.sections.find((x) => x.id === id)?.nom ?? '';
   const person = (id: string) => data.people.find((p) => p.id === id);
   const committee: Person[] = data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
+  const canEdit = can('tab.pv');
+
+  // ---------- Excusés et points de la séance ----------
+  const excuses = s1?.excuses ?? [];
+  const isExcused = (id: string) => excuses.some((e) => e.personId === id);
+  const excusesTxt = excuses
+    .map((e) => data.people.find((x) => x.id === e.personId))
+    .filter((p): p is Person => !!p)
+    .map((p) => `${fullName(p)} (${initials(p)})${excuses.find((e) => e.personId === p.id)?.motif ? ` – ${excuses.find((e) => e.personId === p.id)!.motif}` : ''}`)
+    .join(', ');
+  const toggleExcuse = (p: Person) =>
+    s1 &&
+    update((d) => {
+      const m = d.meetings.find((x) => x.id === s1.id)!;
+      const has = (m.excuses ?? []).some((e) => e.personId === p.id);
+      m.excuses = has ? (m.excuses ?? []).filter((e) => e.personId !== p.id) : [...(m.excuses ?? []), { personId: p.id, le: today() }];
+    }, `${fullName(p)} ${isExcused(p.id) ? 'n’est plus excusé(e)' : 'excusé(e)'} pour ${s1.titre}`);
+  const [points, setPoints] = useState(s1?.ordreDuJour ?? '');
+  useEffect(() => setPoints(s1?.ordreDuJour ?? ''), [s1?.id, s1?.ordreDuJour]);
+  const savePoints = () =>
+    s1 && points !== s1.ordreDuJour && update((d) => { d.meetings.find((x) => x.id === s1.id)!.ordreDuJour = points; }, `Points particuliers de « ${s1.titre} » modifiés`);
+
+  // ---------- Texte modifié à la main ----------
+  const edite = s1?.odjEdite;
+  const [draft, setDraft] = useState<string | null>(null);
+  useEffect(() => setDraft(null), [s1Id]);
 
   // ---------- Sélection des tâches (partagée avec l'onglet PV) ----------
   const { late, avant1, avant2, bilan, since } = selectAgenda(data, s0, s1, s2, {
@@ -192,6 +219,23 @@ export function Pv() {
 
   // ---------- Actions ----------
   const print = () => window.print();
+  const startEdit = () => sheetRef.current && setDraft(sheetRef.current.innerHTML);
+  const saveEdit = () => {
+    if (!s1 || !sheetRef.current || !user) return;
+    const html = cleanHtml(archiveHtml(sheetRef.current.innerHTML));
+    update((d) => {
+      d.meetings.find((x) => x.id === s1.id)!.odjEdite = { html, le: new Date().toISOString(), par: user.id };
+    }, `Ordre du jour « ${titre} » modifié à la main`);
+    setDraft(null);
+    setMsg('✏️ Modifications enregistrées : tout le comité voit cette version.');
+  };
+  const resetEdit = () => {
+    if (!s1 || !confirm('Revenir à l’ordre du jour généré ? Les modifications faites à la main seront perdues.')) return;
+    update((d) => {
+      delete d.meetings.find((x) => x.id === s1.id)!.odjEdite;
+    }, `Ordre du jour « ${titre} » : retour à la version générée`);
+    setMsg('');
+  };
 
   const archive = () => {
     if (!s1 || !sheetRef.current || !user) return;
@@ -208,7 +252,7 @@ export function Pv() {
       const out: string[] = [titre];
       if (s1 && heure(s1)) out.push(`Début de séance : ${heure(s1)}`);
       if (s1) out.push(`Lieu : ${s1.lieu || 'à définir'}`);
-      if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, 'Excusés : ');
+      if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, `Excusés : ${excusesTxt}`);
       out.push('', 'Ordre du jour');
       if (!s.separerParEcheance) out.push(...outlineText(listSecs));
       else {
@@ -254,16 +298,19 @@ export function Pv() {
     return lines.join('\n');
   };
 
+  // Version modifiée à la main : le texte du document tel qu'il est affiché.
+  const docText = () => ((edite || draft !== null) && sheetRef.current ? sheetRef.current.innerText.replace(/\n{3,}/g, '\n\n').trim() : plainText());
+
   const email = () => {
     const to = committee.map((p) => p.email).filter(Boolean).join(',');
-    let body = plainText();
+    let body = docText();
     if (body.length > 1800) body = body.slice(0, 1800) + '\n…\n(liste complète dans l’ordre du jour imprimé)';
     window.location.href = `mailto:${to}?subject=${encodeURIComponent(`${titre} – ordre du jour`)}&body=${encodeURIComponent(body)}`;
   };
 
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(plainText());
+      await navigator.clipboard.writeText(docText());
       setMsg('📋 Texte copié : colle-le dans un email, WhatsApp ou Word.');
     } catch {
       setMsg('Copie impossible dans ce navigateur.');
@@ -490,7 +537,8 @@ export function Pv() {
         <h1>Ordre du jour</h1>
         <div className="actions">
           <button className="btn primary" onClick={print}>🖨 Imprimer / PDF</button>
-          <button className="btn" onClick={archive} disabled={!s1 || !can('tab.pv')}>📁 Archiver dans la séance</button>
+          {canEdit && s1 && draft === null && <button className="btn" onClick={startEdit}>✏️ Modifier le texte</button>}
+          <button className="btn" onClick={archive} disabled={!s1 || !canEdit || draft !== null}>📁 Archiver dans la séance</button>
           <button className="btn" onClick={email}>✉ Envoyer par email</button>
           <button className="btn" onClick={copy}>📋 Copier le texte</button>
         </div>
@@ -516,6 +564,28 @@ export function Pv() {
               </select>
             </label>
           </details>
+          {s1 && (
+            <details open>
+              <summary>Excusés et points de la séance</summary>
+              <span className="field-label">Excusés {excuses.length > 0 && `(${excuses.length})`}</span>
+              {canEdit ? (
+                <div className="chips">
+                  {committee.map((p) => (
+                    <button key={p.id} type="button" className={`chip ${isExcused(p.id) ? 'on' : ''}`} onClick={() => toggleExcuse(p)} title={excuses.find((e) => e.personId === p.id)?.motif}>
+                      {isExcused(p.id) ? '🙋 ' : ''}{shortName(p)}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="muted">{excusesTxt || 'Personne pour l’instant.'}</p>
+              )}
+              <small className="muted">Chacun peut aussi s’excuser lui-même dans l’onglet Comité.</small>
+              <label>
+                Points particuliers (un par ligne)
+                <textarea rows={4} value={points} disabled={!canEdit} onChange={(e) => setPoints(e.target.value)} onBlur={savePoints} placeholder={'Ex. Budget 2027\nBilan de la Bruntrutaine'} />
+              </label>
+            </details>
+          )}
           <details open>
             <summary>Contenu</summary>
             {([
@@ -638,6 +708,27 @@ export function Pv() {
         </aside>
 
         <div className="pv-preview">
+          {draft !== null ? (
+            <div className="odj-edit-bar no-print">
+              <span>✏️ Modifie directement le document : corriger, ajouter ou supprimer des lignes.</span>
+              <span className="grow" />
+              <button className="btn" onClick={() => setDraft(null)}>Annuler</button>
+              <button className="btn primary" onClick={saveEdit}>Enregistrer</button>
+            </div>
+          ) : (
+            edite && (
+              <div className="odj-edit-bar no-print">
+                <span>✏️ Version modifiée à la main le {fmtDateTime(edite.le)}{data.people.find((p) => p.id === edite.par) ? ` par ${fullName(data.people.find((p) => p.id === edite.par))}` : ''}. Les changements de tâches et de mise en page n’y apparaissent plus (les excusés, si).</span>
+                <span className="grow" />
+                {canEdit && <button className="btn" onClick={resetEdit}>🔄 Revenir à la version générée</button>}
+              </div>
+            )
+          )}
+          {draft !== null ? (
+            <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille} editing`} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: draft }} />
+          ) : edite ? (
+            <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`} dangerouslySetInnerHTML={{ __html: cleanHtml(hydrateArchive(edite.html, data, logo), { excuses: excusesTxt }) }} />
+          ) : (
           <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`}>
             <header className="pv-head">
               {s.afficherClub && <DocEntete e={entete.e} source={entete.source} logo={logo} />}
@@ -663,7 +754,7 @@ export function Pv() {
                 {s.parts.presences && (
                   <>
                     <p><b>Convoqués :</b> {committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}</p>
-                    <p className="odj-fill-line"><b>Excusés :</b> <span className="odj-fill" /></p>
+                    <p className="odj-fill-line"><b>Excusés :</b> <span className={excusesTxt ? '' : 'odj-fill'} data-champ="excuses">{excusesTxt}</span></p>
                   </>
                 )}
               </section>
@@ -676,7 +767,7 @@ export function Pv() {
                   <thead><tr><th>Membre</th><th>Fonction</th><th>Présent</th><th>Excusé</th></tr></thead>
                   <tbody>
                     {committee.map((p) => (
-                      <tr key={p.id}><td>{shortName(p)} ({initials(p)})</td><td>{p.poste}</td><td className="pv-box">☐</td><td className="pv-box">☐</td></tr>
+                      <tr key={p.id}><td>{shortName(p)} ({initials(p)})</td><td>{p.poste}</td><td className="pv-box">☐</td><td className="pv-box">{isExcused(p.id) ? '☒' : '☐'}</td></tr>
                     ))}
                   </tbody>
                 </table>
@@ -775,6 +866,7 @@ export function Pv() {
             )}
             <footer className="pv-foot">Document généré le {fmtDate(today())} par {fullName(user ?? undefined)} · Tâches GSA</footer>
           </div>
+          )}
         </div>
       </div>
       {enteteEdit && <EnteteEditor doc="odj" texte={texteDefaut} onClose={() => setEnteteEdit(false)} />}

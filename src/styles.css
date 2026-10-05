@@ -814,3 +814,10 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .logo-panel .image-picker { margin: 8px 0; }
 /* Thème sombre : le logo garde un fond clair (logos sombres sur fond transparent). */
 :root[data-theme='dark'] .brand .app-logo, :root[data-theme='dark'] .login-card .app-logo { background: #fff; border-radius: 6px; padding: 2px; }
+
+/* Ordre du jour modifié à la main, excusés */
+.odj-edit-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; background: var(--primary-soft); border-radius: 8px; padding: 8px 12px; margin-bottom: 10px; font-size: 0.9rem; }
+.pv-sheet.editing { outline: 2px dashed var(--primary); outline-offset: 4px; cursor: text; }
+.excuses { margin: 6px 0; }
+.excuses p { margin: 4px 0; }
+.excuses input { max-width: 220px; }

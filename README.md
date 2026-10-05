@@ -141,6 +141,10 @@ Onglet **📝 Ordre du jour** (droit « Onglet Ordre du jour », donné au Prés
 - cadre de notes et prochaine séance en pied de page.
 
 Réglages (mémorisés) : mise en forme **Liste numérotée** ou **Tableaux**, **niveau de détail** (complet / sections et sous-sections / sections seulement), séances, éléments inclus, regroupement (section, responsable, aucun) et tri, option « Séparer par échéance », détails affichés, statuts et sections inclus, titre, en-tête, orientation, taille du texte.
+**Excusés et points de la séance** (panneau de gauche) : un clic sur un membre l'**excuse** (ou le retire) ; la ligne « Excusés » du document se remplit (case ☒ dans la présentation en tableaux). Chacun peut aussi s'excuser lui-même dans l'onglet **Comité** : **🙋 Je serai absent(e)** sur une séance à venir, avec un motif facultatif (« Je serai finalement présent(e) » pour annuler). Les excusés sont repris dans les présences du PV. Les **points particuliers** de la séance s'écrivent aussi ici (un par ligne).
+
+**✏️ Modifier le texte** (droit « Onglet Ordre du jour ») : le document devient modifiable directement (corriger, ajouter ou supprimer des lignes), puis **Enregistrer**. Cette version, gardée dans la séance, est celle que tout le comité voit, imprime, archive, envoie et copie ; les excusés y restent à jour, mais plus les changements de tâches ni de mise en page. **🔄 Revenir à la version générée** l'abandonne.
+
 **En-tête** (Mise en page › **✏️ Modifier l'en-tête…**, avec le droit « Onglet Ordre du jour ») : commun à toute l'entité, avec aperçu :
 
 - image : le **logo de l'entité**, une **image propre** (ex. l'en-tête du papier à lettres du club, réduite à 1400 px de large) ou aucune ; taille petite, moyenne, grande ou **toute la largeur** (bannière) ;
