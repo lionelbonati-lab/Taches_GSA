@@ -5,8 +5,8 @@ import { PollEditor } from './PollEditor';
 import { EmailsField } from './EmailsField';
 import { deleteFiles } from '../data/files';
 import { useStore } from '../data/store';
-import type { Recurrence, Task } from '../data/types';
-import { DELAI_OFFSETS, RECURRENCES, applyDelaiRef, childrenOf, fmtDate, fmtDateTime, fullName, isDone, isLate, nextDate, parentOf, shortName, nextResponsables, postesFor, today, uid } from '../data/utils';
+import type { DelaiUnite, Recurrence, Task } from '../data/types';
+import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, shortName, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
@@ -351,7 +351,7 @@ function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
       applyDelaiRef(data, {
         ...x,
         ...(type === 'event' ? { eventId: id } : { meetingId: id }),
-        delaiRef: { type, joursAvant: x.delaiRef?.joursAvant ?? 7 },
+        delaiRef: { ...(x.delaiRef ?? makeDelai(1, 'semaines', false)), type },
       }),
     );
   };
@@ -380,19 +380,56 @@ function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
           <input type="date" value={t.delai} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, delai: e.target.value }))} />
         </label>
       ) : (
-        <label>
-          Quand ?
-          <select
-            value={t.delaiRef!.joursAvant}
-            disabled={disabled}
-            onChange={(e) => setT((x) => applyDelaiRef(data, { ...x, delaiRef: { ...x.delaiRef!, joursAvant: Number(e.target.value) } }))}
-          >
-            {DELAI_OFFSETS.map((o) => <option key={o.jours} value={o.jours}>{o.label}</option>)}
-            {!DELAI_OFFSETS.some((o) => o.jours === t.delaiRef!.joursAvant) && <option value={t.delaiRef!.joursAvant}>{t.delaiRef!.joursAvant} jours avant</option>}
-          </select>
-          <small className="delai-calc">→ {fmtDate(t.delai)} · suit la date automatiquement</small>
-        </label>
+        <QuandField t={t} setT={setT} disabled={disabled} />
       )}
     </>
+  );
+}
+
+const UNITES: { id: DelaiUnite; un: string; plusieurs: string }[] = [
+  { id: 'jours', un: 'jour', plusieurs: 'jours' },
+  { id: 'semaines', un: 'semaine', plusieurs: 'semaines' },
+  { id: 'mois', un: 'mois', plusieurs: 'mois' },
+];
+
+/** « Quand ? » : nombre libre de jours, semaines ou mois, avant ou après l'événement / la séance. */
+function QuandField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Task) => void; disabled: boolean }) {
+  const { data } = useStore();
+  const cur = splitDelai(t.delaiRef!);
+  // Texte du nombre : on peut l'effacer le temps d'en écrire un autre.
+  const [txt, setTxt] = useState(String(cur.n));
+  const shown = txt === '' || Number(txt) === cur.n ? txt : String(cur.n);
+  const change = (patch: Partial<typeof cur>) => {
+    const next = { ...cur, ...patch };
+    setT((x) => applyDelaiRef(data, { ...x, delaiRef: { type: x.delaiRef!.type, ...makeDelai(next.n, next.unite, next.apres) } }));
+  };
+  return (
+    <div className="quand">
+      <span className="field-label">Quand ?</span>
+      <div className="quand-row">
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={DELAI_MAX}
+          value={shown}
+          disabled={disabled}
+          aria-label="Nombre"
+          onChange={(e) => {
+            setTxt(e.target.value);
+            if (e.target.value !== '') change({ n: Number(e.target.value) });
+          }}
+          onBlur={() => setTxt(String(cur.n))}
+        />
+        <select value={cur.unite} disabled={disabled} aria-label="Unité" onChange={(e) => change({ unite: e.target.value as DelaiUnite })}>
+          {UNITES.map((u) => <option key={u.id} value={u.id}>{cur.n > 1 ? u.plusieurs : u.un}</option>)}
+        </select>
+        <select value={cur.apres ? 'apres' : 'avant'} disabled={disabled} aria-label="Avant ou après" onChange={(e) => change({ apres: e.target.value === 'apres' })}>
+          <option value="avant">avant</option>
+          <option value="apres">après</option>
+        </select>
+      </div>
+      <small className="delai-calc">→ {fmtDate(t.delai)}{cur.n === 0 || (cur.n === 1 && cur.unite === 'jours') ? ` (${offsetLabel(t.delaiRef!).toLowerCase()})` : ''} · suit la date automatiquement</small>
+    </div>
   );
 }

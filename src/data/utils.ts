@@ -1,4 +1,4 @@
-import type { AppData, Person, Recurrence, Task } from './types';
+import type { AppData, DelaiRef, DelaiUnite, Person, Recurrence, Task } from './types';
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -74,22 +74,34 @@ function addMonths(date: string, n: number) {
 
 // ---------- Délais liés à un événement / une séance ----------
 
-export const DELAI_OFFSETS: { jours: number; label: string }[] = [
-  { jours: 0, label: 'Le jour même' },
-  { jours: 1, label: 'La veille' },
-  { jours: 3, label: '3 jours avant' },
-  { jours: 7, label: '1 semaine avant' },
-  { jours: 14, label: '2 semaines avant' },
-  { jours: 21, label: '3 semaines avant' },
-  { jours: 30, label: '1 mois avant' },
-  { jours: 60, label: '2 mois avant' },
-  { jours: 90, label: '3 mois avant' },
-  { jours: -1, label: 'Le lendemain' },
-  { jours: -7, label: '1 semaine après' },
-];
+// Délai lié : un nombre de jours, de semaines ou de mois, avant ou après l'événement / la séance.
+type Decalage = Pick<DelaiRef, 'joursAvant' | 'unite' | 'moisAvant'>;
+export const DELAI_MAX = 999;
 
-export const offsetLabel = (j: number) =>
-  DELAI_OFFSETS.find((o) => o.jours === j)?.label ?? (j >= 0 ? `${j} jours avant` : `${-j} jours après`);
+/** Décalage lu comme on le saisit : nombre, unité, avant / après. */
+export function splitDelai(r: Decalage): { n: number; unite: DelaiUnite; apres: boolean } {
+  if (r.unite === 'mois' && r.moisAvant !== undefined) return { n: Math.abs(r.moisAvant), unite: 'mois', apres: r.moisAvant < 0 };
+  const j = r.joursAvant;
+  // Tâches d'avant le réglage libre : « 2 semaines avant » était gardé en jours (14).
+  const semaines = r.unite === 'semaines' || (!r.unite && j !== 0 && j % 7 === 0);
+  return { n: Math.abs(semaines ? j / 7 : j), unite: semaines ? 'semaines' : 'jours', apres: j < 0 };
+}
+
+/** Décalage à garder dans la tâche. */
+export function makeDelai(n: number, unite: DelaiUnite, apres: boolean): Decalage {
+  const k = Math.max(0, Math.min(DELAI_MAX, Math.round(n) || 0)) * (apres ? -1 : 1) || 0;
+  if (unite === 'mois') return { unite, moisAvant: k, joursAvant: k * 30 };
+  return { unite, moisAvant: undefined, joursAvant: unite === 'semaines' ? k * 7 : k };
+}
+
+/** « Le jour même », « La veille », « 3 jours avant », « 2 semaines après », « 1 mois avant »… */
+export function offsetLabel(r: Decalage) {
+  const { n, unite, apres } = splitDelai(r);
+  if (n === 0) return 'Le jour même';
+  if (unite === 'jours' && n === 1) return apres ? 'Le lendemain' : 'La veille';
+  const u = unite === 'mois' ? 'mois' : unite === 'semaines' ? (n > 1 ? 'semaines' : 'semaine') : 'jours';
+  return `${n} ${u} ${apres ? 'après' : 'avant'}`;
+}
 
 /** Événement ou séance servant de référence au délai de la tâche. */
 export function delaiTarget(data: AppData, t: Task): { nom: string; date: string } | null {
@@ -107,7 +119,8 @@ export function applyDelaiRef<T extends Task>(data: AppData, t: T): T {
   if (!t.delaiRef) return t;
   const target = delaiTarget(data, t);
   if (!target) return { ...t, delaiRef: undefined };
-  return { ...t, delai: addDays(target.date, -t.delaiRef.joursAvant) };
+  const r = t.delaiRef;
+  return { ...t, delai: r.unite === 'mois' && r.moisAvant !== undefined ? addMonths(target.date, -r.moisAvant) : addDays(target.date, -r.joursAvant) };
 }
 
 // ---------- Tâches récurrentes ----------

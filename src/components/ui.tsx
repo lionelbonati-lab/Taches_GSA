@@ -92,7 +92,7 @@ export function LinkIcon({ task }: { task: Task }) {
   const { data } = useStore();
   const target = delaiTarget(data, task);
   if (!target || !task.delaiRef) return null;
-  return <span className="ticon" title={`${offsetLabel(task.delaiRef.joursAvant)} « ${target.nom} » (${fmtDate(target.date)})`}>🔗</span>;
+  return <span className="ticon" title={`${offsetLabel(task.delaiRef)} « ${target.nom} » (${fmtDate(target.date)})`}>🔗</span>;
 }
 
 export function DocPollIcons({ task }: { task: Task }) {

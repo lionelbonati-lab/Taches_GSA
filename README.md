@@ -82,7 +82,7 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
 
 ## Délais liés à un événement
 
-Dans une tâche, le champ **Délai** propose « Date fixe » ou directement la liste des prochains événements et séances de comité, puis **Quand ?** (le jour même, la veille, 1 semaine avant, 1 mois avant, le lendemain…).
+Dans une tâche, le champ **Délai** propose « Date fixe » ou directement la liste des prochains événements et séances de comité, puis **Quand ?** : un nombre libre de **jours, semaines ou mois**, **avant ou après** (ex. 10 jours avant, 6 semaines avant, 2 mois avant, 3 jours après ; 0 = le jour même). Les mois suivent le calendrier : « 1 mois avant » le 15.11 donne le 15.10.
 Le délai **suit ensuite automatiquement** la date : si le tournoi est déplacé d'une semaine, toutes ses tâches liées bougent avec lui. Repère 🔗 dans les listes (le survol indique la référence), filtre « Délai lié » dans Tâches.
 
 ## Tâches récurrentes

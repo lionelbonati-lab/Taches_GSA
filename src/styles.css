@@ -266,6 +266,11 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 /* ---------- Délais liés / récurrence ---------- */
 .ticon { font-size: 0.85em; cursor: help; }
 .delai-calc { color: var(--primary); font-weight: 600; }
+.quand { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+.quand .field-label { margin-bottom: 0; }
+.quand-row { display: flex; gap: 6px; }
+.quand-row input { width: 4.5em; flex: none; }
+.quand-row select { flex: 1 1 0; min-width: 0; }
 .recur-note { margin: 0; background: var(--primary-soft); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; }
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 60;

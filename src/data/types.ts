@@ -69,9 +69,15 @@ export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semes
 /** Délai calculé à partir de la date de l'événement (eventId) ou de la séance (meetingId) liés. */
 export interface DelaiRef {
   type: 'event' | 'meeting';
-  /** Nombre de jours avant la date de référence (négatif = après). */
+  /** Nombre de jours avant la date de référence (négatif = après). En mois : 30 jours par mois, valeur approchée. */
   joursAvant: number;
+  /** Unité choisie (absente dans les tâches d'avant le réglage libre : des jours). */
+  unite?: DelaiUnite;
+  /** Délai en mois du calendrier (négatif = après) : 1 mois avant le 15.11 → le 15.10. */
+  moisAvant?: number;
 }
+
+export type DelaiUnite = 'jours' | 'semaines' | 'mois';
 
 /** Document joint à une tâche : fichier (contenu gardé à part, voir files.ts) ou lien. */
 export interface TaskDoc {
