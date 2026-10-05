@@ -183,6 +183,8 @@ export function nextOccurrence(data: AppData, t: Task): Task {
     meetingId: undefined,
     delaiRef: undefined,
     suivanteId: undefined,
+    // La demande d'une autre entité concernait cette occurrence-ci.
+    proposee: undefined,
     updatedAt: new Date().toISOString(),
   };
 }

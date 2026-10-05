@@ -1,0 +1,95 @@
+import { createContext, useContext } from 'react';
+import type { MyRequest, OrgUnit, Person, Unit, UnitType } from './types';
+import { uid } from './utils';
+
+// Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
+// L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
+// le changement d'entité et ce qui passe d'une entité à l'autre (demandes au comité central).
+// Démo : DemoApp (données dans le navigateur) ; version réelle : CloudApp (serveur).
+
+/** Personne qui rejoint une nouvelle entité (prise dans l'annuaire du club ou nouvelle). */
+export interface NewMember {
+  prenom: string;
+  nom: string;
+  email: string;
+  telephone?: string;
+  couleur: string;
+  poste: string;
+}
+
+/** Fiche d'une personne dans la nouvelle entité. */
+export const toPerson = (m: NewMember, roles: string[]): Person => ({
+  id: uid('p'),
+  prenom: m.prenom,
+  nom: m.nom,
+  email: m.email,
+  telephone: m.telephone ?? '',
+  couleur: m.couleur,
+  poste: m.poste,
+  roles,
+  actif: true,
+});
+
+export interface NewUnit {
+  nom: string;
+  type: UnitType;
+  couleur: string;
+  description?: string;
+  date?: string;
+  /** Président ou responsable : admin de la nouvelle entité. */
+  chef: NewMember;
+  /** Autres membres de départ. */
+  membres: NewMember[];
+}
+
+/** Résultat de la création : accès du président (version réelle). */
+export interface CreatedUnit {
+  unitId: string;
+  email?: string;
+  password?: string;
+  existant?: boolean;
+  /** Entité créée, mais une étape a échoué (accès à créer depuis sa console admin). */
+  avertissement?: string;
+}
+
+export interface NewRequest {
+  titre: string;
+  remarque: string;
+  delai: string;
+  sectionId: string;
+  /** Nom de la personne qui envoie la demande. */
+  par: string;
+}
+
+export interface Club {
+  /** Toutes les entités du club, avec leurs membres (archivées comprises). */
+  units: OrgUnit[];
+  /** Entité ouverte. */
+  current: OrgUnit;
+  central: OrgUnit | null;
+  /** Entités dont l'utilisateur fait partie (hors archivées, sauf l'entité ouverte). */
+  mine: OrgUnit[];
+  /** Admin du comité central : crée et modifie les entités du club. */
+  canManage: boolean;
+  loading: boolean;
+  error: string;
+  switchUnit: (id: string) => void;
+  refresh: () => void;
+  createUnit: (u: NewUnit) => Promise<CreatedUnit>;
+  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'archive'>>) => Promise<void>;
+  /** Envoie une tâche au comité central (depuis une autre entité). */
+  proposeTask: (r: NewRequest) => Promise<void>;
+  /** Demandes envoyées au comité central par l'entité ouverte, avec leur suivi. */
+  myRequests: () => Promise<MyRequest[]>;
+}
+
+export const ClubCtx = createContext<Club | null>(null);
+
+export function useClub() {
+  const c = useContext(ClubCtx);
+  if (!c) throw new Error('ClubCtx manquant');
+  return c;
+}
+
+/** Comme useClub, mais sans erreur hors d'un club (tests, écrans isolés). */
+export const useClubOptional = () => useContext(ClubCtx);

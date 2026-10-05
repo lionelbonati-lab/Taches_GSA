@@ -165,6 +165,15 @@ function load(): AppData {
   return makeSeed();
 }
 
+/** Démo : données de l'entité ouverte, gardées dans ce navigateur (voir demoClub.ts). */
+export interface DemoMode {
+  load: () => AppData;
+  save: (d: AppData) => void;
+  personId: string | null;
+  logout: () => void;
+  reset: () => void;
+}
+
 /** Version réelle : connexion au serveur et données du comité chargées. */
 export interface CloudMode {
   sync: CloudSync;
@@ -221,11 +230,12 @@ interface Store {
 
 const Ctx = createContext<Store | null>(null);
 
-export function StoreProvider({ children, cloud = null }: { children: ReactNode; cloud?: CloudMode | null }) {
-  const [data, setData] = useState<AppData>(() => (cloud ? cloud.initial : load()));
+export function StoreProvider({ children, cloud = null, demo = null }: { children: ReactNode; cloud?: CloudMode | null; demo?: DemoMode | null }) {
+  const [data, setData] = useState<AppData>(() => (cloud ? cloud.initial : demo ? demo.load() : load()));
   const [toast, setToast] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(() => {
     if (cloud) return cloud.personId;
+    if (demo) return demo.personId;
     try {
       return localStorage.getItem(USER_KEY);
     } catch {
@@ -236,11 +246,13 @@ export function StoreProvider({ children, cloud = null }: { children: ReactNode;
   useEffect(() => {
     // Version réelle : envoi des éléments modifiés au serveur ; démo : enregistrement dans le navigateur.
     if (cloud) return cloud.sync.schedule(data);
+    if (demo) return demo.save(data);
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
     } catch {
       /* ignore */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, cloud]);
 
   // Version réelle : modifications des autres membres reçues en direct ; modification refusée → version du serveur.
@@ -263,6 +275,7 @@ export function StoreProvider({ children, cloud = null }: { children: ReactNode;
       if (!id) cloud.signOut();
       return;
     }
+    if (demo && !id) return demo.logout();
     setUserId(id);
     try {
       if (id) localStorage.setItem(USER_KEY, id);
@@ -270,6 +283,7 @@ export function StoreProvider({ children, cloud = null }: { children: ReactNode;
     } catch {
       /* ignore */
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloud]);
 
   const update = useCallback(
@@ -386,8 +400,10 @@ export function StoreProvider({ children, cloud = null }: { children: ReactNode;
 
   const reset = useCallback(() => {
     if (cloud) return;
-    setData(makeSeed());
     clearFiles();
+    if (demo) return demo.reset();
+    setData(makeSeed());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloud]);
 
   const restore = useCallback(

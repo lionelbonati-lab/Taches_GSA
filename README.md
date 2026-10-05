@@ -33,6 +33,8 @@ Connexion par simple clic sur un nom (sans mot de passe) :
 | Damien, Christophe, Ismaël, Noah, Stéphanie | Comité – voit tout, modifie ses propres tâches |
 | Dieter, Clément, Christian, Romain, Heinz, Sarah, Jérôme, Aude, Mèg, Alphonse | Responsable d'activité – uniquement ses propres tâches |
 
+L'écran de connexion de la démo liste tout l'annuaire du club, y compris les membres des sous-comités, groupes et équipes (moniteurs, coureurs, bénévoles…) : chacun retrouve les entités dont il fait partie. Exemples : **Noah R.** (comité central, responsable de l'école de cyclisme, soirée récréative), **Clément** (président du CO Bruntrutaine), **Sarah** (monitrice), **Julie V.** (coureuse).
+
 ## Rôles et permissions
 
 Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au code :
@@ -43,6 +45,25 @@ Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au 
 - **Cumuler plusieurs rôles** par personne (onglet Utilisateurs) : chaque rôle apporte ses droits sur ses propres sections.
 - Garde-fous : le rôle Admin est verrouillé, chacun garde au moins un rôle, il reste toujours un admin actif.
 
+## Organisation du club (entités)
+
+Le club = le **comité central** et ses entités, chacune avec **ses propres responsables, rôles, sections, statuts, tâches, séances et événements**, invisibles des autres entités (le comité central ne voit pas leurs tâches, et inversement) :
+
+| Type | Pour quoi | Modèle de départ (modifiable ensuite) |
+|---|---|---|
+| 🏛️ Comité central | Direction du club | Les données actuelles |
+| 🎪 Sous-comité | Organisation d'un événement (ex. CO Bruntrutaine), avec son président | Rôles Président (admin) / Membre du comité / Bénévole ; sections Organisation générale, Logistique, Bénévoles, Communication, Finances et sponsors |
+| 🚴 Groupe | Activité permanente (école de cyclisme, groupe compétition…) avec ses propres utilisateurs | Rôles Responsable (admin) / Moniteur / Membre du groupe ; sections Activités, Encadrement, Matériel, Administration |
+| 🎉 Équipe d'événement | Événement sans comité qui réunit quelques personnes, souvent déjà actives ailleurs | Rôles Responsable (admin) / Membre de l'équipe ; sections Préparation, Jour J, Après l'événement |
+
+Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Annulé).
+
+- **Organigramme** (onglet **Club**, ou menu de l'entité en haut à gauche) : toutes les entités et leurs membres (nom, poste, rôles, adresse email ; pas de numéros de téléphone), visible par tous les membres du club. Vue **Personnes** : l'annuaire, avec tous les postes de chacun.
+- **Changer d'entité** : le menu en haut à gauche liste les entités dont on fait partie. Une même personne peut avoir un poste dans plusieurs entités (reconnue par son adresse email).
+- **Créer une entité** (admins du comité central) : « + Nouvelle entité » dans l'organigramme → nom, type, date, couleur, description, **responsable** (admin de l'entité, choisi dans l'annuaire ou nouvelle personne) et membres de départ (annuaire). Dans la version réelle, le compte du responsable est créé avec un mot de passe provisoire (à lui transmettre), et les membres qui ont déjà un compte retrouvent l'entité dans leur menu.
+- **Gérer son entité** : le président / responsable est admin de son entité ; il y gère membres, rôles, sections, statuts et accès (console admin), et peut en modifier le nom, la couleur, la description et la date. Le type et l'**archivage** (jamais de suppression) sont réservés au comité central. Onglet Responsables/Membres : **📇 Depuis l'annuaire du club** reprend une personne d'une autre entité.
+- **Demandes au comité central** : depuis l'accueil d'une entité, **+ Demande** envoie une tâche au comité central (titre, détails, délai, section). Elle arrive dans ses tâches sans responsable, marquée **📨 nom de l'entité**, et apparaît dans « Demandes reçues » sur son accueil et dans les notifications de ceux qui attribuent les tâches. L'entité en suit l'avancement (statut, délai, qui s'en occupe) sans voir le reste des tâches du comité central.
+
 ## Onglets
 
 - **Accueil** : compteurs de mes tâches par statut (**un clic ouvre la liste filtrée**, « En retard » compris), mes tâches en retard, échéances à 7 jours, emails à envoyer, prochaine séance, avancement des événements.
@@ -51,6 +72,7 @@ Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au 
 - **Comité** : séances (date, lieu, ordre du jour, notes/PV) et tâches liées.
 - **Événements** : événements du club, avancement des tâches liées.
 - **Responsables** : poste, nom, prénom, email, portable (liens mail / appel).
+- **Club** : organigramme et annuaire du club (voir ci-dessus).
 - **Réglages** : thème clair/sombre, vue par défaut.
 - **Console admin** : rôles, activation des comptes, matrice de permissions, sections/sous-sections, statuts, journal d'activité.
 
@@ -184,5 +206,6 @@ Liens directs : https://lionelbonati-lab.github.io/Taches_GSA/?demo (à envoyer 
 - **Accès** : console admin › Utilisateurs › **Créer l'accès** crée le compte d'un responsable avec un mot de passe provisoire (à lui transmettre), qu'il remplace à la première connexion. Désactiver une fiche coupe l'accès. Aucun email n'est envoyé par le serveur.
 - **Mise en route** : à la première connexion du président, reprise d'une sauvegarde de la démo (Réglages › Sauvegarde) ou base vide.
 - **Fichiers joints** : stockage privé du serveur, dossier du comité.
+- **Entités** : chaque sous-comité, groupe ou équipe est un comité du serveur rattaché au comité central, avec ses propres données ; organigramme et demandes passent par des fonctions du serveur qui ne laissent sortir que le nécessaire.
 
 Détails techniques (tables, règles d'accès, fonction serveur) : [SUPABASE_SETUP.md](SUPABASE_SETUP.md).

@@ -163,6 +163,16 @@ export interface Task {
   termineeLe?: string;
   createdBy: string;
   updatedAt: string;
+  /** Tâche proposée au comité central par un sous-comité, un groupe ou une équipe. */
+  proposee?: Proposal;
+}
+
+/** Origine d'une tâche proposée au comité central. */
+export interface Proposal {
+  uniteId: string;
+  unite: string;
+  par: string;
+  le: string;
 }
 
 export interface Meeting {
@@ -335,4 +345,64 @@ export interface AppData {
   emails?: ScheduledEmail[];
   /** Clés des notifications déjà vues, par utilisateur. */
   notifLues?: Record<string, string[]>;
+}
+
+/**
+ * Entités du club. Chacune a ses propres responsables, rôles, sections, statuts et tâches,
+ * invisibles des autres : comité central, sous-comités (organisation d'un événement),
+ * groupes (école de cyclisme, compétition…) et équipes d'événement (sans comité).
+ */
+export type UnitType = 'central' | 'sous-comite' | 'groupe' | 'equipe';
+
+export interface Unit {
+  id: string;
+  nom: string;
+  type: UnitType;
+  /** Comité central dont dépend l'entité (absent pour le comité central). */
+  parentId?: string;
+  couleur: string;
+  description?: string;
+  /** Date de l'événement (sous-comité, équipe d'événement). */
+  date?: string;
+  /** Événement passé, entité plus utilisée : masquée des menus. */
+  archive?: boolean;
+}
+
+/** Membre d'une entité, tel qu'affiché dans l'organigramme. */
+export interface OrgMember {
+  /** Fiche de la personne dans l'entité. */
+  id: string;
+  prenom: string;
+  nom: string;
+  poste: string;
+  autresPostes?: string;
+  email: string;
+  telephone?: string;
+  couleur: string;
+  roles: string[];
+  admin: boolean;
+}
+
+export interface OrgUnit extends Unit {
+  membres: OrgMember[];
+  /** L'utilisateur connecté en fait partie. */
+  moi: boolean;
+  /** L'utilisateur connecté en est admin (président / responsable). */
+  moiAdmin: boolean;
+  /** Comité central : sections (choix de la section d'une demande). */
+  sections?: { id: string; nom: string }[];
+}
+
+/** Demande envoyée au comité central, telle que la voit l'entité qui l'a envoyée. */
+export interface MyRequest {
+  id: string;
+  titre: string;
+  delai: string;
+  le: string;
+  par: string;
+  statut: string;
+  couleur: string;
+  termine: boolean;
+  supprimee: boolean;
+  responsables: string[];
 }

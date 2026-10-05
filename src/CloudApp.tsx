@@ -6,6 +6,7 @@ import { migrate, SCHEMA, StoreProvider, type CloudMode } from './data/store';
 import { setServerFiles } from './data/files';
 import type { AppData, Person } from './data/types';
 import { App } from './App';
+import { CloudClub } from './CloudClub';
 import { ChooseCommittee, FirstPassword, Message, RealLogin, Setup, WhoAreYou } from './pages/Real';
 
 // Version réelle : connexion, choix du comité, mise en route, puis l'appli avec les données du serveur.
@@ -84,7 +85,8 @@ export function CloudApp() {
         } catch {
           /* ignore */
         }
-        const m = list.find((x) => x.committeeId === saved) ?? (list.length === 1 ? list[0] : null);
+        // Dernière entité ouverte, sinon le comité central ; le choix ne se pose qu'à défaut.
+        const m = list.find((x) => x.committeeId === saved) ?? list.find((x) => x.type === 'central') ?? (list.length === 1 ? list[0] : null);
         if (!m) return setPhase({ k: 'choixComite', list });
         await open(s, m);
       } catch (e) {
@@ -105,7 +107,15 @@ export function CloudApp() {
   }, [session, start]);
 
   const email = session?.user.email ?? '';
+  const userId = session?.user.id ?? '';
   const retry = () => session && start(session);
+  // Passage à une autre entité du club (menu en haut, organigramme).
+  const switchTo = useCallback(
+    (m: Membership) => {
+      if (session) void open(session, m).catch((e) => setPhase({ k: 'erreur', text: (e as Error).message }));
+    },
+    [session, open],
+  );
 
   switch (phase.k) {
     case 'chargement':
@@ -140,21 +150,25 @@ export function CloudApp() {
         </Message>
       );
     case 'miseEnRoute':
-      return <Setup membership={phase.m} userId={session!.user.id} email={email} sync={phase.sync} onSignOut={signOut} onDone={retry} />;
+      return <Setup membership={phase.m} userId={userId} email={email} sync={phase.sync} onSignOut={signOut} onDone={retry} />;
     case 'quiEsTu': {
       const { m, sync, data } = phase;
       const choose = async (personId: string, created?: Person) => {
         if (created) await sync.flushNow({ ...data, people: [...data.people, created] });
-        await linkMyPerson(m.committeeId, session!.user.id, personId);
+        await linkMyPerson(m.committeeId, userId, personId);
         await retry();
       };
       return <WhoAreYou data={data} email={email} onChoose={choose} onSignOut={signOut} />;
     }
     case 'pret':
+      // Déconnexion en cours : la session disparaît avant le rechargement de la page.
+      if (!session) return null;
       return (
-        <StoreProvider cloud={phase.cloud}>
-          <App />
-        </StoreProvider>
+        <CloudClub m={phase.cloud.membership} userId={userId} onSwitch={switchTo}>
+          <StoreProvider cloud={phase.cloud}>
+            <App />
+          </StoreProvider>
+        </CloudClub>
       );
   }
 }

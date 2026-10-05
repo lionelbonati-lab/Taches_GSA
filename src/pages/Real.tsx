@@ -9,6 +9,7 @@ import { migrate, SCHEMA } from '../data/store';
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { fmtDateTime, uid } from '../data/utils';
 import type { AppData, Person } from '../data/types';
+import { sortUnits, UNIT_TYPES } from '../data/units';
 
 // Écrans de la version réelle (avant d'entrer dans l'appli) et écran d'accueil (choix démo / version réelle).
 
@@ -158,11 +159,12 @@ export function Message({ title, children, onSignOut }: { title: string; childre
 export function ChooseCommittee({ list, onChoose, onSignOut }: { list: Membership[]; onChoose: (m: Membership) => void; onSignOut: () => void }) {
   return (
     <Card>
-      <p className="muted">Ton compte a accès à plusieurs comités. Lequel ouvrir ?</p>
+      <p className="muted">Ton compte a accès à plusieurs entités du club. Laquelle ouvrir ? (Tu passeras de l’une à l’autre depuis le menu en haut.)</p>
       <div className="login-list">
-        {list.map((m) => (
+        {sortUnits(list.map((m) => ({ ...m, nom: m.committeeName, date: m.info.date }))).map((m) => (
           <button key={m.committeeId} className="login-user" onClick={() => onChoose(m)}>
-            <span><strong>{m.committeeName}</strong>{m.owner && <small>Propriétaire</small>}</span>
+            <span className="unit-dot" style={{ background: m.info.couleur ?? '#1d4ed8' }}>{UNIT_TYPES[m.type].icon}</span>
+            <span><strong>{m.committeeName}</strong><small>{UNIT_TYPES[m.type].label}{m.owner ? ' · propriétaire' : ''}</small></span>
           </button>
         ))}
       </div>

@@ -1,8 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import { StoreProvider } from './data/store';
 import { getMode, modeFromUrl } from './data/mode';
-import { App } from './App';
+import { DemoApp } from './DemoApp';
 import { CloudApp } from './CloudApp';
 import { Welcome } from './pages/Real';
 import { initPwa } from './pwa';
@@ -19,9 +18,7 @@ createRoot(document.getElementById('root')!).render(
     {mode === 'reel' ? (
       <CloudApp />
     ) : mode === 'demo' ? (
-      <StoreProvider>
-        <App />
-      </StoreProvider>
+      <DemoApp />
     ) : (
       <Welcome />
     )}

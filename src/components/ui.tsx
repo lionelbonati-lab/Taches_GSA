@@ -13,6 +13,17 @@ export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   );
 }
 
+/** Pastille d'une personne qui n'est pas dans les données ouvertes (annuaire du club, organigramme). */
+export function Initials({ prenom, nom, couleur, size = 28 }: { prenom: string; nom: string; couleur: string; size?: number }) {
+  const p = { prenom, nom } as Parameters<typeof initials>[0];
+  const txt = initials(p);
+  return (
+    <span className="avatar" title={`${prenom} ${nom}`.trim()} style={{ background: couleur || '#999', width: size, height: size, fontSize: size * (txt.length > 2 ? 0.31 : 0.4) }}>
+      {txt}
+    </span>
+  );
+}
+
 export function StatusBadge({ task }: { task: Task }) {
   const { data } = useStore();
   const s = data.statuses.find((x) => x.id === task.statusId);
@@ -76,6 +87,13 @@ export function DocPollIcons({ task }: { task: Task }) {
       {emails > 0 && <span className="ticon" title={`${emails} email(s) programmé(s)`}>📧</span>}
     </>
   );
+}
+
+/** Tâche proposée au comité central par une autre entité du club. */
+export function ProposalTag({ task }: { task: Task }) {
+  const p = task.proposee;
+  if (!p) return null;
+  return <span className="badge proposal" title={`Demande de « ${p.unite} », envoyée par ${p.par} le ${fmtDate(p.le.slice(0, 10))}`}>📨 {p.unite}</span>;
 }
 
 export function Toast() {

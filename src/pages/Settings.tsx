@@ -7,9 +7,11 @@ import { DEFAULT_NOTIF, showSystemNotification, useNotifications } from '../noti
 import type { NotifPrefs } from '../data/types';
 import { PasswordForm } from './Real';
 import { switchMode } from '../data/mode';
+import { useClubOptional } from '../data/club';
 
 export function Settings() {
   const { data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
+  const club = useClubOptional();
   const [pwd, setPwd] = useState<'ferme' | 'ouvert' | 'ok'>('ferme');
   const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [last, setLast] = useState(lastBackupAt());
@@ -26,7 +28,8 @@ export function Settings() {
     if (!file) return;
     try {
       const b = await readBackup(file);
-      const where = cloud ? `toutes les données du comité (pour tous les membres)` : 'toutes les données de ce navigateur';
+      const unit = club ? `« ${club.current.nom} »` : 'du comité';
+      const where = cloud ? `toutes les données ${club ? `de ${unit}` : unit} (pour tous ses membres)` : `toutes les données ${club ? `de ${unit} ` : ''}dans ce navigateur`;
       if (!confirm(`Remplacer ${where} par la sauvegarde du ${fmtDateTime(b.exportedAt)} ?\n${backupSummary(b)}`)) return;
       await restoreFiles(b.files);
       restore(b.data, `la sauvegarde du ${fmtDateTime(b.exportedAt)}`);
@@ -148,7 +151,7 @@ export function Settings() {
         <h2>Sauvegarde des données</h2>
         {cloud ? (
           <p className="muted">
-            Les données du comité sont enregistrées sur le serveur et partagées entre les membres. Une sauvegarde en garde une copie complète
+            Les données {club ? `de « ${club.current.nom} »` : 'du comité'} sont enregistrées sur le serveur et partagées entre ses membres. Une sauvegarde en garde une copie complète
             (tâches, séances, PV, sondages, emails, responsables, rôles, réglages et fichiers joints), par exemple chaque fin de saison.
           </p>
         ) : (
@@ -174,7 +177,7 @@ export function Settings() {
         <h2>Données de démonstration</h2>
         <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club) et efface tout ce qui a été saisi : télécharge d’abord une sauvegarde.</p>
         <div className="row wrap">
-          <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
+          <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration (toutes les entités du club) ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
           <button className="btn" onClick={() => switchMode('reel')}>🔐 Passer à la version réelle</button>
         </div>
       </section>}

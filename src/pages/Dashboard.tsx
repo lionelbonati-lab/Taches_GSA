@@ -9,9 +9,12 @@ import { Empty } from '../components/ui';
 import { isOpen } from '../data/polls';
 import { dueAt, emailState, fillTemplate, whenLabel } from '../data/emails';
 import { EmailSend } from '../components/EmailsField';
+import { IncomingRequests, OutgoingRequests } from '../components/Requests';
+import { useClubOptional } from '../data/club';
 
 export function Dashboard() {
   const { data, user, can, saveTask } = useStore();
+  const club = useClubOptional();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
   if (!user) return null;
@@ -58,6 +61,8 @@ export function Dashboard() {
           {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Aucune échéance cette semaine.</Empty>}
         </section>
         <aside>
+          {club && club.current.type !== 'central' && <OutgoingRequests />}
+          {club?.current.type === 'central' && <IncomingRequests onOpen={setEdit} />}
           {toSend.length > 0 && (
             <>
               <h2>📧 Emails à envoyer</h2>
@@ -95,7 +100,7 @@ export function Dashboard() {
               </>
             ) : null;
           })()}
-          {can('tab.meetings') && <h2>Prochaine séance</h2>}
+          {can('tab.meetings') && <h2>{club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}</h2>}
           {!can('tab.meetings') ? null : nextMeeting ? (
             <Link to="/comite" className="panel link-panel">
               <strong>{nextMeeting.titre}</strong>

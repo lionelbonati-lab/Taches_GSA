@@ -1,6 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData } from './types';
+import type { AppData, MyRequest, OrgMember, OrgUnit, UnitType } from './types';
+import { UNIT_COLORS } from './units';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -17,6 +18,19 @@ export interface Membership {
   committeeName: string;
   personId: string | null;
   owner: boolean;
+  /** Entité du club : comité central, sous-comité, groupe, équipe d'événement. */
+  type: UnitType;
+  /** Comité central dont dépend l'entité. */
+  parentId: string | null;
+  info: UnitInfo;
+}
+
+/** Fiche d'une entité (colonne info de la table committees). */
+export interface UnitInfo {
+  couleur?: string;
+  description?: string;
+  date?: string;
+  archive?: boolean;
 }
 
 /** Collections de l'appli enregistrées élément par élément. */
@@ -74,6 +88,11 @@ function entries(d: AppData): Entry[][] {
     }
   }
   return out;
+}
+
+/** Données complètes d'un comité en lignes (création d'une entité avec ses données de départ). */
+export function toRows(d: AppData): Row[] {
+  return entries(d).flatMap((list) => list.map((e, i) => ({ kind: e.kind, id: e.id, pos: e.pos ?? i, data: e.data })));
 }
 
 /** Reconstruit les données de l'appli à partir des lignes du serveur. */
@@ -412,13 +431,86 @@ export class CloudSync {
 
 /** Comités auxquels le compte connecté a accès. */
 export async function myMemberships(userId: string): Promise<Membership[]> {
-  const { data, error } = await sb().from('gsa_members').select('committee_id, person_id, owner, committees(name)').eq('user_id', userId);
+  const { data, error } = await sb().from('gsa_members').select('committee_id, person_id, owner, committees(name, type, parent_id, info)').eq('user_id', userId);
   if (error) throw new Error(error.message);
+  type C = { name?: string; type?: UnitType; parent_id?: string | null; info?: UnitInfo | null };
   return (data ?? []).map((m) => {
-    const c = m.committees as { name?: string } | { name?: string }[] | null;
-    const name = (Array.isArray(c) ? c[0]?.name : c?.name) ?? 'Comité';
-    return { committeeId: m.committee_id as string, committeeName: name, personId: (m.person_id as string | null) ?? null, owner: !!m.owner };
+    const raw = m.committees as C | C[] | null;
+    const c = (Array.isArray(raw) ? raw[0] : raw) ?? {};
+    return {
+      committeeId: m.committee_id as string,
+      committeeName: c.name ?? 'Comité',
+      personId: (m.person_id as string | null) ?? null,
+      owner: !!m.owner,
+      type: c.type ?? 'central',
+      parentId: c.parent_id ?? null,
+      info: c.info ?? {},
+    };
   });
+}
+
+const unitColor = (type: UnitType, info: UnitInfo) => info.couleur ?? (type === 'central' ? UNIT_COLORS[0] : UNIT_COLORS[1]);
+
+/** Entité telle que la connaît le compte sans l'organigramme (pendant le chargement, ou s'il échoue). */
+export function membershipUnit(m: Membership): OrgUnit {
+  return {
+    id: m.committeeId,
+    nom: m.committeeName,
+    type: m.type,
+    parentId: m.parentId ?? undefined,
+    couleur: unitColor(m.type, m.info),
+    description: m.info.description,
+    date: m.info.date,
+    archive: !!m.info.archive,
+    membres: [],
+    moi: true,
+    moiAdmin: false,
+  };
+}
+
+/** Organigramme du club : toutes ses entités et leurs membres. */
+export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
+  const { data, error } = await sb().rpc('gsa_organigramme', { club: clubId });
+  if (error) throw new Error(error.message);
+  type R = { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; moi: boolean; moiAdmin: boolean; membres: OrgMember[]; sections: { id: string; nom: string }[] | null };
+  return ((data ?? []) as R[]).map((u) => {
+    const info = u.info ?? {};
+    return {
+      id: u.id,
+      nom: u.nom,
+      type: u.type,
+      parentId: u.parentId ?? undefined,
+      couleur: unitColor(u.type, info),
+      description: info.description,
+      date: info.date,
+      archive: !!info.archive,
+      membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined })),
+      moi: u.moi,
+      moiAdmin: u.moiAdmin,
+      sections: u.sections ?? undefined,
+    };
+  });
+}
+
+/** Nom et fiche d'une entité (admins de l'entité ou du comité central). */
+export async function updateCommittee(id: string, patch: { name: string; type: UnitType; info: UnitInfo }) {
+  const { data, error } = await sb().from('committees').update(patch).eq('id', id).select('id');
+  if (error) throw new Error(error.message);
+  if (!data?.length) throw new Error('Modification refusée : réservée aux admins de l’entité et du comité central.');
+}
+
+/** Tâche envoyée au comité central par une entité du club. */
+export async function proposeTask(source: string, tache: { titre: string; remarque: string; delai: string; sectionId: string }) {
+  const { data, error } = await sb().rpc('gsa_proposer_tache', { source, tache });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+/** Suivi des demandes de l'entité au comité central. */
+export async function myRequests(source: string): Promise<MyRequest[]> {
+  const { data, error } = await sb().rpc('gsa_mes_demandes', { source });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as MyRequest[];
 }
 
 /** Le propriétaire choisit sa fiche responsable. */
@@ -436,7 +528,12 @@ export interface AccessInfo {
 }
 
 /** Gestion des accès (console admin) : fonction serveur gsa-acces. */
-export async function accessAction<T = Record<string, unknown>>(body: { action: 'liste' | 'creer' | 'reinitialiser' | 'retirer'; committeeId: string; personId?: string; email?: string }): Promise<T> {
+export type AccessRequest =
+  | { action: 'liste'; committeeId: string }
+  | { action: 'creer' | 'reinitialiser' | 'retirer'; committeeId: string; personId: string; email?: string }
+  | { action: 'creerUnite'; committeeId: string; unite: { nom: string; type: UnitType; info: UnitInfo }; rows: Row[]; chefId: string };
+
+export async function accessAction<T = Record<string, unknown>>(body: AccessRequest): Promise<T> {
   const { data, error } = await sb().functions.invoke('gsa-acces', { body });
   if (error) {
     let msg = error.message;

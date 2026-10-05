@@ -111,6 +111,12 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
             ↳ Tâche liée à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
           </button>
         )}
+        {!quick && t.proposee && (
+          <p className="full proposal-banner">
+            📨 Demande de <b>{t.proposee.unite}</b>, envoyée par {t.proposee.par} le {fmtDate(t.proposee.le.slice(0, 10))}.
+            <span className="muted"> L’entité suit l’avancement (statut, délai, responsables) depuis son accueil.</span>
+          </p>
+        )}
         <label className="full">
           Tâche
           <input autoFocus value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ?" />

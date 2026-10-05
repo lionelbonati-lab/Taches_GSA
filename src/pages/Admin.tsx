@@ -105,8 +105,8 @@ function Users() {
   );
 }
 
-interface Shown {
-  person: Person;
+export interface Shown {
+  person: Pick<Person, 'prenom' | 'nom'>;
   email: string;
   password?: string;
   existant?: boolean;
@@ -164,7 +164,7 @@ function AccessCell({ person, access, onChange, onShow }: { person: Person; acce
   );
 }
 
-function CredentialsModal({ person, email, password, existant, onClose }: Shown & { onClose: () => void }) {
+export function CredentialsModal({ person, email, password, existant, intro, onClose }: Shown & { intro?: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
   const url = `${location.origin}${location.pathname}`;
   const text = password
@@ -179,7 +179,8 @@ function CredentialsModal({ person, email, password, existant, onClose }: Shown 
     }
   };
   return (
-    <Modal title={`Accès de ${fullName(person)}`} onClose={onClose}>
+    <Modal title={`Accès de ${person.prenom} ${person.nom}`.trim()} onClose={onClose}>
+      {intro && <p>{intro}</p>}
       {existant ? (
         <p>Ce compte existait déjà : {person.prenom} se connecte avec son mot de passe habituel.</p>
       ) : (

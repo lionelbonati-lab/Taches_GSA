@@ -14,6 +14,14 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/004_gsa_droits.sql` (appliqué) : droits sur les tables pour les comptes connectés et la fonction serveur. Le projet n'ouvre pas automatiquement les nouvelles tables à l'API ; sans ces droits, l'appli affiche « permission denied for table gsa_members ».
 
+`supabase/migrations/005_gsa_entites.sql` (appliqué le 05.10.2026) : entités du club.
+
+- `committees` : colonnes `parent_id` (comité central de l'entité ; vide pour le comité central), `type` (`central`, `sous-comite`, `groupe`, `equipe`) et `info` (couleur, description, date, archive). Le comité existant est devenu le comité central, ses données n'ont pas changé.
+- Chaque entité a ses propres lignes dans `gsa_items` et ses membres dans `gsa_members` : les règles existantes la rendent invisible des autres entités, comité central compris.
+- `gsa_organigramme(club)` : entités, membres actifs (nom, poste, rôles, email ; pas de téléphone) et sections du comité central, pour les seuls membres du club (`gsa_is_club_member`).
+- `gsa_proposer_tache(entité, tâche)` : une entité envoie une tâche au comité central (titre, remarque et délai contrôlés, sans responsable, premier statut ouvert, marquée `proposee`) ; `gsa_mes_demandes(entité)` : leur suivi (statut, délai, responsables).
+- Nom, couleur, description et date d'une entité : modifiables par ses admins et ceux du comité central ; type et archivage réservés au comité central (déclencheur `gsa_committees_guard`).
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`
@@ -22,8 +30,9 @@ Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people
 
 - `liste` : comptes du comité (adresse, dernière connexion, mot de passe provisoire pas encore changé).
 - `creer` : crée le compte d'un responsable (adresse confirmée d'office, mot de passe provisoire renvoyé une seule fois) et le lie à sa fiche.
-- `reinitialiser` : nouveau mot de passe provisoire.
+- `reinitialiser` : nouveau mot de passe provisoire ; refusé si le compte appartient aussi à une entité dont l'appelant n'est pas admin (un responsable de groupe ne peut pas changer le mot de passe du président).
 - `retirer` : supprime le lien (le compte n'a plus accès au comité).
+- `creerUnite` (admins du comité central) : crée une entité avec ses données de départ, crée le compte de son responsable s'il n'existe pas (mot de passe provisoire) et rattache les membres de départ qui ont déjà un compte (même adresse email).
 
 Aucun email n'est envoyé par Supabase (le serveur d'email par défaut est très limité) : l'admin transmet lui-même le mot de passe provisoire.
 

@@ -146,6 +146,21 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
       });
     }
 
+  // Demandes envoyées par les autres entités du club, pas encore attribuées : pour ceux qui attribuent les tâches.
+  if (p.assign)
+    for (const t of data.tasks) {
+      if (!t.proposee || t.responsables.length || isDone(data, t) || !hasPermission(userRoles(data.roles, user), 'tasks.createAny', t.sectionId)) continue;
+      items.push({
+        key: `demande:${t.id}`,
+        icon: '📨',
+        text: `Demande de « ${t.proposee.unite} » : « ${t.titre} »`,
+        sub: `envoyée par ${t.proposee.par}${t.delai ? ` · délai : ${fmtDate(t.delai)}` : ''} · à attribuer`,
+        link: `/taches?tache=${t.id}`,
+        at: t.proposee.le,
+        kind: 'activite',
+      });
+    }
+
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
     if ((n.type === 'assign' && !p.assign) || (n.type !== 'assign' && !p.modif)) continue;

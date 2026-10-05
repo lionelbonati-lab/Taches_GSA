@@ -1,5 +1,7 @@
 // Tâches GSA – accès des membres à la version réelle (fonction Supabase « gsa-acces »).
 // Appelée depuis la console admin : un admin du comité crée, réinitialise ou retire l'accès d'un responsable.
+// Depuis l'organigramme, un admin du comité central crée une entité du club (sous-comité, groupe, équipe)
+// avec ses données de départ, et l'accès de son président / responsable.
 // Les comptes sont créés ici (clé secrète, jamais dans le navigateur), adresse confirmée d'office :
 // aucun email n'est envoyé, l'admin transmet lui-même le mot de passe provisoire, à changer à la 1re connexion.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
@@ -49,6 +51,52 @@ async function findUser(db: Db, email: string) {
   return null;
 }
 
+/** Tous les comptes, par adresse email. */
+async function usersByEmail(db: Db) {
+  const map = new Map<string, string>();
+  for (let page = 1; page < 50; page++) {
+    const { data, error } = await db.auth.admin.listUsers({ page, perPage: 200 });
+    if (error || !data.users.length) break;
+    data.users.forEach((u) => u.email && map.set(u.email.toLowerCase(), u.id));
+    if (data.users.length < 200) break;
+  }
+  return map;
+}
+
+const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const UNIT_TYPES = ['sous-comite', 'groupe', 'equipe'];
+const KINDS = new Set(['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'prefs', 'notifLues', 'meta']);
+type Row = { kind: string; id: string; pos: number; data: Record<string, unknown> };
+
+/** Nouvelle entité du club : contrôle de ce qu'envoie l'appli (données de départ, fiche du président). */
+function checkUnit(body: Record<string, unknown>) {
+  const u = (body.unite ?? {}) as Record<string, unknown>;
+  const nom = String(u.nom ?? '').trim().slice(0, 120);
+  if (!nom) return { error: 'Donne un nom à l’entité.' };
+  const type = String(u.type ?? '');
+  if (!UNIT_TYPES.includes(type)) return { error: 'Type d’entité inconnu.' };
+  const raw = (u.info ?? {}) as Record<string, unknown>;
+  const info: Record<string, unknown> = {};
+  if (typeof raw.couleur === 'string' && /^#[0-9a-f]{6}$/i.test(raw.couleur)) info.couleur = raw.couleur;
+  if (typeof raw.description === 'string' && raw.description.trim()) info.description = raw.description.trim().slice(0, 1000);
+  if (typeof raw.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(raw.date)) info.date = raw.date;
+  const rows = body.rows as Row[];
+  if (!Array.isArray(rows) || !rows.length || rows.length > 3000 || JSON.stringify(rows).length > 3_000_000) return { error: 'Données de départ invalides.' };
+  const seen = new Set<string>();
+  for (const r of rows) {
+    if (!r || !KINDS.has(r.kind) || typeof r.id !== 'string' || !r.id || r.id.length > 200 || typeof r.pos !== 'number' || !Number.isFinite(r.pos) || r.data === undefined) return { error: 'Données de départ invalides.' };
+    const key = `${r.kind}|${r.id}`;
+    if (seen.has(key)) return { error: 'Données de départ en double.' };
+    seen.add(key);
+  }
+  const chef = rows.find((r) => r.kind === 'people' && r.id === body.chefId);
+  const roles = chef?.data?.roles;
+  if (!chef || !Array.isArray(roles) || !roles.includes('admin')) return { error: 'Le président / responsable doit être admin de l’entité.' };
+  const email = String(chef.data.email ?? '').trim().toLowerCase();
+  if (!EMAIL.test(email)) return { error: 'Adresse email du président / responsable invalide.' };
+  return { nom, type, info, rows, chef, email };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: cors });
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
@@ -58,13 +106,15 @@ Deno.serve(async (req) => {
   const { data: me } = await db.auth.getUser(token);
   if (!me?.user) return json({ error: 'Connexion requise.' }, 401);
 
-  let body: Record<string, string>;
+  let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
     return json({ error: 'Requête invalide.' }, 400);
   }
-  const { action, committeeId, personId } = body;
+  const action = String(body.action ?? '');
+  const committeeId = String(body.committeeId ?? '');
+  const personId = body.personId ? String(body.personId) : '';
   if (!committeeId || !(await isAdmin(db, committeeId, me.user.id))) return json({ error: 'Réservé aux administrateurs du comité.' }, 403);
 
   // Liste des accès du comité (avec l'adresse du compte et la dernière connexion).
@@ -76,6 +126,45 @@ Deno.serve(async (req) => {
       out.push({ personId: r.person_id, owner: r.owner, email: u.user?.email, derniereConnexion: u.user?.last_sign_in_at, provisoire: !!u.user?.user_metadata?.doit_changer_mdp });
     }
     return json({ acces: out });
+  }
+
+  // Nouvelle entité du club (sous-comité, groupe, équipe d'événement) : réservé aux admins du comité central.
+  if (action === 'creerUnite') {
+    const { data: club } = await db.from('committees').select('id, parent_id').eq('id', committeeId).maybeSingle();
+    if (!club || club.parent_id) return json({ error: 'Les entités se créent depuis le comité central.' }, 400);
+    const u = checkUnit(body);
+    if ('error' in u) return json({ error: u.error }, 400);
+    const { data: created, error } = await db.from('committees').insert({ name: u.nom, type: u.type, parent_id: committeeId, info: u.info, created_by: me.user.id }).select('id').single();
+    if (error || !created) return json({ error: error?.message ?? 'Création impossible.' }, 400);
+    const unitId = created.id as string;
+    for (let i = 0; i < u.rows.length; i += 500) {
+      const { error: e } = await db.from('gsa_items').insert(u.rows.slice(i, i + 500).map((r) => ({ committee_id: unitId, kind: r.kind, id: r.id, pos: r.pos, data: r.data })));
+      if (e) {
+        // Entité inutilisable : on la range dans les archives plutôt que de laisser une entité vide active.
+        await db.from('committees').update({ info: { ...u.info, archive: true } }).eq('id', unitId);
+        return json({ error: `Données de départ refusées : ${e.message}` }, 400);
+      }
+    }
+    // Président : son compte (créé au besoin). Autres membres : leur compte s'ils en ont déjà un (même adresse).
+    const users = await usersByEmail(db);
+    let password: string | undefined;
+    let chefUser = users.get(u.email);
+    if (!chefUser) {
+      password = tempPassword();
+      const fullName = `${u.chef.data.prenom ?? ''} ${u.chef.data.nom ?? ''}`.trim();
+      const { data, error: e } = await db.auth.admin.createUser({ email: u.email, password, email_confirm: true, user_metadata: { full_name: fullName, doit_changer_mdp: true } });
+      if (e || !data.user) return json({ unitId, email: u.email, error: `Entité créée, mais pas l’accès : ${e?.message ?? 'erreur'}. Crée-le depuis sa console admin.` }, 200);
+      chefUser = data.user.id;
+    }
+    const links = new Map<string, string>([[chefUser, u.chef.id]]);
+    for (const r of u.rows) {
+      if (r.kind !== 'people' || r.id === u.chef.id || r.data?.actif === false) continue;
+      const id = users.get(String(r.data?.email ?? '').trim().toLowerCase());
+      if (id && !links.has(id)) links.set(id, r.id);
+    }
+    const { error: e } = await db.from('gsa_members').insert([...links].map(([user_id, person_id]) => ({ committee_id: unitId, user_id, person_id })));
+    if (e) return json({ unitId, email: u.email, error: `Entité créée, mais pas les accès : ${e.message}` }, 200);
+    return json({ unitId, email: u.email, password, existant: !password, lies: links.size - 1 });
   }
 
   if (!personId) return json({ error: 'Responsable manquant.' }, 400);
@@ -108,6 +197,15 @@ Deno.serve(async (req) => {
   if (action === 'reinitialiser') {
     if (!link) return json({ error: 'Ce responsable n’a pas d’accès.' }, 404);
     if (link.owner && link.user_id !== me.user.id) return json({ error: 'Seul le propriétaire peut réinitialiser son propre mot de passe.' }, 403);
+    // Un même compte peut servir dans plusieurs entités du club : il faut être admin de chacune
+    // (sinon le responsable d'un groupe pourrait prendre le compte du président du club).
+    if (link.user_id !== me.user.id) {
+      const { data: all } = await db.from('gsa_members').select('committee_id, owner').eq('user_id', link.user_id);
+      for (const o of all ?? []) {
+        if (o.owner || !(await isAdmin(db, o.committee_id, me.user.id)))
+          return json({ error: 'Ce compte sert aussi dans une autre entité du club : seul un admin de chacune de ses entités peut lui donner un nouveau mot de passe.' }, 403);
+      }
+    }
     const { data: u } = await db.auth.admin.getUserById(link.user_id);
     const password = tempPassword();
     const { error } = await db.auth.admin.updateUserById(link.user_id, { password, user_metadata: { ...(u.user?.user_metadata ?? {}), doit_changer_mdp: true } });

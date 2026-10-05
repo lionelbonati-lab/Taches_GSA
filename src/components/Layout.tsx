@@ -8,8 +8,10 @@ import { Avatar, Toast } from './ui';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
 import { showSystemNotification, useNotifications } from '../notifications';
+import { useClubOptional } from '../data/club';
+import { UNIT_TYPES } from '../data/units';
 
-export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean }[] = [
+export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean; club?: boolean }[] = [
   { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
   { to: '/taches', label: 'Tâches', icon: '✅', mobile: true },
   { to: '/agenda', label: 'Agenda', icon: '📅', mobile: true },
@@ -19,12 +21,14 @@ export const TABS: { to: string; label: string; short?: string; icon: string; pe
   { to: '/responsables', label: 'Responsables', icon: '👥', perm: 'tab.people' },
   { to: '/ordre-du-jour', label: 'Ordre du jour', icon: '📝', perm: 'tab.pv' },
   { to: '/pv', label: 'PV', icon: '🖊️', perm: 'tab.minutes' },
+  { to: '/organigramme', label: 'Organigramme', short: 'Club', icon: '🏛️', club: true },
   { to: '/reglages', label: 'Réglages', icon: '⚙️' },
   { to: '/admin', label: 'Console admin', short: 'Admin', icon: '🛡️', perm: 'admin.access' },
 ];
 
 export function Layout() {
   const { data, user, can, login, prefs, setToast, cloud } = useStore();
+  const club = useClubOptional();
   const [quick, setQuick] = useState(false);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
@@ -80,7 +84,11 @@ export function Layout() {
   }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 
   if (!user) return null;
-  const tabs = TABS.filter((t) => !t.perm || can(t.perm));
+  // Libellés selon l'entité ouverte : « Séances » pour un groupe, « Membres » hors comité central…
+  const unitType = club?.current.type ?? 'central';
+  const tabs = TABS.filter((t) => (!t.perm || can(t.perm)) && (!t.club || club)).map((t) =>
+    t.to === '/comite' ? { ...t, label: UNIT_TYPES[unitType].seances } : t.to === '/responsables' && unitType !== 'central' ? { ...t, label: 'Membres' } : t,
+  );
 
   return (
     <div className="app">
@@ -90,6 +98,7 @@ export function Layout() {
           <span className="brand-name">Tâches GSA</span>
           {cloud ? <SyncBadge /> : <span className="demo-tag">DÉMO</span>}
         </div>
+        {club && <UnitSwitch />}
         <nav className="tabs">
           {tabs.map((t) => (
             <NavLink key={t.to} to={t.to} end={t.to === '/'} title={t.label}>{t.short ?? t.label}</NavLink>
@@ -146,6 +155,46 @@ export function Layout() {
 
       <Toast />
       {quick && <TaskModal quick isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
+    </div>
+  );
+}
+
+/** Entité ouverte (comité central, sous-comité, groupe, équipe) et passage à une autre. */
+function UnitSwitch() {
+  const club = useClubOptional();
+  const [open, setOpen] = useState(false);
+  const loc = useLocation();
+  useEffect(() => setOpen(false), [loc.pathname]);
+  if (!club) return null;
+  const { current } = club;
+  const others = club.mine.filter((u) => u.id !== current.id);
+  return (
+    <div className="unit-switch">
+      <button className="unit-btn" onClick={() => setOpen(!open)} aria-expanded={open} title={`${UNIT_TYPES[current.type].label} · changer d’entité`} style={{ borderColor: current.couleur }}>
+        <span className="unit-dot" style={{ background: current.couleur }}>{UNIT_TYPES[current.type].icon}</span>
+        <span className="unit-name">{current.nom}</span>
+        <span className="unit-caret">▾</span>
+      </button>
+      {open && (
+        <>
+          <div className="unit-back" onClick={() => setOpen(false)} />
+          <div className="unit-menu" role="menu">
+            <small className="muted">Entité ouverte</small>
+            <div className="unit-item on">
+              <span className="unit-dot" style={{ background: current.couleur }}>{UNIT_TYPES[current.type].icon}</span>
+              <span><b>{current.nom}</b><small className="muted">{UNIT_TYPES[current.type].label}</small></span>
+            </div>
+            {others.length > 0 && <small className="muted">Mes autres entités</small>}
+            {others.map((u) => (
+              <button key={u.id} className="unit-item" role="menuitem" onClick={() => { setOpen(false); club.switchUnit(u.id); }}>
+                <span className="unit-dot" style={{ background: u.couleur }}>{UNIT_TYPES[u.type].icon}</span>
+                <span><b>{u.nom}</b><small className="muted">{UNIT_TYPES[u.type].label}{u.moiAdmin ? ' · ★ admin' : ''}</small></span>
+              </button>
+            ))}
+            <NavLink to="/organigramme" className="unit-item link" onClick={() => setOpen(false)}>🏛️ Organigramme du club</NavLink>
+          </div>
+        </>
+      )}
     </div>
   );
 }
