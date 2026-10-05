@@ -126,7 +126,8 @@ export interface DirectoryEntry {
   postes: { unit: OrgUnit; member: OrgMember }[];
 }
 
-export function directory(units: OrgUnit[]): DirectoryEntry[] {
+/** Annuaire du club : une entrée par personne (même adresse email), avec ses postes ; par ordre alphabétique, ou dans l'ordre de l'organigramme. */
+export function directory(units: OrgUnit[], alphabetical = true): DirectoryEntry[] {
   const map = new Map<string, DirectoryEntry>();
   for (const unit of units)
     for (const m of unit.membres) {
@@ -135,7 +136,8 @@ export function directory(units: OrgUnit[]): DirectoryEntry[] {
       e.postes.push({ unit, member: m });
       map.set(key, e);
     }
-  return [...map.values()].sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`, 'fr'));
+  const list = [...map.values()];
+  return alphabetical ? list.sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`, 'fr')) : list;
 }
 
 /** Ordre d'affichage : comité central, puis sous-comités, groupes, équipes (événements par date). */

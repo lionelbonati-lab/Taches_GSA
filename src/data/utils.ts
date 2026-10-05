@@ -13,10 +13,18 @@ export const shortName = (p?: Person) => (p ? `${p.prenom}${p.nom ? ` ${p.nom[0]
 export function initials(p?: Person) {
   if (!p) return '?';
   const first = p.prenom.split('-').map((x) => x[0]).join('').slice(0, 2);
-  // Sans nom de famille : deux premières lettres du prénom (Sarah → SA).
-  if (!p.nom) return (first.length > 1 ? first : p.prenom.slice(0, 2)).toUpperCase();
+  if (!p.nom) {
+    // Sans nom de famille : initiales des mots (Bénévole 1 → B1, Parcours et sécurité → PS), sinon deux premières lettres (Sarah → SA).
+    const words = p.prenom.split(/[\s-]+/).filter((w) => w && !/^(de|du|des|la|le|les|et|d’|l’)$/i.test(w));
+    return (words.length > 1 ? words[0][0] + words[1][0] : first.length > 1 ? first : p.prenom.slice(0, 2)).toUpperCase();
+  }
   return (first + p.nom[0]).toUpperCase();
 }
+
+const plain = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+/** Poste à afficher à côté d'un nom, sauf s'il le répète (démo : la personne est désignée par son poste). */
+export const posteBesideName = (name: string, poste?: string) =>
+  poste && plain(name) !== plain(poste) && !plain(name).startsWith(`${plain(poste)} `) ? poste : '';
 
 /** Toutes les fonctions d'une personne (poste principal + autres). */
 export const postesDe = (p: Person) => [p.poste, ...(p.autresPostes ?? '').split(',').map((x) => x.trim())].filter(Boolean);

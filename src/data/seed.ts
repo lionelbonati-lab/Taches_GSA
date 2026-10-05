@@ -1,11 +1,8 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
-import type { AppData, Poll, Role, ScheduledEmail, Task } from './types';
-import { DEFAULT_MESSAGE, DEFAULT_OBJET } from './emails';
-import { applyDelaiRef } from './utils';
-import { COMMITTEE_IDS, COMPTA_SECTION, events, meetings, people, sections, statuses, tasks } from './seedData';
-import { OUINON } from './polls';
+import type { AppData, Role } from './types';
+import { COMPTA_SECTION, events, meetings, people, sections, statuses } from './seedData';
 
-// Données du G.S. Ajoie (tableau « Suivi des tâches »), voir seedData.ts.
+// Données de départ de la démo (voir seedData.ts) : postes, rôles, sections, séances et événements du club, sans tâches.
 
 const roles: Role[] = [
   { id: ADMIN_ROLE_ID, label: 'Admin (Président)', couleur: '#b45309', permissions: ALL_PERMISSIONS, sections: [], locked: true },
@@ -16,84 +13,19 @@ const roles: Role[] = [
   { id: 'responsable', label: 'Responsable d’activité', couleur: '#9333ea', permissions: ['tasks.editOwn', 'tab.events', 'tab.people'], sections: [] },
 ];
 
-// Sondages d'exemple (sans réponses : on vote en changeant d'utilisateur).
-function demoPolls(): Poll[] {
-  const byTitle = (s: string) => tasks.find((t) => t.titre.startsWith(s));
-  const sec = (nom: string) => sections.find((s) => s.nom === nom)?.id;
-  const swiss = byTitle('Décider avec le comité si on enregistre');
-  // « Définir le lieu » du Comité 5 (tâche liée à « Prochain comité »).
-  const lieu = tasks.find((t) => t.id === 't53');
-  const base = { creePar: 'p1', creeLe: '2026-09-25T18:00:00.000Z', votes: {}, votants: [...COMMITTEE_IDS] };
-  return [
-    {
-      ...base, id: 'poll1', type: 'ouinon', multiple: false, anonyme: false, options: OUINON, dateLimite: '2026-10-20', taskId: swiss?.id,
-      question: 'Enregistrer tous les membres (139) à Swiss Cycling au lieu des 44 actuels ?',
-      description: 'Avant de transmettre la liste exportée de ClubDesk.',
-    },
-    {
-      ...base, id: 'poll2', type: 'dates', multiple: true, anonyme: false, dateLimite: '2026-10-15', sectionId: sec('Divers'),
-      question: 'Date de la fête de l’Avent du club',
-      options: [
-        { id: 'o1', label: '', date: '2026-12-05', heure: '18:00' },
-        { id: 'o2', label: '', date: '2026-12-12', heure: '18:00' },
-        { id: 'o3', label: '', date: '2026-12-19', heure: '18:00' },
-      ],
-    },
-    {
-      ...base, id: 'poll3', type: 'choix', multiple: false, anonyme: false, taskId: lieu?.id,
-      question: 'Lieu du Comité 5 (29.10.2026)',
-      options: [
-        { id: 'o1', label: 'Chez un membre du comité' },
-        { id: 'o2', label: 'Au restaurant' },
-        { id: 'o3', label: 'Salle du club' },
-      ],
-    },
-    {
-      ...base, id: 'poll4', type: 'choix', multiple: true, anonyme: true, sectionId: sec('Événements'),
-      question: 'Programme hivernal : quelles activités ajouter ?',
-      description: 'Plusieurs réponses possibles, réponses anonymes.',
-      options: [
-        { id: 'o1', label: 'Sortie ski de fond' },
-        { id: 'o2', label: 'Sortie raquettes' },
-        { id: 'o3', label: 'Home trainer en groupe' },
-        { id: 'o4', label: 'Rien de plus' },
-      ],
-    },
-  ];
-}
-
-// Exemples d'emails programmés par le président (l'un est déjà à envoyer).
-export function demoEmails(list: Task[]): ScheduledEmail[] {
-  const base = { creePar: 'p1', creeLe: '2026-09-20T18:00:00.000Z', statut: 'programme' as const, siNonTerminee: true, objet: DEFAULT_OBJET, message: DEFAULT_MESSAGE };
-  const mk = (id: string, taskId: string, quand: ScheduledEmail['quand'], extra: Partial<ScheduledEmail> = {}): ScheduledEmail | null => {
-    const t = list.find((x) => x.id === taskId);
-    return t ? { ...base, id, taskId, destinataires: [...t.responsables], quand, ...extra } : null;
-  };
-  return [
-    mk('e1', 't48', { type: 'delai', jours: 14, heure: '08:00' }),
-    mk('e2', 't26', { type: 'delai', jours: 7, heure: '18:00' }),
-    mk('e3', 't62', { type: 'delai', jours: -1, heure: '09:00' }, {
-      objet: 'Relance : {tâche}',
-      message: 'Bonjour,\n\nLe délai de la tâche « {tâche} » était le {délai}. Peux-tu me dire où tu en es ?\n\nVoir la tâche : {lien}\n\nMerci et à bientôt\n{expéditeur}',
-    }),
-  ].filter((x): x is ScheduledEmail => !!x);
-}
-
 export function makeSeed(): AppData {
-  const base = { people, events, meetings } as AppData;
-  const list = tasks.map((t) => applyDelaiRef(base, structuredClone(t)));
   return {
     people: structuredClone(people),
     statuses: structuredClone(statuses),
     sections: structuredClone(sections),
-    tasks: list,
+    tasks: [],
     meetings: structuredClone(meetings),
     events: structuredClone(events),
     roles: structuredClone(roles),
-    polls: demoPolls(),
-    emails: demoEmails(list),
+    polls: [],
+    emails: [],
     schema: 12,
-    log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Import du tableau « Suivi des tâches » (G.S. Ajoie)' }],
+    log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Données de départ de la démo (sans tâches)' }],
     prefs: {},
   };
 }

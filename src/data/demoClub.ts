@@ -1,11 +1,13 @@
 import { makeSeed } from './seed';
+import { people as centralPeople } from './seedData';
 import { migrate } from './store';
 import { unitData } from './units';
-import { applyDelaiRef } from './utils';
-import type { AppData, ClubEvent, Meeting, Person, Task, Unit } from './types';
+import { clearFiles } from './files';
+import type { AppData, ClubEvent, Meeting, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
-// Les personnes sont fictives (prénoms + initiale, adresses @gsajoie.example) : le site est public.
+// Le site est public : aucun nom, chaque personne est désignée par son poste (adresses @gsajoie.example),
+// et aucune tâche : chaque testeur part de zéro.
 
 export const CENTRAL_ID = 'u-central';
 const CLUB_KEY = 'taches-gsa-demo-club';
@@ -42,14 +44,17 @@ const SEED_UNITS: Unit[] = [
   { id: 'u-soiree', nom: 'Soirée récréative', type: 'equipe', parentId: CENTRAL_ID, couleur: '#db2777', date: '2026-11-28', description: 'Équipe de la soirée du club (sans comité).' },
 ];
 
-type P = [prenom: string, nom: string, email: string, couleur: string, poste: string, role: string];
-const person = (i: number, [prenom, nom, email, couleur, poste, role]: P): Person => ({
+// Une personne = son poste principal (même nom et même adresse dans chaque entité où elle a un poste).
+type P = [nom: string, couleur: string, poste: string, role: string];
+const slug = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const person = (i: number, [nom, couleur, poste, role]: P): Person => ({
   id: `p${i + 1}`,
-  prenom,
-  nom,
-  email: `${email}@gsajoie.example`,
+  prenom: nom,
+  nom: '',
+  email: `${slug(nom)}@gsajoie.example`,
   telephone: '',
-  couleur,
+  // Déjà au comité central : même couleur partout.
+  couleur: centralPeople.find((p) => p.prenom === nom)?.couleur ?? couleur,
   poste,
   roles: [role],
   actif: true,
@@ -57,84 +62,32 @@ const person = (i: number, [prenom, nom, email, couleur, poste, role]: P): Perso
 
 const MEMBERS: Record<string, P[]> = {
   'u-ecole': [
-    ['Noah', 'R.', 'noah', '#ca8a04', 'Responsable École de cyclisme', 'admin'],
-    ['Sarah', '', 'sarah', '#c026d3', 'Monitrice J+S', 'moniteur'],
-    ['Léa', 'M.', 'lea', '#0d9488', 'Monitrice', 'moniteur'],
-    ['Yann', 'P.', 'yann', '#2563eb', 'Moniteur', 'moniteur'],
-    ['Bastien', 'C.', 'bastien', '#a16207', 'Aide-moniteur', 'membre'],
+    ['École de cyclisme', '#ca8a04', 'Responsable', 'admin'],
+    ['Coach JS', '#c026d3', 'Moniteur J+S', 'moniteur'],
+    ['Moniteur 1', '#0d9488', 'Moniteur', 'moniteur'],
+    ['Moniteur 2', '#2563eb', 'Moniteur', 'moniteur'],
+    ['Aide-moniteur', '#a16207', 'Aide-moniteur', 'membre'],
   ],
   'u-competition': [
-    ['Christophe', 'T.', 'christophe', '#ea580c', 'Responsable compétition', 'admin'],
-    ['Ismaël', 'R.', 'ismael', '#0891b2', 'Entraîneur', 'moniteur'],
-    ['Marc', 'D.', 'marc', '#4f46e5', 'Entraîneur route', 'moniteur'],
-    ['Romain', '', 'romain', '#b45309', 'Coureur', 'membre'],
-    ['Julie', 'V.', 'julie', '#be185d', 'Coureuse', 'membre'],
+    ['Compétition 1', '#ea580c', 'Responsable', 'admin'],
+    ['Compétition 2', '#0891b2', 'Entraîneur', 'moniteur'],
+    ['Entraîneur route', '#4f46e5', 'Entraîneur route', 'moniteur'],
+    ['Course préparation 1', '#b45309', 'Coureur', 'membre'],
+    ['Coureur', '#be185d', 'Coureur', 'membre'],
   ],
   'u-bruntrutaine': [
-    ['Clément', '', 'clement', '#9333ea', 'Président du CO', 'admin'],
-    ['Damien', 'H.', 'damien', '#7c3aed', 'Délégué du comité central', 'membre'],
-    ['Pierre', 'G.', 'pierre', '#15803d', 'Parcours et sécurité', 'membre'],
-    ['Nadia', 'F.', 'nadia', '#c2410c', 'Inscriptions et caisse', 'membre'],
-    ['Aude', '', 'aude', '#65a30d', 'Responsable des bénévoles', 'membre'],
+    ['Bruntrutaine', '#9333ea', 'Président du CO', 'admin'],
+    ['Vice-président', '#7c3aed', 'Délégué du comité central', 'membre'],
+    ['Parcours et sécurité', '#15803d', 'Parcours et sécurité', 'membre'],
+    ['Inscriptions et caisse', '#c2410c', 'Inscriptions et caisse', 'membre'],
+    ['Bénévole 1', '#65a30d', 'Responsable des bénévoles', 'membre'],
   ],
   'u-soiree': [
-    ['Stéphanie', 'S.', 'stephanie', '#be123c', 'Responsable de la soirée', 'admin'],
-    ['Lionel', 'B.', 'lionel', '#1d4ed8', 'Animation', 'membre'],
-    ['Noah', 'R.', 'noah', '#ca8a04', 'Jeux pour les enfants', 'membre'],
-    ['Mèg', '', 'meg', '#e11d48', 'Décoration', 'membre'],
-    ['Alphonse', '', 'alphonse', '#0369a1', 'Bar', 'membre'],
-  ],
-};
-
-type T = [titre: string, section: string, resp: number[], statut: string, delai: string, remarque?: string];
-const NOW = '2026-10-01T18:00:00.000Z';
-const task = (i: number, [titre, sectionId, resp, statusId, delai, remarque = '']: T): Task => ({
-  id: `t${i + 1}`,
-  sectionId,
-  sousSection: '',
-  titre,
-  responsables: resp.map((n) => `p${n}`),
-  statusId,
-  delai,
-  remarque,
-  checklist: [],
-  createdBy: `p${resp[0] ?? 1}`,
-  updatedAt: NOW,
-});
-
-const TASKS: Record<string, T[]> = {
-  'u-ecole': [
-    ['Planning des entraînements d’hiver', 'sec1', [1], 's2', '2026-10-31', 'Samedi matin, salle de gym en cas de pluie'],
-    ['Renouveler les reconnaissances J+S des moniteurs', 'sec2', [2], 's1', '2026-12-15'],
-    ['Camp de juillet 2027 : réserver l’hébergement', 'sec1', [3], 's1', '2027-01-31'],
-    ['Inventaire des vélos de prêt', 'sec3', [4], 's1', '2026-11-15'],
-    ['Commander les maillots enfants', 'sec3', [5, 1], 's3', '2027-03-15', 'Attendre le devis du fournisseur'],
-    ['Liste des enfants inscrits pour la saison 2027', 'sec4', [1], 's1', '2027-02-28'],
-  ],
-  'u-competition': [
-    ['Calendrier des courses 2027', 'sec1', [1, 2], 's2', '2026-12-01'],
-    ['Inscriptions au Trophée Jurassien 2027', 'sec4', [1], 's1', '2027-02-15'],
-    ['Plans d’entraînement d’hiver des coureurs', 'sec2', [3], 's2', '2026-11-01'],
-    ['Commande des maillots compétition', 'sec3', [1], 's1', '2027-01-15'],
-    ['Stage de printemps : choisir la destination', 'sec1', [2, 3], 's1', '2026-12-20'],
-  ],
-  'u-bruntrutaine': [
-    ['Réserver la halle et les vestiaires', 'sec2', [1], 's7', '2026-09-30'],
-    ['Valider le parcours avec la commune', 'sec1', [3], 's2', '2026-11-30'],
-    ['Ouvrir les inscriptions en ligne', 'sec4', [4], 's1', '2026-12-15'],
-    ['Recruter 25 bénévoles', 'sec3', [5], 's1', '2027-01-31'],
-    ['Commander les prix souvenirs', 'sec2', [1], 's1', '2027-01-15'],
-    ['Affiches et annonces dans la presse', 'sec4', [2], 's1', '2027-01-20'],
-    ['Budget et recherche de sponsors', 'sec5', [1, 2], 's2', '2026-12-01'],
-  ],
-  'u-soiree': [
-    ['Réserver la salle', 'sec1', [1], 's7', '2026-09-15'],
-    ['Menu et traiteur', 'sec1', [1], 's2', '2026-11-07'],
-    ['Boissons et bar', 'sec2', [5], 's1', '2026-11-21'],
-    ['Jeux pour les enfants', 'sec2', [3], 's1', '2026-11-21'],
-    ['Décoration de la salle', 'sec2', [4], 's1', '2026-11-27'],
-    ['Animation et tombola', 'sec2', [2], 's2', '2026-11-14'],
-    ['Invitations aux membres', 'sec1', [2], 's1', '2026-10-31', 'Via la newsletter et WhatsApp'],
+    ['Gruppetto', '#be123c', 'Responsable de la soirée', 'admin'],
+    ['Président', '#1d4ed8', 'Animation', 'membre'],
+    ['École de cyclisme', '#ca8a04', 'Jeux pour les enfants', 'membre'],
+    ['Bénévole 2', '#e11d48', 'Décoration', 'membre'],
+    ['Bénévole 3', '#0369a1', 'Bar', 'membre'],
   ],
 };
 
@@ -160,41 +113,38 @@ function seedUnit(u: Unit): AppData {
     d.roles = d.roles.map((r) => (r.id === 'moniteur' ? { ...r, label: 'Entraîneur' } : r.id === 'membre' ? { ...r, label: 'Coureur' } : r));
   d.events = EVENTS[u.id] ?? [];
   d.meetings = MEETINGS[u.id] ?? [];
-  // Sous-comité / équipe d'événement : toutes les tâches préparent l'événement.
-  const eventId = u.type !== 'groupe' ? d.events[0]?.id : undefined;
-  d.tasks = TASKS[u.id].map((t, i) => applyDelaiRef(d, { ...task(i, t), eventId }));
-  d.log = [{ id: 'l0', at: NOW, userId: 'p1', action: `Création de « ${u.nom} » (données de démonstration)` }];
+  d.log = [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: `Création de « ${u.nom} » (données de démonstration, sans tâches)` }];
   return d;
 }
 
-/** Exemple de demande reçue par le comité central (proposée par l'école de cyclisme). */
-const SAMPLE_REQUEST: Task = {
-  id: 'd1',
-  sectionId: 'sec6',
-  sousSection: '',
-  titre: 'Valider le budget 2027 de l’école de cyclisme',
-  responsables: [],
-  statusId: 's1',
-  delai: '2026-11-30',
-  remarque: 'Budget joint à la prochaine séance : vélos de prêt, camp de juillet, maillots enfants.',
-  checklist: [],
-  createdBy: '',
-  updatedAt: NOW,
-  proposee: { uniteId: 'u-ecole', unite: 'École de cyclisme', par: 'Noah R.', le: NOW },
-};
-
 // ---------- Lecture / écriture ----------
+
+/**
+ * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro
+ * (v2 : postes au lieu des noms, sans tâches).
+ */
+const DEMO_VERSION = '2';
+const VERSION_KEY = 'taches-gsa-demo-version';
+
+function checkVersion() {
+  try {
+    if (localStorage.getItem(VERSION_KEY) === DEMO_VERSION) return;
+    Object.keys(localStorage)
+      .filter((k) => k.startsWith('taches-gsa-demo') || k === OLD_USER_KEY)
+      .forEach((k) => localStorage.removeItem(k));
+    localStorage.setItem(VERSION_KEY, DEMO_VERSION);
+    void clearFiles();
+  } catch {
+    /* stockage indisponible : rien à remettre à zéro */
+  }
+}
 
 /** Entités du club (créées au premier passage, avec leurs données de départ). */
 export function loadUnits(): Unit[] {
+  checkVersion();
   const saved = read<Unit[]>(CLUB_KEY);
   if (saved?.length) return saved;
   for (const u of SEED_UNITS) if (u.type !== 'central' && !read(unitStorageKey(u.id))) write(unitStorageKey(u.id), seedUnit(u));
-  const central = loadUnitData(CENTRAL_ID);
-  if (!central.tasks.some((t) => t.id === SAMPLE_REQUEST.id)) {
-    central.tasks.unshift(structuredClone(SAMPLE_REQUEST));
-    write(unitStorageKey(CENTRAL_ID), central);
-  }
   write(CLUB_KEY, SEED_UNITS);
   return structuredClone(SEED_UNITS);
 }

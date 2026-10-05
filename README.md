@@ -15,25 +15,21 @@ npm run build      # version statique dans dist/
 
 ## Données et comptes de démo
 
-Les données de départ viennent du tableau **« Suivi des tâches » du G.S. Ajoie** (12 sections, séances de comité 2026-27, événements du club). Seules les lignes à partir du 01.09.2026 sont reprises (63 lignes) ; les lignes sans délai sont conservées, sauf celles d'événements antérieurs.
+La démo part de l'organisation du **G.S. Ajoie** (12 sections, séances de comité 2026-27, événements du club, sous-comités et groupes), **sans aucune tâche** : chaque testeur part de zéro et crée les siennes. Pas de sondage ni d'email programmé d'exemple non plus.
 
-- **Une sous-section présente plusieurs fois devient une tâche principale** (du nom de la sous-section, ex. « AG 13.03.2027 », « Prochain comité », « Newsletter ») et **chaque ligne devient une tâche liée** avec tout ce qu'elle avait dans le tableau : responsable(s), délai (lié à la séance si c'était une formule), statut, remarque, répétition. Résultat : 74 tâches, dont 11 tâches principales et 36 tâches liées.
-- **Statuts simplifiés** : À faire, En cours, En attente, Terminé, Annulé (« A valider » → En cours, « A discuter » → À faire, « Sans nouvelles » → En attente, « OK » et « Info » → Terminé). La liste reste modifiable dans la console admin.
-- Les données déjà enregistrées dans le navigateur sont mises à niveau automatiquement : tâches du tableau remplacées, tâches créées dans l'appli gardées (statut converti), sondages / emails / PV rattachés à la tâche regroupée. Les délais en formule du tableau (`=Comité_3+7`, `=AG_2027`) sont devenus des **délais liés** à la séance / l'AG, et les responsables en formule (`=Caissier`, `=Secretaire`) servent à l'**attribution par poste** des tâches annuelles.
+Le site étant public, **aucun nom** : chaque personne est désignée par son **poste** (numéroté quand plusieurs personnes ont le même : Compétition 1 et 2, Bénévole 1 à 3…), adresses fictives (`president@gsajoie.example`…), pas de téléphones. Les données de démo déjà enregistrées dans un navigateur (avec les anciens noms et tâches) sont remises à zéro automatiquement à la première visite.
 
-Le site étant public : prénoms + initiale du nom uniquement, noms de tiers masqués (démissions, radiations, relances, remboursements), emails fictifs (`@gsajoie.example`), pas de téléphones.
+Connexion par simple clic sur un poste (sans mot de passe) :
 
-Connexion par simple clic sur un nom (sans mot de passe) :
-
-| Qui | Rôle(s) |
+| Poste | Rôle(s) |
 |---|---|
-| Lionel B. (Président) | Admin – tout, dont la console admin et l'Ordre du jour |
-| Maxime R. (Secrétaire) | Secrétaire – voit/gère tout sauf console admin, listes et Ordre du jour ; tient le **PV** |
-| Marie-France J. (Caissier) | Comité **+** Caissier (gère toutes les tâches de Comptabilité) |
-| Damien, Christophe, Ismaël, Noah, Stéphanie | Comité – voit tout, modifie ses propres tâches |
-| Dieter, Clément, Christian, Romain, Heinz, Sarah, Jérôme, Aude, Mèg, Alphonse | Responsable d'activité – uniquement ses propres tâches |
+| Président | Admin – tout, dont la console admin, l'Ordre du jour et la création d'entités |
+| Secrétaire | Secrétaire – voit/gère tout sauf console admin, listes et Ordre du jour ; tient le **PV** |
+| Caissier | Comité **+** Caissier (gère toutes les tâches de Comptabilité) |
+| Vice-président, Compétition 1 et 2, École de cyclisme, Gruppetto | Comité – voit tout, modifie ses propres tâches |
+| Natation, Bruntrutaine, Montvoie, Course préparation 1 et 2, Coach JS, Camp de Pentecôte, Bénévole 1 à 3 | Responsable d'activité – uniquement ses propres tâches |
 
-L'écran de connexion de la démo liste tout l'annuaire du club, y compris les membres des sous-comités, groupes et équipes (moniteurs, coureurs, bénévoles…) : chacun retrouve les entités dont il fait partie. Exemples : **Noah R.** (comité central, responsable de l'école de cyclisme, soirée récréative), **Clément** (président du CO Bruntrutaine), **Sarah** (monitrice), **Julie V.** (coureuse).
+L'écran de connexion liste aussi les membres des sous-comités, groupes et équipes (Moniteur 1 et 2, Aide-moniteur, Entraîneur route, Coureur, Parcours et sécurité…) : chacun retrouve les entités dont il fait partie. Exemples : **École de cyclisme** (comité central, responsable de l'école de cyclisme, soirée récréative), **Bruntrutaine** (président du CO Bruntrutaine), **Moniteur 1** (seulement l'école de cyclisme).
 
 ## Rôles et permissions
 
@@ -106,7 +102,6 @@ Dans une tâche, **📧 Programmer un email** : destinataires (responsables coch
 - Un email calé sur le délai **suit le délai** s'il change (y compris un délai lié à un événement).
 - États : 🕓 programmé, 📨 à envoyer, ✅ envoyé (date), ⛔ annulé, ✔️ pas envoyé car tâche terminée ; actions Envoyer maintenant, Modifier, Annuler, Reprogrammer, Supprimer. Repère 📧 et filtre « Avec email programmé » dans Tâches.
 - Tâche récurrente : les emails sont reconduits avec l'occurrence suivante (destinataires qui suivent le poste).
-- Trois exemples programmés par le président (dont un déjà à envoyer).
 
 Limite de la démo : sans serveur, l'appli ne peut pas envoyer d'email elle-même. À l'heure prévue, l'auteur reçoit une notification 🔔 (et de l'appareil si activée) ; **✉ Envoyer** ouvre l'email déjà rempli dans sa messagerie, puis « Marquer comme envoyé ». La version réelle l'enverra automatiquement à l'heure prévue.
 
@@ -125,7 +120,7 @@ Onglet **📊 Sondages** (filtres À voter / En cours / Terminés), sondages li�
 - résultats en barres, meilleure option ★, liste des personnes en attente ; clôturer / rouvrir / modifier / supprimer (créateur ou droit « Gérer tous les sondages ») ;
 - notification 🔔 et encadré sur l'accueil quand un sondage attend ta réponse ; résultats résumés sous leur section dans l'**ordre du jour**.
 
-Droits : « Créer des sondages » (Admin, Secrétaire, Comité par défaut) et « Gérer tous les sondages » (Admin, Secrétaire). Quatre sondages d'exemple, sans réponses : change d'utilisateur pour voter.
+Droits : « Créer des sondages » (Admin, Secrétaire, Comité par défaut) et « Gérer tous les sondages » (Admin, Secrétaire). Pour tester un vote à plusieurs, change d'utilisateur (bouton « Changer »).
 
 ## Ordre du jour
 

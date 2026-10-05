@@ -3,7 +3,7 @@ import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
 import { directory, orgMembers, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, type DirectoryEntry } from '../data/units';
 import type { OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
-import { fmtDate } from '../data/utils';
+import { fmtDate, posteBesideName } from '../data/utils';
 import { Empty, Initials, Modal } from '../components/ui';
 import { CredentialsModal } from './Admin';
 
@@ -130,7 +130,7 @@ function UnitCard({ u, onEdit }: { u: OrgUnit; onEdit?: () => void }) {
 }
 
 function MemberLine({ m, chef }: { m: OrgMember; chef?: string }) {
-  const label = m.poste || m.roles.filter((r) => !r.startsWith('Admin')).join(', ') || chef || '';
+  const label = m.poste ? posteBesideName(`${m.prenom} ${m.nom}`, m.poste) : m.roles.filter((r) => !r.startsWith('Admin')).join(', ') || chef || '';
   return (
     <li className={chef ? 'org-chef' : ''} title={m.roles.join(' + ')}>
       <Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={26} />
@@ -160,7 +160,7 @@ function Directory({ people }: { people: DirectoryEntry[] }) {
               <span className="org-pills">
                 {e.postes.map((p) => (
                   <span key={p.unit.id} className="role-pill" style={{ background: p.unit.couleur }} title={`${p.unit.nom} · ${p.member.roles.join(' + ')}`}>
-                    {p.unit.nom}{p.member.admin ? ' ★' : ''}{p.member.poste && ` · ${p.member.poste}`}
+                    {p.unit.nom}{p.member.admin ? ' ★' : ''}{posteBesideName(`${e.prenom} ${e.nom}`, p.member.poste) && ` · ${p.member.poste}`}
                   </span>
                 ))}
               </span>

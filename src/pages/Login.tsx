@@ -4,29 +4,31 @@ import { switchMode } from '../data/mode';
 import { directory } from '../data/units';
 import type { OrgUnit } from '../data/types';
 import { Initials } from '../components/ui';
+import { posteBesideName } from '../data/utils';
 
 /** Démo : connexion en choisissant une personne de l'annuaire du club (sans mot de passe). */
 export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (key: string) => void; onReset: () => void }) {
   const [q, setQ] = useState('');
-  const people = directory(units.filter((u) => !u.archive)).filter((e) => `${e.prenom} ${e.nom} ${e.postes.map((p) => `${p.unit.nom} ${p.member.poste}`).join(' ')}`.toLowerCase().includes(q.trim().toLowerCase()));
+  // Dans l'ordre de l'organigramme (président d'abord) : en démo, les personnes sont désignées par leur poste.
+  const people = directory(units.filter((u) => !u.archive), false).filter((e) => `${e.prenom} ${e.nom} ${e.postes.map((p) => `${p.unit.nom} ${p.member.poste}`).join(' ')}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="login">
       <div className="login-card wide">
         <img src="./icon.svg" alt="" width={56} height={56} />
         <h1>Tâches GSA</h1>
         <p className="muted">
-          Démonstration – choisis une personne du club pour te connecter.
+          Démonstration – choisis un poste du club pour te connecter.
           <br />
           Aucun mot de passe, aucune donnée réelle.
         </p>
-        <input className="login-search" type="search" placeholder="Rechercher un nom, un comité, un poste…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="login-search" type="search" placeholder="Rechercher un poste, une entité…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="login-list">
           {people.map((e) => (
             <button key={e.key} className="login-user" onClick={() => onPick(e.key)}>
               <Initials prenom={e.prenom} nom={e.nom} couleur={e.couleur} size={40} />
               <span>
                 <strong>{e.prenom} {e.nom}</strong>
-                <small>{e.postes.map((p) => p.member.poste).filter(Boolean).join(' · ')}</small>
+                <small>{e.postes.map((p) => posteBesideName(`${e.prenom} ${e.nom}`, p.member.poste)).filter(Boolean).join(' · ')}</small>
               </span>
               <span className="role-pills">
                 {e.postes.map((p) => (

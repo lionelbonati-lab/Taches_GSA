@@ -1,9 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { demoEmails, makeSeed } from './seed';
-import { GROUPS } from './seedData';
+import { makeSeed } from './seed';
+import { statuses as STATUSES } from './seedData';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
-import type { ActivityNotif, AppData, ChecklistItem, MeetingMinutes, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
+import type { ActivityNotif, AppData, ChecklistItem, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
 import { clearFiles } from './files';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
@@ -34,10 +34,10 @@ export function migrate(d: AppData): AppData {
     d.meetings.forEach((m) => m.minutes && snapshotToJournal(d, m.minutes));
   }
   if ((d.schema ?? 7) < 10) {
-    // v10 : emails programmés (exemples ajoutés).
-    if (!d.emails) d.emails = demoEmails(d.tasks);
+    // v10 : emails programmés.
+    if (!d.emails) d.emails = [];
   }
-  if ((d.schema ?? 7) < 11) reimport(d);
+  if ((d.schema ?? 7) < 11) simplifyStatuses(d);
   if ((d.schema ?? 7) < 12) linkSubtasks(d);
   d.schema = SCHEMA;
   return d;
@@ -46,74 +46,29 @@ export function migrate(d: AppData): AppData {
 /** Anciens statuts → statuts simplifiés (A valider → En cours, A discuter → À faire, Sans nouvelles → En attente, Info → Terminé). */
 const STATUS_MAP: Record<string, string> = { s4: 's2', s5: 's1', s6: 's3', s8: 's7' };
 
-/**
- * v11 : données du tableau reprises — une sous-section présente plusieurs fois devient une tâche principale
- * dont chaque ligne est une tâche liée ; statuts simplifiés. Les tâches créées dans l'appli sont gardées
- * (statut converti) ; sondages, emails et PV visent toujours la même ligne du tableau.
- */
-function reimport(d: AppData) {
-  const seed = makeSeed();
-  const known = new Set(seed.statuses.map((s) => s.id));
-  const sid = (id: string) => (known.has(id) ? id : STATUS_MAP[id] ?? seed.statuses[0].id);
-  const own = d.tasks.filter((t) => !/^t\d+$/.test(t.id)).map((t) => ({ ...t, statusId: sid(t.statusId) }));
-  d.statuses = seed.statuses;
-  d.tasks = [...seed.tasks.map((t) => applyDelaiRef(d, t)), ...own];
-  for (const s of seed.sections) {
-    const x = d.sections.find((y) => y.id === s.id);
-    if (!x) d.sections.push(s);
-    else s.sousSections.forEach((ss) => x.sousSections.includes(ss) || x.sousSections.push(ss));
-  }
+/** v11 : statuts simplifiés (À faire, En cours, En attente, Terminé, Annulé) ; les tâches gardent leur avancement. */
+function simplifyStatuses(d: AppData) {
+  const known = new Set(STATUSES.map((s) => s.id));
+  const sid = (id: string) => (known.has(id) ? id : STATUS_MAP[id] ?? STATUSES[0].id);
+  d.tasks = d.tasks.map((t) => ({ ...t, statusId: sid(t.statusId) }));
+  d.statuses = structuredClone(STATUSES);
   // Statuts exclus de l'ordre du jour : on retire ceux qui n'existent plus (exclure « Info » ne doit pas exclure « Terminé »).
   Object.values(d.prefs).forEach((p) => p.pv?.statutsExclus && (p.pv.statutsExclus = p.pv.statutsExclus.filter((id) => known.has(id))));
-  d.log.unshift({
-    id: `l${Date.now()}v11`,
-    at: new Date().toISOString(),
-    userId: 'p1',
-    action: 'Données du tableau reprises : sous-sections regroupées en tâches principales avec tâches liées, statuts simplifiés',
-  });
+  d.log.unshift({ id: `l${Date.now()}v11`, at: new Date().toISOString(), userId: 'p1', action: 'Statuts simplifiés : À faire, En cours, En attente, Terminé, Annulé' });
 }
 
 /** Ancien format des sous-tâches (v10-v11) : personne chargée et délai propre. */
 type OldItem = ChecklistItem & { assigneeId?: string; delai?: string; ref?: { type: 'event' | 'meeting'; id: string; joursAvant: number } };
 
-/**
- * v12 : les sous-tâches deviennent des tâches liées à une tâche principale ; les sous-tâches restantes
- * redeviennent de simples cases à cocher (sans délai ni personne chargée).
- * - Tâche regroupée en v11 (sous-section du tableau) : elle devient la tâche principale (identifiant du groupe)
- *   et chaque ligne du tableau redevient une vraie tâche (responsable, délai lié, statut, remarque, répétition),
- *   cochée → terminée. Tout ce qui visait la tâche regroupée vise la tâche principale.
- * - Autre sous-tâche avec personne chargée ou délai : devient une tâche liée.
- */
+/** v12 : une sous-tâche avec personne chargée ou délai devient une tâche liée ; les autres restent de simples cases à cocher. */
 function linkSubtasks(d: AppData) {
-  const seed = makeSeed();
-  const seedById = new Map(seed.tasks.map((t) => [t.id, t]));
   const doneId = d.statuses.find((s) => s.done)?.id ?? 's7';
   const openId = d.statuses.find((s) => !s.done)?.id ?? 's1';
-  const isDoneId = (id: string) => !!d.statuses.find((s) => s.id === id)?.done;
-  const renamed = new Map<string, string>();
   const now = new Date().toISOString();
   const strip = (c: OldItem): ChecklistItem => ({ id: c.id, label: c.label, done: c.done });
   const out: Task[] = [];
   for (const t of d.tasks) {
     const items = t.checklist as OldItem[];
-    const pid = GROUPS[t.id];
-    const rows = pid ? items.filter((c) => /^ct\d+$/.test(c.id) && seedById.has(c.id.slice(1))) : [];
-    if (pid && rows.length) {
-      renamed.set(t.id, pid);
-      const seedParent = seedById.get(pid);
-      // Tâche regroupée jamais modifiée : on reprend la tâche principale telle qu'importée.
-      const base = seedParent && t.updatedAt === seedParent.updatedAt ? { ...structuredClone(seedParent), checklist: [] } : { ...t, remarque: '', checklist: [] };
-      out.push(applyDelaiRef(d, { ...base, id: pid, checklist: items.filter((c) => !rows.includes(c)).map(strip) }));
-      for (const c of rows) {
-        const child = applyDelaiRef(d, { ...structuredClone(seedById.get(c.id.slice(1))!), parentId: pid });
-        if (c.done !== isDoneId(child.statusId)) {
-          child.statusId = c.done ? doneId : openId;
-          child.termineeLe = c.done ? now.slice(0, 10) : undefined;
-        }
-        out.push(child);
-      }
-      continue;
-    }
     const toTask = items.filter((c) => c.assigneeId || c.delai);
     out.push({ ...t, checklist: items.filter((c) => !toTask.includes(c)).map(strip) });
     for (const c of toTask)
@@ -136,23 +91,10 @@ function linkSubtasks(d: AppData) {
         }),
       );
   }
-  const tid = (id: string) => renamed.get(id) ?? id;
-  d.tasks = out.map((t) => (t.suivanteId ? { ...t, suivanteId: tid(t.suivanteId) } : t));
-  d.polls?.forEach((p) => p.taskId && (p.taskId = tid(p.taskId)));
-  d.emails?.forEach((e) => (e.taskId = tid(e.taskId)));
-  d.notifications = (d.notifications ?? []).filter((n) => (n.type as string) !== 'subtask').map((n) => ({ ...n, taskId: tid(n.taskId) }));
-  const remapMinutes = (m?: Omit<MeetingMinutes, 'derniereValidee'>) => {
-    if (!m) return;
-    if (m.pointIds) m.pointIds = [...new Set(m.pointIds.map(tid))];
-    if (m.nouvelles) m.nouvelles = [...new Set(m.nouvelles.map(tid))];
-    m.journal?.forEach((j) => (j.taskId = tid(j.taskId)));
-  };
-  d.meetings.forEach((m) => {
-    remapMinutes(m.minutes);
-    remapMinutes(m.minutes?.derniereValidee);
-  });
-  if (renamed.size || out.length !== d.tasks.length)
+  if (out.length !== d.tasks.length)
     d.log.unshift({ id: `l${Date.now()}v12`, at: now, userId: 'p1', action: 'Sous-tâches transformées en tâches liées à leur tâche principale' });
+  d.tasks = out;
+  d.notifications = (d.notifications ?? []).filter((n) => (n.type as string) !== 'subtask');
 }
 
 function load(): AppData {

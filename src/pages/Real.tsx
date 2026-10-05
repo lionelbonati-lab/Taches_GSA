@@ -7,7 +7,7 @@ import { linkMyPerson, type CloudSync, type Membership } from '../data/cloud';
 import { makeSeed } from '../data/seed';
 import { migrate, SCHEMA } from '../data/store';
 import { ADMIN_ROLE_ID } from '../data/permissions';
-import { fmtDateTime, uid } from '../data/utils';
+import { fmtDateTime, fullName, posteBesideName, uid } from '../data/utils';
 import type { AppData, Person } from '../data/types';
 import { sortUnits, UNIT_TYPES } from '../data/units';
 
@@ -312,7 +312,7 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
           <label className="login-form">
             Qui es-tu dans cette liste ?
             <select value={me} onChange={(e) => setMe(e.target.value)}>
-              {backup.data.people.filter((p) => p.actif).map((p) => <option key={p.id} value={p.id}>{p.prenom} {p.nom} – {p.poste}</option>)}
+              {backup.data.people.filter((p) => p.actif).map((p) => <option key={p.id} value={p.id}>{fullName(p)}{posteBesideName(fullName(p), p.poste) && ` – ${p.poste}`}</option>)}
             </select>
           </label>
           <p className="muted small-note">Pense à corriger ensuite les noms et les adresses email dans l’onglet Responsables : ce sont elles qui serviront à créer les accès des membres.</p>
