@@ -5,6 +5,7 @@ import type { AppData, NotifPrefs, Person } from './data/types';
 import { isOpen } from './data/polls';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
+import { chf, paiementTasks } from './data/paiements';
 
 // Notifications de la démo : calculées dans le navigateur à partir des données.
 // Dans la version réelle, un serveur enverrait les mêmes messages en « push », appli fermée.
@@ -161,11 +162,37 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
       });
     }
 
+  // Tickets à rembourser : à signer (validation), virement à faire (caisse), réponse au demandeur.
+  if (p.assign) {
+    const roles = userRoles(data.roles, user);
+    for (const t of paiementTasks(data)) {
+      const { etat, montant, demandePar } = t.paiement;
+      const qui = shortName(data.people.find((x) => x.id === demandePar));
+      const todo =
+        etat === 'a_valider' && hasPermission(roles, 'paiements.valider') ? { icon: '✍️', text: `Ticket à valider : « ${t.titre} »` }
+        : etat === 'valide' && hasPermission(roles, 'paiements.payer') ? { icon: '💳', text: `Virement à faire : « ${t.titre} »` }
+        : null;
+      if (todo)
+        items.push({ key: `paiement:${t.id}:${etat}`, ...todo, sub: `${chf(montant)} · ${qui}`, link: `/paiements?p=${t.id}`, at: t.paiement.validation?.le ?? t.paiement.demandeLe, kind: 'alerte' });
+      const fait = etat === 'paye' ? t.paiement.paye : etat === 'refuse' ? t.paiement.refus : etat === 'valide' ? t.paiement.validation : undefined;
+      if (demandePar === user.id && fait && fait.par !== user.id)
+        items.push({
+          key: `paiement:${t.id}:${etat}`,
+          icon: etat === 'paye' ? '✅' : etat === 'refuse' ? '❌' : '✍️',
+          text: etat === 'paye' ? `Ton ticket « ${t.titre} » a été remboursé` : etat === 'refuse' ? `Ton ticket « ${t.titre} » a été refusé` : `Ton ticket « ${t.titre} » est validé`,
+          sub: etat === 'refuse' ? t.paiement.refus?.motif : `${chf(montant)} · par ${shortName(data.people.find((x) => x.id === fait.par))}`,
+          link: `/paiements?p=${t.id}`,
+          at: fait.le,
+          kind: 'activite',
+        });
+    }
+  }
+
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
     if ((n.type === 'assign' && !p.assign) || (n.type !== 'assign' && !p.modif)) continue;
     const t = data.tasks.find((x) => x.id === n.taskId);
-    if (!t) continue;
+    if (!t || (t.paiement && n.type === 'assign')) continue; // les tickets ont leur propre alerte
     const by = n.byName ?? fullName(data.people.find((x) => x.id === n.by));
     items.push({
       key: n.id,

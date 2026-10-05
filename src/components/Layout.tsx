@@ -18,6 +18,7 @@ export const TABS: { to: string; label: string; short?: string; icon: string; pe
   { to: '/comite', label: 'Comité', icon: '🗓️', perm: 'tab.meetings', mobile: true },
   { to: '/evenements', label: 'Événements', icon: '🎉', perm: 'tab.events' },
   { to: '/sondages', label: 'Sondages', icon: '📊' },
+  { to: '/paiements', label: 'Paiements', icon: '💳' },
   { to: '/responsables', label: 'Responsables', icon: '👥', perm: 'tab.people' },
   { to: '/ordre-du-jour', label: 'Ordre du jour', icon: '📝', perm: 'tab.pv' },
   { to: '/pv', label: 'PV', icon: '🖊️', perm: 'tab.minutes' },

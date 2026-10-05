@@ -612,6 +612,46 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   .sheet-link.active { background: var(--primary-soft); color: var(--primary); }
 }
 
+/* ---------- Paiements (tickets à rembourser) ---------- */
+.tickets { display: flex; flex-direction: column; gap: 12px; }
+.ticket { padding: 14px 16px; border-left: 4px solid var(--border); }
+.ticket.etat-a_valider { border-left-color: #d97706; }
+.ticket.etat-valide { border-left-color: var(--primary); }
+.ticket.etat-paye { border-left-color: #16a34a; }
+.ticket.etat-refuse { border-left-color: var(--danger); opacity: 0.85; }
+.ticket-head { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+.ticket-head h3 { margin: 0 0 2px; font-size: 1.05rem; }
+.ticket-montant { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.ticket-montant strong { font-size: 1.25rem; white-space: nowrap; }
+.ticket-etat { white-space: nowrap; }
+.ticket-etat.a_valider { background: #fef3c7; color: #92400e; }
+.ticket-etat.valide { background: var(--primary-soft); color: var(--primary); }
+.ticket-etat.paye { background: #dcfce7; color: #166534; }
+.ticket-etat.refuse { background: #fee2e2; color: #991b1b; }
+.ticket-infos { display: grid; grid-template-columns: max-content 1fr; gap: 2px 12px; margin: 10px 0; font-size: 0.9rem; }
+.ticket-infos dt { color: var(--muted); }
+.ticket-infos dd { margin: 0; overflow-wrap: anywhere; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.ticket-docs { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0; }
+.ticket-doc { display: flex; flex-direction: column; align-items: center; gap: 4px; width: 96px; padding: 6px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); cursor: pointer; }
+.ticket-doc .doc-thumb { width: 80px; height: 80px; }
+.ticket-doc .doc-icon { font-size: 2rem; line-height: 80px; }
+.ticket-doc small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.7rem; }
+.ticket-visa { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin: 8px 0; }
+.ticket-visa img { max-height: 70px; max-width: 260px; background: #fff; border-bottom: 1px solid var(--border); }
+.ticket-refus { color: var(--danger); margin: 6px 0; }
+.ticket-ok { color: #16a34a; margin: 6px 0; }
+.ticket-inline { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.ticket-inline input { flex: 1 1 220px; }
+.ticket-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.signature { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
+.signature .row { display: flex; align-items: center; gap: 8px; }
+.signature-pad { width: 100%; height: 180px; background: #fff; border: 1px dashed var(--border); border-radius: 8px; touch-action: none; cursor: crosshair; }
+@media print {
+  .ticket { border: 1px solid #999; break-inside: avoid; }
+  .ticket-doc { border: none; }
+}
+
 /* ---------- Impression ---------- */
 @media print {
   .topbar, .bottomnav, .fab, .actions, .filters, .mobile-only, .no-print, .toast { display: none !important; }

@@ -17,7 +17,9 @@ export type Permission =
   | 'events.manage'
   | 'people.manage'
   | 'settings.lists'
-  | 'admin.access';
+  | 'admin.access'
+  | 'paiements.valider'
+  | 'paiements.payer';
 
 export interface Person {
   id: string;
@@ -177,6 +179,8 @@ export interface Task {
   proposee?: Proposal;
   /** Tâche ajoutée par un membre du comité central (entité ouverte en « modifier / ajouter ») : son nom. */
   parCentral?: string;
+  /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
+  paiement?: Paiement;
 }
 
 /** Origine d'une tâche proposée au comité central. */
@@ -463,4 +467,19 @@ export interface MyRequest {
   termine: boolean;
   supprimee: boolean;
   responsables: string[];
+}
+
+/** Ticket à rembourser (le paiement se fait hors de l'appli : la caisse fait le virement). */
+export interface Paiement {
+  montant: number;
+  /** Personne à rembourser (fiche). */
+  beneficiaire: string;
+  /** Compte pour le virement, si la caisse ne le connaît pas. */
+  iban?: string;
+  etat: 'a_valider' | 'valide' | 'refuse' | 'paye';
+  demandePar: string;
+  demandeLe: string;
+  validation?: { par: string; le: string; signature: string };
+  refus?: { par: string; le: string; motif: string };
+  paye?: { par: string; le: string; remarque?: string };
 }

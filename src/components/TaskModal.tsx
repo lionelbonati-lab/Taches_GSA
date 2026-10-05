@@ -4,6 +4,7 @@ import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
 import { EmailsField } from './EmailsField';
 import { deleteFiles } from '../data/files';
+import { ETATS, chf } from '../data/paiements';
 import { useStore } from '../data/store';
 import type { DelaiUnite, Recurrence, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, shortName, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
@@ -39,7 +40,8 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
   const [newPoll, setNewPoll] = useState(false);
   if (!user) return null;
 
-  const editable = isNew ? true : canEditTask(task);
+  // Ticket à rembourser : validation, signature et « payé » se font dans l'onglet Paiements.
+  const editable = isNew ? true : !task.paiement && canEditTask(task);
   const canAssignOthers = t.sectionId ? canAssign(t.sectionId) : creatableSections().some((s) => canAssign(s.id));
   const section = data.sections.find((s) => s.id === t.sectionId);
   // Sections proposées : celles où le rôle permet de créer (+ la section actuelle en modification).
@@ -111,6 +113,12 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
           <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>
             ↳ Tâche liée à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
           </button>
+        )}
+        {!quick && t.paiement && (
+          <a className="full proposal-banner" href={`#/paiements?p=${t.id}`}>
+            💳 Ticket à rembourser · <b>{chf(t.paiement.montant)}</b> · {ETATS[t.paiement.etat].label}.
+            <span className="muted"> Validation (signature) et « payé » se font dans Paiements → ouvrir</span>
+          </a>
         )}
         {!quick && t.proposee && (
           <p className="full proposal-banner">

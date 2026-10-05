@@ -76,6 +76,7 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
 - **Comité** : séances (date, lieu, ordre du jour, notes/PV) et tâches liées.
 - **Événements** : événements du club, avancement des tâches liées.
 - **Responsables** : poste, nom, prénom, email, portable (liens mail / appel).
+- **Paiements** : tickets à rembourser (voir plus bas).
 - **Club** : organigramme et annuaire du club (voir ci-dessus).
 - **Réglages** : thème clair/sombre, vue par défaut.
 - **Console admin** : rôles, activation des comptes, matrice de permissions, sections/sous-sections, statuts, journal d'activité.
@@ -168,6 +169,16 @@ Onglet **🖊️ PV** (droit « Onglet PV », donné au Secrétaire et à l'Admi
 - **Imprimer / PDF**, **Copier le texte**, **Envoyer par email** au comité, **✅ Valider et archiver** : la secrétaire valide seule ; le PV validé est archivé dans la séance (onglet Comité, 📝) et le comité est notifié 🔔.
 - **Correction après coup** : un PV validé passe en lecture seule ; **✏️ Corriger le PV** rouvre notes, présences et points (modifications de tâches comprises), **Annuler la correction** revient à la version validée. La nouvelle validation crée la **version 2** (« corrigée le … », email « PV corrigé »), l'ancienne version reste archivée et le comité est notifié.
 
+## Paiements (tickets à rembourser)
+
+Le paiement ne se fait pas dans l'appli : elle sert à **demander, valider et suivre** un remboursement.
+
+1. **Demande** : « 📷 Nouveau ticket » (ou le raccourci **Ticket à rembourser** de l'icône) → photo du ticket prise directement avec l'appareil (📷 Photo) ou fichier existant (📎 Fichier, PDF compris), objet, montant, personne à rembourser, IBAN (facultatif), remarque. Le ticket part « ✍️ À valider ».
+2. **Validation** : la personne qui a le droit « Valider (signer) les tickets » (par défaut les admins, donc le président) ouvre le ticket, vérifie la photo et **signe au doigt, au stylet ou à la souris** → « 💳 Validé – virement à faire ». Elle peut aussi **refuser** (avec un motif) ; le demandeur corrige et renvoie.
+3. **Caisse** : la personne qui a le droit « Caisse : faire les virements » (rôle Caissier) voit le ticket dans « À payer » avec la signature, fait le virement dans son e-banking puis appuie sur **✅ Virement fait (OK)** (remarque facultative) → « Payé ».
+
+Chaque ticket est aussi une tâche (section des finances, sous-section « Remboursements ») : elle passe des validateurs à la caisse, puis se clôt une fois payée. Notifications : ticket à valider, virement à faire, puis « ton ticket a été validé / remboursé / refusé » pour le demandeur. **🖨 Bon de paiement** imprime le ticket validé avec sa signature. Les droits se règlent dans la console admin (matrice de permissions, groupe Gestion). En version réelle, le serveur applique les mêmes règles (voir SUPABASE_SETUP.md, migration 008).
+
 ## Notifications (démo)
 
 Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de notifications non lues :
@@ -200,7 +211,7 @@ L'application peut s'installer comme une vraie appli (icône, fenêtre dédiée,
 | Android – Chrome | Bouton « Installer l'application » ou menu ⋮ › Installer l'application |
 | iPhone / iPad – Safari | Bouton Partager › Sur l'écran d'accueil |
 
-Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche** et **Mes tâches**.
+Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche**, **Mes tâches**, **Ticket à rembourser** (ouvre directement la prise de photo) et **Paiements** (tickets à valider / à payer). Une appli déjà installée peut devoir être réinstallée pour voir les nouveaux raccourcis.
 
 **Icône avec le logo** : quand le club (ou l'entité ouverte) a un logo, il devient l'icône de l'appli : onglet du navigateur, icône proposée par « Sur l'écran d'accueil » (iPhone / iPad) et à l'installation (Chrome / Edge / Android). Le dernier logo est gardé sur l'appareil et repris dès le lancement. Une appli **déjà installée garde son ancienne icône** : la supprimer puis la réinstaller (ou la rajouter à l'écran d'accueil) pour prendre le nouveau logo.
 

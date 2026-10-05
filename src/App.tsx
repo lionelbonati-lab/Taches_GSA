@@ -13,6 +13,7 @@ import { Polls } from './pages/Polls';
 import { Minutes } from './pages/Minutes';
 import { Calendar } from './pages/Calendar';
 import { Org } from './pages/Org';
+import { Paiements } from './pages/Paiements';
 import { useClubOptional } from './data/club';
 
 export function App() {
@@ -46,6 +47,7 @@ export function App() {
           {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
           {can('tab.minutes') && <Route path="pv" element={<Minutes />} />}
           <Route path="sondages" element={<Polls />} />
+          <Route path="paiements" element={<Paiements />} />
           {club && <Route path="organigramme" element={<Org />} />}
           <Route path="reglages" element={<Settings />} />
           {can('admin.access') && <Route path="admin" element={<Admin />} />}

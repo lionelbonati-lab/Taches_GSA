@@ -10,7 +10,7 @@ export interface DocTracking {
   removed: string[];
 }
 
-function Thumb({ id }: { id: string }) {
+export function Thumb({ id }: { id: string }) {
   const [url, setUrl] = useState<string>();
   useEffect(() => {
     let u: string | undefined;

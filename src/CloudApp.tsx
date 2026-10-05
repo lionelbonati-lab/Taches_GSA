@@ -5,6 +5,7 @@ import { CloudSync, GUEST_WRITABLE, linkMyPerson, myMemberships, type Membership
 import { migrate, SCHEMA, StoreProvider, type CloudMode } from './data/store';
 import { setServerFiles } from './data/files';
 import type { AppData, Person } from './data/types';
+import { ADMIN_ROLE_ID } from './data/permissions';
 import { App } from './App';
 import { CloudClub } from './CloudClub';
 import { AppLogo } from './components/ui';
@@ -70,9 +71,10 @@ export function CloudApp() {
       if (empty) return setPhase(m.owner ? { k: 'miseEnRoute', m, sync } : { k: 'pasPret', m });
       const person = data.people.find((p) => p.id === m.personId);
       if (!person) return setPhase(m.owner ? { k: 'quiEsTu', m, sync, data } : { k: 'pasPret', m });
-      // Les étapes de mise à niveau ≤ v12 ne concernent que la démo.
+      // Les étapes de mise à niveau ≤ v12 ne concernent que la démo. Les suivantes touchent aux rôles :
+      // seul un admin les fait (le serveur refuserait sinon) ; en attendant, l'appli fonctionne sans.
       if (!data.schema) data.schema = SCHEMA;
-      else if (data.schema < SCHEMA) migrate(data);
+      else if (data.schema < SCHEMA && person.roles.includes(ADMIN_ROLE_ID)) migrate(data);
       setPhase({ k: 'pret', cloud: { sync, initial: data, personId: person.id, membership: m, email: s.user.email ?? '', signOut } });
     },
     [signOut],

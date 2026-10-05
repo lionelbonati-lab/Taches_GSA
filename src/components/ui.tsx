@@ -102,6 +102,7 @@ export function DocPollIcons({ task }: { task: Task }) {
   const emails = (data.emails ?? []).filter((e) => e.taskId === task.id && e.statut === 'programme').length;
   return (
     <>
+      {task.paiement && <span className="ticon" title="Ticket à rembourser">💳</span>}
       {n > 0 && <span className="ticon" title={`${n} document(s)`}>📎{n > 1 ? n : ''}</span>}
       {polls > 0 && <span className="ticon" title="Sondage lié">📊</span>}
       {emails > 0 && <span className="ticon" title={`${emails} email(s) programmé(s)`}>📧</span>}

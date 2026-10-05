@@ -18,7 +18,7 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 12;
+export const SCHEMA = 13;
 
 /**
  * Mises à niveau des données déjà enregistrées (évite de tout réinitialiser).
@@ -40,6 +40,11 @@ export function migrate(d: AppData): AppData {
   }
   if ((d.schema ?? 7) < 11) simplifyStatuses(d);
   if ((d.schema ?? 7) < 12) linkSubtasks(d);
+  if ((d.schema ?? 7) < 13) {
+    // v13 : tickets à rembourser ; la caisse reçoit le droit de faire les virements (validation : admins).
+    if (!d.roles.some((r) => r.permissions.includes('paiements.payer')))
+      d.roles.filter((r) => r.id === 'caissier' || /caiss|trésor|tresor|financ/i.test(r.label)).forEach((r) => r.permissions.push('paiements.payer'));
+  }
   d.schema = SCHEMA;
   return d;
 }
