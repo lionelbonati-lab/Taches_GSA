@@ -8,6 +8,10 @@ export const OUINON: PollOption[] = [
   { id: 'abst', label: 'Abstention' },
 ];
 
+/** Réponse « Autre » (texte libre), ajoutée en dernier quand le sondage la propose. */
+export const AUTRE_ID = 'autre';
+export const autreOption = (type: Poll['type']): PollOption => ({ id: AUTRE_ID, label: type === 'dates' ? 'Autre proposition' : 'Autre', autre: true });
+
 export const POLL_TYPES: { id: Poll['type']; label: string }[] = [
   { id: 'ouinon', label: 'Oui / Non / Abstention' },
   { id: 'choix', label: 'Choix parmi des options' },
@@ -26,8 +30,14 @@ export function optionLabel(o: PollOption) {
 export function results(p: Poll) {
   const voters = Object.keys(p.votes).filter((id) => p.votants.includes(id));
   const counts = p.options.map((o) => ({ option: o, ids: voters.filter((v) => p.votes[v].includes(o.id)) }));
-  const max = Math.max(0, ...counts.map((c) => c.ids.length));
+  // « Autre » regroupe des réponses différentes : jamais désignée meilleure réponse.
+  const max = Math.max(0, ...counts.filter((c) => !c.option.autre).map((c) => c.ids.length));
   return { voters, counts, max };
+}
+
+/** Textes écrits avec « Autre », dans l'ordre des votants. */
+export function autreTextes(p: Poll, ids: string[]) {
+  return ids.map((id) => ({ id, texte: p.textes?.[id]?.trim() ?? '' })).filter((x) => x.texte);
 }
 
 export function pollSection(data: AppData, p: Poll) {
@@ -40,9 +50,14 @@ export function pollSummary(p: Poll) {
   const parts =
     p.type === 'dates'
       ? r.max > 0
-        ? [`meilleure date : ${r.counts.filter((c) => c.ids.length === r.max).map((c) => optionLabel(c.option)).join(' / ')} (${r.max} dispo.)`]
+        ? [`meilleure date : ${r.counts.filter((c) => !c.option.autre && c.ids.length === r.max).map((c) => optionLabel(c.option)).join(' / ')} (${r.max} dispo.)`]
         : ['aucune disponibilité pour l’instant']
-      : r.counts.map((c) => `${c.option.label} ${c.ids.length}`);
+      : r.counts.filter((c) => !c.option.autre).map((c) => `${c.option.label} ${c.ids.length}`);
+  const autre = r.counts.find((c) => c.option.autre);
+  if (autre && (autre.ids.length || p.type !== 'dates')) {
+    const textes = autreTextes(p, autre.ids).map((x) => `« ${x.texte} »`);
+    parts.push(`${autre.option.label} ${autre.ids.length}${textes.length ? ` (${textes.join(' ; ')})` : ''}`);
+  }
   const state = isOpen(p) ? (p.dateLimite ? `ouvert jusqu’au ${fmtDate(p.dateLimite)}` : 'ouvert') : 'clôturé';
   return `${parts.join(' · ')} — ${r.voters.length}/${p.votants.length} réponses, ${state}`;
 }

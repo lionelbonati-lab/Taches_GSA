@@ -5,6 +5,7 @@ import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
 import type { ActivityNotif, AppData, ChecklistItem, Guest, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
 import { clearFiles } from './files';
+import { AUTRE_ID } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
 import { applyRows, GUEST_WRITABLE, type CloudSync, type Membership } from './cloud';
@@ -172,7 +173,8 @@ interface Store {
   /** Marque des notifications comme vues (sans entrée au journal). */
   markNotifsRead: (keys: string[]) => void;
   savePoll: (p: Poll, isNew: boolean) => void;
-  votePoll: (pollId: string, optionIds: string[]) => void;
+  /** `texte` : réponse écrite avec « Autre ». */
+  votePoll: (pollId: string, optionIds: string[], texte?: string) => void;
   closePoll: (pollId: string, closed: boolean) => void;
   deletePoll: (pollId: string) => void;
   canManagePoll: (p: Poll) => boolean;
@@ -415,12 +417,17 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [update],
   );
   const votePoll = useCallback(
-    (pollId: string, optionIds: string[]) => {
+    (pollId: string, optionIds: string[], texte?: string) => {
       if (!userId) return;
       const p = data.polls?.find((x) => x.id === pollId);
       update((d) => {
         const x = d.polls?.find((y) => y.id === pollId);
-        if (x) x.votes = { ...x.votes, [userId]: optionIds };
+        if (!x) return;
+        x.votes = { ...x.votes, [userId]: optionIds };
+        const textes = { ...x.textes };
+        if (texte?.trim() && optionIds.includes(AUTRE_ID)) textes[userId] = texte.trim();
+        else delete textes[userId];
+        x.textes = textes;
       }, `Réponse au sondage « ${p?.question ?? ''} »`);
     },
     [update, userId, data.polls],

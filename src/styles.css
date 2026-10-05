@@ -356,6 +356,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .poll.compact .poll-bar { background: var(--surface); }
 .poll-bar div { height: 100%; background: var(--primary); border-radius: 4px; transition: width 0.3s; }
 .poll-results li.best .poll-bar div { background: #16a34a; }
+.poll-results li.autre .poll-bar div { background: var(--muted); }
+.poll-textes { list-style: none; margin: 4px 0 0; padding: 0 0 0 10px; border-left: 3px solid var(--border); display: flex; flex-direction: column; gap: 2px; font-size: 0.9rem; }
+.poll-autre-input { margin-left: 28px; width: calc(100% - 28px); }
 .poll-actions { display: flex; gap: 6px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 8px; margin-top: 8px; }
 .table.doodle { margin: 6px 0 10px; font-size: 0.85rem; }
 .table.doodle tbody tr { cursor: default; }

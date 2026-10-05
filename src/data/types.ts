@@ -92,6 +92,8 @@ export interface PollOption {
   label: string;
   date?: string;
   heure?: string;
+  /** Réponse « Autre » : le votant écrit sa propre réponse. */
+  autre?: boolean;
 }
 
 export interface Poll {
@@ -113,6 +115,8 @@ export interface Poll {
   clotureLe?: string;
   /** Réponses : personne → options choisies. */
   votes: Record<string, string[]>;
+  /** Texte écrit avec la réponse « Autre » : personne → texte. */
+  textes?: Record<string, string>;
 }
 
 /** Quand partir : date et heure fixes, ou N jours avant (négatif = après) le délai de la tâche. */

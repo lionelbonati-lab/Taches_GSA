@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Poll } from '../data/types';
-import { POLL_TYPES, isOpen, optionLabel, results } from '../data/polls';
+import { AUTRE_ID, POLL_TYPES, autreTextes, isOpen, optionLabel, results } from '../data/polls';
 import { fmtDate, fullName, initials } from '../data/utils';
 import { PollEditor } from './PollEditor';
 
@@ -11,6 +11,8 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
   const { data, user, votePoll, closePoll, deletePoll, canManagePoll } = useStore();
   const mine = user ? poll.votes[user.id] : undefined;
   const [sel, setSel] = useState<string[]>(mine ?? []);
+  const myText = user ? poll.textes?.[user.id] ?? '' : '';
+  const [texte, setTexte] = useState(myText);
   const [changing, setChanging] = useState(false);
   const [edit, setEdit] = useState(false);
   if (!user) return null;
@@ -26,6 +28,9 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
 
   const toggle = (id: string) =>
     setSel((s) => (poll.multiple ? (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]) : [id]));
+  // « Autre » cochée : la réponse écrite est obligatoire.
+  const autreOn = sel.includes(AUTRE_ID) && poll.options.some((o) => o.autre);
+  const canSend = (sel.length > 0 || poll.type === 'dates') && (!autreOn || !!texte.trim());
 
   return (
     <article id={`poll-${poll.id}`} className={`poll ${compact ? 'compact' : ''} ${highlight ? 'highlight' : ''}`}>
@@ -51,14 +56,25 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
           {poll.options.map((o) => (
             <label key={o.id} className="poll-choice">
               <input type={poll.multiple ? 'checkbox' : 'radio'} name={`vote-${poll.id}`} checked={sel.includes(o.id)} onChange={() => toggle(o.id)} />
-              <span>{optionLabel(o)}{poll.type === 'dates' && <small className="muted"> — disponible</small>}</span>
+              <span>{optionLabel(o)}{poll.type === 'dates' && !o.autre && <small className="muted"> — disponible</small>}{o.autre && !sel.includes(o.id) && <small className="muted"> — à préciser</small>}</span>
             </label>
           ))}
+          {autreOn && (
+            <input
+              className="poll-autre-input"
+              autoFocus
+              maxLength={300}
+              value={texte}
+              onChange={(e) => setTexte(e.target.value)}
+              placeholder={poll.type === 'dates' ? 'Propose une autre date ou heure…' : 'Écris ta réponse…'}
+              aria-label="Ta réponse"
+            />
+          )}
           <div className="row">
-            <button className="btn primary small" disabled={!sel.length && poll.type !== 'dates'} onClick={() => { votePoll(poll.id, sel); setChanging(false); }}>
+            <button className="btn primary small" disabled={!canSend} onClick={() => { votePoll(poll.id, sel, autreOn ? texte : undefined); setChanging(false); }}>
               {mine ? 'Mettre à jour ma réponse' : 'Envoyer ma réponse'}
             </button>
-            {changing && <button className="btn small" onClick={() => { setSel(mine ?? []); setChanging(false); }}>Annuler</button>}
+            {changing && <button className="btn small" onClick={() => { setSel(mine ?? []); setTexte(myText); setChanging(false); }}>Annuler</button>}
             {poll.type === 'dates' && <small className="muted">Aucune date cochée = pas disponible.</small>}
           </div>
         </div>
@@ -67,15 +83,25 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
           <ul className="poll-results">
             {r.counts.map(({ option, ids }) => {
               const pct = r.voters.length ? Math.round((ids.length / r.voters.length) * 100) : 0;
-              const best = r.max > 0 && ids.length === r.max;
+              const best = !option.autre && r.max > 0 && ids.length === r.max;
+              const textes = option.autre ? autreTextes(poll, ids) : [];
               return (
-                <li key={option.id} className={best ? 'best' : ''}>
+                <li key={option.id} className={`${best ? 'best' : ''} ${option.autre ? 'autre' : ''}`}>
                   <div className="poll-row">
                     <span>{best && '★ '}{optionLabel(option)}{mine?.includes(option.id) && <small className="muted"> (ton choix)</small>}</span>
                     <b>{ids.length}</b>
                   </div>
                   <div className="poll-bar"><div style={{ width: `${pct}%` }} /></div>
-                  {!poll.anonyme && ids.length > 0 && !compact && <small className="muted">{ids.map((id) => initials(person(id))).join(', ')}</small>}
+                  {!option.autre && !poll.anonyme && ids.length > 0 && !compact && <small className="muted">{ids.map((id) => initials(person(id))).join(', ')}</small>}
+                  {textes.length > 0 && (
+                    <ul className="poll-textes">
+                      {textes.map((x) => (
+                        <li key={x.id}>
+                          « {x.texte} »{!poll.anonyme && <small className="muted"> — {compact ? initials(person(x.id)) : fullName(person(x.id))}</small>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </li>
               );
             })}
@@ -86,13 +112,13 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
                 <thead><tr><th>Membre</th>{poll.options.map((o) => <th key={o.id}>{optionLabel(o)}</th>)}</tr></thead>
                 <tbody>
                   {r.voters.map((id) => (
-                    <tr key={id}><td>{fullName(person(id))}</td>{poll.options.map((o) => <td key={o.id} className={poll.votes[id].includes(o.id) ? 'yes' : 'no'}>{poll.votes[id].includes(o.id) ? '✓' : '—'}</td>)}</tr>
+                    <tr key={id}><td>{fullName(person(id))}</td>{poll.options.map((o) => <td key={o.id} className={poll.votes[id].includes(o.id) ? 'yes' : 'no'}>{poll.votes[id].includes(o.id) ? (o.autre && poll.textes?.[id]) || '✓' : '—'}</td>)}</tr>
                   ))}
                 </tbody>
               </table>
             </div>
           )}
-          {open && voter && mine && <button className="btn small" onClick={() => { setSel(mine); setChanging(true); }}>Modifier ma réponse</button>}
+          {open && voter && mine && <button className="btn small" onClick={() => { setSel(mine); setTexte(myText); setChanging(true); }}>Modifier ma réponse</button>}
           {!voter && open && <small className="muted">Tu ne fais pas partie des votants de ce sondage.</small>}
         </>
       )}

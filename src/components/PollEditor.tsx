@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { Poll, PollType } from '../data/types';
-import { OUINON, POLL_TYPES, committeeOf } from '../data/polls';
+import { OUINON, POLL_TYPES, autreOption, committeeOf } from '../data/polls';
 import { shortName, today, uid } from '../data/utils';
 import { Modal } from './ui';
 
@@ -29,6 +29,8 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
         votes: {},
       },
   );
+  // Réponse « Autre » (texte libre) : gardée à part, ajoutée en dernier à l'enregistrement.
+  const [autre, setAutre] = useState(() => !!poll?.options.some((o) => o.autre));
   const [err, setErr] = useState('');
   const set = (patch: Partial<Poll>) => setP((x) => ({ ...x, ...patch }));
   const setOpt = (id: string, patch: Partial<Poll['options'][number]>) => set({ options: p.options.map((o) => (o.id === id ? { ...o, ...patch } : o)) });
@@ -37,8 +39,9 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
 
   const submit = () => {
     if (!p.question.trim()) return setErr('Écris la question.');
-    const options = p.type === 'ouinon' ? OUINON : p.options.filter((o) => (p.type === 'dates' ? !!o.date : !!o.label.trim()));
-    if (options.length < 2) return setErr(p.type === 'dates' ? 'Propose au moins deux dates.' : 'Propose au moins deux réponses.');
+    const base = p.type === 'ouinon' ? OUINON : p.options.filter((o) => !o.autre && (p.type === 'dates' ? !!o.date : !!o.label.trim()));
+    const options = autre ? [...base, autreOption(p.type)] : base;
+    if (base.length < 2) return setErr(p.type === 'dates' ? 'Propose au moins deux dates.' : 'Propose au moins deux réponses.');
     if (!p.votants.length) return setErr('Choisis au moins un votant.');
     savePoll({ ...p, question: p.question.trim(), options, multiple: p.type === 'dates' ? true : p.type === 'ouinon' ? false : p.multiple }, !poll);
     onClose();
@@ -69,7 +72,7 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
         {p.type !== 'ouinon' && (
           <fieldset className="full">
             <legend>{p.type === 'dates' ? 'Dates proposées' : 'Réponses possibles'}</legend>
-            {p.options.map((o, i) => (
+            {p.options.filter((o) => !o.autre).map((o, i, list) => (
               <div key={o.id} className="row">
                 {p.type === 'dates' ? (
                   <>
@@ -80,7 +83,7 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
                 ) : (
                   <input className="grow" placeholder={`Réponse ${i + 1}`} value={o.label} onChange={(e) => setOpt(o.id, { label: e.target.value })} />
                 )}
-                <button type="button" className="icon-btn" disabled={p.options.length <= 2} onClick={() => set({ options: p.options.filter((x) => x.id !== o.id) })} aria-label="Retirer">✕</button>
+                <button type="button" className="icon-btn" disabled={list.length <= 2} onClick={() => set({ options: p.options.filter((x) => x.id !== o.id) })} aria-label="Retirer">✕</button>
               </div>
             ))}
             <button type="button" className="btn small" onClick={() => set({ options: [...p.options, { id: uid('o'), label: '', ...(p.type === 'dates' ? { date: '', heure: '' } : {}) }] })}>
@@ -92,6 +95,10 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
             {p.type === 'dates' && <small className="muted">Chacun coche toutes les dates où il est disponible.</small>}
           </fieldset>
         )}
+        <label className="inline full">
+          <input type="checkbox" checked={autre} onChange={(e) => setAutre(e.target.checked)} />
+          {p.type === 'dates' ? 'Ajouter « Autre proposition » : chacun peut écrire une autre date' : 'Ajouter « Autre » : chacun peut écrire sa propre réponse'}
+        </label>
 
         <fieldset className="full">
           <legend>Votants ({p.votants.length})</legend>
