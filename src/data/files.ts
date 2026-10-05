@@ -100,17 +100,21 @@ export async function compressImage(file: File): Promise<Blob> {
   }
 }
 
-export async function openFile(id: string, nom: string) {
+/** Ouvre le fichier (image, PDF, texte) ou le télécharge ; `telecharger` force le téléchargement. */
+export async function openFile(id: string, nom: string, telecharger = false) {
   const blob = await getFile(id);
   if (!blob) return false;
   const url = URL.createObjectURL(blob);
   const viewable = blob.type.startsWith('image/') || blob.type === 'application/pdf' || blob.type.startsWith('text/');
-  if (viewable) window.open(url, '_blank', 'noopener');
+  if (viewable && !telecharger) window.open(url, '_blank', 'noopener');
   else {
     const a = document.createElement('a');
     a.href = url;
-    a.download = nom;
+    // Nom sans accents ni caractères spéciaux : certains navigateurs refusent sinon le nom proposé.
+    a.download = nom.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^\w .,()+-]+/g, '-').replace(/-{2,}/g, '-');
+    document.body.appendChild(a); // hors du document, certains navigateurs ignorent le nom du fichier
     a.click();
+    a.remove();
   }
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
   return true;

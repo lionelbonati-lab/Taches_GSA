@@ -176,7 +176,7 @@ Le paiement ne se fait pas dans l'appli : elle sert à **demander, viser et suiv
 1. **Ticket** : « 📷 Nouveau ticket » (ou le raccourci **Ticket à rembourser** de l'icône) → photo prise directement avec l'appareil (📷 Photo) ou fichier existant (📎 Fichier, PDF compris), objet, montant, personne à rembourser, IBAN (facultatif), remarque. Le ticket part à la caisse (« 📥 Reçu »).
 2. **Caisse** (droit « Caisse », rôle Caissier) : contrôle le ticket puis **demande le visa** à la personne de son choix (avec un message facultatif). Le demandeur n'est jamais proposé : **on ne vise pas son propre ticket**. La caisse peut aussi refuser, ou changer de signataire tant que le visa n'est pas donné.
 3. **Visa** : la personne désignée ouvre le ticket, **glisse le sceau sur une zone libre de la photo** (taille réglable), peut adapter le texte, puis **signe au doigt, au stylet ou à la souris**. Le sceau « OK pour paiement · montant · date · signature · nom » est incrusté dans une copie du ticket (« ✔ Ticket visé », ajoutée aux justificatifs). Elle peut aussi refuser, avec un motif.
-4. **Paiement** : la caisse fait le virement dans son e-banking puis appuie sur **✅ Virement fait (OK)** → « Payé ».
+4. **Paiement** : la caisse **télécharge le document fini** (« ⬇️ Télécharger le ticket visé » : la photo du ticket avec le sceau signé), fait le virement dans son e-banking puis appuie sur **✅ Virement fait (OK)** → « Payé ».
 
 **Sceau modifiable** : la caisse règle le modèle (« 🖋 Sceau » dans l'onglet) : en-tête (ex. « G.S. Ajoie – Caisse »), texte (« OK pour paiement », « Bon pour paiement »…) et couleur. Le droit « peut viser » (console admin, groupe Gestion) place des personnes en tête de la liste proposée à la caisse ; par défaut les admins.
 

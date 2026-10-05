@@ -172,6 +172,12 @@ function TicketCard({ t, onEdit }: { t: Ticket; onEdit: () => void }) {
   const now = () => new Date().toISOString();
   const sceau = sceauDe(data, t);
 
+  const [msg, setMsg] = useState('');
+  // Document fini (ticket avec le sceau) : téléchargé par la caisse pour la comptabilité.
+  const telecharger = async () => {
+    const nom = `Ticket visé - ${t.titre} - ${chf(p.montant)}.jpg`;
+    setMsg((await openFile(p.validation!.docVise!, nom, true)) ? '' : 'Fichier introuvable (vérifie la connexion).');
+  };
   const imprimer = () => {
     setParams({ p: t.id });
     setTimeout(() => window.print(), 400);
@@ -240,6 +246,7 @@ function TicketCard({ t, onEdit }: { t: Ticket; onEdit: () => void }) {
         </div>
       )}
 
+      {msg && <p className="error no-print">{msg}</p>}
       <div className="ticket-actions no-print">
         {p.etat === 'recu' && caisse && !demande && <button className="btn primary" onClick={() => setDemande(true)}>✍️ Demander le visa</button>}
         {p.etat === 'visa' && caisse && !demande && <button className="btn" onClick={() => setDemande(true)}>Changer de signataire</button>}
@@ -250,6 +257,7 @@ function TicketCard({ t, onEdit }: { t: Ticket; onEdit: () => void }) {
           <button className="btn" onClick={onEdit}>{p.etat === 'refuse' && mien ? 'Corriger et renvoyer' : 'Modifier'}</button>
         )}
         {(p.etat === 'recu' || p.etat === 'refuse') && (mien || caisse) && <button className="btn danger" onClick={supprimer}>Supprimer</button>}
+        {(p.etat === 'valide' || p.etat === 'paye') && p.validation?.docVise && <button className="btn" onClick={telecharger}>⬇️ Télécharger le ticket visé</button>}
         {(p.etat === 'valide' || p.etat === 'paye') && <button className="btn" onClick={imprimer}>🖨 Bon de paiement</button>}
         {p.etat === 'valide' && (caisse || p.validation?.par === moi) && <button className="btn link" onClick={retirerVisa}>Retirer le visa</button>}
         {p.etat === 'paye' && caisse && (
