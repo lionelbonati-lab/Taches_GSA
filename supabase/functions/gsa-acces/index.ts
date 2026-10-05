@@ -64,6 +64,29 @@ async function usersByEmail(db: Db) {
 }
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/**
+ * Comptes déjà liés à une fiche du club (comité central d'abord), par adresse de la fiche.
+ * On peut se connecter avec une autre adresse que celle de sa fiche : sans cela, choisir quelqu'un
+ * dans l'annuaire lui créait un second compte au lieu de lui ouvrir l'entité avec le sien.
+ */
+async function clubAccounts(db: Db, committeeId: string) {
+  const map = new Map<string, string>();
+  const { data: c } = await db.from('committees').select('id, parent_id').eq('id', committeeId).maybeSingle();
+  const clubId = (c?.parent_id ?? c?.id) as string | undefined;
+  if (!clubId) return map;
+  const { data: units } = await db.from('committees').select('id').or(`id.eq.${clubId},parent_id.eq.${clubId}`);
+  const ids = (units ?? []).map((u) => u.id as string);
+  const { data: members } = await db.from('gsa_members').select('committee_id, user_id, person_id').in('committee_id', ids);
+  const { data: people } = await db.from('gsa_items').select('committee_id, id, data').eq('kind', 'people').eq('deleted', false).in('committee_id', ids);
+  const email = new Map((people ?? []).map((p) => [`${p.committee_id}|${p.id}`, String(p.data?.email ?? '').trim().toLowerCase()]));
+  const sorted = [...(members ?? [])].sort((a, b) => Number(b.committee_id === clubId) - Number(a.committee_id === clubId));
+  for (const m of sorted) {
+    const e = email.get(`${m.committee_id}|${m.person_id}`);
+    if (e && EMAIL.test(e) && !map.has(e)) map.set(e, m.user_id as string);
+  }
+  return map;
+}
 const UNIT_TYPES = ['sous-comite', 'groupe', 'equipe'];
 const KINDS = new Set(['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'prefs', 'notifLues', 'meta']);
 type Row = { kind: string; id: string; pos: number; data: Record<string, unknown> };
@@ -147,8 +170,10 @@ Deno.serve(async (req) => {
     }
     // Président : son compte (créé au besoin). Autres membres : leur compte s'ils en ont déjà un (même adresse).
     const users = await usersByEmail(db);
+    const linked = await clubAccounts(db, committeeId);
+    const account = (email: string) => linked.get(email) ?? users.get(email);
     let password: string | undefined;
-    let chefUser = users.get(u.email);
+    let chefUser = account(u.email);
     if (!chefUser) {
       password = tempPassword();
       const fullName = `${u.chef.data.prenom ?? ''} ${u.chef.data.nom ?? ''}`.trim();
@@ -159,12 +184,14 @@ Deno.serve(async (req) => {
     const links = new Map<string, string>([[chefUser, u.chef.id]]);
     for (const r of u.rows) {
       if (r.kind !== 'people' || r.id === u.chef.id || r.data?.actif === false) continue;
-      const id = users.get(String(r.data?.email ?? '').trim().toLowerCase());
+      const id = account(String(r.data?.email ?? '').trim().toLowerCase());
       if (id && !links.has(id)) links.set(id, r.id);
     }
     const { error: e } = await db.from('gsa_members').insert([...links].map(([user_id, person_id]) => ({ committee_id: unitId, user_id, person_id })));
     if (e) return json({ unitId, email: u.email, error: `Entité créée, mais pas les accès : ${e.message}` }, 200);
-    return json({ unitId, email: u.email, password, existant: !password, lies: links.size - 1 });
+    // Adresse de connexion du compte (peut différer de celle de la fiche).
+    const login = password ? u.email : (await db.auth.admin.getUserById(chefUser)).data.user?.email ?? u.email;
+    return json({ unitId, email: login, password, existant: !password, lies: links.size - 1 });
   }
 
   if (!personId) return json({ error: 'Responsable manquant.' }, 400);
@@ -178,7 +205,8 @@ Deno.serve(async (req) => {
     const email = String(body.email ?? person.data?.email ?? '').trim().toLowerCase();
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: 'Adresse email invalide.' }, 400);
     const fullName = `${person.data?.prenom ?? ''} ${person.data?.nom ?? ''}`.trim();
-    let user = await findUser(db, email);
+    const linkedId = (await clubAccounts(db, committeeId)).get(email);
+    let user = linkedId ? (await db.auth.admin.getUserById(linkedId)).data.user : await findUser(db, email);
     let password: string | undefined;
     if (user) {
       const { data: other } = await db.from('gsa_members').select('person_id').eq('committee_id', committeeId).eq('user_id', user.id).maybeSingle();
@@ -191,7 +219,7 @@ Deno.serve(async (req) => {
     }
     const { error } = await db.from('gsa_members').insert({ committee_id: committeeId, user_id: user.id, person_id: personId });
     if (error) return json({ error: error.message }, 400);
-    return json({ email, password, existant: !password });
+    return json({ email: user.email ?? email, password, existant: !password });
   }
 
   if (action === 'reinitialiser') {
