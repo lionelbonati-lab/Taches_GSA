@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
+import { useClubOptional } from '../data/club';
+import { UNIT_TYPES } from '../data/units';
 import type { AppData, Paiement, SceauPose, Task, TaskDoc, Timbre } from '../data/types';
 import {
-  COULEURS_TIMBRE, ETATS, chf, nomDe, paiementTasks, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, type Ticket,
+  COULEURS_TIMBRE, ETATS, chf, holders, nomDe, paiementTasks, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, type Ticket,
 } from '../data/paiements';
 import { SCEAU_RATIO, apposerSceau, renderSceau, type SceauContenu } from '../data/sceau';
 import { deleteFiles, docIcon, getFile, openFile, saveFile } from '../data/files';
@@ -78,7 +80,7 @@ export function Paiements() {
       ) : (
         <>
           <p className="muted small no-print">
-            1. Photo du ticket → 2. la caisse le reçoit et demande le visa à une autre personne que le demandeur → 3. visa : signature et sceau « {timbreDe(data).texte} » posés sur le ticket → 4. la caisse fait le virement et met « OK ». Le paiement lui-même ne passe pas par l’appli.
+            1. Photo du ticket, envoyée à la caisse de l’entité → 2. la caisse le reçoit et demande le visa à un membre du comité (jamais le demandeur) → 3. visa : signature et sceau « {timbreDe(data).texte} » posés sur le ticket → 4. la caisse fait le virement et met « OK ». Le paiement lui-même ne passe pas par l’appli.
           </p>
           <div className="seg wrap no-print">
             {(aViser.length > 0 || !caisse) && tab('aviser', 'À viser')}
@@ -302,13 +304,13 @@ function DemandeVisa({ t, onClose }: { t: Ticket; onClose: () => void }) {
         <select value={a} onChange={(e) => setA(e.target.value)}>
           <option value="" disabled>Choisir…</option>
           {autorises.length > 0 && <optgroup label="Peuvent viser">{autorises.map(option)}</optgroup>}
-          {autres.length > 0 && <optgroup label="Autres personnes">{autres.map(option)}</optgroup>}
+          {autres.length > 0 && <optgroup label="Autres membres du comité">{autres.map(option)}</optgroup>}
         </select>
       </label>
       <input placeholder="Message (facultatif)" value={message} onChange={(e) => setMessage(e.target.value)} />
       <button className="btn small primary" disabled={!a} onClick={envoyer}>Envoyer la demande</button>
       <button className="btn small" onClick={onClose}>Annuler</button>
-      <small className="muted">Le demandeur ({nomDe(data, t.paiement.demandePar)}) ne peut pas viser son propre ticket.</small>
+      <small className="muted">Seuls les membres du comité de l’entité peuvent viser, jamais le demandeur ({nomDe(data, t.paiement.demandePar)}).</small>
     </div>
   );
 }
@@ -468,7 +470,11 @@ function VisaModal({ t, onClose }: { t: Ticket; onClose: () => void }) {
 }
 
 function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void }) {
-  const { data, user, update } = useStore();
+  const { data, user, update, guest } = useStore();
+  const club = useClubOptional();
+  // Caisse destinataire : celle de l'entité ouverte ou d'une autre entité dont on est membre (le ticket y est créé).
+  const caisses = club && !ticket ? [...(guest ? [] : [club.current]), ...club.mine.filter((u) => u.id !== club.current.id)] : [];
+  const caissiers = holders(data, 'paiements.payer').map((id) => nomDe(data, id));
   const [titre, setTitre] = useState(ticket?.titre ?? '');
   const [montant, setMontant] = useState(ticket ? String(ticket.paiement.montant) : '');
   const [beneficiaire, setBeneficiaire] = useState(ticket?.paiement.beneficiaire ?? fullName(user ?? undefined));
@@ -484,7 +490,13 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
     deleteFiles(track.current.added);
     onClose();
   };
+  const changerCaisse = (id: string) => {
+    if (!club || id === club.current.id) return;
+    deleteFiles(track.current.added);
+    club.switchUnit(id, '#/paiements?nouveau=1');
+  };
   const submit = () => {
+    if (guest) return setErr('Choisis la caisse de l’une de tes entités.');
     const m = parseMontant(montant);
     if (!titre.trim()) return setErr('Indique l’objet de la dépense.');
     if (!(m > 0)) return setErr('Indique le montant (ex. 42.50).');
@@ -524,6 +536,22 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
   return (
     <Modal title={ticket ? 'Modifier le ticket' : 'Ticket à rembourser'} onClose={cancel}>
       <div className="form">
+        {caisses.length > 1 || guest ? (
+          <label className="full">
+            Envoyer à la caisse de
+            <select value={guest ? '' : club?.current.id} onChange={(e) => changerCaisse(e.target.value)}>
+              {guest && <option value="" disabled>Choisir l’entité…</option>}
+              {caisses.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
+            </select>
+          </label>
+        ) : null}
+        {!guest && (
+          <p className="muted small full">
+            {club ? `Caisse ${club.current.nom}` : 'Caisse'} : {caissiers.join(', ') || 'personne pour l’instant (rôle « Caissier » à attribuer)'}.
+            {caisses.length > 1 && ' Une autre entité ? Choisis-la ci-dessus avant d’ajouter la photo.'}
+          </p>
+        )}
+        {guest && <p className="muted small full">Tu consultes cette entité en visiteur : envoie ton ticket à la caisse de l’une de tes entités.</p>}
         <DocsField docs={docs} setDocs={setDocs} disabled={false} track={track.current} />
         <label className="full">
           Objet de la dépense
@@ -551,7 +579,7 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={cancel}>Annuler</button>
-        <button className="btn primary" onClick={submit}>{ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}</button>
+        <button className="btn primary" disabled={!!guest} onClick={submit}>{ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}</button>
       </div>
     </Modal>
   );

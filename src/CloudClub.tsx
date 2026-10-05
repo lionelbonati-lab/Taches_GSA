@@ -46,7 +46,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       loading,
       error,
       refresh,
-      switchUnit(id) {
+      switchUnit(id, hash = '#/') {
         if (id === m.committeeId) return;
         let target = list.find((x) => x.committeeId === id);
         if (!target) {
@@ -67,7 +67,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
             guest: { person: guestPerson(me), niveau },
           };
         }
-        window.location.hash = '#/';
+        window.location.hash = hash;
         onSwitch(target);
       },
       async createUnit(n: NewUnit): Promise<CreatedUnit> {

@@ -79,8 +79,9 @@ const MEMBERS: Record<string, P[]> = {
     ['Bruntrutaine', '#9333ea', 'Président du CO', 'admin'],
     ['Vice-président', '#7c3aed', 'Délégué du comité central', 'membre'],
     ['Parcours et sécurité', '#15803d', 'Parcours et sécurité', 'membre'],
-    ['Inscriptions et caisse', '#c2410c', 'Inscriptions et caisse', 'membre'],
+    ['Inscriptions et caisse', '#c2410c', 'Inscriptions et caisse', 'caissier'],
     ['Bénévole 1', '#65a30d', 'Responsable des bénévoles', 'membre'],
+    ['Bénévole 4', '#0d9488', 'Ravitaillement', 'benevole'],
   ],
   'u-soiree': [
     ['Gruppetto', '#be123c', 'Responsable de la soirée', 'admin'],
@@ -121,9 +122,9 @@ function seedUnit(u: Unit): AppData {
 
 /**
  * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro
- * (v2 : postes au lieu des noms, sans tâches).
+ * (v2 : postes au lieu des noms, sans tâches ; v3 : une caisse dans chaque entité).
  */
-const DEMO_VERSION = '2';
+const DEMO_VERSION = '3';
 const VERSION_KEY = 'taches-gsa-demo-version';
 /** Démo v2 déjà enregistrée : accès du comité central des entités de départ ajouté une fois (sans remise à zéro). */
 const ACCESS_KEY = 'taches-gsa-demo-acces-central';
@@ -166,7 +167,8 @@ export const saveUnits = (units: Unit[]) => write(CLUB_KEY, units);
 
 export function loadUnitData(id: string): AppData {
   const saved = read<AppData>(unitStorageKey(id));
-  if (saved) return id === CENTRAL_ID ? migrate(saved) : saved;
+  // Entités : seules les mises à niveau suivant leur création (v12) s'appliquent.
+  if (saved) return id === CENTRAL_ID || saved.schema ? migrate(saved) : saved;
   if (id === CENTRAL_ID) return makeSeed();
   const u = SEED_UNITS.find((x) => x.id === id);
   return u ? seedUnit(u) : unitData('groupe', [], 'p1', id);

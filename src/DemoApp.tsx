@@ -73,7 +73,7 @@ export function DemoApp() {
   }, [current?.id, current?.central, central, me]);
 
   const switchUnit = useCallback(
-    (id: string) => {
+    (id: string, hash = '#/') => {
       if (org.find((u) => u.id === id)?.moi) {
         try {
           localStorage.setItem(UNIT_KEY, id);
@@ -83,7 +83,7 @@ export function DemoApp() {
         setUnitId(id);
         setVisitId(null);
       } else setVisitId(id);
-      window.location.hash = '#/';
+      window.location.hash = hash;
       setVersion((v) => v + 1);
     },
     [org],

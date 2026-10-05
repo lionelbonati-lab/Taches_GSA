@@ -38,11 +38,18 @@ export const holders = (data: AppData, perm: 'paiements.valider' | 'paiements.pa
   return (expres.length ? expres : actifs.filter((p) => hasPermission(userRoles(data.roles, p), perm))).map((p) => p.id);
 };
 
-/** Signataires que la caisse peut choisir : jamais le demandeur ; d'abord ceux qui ont le droit de viser. */
+/** Membres du comité de l'entité : ceux qui ont l'onglet Séances ou le droit de viser. */
+export const auComite = (data: AppData, p: Person) => {
+  const roles = userRoles(data.roles, p);
+  return hasPermission(roles, 'tab.meetings') || hasPermission(roles, 'paiements.valider');
+};
+
+/** Signataires que la caisse peut choisir : les membres du comité de son entité, jamais le demandeur ;
+ *  d'abord ceux qui ont le droit de viser. */
 export function signataires(data: AppData, t: Ticket) {
-  const autres = data.people.filter((p) => p.actif && p.id !== t.paiement.demandePar);
-  const autorises = autres.filter((p) => hasPermission(userRoles(data.roles, p), 'paiements.valider'));
-  return { autorises, autres: autres.filter((p) => !autorises.includes(p)) };
+  const comite = data.people.filter((p) => p.actif && p.id !== t.paiement.demandePar && auComite(data, p));
+  const autorises = comite.filter((p) => hasPermission(userRoles(data.roles, p), 'paiements.valider'));
+  return { autorises, autres: comite.filter((p) => !autorises.includes(p)) };
 }
 
 export const paiementTasks = (data: AppData) => data.tasks.filter((t): t is Ticket => !!t.paiement);

@@ -78,7 +78,8 @@ export interface Club {
   canManage: boolean;
   loading: boolean;
   error: string;
-  switchUnit: (id: string) => void;
+  /** Ouvre une autre entité ; `hash` : page à afficher ensuite (par défaut l'accueil). */
+  switchUnit: (id: string, hash?: string) => void;
   refresh: () => void;
   createUnit: (u: NewUnit) => Promise<CreatedUnit>;
   updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'archive' | 'central' | 'logo'>>) => Promise<void>;

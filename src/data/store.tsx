@@ -18,7 +18,7 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 14;
+export const SCHEMA = 15;
 
 /**
  * Mises à niveau des données déjà enregistrées (évite de tout réinitialiser).
@@ -47,6 +47,16 @@ export function migrate(d: AppData): AppData {
   }
   // v14 : circuit caisse → visa ; les tickets « à valider » de la première version sont « reçus » par la caisse.
   if ((d.schema ?? 7) < 14) d.tasks.forEach((t) => { if (t.paiement && (t.paiement.etat as string) === 'a_valider') t.paiement.etat = 'recu'; });
+  // v15 : chaque entité a sa caisse ; à défaut, un rôle « Caissier » (droits d'un membre du comité + caisse) à attribuer.
+  if ((d.schema ?? 7) < 15 && !d.roles.some((r) => !r.locked && r.permissions.includes('paiements.payer'))) {
+    const existant = d.roles.find((r) => r.id === 'caissier');
+    if (existant) existant.permissions.push('paiements.payer');
+    else {
+      const membre = d.roles.find((r) => !r.locked && r.permissions.includes('tab.meetings'));
+      const base: Permission[] = membre?.permissions.filter((p) => !p.startsWith('paiements.')) ?? ['tasks.viewAll', 'tasks.editOwn', 'tab.meetings', 'tab.events', 'tab.people'];
+      d.roles.push({ id: 'caissier', label: 'Caissier', couleur: '#047857', permissions: [...base, 'paiements.payer'], sections: [] });
+    }
+  }
   d.schema = SCHEMA;
   return d;
 }

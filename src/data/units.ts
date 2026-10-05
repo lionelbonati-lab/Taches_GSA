@@ -67,6 +67,8 @@ export function guestPerson(m: Pick<OrgMember, 'id' | 'prenom' | 'nom' | 'email'
 
 const MEMBER_PERMS: Permission[] = ['tasks.viewAll', 'tasks.editOwn', 'tab.meetings', 'tab.events', 'tab.people', 'polls.create'];
 const HELPER_PERMS: Permission[] = ['tasks.editOwn', 'tab.events', 'tab.people'];
+/** Caisse de l'entité : membre du comité qui reçoit les tickets à rembourser et fait les virements. */
+const CAISSE_PERMS: Permission[] = [...MEMBER_PERMS, 'paiements.payer'];
 
 /** Rôles de départ d'une nouvelle entité (modifiables ensuite dans sa console admin). */
 export function unitRoles(type: UnitType): Role[] {
@@ -76,12 +78,14 @@ export function unitRoles(type: UnitType): Role[] {
     return [
       admin('Admin (Responsable du groupe)'),
       role('moniteur', 'Moniteur', '#1d4ed8', MEMBER_PERMS),
+      role('caissier', 'Caissier', '#047857', CAISSE_PERMS),
       role('membre', 'Membre du groupe', '#9333ea', HELPER_PERMS),
     ];
-  if (type === 'equipe') return [admin('Admin (Responsable)'), role('membre', 'Membre de l’équipe', '#1d4ed8', MEMBER_PERMS)];
+  if (type === 'equipe') return [admin('Admin (Responsable)'), role('membre', 'Membre de l’équipe', '#1d4ed8', MEMBER_PERMS), role('caissier', 'Caissier', '#047857', CAISSE_PERMS)];
   return [
     admin('Admin (Président du comité)'),
     role('membre', 'Membre du comité', '#1d4ed8', MEMBER_PERMS),
+    role('caissier', 'Caissier', '#047857', CAISSE_PERMS),
     role('benevole', 'Bénévole', '#9333ea', HELPER_PERMS),
   ];
 }
