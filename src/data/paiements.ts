@@ -1,31 +1,51 @@
 import { hasPermission, userRoles } from './permissions';
-import type { AppData, Paiement, Person, Task } from './types';
+import type { AppData, Paiement, Person, Task, Timbre } from './types';
 import { fullName } from './utils';
 
-// Tickets à rembourser : la personne photographie son ticket, un admin le valide en signant,
-// la caisse fait le virement (hors de l'appli) puis l'indique « OK ».
+// Tickets à rembourser : la personne photographie son ticket → la caisse le reçoit et demande le visa
+// à quelqu'un d'autre que le demandeur → cette personne signe (sceau « OK pour paiement » posé sur le ticket)
+// → la caisse fait le virement (hors de l'appli) puis l'indique « OK ».
+
+export type Ticket = Task & { paiement: Paiement };
 
 export const ETATS: Record<Paiement['etat'], { label: string; icon: string }> = {
-  a_valider: { label: 'À valider', icon: '✍️' },
-  valide: { label: 'Validé – virement à faire', icon: '💳' },
+  recu: { label: 'Reçu – à traiter par la caisse', icon: '📥' },
+  visa: { label: 'Visa demandé', icon: '✍️' },
+  valide: { label: 'Visé – virement à faire', icon: '💳' },
   paye: { label: 'Payé', icon: '✅' },
   refuse: { label: 'Refusé', icon: '❌' },
 };
+
+export const TIMBRE_DEFAUT: Timbre = { entete: '', texte: 'OK pour paiement', couleur: '#1d4ed8' };
+export const COULEURS_TIMBRE = [
+  { id: '#1d4ed8', label: 'Bleu' },
+  { id: '#b91c1c', label: 'Rouge' },
+  { id: '#15803d', label: 'Vert' },
+  { id: '#1f2937', label: 'Noir' },
+];
+export const timbreDe = (data: AppData): Timbre => ({ ...TIMBRE_DEFAUT, ...data.timbre });
 
 export const chf = (n: number) => `CHF ${n.toLocaleString('fr-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export const can = (data: AppData, p: Person | null | undefined, perm: 'paiements.valider' | 'paiements.payer') =>
   !!p && hasPermission(userRoles(data.roles, p), perm);
 
-/** Personnes actives qui ont le droit (validation ou caisse) par un rôle qui le donne expressément ;
- *  à défaut, les admins (qui ont tous les droits). Ainsi le virement va à la caisse, pas au président. */
+/** Personnes actives qui ont le droit par un rôle qui le donne expressément ; à défaut, les admins
+ *  (qui ont tous les droits). Ainsi les tickets vont à la caisse, pas au président. */
 export const holders = (data: AppData, perm: 'paiements.valider' | 'paiements.payer') => {
   const actifs = data.people.filter((p) => p.actif);
   const expres = actifs.filter((p) => userRoles(data.roles, p).some((r) => !r.locked && r.permissions.includes(perm)));
   return (expres.length ? expres : actifs.filter((p) => hasPermission(userRoles(data.roles, p), perm))).map((p) => p.id);
 };
 
-export const paiementTasks = (data: AppData) => data.tasks.filter((t): t is Task & { paiement: Paiement } => !!t.paiement);
+/** Signataires que la caisse peut choisir : jamais le demandeur ; d'abord ceux qui ont le droit de viser. */
+export function signataires(data: AppData, t: Ticket) {
+  const autres = data.people.filter((p) => p.actif && p.id !== t.paiement.demandePar);
+  const autorises = autres.filter((p) => hasPermission(userRoles(data.roles, p), 'paiements.valider'));
+  return { autorises, autres: autres.filter((p) => !autorises.includes(p)) };
+}
+
+export const paiementTasks = (data: AppData) => data.tasks.filter((t): t is Ticket => !!t.paiement);
 
 /** Section des finances (sinon la première). */
 export const sectionFinances = (data: AppData) =>
@@ -41,8 +61,9 @@ export function statutPour(data: AppData, etat: Paiement['etat']) {
   return etat === 'paye' ? done : etat === 'refuse' ? annule : open;
 }
 
-/** Qui doit agir : les validateurs, puis la caisse, puis plus personne (le demandeur garde la tâche). */
-export function responsablesPour(data: AppData, t: Task & { paiement: Paiement }) {
-  const r = t.paiement.etat === 'a_valider' ? holders(data, 'paiements.valider') : t.paiement.etat === 'valide' ? holders(data, 'paiements.payer') : [];
-  return r.length ? r : [t.paiement.demandePar];
+/** Qui doit agir : la caisse, puis la personne qui vise, puis la caisse ; le demandeur si son ticket est refusé. */
+export function responsablesPour(data: AppData, t: Ticket) {
+  const { etat, visa, demandePar } = t.paiement;
+  const r = etat === 'visa' && visa ? [visa.a] : etat === 'recu' || etat === 'valide' ? holders(data, 'paiements.payer') : [];
+  return r.length ? r : [demandePar];
 }

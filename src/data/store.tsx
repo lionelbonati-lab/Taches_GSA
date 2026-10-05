@@ -18,7 +18,7 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 13;
+export const SCHEMA = 14;
 
 /**
  * Mises à niveau des données déjà enregistrées (évite de tout réinitialiser).
@@ -45,6 +45,8 @@ export function migrate(d: AppData): AppData {
     if (!d.roles.some((r) => r.permissions.includes('paiements.payer')))
       d.roles.filter((r) => r.id === 'caissier' || /caiss|trésor|tresor|financ/i.test(r.label)).forEach((r) => r.permissions.push('paiements.payer'));
   }
+  // v14 : circuit caisse → visa ; les tickets « à valider » de la première version sont « reçus » par la caisse.
+  if ((d.schema ?? 7) < 14) d.tasks.forEach((t) => { if (t.paiement && (t.paiement.etat as string) === 'a_valider') t.paiement.etat = 'recu'; });
   d.schema = SCHEMA;
   return d;
 }

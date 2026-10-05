@@ -638,7 +638,32 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .ticket-doc .doc-icon { font-size: 2rem; line-height: 80px; }
 .ticket-doc small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.7rem; }
 .ticket-visa { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin: 8px 0; }
-.ticket-visa img { max-height: 70px; max-width: 260px; background: #fff; border-bottom: 1px solid var(--border); }
+.ticket-visa .sceau { width: 240px; max-width: 100%; }
+.ticket-alerte { background: var(--primary-soft); color: var(--primary); padding: 6px 10px; border-radius: 8px; margin: 8px 0; font-weight: 600; }
+.ticket-doc.vise { border-color: #16a34a; box-shadow: 0 0 0 1px #16a34a; }
+.ticket-doc.vise small { color: #16a34a; font-weight: 600; }
+.demande-visa { align-items: flex-end; }
+.demande-visa label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; flex: 1 1 220px; }
+.demande-visa small { flex: 1 1 100%; }
+.timbre-reglage { padding: 10px 14px; margin-bottom: 12px; }
+.timbre-reglage summary { cursor: pointer; font-weight: 600; }
+.timbre-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; align-items: center; margin: 10px 0 6px; }
+.timbre-grid .sceau { width: 100%; }
+.couleurs { display: flex; gap: 8px; }
+.pastille { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
+.pastille.on { box-shadow: 0 0 0 3px var(--text); }
+.visa-grid { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+.visa-grid select { margin-bottom: 6px; }
+.sceau-zone { position: relative; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; background: #fff; line-height: 0; }
+.sceau-doc { width: 100%; height: auto; display: block; user-select: none; }
+.sceau-drag { position: absolute; cursor: grab; touch-action: none; outline: 2px dashed color-mix(in srgb, var(--primary) 60%, transparent); outline-offset: 2px; border-radius: 12px; }
+.sceau-drag:active { cursor: grabbing; }
+.sceau-drag .sceau { width: 100%; display: block; pointer-events: none; }
+.sceau-taille { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.visa-grid label.small { display: flex; flex-direction: column; gap: 4px; }
+@media (max-width: 720px) {
+  .visa-grid, .timbre-grid { grid-template-columns: 1fr; }
+}
 .ticket-refus { color: var(--danger); margin: 6px 0; }
 .ticket-ok { color: #16a34a; margin: 6px 0; }
 .ticket-inline { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
@@ -649,7 +674,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .signature-pad { width: 100%; height: 180px; background: #fff; border: 1px dashed var(--border); border-radius: 8px; touch-action: none; cursor: crosshair; }
 @media print {
   .ticket { border: 1px solid #999; break-inside: avoid; }
-  .ticket-doc { border: none; }
+  .ticket-doc { border: none; box-shadow: none !important; width: auto; }
+  .ticket-docs.avec-vise .ticket-doc:not(.vise) { display: none; }
+  .ticket-doc .doc-thumb { width: auto; height: auto; max-width: 100%; max-height: 150mm; object-fit: contain; }
 }
 
 /* ---------- Impression ---------- */

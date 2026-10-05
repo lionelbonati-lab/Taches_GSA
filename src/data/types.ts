@@ -376,6 +376,8 @@ export interface AppData {
   notifLues?: Record<string, string[]>;
   /** En-têtes des documents imprimés (sans réglage : logo et nom de l'entité ; PV : celui de l'ordre du jour). */
   entetes?: { odj?: Entete; pv?: Entete };
+  /** Sceau « OK pour paiement » des tickets à rembourser. */
+  timbre?: Timbre;
 }
 
 /** En-tête d'un document imprimé (ordre du jour, PV), commun à toute l'entité. */
@@ -472,14 +474,38 @@ export interface MyRequest {
 /** Ticket à rembourser (le paiement se fait hors de l'appli : la caisse fait le virement). */
 export interface Paiement {
   montant: number;
-  /** Personne à rembourser (fiche). */
+  /** Personne à rembourser (nom). */
   beneficiaire: string;
   /** Compte pour le virement, si la caisse ne le connaît pas. */
   iban?: string;
-  etat: 'a_valider' | 'valide' | 'refuse' | 'paye';
+  /** Circuit : reçu par la caisse → visa demandé → visé (virement à faire) → payé ; ou refusé. */
+  etat: 'recu' | 'visa' | 'valide' | 'paye' | 'refuse';
   demandePar: string;
   demandeLe: string;
-  validation?: { par: string; le: string; signature: string };
+  /** Visa demandé par la caisse (`par`) à la personne `a` (jamais le demandeur). */
+  visa?: { a: string; par: string; le: string; message?: string };
+  /** Visa donné : signature et sceau posé sur le justificatif (`docVise` : copie du ticket avec le sceau). */
+  validation?: { par: string; le: string; signature: string; sceau?: SceauPose; docVise?: string };
   refus?: { par: string; le: string; motif: string };
   paye?: { par: string; le: string; remarque?: string };
+}
+
+/** Modèle du sceau de paiement (réglable par la caisse). */
+export interface Timbre {
+  /** Ligne du haut, ex. « G.S. Ajoie – Caisse ». */
+  entete: string;
+  /** Texte principal, ex. « OK pour paiement ». */
+  texte: string;
+  couleur: string;
+}
+
+/** Sceau posé sur un justificatif : texte, position et largeur (en fraction de l'image). */
+export interface SceauPose {
+  entete: string;
+  texte: string;
+  couleur: string;
+  docId?: string;
+  x: number;
+  y: number;
+  largeur: number;
 }

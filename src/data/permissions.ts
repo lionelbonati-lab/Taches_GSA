@@ -18,8 +18,8 @@ export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMIS
   { id: 'people.manage', label: 'Gérer les responsables', group: 'Gestion' },
   { id: 'polls.create', label: 'Créer des sondages', group: 'Gestion' },
   { id: 'polls.manage', label: 'Gérer tous les sondages (clôturer, supprimer)', group: 'Gestion' },
-  { id: 'paiements.valider', label: 'Valider (signer) les tickets à rembourser', group: 'Gestion' },
-  { id: 'paiements.payer', label: 'Caisse : faire les virements des tickets validés', group: 'Gestion' },
+  { id: 'paiements.valider', label: 'Paiements : peut viser (signer) les tickets, sur demande de la caisse', group: 'Gestion' },
+  { id: 'paiements.payer', label: 'Caisse : reçoit les tickets, demande les visas, fait les virements', group: 'Gestion' },
   { id: 'settings.lists', label: 'Gérer sections / statuts', group: 'Administration' },
   { id: 'admin.access', label: 'Accès console admin', group: 'Administration' },
 ];

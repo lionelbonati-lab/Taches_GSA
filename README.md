@@ -171,13 +171,16 @@ Onglet **🖊️ PV** (droit « Onglet PV », donné au Secrétaire et à l'Admi
 
 ## Paiements (tickets à rembourser)
 
-Le paiement ne se fait pas dans l'appli : elle sert à **demander, valider et suivre** un remboursement.
+Le paiement ne se fait pas dans l'appli : elle sert à **demander, viser et suivre** un remboursement. Circuit : **ticket photo → caisse → demande de visa → visa → paiement**.
 
-1. **Demande** : « 📷 Nouveau ticket » (ou le raccourci **Ticket à rembourser** de l'icône) → photo du ticket prise directement avec l'appareil (📷 Photo) ou fichier existant (📎 Fichier, PDF compris), objet, montant, personne à rembourser, IBAN (facultatif), remarque. Le ticket part « ✍️ À valider ».
-2. **Validation** : la personne qui a le droit « Valider (signer) les tickets » (par défaut les admins, donc le président) ouvre le ticket, vérifie la photo et **signe au doigt, au stylet ou à la souris** → « 💳 Validé – virement à faire ». Elle peut aussi **refuser** (avec un motif) ; le demandeur corrige et renvoie.
-3. **Caisse** : la personne qui a le droit « Caisse : faire les virements » (rôle Caissier) voit le ticket dans « À payer » avec la signature, fait le virement dans son e-banking puis appuie sur **✅ Virement fait (OK)** (remarque facultative) → « Payé ».
+1. **Ticket** : « 📷 Nouveau ticket » (ou le raccourci **Ticket à rembourser** de l'icône) → photo prise directement avec l'appareil (📷 Photo) ou fichier existant (📎 Fichier, PDF compris), objet, montant, personne à rembourser, IBAN (facultatif), remarque. Le ticket part à la caisse (« 📥 Reçu »).
+2. **Caisse** (droit « Caisse », rôle Caissier) : contrôle le ticket puis **demande le visa** à la personne de son choix (avec un message facultatif). Le demandeur n'est jamais proposé : **on ne vise pas son propre ticket**. La caisse peut aussi refuser, ou changer de signataire tant que le visa n'est pas donné.
+3. **Visa** : la personne désignée ouvre le ticket, **glisse le sceau sur une zone libre de la photo** (taille réglable), peut adapter le texte, puis **signe au doigt, au stylet ou à la souris**. Le sceau « OK pour paiement · montant · date · signature · nom » est incrusté dans une copie du ticket (« ✔ Ticket visé », ajoutée aux justificatifs). Elle peut aussi refuser, avec un motif.
+4. **Paiement** : la caisse fait le virement dans son e-banking puis appuie sur **✅ Virement fait (OK)** → « Payé ».
 
-Chaque ticket est aussi une tâche (section des finances, sous-section « Remboursements ») : elle passe des validateurs à la caisse, puis se clôt une fois payée. Notifications : ticket à valider, virement à faire, puis « ton ticket a été validé / remboursé / refusé » pour le demandeur. **🖨 Bon de paiement** imprime le ticket validé avec sa signature. Les droits se règlent dans la console admin (matrice de permissions, groupe Gestion). En version réelle, le serveur applique les mêmes règles (voir SUPABASE_SETUP.md, migration 008).
+**Sceau modifiable** : la caisse règle le modèle (« 🖋 Sceau » dans l'onglet) : en-tête (ex. « G.S. Ajoie – Caisse »), texte (« OK pour paiement », « Bon pour paiement »…) et couleur. Le droit « peut viser » (console admin, groupe Gestion) place des personnes en tête de la liste proposée à la caisse ; par défaut les admins.
+
+Chaque ticket est aussi une tâche (section des finances, sous-section « Remboursements ») qui passe de la caisse à la personne qui vise, revient à la caisse puis se clôt une fois payée. Notifications : ticket reçu et virement à faire (caisse), visa demandé (signataire), « ton ticket est visé / remboursé / refusé » (demandeur). **🖨 Bon de paiement** imprime le ticket visé avec son sceau. En version réelle, le serveur applique les mêmes règles, admins compris (voir SUPABASE_SETUP.md, migration 009).
 
 ## Notifications (démo)
 
@@ -211,7 +214,7 @@ L'application peut s'installer comme une vraie appli (icône, fenêtre dédiée,
 | Android – Chrome | Bouton « Installer l'application » ou menu ⋮ › Installer l'application |
 | iPhone / iPad – Safari | Bouton Partager › Sur l'écran d'accueil |
 
-Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche**, **Mes tâches**, **Ticket à rembourser** (ouvre directement la prise de photo) et **Paiements** (tickets à valider / à payer). Une appli déjà installée peut devoir être réinstallée pour voir les nouveaux raccourcis.
+Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche**, **Mes tâches**, **Ticket à rembourser** (ouvre directement la prise de photo) et **Paiements** (tickets à traiter, à viser, à payer). Une appli déjà installée peut devoir être réinstallée pour voir les nouveaux raccourcis.
 
 **Icône avec le logo** : quand le club (ou l'entité ouverte) a un logo, il devient l'icône de l'appli : onglet du navigateur, icône proposée par « Sur l'écran d'accueil » (iPhone / iPad) et à l'installation (Chrome / Edge / Android). Le dernier logo est gardé sur l'appareil et repris dès le lancement. Une appli **déjà installée garde son ancienne icône** : la supprimer puis la réinstaller (ou la rajouter à l'écran d'accueil) pour prendre le nouveau logo.
 

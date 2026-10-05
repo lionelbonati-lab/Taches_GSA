@@ -117,7 +117,7 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
         {!quick && t.paiement && (
           <a className="full proposal-banner" href={`#/paiements?p=${t.id}`}>
             💳 Ticket à rembourser · <b>{chf(t.paiement.montant)}</b> · {ETATS[t.paiement.etat].label}.
-            <span className="muted"> Validation (signature) et « payé » se font dans Paiements → ouvrir</span>
+            <span className="muted"> Caisse, visa (signature et sceau) et « payé » se font dans Paiements → ouvrir</span>
           </a>
         )}
         {!quick && t.proposee && (

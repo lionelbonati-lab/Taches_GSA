@@ -36,7 +36,7 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - `gsa_committees_guard` (mêmes règles que 006) refuse un logo qui n'est pas une image PNG, JPEG ou WebP en base64, ou qui dépasse 200 Ko (code `22023`, « Logo refusé… ») : pas de SVG ni de script. L'appli réduit l'image à 256 px avant de l'envoyer.
 - Les en-têtes de l'ordre du jour et du PV sont des réglages de l'entité (`gsa_items`, ligne `meta` / `entetes`), soumis aux règles existantes.
 
-`supabase/migrations/008_gsa_paiements.sql` (appliqué le 05.10.2026) : tickets à rembourser. Aucune donnée modifiée ; `gsa_items_guard` reprend les règles de 006 et contrôle en plus les tickets (`data.paiement` d'une tâche) :
+`supabase/migrations/008_gsa_paiements.sql` (appliqué le 05.10.2026) : première version des tickets à rembourser (remplacée par 009). Aucune donnée modifiée ; `gsa_items_guard` reprend les règles de 006 et contrôle en plus les tickets (`data.paiement` d'une tâche) :
 
 - valider (signer), refuser ou retirer une validation : droit `paiements.valider` ; la signature doit porter la fiche de la personne connectée ;
 - un ticket validé ne change plus (montant, bénéficiaire, IBAN, justificatifs) sans ce droit ;
@@ -44,6 +44,15 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - un ticket validé ou payé n'est supprimé que par un validateur. Les admins de l'entité ont tous les droits.
 - Fonctions ajoutées : `gsa_ma_fiche(entité)`, `gsa_a_droit(entité, droit)` (rôles de la fiche active), `gsa_paiement_check(…)`. Refus : code `42501`, message affiché dans l'appli.
 - Les rôles existants reçoivent le droit « Caisse » (rôle Caissier / Trésorier) à la première ouverture de l'appli par un admin de l'entité.
+
+`supabase/migrations/009_gsa_paiements_visa.sql` (appliqué le 05.10.2026) : circuit « photo → caisse → demande de visa → visa → paiement ». Remplace le contrôle de 008, **admins compris** (séparation des rôles). Aucune donnée modifiée.
+
+- un ticket s'envoie à son propre nom (sauf par la caisse) et son demandeur ne change plus ;
+- la caisse (`paiements.payer`) demande le visa, à une autre personne que le demandeur, en son propre nom ;
+- seule la personne désignée par la caisse vise, jamais le demandeur, avec sa signature, sans changer montant, bénéficiaire ni IBAN ;
+- un ticket visé ne change plus (montant, bénéficiaire, IBAN, justificatifs, visa) ; refus : la caisse ou la personne qui vise ; visa retiré : la caisse ou la personne qui a visé ;
+- « payé » ou son annulation : la caisse, en son nom, sur un ticket visé ; un ticket visé ou payé n'est supprimé que par la caisse.
+- Le modèle du sceau est un réglage de l'entité (`gsa_items`, ligne `meta` / `timbre`) ; la copie visée du ticket est un fichier joint ordinaire (`gsa-fichiers`).
 
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
