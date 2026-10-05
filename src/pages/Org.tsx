@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
-import { directory, orgMembers, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, type DirectoryEntry } from '../data/units';
-import type { OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
+import { CENTRAL_ACCESS, centralAccess, directory, orgMembers, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type DirectoryEntry } from '../data/units';
+import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
 import { fmtDate, posteBesideName } from '../data/utils';
 import { Empty, Initials, Modal } from '../components/ui';
 import { CredentialsModal } from './Admin';
+import { CentralAccessChoice } from '../components/CentralAccess';
 
 // Organigramme du club : comité central, sous-comités, groupes et équipes d'événement, avec leurs membres.
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
-// chaque président / responsable peut modifier la fiche de la sienne.
+// chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité central
+// peut faire de ses données (rien voir, consulter, ou aussi modifier / ajouter des tâches).
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const dated = (t: UnitType) => t === 'sous-comite' || t === 'equipe';
@@ -41,7 +43,8 @@ export function Org() {
       </div>
       <p className="muted small-note">
         Chaque entité a ses propres tâches, rôles, sections et statuts, invisibles des autres. Chacune peut envoyer une demande au comité central
-        (page d’accueil).{club.error && <span className="error"> {club.error}</span>}
+        (page d’accueil) et lui ouvrir ses données : 👁 consulter, ou ✏️ aussi modifier / ajouter des tâches (réglage de ses admins).
+        {club.error && <span className="error"> {club.error}</span>}
       </p>
       <div className="seg wrap org-seg">
         <button className={view === 'entites' ? 'on' : ''} onClick={() => setView('entites')}>Entités <span className="count">{active.length}</span></button>
@@ -93,6 +96,9 @@ function UnitCard({ u, onEdit }: { u: OrgUnit; onEdit?: () => void }) {
   const [all, setAll] = useState(false);
   const t = UNIT_TYPES[u.type];
   const isCurrent = u.id === club.current.id;
+  const access = centralAccess(u);
+  // Membre du comité central : entité ouverte au comité central dont il ne fait pas partie.
+  const visit = !isCurrent && visitLevel(u, club.central);
   const chefs = u.membres.filter((m) => m.admin);
   const others = u.membres.filter((m) => !m.admin);
   const shown = all ? others : others.slice(0, 6);
@@ -112,6 +118,11 @@ function UnitCard({ u, onEdit }: { u: OrgUnit; onEdit?: () => void }) {
         </div>
         {isCurrent && <span className="badge" style={{ background: u.couleur }}>Ouverte</span>}
       </div>
+      {access !== 'aucun' && (
+        <span className={`badge central-access ${access}`} title={CENTRAL_ACCESS[access].aide}>
+          {CENTRAL_ACCESS[access].icon} Comité central : {access === 'lecture' ? 'consulter' : 'modifier / ajouter'}
+        </span>
+      )}
       {u.description && <p className="org-desc">{u.description}</p>}
       <ul className="org-members">
         {chefs.map((m) => <MemberLine key={m.id} m={m} chef={t.chef} />)}
@@ -119,9 +130,14 @@ function UnitCard({ u, onEdit }: { u: OrgUnit; onEdit?: () => void }) {
         {shown.map((m) => <MemberLine key={m.id} m={m} />)}
       </ul>
       {others.length > 6 && <button className="btn link small" onClick={() => setAll(!all)}>{all ? 'Réduire' : `+ ${others.length - 6} autres`}</button>}
-      {((u.moi && !isCurrent) || onEdit) && (
+      {((u.moi && !isCurrent) || visit || onEdit) && (
         <div className="org-actions">
           {u.moi && !isCurrent && <button className="btn small primary" onClick={() => club.switchUnit(u.id)}>Ouvrir</button>}
+          {visit && (
+            <button className="btn small primary" onClick={() => club.switchUnit(u.id)} title={CENTRAL_ACCESS[visit].aide}>
+              {visit === 'lecture' ? '👁 Consulter' : '✏️ Ouvrir'}
+            </button>
+          )}
           {onEdit && <button className="btn small" onClick={onEdit}>Modifier</button>}
         </div>
       )}
@@ -188,6 +204,10 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
   const [date, setDate] = useState(unit?.date ?? '');
   const [description, setDescription] = useState(unit?.description ?? '');
   const [archive, setArchive] = useState(!!unit?.archive);
+  // Accès du comité central : réglé par les admins de l'entité seulement.
+  const [central, setCentral] = useState<CentralAccess>(unit ? centralAccess(unit) : 'aucun');
+  const ownsAccess = !!unit && !isCentral && unit.moiAdmin;
+  const { update } = useStore();
   const dir = useMemo(() => directory(club.units.filter((u) => !u.archive)), [club.units]);
   const [chefKey, setChefKey] = useState('');
   const [chefNew, setChefNew] = useState({ prenom: '', nom: '', email: '' });
@@ -218,7 +238,9 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
         };
         onCreated(await club.createUnit(n), n);
       } else {
-        await club.updateUnit(unit.id, manage ? { ...base, type, archive } : base);
+        const access = ownsAccess ? { central } : {};
+        await club.updateUnit(unit.id, manage ? { ...base, type, archive, ...access } : { ...base, ...access });
+        if (ownsAccess && central !== centralAccess(unit) && unit.id === club.current.id) update(() => {}, `Accès du comité central : ${CENTRAL_ACCESS[central].label}`);
         onClose();
       }
     } catch (e) {
@@ -314,6 +336,13 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
           </>
         )}
 
+        {!isNew && !isCentral && (
+          <div className="full">
+            <span className="field-label">Accès du comité central</span>
+            <CentralAccessChoice name="central-unit" value={central} onChange={setCentral} disabled={!ownsAccess} />
+            {!ownsAccess && <p className="muted small-note">Réglé par les admins (★) de l’entité.</p>}
+          </div>
+        )}
         {!isNew && manage && (
           <label className="full inline">
             <input type="checkbox" checked={archive} onChange={(e) => setArchive(e.target.checked)} />

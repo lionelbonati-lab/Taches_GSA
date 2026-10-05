@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, MyRequest, OrgMember, OrgUnit, UnitType } from './types';
+import type { AppData, CentralAccess, Guest, MyRequest, OrgMember, OrgUnit, UnitType } from './types';
 import { UNIT_COLORS } from './units';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
@@ -23,6 +23,8 @@ export interface Membership {
   /** Comité central dont dépend l'entité. */
   parentId: string | null;
   info: UnitInfo;
+  /** Entité ouverte par un membre du comité central qui n'en fait pas partie (selon son réglage). */
+  guest?: Guest;
 }
 
 /** Fiche d'une entité (colonne info de la table committees). */
@@ -31,7 +33,15 @@ export interface UnitInfo {
   description?: string;
   date?: string;
   archive?: boolean;
+  /** Accès du comité central (réglé par les admins de l'entité, contrôlé par le serveur). */
+  central?: CentralAccess;
 }
+
+/**
+ * Ce qu'un membre du comité central peut écrire dans une entité ouverte en « modifier / ajouter » :
+ * les tâches et ce qui les accompagne (emails programmés, notifications, journal). Même liste côté serveur (006).
+ */
+export const GUEST_WRITABLE = new Set(['tasks', 'emails', 'notifications', 'log']);
 
 /** Collections de l'appli enregistrées élément par élément. */
 const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log'] as const;
@@ -159,6 +169,8 @@ export class CloudSync {
   status: SyncStatus = 'ok';
   /** Modifications refusées par le serveur (message à afficher, éléments à recharger). */
   onRejected: (message: string, rows: Row[]) => void = () => {};
+  /** Visiteur du comité central : collections qu'il peut écrire (rien en consultation) ; null = membre. */
+  allow: Set<string> | null = null;
 
   constructor(
     readonly committeeId: string,
@@ -270,7 +282,7 @@ export class CloudSync {
   private commit() {
     clearTimeout(this.timer);
     if (!this.latest) return;
-    const rows = this.diff(this.latest);
+    const rows = this.diff(this.latest).filter((r) => !this.allow || this.allow.has(r.kind));
     if (!rows.length) return;
     rows.forEach((r) => {
       this.remember(r);
@@ -462,8 +474,9 @@ export function membershipUnit(m: Membership): OrgUnit {
     description: m.info.description,
     date: m.info.date,
     archive: !!m.info.archive,
+    central: m.info.central,
     membres: [],
-    moi: true,
+    moi: !m.guest,
     moiAdmin: false,
   };
 }
@@ -484,6 +497,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       description: info.description,
       date: info.date,
       archive: !!info.archive,
+      central: info.central,
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined })),
       moi: u.moi,
       moiAdmin: u.moiAdmin,
@@ -492,7 +506,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
   });
 }
 
-/** Nom et fiche d'une entité (admins de l'entité ou du comité central). */
+/** Nom et fiche d'une entité (admins de l'entité ou du comité central ; l'accès du comité central, ceux de l'entité). */
 export async function updateCommittee(id: string, patch: { name: string; type: UnitType; info: UnitInfo }) {
   const { data, error } = await sb().from('committees').update(patch).eq('id', id).select('id');
   if (error) throw new Error(error.message);

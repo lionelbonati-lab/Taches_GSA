@@ -2,15 +2,16 @@ import { useCallback, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { CENTRAL_ID, loadMe, loadUnitData, loadUnits, resetDemo, saveMe, saveUnitData, saveUnits, UNIT_KEY } from './data/demoClub';
-import { defaultRoleId, orgMembers, personKey, sortUnits, unitData } from './data/units';
+import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
-import type { MyRequest, OrgUnit, Person, Task, Unit } from './data/types';
+import type { Guest, MyRequest, OrgUnit, Person, Task, Unit } from './data/types';
 import { App } from './App';
 import { Login } from './pages/Login';
 
 // Démo : le club et ses entités, toutes gardées dans ce navigateur.
-// On se connecte en choisissant une personne de l'annuaire du club ; elle retrouve les entités dont elle fait partie.
+// On se connecte en choisissant une personne de l'annuaire du club ; elle retrouve les entités dont elle fait partie,
+// et, membre du comité central, celles qui lui sont ouvertes (consulter, ou aussi modifier / ajouter).
 
 const readUnit = () => {
   try {
@@ -24,6 +25,8 @@ export function DemoApp() {
   const [units, setUnits] = useState<Unit[]>(() => loadUnits());
   const [me, setMe] = useState<string | null>(() => loadMe());
   const [unitId, setUnitId] = useState<string | null>(readUnit);
+  // Entité ouverte en visiteur (comité central) : pas reprise au prochain lancement ni par la personne suivante.
+  const [visitId, setVisitId] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
 
   // Organigramme : membres de chaque entité, lus dans ses données.
@@ -49,22 +52,42 @@ export function DemoApp() {
   const logout = useCallback(() => {
     saveMe(null);
     setMe(null);
+    setVisitId(null);
   }, []);
 
   const mineAll = org.filter((u) => u.moi);
-  const current = mineAll.find((u) => u.id === unitId) ?? mineAll.find((u) => u.type === 'central' && !u.archive) ?? mineAll.find((u) => !u.archive) ?? mineAll[0];
   const central = org.find((u) => u.type === 'central') ?? null;
+  const visitAll = org.filter((u) => visitLevel(u, central));
+  const current =
+    visitAll.find((u) => u.id === visitId) ??
+    mineAll.find((u) => u.id === unitId) ??
+    mineAll.find((u) => u.type === 'central' && !u.archive) ??
+    mineAll.find((u) => !u.archive) ??
+    mineAll[0];
+  // Entité ouverte en visiteur : fiche de la personne au comité central, droits selon le réglage de l'entité.
+  const guest: Guest | null = useMemo(() => {
+    const niveau = current && visitLevel(current, central);
+    const me2 = niveau && central?.membres.find((m) => personKey(m, central.id) === me);
+    return niveau && me2 ? { person: guestPerson(me2), niveau } : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current?.id, current?.central, central, me]);
 
-  const switchUnit = useCallback((id: string) => {
-    try {
-      localStorage.setItem(UNIT_KEY, id);
-    } catch {
-      /* ignore */
-    }
-    window.location.hash = '#/';
-    setUnitId(id);
-    setVersion((v) => v + 1);
-  }, []);
+  const switchUnit = useCallback(
+    (id: string) => {
+      if (org.find((u) => u.id === id)?.moi) {
+        try {
+          localStorage.setItem(UNIT_KEY, id);
+        } catch {
+          /* ignore */
+        }
+        setUnitId(id);
+        setVisitId(null);
+      } else setVisitId(id);
+      window.location.hash = '#/';
+      setVersion((v) => v + 1);
+    },
+    [org],
+  );
 
   const club: Club | null = useMemo(() => {
     if (!current) return null;
@@ -73,6 +96,7 @@ export function DemoApp() {
       current,
       central,
       mine: mineAll.filter((u) => !u.archive || u.id === current.id),
+      visitable: visitAll.filter((u) => !u.archive || u.id === current.id),
       canManage: !!central?.moiAdmin,
       loading: false,
       error: '',
@@ -91,7 +115,9 @@ export function DemoApp() {
         return { unitId: id };
       },
       async updateUnit(id, patch) {
-        const next = units.map((u) => (u.id === id ? { ...u, ...patch } : u));
+        // Comme le serveur : l'accès du comité central ne change que par les admins de l'entité.
+        const admin = org.find((u) => u.id === id)?.moiAdmin;
+        const next = units.map((u) => (u.id === id ? { ...u, ...patch, central: admin && patch.central ? patch.central : u.central } : u));
         saveUnits(next);
         setUnits(next);
       },
@@ -141,13 +167,14 @@ export function DemoApp() {
           .sort((a, b) => b.le.localeCompare(a.le));
       },
     };
-  }, [org, current, central, mineAll, switchUnit, refresh, units]);
+  }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units]);
 
   const personId = useMemo(() => {
     if (!current || !me) return null;
+    if (guest) return guest.person.id;
     return loadUnitData(current.id).people.find((p) => p.actif && personKey(p, current.id) === me)?.id ?? null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id, me]);
+  }, [current?.id, me, guest]);
 
   const demo: DemoMode | null = useMemo(
     () =>
@@ -156,6 +183,7 @@ export function DemoApp() {
             load: () => loadUnitData(current.id),
             save: (d) => saveUnitData(current.id, d),
             personId,
+            guest,
             logout,
             reset: () => {
               resetDemo();
@@ -165,7 +193,7 @@ export function DemoApp() {
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [current?.id, personId, logout],
+    [current?.id, personId, guest, logout],
   );
 
   if (!me || !club || !demo) {

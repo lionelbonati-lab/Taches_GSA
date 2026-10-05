@@ -165,6 +165,8 @@ export interface Task {
   updatedAt: string;
   /** Tâche proposée au comité central par un sous-comité, un groupe ou une équipe. */
   proposee?: Proposal;
+  /** Tâche ajoutée par un membre du comité central (entité ouverte en « modifier / ajouter ») : son nom. */
+  parCentral?: string;
 }
 
 /** Origine d'une tâche proposée au comité central. */
@@ -324,6 +326,8 @@ export interface ActivityNotif {
   type: 'assign' | 'modif' | 'recur';
   taskId: string;
   by: string;
+  /** Auteur hors de l'entité (membre du comité central) : son nom, à afficher tel quel. */
+  byName?: string;
   at: string;
   detail?: string;
 }
@@ -366,6 +370,18 @@ export interface Unit {
   date?: string;
   /** Événement passé, entité plus utilisée : masquée des menus. */
   archive?: boolean;
+  /** Ce que le comité central peut faire des données de l'entité (réglage de ses admins ; absent = rien). */
+  central?: CentralAccess;
+}
+
+/** Accès du comité central aux données d'une entité : rien voir, consulter, ou aussi ajouter et modifier des tâches. */
+export type CentralAccess = 'aucun' | 'lecture' | 'ecriture';
+
+/** Membre du comité central qui ouvre une entité sans en faire partie (selon le réglage de l'entité). */
+export interface Guest {
+  /** Sa fiche au comité central (identifiant préfixé, absente des membres de l'entité). */
+  person: Person;
+  niveau: Exclude<CentralAccess, 'aucun'>;
 }
 
 /** Membre d'une entité, tel qu'affiché dans l'organigramme. */

@@ -89,9 +89,10 @@ export function DocPollIcons({ task }: { task: Task }) {
   );
 }
 
-/** Tâche proposée au comité central par une autre entité du club. */
+/** Tâche proposée au comité central par une autre entité du club, ou ajoutée par le comité central dans une entité. */
 export function ProposalTag({ task }: { task: Task }) {
   const p = task.proposee;
+  if (task.parCentral && !p) return <span className="badge proposal" title={`Tâche ajoutée par ${task.parCentral} (comité central)`}>🏛️ Comité central</span>;
   if (!p) return null;
   return <span className="badge proposal" title={`Demande de « ${p.unite} », envoyée par ${p.par} le ${fmtDate(p.le.slice(0, 10))}`}>📨 {p.unite}</span>;
 }

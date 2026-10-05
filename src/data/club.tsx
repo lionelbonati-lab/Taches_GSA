@@ -69,6 +69,11 @@ export interface Club {
   central: OrgUnit | null;
   /** Entités dont l'utilisateur fait partie (hors archivées, sauf l'entité ouverte). */
   mine: OrgUnit[];
+  /**
+   * Entités ouvertes au comité central (réglage « Accès du comité central ») que l'utilisateur, membre du
+   * comité central, peut consulter ou compléter sans en faire partie (hors archivées, sauf l'entité ouverte).
+   */
+  visitable: OrgUnit[];
   /** Admin du comité central : crée et modifie les entités du club. */
   canManage: boolean;
   loading: boolean;
@@ -76,7 +81,7 @@ export interface Club {
   switchUnit: (id: string) => void;
   refresh: () => void;
   createUnit: (u: NewUnit) => Promise<CreatedUnit>;
-  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'archive'>>) => Promise<void>;
+  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'archive' | 'central'>>) => Promise<void>;
   /** Envoie une tâche au comité central (depuis une autre entité). */
   proposeTask: (r: NewRequest) => Promise<void>;
   /** Demandes envoyées au comité central par l'entité ouverte, avec leur suivi. */

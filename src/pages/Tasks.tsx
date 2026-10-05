@@ -11,10 +11,10 @@ type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 
 const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '' };
 
 export function Tasks() {
-  const { data, user, can, canSeeTask, canEditTask, prefs, setPrefs, saveTask } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, guest } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
-    params.get('statut') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') ? 'toutes' : prefs.vueDefaut,
+    params.get('statut') ? (guest ? 'toutes' : 'mes') : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') ? 'toutes' : prefs.vueDefaut,
   );
   const [f, setF] = useState({
     ...EMPTY_FILTERS,
@@ -123,7 +123,7 @@ export function Tasks() {
       <div className="page-head">
         <h1>Tâches <span className="count">{list.length}</span></h1>
         <div className="actions">
-          {viewAll && (
+          {viewAll && !guest && (
             <div className="seg">
               <button className={effScope === 'mes' ? 'on' : ''} onClick={() => setScope('mes')}>Mes tâches</button>
               <button className={effScope === 'toutes' ? 'on' : ''} onClick={() => setScope('toutes')}>Toutes</button>
@@ -136,7 +136,7 @@ export function Tasks() {
           <button className="btn" onClick={() => setShowFilters(!showFilters)}>Filtres{activeFilters ? ` (${activeFilters})` : ''}</button>
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
-          <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { eventId: f.event || undefined, meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>
+          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { eventId: f.event || undefined, meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>}
         </div>
       </div>
 

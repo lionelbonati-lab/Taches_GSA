@@ -5,11 +5,16 @@ import type { Permission, Person, Role } from '../data/types';
 import { fmtDateTime, fullName, uid } from '../data/utils';
 import { Avatar, Modal } from '../components/ui';
 import { accessAction, type AccessInfo } from '../data/cloud';
+import { useClubOptional } from '../data/club';
+import { CentralAccessPanel } from '../components/CentralAccess';
 
-type Tab = 'users' | 'roles' | 'lists' | 'log';
+type Tab = 'users' | 'roles' | 'lists' | 'central' | 'log';
 
 export function Admin() {
   const [tab, setTab] = useState<Tab>('users');
+  const club = useClubOptional();
+  // Sous-comité, groupe ou équipe : ce que le comité central peut faire de ses données.
+  const sub = !!club && club.current.type !== 'central';
   return (
     <div>
       <h1>Console admin</h1>
@@ -17,11 +22,13 @@ export function Admin() {
         <button className={tab === 'users' ? 'on' : ''} onClick={() => setTab('users')}>Utilisateurs</button>
         <button className={tab === 'roles' ? 'on' : ''} onClick={() => setTab('roles')}>Rôles & permissions</button>
         <button className={tab === 'lists' ? 'on' : ''} onClick={() => setTab('lists')}>Sections & statuts</button>
+        {sub && <button className={tab === 'central' ? 'on' : ''} onClick={() => setTab('central')}>Accès du comité central</button>}
         <button className={tab === 'log' ? 'on' : ''} onClick={() => setTab('log')}>Journal d'activité</button>
       </div>
       {tab === 'users' && <Users />}
       {tab === 'roles' && <Roles />}
       {tab === 'lists' && <Lists />}
+      {tab === 'central' && <CentralAccessPanel />}
       {tab === 'log' && <Log />}
     </div>
   );

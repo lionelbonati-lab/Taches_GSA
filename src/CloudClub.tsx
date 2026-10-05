@@ -1,13 +1,15 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { accessAction, fetchOrg, membershipUnit, myMemberships, myRequests, proposeTask, toRows, updateCommittee, type Membership } from './data/cloud';
-import { defaultRoleId, unitData } from './data/units';
+import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
 
 // Version réelle : le club autour de l'entité ouverte (organigramme, changement d'entité, demandes au comité central).
 // Les données de chaque entité restent dans la sienne ; ce qui passe de l'une à l'autre passe par les
 // fonctions du serveur (gsa_organigramme, gsa_proposer_tache, gsa_mes_demandes, gsa-acces « creerUnite »).
+// Exception : une entité peut ouvrir ses données au comité central (consulter, ou aussi modifier / ajouter) ;
+// ses membres l'ouvrent alors en visiteur, avec leur fiche du comité central (règles du serveur : 006).
 
 export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; userId: string; onSwitch: (m: Membership) => void; children: ReactNode }) {
   const clubId = m.parentId ?? m.committeeId;
@@ -39,13 +41,32 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       current,
       central,
       mine: units.filter((u) => u.moi && reachable.has(u.id) && (!u.archive || u.id === current.id)),
+      visitable: units.filter((u) => visitLevel(u, central) && (!u.archive || u.id === current.id)),
       canManage: !!central?.moiAdmin,
       loading,
       error,
       refresh,
       switchUnit(id) {
-        const target = list.find((x) => x.committeeId === id);
-        if (!target || id === m.committeeId) return;
+        if (id === m.committeeId) return;
+        let target = list.find((x) => x.committeeId === id);
+        if (!target) {
+          // Entité ouverte au comité central : visite avec la fiche de l'utilisateur au comité central.
+          const u = units.find((x) => x.id === id);
+          const niveau = u && visitLevel(u, central);
+          const myCentral = list.find((x) => x.committeeId === central?.id);
+          const me = central?.membres.find((x) => x.id === myCentral?.personId);
+          if (!u || !niveau || !me) return;
+          target = {
+            committeeId: u.id,
+            committeeName: u.nom,
+            personId: null,
+            owner: false,
+            type: u.type,
+            parentId: u.parentId ?? null,
+            info: { couleur: u.couleur, description: u.description, date: u.date, archive: u.archive, central: u.central },
+            guest: { person: guestPerson(me), niveau },
+          };
+        }
         window.location.hash = '#/';
         onSwitch(target);
       },
@@ -72,7 +93,14 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         await updateCommittee(id, {
           name: next.nom,
           type: next.type,
-          info: { couleur: next.couleur, description: next.description || undefined, date: next.date || undefined, archive: next.archive || undefined },
+          info: {
+            couleur: next.couleur,
+            description: next.description || undefined,
+            date: next.date || undefined,
+            archive: next.archive || undefined,
+            // Réglage de l'entité : le serveur garde l'ancienne valeur si l'auteur n'en est pas admin.
+            central: next.central && next.central !== 'aucun' ? next.central : undefined,
+          },
         });
         refresh();
       },

@@ -10,7 +10,7 @@ import { switchMode } from '../data/mode';
 import { useClubOptional } from '../data/club';
 
 export function Settings() {
-  const { data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
+  const { data, user, prefs, setPrefs, can, reset, restore, login, cloud, guest } = useStore();
   const club = useClubOptional();
   const [pwd, setPwd] = useState<'ferme' | 'ouvert' | 'ok'>('ferme');
   const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -147,7 +147,8 @@ export function Settings() {
         <p className="muted">Installe Tâches GSA comme une application sur ton ordinateur ou ton téléphone : icône sur le bureau / l’écran d’accueil, fenêtre dédiée, ouverture même hors connexion.</p>
         <InstallButton />
       </section>
-      <section className="panel backup">
+      {/* Visiteur du comité central : les sauvegardes de l'entité restent l'affaire de ses membres. */}
+      {!guest && <section className="panel backup">
         <h2>Sauvegarde des données</h2>
         {cloud ? (
           <p className="muted">
@@ -172,8 +173,8 @@ export function Settings() {
         </div>
         <small className="muted">{last ? `Dernière sauvegarde depuis ce navigateur : ${fmtDateTime(last)}` : 'Aucune sauvegarde téléchargée depuis ce navigateur.'}</small>
         {backupMsg && <p className={backupMsg.ok ? 'backup-ok' : 'error'}>{backupMsg.text}</p>}
-      </section>
-      {!cloud && <section className="panel">
+      </section>}
+      {!cloud && !guest && <section className="panel">
         <h2>Données de démonstration</h2>
         <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club) et efface tout ce qui a été saisi : télécharge d’abord une sauvegarde.</p>
         <div className="row wrap">

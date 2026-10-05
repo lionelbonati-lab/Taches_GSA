@@ -13,13 +13,15 @@ import { IncomingRequests, OutgoingRequests } from '../components/Requests';
 import { useClubOptional } from '../data/club';
 
 export function Dashboard() {
-  const { data, user, can, saveTask } = useStore();
+  const { data, user, can, saveTask, guest } = useStore();
   const club = useClubOptional();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
   if (!user) return null;
 
-  const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
+  // Membre du comité central qui ouvre l'entité : il n'y a pas de tâches à lui, l'accueil montre celles de l'entité.
+  const mine = guest ? data.tasks : data.tasks.filter((t) => t.responsables.includes(user.id));
+  const my = guest ? '' : 'mes ';
   const open = mine.filter((t) => !isDone(data, t));
   const late = open.filter((t) => isLate(data, t)).sort((a, b) => a.delai.localeCompare(b.delai));
   const soon = open.filter((t) => { const n = t.delai ? daysUntil(t.delai) : -1; return n >= 0 && n <= 7; }).sort((a, b) => a.delai.localeCompare(b.delai));
@@ -42,12 +44,12 @@ export function Dashboard() {
       <div className="stats">
         {/* Chaque case ouvre la liste de mes tâches filtrée sur ce statut. */}
         {data.statuses.map((s) => (
-          <Link key={s.id} to={`/taches?statut=${s.id}`} className="stat" style={{ borderTopColor: s.couleur }} title={`Voir mes tâches « ${s.label} »`}>
+          <Link key={s.id} to={`/taches?statut=${s.id}`} className="stat" style={{ borderTopColor: s.couleur }} title={`Voir ${my || 'les '}tâches « ${s.label} »`}>
             <b>{mine.filter((t) => t.statusId === s.id).length}</b>
             <span>{s.label}</span>
           </Link>
         ))}
-        <Link to="/taches?statut=retard" className="stat" style={{ borderTopColor: 'var(--late)' }} title="Voir mes tâches en retard">
+        <Link to="/taches?statut=retard" className="stat" style={{ borderTopColor: 'var(--late)' }} title={`Voir ${my || 'les '}tâches en retard`}>
           <b>{late.length}</b>
           <span>En retard</span>
         </Link>
@@ -55,13 +57,13 @@ export function Dashboard() {
 
       <div className="grid2">
         <section>
-          <h2>⚠ Mes tâches en retard</h2>
+          <h2>⚠ {guest ? 'Tâches en retard' : 'Mes tâches en retard'}</h2>
           {late.length ? <div className="cards">{late.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Rien en retard, bravo !</Empty>}
           <h2>📅 À faire dans les 7 jours</h2>
           {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Aucune échéance cette semaine.</Empty>}
         </section>
         <aside>
-          {club && club.current.type !== 'central' && <OutgoingRequests />}
+          {club && club.current.type !== 'central' && !guest && <OutgoingRequests />}
           {club?.current.type === 'central' && <IncomingRequests onOpen={setEdit} />}
           {toSend.length > 0 && (
             <>

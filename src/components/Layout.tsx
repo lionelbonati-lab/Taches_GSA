@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
-import { rolesLabel } from '../data/permissions';
 import type { Permission } from '../data/types';
 import { TaskModal, newTask } from './TaskModal';
 import { Avatar, Toast } from './ui';
@@ -9,7 +8,7 @@ import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { useClubOptional } from '../data/club';
-import { UNIT_TYPES } from '../data/units';
+import { CENTRAL_ACCESS, centralAccess, UNIT_TYPES } from '../data/units';
 
 export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean; club?: boolean }[] = [
   { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
@@ -27,7 +26,7 @@ export const TABS: { to: string; label: string; short?: string; icon: string; pe
 ];
 
 export function Layout() {
-  const { data, user, can, login, prefs, setToast, cloud } = useStore();
+  const { user, myRoles, can, login, prefs, setToast, cloud, guest, creatableSections } = useStore();
   const club = useClubOptional();
   const [quick, setQuick] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -84,6 +83,8 @@ export function Layout() {
   }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 
   if (!user) return null;
+  const rolesText = myRoles.map((r) => r.label).join(' + ') || 'Aucun rôle';
+  const canCreate = creatableSections().length > 0;
   // Libellés selon l'entité ouverte : « Séances » pour un groupe, « Membres » hors comité central…
   const unitType = club?.current.type ?? 'central';
   const tabs = TABS.filter((t) => (!t.perm || can(t.perm)) && (!t.club || club)).map((t) =>
@@ -110,17 +111,18 @@ export function Layout() {
           <Avatar id={user.id} size={32} />
           <div className="who-text">
             <strong>{user.prenom} {user.nom}</strong>
-            <small>{user.poste} · {rolesLabel(data.roles, user)}</small>
+            <small>{user.poste} · {rolesText}</small>
           </div>
           {!cloud && <button className="btn small" onClick={() => login(null)} title="Changer d'utilisateur">Changer</button>}
         </div>
       </header>
 
+      {guest && <GuestBanner />}
       <main className="content">
         <Outlet />
       </main>
 
-      {!menu && <button className="fab" onClick={() => setQuick(true)} aria-label="Ajout rapide de tâche">+</button>}
+      {!menu && canCreate && <button className="fab" onClick={() => setQuick(true)} aria-label="Ajout rapide de tâche">+</button>}
 
       <nav className="bottomnav">
         {tabs.filter((t) => t.mobile).map((t) => (
@@ -141,7 +143,7 @@ export function Layout() {
               <div>
                 <strong>{user.prenom} {user.nom}</strong>
                 <br />
-                <small>{user.poste} · {rolesLabel(data.roles, user)}</small>
+                <small>{user.poste} · {rolesText}</small>
               </div>
             </div>
             {tabs.filter((t) => !t.mobile).map((t) => (
@@ -154,7 +156,7 @@ export function Layout() {
       )}
 
       <Toast />
-      {quick && <TaskModal quick isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
+      {quick && canCreate && <TaskModal quick isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
     </div>
   );
 }
@@ -168,6 +170,8 @@ function UnitSwitch() {
   if (!club) return null;
   const { current } = club;
   const others = club.mine.filter((u) => u.id !== current.id);
+  const visits = club.visitable.filter((u) => u.id !== current.id);
+  const visiting = !current.moi;
   return (
     <div className="unit-switch">
       <button className="unit-btn" onClick={() => setOpen(!open)} aria-expanded={open} title={`${UNIT_TYPES[current.type].label} · changer d’entité`} style={{ borderColor: current.couleur }}>
@@ -182,7 +186,7 @@ function UnitSwitch() {
             <small className="muted">Entité ouverte</small>
             <div className="unit-item on">
               <span className="unit-dot" style={{ background: current.couleur }}>{UNIT_TYPES[current.type].icon}</span>
-              <span><b>{current.nom}</b><small className="muted">{UNIT_TYPES[current.type].label}</small></span>
+              <span><b>{current.nom}</b><small className="muted">{UNIT_TYPES[current.type].label}{visiting ? ` · ${CENTRAL_ACCESS[centralAccess(current)].icon} ouverte au comité central` : ''}</small></span>
             </div>
             {others.length > 0 && <small className="muted">Mes autres entités</small>}
             {others.map((u) => (
@@ -191,6 +195,16 @@ function UnitSwitch() {
                 <span><b>{u.nom}</b><small className="muted">{UNIT_TYPES[u.type].label}{u.moiAdmin ? ' · ★ admin' : ''}</small></span>
               </button>
             ))}
+            {visits.length > 0 && <small className="muted">Ouvertes au comité central</small>}
+            {visits.map((u) => {
+              const a = CENTRAL_ACCESS[centralAccess(u)];
+              return (
+                <button key={u.id} className="unit-item" role="menuitem" onClick={() => { setOpen(false); club.switchUnit(u.id); }}>
+                  <span className="unit-dot" style={{ background: u.couleur }}>{UNIT_TYPES[u.type].icon}</span>
+                  <span><b>{u.nom}</b><small className="muted">{a.icon} {a.label}</small></span>
+                </button>
+              );
+            })}
             <NavLink to="/organigramme" className="unit-item link" onClick={() => setOpen(false)}>🏛️ Organigramme du club</NavLink>
           </div>
         </>
@@ -206,4 +220,21 @@ function SyncBadge() {
     return <span className="sync-tag off" title="Les modifications seront envoyées dès le retour de la connexion">⚠<span className="sync-text"> Hors ligne{pending ? ` · ${pending} en attente` : ''}</span></span>;
   if (status === 'envoi') return <span className="sync-tag busy" title="Envoi au serveur">⏳<span className="sync-text"> Envoi…</span></span>;
   return <span className="sync-tag" title="Tout est enregistré sur le serveur">☁<span className="sync-text"> À jour</span></span>;
+}
+
+/** Entité ouverte en visiteur par un membre du comité central : ce qu'il peut y faire, et le retour à ses entités. */
+function GuestBanner() {
+  const { guest } = useStore();
+  const club = useClubOptional();
+  if (!guest || !club) return null;
+  const back = club.mine.find((u) => u.type === 'central') ?? club.mine[0];
+  return (
+    <div className={`guest-banner ${guest.niveau}`} role="status">
+      <span>
+        {CENTRAL_ACCESS[guest.niveau].icon} <b>{club.current.nom}</b> · tu l’ouvres en tant que membre du comité central :{' '}
+        {guest.niveau === 'ecriture' ? 'tu peux ajouter et modifier des tâches, sans rien supprimer.' : 'consultation seule.'}
+      </span>
+      {back && <button className="btn small" onClick={() => club.switchUnit(back.id)}>↩ {back.nom}</button>}
+    </div>
+  );
 }

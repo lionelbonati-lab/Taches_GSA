@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
-import { CloudSync, linkMyPerson, myMemberships, type Membership } from './data/cloud';
+import { CloudSync, GUEST_WRITABLE, linkMyPerson, myMemberships, type Membership } from './data/cloud';
 import { migrate, SCHEMA, StoreProvider, type CloudMode } from './data/store';
 import { setServerFiles } from './data/files';
 import type { AppData, Person } from './data/types';
@@ -49,15 +49,23 @@ export function CloudApp() {
       const id = ++run.current;
       const alive = () => id === run.current;
       try {
-        localStorage.setItem(COMMITTEE_KEY, m.committeeId);
+        // Une entité ouverte en visiteur n'est pas reprise au prochain lancement (retour au comité central).
+        if (!m.guest) localStorage.setItem(COMMITTEE_KEY, m.committeeId);
       } catch {
         /* ignore */
       }
       setPhase({ k: 'chargement', text: `Chargement des données · ${m.committeeName}…` });
       setServerFiles(m.committeeId);
       const sync = new CloudSync(m.committeeId, s.user.id);
+      if (m.guest) sync.allow = m.guest.niveau === 'ecriture' ? GUEST_WRITABLE : new Set();
       const { data, empty } = await sync.load();
       if (!alive()) return;
+      if (m.guest) {
+        // Visiteur du comité central : rien de visible = l'entité a refermé l'accès (ou n'a pas encore de données).
+        if (empty) return setPhase({ k: 'erreur', text: `« ${m.committeeName} » n’est plus ouverte au comité central.` });
+        if (!data.schema) data.schema = SCHEMA;
+        return setPhase({ k: 'pret', cloud: { sync, initial: data, personId: m.guest.person.id, membership: m, email: s.user.email ?? '', signOut } });
+      }
       if (empty) return setPhase(m.owner ? { k: 'miseEnRoute', m, sync } : { k: 'pasPret', m });
       const person = data.people.find((p) => p.id === m.personId);
       if (!person) return setPhase(m.owner ? { k: 'quiEsTu', m, sync, data } : { k: 'pasPret', m });

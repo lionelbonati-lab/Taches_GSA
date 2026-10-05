@@ -28,7 +28,8 @@ export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
 
 export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: Task; isNew: boolean; onClose: () => void; quick?: boolean; openEmailId?: string }) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask } = useStore();
-  const [t, setT] = useState<Task>(task);
+  // Nouvelle tâche ouverte par un visiteur du comité central : il n'est pas responsable possible dans l'entité.
+  const [t, setT] = useState<Task>(() => (isNew ? { ...task, responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)) } : task));
   const [newItem, setNewItem] = useState('');
   // Tâche liée (ou principale) ouverte par-dessus cette fenêtre.
   const [other, setOther] = useState<{ task: Task; isNew: boolean } | null>(null);
@@ -313,7 +314,7 @@ export function TaskModal({ task, isNew, onClose, quick, openEmailId }: { task: 
               {!isNew && <a className="small-link" href="#/sondages">Voir tous les sondages →</a>}
             </fieldset>
             <EmailsField task={task} isNew={isNew} openEmailId={openEmailId} />
-            {!isNew && <small className="muted full">Dernière modification : {fmtDateTime(task.updatedAt)} · créée par {fullName(data.people.find((p) => p.id === task.createdBy))}</small>}
+            {!isNew && <small className="muted full">Dernière modification : {fmtDateTime(task.updatedAt)} · créée par {task.parCentral ? `${task.parCentral} (comité central)` : fullName(data.people.find((p) => p.id === task.createdBy))}</small>}
           </>
         )}
       </div>

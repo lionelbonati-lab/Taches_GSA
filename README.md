@@ -31,6 +31,8 @@ Connexion par simple clic sur un poste (sans mot de passe) :
 
 L'écran de connexion liste aussi les membres des sous-comités, groupes et équipes (Moniteur 1 et 2, Aide-moniteur, Entraîneur route, Coureur, Parcours et sécurité…) : chacun retrouve les entités dont il fait partie. Exemples : **École de cyclisme** (comité central, responsable de l'école de cyclisme, soirée récréative), **Bruntrutaine** (président du CO Bruntrutaine), **Moniteur 1** (seulement l'école de cyclisme).
 
+Accès du comité central dans la démo : l'**École de cyclisme** le laisse **consulter**, le **CO Bruntrutaine** le laisse **modifier / ajouter**, les autres entités sont fermées. Connecté comme **Président**, ouvrir l'une ou l'autre depuis l'organigramme ou le menu des entités.
+
 ## Rôles et permissions
 
 Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au code :
@@ -43,7 +45,7 @@ Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au 
 
 ## Organisation du club (entités)
 
-Le club = le **comité central** et ses entités, chacune avec **ses propres responsables, rôles, sections, statuts, tâches, séances et événements**, invisibles des autres entités (le comité central ne voit pas leurs tâches, et inversement) :
+Le club = le **comité central** et ses entités, chacune avec **ses propres responsables, rôles, sections, statuts, tâches, séances et événements**, invisibles des autres entités (le comité central ne voit pas leurs tâches, et inversement, sauf si l'entité lui ouvre l'accès : voir plus bas) :
 
 | Type | Pour quoi | Modèle de départ (modifiable ensuite) |
 |---|---|---|
@@ -59,6 +61,11 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
 - **Créer une entité** (admins du comité central) : « + Nouvelle entité » dans l'organigramme → nom, type, date, couleur, description, **responsable** (admin de l'entité, choisi dans l'annuaire ou nouvelle personne) et membres de départ (annuaire). Dans la version réelle, le compte du responsable est créé avec un mot de passe provisoire (à lui transmettre), et les membres qui ont déjà un compte retrouvent l'entité dans leur menu.
 - **Gérer son entité** : le président / responsable est admin de son entité ; il y gère membres, rôles, sections, statuts et accès (console admin), et peut en modifier le nom, la couleur, la description et la date. Le type et l'**archivage** (jamais de suppression) sont réservés au comité central. Onglet Responsables/Membres : **📇 Depuis l'annuaire du club** reprend une personne d'une autre entité.
 - **Demandes au comité central** : depuis l'accueil d'une entité, **+ Demande** envoie une tâche au comité central (titre, détails, délai, section). Elle arrive dans ses tâches sans responsable, marquée **📨 nom de l'entité**, et apparaît dans « Demandes reçues » sur son accueil et dans les notifications de ceux qui attribuent les tâches. L'entité en suit l'avancement (statut, délai, qui s'en occupe) sans voir le reste des tâches du comité central.
+- **Accès du comité central** : chaque sous-comité, groupe ou équipe choisit ce que les membres du comité central peuvent faire de ses données, dans **Console admin › Accès du comité central** (ou la fiche de l'entité dans l'organigramme). Seuls les admins (★) de l'entité changent ce réglage ; le comité central le voit, grisé.
+  - 🔒 **Rien voir** (par défaut) : l'entité reste fermée au comité central.
+  - 👁 **Consulter** : les membres du comité central ouvrent l'entité (bouton **👁 Consulter** sur sa carte, ou rubrique « Ouvertes au comité central » du menu des entités) et voient tout en lecture seule : tâches, séances, événements, membres, fichiers. Rien n'est modifié, pas même les réglages d'affichage.
+  - ✏️ **Consulter et modifier / ajouter** : en plus, ils créent et modifient des tâches (avec emails programmés, notifications et fichiers joints). Ces tâches portent le badge **🏛️ Comité central**, et le journal de l'entité note « … par Prénom Nom (comité central) ». Pas de suppression, et pas de membres, rôles, séances ni réglages de l'entité.
+  - Un bandeau rappelle qu'on visite l'entité, avec un bouton de retour au comité central. Le visiteur n'est pas ajouté aux membres de l'entité, et la visite n'est pas reprise au prochain lancement.
 
 ## Onglets
 
@@ -201,6 +208,6 @@ Liens directs : https://lionelbonati-lab.github.io/Taches_GSA/?demo (à envoyer 
 - **Accès** : console admin › Utilisateurs › **Créer l'accès** crée le compte d'un responsable avec un mot de passe provisoire (à lui transmettre), qu'il remplace à la première connexion. Désactiver une fiche coupe l'accès. Aucun email n'est envoyé par le serveur.
 - **Mise en route** : à la première connexion du président, reprise d'une sauvegarde de la démo (Réglages › Sauvegarde) ou base vide.
 - **Fichiers joints** : stockage privé du serveur, dossier du comité.
-- **Entités** : chaque sous-comité, groupe ou équipe est un comité du serveur rattaché au comité central, avec ses propres données ; organigramme et demandes passent par des fonctions du serveur qui ne laissent sortir que le nécessaire.
+- **Entités** : chaque sous-comité, groupe ou équipe est un comité du serveur rattaché au comité central, avec ses propres données ; organigramme et demandes passent par des fonctions du serveur qui ne laissent sortir que le nécessaire. L'accès du comité central (consulter, modifier / ajouter) est appliqué par les règles du serveur, pas seulement par l'appli.
 
 Détails techniques (tables, règles d'accès, fonction serveur) : [SUPABASE_SETUP.md](SUPABASE_SETUP.md).

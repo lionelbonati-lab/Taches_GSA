@@ -166,7 +166,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
     if ((n.type === 'assign' && !p.assign) || (n.type !== 'assign' && !p.modif)) continue;
     const t = data.tasks.find((x) => x.id === n.taskId);
     if (!t) continue;
-    const by = fullName(data.people.find((x) => x.id === n.by));
+    const by = n.byName ?? fullName(data.people.find((x) => x.id === n.by));
     items.push({
       key: n.id,
       icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : '✏️',

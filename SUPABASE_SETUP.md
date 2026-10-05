@@ -22,6 +22,14 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - `gsa_proposer_tache(entité, tâche)` : une entité envoie une tâche au comité central (titre, remarque et délai contrôlés, sans responsable, premier statut ouvert, marquée `proposee`) ; `gsa_mes_demandes(entité)` : leur suivi (statut, délai, responsables).
 - Nom, couleur, description et date d'une entité : modifiables par ses admins et ceux du comité central ; type et archivage réservés au comité central (déclencheur `gsa_committees_guard`).
 
+`supabase/migrations/006_gsa_acces_central.sql` (appliqué le 05.10.2026) : accès du comité central aux données d'une entité. Ajout pur : aucune donnée modifiée.
+
+- Réglage `info.central` d'une entité : `aucun` (ou absent, par défaut), `lecture` ou `ecriture`. Seuls les admins de l'entité le changent : si un admin du comité central modifie l'entité, le déclencheur `gsa_committees_guard` garde l'ancienne valeur ; une valeur inconnue est refusée.
+- `gsa_acces_central(entité)` : le niveau ouvert au compte connecté (`lecture`, `ecriture` ou rien), s'il est membre actif du comité central de l'entité.
+- `gsa_items` : lecture pour les membres, ou si un niveau est ouvert ; ajout et modification pour les membres, ou en `ecriture` pour les collections `tasks`, `emails`, `notifications` et `log` seulement. Un non-membre ne peut pas supprimer une tâche (`gsa_items_guard`).
+- Fichiers (`gsa-fichiers`) : lecture si un niveau est ouvert, envoi en `ecriture` (`gsa_file_reader`, `gsa_file_writer`) ; suppression réservée aux membres.
+- Correction de 005 : la lecture de `committees` (`gsa_committees_select`) inclut les entités du comité central dont on est membre, sans quoi ses admins ne pouvaient pas modifier une entité dont ils ne font pas partie.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`
