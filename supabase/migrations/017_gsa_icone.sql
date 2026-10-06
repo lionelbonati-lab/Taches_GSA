@@ -1,4 +1,4 @@
--- Tâches GSA — 017 : icône de l'appli installée tirée du logo du club.
+-- Tâches GSA — 017 : icône de l'appli installée tirée du logo du club (appliqué le 06.10.2026).
 -- Les admins du comité central préparent les icônes dans l'appli (Console admin › Logo et couleur) et les déposent
 -- dans le bucket public « gsa-public », dossier <id du comité central>/. La publication du site (GitHub Actions)
 -- les reprend : fichiers fixes du site, seuls fiables pour l'installation (Android, iPhone, ordinateur).
