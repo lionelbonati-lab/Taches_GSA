@@ -92,7 +92,7 @@ export function MembresClub() {
       <p className="muted">
         Une fiche par personne pour tout le club, avec ou sans accès à l’appli (licenciés, parents, bénévoles…). Prénom, nom, email et
         téléphone sont les mêmes dans toutes les entités où la personne a un poste : modifiés ici, ils changent partout. Le poste, les rôles et
-        l’accès à l’appli se règlent dans chaque entité, depuis l’organigramme (clic sur un poste, ou « + Ajouter une personne » sous l’entité).
+        l’accès à l’appli se règlent dans chaque entité, depuis l’organigramme (clic sur une personne, ou « + Ajouter une personne » sous l’entité).
       </p>
       {err && <p className="error">{err}</p>}
       {!list && !err && <p className="muted">Chargement…</p>}

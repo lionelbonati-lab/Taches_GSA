@@ -12,7 +12,7 @@ import { CentralAccessChoice } from '../components/CentralAccess';
 import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
-// Sous chaque entité, une ligne par personne avec son poste (pas son nom) : un clic ouvre sa fiche.
+// Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
 // « + Ajouter une personne » en bas de la liste (entité ouverte, ou entité dont on est admin : on l'ouvre d'abord).
 // Un clic sur le nom d'une entité l'ouvre ; ⚙️ modifie sa fiche.
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
@@ -86,7 +86,7 @@ export function Org() {
         {club.canManage && <button className="btn primary" onClick={() => setEdit({})}>+ Nouvelle entité</button>}
       </div>
       <p className="muted small-note">
-        Les traits relient chaque entité à celle dont elle dépend. Clique sur un poste pour voir la fiche de la personne, sur le nom d’une entité pour l’ouvrir.
+        Les traits relient chaque entité à celle dont elle dépend. Clique sur une personne pour voir la fiche de la personne, sur le nom d’une entité pour l’ouvrir.
         {club.error && <span className="error"> {club.error}</span>}
       </p>
       {active.length ? <Arbre units={active} actions={actions} /> : <Empty>Aucune entité.</Empty>}
@@ -162,7 +162,7 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
 }
 
 /**
- * Une entité dans l'arbre : nom, type, nombre de membres, puis une ligne par personne (son poste, pas son nom)
+ * Une entité dans l'arbre : nom, type, nombre de membres, puis une ligne par personne (son nom et ses fonctions)
  * qui ouvre sa fiche, et le bouton « + » pour y ajouter quelqu'un quand on en a le droit.
  */
 function Noeud({ u, onPersonne, onAjouter, ouvrir, onModifier }: { u: OrgUnit } & Actions) {
@@ -198,8 +198,8 @@ function Noeud({ u, onPersonne, onAjouter, ouvrir, onModifier }: { u: OrgUnit } 
         {lignes.map((l) => (
           <button key={l.m.id} type="button" className={`poste ${l.chef ? 'chef' : ''}`} onClick={() => onPersonne(l.m)}>
             {l.chef && <span className="org-star">★ </span>}
-            {l.label}
-            {l.autres && <span className="autres"> · {l.autres}</span>}
+            {l.nom}
+            {l.postes && <span className="autres"> · {l.postes}</span>}
           </button>
         ))}
       </div>
@@ -391,7 +391,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
                 {addable.map((e) => <option key={e.key} value={e.key}>{e.prenom} {e.nom}</option>)}
               </select>
               <p className="muted small-note">
-                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis l’organigramme (« + Ajouter une personne », clic sur un poste).
+                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis l’organigramme (« + Ajouter une personne », clic sur une personne).
               </p>
             </div>
           </>

@@ -35,7 +35,7 @@ export function Admin() {
       icon: '🔑',
       titre: 'Rôles et droits',
       carte: `Ce que chaque rôle (Secrétaire, Caissier…) permet de voir et de faire${sub ? ', et l’accès du comité central' : ''}.`,
-      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ` (${personnes} : clic sur son poste)` : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.${sub ? ' Et ce que le comité central peut faire des données de l’entité.' : ''}`,
+      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ` (${personnes} : clic sur son nom)` : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.${sub ? ' Et ce que le comité central peut faire des données de l’entité.' : ''}`,
       resume: `${data.roles.length} rôles${u && sub ? ` · comité central : ${CENTRAL_ACCESS[centralAccess(u)].label.toLowerCase()}` : ''}`,
       contenu: (
         <>
@@ -113,7 +113,7 @@ export function Admin() {
             <span className="admin-carte-icone" aria-hidden>👥</span>
             <span>
               <b>Personnes et accès</b>
-              <span className="muted">« + Ajouter une personne » sous l’entité ; un clic sur un poste ouvre la fiche : poste, rôle, accès à l’appli.</span>
+              <span className="muted">« + Ajouter une personne » sous l’entité ; un clic sur une personne ouvre la fiche : poste, rôle, accès à l’appli.</span>
               <small>Dans {personnes} · {data.people.filter((x) => x.actif).length} personnes</small>
             </span>
           </Link>

@@ -13,7 +13,7 @@ import { Avatar, Initials, Modal } from './ui';
 import { AccessCell, CredentialsModal, type Shown } from './Acces';
 
 // Les personnes d'une entité, ouvertes depuis l'organigramme : ajouter quelqu'un (« + » sous l'entité),
-// voir ou modifier sa fiche (clic sur son poste) : poste, rôles, accès à l'appli, retrait.
+// voir ou modifier sa fiche (clic sur son nom) : poste, rôles, accès à l'appli, retrait.
 // Les coordonnées viennent du registre « Membres du club ».
 
 /** Postes de la personne dans les autres entités du club (même adresse email). */
@@ -250,7 +250,7 @@ function PersonModal({ person, central, access, accessErr, onAccessChange, onSho
           <AccessCell person={before!} access={access} onChange={onAccessChange} onShow={onShow} />
         </div>
       )}
-      {cloud && admin && (isNew || reactiver) && <p className="muted small-note">Accès à l’appli : à créer une fois la fiche enregistrée (clic sur son poste dans l’organigramme).</p>}
+      {cloud && admin && (isNew || reactiver) && <p className="muted small-note">Accès à l’appli : à créer une fois la fiche enregistrée (clic sur son nom dans l’organigramme).</p>}
       {accessErr && <p className="error">{accessErr}</p>}
       {club && <p className="muted small-note">Prénom, nom, email et téléphone sont communs à tout le club (registre « Membres du club ») : modifiés ici, ils changent dans toutes les entités.</p>}
       {err && <p className="error">{err}</p>}

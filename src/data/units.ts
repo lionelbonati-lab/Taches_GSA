@@ -1,7 +1,7 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
 import type { AppData, CentralAccess, Guest, OrgMember, OrgUnit, Permission, Person, Role, Section, Unit, UnitType } from './types';
-import { uid } from './utils';
+import { posteBesideName, uid } from './utils';
 
 // Entités du club : comité central, sous-comités, groupes, équipes d'événement.
 // Chaque entité a ses propres données (responsables, rôles, sections, statuts, tâches, séances…).
@@ -57,15 +57,19 @@ export function parentDans<T extends Unit>(units: T[], u: T): T | undefined {
 export type Branche<T> = { u: T; enfants: Branche<T>[] };
 
 /**
- * Une ligne par personne pour l'organigramme, sans son nom : son poste (« ★ Président », « Moniteur »…)
- * et ses autres fonctions. Sans poste : le rôle (ou « Président » / « Responsable » pour un admin).
+ * Une ligne par personne pour l'organigramme : son nom, puis ses fonctions (poste et autres postes).
+ * Sans poste : le rôle (ou « Président » / « Responsable » pour un admin). Sans nom : le poste à la place.
  * Les présidents / responsables en premier.
  */
-export function postesEntite(membres: OrgMember[], chef: string): { m: OrgMember; label: string; autres?: string; chef: boolean }[] {
+export function postesEntite(membres: OrgMember[], chef: string): { m: OrgMember; nom: string; postes?: string; chef: boolean }[] {
   return [...membres.filter((m) => m.admin), ...membres.filter((m) => !m.admin)].map((m) => {
-    const autres = (m.autresPostes ?? '').split(',').map((x) => x.trim()).filter(Boolean);
-    const label = (m.poste ?? '').trim() || autres.shift() || (m.admin ? chef : (m.roles.find((r) => !r.startsWith('Admin')) ?? 'Membre'));
-    return { m, label, autres: autres.length ? autres.join(', ') : undefined, chef: m.admin };
+    const fonctions = [m.poste ?? '', ...(m.autresPostes ?? '').split(',')].map((x) => x.trim()).filter(Boolean);
+    if (!fonctions.length) fonctions.push(m.admin ? chef : (m.roles.find((r) => !r.startsWith('Admin')) ?? 'Membre'));
+    const complet = `${m.prenom ?? ''} ${m.nom ?? ''}`.trim();
+    // Une fonction qui répète le nom (ex. fiches nommées d'après leur poste) n'est pas répétée.
+    const postes = complet ? fonctions.filter((x) => posteBesideName(complet, x)) : fonctions;
+    const nom = complet || postes.shift() || '';
+    return { m, nom, postes: postes.length ? postes.join(', ') : undefined, chef: m.admin };
   });
 }
 

@@ -73,7 +73,7 @@ const RUBRIQUES: NavRubrique[] = [
         label: 'Organigramme',
         icon: '🏛️',
         club: true,
-        aide: 'Le comité central, les sous-comités, groupes et équipes d’événement, et les postes de chacun. Un clic sur un poste ouvre la fiche de la personne (coordonnées, rôles, accès à l’appli) ; « + Ajouter une personne » sous l’entité.',
+        aide: 'Le comité central, les sous-comités, groupes et équipes d’événement, et qui y fait quoi. Un clic sur une personne ouvre la fiche de la personne (coordonnées, rôles, accès à l’appli) ; « + Ajouter une personne » sous l’entité.',
       },
       { to: '/membres-club', label: 'Membres du club', icon: '📇', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli.' },
     ],

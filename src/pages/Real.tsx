@@ -317,7 +317,7 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
               {backup.data.people.filter((p) => p.actif).map((p) => <option key={p.id} value={p.id}>{fullName(p)}{posteBesideName(fullName(p), p.poste) && ` – ${p.poste}`}</option>)}
             </select>
           </label>
-          <p className="muted small-note">Pense à corriger ensuite les noms et les adresses email dans l’organigramme (clic sur chaque poste) : ce sont elles qui serviront à créer les accès des membres.</p>
+          <p className="muted small-note">Pense à corriger ensuite les noms et les adresses email dans l’organigramme (clic sur chaque personne) : ce sont elles qui serviront à créer les accès des membres.</p>
           <button className="btn primary" disabled={!!busy || !me} onClick={doImport}>Importer dans la version réelle</button>
           {!busy && <button className="btn link" onClick={() => { setBackup(null); setStep('choix'); }}>← Retour</button>}
         </>
