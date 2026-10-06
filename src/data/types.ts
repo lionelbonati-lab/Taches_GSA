@@ -411,13 +411,15 @@ export interface AppData {
   emails?: ScheduledEmail[];
   /** Clés des notifications déjà vues, par utilisateur. */
   notifLues?: Record<string, string[]>;
-  /** En-têtes des documents imprimés (sans réglage : logo et nom de l'entité ; PV : celui de l'ordre du jour). */
+  /** En-tête de tous les documents imprimés de l'entité (ordre du jour, PV, bon de paiement) ; sans réglage : logo et nom de l'entité. */
+  entete?: Entete;
+  /** Ancien réglage, un en-tête par document : repris tant que « entete » n'est pas réglé (archives : leurs images). */
   entetes?: { odj?: Entete; pv?: Entete; bon?: Entete };
   /** Sceau « OK pour paiement » des tickets à rembourser. */
   timbre?: Timbre;
 }
 
-/** En-tête d'un document imprimé (ordre du jour, PV), commun à toute l'entité. */
+/** En-tête des documents imprimés (ordre du jour, PV, bon de paiement), commun à toute l'entité. */
 export interface Entete {
   /** Image : logo de l'entité (ou du club), image propre (ex. papier à lettres du club), ou aucune. */
   image: 'logo' | 'perso' | 'aucune';

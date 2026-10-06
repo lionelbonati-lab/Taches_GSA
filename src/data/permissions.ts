@@ -13,7 +13,7 @@ export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMIS
   { id: 'tab.people', label: 'Organigramme : email et téléphone des personnes de l’entité (dans leur fiche)', group: 'Pages visibles' },
   { id: 'tab.pv', label: 'Comité › Ordre du jour', group: 'Pages visibles' },
   { id: 'tab.minutes', label: 'Comité › PV (prise de notes, PV)', group: 'Pages visibles' },
-  { id: 'club.membres', label: 'Personnes › Membres du club (registre commun : coordonnées, IBAN, groupes)', group: 'Pages visibles' },
+  { id: 'club.membres', label: 'Membres du club (registre commun : coordonnées, IBAN, groupes)', group: 'Pages visibles' },
   { id: 'meetings.manage', label: 'Gérer les séances de comité', group: 'Gestion' },
   { id: 'events.manage', label: 'Gérer les événements', group: 'Gestion' },
   { id: 'people.manage', label: 'Gérer les personnes de l’entité (ajouter, modifier leur fiche)', group: 'Gestion' },

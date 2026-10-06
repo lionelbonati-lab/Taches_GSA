@@ -9,9 +9,11 @@ import { useClubOptional } from '../data/club';
 import { ImportsEntite } from '../components/ImportsEntite';
 import { CentralAccessPanel } from '../components/CentralAccess';
 import { LogoPanel } from '../components/LogoPanel';
-import { PageIntro, useChemin } from '../components/Nav';
+import { PageIntro } from '../components/Nav';
 import { CENTRAL_ACCESS, centralAccess } from '../data/units';
 import { COULEURS_APPLI } from '../data/couleur';
+import { EnteteReglage } from '../components/Entete';
+import { defaultTexte, enteteDe, enteteRegle } from '../data/entete';
 
 type Partie = { id: string; icon: string; titre: string; carte: string; aide: string; resume: string; contenu: ReactNode };
 
@@ -20,22 +22,24 @@ export function Admin() {
   const { partie } = useParams();
   const { data, prefs } = useStore();
   const club = useClubOptional();
-  const chemin = useChemin();
   const u = club?.current;
   const central = !u || u.type === 'central';
   // Sous-comité, groupe ou équipe : ce que le comité central peut faire de ses données.
   const sub = !!u && !central;
-  const personnes = chemin('/organigramme');
+  // Personnes de l'entité : dans l'organigramme du club (menu des entités, en haut à gauche).
+  const personnes = !!club;
 
   const couleur = u?.couleurAppli ?? (sub ? club?.central?.couleurAppli : undefined);
   const nomCouleur = couleur ? COULEURS_APPLI.find((x) => x.c === couleur.toLowerCase())?.nom.toLowerCase() ?? 'personnalisée' : 'bleu d’origine';
+  const entete = enteteDe(data, defaultTexte(u));
+  const enteteTexte = entete.texte.split('\n').map((l) => l.trim()).find(Boolean);
   const parties: Partie[] = [
     {
       id: 'droits',
       icon: '🔑',
       titre: 'Rôles et droits',
       carte: `Ce que chaque rôle (Secrétaire, Caissier…) permet de voir et de faire${sub ? ', et l’accès du comité central' : ''}.`,
-      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ` (${personnes} : clic sur son nom)` : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.${sub ? ' Et ce que le comité central peut faire des données de l’entité.' : ''}`,
+      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ' (organigramme du club : clic sur son nom)' : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.${sub ? ' Et ce que le comité central peut faire des données de l’entité.' : ''}`,
       resume: `${data.roles.length} rôles${u && sub ? ` · comité central : ${CENTRAL_ACCESS[centralAccess(u)].label.toLowerCase()}` : ''}`,
       contenu: (
         <>
@@ -69,6 +73,15 @@ export function Admin() {
           },
         ]
       : []),
+    {
+      id: 'entete',
+      icon: '📄',
+      titre: 'En-tête des documents',
+      carte: 'Le haut de page de l’ordre du jour, du PV et du bon de paiement : logo ou image, texte, couleur.',
+      aide: 'Le même en-tête pour tous les documents imprimés de l’entité : ordre du jour, PV et bon de paiement. Chacun les imprime avec cet en-tête.',
+      resume: `${entete.image === 'logo' ? 'Logo' : entete.image === 'perso' ? 'Image propre' : 'Sans image'}${enteteTexte ? ` · « ${enteteTexte} »` : ''}${enteteRegle(data) ? '' : ' (par défaut)'}`,
+      contenu: <EnteteReglage />,
+    },
     {
       id: 'import',
       icon: '📥',
@@ -114,7 +127,7 @@ export function Admin() {
             <span>
               <b>Personnes et accès</b>
               <span className="muted">« + Ajouter une personne » sous l’entité ; un clic sur une personne ouvre la fiche : poste, rôle, accès à l’appli.</span>
-              <small>Dans {personnes} · {data.people.filter((x) => x.actif).length} personnes</small>
+              <small>Organigramme du club (menu des entités, en haut à gauche) · {data.people.filter((x) => x.actif).length} personnes</small>
             </span>
           </Link>
         )}
@@ -307,7 +320,7 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
       </div>
       <div className="modal-foot">
         {!lock && (
-          <button className="btn danger" disabled={members.length > 0} title={members.length ? 'Retire d’abord ce rôle aux personnes concernées (rubrique Personnes)' : ''} onClick={remove}>
+          <button className="btn danger" disabled={members.length > 0} title={members.length ? 'Retire d’abord ce rôle aux personnes concernées (leur fiche : organigramme du club)' : ''} onClick={remove}>
             Supprimer
           </button>
         )}

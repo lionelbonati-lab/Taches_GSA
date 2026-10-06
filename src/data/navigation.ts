@@ -64,19 +64,11 @@ const RUBRIQUES: NavRubrique[] = [
     ],
   },
   {
+    // L'organigramme du club n'est pas une rubrique : il s'ouvre depuis le menu des entités (en haut à gauche).
     id: 'personnes',
-    label: 'Personnes',
-    icon: '👥',
-    pages: [
-      {
-        to: '/organigramme',
-        label: 'Organigramme',
-        icon: '🏛️',
-        club: true,
-        aide: 'Le comité central, les sous-comités, groupes et équipes d’événement, et qui y fait quoi. Un clic sur une personne ouvre la fiche de la personne (coordonnées, rôles, accès à l’appli) ; « + Ajouter une personne » sous l’entité.',
-      },
-      { to: '/membres-club', label: 'Membres du club', icon: '📇', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli.' },
-    ],
+    label: 'Membres du club',
+    icon: '📇',
+    pages: [{ to: '/membres-club', label: 'Membres du club', icon: '📇', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli.' }],
   },
 ];
 

@@ -14,8 +14,7 @@ import { fmtDate, fmtDateTime, fullName, today, uid } from '../data/utils';
 import { DocsField, Thumb, type DocTracking } from './DocsField';
 import { SignaturePad } from './SignaturePad';
 import { Modal } from './ui';
-import { DocEntete, EnteteEditor, useUnitLogo } from './Entete';
-import { defaultTexte, enteteOf } from '../data/entete';
+import { DocEntete, LienEntete, useEntete, useUnitLogo } from './Entete';
 
 // Remboursements et paiements de factures : des tâches de la section des finances, ouvertes dans cette fenêtre
 // (circuit caisse → visa → virement) au lieu du formulaire de tâche.
@@ -32,8 +31,8 @@ const parseMontant = (s: string) => {
  *  pour que « Bon de paiement » n'imprime que lui. */
 export function TicketModal({ task, onClose }: { task: Task; onClose: () => void }) {
   const { data, user, setToast } = useStore();
-  const club = useClubOptional();
   const logo = useUnitLogo();
+  const entete = useEntete();
   const [edit, setEdit] = useState(false);
   // Droit vérifié à l'ouverture : la personne qui vise perd l'accès une fois son visa donné (la fenêtre se ferme).
   const [autorise] = useState(() => peutOuvrirTicket(data, task, user?.id));
@@ -45,12 +44,11 @@ export function TicketModal({ task, onClose }: { task: Task; onClose: () => void
   if (!t || !autorise) return null;
   if (edit) return <TicketForm ticket={t} onClose={() => setEdit(false)} />;
   const g = genre(t.paiement);
-  const entete = enteteOf(data, 'bon', defaultTexte(club?.current));
   return createPortal(
     <Modal title={`${g.icon} ${g.nom}`} onClose={onClose} wide>
-      {/* Bon de paiement imprimé : en-tête de l'entité (réglé par la caisse), puis le titre. */}
+      {/* Bon de paiement imprimé : en-tête de l'entité (console admin), puis le titre. */}
       <div className="print-only bon-entete">
-        <DocEntete e={entete.e} source={entete.source} logo={logo} />
+        <DocEntete e={entete} logo={logo} />
         <h2>Bon de paiement · {g.nom}</h2>
       </div>
       <TicketCard t={t} onEdit={() => setEdit(true)} onClose={onClose} />
@@ -64,11 +62,9 @@ export function TicketModal({ task, onClose }: { task: Task; onClose: () => void
   );
 }
 
-/** Circuit expliqué en tête de la liste des paiements et remboursements ; réglage du sceau et de l'en-tête du bon pour la caisse. */
+/** Circuit expliqué en tête de la liste des paiements et remboursements ; réglage du sceau pour la caisse (l'en-tête du bon : console admin). */
 export function CircuitPaiements({ total }: { total?: number }) {
   const { data, user } = useStore();
-  const club = useClubOptional();
-  const [entete, setEntete] = useState(false);
   const caisse = !!user && holders(data, 'paiements.payer').includes(user.id);
   return (
     <div className="circuit-paiements no-print">
@@ -77,8 +73,7 @@ export function CircuitPaiements({ total }: { total?: number }) {
         Circuit : la caisse reçoit la demande et la fait viser par un membre du comité (jamais le demandeur), qui signe et pose le sceau « {timbreDe(data).texte} » → la caisse fait le virement et met « OK ». Le virement lui-même ne passe pas par l’appli.
       </p>
       {caisse && <TimbreReglage />}
-      {caisse && <button className="btn small entete-bon" onClick={() => setEntete(true)}>✏️ En-tête du bon de paiement…</button>}
-      {entete && <EnteteEditor doc="bon" texte={defaultTexte(club?.current)} onClose={() => setEntete(false)} />}
+      {caisse && <LienEntete className="btn small entete-bon" />}
       {total !== undefined && <p className="muted small">Total : <strong>{chf(total)}</strong></p>}
     </div>
   );
@@ -199,8 +194,6 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
   const [refus, setRefus] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [demande, setDemande] = useState(false);
-  const [entete, setEntete] = useState(false);
-  const club = useClubOptional();
   const p = t.paiement;
   const g = genre(p);
   // Caisse : les caissiers désignés (à défaut, les admins). Un admin qui n'est pas caissier, ex. le président
@@ -308,13 +301,11 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
         {(p.etat === 'recu' || p.etat === 'refuse') && (mien || caisse) && <button className="btn danger" onClick={supprimer}>Supprimer</button>}
         {(p.etat === 'valide' || p.etat === 'paye') && p.validation?.docVise && <button className="btn" onClick={telecharger}>⬇️ Télécharger : {g.vise.toLowerCase()}</button>}
         {(p.etat === 'valide' || p.etat === 'paye') && <button className="btn" onClick={imprimer}>🖨 Bon de paiement</button>}
-        {(p.etat === 'valide' || p.etat === 'paye') && caisse && <button className="btn link" onClick={() => setEntete(true)}>✏️ En-tête du bon</button>}
         {p.etat === 'valide' && caisse && <button className="btn link" onClick={retirerVisa}>Retirer le visa</button>}
         {p.etat === 'paye' && caisse && (
           <button className="btn link" onClick={() => confirm('Le virement n’a pas été fait ? La demande revient « à payer ».') && save(t, { etat: 'valide', paye: undefined }, `« ${t.titre} » remis « à payer »`)}>Annuler « payé »</button>
         )}
       </div>
-      {entete && <EnteteEditor doc="bon" texte={defaultTexte(club?.current)} onClose={() => setEntete(false)} />}
       {viser && (
         <VisaModal
           t={t}

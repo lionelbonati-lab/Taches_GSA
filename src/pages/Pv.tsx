@@ -7,10 +7,9 @@ import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
-import { useClubOptional } from '../data/club';
-import { archiveHtml, defaultTexte, enteteOf, hydrateArchive } from '../data/entete';
+import { archiveHtml, hydrateArchive } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
-import { DocEntete, EnteteEditor, useUnitLogo } from '../components/Entete';
+import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
@@ -78,12 +77,9 @@ export function Pv() {
 
   const sheetRef = useRef<HTMLDivElement>(null);
   const [msg, setMsg] = useState('');
-  // En-tête commun à l'entité (sans réglage : logo et nom saisi auparavant dans « Mise en page »).
-  const club = useClubOptional();
+  // En-tête commun à tous les documents de l'entité (console admin).
   const logo = useUnitLogo();
-  const [enteteEdit, setEnteteEdit] = useState(false);
-  const texteDefaut = s.club && s.club !== DEFAULT_PV.club ? s.club : defaultTexte(club?.current);
-  const entete = enteteOf(data, 'odj', texteDefaut);
+  const entete = useEntete();
 
   const secName = (id: string) => data.sections.find((x) => x.id === id)?.nom ?? '';
   const person = (id: string) => data.people.find((p) => p.id === id);
@@ -689,7 +685,7 @@ export function Pv() {
               <input value={s.titre} placeholder={s1 ? `Comité ${shortDate(s1.date)}` : 'Comité'} onChange={(e) => set({ titre: e.target.value })} />
             </label>
             <label className="inline"><input type="checkbox" checked={s.afficherClub} onChange={(e) => set({ afficherClub: e.target.checked })} /> Afficher l’en-tête (logo, nom du club…)</label>
-            {can('tab.pv') && <button className="btn small" onClick={() => setEnteteEdit(true)}>✏️ Modifier l’en-tête…</button>}
+            <LienEntete />
             <label>
               Orientation
               <select value={s.orientation} onChange={(e) => set({ orientation: e.target.value as PvSettings['orientation'] })}>
@@ -734,7 +730,7 @@ export function Pv() {
           ) : (
           <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`}>
             <header className="pv-head">
-              {s.afficherClub && <DocEntete e={entete.e} source={entete.source} logo={logo} />}
+              {s.afficherClub && <DocEntete e={entete} logo={logo} />}
               {s.presentation === 'tableaux' && <p className="pv-kicker">Ordre du jour</p>}
               <h1>{titre}</h1>
               {s1 && (
@@ -872,7 +868,6 @@ export function Pv() {
           )}
         </div>
       </div>
-      {enteteEdit && <EnteteEditor doc="odj" texte={texteDefaut} onClose={() => setEnteteEdit(false)} />}
     </div>
   );
 }

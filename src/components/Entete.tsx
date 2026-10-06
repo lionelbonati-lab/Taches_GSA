@@ -1,13 +1,13 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { DOC_DE, DOC_LABEL, defaultEntete, enteteImage, enteteOf, type DocKind } from '../data/entete';
+import { defaultEntete, defaultTexte, enteteDe, enteteImage } from '../data/entete';
 import { isImage } from '../data/logo';
 import type { Entete } from '../data/types';
 import { ImagePicker } from './ImagePicker';
-import { Modal } from './ui';
 
-// En-tête des documents imprimés (ordre du jour, PV, bon de paiement) et son réglage, commun à toute l'entité.
+// En-tête des documents imprimés (ordre du jour, PV, bon de paiement) : un seul pour toute l'entité, réglé dans la console admin.
 
 const TAILLES: { id: Entete['taille']; label: string }[] = [
   { id: 'petite', label: 'Petite' },
@@ -30,8 +30,8 @@ export function useUnitLogo() {
 }
 
 /** En-tête tel qu'il s'imprime. */
-export function DocEntete({ e, source, logo }: { e: Entete; source: DocKind | null; logo?: string }) {
-  const img = enteteImage(e, source, logo);
+export function DocEntete({ e, logo }: { e: Entete; logo?: string }) {
+  const img = enteteImage(e, logo);
   const lines = e.texte.split('\n').map((l) => l.trim()).filter(Boolean);
   if (!img && !lines.length) return null;
   return (
@@ -46,45 +46,52 @@ export function DocEntete({ e, source, logo }: { e: Entete; source: DocKind | nu
   );
 }
 
-/** Réglage de l'en-tête d'un document, avec aperçu. */
-export function EnteteEditor({ doc, texte, onClose }: { doc: DocKind; texte: string; onClose: () => void }) {
-  const { data, update } = useStore();
+/** En-tête de l'entité ouverte, tel que ses documents l'impriment. */
+export function useEntete() {
+  const { data } = useStore();
+  const club = useClubOptional();
+  return enteteDe(data, defaultTexte(club?.current));
+}
+
+/** Là où un document s'imprime : l'en-tête se règle dans la console admin (lien pour ses admins). */
+export function LienEntete({ className = 'btn small' }: { className?: string }) {
+  const { can } = useStore();
+  if (!can('admin.access')) return null;
+  return <Link to="/admin/entete" className={className} title="Le même pour l’ordre du jour, le PV et le bon de paiement">✏️ En-tête (console admin)</Link>;
+}
+
+/** Console admin : l'en-tête de tous les documents de l'entité, avec aperçu. */
+export function EnteteReglage() {
+  const { data, update, setToast } = useStore();
+  const club = useClubOptional();
   const logo = useUnitLogo();
-  const current = enteteOf(data, doc, texte);
-  const [e, setE] = useState<Entete>(current.e);
+  const texte = defaultTexte(club?.current);
+  const actuel = enteteDe(data, texte);
+  const [e, setE] = useState<Entete>(actuel);
   const [err, setErr] = useState('');
-  const set = (patch: Partial<Entete>) => setE((x) => ({ ...x, ...patch }));
-  const odj = data.entetes?.odj;
-  const label = DOC_DE[doc];
+  const set = (patch: Partial<Entete>) => {
+    setErr('');
+    setE((x) => ({ ...x, ...patch }));
+  };
+  const propre = (x: Entete): Entete => ({ ...x, texte: x.texte.trim(), imagePerso: x.image === 'perso' ? x.imagePerso : undefined });
+  const modifie = JSON.stringify(propre(e)) !== JSON.stringify(propre(actuel));
+  const parDefaut = JSON.stringify(propre(e)) === JSON.stringify(propre(defaultEntete(texte)));
 
   const save = () => {
     if (e.image === 'perso' && !isImage(e.imagePerso)) return setErr('Choisis l’image, ou une autre option.');
-    const clean: Entete = { ...e, texte: e.texte.trim(), imagePerso: e.image === 'perso' ? e.imagePerso : undefined };
     update((d) => {
-      d.entetes = { ...d.entetes, [doc]: clean };
-    }, `En-tête ${label} modifié`);
-    onClose();
-  };
-  const reset = () => {
-    update((d) => {
-      const next = { ...d.entetes };
-      delete next[doc];
-      d.entetes = next;
-    }, `En-tête ${label} : retour à l’en-tête ${doc !== 'odj' && odj ? 'de l’ordre du jour' : 'par défaut'}`);
-    onClose();
+      d.entete = propre(e);
+    }, 'En-tête des documents modifié');
+    setToast('📄 En-tête enregistré : ordre du jour, PV et bon de paiement');
   };
 
   return (
-    <Modal title={`En-tête ${label}`} onClose={onClose} wide>
-      <p className="muted small-note">
-        Commun à toute l’entité : chacun imprime {DOC_LABEL[doc]} avec cet en-tête.
-        {doc !== 'odj' && current.source === 'odj' && ` Pour l’instant, ${DOC_LABEL[doc]} reprend l’en-tête de l’ordre du jour.`}
-      </p>
+    <section className="panel entete-reglage">
       <div className="form">
         <div className="full">
           <span className="field-label">Image</span>
           <div className="row wrap">
-            <label className="inline"><input type="radio" name="entete-image" checked={e.image === 'logo'} onChange={() => set({ image: 'logo' })} /> {isImage(logo) ? 'Logo de l’entité' : 'Logo (pas encore de logo : console admin › Logo)'}</label>
+            <label className="inline"><input type="radio" name="entete-image" checked={e.image === 'logo'} onChange={() => set({ image: 'logo' })} /> {isImage(logo) ? 'Logo de l’entité' : 'Logo (pas encore de logo : console admin › Apparence)'}</label>
             <label className="inline"><input type="radio" name="entete-image" checked={e.image === 'perso'} onChange={() => set({ image: 'perso' })} /> Image propre (ex. papier à lettres)</label>
             <label className="inline"><input type="radio" name="entete-image" checked={e.image === 'aucune'} onChange={() => set({ image: 'aucune' })} /> Aucune</label>
           </div>
@@ -126,20 +133,19 @@ export function EnteteEditor({ doc, texte, onClose }: { doc: DocKind; texte: str
       <div className="entete-apercu">
         <div className="pv-sheet portrait t-normale">
           <header className="pv-head">
-            <DocEntete e={e} source={doc} logo={logo} />
-            <p className="pv-kicker">{doc === 'odj' ? 'Ordre du jour' : doc === 'pv' ? 'Procès-verbal' : 'Bon de paiement'}</p>
-            <h1>{doc === 'bon' ? 'Remboursement · CHF …' : 'Comité …'}</h1>
+            <DocEntete e={e} logo={logo} />
+            <p className="pv-kicker">Ordre du jour · Procès-verbal · Bon de paiement</p>
+            <h1>Comité …</h1>
           </header>
         </div>
       </div>
       {err && <p className="error">{err}</p>}
-      <div className="modal-foot wrap">
-        {doc !== 'odj' && odj && <button className="btn" onClick={() => setE({ ...defaultEntete(texte), ...odj })}>Reprendre l’en-tête de l’ordre du jour</button>}
-        {current.source === doc && <button className="btn link" onClick={reset}>{doc !== 'odj' && odj ? 'Revenir à l’en-tête de l’ordre du jour' : 'Revenir à l’en-tête par défaut'}</button>}
+      <div className="row wrap">
+        {!parDefaut && <button className="btn link" onClick={() => setE(defaultEntete(texte))}>Revenir à l’en-tête par défaut</button>}
         <span className="grow" />
-        <button className="btn" onClick={onClose}>Annuler</button>
-        <button className="btn primary" onClick={save}>Enregistrer</button>
+        {modifie && <button className="btn" onClick={() => { setE(actuel); setErr(''); }}>Annuler</button>}
+        <button className="btn primary" disabled={!modifie} onClick={save}>Enregistrer</button>
       </div>
-    </Modal>
+    </section>
   );
 }

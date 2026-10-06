@@ -29,16 +29,17 @@ export function Aide() {
   if (chemin('/ordre-du-jour')) geste('Préparer une séance', vers('/ordre-du-jour'), ' : choisis la séance, relis, puis imprime ou envoie par email.');
   if (chemin('/pv')) geste('Tenir le PV', vers('/pv'), ' : « Prise de notes » pendant la séance, puis « Valider et archiver » et l’envoyer.');
   geste('Voter ou poser une question au comité', vers('/sondages'), '. Un sondage qui attend ta réponse apparaît aussi à l’accueil.');
-  if (club) geste('Passer à une autre entité (sous-comité, groupe, équipe)', 'Le nom de l’entité en haut à gauche ▾. Chaque entité a ses propres tâches, séances et membres.');
+  if (club) geste('Passer à une autre entité (sous-comité, groupe, équipe)', 'Le nom de l’entité en haut à gauche ▾ (l’organigramme du club y est aussi). Chaque entité a ses propres tâches, séances et membres.');
   geste('Installer l’appli sur le téléphone ou l’ordinateur', '« 📲 Installer l’application » dans le menu du compte (« ☰ Plus » sur téléphone).');
   geste('Thème sombre, notifications', vers('/reglages'), '.');
-  if (chemin('/organigramme')) geste('Voir qui fait quoi, et ses coordonnées', vers('/organigramme'), ' : un clic sur une personne ouvre la fiche de la personne.');
-  if (chemin('/organigramme') && can('people.manage'))
-    geste('Ajouter une personne à l’entité', vers('/organigramme'), ' : « + Ajouter une personne » en bas de la liste des postes de l’entité.');
-  if (chemin('/organigramme') && can('admin.access'))
-    geste('Donner l’accès à l’appli à quelqu’un', vers('/organigramme'), ' : clic sur son nom (sa fiche doit avoir son email), puis « Créer l’accès ».');
+  // Organigramme : dans le menu des entités (en haut à gauche), pas dans les rubriques.
+  const orga = club && <><Link to="/organigramme">Organigramme du club</Link> (menu des entités, en haut à gauche)</>;
+  if (orga) geste('Voir qui fait quoi, et ses coordonnées', orga, ' : un clic sur une personne ouvre la fiche de la personne.');
+  if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « + Ajouter une personne » en bas de la liste des postes de l’entité.');
+  if (orga && can('admin.access')) geste('Donner l’accès à l’appli à quelqu’un', orga, ' : clic sur son nom (sa fiche doit avoir son email), puis « Créer l’accès ».');
   if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ».');
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
+  if (chemin('/admin')) geste('Changer l’en-tête de l’ordre du jour, du PV et du bon de paiement', vers('/admin'), ' › « En-tête des documents » : le même pour tous les documents de l’entité.');
 
   return (
     <div className="narrow aide-page">
@@ -63,6 +64,16 @@ export function Aide() {
             </ul>
           </div>
         ))}
+        {club && (
+          <div className="aide-rubrique">
+            <h3>🏛️ Entités du club</h3>
+            <p className="muted small-note">Le nom de l’entité ouverte, en haut à gauche ▾.</p>
+            <ul>
+              <li>Passer à une autre de tes entités (sous-comité, groupe, équipe).</li>
+              <li><Link to="/organigramme">Organigramme du club</Link> : le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. Un clic sur une personne ouvre sa fiche (coordonnées, rôles, accès à l’appli) ; « + Ajouter une personne » sous l’entité.</li>
+            </ul>
+          </div>
+        )}
         <div className="aide-rubrique">
           <h3>👤 Mon compte</h3>
           <p className="muted small-note">Ta pastille en haut à droite (« ☰ Plus » sur téléphone).</p>

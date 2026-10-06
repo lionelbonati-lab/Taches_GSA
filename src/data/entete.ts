@@ -1,29 +1,27 @@
 import type { AppData, Entete, Unit } from './types';
 import { isImage } from './logo';
 
-// En-têtes des documents imprimés (ordre du jour, PV, bon de paiement) : réglage commun à l'entité (données partagées « entetes »).
-
-export type DocKind = 'odj' | 'pv' | 'bon';
-export const DOC_LABEL: Record<DocKind, string> = { odj: 'l’ordre du jour', pv: 'le PV', bon: 'le bon de paiement' };
-export const DOC_DE: Record<DocKind, string> = { odj: 'de l’ordre du jour', pv: 'du PV', bon: 'du bon de paiement' };
+// En-tête des documents imprimés (ordre du jour, PV, bon de paiement) : un seul pour toute l'entité,
+// réglé dans la console admin (données partagées « entete »).
 
 /** Texte par défaut : nom du club, et de l'entité hors comité central. */
 export const defaultTexte = (unit?: Pick<Unit, 'nom' | 'type'>) => (!unit || unit.type === 'central' ? 'G.S. Ajoie – Comité' : `G.S. Ajoie – ${unit.nom}`);
 
 export const defaultEntete = (texte: string): Entete => ({ image: 'logo', taille: 'petite', texte, disposition: 'gauche', couleur: '#1d4ed8', trait: false });
 
-/** En-tête réglé pour ce document ; PV ou bon de paiement sans réglage : celui de l'ordre du jour ; sinon l'en-tête par défaut. */
-export function enteteOf(data: AppData, doc: DocKind, texte: string): { e: Entete; source: DocKind | null } {
-  const own = data.entetes?.[doc];
-  const odj = doc !== 'odj' && !own ? data.entetes?.odj : undefined;
-  const set = own ?? odj;
-  return { e: { ...defaultEntete(texte), ...set }, source: own ? doc : odj ? 'odj' : null };
-}
+/** Ancien réglage par document (avant l'en-tête unique) : celui de l'ordre du jour d'abord. */
+const ancien = (data: AppData) => data.entetes?.odj ?? data.entetes?.pv ?? data.entetes?.bon;
 
-/** Image de l'en-tête et sa référence dans les archives (« logo », « perso-odj », « perso-pv »). */
-export function enteteImage(e: Entete, source: DocKind | null, logo?: string): { key: string; src: string } | null {
+/** En-tête de l'entité, le même pour tous ses documents ; sans réglage : logo et nom de l'entité. */
+export const enteteDe = (data: AppData, texte: string): Entete => ({ ...defaultEntete(texte), ...(data.entete ?? ancien(data)) });
+
+/** En-tête réglé par un admin (sinon : celui par défaut). */
+export const enteteRegle = (data: AppData) => !!(data.entete ?? ancien(data));
+
+/** Image de l'en-tête et sa référence dans les archives (« logo », « perso »). */
+export function enteteImage(e: Entete, logo?: string): { key: string; src: string } | null {
   if (e.image === 'logo') return { key: 'logo', src: isImage(logo) ? logo : './icon.svg' };
-  if (e.image === 'perso' && isImage(e.imagePerso)) return { key: `perso-${source ?? 'odj'}`, src: e.imagePerso };
+  if (e.image === 'perso' && isImage(e.imagePerso)) return { key: 'perso', src: e.imagePerso };
   return null;
 }
 
@@ -33,12 +31,14 @@ export function enteteImage(e: Entete, source: DocKind | null, logo?: string): {
  */
 export const archiveHtml = (html: string) => html.replace(/(<img[^>]*\sdata-img="[^"]*")\s+src="data:[^"]*"/g, '$1');
 
-/** Remet les images actuelles de l'en-tête dans une archive. */
+/** Remet les images actuelles de l'en-tête dans une archive (« perso-odj », « perso-pv » : archives d'avant l'en-tête unique). */
 export function hydrateArchive(html: string, data: AppData, logo?: string) {
+  const perso = (data.entete ?? ancien(data))?.imagePerso;
   const imgs: Record<string, string | undefined> = {
     logo: isImage(logo) ? logo : './icon.svg',
-    'perso-odj': data.entetes?.odj?.imagePerso,
-    'perso-pv': data.entetes?.pv?.imagePerso,
+    perso,
+    'perso-odj': data.entetes?.odj?.imagePerso ?? perso,
+    'perso-pv': data.entetes?.pv?.imagePerso ?? perso,
   };
   return html.replace(/(<img[^>]*\sdata-img="([^"]+)")(?![^>]*\ssrc=)/g, (all, start: string, key: string) =>
     isImage(imgs[key]) || imgs[key] === './icon.svg' ? `${start} src="${imgs[key]}"` : all,

@@ -8,10 +8,9 @@ import type { MeetingMinutes, Poll, Task, TaskSnapshot } from '../data/types';
 import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
-import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
-import { archiveHtml, defaultTexte, enteteOf } from '../data/entete';
-import { DocEntete, EnteteEditor, useUnitLogo } from '../components/Entete';
+import { archiveHtml } from '../data/entete';
+import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
@@ -48,12 +47,9 @@ export function Minutes() {
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState('');
   const sheetRef = useRef<HTMLDivElement>(null);
-  // En-tête commun à l'entité (sans réglage : celui de l'ordre du jour, sinon logo et nom du club).
-  const club = useClubOptional();
+  // En-tête commun à tous les documents de l'entité (console admin).
   const logo = useUnitLogo();
-  const [enteteEdit, setEnteteEdit] = useState(false);
-  const texteDefaut = defaultTexte(club?.current);
-  const entete = enteteOf(data, 'pv', texteDefaut);
+  const entete = useEntete();
 
   const s1 = meetings.find((m) => m.id === meetingId);
   const { s0, s2 } = meetingContext(data, s1);
@@ -404,7 +400,7 @@ export function Minutes() {
   const pvDoc: ReactNode = (
     <div ref={sheetRef} className="pv-sheet portrait t-normale">
       <header className="pv-head">
-        <DocEntete e={entete.e} source={entete.source} logo={logo} />
+        <DocEntete e={entete} logo={logo} />
         <p className="pv-kicker">Procès-verbal{draftVersion > 1 ? ` · version ${draftVersion}` : ''}</p>
         <h1>{titre}</h1>
         {s1 && <p className="pv-meta">{longDate(s1.date)}</p>}
@@ -609,7 +605,7 @@ export function Minutes() {
           <div className="actions no-print min-pv-actions">
             <label className="inline"><input type="checkbox" checked={!!m.tousLesPoints} disabled={!editable} onChange={(e) => setMinutes((x) => { x.tousLesPoints = e.target.checked; })} /> Inclure tous les points de l’ordre du jour</label>
             <span className="grow" />
-            {can('tab.minutes') && <button className="btn" onClick={() => setEnteteEdit(true)}>✏️ En-tête…</button>}
+            <LienEntete className="btn" />
             <button className="btn" onClick={() => window.print()}>🖨 Imprimer / PDF</button>
             <button className="btn" onClick={copy}>📋 Copier le texte</button>
             <button className="btn" onClick={email}>✉ Envoyer par email</button>
@@ -624,7 +620,6 @@ export function Minutes() {
       )}
 
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} onClose={() => setEdit(null)} />}
-      {enteteEdit && <EnteteEditor doc="pv" texte={texteDefaut} onClose={() => setEnteteEdit(false)} />}
     </div>
   );
 }

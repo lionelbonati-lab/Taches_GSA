@@ -56,7 +56,7 @@ Le club = le **comité central** et ses entités, chacune avec **ses propres res
 
 Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Annulé).
 
-- **Organigramme** (Personnes › **Organigramme**, ou menu de l'entité en haut à gauche), visible par tous les membres du club : un **arbre**, le comité central en haut, et chaque entité **reliée par un trait** à celle dont elle dépend (comme un arbre généalogique). Chaque carte montre le nom, le type (et la date d'une édition), le nombre de membres, l'entité ouverte (encadrée), l'accès du comité central (👁 / ✏️) et, en dessous, **une ligne par personne** : son **nom**, puis son poste et ses autres fonctions en gris ; le président / responsable (★) en premier. Pas de coordonnées sur la carte.
+- **Organigramme** (menu des entités en haut à gauche › **🏛️ Organigramme du club** ; ce n'est pas une rubrique), visible par tous les membres du club : un **arbre**, le comité central en haut, et chaque entité **reliée par un trait** à celle dont elle dépend (comme un arbre généalogique). Chaque carte montre le nom, le type (et la date d'une édition), le nombre de membres, l'entité ouverte (encadrée), l'accès du comité central (👁 / ✏️) et, en dessous, **une ligne par personne** : son **nom**, puis son poste et ses autres fonctions en gris ; le président / responsable (★) en premier. Pas de coordonnées sur la carte.
   - **Clic sur une personne** : sa **fiche**. Dans l'entité ouverte, ceux qui gèrent les personnes la modifient (coordonnées, poste, **rôles**, **accès à l'appli**, **Retirer de l'entité** : ses tâches restent) ; les autres la voient en lecture (email et téléphone selon leur rôle), avec ses postes dans les autres entités et ses tâches ouvertes. Pour une autre entité : fiche en lecture (nom, poste, rôles, email ; pas de téléphone), et **« Modifier dans … »** pour un admin de cette entité (elle s'ouvre, puis la fiche).
   - **« + Ajouter une personne »** en bas de la liste (admins de l'entité) : un membre du club (registre, ou annuaire des entités pour qui n'y a pas accès), une personne retirée (à réactiver) ou une nouvelle personne, puis son poste et son rôle. Pour une autre entité dont on est admin, elle s'ouvre d'abord, puis l'ajout.
   - **Clic sur le nom d'une entité** (« Ouvrir › », « 👁 Consulter › ») : l'ouvre. **⚙️** : sa fiche (nom, couleur, logo, « Dépend de », accès du comité central, archivage), pour ses admins et ceux du comité central.
@@ -71,12 +71,12 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
   - 👁 **Consulter** : les membres du comité central ouvrent l'entité (bouton **👁 Consulter** sur sa carte, ou rubrique « Ouvertes au comité central » du menu des entités) et voient tout en lecture seule : tâches, séances, événements, membres, fichiers. Rien n'est modifié, pas même les réglages d'affichage.
   - ✏️ **Consulter et modifier / ajouter** : en plus, ils créent et modifient des tâches (avec emails programmés, notifications et fichiers joints). Ces tâches portent le badge **🏛️ Comité central**, et le journal de l'entité note « … par Prénom Nom (comité central) ». Pas de suppression, et pas de membres, rôles, séances ni réglages de l'entité.
   - Un bandeau rappelle qu'on visite l'entité, avec un bouton de retour au comité central. Le visiteur n'est pas ajouté aux membres de l'entité, et la visite n'est pas reprise au prochain lancement.
-- **Logo** : le comité central met le **logo du club**, et chaque entité peut avoir le sien (ex. le logo de la manifestation), dans **Console admin › Apparence** ou la fiche de l'entité dans l'organigramme (admins de l'entité et du comité central). L'image choisie (PNG, JPEG, WebP, GIF ou SVG) est réduite à 256 px avant d'être enregistrée. Le logo remplace celui de l'appli en haut à gauche, s'affiche sur les cartes de l'organigramme et dans le menu des entités, et sert d'image par défaut à l'en-tête de l'ordre du jour et du PV. Une entité sans logo affiche celui du club ; sans logo du club, l'icône de l'appli reste.
+- **Logo** : le comité central met le **logo du club**, et chaque entité peut avoir le sien (ex. le logo de la manifestation), dans **Console admin › Apparence** ou la fiche de l'entité dans l'organigramme (admins de l'entité et du comité central). L'image choisie (PNG, JPEG, WebP, GIF ou SVG) est réduite à 256 px avant d'être enregistrée. Le logo remplace celui de l'appli en haut à gauche, s'affiche sur les cartes de l'organigramme et dans le menu des entités, et sert d'image par défaut à l'en-tête des documents (ordre du jour, PV, bon de paiement). Une entité sans logo affiche celui du club ; sans logo du club, l'icône de l'appli reste.
 - **Couleur de l'appli** (boutons, onglet actif, liens, calendrier…) : même onglet de la console admin, 8 teintes (dont « Vert GSA ») ou « Autre… » (couleur libre). Celle du comité central vaut pour tout le club (bleu d'origine par défaut) ; chaque entité peut choisir la sienne, sinon elle reprend celle du club. La teinte est ajustée automatiquement pour rester lisible (texte blanc sur les boutons, thème clair et sombre).
 
 ## Navigation
 
-Cinq rubriques en haut de l'écran (barre du bas sur téléphone, « ☰ Plus » pour le reste) ; une rubrique de plusieurs pages les propose juste en dessous (sous-onglets). Chacun ne voit que les pages permises par ses rôles.
+Quatre ou cinq rubriques en haut de l'écran (barre du bas sur téléphone, « ☰ Plus » pour le reste) ; une rubrique de plusieurs pages les propose juste en dessous (sous-onglets). Chacun ne voit que les pages permises par ses rôles.
 
 | Rubrique | Pages |
 |---|---|
@@ -84,7 +84,9 @@ Cinq rubriques en haut de l'écran (barre du bas sur téléphone, « ☰ Plus »
 | ✅ **Tâches** | tâches, remboursements et paiements de factures |
 | 📅 **Agenda** | Calendrier · Événements |
 | 🗓️ **Comité** (« Séances » pour un groupe, « Réunions » pour une équipe) | Séances · Ordre du jour · PV · Sondages |
-| 👥 **Personnes** | Organigramme · Membres du club (la rubrique s'appelle « Organigramme » pour qui n'a pas le registre) |
+| 📇 **Membres du club** | registre commun du club (seulement pour qui y a droit) |
+
+L'**organigramme du club** n'est pas dans les rubriques : il s'ouvre depuis le **menu des entités** (le nom de l'entité, en haut à gauche ▾).
 
 **Mon compte** (pastille en haut à droite ; « ☰ Plus » sur téléphone) : Réglages, Console admin (admins), **Comment ça marche ?** et déconnexion. Une **phrase d'explication** sous le titre de chaque page dit à quoi elle sert (masquable dans Réglages) ; **Comment ça marche ?** reprend toutes les pages et les gestes courants (selon les droits de chacun), et l'accueil y invite à la première visite. Les adresses des pages n'ont pas changé (liens déjà envoyés, raccourcis).
 
@@ -95,20 +97,20 @@ Cinq rubriques en haut de l'écran (barre du bas sur téléphone, « ☰ Plus »
 - **Comité › Séances** : séances (date, lieu, excusés, ordre du jour et PV archivés) et tâches liées. Les séances reviennent **chaque année** : voir plus bas.
 - **Agenda › Événements** : événements du club, sur **un ou plusieurs jours** (« Dernier jour »), avancement des tâches liées. Un événement sur plusieurs jours occupe chacun de ses jours dans l'agenda (« 1/3, 2/3… ») ; le glisser déplace tout l'événement. Il reste dans « Prochains événements » tant qu'il n'est pas terminé.
 - **Prochaine édition** (sous-comité, équipe d'événement) : la date de la manifestation, sur un ou plusieurs jours, est affichée sur l'accueil et la page Événements de l'entité. **Son comité la change lui-même** (bouton « Changer la date » : ses admins, les membres du comité, qui ont « Gérer les événements » par défaut, et les admins du comité central), et peut déplacer du même coup l'événement de l'agenda (les délais des tâches liées suivent). Une édition passée invite à fixer la suivante.
-- **Personnes › Organigramme** : l'organigramme du club et **les personnes de chaque entité** (voir ci-dessus) : ajouter quelqu'un, ouvrir sa fiche (poste, rôles, accès à l'appli). L'ancienne page « Responsables / Membres » n'existe plus ; son adresse mène à l'organigramme.
-- **Personnes › Membres du club** : voir la section suivante.
+- **Organigramme du club** (menu des entités) : l'organigramme et **les personnes de chaque entité** (voir ci-dessus) : ajouter quelqu'un, ouvrir sa fiche (poste, rôles, accès à l'appli). L'ancienne page « Responsables / Membres » n'existe plus ; son adresse mène à l'organigramme.
+- **Membres du club** : voir la section suivante.
 - **Réglages** : thème clair/sombre, vue par défaut, phrases d'explication, notifications, sauvegarde.
-- **Console admin** (menu du compte, admins) : une page d'accueil à cartes explique chaque partie avec un résumé (nombre de rôles, de sections…), puis chaque partie a sa page (`#/admin/droits`, `taches`, `apparence`, `import`, `historique` ; « ‹ Console admin » ou le retour du navigateur pour revenir) :
+- **Console admin** (menu du compte, admins) : une page d'accueil à cartes explique chaque partie avec un résumé (nombre de rôles, de sections…), puis chaque partie a sa page (`#/admin/droits`, `taches`, `apparence`, `entete`, `import`, `historique` ; « ‹ Console admin » ou le retour du navigateur pour revenir) :
   - **Personnes et accès** : renvoi vers l'organigramme (postes, rôles, accès à l'appli) ;
   - **Rôles et droits** : rôles et matrice des droits ; pour un sous-comité, un groupe ou une équipe, aussi l'**accès du comité central** ;
-  - **Sections et statuts**, **Apparence** (logo, couleur ; comité central : aussi nom et icône de l'appli installée), **Importer un fichier** (CSV, voir plus bas), **Historique** (journal d'activité).
+  - **Sections et statuts**, **Apparence** (logo, couleur ; comité central : aussi nom et icône de l'appli installée), **En-tête des documents** (voir « En-tête des documents » plus bas), **Importer un fichier** (CSV, voir plus bas), **Historique** (journal d'activité).
   - Dans **Sections et statuts**, les sous-sections se **renomment** (les tâches suivent ; un nom déjà pris dans la section est refusé) et se **réordonnent** (▲ ▼) : cet ordre est repris dans les listes de choix, l'ordre du jour et le PV. Le nombre de tâches de chaque sous-section est affiché.
 
 ## Membres du club (annuaire) et imports CSV
 
-Page **📇 Membres du club** (rubrique Personnes) : le **registre commun à tout le club**, une seule fiche par personne, **avec ou sans accès à l'appli** (licenciés, parents, bénévoles…) : prénom, nom, email, téléphone, **IBAN** et **groupes** de l'organigramme (École de cyclisme, Groupe compétition…).
+Page **📇 Membres du club** (rubrique du même nom) : le **registre commun à tout le club**, une seule fiche par personne, **avec ou sans accès à l'appli** (licenciés, parents, bénévoles…) : prénom, nom, email, téléphone, **IBAN** et **groupes** de l'organigramme (École de cyclisme, Groupe compétition…).
 
-- **Qui le voit** : les rôles qui ont le droit « Personnes › Membres du club » (par défaut **Admin** et **Secrétaire**) et **les admins de toutes les entités** (présidents de CO, responsables de groupe…). Lecture et modification. Les autres membres ne le voient pas (l'IBAN reste confidentiel ; il est masqué dans la liste et lisible dans la fiche).
+- **Qui le voit** : les rôles qui ont le droit « Membres du club » (par défaut **Admin** et **Secrétaire**) et **les admins de toutes les entités** (présidents de CO, responsables de groupe…). Lecture et modification. Les autres membres ne le voient pas (l'IBAN reste confidentiel ; il est masqué dans la liste et lisible dans la fiche).
 - **Une fiche unique** : dans chaque entité, la personne a un poste et des rôles ; ses coordonnées (prénom, nom, email, téléphone) sont celles du registre. **Modifiées dans le registre ou dans n'importe quelle entité, elles changent partout.** Une personne ajoutée dans une entité est rattachée au membre de même email, ou ajoutée au registre.
 - Recherche, filtre par groupe, avec ou sans poste ; postes de chacun dans les entités ; **📤 Exporter** (CSV pour Excel) ; suppression d'un membre seulement s'il n'a plus de poste dans une entité.
 - **📥 Importer** : fichier **CSV** (Excel : Fichier › Enregistrer sous › CSV ; Google Sheets : Fichier › Télécharger › CSV) ou **copier-coller** des lignes depuis le tableur, avec la ligne d'en-tête. **⬇️ Télécharger le modèle** donne les colonnes attendues (Prénom, Nom, Email, Téléphone, IBAN, Groupes). Un **aperçu** montre ce que devient chaque ligne avant de valider : nouveau, mise à jour, ignoré (déjà à jour, doublon) ou erreur (nom manquant, email invalide), avec les avertissements (IBAN invalide non importé, groupe inconnu…). Une personne déjà inscrite (**même email, sinon même prénom et nom**) est **mise à jour** : les cellules remplies remplacent ses valeurs, les cellules vides ne changent rien.
@@ -203,16 +205,20 @@ Réglages (mémorisés) : mise en forme **Liste numérotée** ou **Tableaux**, *
 
 **✏️ Modifier le texte** (droit « Comité › Ordre du jour ») : le document devient modifiable directement (corriger, ajouter ou supprimer des lignes), puis **Enregistrer**. Cette version, gardée dans la séance, est celle que tout le comité voit, imprime, archive, envoie et copie ; les excusés y restent à jour, mais plus les changements de tâches ni de mise en page. **🔄 Revenir à la version générée** l'abandonne.
 
-**En-tête** (Mise en page › **✏️ Modifier l'en-tête…**, avec le droit « Comité › Ordre du jour ») : commun à toute l'entité, avec aperçu :
+**En-tête** : celui de l'entité, le même pour tous ses documents (voir « En-tête des documents » plus bas) ; la case « Afficher l'en-tête » (Mise en page) le masque sur l'ordre du jour. Les admins ont un lien **✏️ En-tête (console admin)** dans la mise en page.
+
+Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans Comité › Séances), **Envoyer par email** aux membres du comité, **Copier le texte** (même numérotation, prêt à coller dans Word, un email ou WhatsApp).
+
+## En-tête des documents
+
+**Console admin › 📄 En-tête des documents** (admins de l'entité) : **un seul en-tête par entité**, repris par **tous ses documents imprimés** : ordre du jour, PV et bon de paiement. Avec aperçu :
 
 - image : le **logo de l'entité**, une **image propre** (ex. l'en-tête du papier à lettres du club, réduite à 1400 px de large) ou aucune ; taille petite, moyenne, grande ou **toute la largeur** (bannière) ;
 - texte libre sur plusieurs lignes (nom du club, adresse, site… ; la première ligne en gras), ou vide pour n'avoir que l'image ;
 - disposition (image à gauche, image et texte opposés, centré, image à droite), couleur, trait sous l'en-tête ;
-- la case « Afficher l'en-tête » le masque sur l'ordre du jour.
+- « Revenir à l'en-tête par défaut », puis **Enregistrer**.
 
-Par défaut : logo de l'entité et « G.S. Ajoie – Comité » (ou le nom de l'entité). Les ordres du jour et PV archivés reprennent l'image actuelle de l'en-tête (elle n'est pas recopiée dans chaque archive).
-
-Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans Comité › Séances), **Envoyer par email** aux membres du comité, **Copier le texte** (même numérotation, prêt à coller dans Word, un email ou WhatsApp).
+Par défaut : logo de l'entité et « G.S. Ajoie – Comité » (ou le nom de l'entité). Une entité qui avait réglé un en-tête par document (ancienne version) garde celui de l'ordre du jour jusqu'au premier enregistrement. Les ordres du jour et PV archivés reprennent l'image actuelle de l'en-tête (elle n'est pas recopiée dans chaque archive).
 
 ## PV (secrétaire)
 
@@ -222,7 +228,7 @@ Page **🖊️ PV** (rubrique Comité ; droit « Comité › PV », donné au Se
 - **Séance** : ▶ Démarrer (heure de début, état des tâches mémorisé) / ⏹ Terminer ; présences (Présent / Excusé, « Tous présents »), invités.
 - **Mise à jour des tâches pendant la séance** : statut et délai directement sur la ligne, ✏️ modification complète, **+ Nouvelle tâche décidée** (échéance : prochaine séance) ; les tâches modifiées sont surlignées avec le détail du changement (↻ statut / délai / responsable). Seules les modifications faites depuis la page PV figurent dans le PV (pas celles faites plus tard dans l'onglet Tâches).
 - **📄 PV** : document « Procès-verbal – Comité 29.10.26 » avec heures, lieu, présents / excusés / absents / invités, points traités numérotés (notes, décisions, changements), nouvelles tâches décidées et prochaine séance ; option « Inclure tous les points de l'ordre du jour ».
-- **✏️ En-tête…** (avec le droit « Comité › PV ») : même réglage que pour l'ordre du jour. Tant qu'il n'est pas modifié, le PV reprend l'en-tête de l'ordre du jour ; « Revenir à l'en-tête de l'ordre du jour » annule un en-tête propre au PV.
+- **En-tête** : celui de l'entité, le même que l'ordre du jour et le bon de paiement (console admin › En-tête des documents).
 - **Imprimer / PDF**, **Copier le texte**, **Envoyer par email** au comité, **✅ Valider et archiver** : la secrétaire valide seule ; le PV validé est archivé dans la séance (onglet Comité, 📝) et le comité est notifié 🔔.
 - **Correction après coup** : un PV validé passe en lecture seule ; **✏️ Corriger le PV** rouvre notes, présences et points (modifications de tâches comprises), **Annuler la correction** revient à la version validée. La nouvelle validation crée la **version 2** (« corrigée le … », email « PV corrigé »), l'ancienne version reste archivée et le comité est notifié.
 
@@ -246,7 +252,7 @@ Le virement ne se fait pas dans l'appli : elle sert à **demander, viser et suiv
 
 **Sceau modifiable** : la caisse règle le modèle (« 🖋 Sceau », affiché quand la liste des tâches est filtrée sur les paiements : Filtres › « 💰 Paiements et remboursements ») : en-tête (ex. « G.S. Ajoie – Caisse »), texte (« OK pour paiement », « Bon pour paiement »…), couleur et **transparence** : du fond (de blanc opaque à entièrement transparent, pour laisser voir le document sous le sceau) et du texte et du cadre, avec un aperçu sur un faux document. La personne qui vise peut encore ajuster la transparence du fond selon la photo. Le droit « peut viser » (console admin, groupe Gestion) place des personnes en tête de la liste proposée à la caisse ; par défaut les admins.
 
-**Accès** : seules la caisse, la personne qui a fait la demande et celle qui doit la viser (tant que le visa est demandé) peuvent ouvrir la demande, admins compris ; les autres la voient dans la liste avec un 🔒, sans pouvoir l'ouvrir. La tâche passe de la caisse à la personne qui vise, revient à la caisse puis se clôt une fois payée ; la liste affiche le montant et l'étape (« CHF 42,50 · ✍️ Visa demandé »). « Mes tâches » montre aussi les demandes qu'on a envoyées, pour en suivre l'état. Filtre « Tâches et paiements » : paiements et remboursements, remboursements seuls ou factures seules (avec le total). Notifications : demande à traiter et virement à faire (caisse), visa demandé (signataire), « visé / remboursé / payé / refusé » (demandeur) ; elles ouvrent directement la demande. **🖨 Bon de paiement** imprime la demande visée : l'en-tête de l'entité, le justificatif d'origine (sans la copie visée) et, en bas, le sceau signé (seule la fenêtre est imprimée). **En-tête du bon** : la caisse de chaque entité le règle (« ✏️ En-tête du bon de paiement… » au-dessus de la liste filtrée sur les paiements, ou « ✏️ En-tête du bon » dans la fenêtre d'une demande visée) : image (logo ou papier à lettres), texte (nom de la caisse, adresse…), couleur, disposition, avec aperçu. Tant qu'il n'est pas réglé, le bon reprend l'en-tête de l'ordre du jour. Les anciens liens `#/paiements` mènent aux tâches. En version réelle, le serveur applique les mêmes règles, admins compris (voir SUPABASE_SETUP.md, migrations 009 et 010).
+**Accès** : seules la caisse, la personne qui a fait la demande et celle qui doit la viser (tant que le visa est demandé) peuvent ouvrir la demande, admins compris ; les autres la voient dans la liste avec un 🔒, sans pouvoir l'ouvrir. La tâche passe de la caisse à la personne qui vise, revient à la caisse puis se clôt une fois payée ; la liste affiche le montant et l'étape (« CHF 42,50 · ✍️ Visa demandé »). « Mes tâches » montre aussi les demandes qu'on a envoyées, pour en suivre l'état. Filtre « Tâches et paiements » : paiements et remboursements, remboursements seuls ou factures seules (avec le total). Notifications : demande à traiter et virement à faire (caisse), visa demandé (signataire), « visé / remboursé / payé / refusé » (demandeur) ; elles ouvrent directement la demande. **🖨 Bon de paiement** imprime la demande visée : l'en-tête de l'entité, le justificatif d'origine (sans la copie visée) et, en bas, le sceau signé (seule la fenêtre est imprimée). **En-tête du bon** : celui de l'entité, le même que l'ordre du jour et le PV (console admin › En-tête des documents). Les anciens liens `#/paiements` mènent aux tâches. En version réelle, le serveur applique les mêmes règles, admins compris (voir SUPABASE_SETUP.md, migrations 009 et 010).
 
 ## Notifications (démo)
 
