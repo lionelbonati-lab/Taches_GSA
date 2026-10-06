@@ -3,6 +3,7 @@ import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
+import { ETATS, chf, genre } from '../data/paiements';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -102,11 +103,22 @@ export function DocPollIcons({ task }: { task: Task }) {
   const emails = (data.emails ?? []).filter((e) => e.taskId === task.id && e.statut === 'programme').length;
   return (
     <>
-      {task.paiement && <span className="ticon" title="Ticket à rembourser">💳</span>}
+      {task.paiement && <span className="ticon" title={genre(task.paiement).nom}>{genre(task.paiement).icon}</span>}
       {n > 0 && <span className="ticon" title={`${n} document(s)`}>📎{n > 1 ? n : ''}</span>}
       {polls > 0 && <span className="ticon" title="Sondage lié">📊</span>}
       {emails > 0 && <span className="ticon" title={`${emails} email(s) programmé(s)`}>📧</span>}
     </>
+  );
+}
+
+/** Remboursement / paiement : montant et étape du circuit, dans les listes de tâches. */
+export function TicketTag({ task }: { task: Task }) {
+  const p = task.paiement;
+  if (!p) return null;
+  return (
+    <small className={`ticket-tag ticket-etat ${p.etat}`} title={`${genre(p).nom} · ${ETATS[p.etat].label}`}>
+      {chf(p.montant)} · {ETATS[p.etat].icon} {ETATS[p.etat].court}
+    </small>
   );
 }
 

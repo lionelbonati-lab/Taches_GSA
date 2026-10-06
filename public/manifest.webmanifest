@@ -20,7 +20,7 @@
   "shortcuts": [
     { "name": "Ajout rapide d'une tâche", "short_name": "Nouvelle tâche", "url": "./#/?ajout=1", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
     { "name": "Mes tâches", "short_name": "Mes tâches", "url": "./#/taches", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
-    { "name": "Ticket à rembourser (photo)", "short_name": "Ticket à rembourser", "url": "./#/paiements?nouveau=1", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
-    { "name": "Paiements à valider / à payer", "short_name": "Paiements", "url": "./#/paiements", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+    { "name": "Nouveau remboursement (photo du ticket)", "short_name": "Remboursement", "url": "./#/taches?nouveau=remboursement", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "Nouveau paiement (facture)", "short_name": "Paiement", "url": "./#/taches?nouveau=paiement", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
   ]
 }

@@ -1,4 +1,4 @@
-import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { useStore } from './data/store';
 import { Layout } from './components/Layout';
 import { Message } from './pages/Real';
@@ -13,7 +13,6 @@ import { Polls } from './pages/Polls';
 import { Minutes } from './pages/Minutes';
 import { Calendar } from './pages/Calendar';
 import { Org } from './pages/Org';
-import { Paiements } from './pages/Paiements';
 import { useClubOptional } from './data/club';
 
 export function App() {
@@ -47,7 +46,7 @@ export function App() {
           {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
           {can('tab.minutes') && <Route path="pv" element={<Minutes />} />}
           <Route path="sondages" element={<Polls />} />
-          <Route path="paiements" element={<Paiements />} />
+          <Route path="paiements" element={<PaiementsRedirect />} />
           {club && <Route path="organigramme" element={<Org />} />}
           <Route path="reglages" element={<Settings />} />
           {can('admin.access') && <Route path="admin" element={<Admin />} />}
@@ -56,6 +55,14 @@ export function App() {
       </Routes>
     </HashRouter>
   );
+}
+
+/** Ancien onglet Paiements (liens déjà envoyés, raccourcis installés) : tout est maintenant dans les tâches. */
+function PaiementsRedirect() {
+  const [params] = useSearchParams();
+  const p = params.get('p');
+  const to = p ? `/taches?tache=${encodeURIComponent(p)}` : params.has('nouveau') ? '/taches?nouveau=remboursement' : '/taches?type=tickets';
+  return <Navigate to={to} replace />;
 }
 
 function TasksRoute() {

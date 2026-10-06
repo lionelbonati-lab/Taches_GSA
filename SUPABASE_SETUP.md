@@ -69,6 +69,8 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/014_gsa_agenda_club.sql` (appliqué le 06.10.2026) : `gsa_agenda_club(club)` donne à tout membre du club les événements de toutes ses entités non archivées (nom, dates, lieu ; pas la description), pour l'agenda du club. Lecture seule, ajout pur.
 
+`supabase/migrations/015_gsa_paiements_factures.sql` (appliqué le 06.10.2026) : remboursements et **paiements de factures**. `gsa_ticket_central` accepte `type: 'facture'` (sous-section « Paiements », échéance facultative dans `delai`) en plus du remboursement ; `gsa_mes_tickets_centraux` renvoie le type. Remplacement des deux fonctions de 012 (même signature, mêmes contrôles) ; aucune donnée modifiée.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

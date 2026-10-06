@@ -4,17 +4,19 @@ import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { childrenOf, daysUntil, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
-import { Avatar, DocPollIcons, Empty, LinkIcon, ProposalTag, RecurIcon, StatusBadge } from '../components/ui';
+import { CircuitPaiements, SuiviCentral, TicketForm } from '../components/Tickets';
+import { GENRES, genreDe, type GenreTicket } from '../data/paiements';
+import { Avatar, DocPollIcons, Empty, LinkIcon, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
-const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '' };
+const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
 
 export function Tasks() {
   const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, guest } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
-    params.get('statut') ? (guest ? 'toutes' : 'mes') : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') ? 'toutes' : prefs.vueDefaut,
+    params.get('statut') ? (guest ? 'toutes' : 'mes') : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
   );
   const [f, setF] = useState({
     ...EMPTY_FILTERS,
@@ -23,6 +25,7 @@ export function Tasks() {
     resp: params.get('resp') ?? '',
     statut: params.get('statut') ?? '',
     parent: params.get('parent') ?? '',
+    type: params.get('type') ?? '',
   });
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'delai', dir: 1 });
   const navigate = useNavigate();
@@ -36,7 +39,17 @@ export function Tasks() {
     setEdit(null);
     if (params.get('tache')) navigate('/taches', { replace: true });
   };
-  const [showFilters, setShowFilters] = useState(!!params.get('statut'));
+  // Nouveau remboursement / paiement (boutons, raccourcis de l'icône : /taches?nouveau=remboursement|paiement).
+  const [ticket, setTicket] = useState<GenreTicket | null>(() => {
+    const n = params.get('nouveau');
+    return n === 'paiement' ? 'facture' : n === 'remboursement' ? 'remboursement' : null;
+  });
+  const closeTicket = () => {
+    setTicket(null);
+    if (params.get('nouveau')) navigate('/taches', { replace: true });
+  };
+  const [envois, setEnvois] = useState(0);
+  const [showFilters, setShowFilters] = useState(!!params.get('statut') || !!params.get('type'));
   const [hideDone, setHideDone] = useState(true);
   const [dragId, setDragId] = useState<string | null>(null);
   const view = prefs.affichage;
@@ -51,7 +64,9 @@ export function Tasks() {
     if (!user) return [];
     const q = f.q.trim().toLowerCase();
     const res = data.tasks.filter((t) => {
-      if (effScope === 'mes' ? !t.responsables.includes(user.id) : !canSeeTask(t)) return false;
+      // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état.
+      if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id) : !canSeeTask(t)) return false;
+      if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
       if (hideDone && view !== 'kanban' && !f.statut && isDone(data, t)) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
@@ -94,7 +109,7 @@ export function Tasks() {
   const activeFilters = Object.entries(f).filter(([, v]) => v).length;
 
   const setStatus = (t: Task, statusId: string) => {
-    if (t.statusId === statusId || !canEditTask(t)) return;
+    if (t.statusId === statusId || !canEditTask(t) || t.paiement) return; // remboursement / paiement : suit son circuit
     saveTask({ ...t, statusId }, false);
   };
 
@@ -136,6 +151,8 @@ export function Tasks() {
           <button className="btn" onClick={() => setShowFilters(!showFilters)}>Filtres{activeFilters ? ` (${activeFilters})` : ''}</button>
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
+          {!guest && <button className="btn" onClick={() => setTicket('remboursement')} title="Rembourser une personne qui a avancé de l’argent">{GENRES.remboursement.icon} {GENRES.remboursement.nouveau}</button>}
+          {!guest && <button className="btn" onClick={() => setTicket('facture')} title="Payer une facture directement à qui l’a envoyée">{GENRES.facture.icon} {GENRES.facture.nouveau}</button>}
           {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { eventId: f.event || undefined, meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>}
         </div>
       </div>
@@ -180,6 +197,12 @@ export function Tasks() {
           <option value="principale">🔗 Tâches principales</option>
           <option value="liee">↳ Tâches liées</option>
         </select>
+        <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
+          <option value="">Tâches et paiements</option>
+          <option value="tickets">💰 Paiements et remboursements</option>
+          <option value="remboursement">{GENRES.remboursement.icon} Remboursements</option>
+          <option value="facture">{GENRES.facture.icon} Paiements de factures</option>
+        </select>
         <select value={f.parent} onChange={(e) => setF({ ...f, parent: e.target.value })}>
           <option value="">Toutes tâches principales</option>
           {data.tasks.filter((t) => childrenOf(data, t.id).length).map((t) => <option key={t.id} value={t.id}>🔗 {t.titre}</option>)}
@@ -187,6 +210,8 @@ export function Tasks() {
         <label className="inline hide-toggle"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminées</label>
         {activeFilters > 0 && <button className="btn link" onClick={() => setF(EMPTY_FILTERS)}>Effacer</button>}
       </div>
+
+      {f.type && <CircuitPaiements total={list.length > 1 ? list.reduce((n, t) => n + (t.paiement?.montant ?? 0), 0) : undefined} />}
 
       <p className="print-only">Tâches GSA – export du {fmtDate(new Date().toISOString().slice(0, 10))} – {list.length} tâches</p>
 
@@ -212,7 +237,7 @@ export function Tasks() {
                   <td>{sectionName(t.sectionId)}</td>
                   <td className="muted">{t.sousSection}</td>
                   <td>
-                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} />
+                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <TicketTag task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
                     <Linked t={t} />
                   </td>
@@ -236,9 +261,10 @@ export function Tasks() {
               <div key={s.id} className="kcol" onDragOver={(e) => e.preventDefault()} onDrop={() => { const t = list.find((x) => x.id === dragId); if (t) setStatus(t, s.id); setDragId(null); }}>
                 <div className="khead" style={{ borderColor: s.couleur }}>{s.label} <span className="count">{col.length}</span></div>
                 {col.map((t) => (
-                  <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t)} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
+                  <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t) && !t.paiement} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
                     <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /></strong>
+                    <TicketTag task={t} />
                     <Linked t={t} />
                     <div className="kmeta">
                       <span className="avatars">{t.responsables.map((id) => <Avatar key={id} id={id} size={22} />)}</span>
@@ -252,14 +278,16 @@ export function Tasks() {
         </div>
       )}
 
+      {effScope === 'mes' && !guest && <SuiviCentral version={envois} />}
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} onClose={closeEdit} />}
+      {ticket && <TicketForm type={ticket} onClose={closeTicket} onEnvoye={() => setEnvois((v) => v + 1)} />}
     </div>
   );
 }
 
 export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void; onStatus: (t: Task, s: string) => void }) {
   const { data, canEditTask } = useStore();
-  const editable = canEditTask(t);
+  const editable = canEditTask(t) && !t.paiement; // remboursement / paiement : suit son circuit
   const sectionName = data.sections.find((s) => s.id === t.sectionId)?.nom ?? '';
   const late = isLate(data, t);
   const n = daysUntil(t.delai);
@@ -270,6 +298,7 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         <StatusBadge task={t} />
       </div>
       <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /></strong>
+      <TicketTag task={t} />
       <Linked t={t} />
       {t.remarque && <small className="muted clip">{t.remarque}</small>}
       <div className="tcard-bottom">

@@ -533,7 +533,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     user,
     myRoles,
     can,
-    canSeeTask: (t) => (!!user && t.responsables.includes(user.id)) || can('tasks.viewAll', t.sectionId),
+    // Remboursements et paiements : vus aussi de leur demandeur et de la caisse.
+    canSeeTask: (t) =>
+      (!!user && (t.responsables.includes(user.id) || t.paiement?.demandePar === user.id)) || can('tasks.viewAll', t.sectionId) || (!!t.paiement && can('paiements.payer')),
     canEditTask: (t) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t)),
     canDeleteTask: (t) => can('tasks.delete', t.sectionId),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),

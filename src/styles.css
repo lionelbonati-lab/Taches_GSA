@@ -683,7 +683,17 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .signature { display: flex; flex-direction: column; gap: 6px; margin: 10px 0; }
 .signature .row { display: flex; align-items: center; gap: 8px; }
 .signature-pad { width: 100%; height: 180px; background: #fff; border: 1px dashed var(--border); border-radius: 8px; touch-action: none; cursor: crosshair; }
+.ticket-tag { font-size: 0.72rem; padding: 1px 7px; border-radius: 999px; background: var(--surface2); color: var(--muted); font-weight: 600; display: inline-block; }
+.kcard .ticket-tag, .tcard .ticket-tag { align-self: flex-start; }
+.genre-note { background: var(--surface2); padding: 8px 10px; border-radius: 8px; margin: 0; }
+.circuit-paiements { margin-bottom: 12px; }
+.circuit-paiements p { margin: 0 0 8px; }
 @media print {
+  /* Bon de paiement : seule la fenêtre du ticket (rendue hors de #root) est imprimée. */
+  body.printing-ticket #root { display: none !important; }
+  body.printing-ticket .modal-back { position: static; display: block; background: none; padding: 0; overflow: visible; }
+  body.printing-ticket .modal { box-shadow: none; max-height: none; overflow: visible; width: auto; max-width: none; margin: 0; }
+  body.printing-ticket .modal-head .icon-btn { display: none; }
   .ticket { border: 1px solid #999; break-inside: avoid; }
   .ticket-doc { border: none; box-shadow: none !important; width: auto; }
   .ticket-docs.avec-vise .ticket-doc:not(.vise) { display: none; }

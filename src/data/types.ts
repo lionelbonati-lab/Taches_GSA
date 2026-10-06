@@ -477,6 +477,9 @@ export interface OrgUnit extends Unit {
 
 /** Ticket envoyé à la caisse centrale depuis une autre entité. */
 export interface TicketCentral {
+  type?: 'facture';
+  /** Échéance d'une facture (AAAA-MM-JJ). */
+  delai?: string;
   titre: string;
   montant: number;
   beneficiaire: string;
@@ -488,6 +491,7 @@ export interface TicketCentral {
 /** Suivi d'un ticket envoyé à la caisse centrale, tel que le voit son demandeur. */
 export interface SuiviTicket {
   id: string;
+  type?: 'facture' | null;
   titre: string;
   montant: number;
   beneficiaire: string;
@@ -516,8 +520,10 @@ export interface MyRequest {
 
 /** Ticket à rembourser (le paiement se fait hors de l'appli : la caisse fait le virement). */
 export interface Paiement {
+  /** Remboursement d'une personne qui a avancé l'argent (par défaut), ou facture payée directement à qui l'a envoyée. */
+  type?: 'remboursement' | 'facture';
   montant: number;
-  /** Personne à rembourser (nom). */
+  /** Personne à rembourser, ou créancier de la facture (nom). */
   beneficiaire: string;
   /** Compte pour le virement, si la caisse ne le connaît pas. */
   iban?: string;

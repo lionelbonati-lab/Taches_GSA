@@ -2,19 +2,34 @@ import { hasPermission, userRoles } from './permissions';
 import type { AppData, Paiement, Person, Task, Timbre } from './types';
 import { fullName } from './utils';
 
-// Tickets à rembourser : la personne photographie son ticket → la caisse le reçoit et demande le visa
-// à quelqu'un d'autre que le demandeur → cette personne signe (sceau « OK pour paiement » posé sur le ticket)
-// → la caisse fait le virement (hors de l'appli) puis l'indique « OK ».
+// Remboursements (une personne a avancé l'argent : photo de son ticket) et paiements de factures (payées
+// directement à qui les envoie). Ce sont des tâches : la caisse les reçoit et demande le visa à quelqu'un d'autre
+// que le demandeur → cette personne signe (sceau « OK pour paiement » posé sur le justificatif) → la caisse fait
+// le virement (hors de l'appli) puis l'indique « OK ».
 
 export type Ticket = Task & { paiement: Paiement };
 
-export const ETATS: Record<Paiement['etat'], { label: string; icon: string }> = {
-  recu: { label: 'Reçu – à traiter par la caisse', icon: '📥' },
-  visa: { label: 'Visa demandé', icon: '✍️' },
-  valide: { label: 'Visé – virement à faire', icon: '💳' },
-  paye: { label: 'Payé', icon: '✅' },
-  refuse: { label: 'Refusé', icon: '❌' },
+export const ETATS: Record<Paiement['etat'], { label: string; court: string; icon: string }> = {
+  recu: { label: 'Reçu – à traiter par la caisse', court: 'À traiter', icon: '📥' },
+  visa: { label: 'Visa demandé', court: 'Visa demandé', icon: '✍️' },
+  valide: { label: 'Visé – virement à faire', court: 'Virement à faire', icon: '🏦' },
+  paye: { label: 'Payé', court: 'Payé', icon: '✅' },
+  refuse: { label: 'Refusé', court: 'Refusé', icon: '❌' },
 };
+
+export type GenreTicket = 'remboursement' | 'facture';
+export const genreDe = (p: Pick<Paiement, 'type'>): GenreTicket => (p.type === 'facture' ? 'facture' : 'remboursement');
+export const GENRES: Record<GenreTicket, { icon: string; nom: string; nouveau: string; a: string; ce: string; duDoc: string; vise: string; accord: string; sous: string }> = {
+  remboursement: {
+    icon: '🧾', nom: 'Remboursement', nouveau: 'Nouveau remboursement', a: 'À rembourser à', ce: 'ce remboursement',
+    duDoc: 'du ticket', vise: 'Ticket visé', accord: 'le remboursement', sous: 'Remboursements',
+  },
+  facture: {
+    icon: '💳', nom: 'Paiement de facture', nouveau: 'Nouveau paiement', a: 'À payer à', ce: 'cette facture',
+    duDoc: 'de la facture', vise: 'Facture visée', accord: 'le paiement', sous: 'Paiements',
+  },
+};
+export const genre = (p: Pick<Paiement, 'type'>) => GENRES[genreDe(p)];
 
 export const TIMBRE_DEFAUT: Timbre = { entete: '', texte: 'OK pour paiement', couleur: '#1d4ed8' };
 export const COULEURS_TIMBRE = [

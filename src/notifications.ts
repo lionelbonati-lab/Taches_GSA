@@ -5,7 +5,7 @@ import type { AppData, NotifPrefs, Person } from './data/types';
 import { isOpen } from './data/polls';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
-import { chf, holders, paiementTasks } from './data/paiements';
+import { GENRES, chf, genre, holders, paiementTasks } from './data/paiements';
 
 // Notifications de la démo : calculées dans le navigateur à partir des données.
 // Dans la version réelle, un serveur enverrait les mêmes messages en « push », appli fermée.
@@ -162,26 +162,30 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
       });
     }
 
-  // Tickets à rembourser : à traiter et virement à faire (caisse), visa demandé (signataire), réponses au demandeur.
+  // Remboursements et paiements : à traiter et virement à faire (caisse), visa demandé (signataire), réponses au demandeur.
   if (p.assign) {
     const caisse = holders(data, 'paiements.payer').includes(user.id);
     for (const t of paiementTasks(data)) {
       const { etat, montant, demandePar, visa } = t.paiement;
+      const g = genre(t.paiement);
       const qui = t.paiement.externe ? `${t.paiement.externe.par} (${t.paiement.externe.unite})` : shortName(data.people.find((x) => x.id === demandePar));
       const todo =
-        etat === 'recu' && caisse ? { icon: '📥', text: `Ticket reçu : « ${t.titre} »`, sub: `${chf(montant)} · ${qui} · visa à demander`, at: t.paiement.demandeLe }
-        : etat === 'visa' && visa?.a === user.id && demandePar !== user.id ? { icon: '✍️', text: `Visa demandé : « ${t.titre} »`, sub: `${chf(montant)} · ${qui} · par ${shortName(data.people.find((x) => x.id === visa.par))}`, at: visa.le }
-        : etat === 'valide' && caisse ? { icon: '💳', text: `Virement à faire : « ${t.titre} »`, sub: `${chf(montant)} · ${qui}`, at: t.paiement.validation?.le ?? t.paiement.demandeLe }
+        etat === 'recu' && caisse ? { icon: '📥', text: `${g.nom} à traiter : « ${t.titre} »`, sub: `${chf(montant)} · ${qui} · visa à demander`, at: t.paiement.demandeLe }
+        : etat === 'visa' && visa?.a === user.id && demandePar !== user.id ? { icon: '✍️', text: `Visa demandé (${g.nom.toLowerCase()}) : « ${t.titre} »`, sub: `${chf(montant)} · ${qui} · par ${shortName(data.people.find((x) => x.id === visa.par))}`, at: visa.le }
+        : etat === 'valide' && caisse ? { icon: '🏦', text: `Virement à faire : « ${t.titre} »`, sub: `${chf(montant)} · ${qui}`, at: t.paiement.validation?.le ?? t.paiement.demandeLe }
         : null;
-      if (todo) items.push({ key: `paiement:${t.id}:${etat}`, ...todo, link: `/paiements?p=${t.id}`, kind: 'alerte' });
+      if (todo) items.push({ key: `paiement:${t.id}:${etat}`, ...todo, link: `/taches?tache=${t.id}`, kind: 'alerte' });
       const fait = etat === 'paye' ? t.paiement.paye : etat === 'refuse' ? t.paiement.refus : etat === 'valide' ? t.paiement.validation : undefined;
       if (demandePar === user.id && fait && fait.par !== user.id)
         items.push({
           key: `paiement:${t.id}:${etat}:demandeur`,
           icon: etat === 'paye' ? '✅' : etat === 'refuse' ? '❌' : '✍️',
-          text: etat === 'paye' ? `Ton ticket « ${t.titre} » a été remboursé` : etat === 'refuse' ? `Ton ticket « ${t.titre} » a été refusé` : `Ton ticket « ${t.titre} » est visé`,
+          text:
+            etat === 'paye'
+              ? g === GENRES.facture ? `Facture « ${t.titre} » payée` : `Ton ticket « ${t.titre} » a été remboursé`
+              : `${g.nom} « ${t.titre} » ${etat === 'refuse' ? 'refusé' : 'visé'}`,
           sub: etat === 'refuse' ? t.paiement.refus?.motif : `${chf(montant)} · par ${shortName(data.people.find((x) => x.id === fait.par))}`,
-          link: `/paiements?p=${t.id}`,
+          link: `/taches?tache=${t.id}`,
           at: fait.le,
           kind: 'activite',
         });

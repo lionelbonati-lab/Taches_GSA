@@ -6,7 +6,7 @@ import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData,
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
 import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SuiviTicket, Task, Unit } from './data/types';
-import { caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
+import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
 
@@ -172,7 +172,7 @@ export function DemoApp() {
           })
           .sort((a, b) => b.le.localeCompare(a.le));
       },
-      // Ticket d'un membre d'une autre entité, déposé chez la caisse centrale (version réelle : gsa_ticket_central).
+      // Remboursement / paiement demandé par un membre d'une autre entité à la caisse centrale (version réelle : gsa_ticket_central).
       async ticketCentral(r) {
         if (!central || !me) throw new Error('Pas de comité central.');
         const d = loadUnitData(central.id);
@@ -184,17 +184,18 @@ export function DemoApp() {
         const t: Ticket = {
           id: uid('tk'),
           sectionId: sectionFinances(d),
-          sousSection: 'Remboursements',
+          sousSection: GENRES[r.type === 'facture' ? 'facture' : 'remboursement'].sous,
           titre: r.titre.trim(),
           responsables: caisse,
           statusId: statutPour(d, 'recu'),
-          delai: '',
+          delai: r.type === 'facture' && r.delai ? r.delai : '',
           remarque: r.remarque.trim(),
           checklist: [],
           documents: r.documents.map((x) => ({ ...x, par: '' })),
           createdBy: '',
           updatedAt: now,
           paiement: {
+            ...(r.type === 'facture' ? { type: 'facture' as const } : {}),
             montant: r.montant,
             beneficiaire: r.beneficiaire.trim(),
             iban: r.iban || undefined,
@@ -205,7 +206,7 @@ export function DemoApp() {
           },
         };
         d.tasks.unshift(t);
-        d.log.unshift({ id: uid('l'), at: now, userId: '', action: `Ticket à rembourser de « ${current.nom} » (${par}) : « ${t.titre} » (${r.montant.toFixed(2)} CHF)` });
+        d.log.unshift({ id: uid('l'), at: now, userId: '', action: `${r.type === 'facture' ? 'Paiement de facture' : 'Remboursement'} demandé par « ${current.nom} » (${par}) : « ${t.titre} » (${r.montant.toFixed(2)} CHF)` });
         saveUnitData(central.id, d);
       },
       // Agenda du club : événements de toutes les entités (version réelle : gsa_agenda_club).
@@ -222,6 +223,7 @@ export function DemoApp() {
           .tasks.filter((t): t is Ticket => !!t.paiement && t.paiement.externe?.userId === me)
           .map((t) => ({
             id: t.id,
+            type: t.paiement.type === 'facture' ? ('facture' as const) : null,
             titre: t.titre,
             montant: t.paiement.montant,
             beneficiaire: t.paiement.beneficiaire,
