@@ -110,7 +110,7 @@ export function DemoApp() {
         base.people = [chef, ...n.membres.filter((m) => m.email.toLowerCase() !== n.chef.email.toLowerCase()).map((m) => toPerson(m, [defaultRoleId(base.roles)]))];
         base.log[0].userId = chef.id;
         saveUnitData(id, base);
-        const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, description: n.description, date: n.date }];
+        const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, description: n.description, date: n.date, dateFin: n.dateFin }];
         saveUnits(next);
         setUnits(next);
         return { unitId: id };
@@ -119,6 +119,11 @@ export function DemoApp() {
         // Comme le serveur : l'accès du comité central ne change que par les admins de l'entité.
         const admin = org.find((u) => u.id === id)?.moiAdmin;
         const next = units.map((u) => (u.id === id ? { ...u, ...patch, central: admin && patch.central ? patch.central : u.central } : u));
+        saveUnits(next);
+        setUnits(next);
+      },
+      async setEditionDate(date, dateFin) {
+        const next = units.map((u) => (u.id === current.id ? { ...u, date, dateFin: dateFin && dateFin > date ? dateFin : undefined } : u));
         saveUnits(next);
         setUnits(next);
       },

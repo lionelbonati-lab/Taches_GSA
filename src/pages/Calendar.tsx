@@ -2,11 +2,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Meeting, Poll, Task } from '../data/types';
-import { addDays, fmtDate, isDone, isLate, parentOf, today } from '../data/utils';
+import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, parentOf, today } from '../data/utils';
 import { isOpen } from '../data/polls';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { Avatar, StatusBadge } from '../components/ui';
-import { EVENT_FIELDS, ItemModal, MEETING_FIELDS, linkedTasksNote, newEvent, newMeeting, useAgendaActions } from './Agenda';
+import { EVENT_FIELDS, ItemModal, checkEvent, MEETING_FIELDS, linkedTasksNote, newEvent, newMeeting, useAgendaActions } from './Agenda';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
@@ -96,7 +96,12 @@ export function Calendar() {
     const mine = (t: Task) => t.responsables.includes(user.id);
     const visible = (t: Task) => (effScope === 'mes' ? mine(t) : canSeeTask(t)) && (showDone || !isDone(data, t));
     if (seeMeetings && kinds.includes('meeting')) data.meetings.forEach((m) => push({ kind: 'meeting', key: m.id, date: m.date, m }));
-    if (seeEvents && kinds.includes('event')) data.events.forEach((e) => push({ kind: 'event', key: e.id, date: e.date, e }));
+    // Événement sur plusieurs jours : une case par jour (31 au plus).
+    if (seeEvents && kinds.includes('event'))
+      data.events.forEach((e) => {
+        const n = Math.min(diffDays(e.date, endOf(e)), 30);
+        for (let i = 0; i <= n; i++) push({ kind: 'event', key: i ? `${e.id}:${i}` : e.id, date: addDays(e.date, i), e });
+      });
     if (kinds.includes('poll'))
       (data.polls ?? []).forEach((p) => p.dateLimite && (isOpen(p) || showDone) && push({ kind: 'poll', key: p.id, date: p.dateLimite, p }));
     for (const t of data.tasks) {
@@ -147,8 +152,11 @@ export function Calendar() {
       saveMeeting({ ...it.m, date });
       setToast(`🗓️ ${it.m.titre} déplacé au ${when}${n ? ` · le délai de ${n} tâche(s) suit` : ''}`);
     } else if (it.kind === 'event') {
-      saveEvent({ ...it.e, date });
-      setToast(`🎉 ${it.e.nom} déplacé au ${when}`);
+      // Glisser un des jours déplace tout l'événement.
+      const delta = diffDays(it.date, date);
+      const debut = addDays(it.e.date, delta);
+      saveEvent({ ...it.e, date: debut, dateFin: it.e.dateFin ? addDays(it.e.dateFin, delta) : undefined });
+      setToast(`🎉 ${it.e.nom} déplacé au ${it.e.dateFin ? fmtRange(debut, addDays(it.e.dateFin, delta)) : fmtDate(debut)}`);
     } else if (it.kind === 'task') {
       if (it.t.delaiRef && !confirm(`Le délai de « ${it.t.titre} » suit une séance ou un événement. Le fixer au ${when} retire ce lien. Continuer ?`)) return;
       saveTask({ ...it.t, delai: date, delaiRef: undefined }, false);
@@ -159,7 +167,10 @@ export function Calendar() {
   const chipText = (it: Item) => {
     switch (it.kind) {
       case 'meeting': return `${it.m.heure ? it.m.heure.replace(':', 'h') + ' ' : ''}${it.m.titre}`;
-      case 'event': return it.e.nom;
+      case 'event': {
+        const n = diffDays(it.e.date, endOf(it.e)) + 1;
+        return n > 1 ? `${it.e.nom} (${diffDays(it.e.date, it.date) + 1}/${n})` : it.e.nom;
+      }
       case 'task': return it.t.titre;
       case 'poll': return `Fin : ${it.p.question}`;
     }
@@ -167,7 +178,7 @@ export function Calendar() {
   const chipTitle = (it: Item) => {
     switch (it.kind) {
       case 'meeting': return `Séance : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
-      case 'event': return `Événement : ${it.e.nom}${it.e.lieu ? ` · ${it.e.lieu}` : ''}`;
+      case 'event': return `Événement : ${it.e.nom} · ${fmtRange(it.e.date, it.e.dateFin)}${it.e.lieu ? ` · ${it.e.lieu}` : ''}`;
       case 'task': {
         const p = parentOf(data, it.t);
         return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · liée à « ${p.titre} »` : ''}`;
@@ -332,6 +343,7 @@ export function Calendar() {
           item={event}
           note={linkedTasksNote(data.tasks, event.id, 'event')}
           fields={EVENT_FIELDS}
+          validate={checkEvent}
           onSave={saveEvent}
           onDelete={data.events.some((x) => x.id === event.id) ? removeEvent : undefined}
           onClose={() => setEvent(null)}

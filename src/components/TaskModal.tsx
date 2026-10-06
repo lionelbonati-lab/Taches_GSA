@@ -7,7 +7,7 @@ import { deleteFiles } from '../data/files';
 import { ETATS, chf } from '../data/paiements';
 import { useStore } from '../data/store';
 import type { DelaiUnite, Recurrence, Task } from '../data/types';
-import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, shortName, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
+import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, shortName, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
@@ -347,8 +347,8 @@ function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
   const { data } = useStore();
   const refId = t.delaiRef ? (t.delaiRef.type === 'event' ? t.eventId : t.meetingId) : undefined;
   const mode = t.delaiRef && refId ? `${t.delaiRef.type}:${refId}` : 'fixe';
-  const upcoming = <T extends { id: string; date: string }>(list: T[], current?: string) =>
-    list.filter((x) => x.date >= today() || x.id === current).sort((a, b) => a.date.localeCompare(b.date));
+  const upcoming = <T extends { id: string; date: string; dateFin?: string }>(list: T[], current?: string) =>
+    list.filter((x) => endOf(x) >= today() || x.id === current).sort((a, b) => a.date.localeCompare(b.date));
   const events = upcoming(data.events, t.eventId);
   const meetings = upcoming(data.meetings, t.meetingId);
 
@@ -372,7 +372,7 @@ function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
           <option value="fixe">📆 Date fixe</option>
           {events.length > 0 && (
             <optgroup label="Selon un événement">
-              {events.map((e) => <option key={e.id} value={`event:${e.id}`}>🎉 {e.nom} ({fmtDate(e.date)})</option>)}
+              {events.map((e) => <option key={e.id} value={`event:${e.id}`}>🎉 {e.nom} ({fmtRange(e.date, e.dateFin)})</option>)}
             </optgroup>
           )}
           {meetings.length > 0 && (

@@ -5,6 +5,18 @@ export const today = () => new Date().toISOString().slice(0, 10);
 export const fmtDate = (s?: string) =>
   s ? new Date(s + (s.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 
+/** Dernier jour d'un événement sur un ou plusieurs jours. */
+export const endOf = (x: { date: string; dateFin?: string }) => (x.dateFin && x.dateFin > x.date ? x.dateFin : x.date);
+
+/** Dates d'un événement : « 27.02.2027 », « 27–28.02.2027 », « 30.06 – 02.07.2027 ». */
+export function fmtRange(date?: string, fin?: string) {
+  if (!date || !fin || fin <= date) return fmtDate(date);
+  const [a, b] = [fmtDate(date), fmtDate(fin)];
+  if (date.slice(0, 7) === fin.slice(0, 7)) return `${a.slice(0, 2)}–${b}`;
+  if (date.slice(0, 4) === fin.slice(0, 4)) return `${a.slice(0, 5)} – ${b}`;
+  return `${a} – ${b}`;
+}
+
 export const fmtDateTime = (s: string) =>
   new Date(s).toLocaleString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
@@ -45,6 +57,11 @@ export function isLate(data: AppData, t: Task) {
 export const childrenOf = (data: AppData, id: string) => data.tasks.filter((t) => t.parentId === id);
 /** Tâche principale d'une tâche liée. */
 export const parentOf = (data: AppData, t: Task) => (t.parentId ? data.tasks.find((x) => x.id === t.parentId) : undefined);
+
+/** Jours de `a` à `b` (dates AAAA-MM-JJ). */
+export function diffDays(a: string, b: string) {
+  return Math.round((new Date(b + 'T12:00:00').getTime() - new Date(a + 'T12:00:00').getTime()) / 86400000);
+}
 
 export function daysUntil(date: string) {
   const a = new Date(today() + 'T12:00:00').getTime();

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, fetchOrg, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, toRows, updateCommittee, type Membership } from './data/cloud';
+import { accessAction, fetchOrg, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -79,7 +79,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         const r = await accessAction<{ unitId: string; email?: string; password?: string; existant?: boolean; error?: string }>({
           action: 'creerUnite',
           committeeId: central.id,
-          unite: { nom: n.nom, type: n.type, info: { couleur: n.couleur, description: n.description, date: n.date } },
+          unite: { nom: n.nom, type: n.type, info: { couleur: n.couleur, description: n.description, date: n.date, dateFin: n.dateFin } },
           rows: toRows(d),
           chefId: chef.id,
         });
@@ -97,12 +97,17 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
             couleur: next.couleur,
             description: next.description || undefined,
             date: next.date || undefined,
+            dateFin: next.date && next.dateFin && next.dateFin > next.date ? next.dateFin : undefined,
             archive: next.archive || undefined,
             // Réglage de l'entité : le serveur garde l'ancienne valeur si l'auteur n'en est pas admin.
             central: next.central && next.central !== 'aucun' ? next.central : undefined,
             logo: next.logo || undefined,
           },
         });
+        refresh();
+      },
+      async setEditionDate(date, dateFin) {
+        await setEditionDate(m.committeeId, date, dateFin);
         refresh();
       },
       async proposeTask(r) {

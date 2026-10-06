@@ -310,6 +310,8 @@ export interface ClubEvent {
   id: string;
   nom: string;
   date: string;
+  /** Dernier jour, pour un événement sur plusieurs jours. */
+  dateFin?: string;
   lieu: string;
   description: string;
 }
@@ -412,8 +414,10 @@ export interface Unit {
   parentId?: string;
   couleur: string;
   description?: string;
-  /** Date de l'événement (sous-comité, équipe d'événement). */
+  /** Date de l'événement (sous-comité, équipe d'événement) : sa prochaine édition. */
   date?: string;
+  /** Dernier jour de l'édition, si elle dure plusieurs jours. */
+  dateFin?: string;
   /** Événement passé, entité plus utilisée : masquée des menus. */
   archive?: boolean;
   /** Ce que le comité central peut faire des données de l'entité (réglage de ses admins ; absent = rien). */

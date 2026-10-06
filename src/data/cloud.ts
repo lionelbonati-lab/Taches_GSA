@@ -33,6 +33,7 @@ export interface UnitInfo {
   couleur?: string;
   description?: string;
   date?: string;
+  dateFin?: string;
   archive?: boolean;
   /** Accès du comité central (réglé par les admins de l'entité, contrôlé par le serveur). */
   central?: CentralAccess;
@@ -476,6 +477,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     couleur: unitColor(m.type, m.info),
     description: m.info.description,
     date: m.info.date,
+    dateFin: m.info.dateFin,
     archive: !!m.info.archive,
     central: m.info.central,
     logo: isImage(m.info.logo) ? m.info.logo : undefined,
@@ -500,6 +502,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       couleur: unitColor(u.type, info),
       description: info.description,
       date: info.date,
+      dateFin: info.dateFin,
       archive: !!info.archive,
       central: info.central,
       logo: isImage(info.logo) ? info.logo : undefined,
@@ -537,6 +540,12 @@ export async function myCentralTickets(): Promise<SuiviTicket[]> {
   const { data, error } = await sb().rpc('gsa_mes_tickets_centraux');
   if (error) throw new Error(error.message);
   return (data ?? []) as SuiviTicket[];
+}
+
+/** Date de la prochaine édition d'une entité (contrôlée par le serveur : gsa_date_edition). */
+export async function setEditionDate(c: string, debut: string, fin?: string) {
+  const { error } = await sb().rpc('gsa_date_edition', { c, debut, fin: fin ?? null });
+  if (error) throw new Error(error.message);
 }
 
 /** Suivi des demandes de l'entité au comité central. */

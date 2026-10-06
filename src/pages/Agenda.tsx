@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Meeting, PvArchive, Task } from '../data/types';
-import { daysUntil, fmtDateTime, fullName, isDone, today, uid } from '../data/utils';
+import { daysUntil, diffDays, endOf, fmtDateTime, fullName, isDone, today, uid } from '../data/utils';
+import { EditionCard } from '../components/Edition';
 import { Empty, Modal } from '../components/ui';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
@@ -25,7 +26,9 @@ export function useAgendaActions() {
       d.meetings = d.meetings.filter((x) => x.id !== m.id);
       d.tasks.forEach((t) => { if (t.meetingId === m.id) t.meetingId = undefined; });
     }, `Suppression de la séance « ${m.titre} »`),
-    saveEvent: (e: ClubEvent) => {
+    saveEvent: (x: ClubEvent) => {
+      // Sur un seul jour : pas de date de fin.
+      const e: ClubEvent = { ...x, dateFin: x.dateFin && x.dateFin > x.date ? x.dateFin : undefined };
       const isNew = !data.events.some((x) => x.id === e.id);
       update((d) => { d.events = isNew ? [...d.events, e] : d.events.map((x) => (x.id === e.id ? e : x)); }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »`);
     },
@@ -41,8 +44,10 @@ export const MEETING_FIELDS: [keyof Meeting & string, string, 'text' | 'date' | 
   ['ordreDuJour', 'Points particuliers à l’ordre du jour', 'area'], ['notes', 'Notes / PV', 'area'],
 ];
 export const EVENT_FIELDS: [keyof ClubEvent & string, string, 'text' | 'date' | 'area'][] = [
-  ['nom', 'Événement', 'text'], ['date', 'Date', 'date'], ['lieu', 'Lieu', 'text'], ['description', 'Description', 'area'],
+  ['nom', 'Événement', 'text'], ['date', 'Date (premier jour)', 'date'], ['dateFin', 'Dernier jour (si plusieurs jours)', 'date'], ['lieu', 'Lieu', 'text'],
+  ['description', 'Description', 'area'],
 ];
+export const checkEvent = (e: ClubEvent) => (e.dateFin && e.date && e.dateFin < e.date ? 'Le dernier jour ne peut pas précéder le premier.' : undefined);
 
 /** Nouvelle séance : numérotée d'après la précédente (Comité 5 → Comité 6). */
 export function newMeeting(meetings: Meeting[], date = today()): Meeting {
@@ -197,16 +202,20 @@ export function Events() {
         <h1>Événements</h1>
         {manage && <button className="btn primary" onClick={() => setEdit(newEvent())}>+ Nouvel événement</button>}
       </div>
+      <EditionCard />
       <div className="agenda">
         {sorted.map((e) => {
           const tasks = data.tasks.filter((t) => t.eventId === e.id);
-          const past = e.date < today();
+          const fin = endOf(e);
+          const past = fin < today();
+          const jours = diffDays(e.date, fin) + 1;
+          const quand = past ? '' : e.date <= today() ? 'en cours' : `dans ${daysUntil(e.date)} j`;
           return (
             <article key={e.id} className={`panel agenda-item ${past ? 'past' : ''}`}>
-              <DateBlock date={e.date} />
+              <DateBlock date={e.date} fin={e.dateFin} />
               <div className="grow">
                 <strong>{e.nom}</strong>
-                <div className="muted">{e.lieu}{!past && ` · dans ${daysUntil(e.date)} j`}</div>
+                <div className="muted">{[e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
                 <p>{e.description}</p>
                 <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
                 <Link to={`/taches?event=${e.id}`}>Voir les tâches →</Link>
@@ -223,6 +232,7 @@ export function Events() {
           item={edit}
           note={linkedTasksNote(data.tasks, edit.id, 'event')}
           fields={EVENT_FIELDS}
+          validate={checkEvent}
           onSave={save}
           onDelete={data.events.some((x) => x.id === edit.id) ? remove : undefined}
           onClose={() => setEdit(null)}
@@ -266,20 +276,25 @@ function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDele
 const linkedNote = (n: number) =>
   n ? `🔗 ${n} tâche(s) ont un délai lié à cette date : si tu la changes, leurs délais suivront automatiquement.` : undefined;
 
-function DateBlock({ date }: { date: string }) {
+function DateBlock({ date, fin }: { date: string; fin?: string }) {
   const d = new Date(date + 'T12:00:00');
+  // Sur plusieurs jours : « 27–28 févr. », « 30 juin–2 juil. ».
+  const f = fin && fin > date ? new Date(fin + 'T12:00:00') : null;
+  const mois = (x: Date) => x.toLocaleDateString('fr-CH', { month: 'short' });
   return (
-    <div className="dateblock">
-      <b>{d.getDate()}</b>
-      <span>{d.toLocaleDateString('fr-CH', { month: 'short' })}</span>
-      <small>{d.getFullYear()}</small>
+    <div className={`dateblock ${f ? 'multi' : ''}`}>
+      <b>{d.getDate()}{f && `–${f.getDate()}`}</b>
+      <span>{f && mois(f) !== mois(d) ? `${mois(d)}–${mois(f)}` : mois(d)}</span>
+      <small>{f && f.getFullYear() !== d.getFullYear() ? `${d.getFullYear()}–${String(f.getFullYear()).slice(2)}` : d.getFullYear()}</small>
     </div>
   );
 }
 
-export function ItemModal<T extends { id: string }>({ title, item, fields, onSave, onDelete, onClose, note }: {
+export function ItemModal<T extends { id: string }>({ title, item, fields, onSave, onDelete, onClose, note, validate }: {
   title: string;
   note?: string;
+  /** Contrôle avant enregistrement : message d'erreur, ou rien. */
+  validate?: (t: T) => string | undefined;
   item: T;
   fields: [keyof T & string, string, 'text' | 'date' | 'time' | 'area' | 'email' | 'tel'][];
   onSave: (t: T) => void;
@@ -290,6 +305,8 @@ export function ItemModal<T extends { id: string }>({ title, item, fields, onSav
   const [err, setErr] = useState('');
   const submit = () => {
     if (!String(v[fields[0][0]] ?? '').trim()) return setErr(`« ${fields[0][1]} » est obligatoire.`);
+    const bad = validate?.(v);
+    if (bad) return setErr(bad);
     onSave(v);
     onClose();
   };

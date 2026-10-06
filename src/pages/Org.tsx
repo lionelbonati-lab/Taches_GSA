@@ -3,7 +3,7 @@ import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
 import { CENTRAL_ACCESS, centralAccess, directory, orgMembers, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type DirectoryEntry } from '../data/units';
 import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
-import { fmtDate, posteBesideName } from '../data/utils';
+import { fmtRange, posteBesideName } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
 import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from './Admin';
@@ -111,7 +111,7 @@ function UnitCard({ u, onEdit }: { u: OrgUnit; onEdit?: () => void }) {
           <strong>{u.nom}</strong>
           <small className="muted">
             {t.label}
-            {u.date && ` · ${fmtDate(u.date)}`}
+            {u.date && ` · ${fmtRange(u.date, u.dateFin)}`}
             {` · ${u.membres.length} membre${u.membres.length > 1 ? 's' : ''}`}
             {u.archive && ' · archivée'}
             {u.moi && !isCurrent && ' · tu en fais partie'}
@@ -203,6 +203,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
   const [type, setType] = useState<UnitType>(unit?.type ?? 'sous-comite');
   const [couleur, setCouleur] = useState(unit?.couleur ?? UNIT_COLORS[club.units.length % UNIT_COLORS.length]);
   const [date, setDate] = useState(unit?.date ?? '');
+  const [dateFin, setDateFin] = useState(unit?.dateFin ?? '');
   const [description, setDescription] = useState(unit?.description ?? '');
   const [archive, setArchive] = useState(!!unit?.archive);
   const [logo, setLogo] = useState(unit?.logo);
@@ -222,7 +223,9 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
   const submit = async () => {
     setErr('');
     if (!nom.trim()) return setErr('Donne un nom à l’entité.');
-    const base: Partial<Unit> = { nom: nom.trim(), couleur, description: description.trim() || undefined, date: dated(type) && date ? date : undefined };
+    if (dated(type) && dateFin && (!date || dateFin < date)) return setErr('Le dernier jour de l’événement ne peut pas précéder le premier.');
+    const jour = dated(type) && date ? date : undefined;
+    const base: Partial<Unit> = { nom: nom.trim(), couleur, description: description.trim() || undefined, date: jour, dateFin: jour && dateFin > jour ? dateFin : undefined };
     setBusy(true);
     try {
       if (isNew) {
@@ -233,7 +236,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
         if (!chef.prenom) throw new Error(`Indique le prénom du ${info.chef.toLowerCase()}.`);
         if (!EMAIL.test(chef.email)) throw new Error(`Il faut une adresse email valable pour le ${info.chef.toLowerCase()} : c’est elle qui lui donne accès.`);
         const n: NewUnit = {
-          ...(base as Pick<Unit, 'nom' | 'couleur' | 'description' | 'date'>),
+          ...(base as Pick<Unit, 'nom' | 'couleur' | 'description' | 'date' | 'dateFin'>),
           type,
           chef,
           membres: membres.map((k) => dir.find((e) => e.key === k)).filter((e): e is DirectoryEntry => !!e && e.key !== chefKey).map((e) => fromDirectory(e, '')),
@@ -270,10 +273,16 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
           </label>
         )}
         {dated(type) && (
-          <label>
-            Date de l’événement
-            <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-          </label>
+          <>
+            <label>
+              Date de l’événement (prochaine édition)
+              <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+            </label>
+            <label>
+              Dernier jour <small className="muted">(si plusieurs jours)</small>
+              <input type="date" value={dateFin} min={date || undefined} onChange={(e) => setDateFin(e.target.value)} />
+            </label>
+          </>
         )}
         {!isCentral && <p className="full muted small-note">{info.aide}</p>}
         <div className="full">

@@ -65,6 +65,8 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - `gsa_mes_tickets_centraux()` : la personne connectée suit l'état de ses tickets envoyés ;
 - `gsa_paiement_check` : un ticket « externe » ne peut être créé que par `gsa_ticket_central`, son demandeur ne change plus et ne peut pas le viser.
 
+`supabase/migrations/013_gsa_date_edition.sql` (appliqué le 06.10.2026) : `gsa_date_edition(entité, début, fin)` change la date de la prochaine édition d'un sous-comité ou d'une équipe d'événement (`committees.info.date` et `dateFin`, rien d'autre) ; réservé aux admins de l'entité, à ses membres qui ont le droit « Gérer les événements » et aux admins du comité central. Ajout pur, aucune donnée modifiée.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

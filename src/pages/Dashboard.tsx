@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ScheduledEmail, Task } from '../data/types';
-import { daysUntil, fmtDate, isDone, isLate, today } from '../data/utils';
+import { daysUntil, endOf, fmtDate, fmtRange, isDone, isLate, today } from '../data/utils';
 import { TaskCard } from './Tasks';
 import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
@@ -11,6 +11,7 @@ import { dueAt, emailState, fillTemplate, whenLabel } from '../data/emails';
 import { EmailSend } from '../components/EmailsField';
 import { IncomingRequests, OutgoingRequests } from '../components/Requests';
 import { useClubOptional } from '../data/club';
+import { EditionCard } from '../components/Edition';
 
 export function Dashboard() {
   const { data, user, can, saveTask, guest } = useStore();
@@ -26,7 +27,7 @@ export function Dashboard() {
   const late = open.filter((t) => isLate(data, t)).sort((a, b) => a.delai.localeCompare(b.delai));
   const soon = open.filter((t) => { const n = t.delai ? daysUntil(t.delai) : -1; return n >= 0 && n <= 7; }).sort((a, b) => a.delai.localeCompare(b.delai));
   const nextMeeting = [...data.meetings].filter((m) => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
-  const nextEvents = [...data.events].filter((e) => e.date >= today()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
+  const nextEvents = [...data.events].filter((e) => endOf(e) >= today()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
   const onStatus = (t: Task, s: string) => saveTask({ ...t, statusId: s }, false);
   // Emails que j'ai programmés : à envoyer maintenant, puis les prochains.
   const myEmails = (data.emails ?? [])
@@ -41,6 +42,7 @@ export function Dashboard() {
   return (
     <div>
       <h1>Bonjour {user.prenom} 👋</h1>
+      <EditionCard />
       <div className="stats">
         {/* Chaque case ouvre la liste de mes tâches filtrée sur ce statut. */}
         {data.statuses.map((s) => (
@@ -117,7 +119,7 @@ export function Dashboard() {
             return (
               <Link key={e.id} to={`/taches?event=${e.id}`} className="panel link-panel">
                 <strong>{e.nom}</strong>
-                <span>{fmtDate(e.date)} · {e.lieu}</span>
+                <span>{fmtRange(e.date, e.dateFin)} · {e.lieu}</span>
                 <Progress done={done} total={tasks.length} />
               </Link>
             );
