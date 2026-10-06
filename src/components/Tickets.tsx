@@ -5,7 +5,7 @@ import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
 import type { AppData, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre } from '../data/types';
 import {
-  COULEURS_TIMBRE, ETATS, GENRES, caissiers, chf, demandeur, genre, genreDe, nomDe, responsablesPour, sectionFinances, signataires, statutPour, timbreDe,
+  COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, responsablesPour, sectionFinances, signataires, statutPour, timbreDe,
   type GenreTicket, type Ticket,
 } from '../data/paiements';
 import { SCEAU_RATIO, apposerSceau, renderSceau, type SceauContenu } from '../data/sceau';
@@ -40,7 +40,7 @@ export function TicketModal({ task, onClose }: { task: Task; onClose: () => void
   const g = genre(t.paiement);
   return createPortal(
     <Modal title={`${g.icon} ${g.nom}`} onClose={onClose} wide>
-      <TicketCard t={t} onEdit={() => setEdit(true)} />
+      <TicketCard t={t} onEdit={() => setEdit(true)} onClose={onClose} />
       <div className="modal-foot no-print">
         <a className="small-link" href="#/taches?type=tickets" onClick={onClose}>Tous les paiements et remboursements →</a>
         <span className="grow" />
@@ -53,14 +53,14 @@ export function TicketModal({ task, onClose }: { task: Task; onClose: () => void
 
 /** Circuit expliqué en tête de la liste des paiements et remboursements ; réglage du sceau pour la caisse. */
 export function CircuitPaiements({ total }: { total?: number }) {
-  const { data, can } = useStore();
+  const { data, user } = useStore();
   return (
     <div className="circuit-paiements no-print">
       <p className="muted small">
         🧾 <strong>Remboursement</strong> : une personne a avancé l’argent (photo de son ticket) · 💳 <strong>Paiement</strong> : facture payée directement à qui l’a envoyée.
         Circuit : la caisse reçoit la demande et la fait viser par un membre du comité (jamais le demandeur), qui signe et pose le sceau « {timbreDe(data).texte} » → la caisse fait le virement et met « OK ». Le virement lui-même ne passe pas par l’appli.
       </p>
-      {can('paiements.payer') && <TimbreReglage />}
+      {!!user && holders(data, 'paiements.payer').includes(user.id) && <TimbreReglage />}
       {total !== undefined && <p className="muted small">Total : <strong>{chf(total)}</strong></p>}
     </div>
   );
@@ -159,16 +159,18 @@ function sceauDe(data: AppData, t: Ticket): SceauContenu | null {
   return { entete: s.entete, texte: s.texte, couleur: s.couleur, montant: chf(t.paiement.montant), date: fmtDate(v.le.slice(0, 10)), nom: nomDe(data, v.par), signature: v.signature };
 }
 
-function TicketCard({ t, onEdit }: { t: Ticket; onEdit: () => void }) {
-  const { data, user, can, update } = useStore();
+function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onClose: () => void }) {
+  const { data, user, update, setToast } = useStore();
   const [viser, setViser] = useState(false);
   const [refus, setRefus] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [demande, setDemande] = useState(false);
   const p = t.paiement;
   const g = genre(p);
-  const caisse = can('paiements.payer');
+  // Caisse : les caissiers désignés (à défaut, les admins). Un admin qui n'est pas caissier, ex. le président
+  // à qui l'on demande un visa, ne voit pas les actions de la caisse (demande de visa, virement…).
   const moi = user?.id;
+  const caisse = !!moi && holders(data, 'paiements.payer').includes(moi);
   const mien = p.demandePar === moi;
   const pourMoi = p.etat === 'visa' && p.visa?.a === moi && !mien;
   const save = useSaveTicket();
@@ -275,7 +277,17 @@ function TicketCard({ t, onEdit }: { t: Ticket; onEdit: () => void }) {
           <button className="btn link" onClick={() => confirm('Le virement n’a pas été fait ? La demande revient « à payer ».') && save(t, { etat: 'valide', paye: undefined }, `« ${t.titre} » remis « à payer »`)}>Annuler « payé »</button>
         )}
       </div>
-      {viser && <VisaModal t={t} onClose={() => setViser(false)} />}
+      {viser && (
+        <VisaModal
+          t={t}
+          onClose={() => setViser(false)}
+          onVise={() => {
+            // Visa donné : la suite revient à la caisse, la fenêtre se ferme.
+            setToast(`✍️ Visa enregistré : « ${t.titre} » revient à la caisse pour le virement.`);
+            onClose();
+          }}
+        />
+      )}
     </article>
   );
 }
@@ -352,7 +364,7 @@ function DocImage({ id, onLoad }: { id: string; onLoad: (img: HTMLImageElement) 
 }
 
 /** Visa : la personne désignée par la caisse place le sceau sur le ticket, l'ajuste et signe. */
-function VisaModal({ t, onClose }: { t: Ticket; onClose: () => void }) {
+function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onVise: () => void }) {
   const { data, user } = useStore();
   const save = useSaveTicket();
   const p = t.paiement;
@@ -410,7 +422,7 @@ function VisaModal({ t, onClose }: { t: Ticket; onClose: () => void }) {
         documents = [{ id: docVise, nom: `${g.vise} – ${t.titre}.jpg`, kind: 'fichier', mime: 'image/jpeg', taille: out.size, par: user.id, le }, ...documents];
       }
       save(t, { etat: 'valide', validation: { par: user.id, le, signature: png, sceau, docVise } }, `Visé et signé : « ${t.titre} » (${chf(p.montant)})`, { documents });
-      onClose();
+      onVise();
     } catch (e) {
       setErr((e as Error).message);
       setBusy(false);
