@@ -87,7 +87,7 @@ export function RealLogin() {
       <button className="btn link" onClick={() => setForgot(!forgot)}>Mot de passe oublié ou pas encore de compte ?</button>
       {forgot && (
         <p className="muted small-note">
-          Les accès sont créés par le président (ou un admin) dans Personnes › Responsables (ou Membres de l’entité). Demande-lui un accès ou un nouveau mot de passe provisoire :
+          Les accès sont créés par le président (ou un admin) depuis l’organigramme, dans la fiche de chaque personne. Demande-lui un accès ou un nouveau mot de passe provisoire :
           tu choisiras ton propre mot de passe à la connexion suivante.
         </p>
       )}
@@ -317,7 +317,7 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
               {backup.data.people.filter((p) => p.actif).map((p) => <option key={p.id} value={p.id}>{fullName(p)}{posteBesideName(fullName(p), p.poste) && ` – ${p.poste}`}</option>)}
             </select>
           </label>
-          <p className="muted small-note">Pense à corriger ensuite les noms et les adresses email dans Personnes › Responsables : ce sont elles qui serviront à créer les accès des membres.</p>
+          <p className="muted small-note">Pense à corriger ensuite les noms et les adresses email dans l’organigramme (clic sur chaque poste) : ce sont elles qui serviront à créer les accès des membres.</p>
           <button className="btn primary" disabled={!!busy || !me} onClick={doImport}>Importer dans la version réelle</button>
           {!busy && <button className="btn link" onClick={() => { setBackup(null); setStep('choix'); }}>← Retour</button>}
         </>

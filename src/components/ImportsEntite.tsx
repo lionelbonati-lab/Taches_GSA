@@ -22,13 +22,12 @@ export function ImportsEntite() {
     if (acces && membres) membres().then(setRegistre).catch(() => setRegistre(undefined));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [acces]);
-  const central = !club || club.current.type === 'central';
   const admin = !!user?.roles.includes(ADMIN_ROLE_ID);
 
   return (
     <div className="panel">
       <div className="seg wrap">
-        <button className={sorte === 'personnes' ? 'on' : ''} onClick={() => setSorte('personnes')}>{central ? 'Responsables' : 'Membres'}</button>
+        <button className={sorte === 'personnes' ? 'on' : ''} onClick={() => setSorte('personnes')}>Personnes</button>
         <button className={sorte === 'taches' ? 'on' : ''} onClick={() => setSorte('taches')}>Tâches</button>
         <button className={sorte === 'evenements' ? 'on' : ''} onClick={() => setSorte('evenements')}>Événements</button>
       </div>
@@ -42,7 +41,7 @@ export function ImportsEntite() {
               Une ligne par personne, avec son poste et son rôle dans cette entité. Une personne déjà présente (même email, sinon même prénom et nom)
               est mise à jour : cellules remplies, rôles ajoutés à ceux qu’elle a déjà ; une personne retirée est réactivée.
               {club && ' Ses coordonnées sont celles du registre « Membres du club » (communes à tout le club).'} L’accès à l’appli se crée ensuite
-              dans Personnes › {central ? 'Responsables' : 'Membres'}.
+              dans sa fiche (organigramme : clic sur son poste).
             </p>
           }
           analyser={(lignes) => analyserPersonnes(lignes, data, { admin, registre })}

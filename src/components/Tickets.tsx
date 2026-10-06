@@ -657,7 +657,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
       ? `Caisse centrale (${central!.nom}) : ${caisseCentrale.join(', ')}. Tu en suivras l’état dans « Mes tâches » (Envoyés à la caisse centrale).`
       : ici
         ? `${club ? `Caisse ${club.current.nom}` : 'Caisse'} : ${nomsCaisse.join(', ')}.`
-        : `${guest ? 'Tu consultes cette entité en visiteur.' : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans « Responsables »).`} ${
+        : `${guest ? 'Tu consultes cette entité en visiteur.' : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans la fiche de la personne : organigramme, clic sur son poste).`} ${
             choix ? 'Envoie ta demande à l’une des caisses proposées.' : 'Aucune caisse ne peut recevoir ta demande pour l’instant.'
           }`;
 

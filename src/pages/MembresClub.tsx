@@ -92,7 +92,7 @@ export function MembresClub() {
       <p className="muted">
         Une fiche par personne pour tout le club, avec ou sans accès à l’appli (licenciés, parents, bénévoles…). Prénom, nom, email et
         téléphone sont les mêmes dans toutes les entités où la personne a un poste : modifiés ici, ils changent partout. Le poste, les rôles et
-        l’accès à l’appli se règlent dans chaque entité (Personnes › {club.current.type === 'central' ? 'Responsables' : 'Membres'}).
+        l’accès à l’appli se règlent dans chaque entité, depuis l’organigramme (clic sur un poste, ou « + Ajouter une personne » sous l’entité).
       </p>
       {err && <p className="error">{err}</p>}
       {!list && !err && <p className="muted">Chargement…</p>}
@@ -231,7 +231,7 @@ function MembreModal({ membre, list, postes, onSave, onDelete, onClose }: {
             : 'Aucun poste dans une entité du club (pas d’accès à l’appli).'}
         </p>
       )}
-      <p className="muted small-note">Pour lui donner un poste et un accès à l’appli : ouvre l’entité, Personnes › Membres (ou Responsables), « + Ajouter une personne ».</p>
+      <p className="muted small-note">Pour lui donner un poste et un accès à l’appli : dans l’organigramme, « + Ajouter une personne » sous l’entité.</p>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         {!nouveau && (

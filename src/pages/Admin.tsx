@@ -25,7 +25,7 @@ export function Admin() {
   const central = !u || u.type === 'central';
   // Sous-comité, groupe ou équipe : ce que le comité central peut faire de ses données.
   const sub = !!u && !central;
-  const personnes = chemin('/responsables');
+  const personnes = chemin('/organigramme');
 
   const couleur = u?.couleurAppli ?? (sub ? club?.central?.couleurAppli : undefined);
   const nomCouleur = couleur ? COULEURS_APPLI.find((x) => x.c === couleur.toLowerCase())?.nom.toLowerCase() ?? 'personnalisée' : 'bleu d’origine';
@@ -35,7 +35,7 @@ export function Admin() {
       icon: '🔑',
       titre: 'Rôles et droits',
       carte: `Ce que chaque rôle (Secrétaire, Caissier…) permet de voir et de faire${sub ? ', et l’accès du comité central' : ''}.`,
-      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans ${personnes ?? 'sa fiche'} ; ici, tu coches ce que chaque rôle permet de voir et de faire.${sub ? ' Et ce que le comité central peut faire des données de l’entité.' : ''}`,
+      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ` (${personnes} : clic sur son poste)` : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.${sub ? ' Et ce que le comité central peut faire des données de l’entité.' : ''}`,
       resume: `${data.roles.length} rôles${u && sub ? ` · comité central : ${CENTRAL_ACCESS[centralAccess(u)].label.toLowerCase()}` : ''}`,
       contenu: (
         <>
@@ -75,7 +75,7 @@ export function Admin() {
       titre: 'Importer un fichier',
       carte: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur.',
       aide: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur (fichier CSV, avec un modèle à télécharger).',
-      resume: `${central ? 'Responsables' : 'Membres'}, tâches, événements`,
+      resume: 'Personnes, tâches, événements',
       contenu: <ImportsEntite />,
     },
     {
@@ -109,11 +109,11 @@ export function Admin() {
       <PageIntro />
       <div className="admin-cartes">
         {personnes && (
-          <Link to="/responsables" className="panel admin-carte">
+          <Link to="/organigramme" className="panel admin-carte">
             <span className="admin-carte-icone" aria-hidden>👥</span>
             <span>
               <b>Personnes et accès</b>
-              <span className="muted">Ajouter quelqu’un, lui donner un poste et un rôle, créer son accès à l’appli.</span>
+              <span className="muted">« + Ajouter une personne » sous l’entité ; un clic sur un poste ouvre la fiche : poste, rôle, accès à l’appli.</span>
               <small>Dans {personnes} · {data.people.filter((x) => x.actif).length} personnes</small>
             </span>
           </Link>

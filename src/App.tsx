@@ -5,7 +5,6 @@ import { Message } from './pages/Real';
 import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
 import { Events, Meetings } from './pages/Agenda';
-import { People } from './pages/People';
 import { Settings } from './pages/Settings';
 import { Admin } from './pages/Admin';
 import { Pv } from './pages/Pv';
@@ -44,7 +43,8 @@ export function App() {
           <Route path="agenda" element={<Calendar />} />
           {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
           {can('tab.events') && <Route path="evenements" element={<Events />} />}
-          {can('tab.people') && <Route path="responsables" element={<People />} />}
+          {/* Ancienne page des responsables / membres : tout se fait dans l'organigramme. */}
+          <Route path="responsables" element={<Navigate to="/organigramme" replace />} />
           {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
           {can('tab.minutes') && <Route path="pv" element={<Minutes />} />}
           <Route path="sondages" element={<Polls />} />

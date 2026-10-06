@@ -4,16 +4,17 @@ import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
 import { arbreEntites, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
 import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
-import { fmtRange, posteBesideName } from '../data/utils';
-import { Empty, Initials, Modal, UnitMark } from '../components/ui';
+import { fmtRange } from '../data/utils';
+import { Empty, Modal, UnitMark } from '../components/ui';
 import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
 import { CentralAccessChoice } from '../components/CentralAccess';
-import { NouvellePersonne } from './People';
+import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
-// Un clic sur une entité affiche ses membres et permet de l'ouvrir. Sous chaque entité : ses postes (sans les noms),
-// et un bouton « + » pour y ajouter une personne (entité ouverte, ou entité dont on est admin : on l'ouvre d'abord).
+// Sous chaque entité, une ligne par personne avec son poste (pas son nom) : un clic ouvre sa fiche.
+// « + Ajouter une personne » en bas de la liste (entité ouverte, ou entité dont on est admin : on l'ouvre d'abord).
+// Un clic sur le nom d'une entité l'ouvre ; ⚙️ modifie sa fiche.
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
 // chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité central
 // peut faire de ses données (rien voir, consulter, ou aussi modifier / ajouter des tâches).
@@ -21,23 +22,33 @@ import { NouvellePersonne } from './People';
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const dated = (t: UnitType) => t === 'sous-comite' || t === 'equipe';
 
+/** Ce qu'on peut faire depuis la carte d'une entité. */
+interface Actions {
+  onPersonne: (m: OrgMember) => void;
+  onAjouter?: () => void;
+  ouvrir?: { label: string; aide: string; go: () => void };
+  onModifier?: () => void;
+}
+
 export function Org() {
   const club = useClub();
   const { data, can } = useStore();
-  const [view, setView] = useState<'entites' | 'personnes'>('entites');
   const [edit, setEdit] = useState<{ unit?: OrgUnit } | null>(null);
   const [created, setCreated] = useState<{ c: CreatedUnit; n: NewUnit } | null>(null);
-  const [detailId, setDetailId] = useState<string | null>(null);
+  const [fiche, setFiche] = useState<{ unitId: string; personId: string } | null>(null);
   const [ajout, setAjout] = useState(false);
-  // Arrivée depuis le « + » d'une autre entité (?ajouter=<entité>) : ajout ouvert une fois l'entité chargée.
-  const [params, setParams] = useSearchParams();
-  const demande = params.get('ajouter');
   const peutAjouter = can('people.manage');
+  // Arrivée depuis une autre entité (?entite=<entité>&ajouter=1 ou &personne=<fiche>) : ouvert une fois l'entité chargée.
+  const [params, setParams] = useSearchParams();
+  const entite = params.get('entite');
   useEffect(() => {
-    if (!demande || demande !== club.current.id) return;
+    if (!entite || entite !== club.current.id) return;
+    const personne = params.get('personne');
+    const ajouter = params.has('ajouter');
     setParams({}, { replace: true });
-    if (peutAjouter) setAjout(true);
-  }, [demande, club.current.id, peutAjouter, setParams]);
+    if (ajouter && peutAjouter) setAjout(true);
+    if (personne) setFiche({ unitId: entite, personId: personne });
+  }, [entite, club.current.id, params, peutAjouter, setParams]);
   // Relire l'organigramme à l'ouverture (changements faits dans d'autres entités).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -48,14 +59,25 @@ export function Org() {
   const units = useMemo(() => club.units.map((u) => (u.id === club.current.id ? { ...u, membres: orgMembers(data) } : u)), [club.units, club.current.id, data]);
   const active = units.filter((u) => !u.archive);
   const archived = units.filter((u) => u.archive);
-  const people = useMemo(() => directory(active), [active]);
-  const canEdit = (u: OrgUnit) => club.canManage || u.moiAdmin;
-  const detail = units.find((u) => u.id === detailId);
-  const ajouter = (u: OrgUnit): (() => void) | undefined => {
-    if (u.archive) return undefined;
-    if (u.id === club.current.id) return peutAjouter ? () => setAjout(true) : undefined;
-    return u.moiAdmin && club.mine.some((x) => x.id === u.id) ? () => club.switchUnit(u.id, `#/organigramme?ajouter=${u.id}`) : undefined;
+  // Entité dont on est admin (autre que l'ouverte) : on l'ouvre pour y ajouter ou modifier quelqu'un.
+  const admin = (u: OrgUnit) => u.id !== club.current.id && u.moiAdmin && club.mine.some((x) => x.id === u.id);
+  const actions = (u: OrgUnit): Actions => {
+    const ouverte = u.id === club.current.id;
+    const visit = !ouverte && visitLevel(u, club.central);
+    return {
+      onPersonne: (m) => setFiche({ unitId: u.id, personId: m.id }),
+      onAjouter: u.archive ? undefined : ouverte ? (peutAjouter ? () => setAjout(true) : undefined) : admin(u) ? () => club.switchUnit(u.id, `#/organigramme?entite=${u.id}&ajouter=1`) : undefined,
+      ouvrir:
+        ouverte || (!u.moi && !visit)
+          ? undefined
+          : u.moi
+            ? { label: 'Ouvrir', aide: `Ouvrir « ${u.nom} »`, go: () => club.switchUnit(u.id) }
+            : { label: visit === 'lecture' ? '👁 Consulter' : '✏️ Ouvrir', aide: CENTRAL_ACCESS[visit as CentralAccess].aide, go: () => club.switchUnit(u.id) },
+      onModifier: club.canManage || u.moiAdmin ? () => setEdit({ unit: u }) : undefined,
+    };
   };
+  const ficheUnit = fiche && units.find((u) => u.id === fiche.unitId);
+  const ficheMembre = ficheUnit?.membres.find((m) => m.id === fiche?.personId);
 
   return (
     <div>
@@ -64,37 +86,31 @@ export function Org() {
         {club.canManage && <button className="btn primary" onClick={() => setEdit({})}>+ Nouvelle entité</button>}
       </div>
       <p className="muted small-note">
-        Les traits relient chaque entité à celle dont elle dépend. Clique sur une entité pour voir ses membres et l’ouvrir.
+        Les traits relient chaque entité à celle dont elle dépend. Clique sur un poste pour voir la fiche de la personne, sur le nom d’une entité pour l’ouvrir.
         {club.error && <span className="error"> {club.error}</span>}
       </p>
-      <div className="seg wrap org-seg">
-        <button className={view === 'entites' ? 'on' : ''} onClick={() => setView('entites')}>Entités <span className="count">{active.length}</span></button>
-        <button className={view === 'personnes' ? 'on' : ''} onClick={() => setView('personnes')}>Personnes <span className="count">{people.length}</span></button>
-      </div>
-
-      {view === 'entites' ? (
-        <>
-          {active.length ? <Arbre units={active} onOpen={(u) => setDetailId(u.id)} ajouter={ajouter} /> : <Empty>Aucune entité.</Empty>}
-          <p className="arbre-legende muted small-note">
-            {(['central', ...SUB_TYPES] as UnitType[]).map((t) => <span key={t}>{UNIT_TYPES[t].icon} {UNIT_TYPES[t].label}</span>)}
-            <span>★ {UNIT_TYPES.central.chef} / responsable</span>
-            <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
-          </p>
-          {archived.length > 0 && (
-            <details className="org-archives">
-              <summary>🗄️ Entités archivées ({archived.length})</summary>
-              <div className="arbre-archives">{archived.map((u) => <Noeud key={u.id} u={u} onOpen={() => setDetailId(u.id)} />)}</div>
-            </details>
-          )}
-        </>
-      ) : (
-        <Directory people={people} />
+      {active.length ? <Arbre units={active} actions={actions} /> : <Empty>Aucune entité.</Empty>}
+      <p className="arbre-legende muted small-note">
+        {(['central', ...SUB_TYPES] as UnitType[]).map((t) => <span key={t}>{UNIT_TYPES[t].icon} {UNIT_TYPES[t].label}</span>)}
+        <span>★ {UNIT_TYPES.central.chef} / responsable</span>
+        <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
+        {active.some((u) => club.canManage || u.moiAdmin) && <span>⚙️ modifier l’entité</span>}
+      </p>
+      {archived.length > 0 && (
+        <details className="org-archives">
+          <summary>🗄️ Entités archivées ({archived.length})</summary>
+          <div className="arbre-archives">{archived.map((u) => <Noeud key={u.id} u={u} {...actions(u)} />)}</div>
+        </details>
       )}
 
-      {detail && (
-        <Modal title={detail.nom} onClose={() => setDetailId(null)}>
-          <UnitCard u={detail} onEdit={canEdit(detail) ? () => { setDetailId(null); setEdit({ unit: detail }); } : undefined} />
-        </Modal>
+      {fiche && ficheUnit && ficheUnit.id === club.current.id && <FichePersonne id={fiche.personId} onClose={() => setFiche(null)} />}
+      {fiche && ficheUnit && ficheMembre && ficheUnit.id !== club.current.id && (
+        <FicheMembre
+          u={ficheUnit}
+          m={ficheMembre}
+          onModifier={admin(ficheUnit) ? () => club.switchUnit(ficheUnit.id, `#/organigramme?entite=${ficheUnit.id}&personne=${ficheMembre.id}`) : undefined}
+          onClose={() => setFiche(null)}
+        />
       )}
       {edit && (
         <UnitModal
@@ -117,7 +133,7 @@ export function Org() {
 const COLONNE = 216;
 
 /** L'arbre : de haut en bas comme un arbre généalogique, ou en liste décalée (téléphone, ou trop d'entités côte à côte). */
-function Arbre({ units, onOpen, ajouter }: { units: OrgUnit[]; onOpen: (u: OrgUnit) => void; ajouter: (u: OrgUnit) => (() => void) | undefined }) {
+function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => Actions }) {
   const racines = useMemo(() => arbreEntites(units), [units]);
   const cadre = useRef<HTMLDivElement>(null);
   const [largeur, setLargeur] = useState(0);
@@ -134,7 +150,7 @@ function Arbre({ units, onOpen, ajouter }: { units: OrgUnit[]; onOpen: (u: OrgUn
   const vertical = largeur < racines.reduce((n, b) => n + feuilles(b), 0) * COLONNE;
   const branche = (b: Branche<OrgUnit>) => (
     <li key={b.u.id}>
-      <Noeud u={b.u} onOpen={() => onOpen(b.u)} onAjouter={ajouter(b.u)} />
+      <Noeud u={b.u} {...actions(b.u)} />
       {b.enfants.length > 0 && <ul>{b.enfants.map(branche)}</ul>}
     </li>
   );
@@ -145,145 +161,59 @@ function Arbre({ units, onOpen, ajouter }: { units: OrgUnit[]; onOpen: (u: OrgUn
   );
 }
 
-/** Une entité dans l'arbre : nom, type, nombre de membres, puis ses postes (sans les noms des personnes),
- *  et le bouton « + » pour y ajouter une personne quand on en a le droit. */
-function Noeud({ u, onOpen, onAjouter }: { u: OrgUnit; onOpen: () => void; onAjouter?: () => void }) {
+/**
+ * Une entité dans l'arbre : nom, type, nombre de membres, puis une ligne par personne (son poste, pas son nom)
+ * qui ouvre sa fiche, et le bouton « + » pour y ajouter quelqu'un quand on en a le droit.
+ */
+function Noeud({ u, onPersonne, onAjouter, ouvrir, onModifier }: { u: OrgUnit } & Actions) {
   const club = useClub();
   const t = UNIT_TYPES[u.type];
-  const postes = postesEntite(u.membres, t.chef);
+  const lignes = postesEntite(u.membres, t.chef);
   const access = centralAccess(u);
   const ouverte = u.id === club.current.id;
+  const texte = (
+    <>
+      <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
+      <span className="arbre-texte">
+        <strong>{u.nom}</strong>
+        <small>{t.label}{u.date && ` · ${fmtRange(u.date, u.dateFin)}`}</small>
+        <small>
+          {u.membres.length} membre{u.membres.length > 1 ? 's' : ''}
+          {ouverte ? ' · ouverte' : ouvrir ? <span className="arbre-lien"> · {ouvrir.label} ›</span> : u.moi ? ' · tu en fais partie' : ''}
+        </small>
+      </span>
+    </>
+  );
   return (
     <div className={`arbre-noeud ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''}`} style={{ borderTopColor: u.couleur }}>
-      <button type="button" className="arbre-ouvrir" onClick={onOpen}>
-        <span className="arbre-tete">
-          <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
-          <span className="arbre-texte">
-            <strong>{u.nom}</strong>
-            <small>{t.label}{u.date && ` · ${fmtRange(u.date, u.dateFin)}`}</small>
-            <small>
-              {u.membres.length} membre{u.membres.length > 1 ? 's' : ''}
-              {ouverte ? ' · ouverte' : u.moi ? ' · tu en fais partie' : ''}
-            </small>
-          </span>
-        </span>
-        <span className="arbre-postes">
-          {!postes.some((p) => p.chef) && <span className="poste muted">★ {t.chef} : à désigner</span>}
-          {postes.map((p) => (
-            <span key={p.label} className={`poste ${p.chef ? 'chef' : ''}`}>
-              {p.chef && <span className="org-star">★ </span>}
-              {p.label}
-              {p.n > 1 && <span className="muted"> ×{p.n}</span>}
-            </span>
-          ))}
-        </span>
-      </button>
-      {onAjouter && (
-        <button type="button" className="arbre-ajout" title={ouverte ? `Ajouter une personne à « ${u.nom} »` : `Ouvrir « ${u.nom} » et y ajouter une personne`} onClick={onAjouter}>
-          + Ajouter une personne
-        </button>
+      {ouvrir ? (
+        <button type="button" className="arbre-tete" title={ouvrir.aide} onClick={ouvrir.go}>{texte}</button>
+      ) : (
+        <div className="arbre-tete">{texte}</div>
       )}
       {access !== 'aucun' && <span className="arbre-acces" title={`Comité central : ${CENTRAL_ACCESS[access].label.toLowerCase()}`}>{CENTRAL_ACCESS[access].icon}</span>}
-    </div>
-  );
-}
-
-function UnitCard({ u, onEdit }: { u: OrgUnit; onEdit?: () => void }) {
-  const club = useClub();
-  const [all, setAll] = useState(false);
-  const t = UNIT_TYPES[u.type];
-  const isCurrent = u.id === club.current.id;
-  const access = centralAccess(u);
-  // Membre du comité central : entité ouverte au comité central dont il ne fait pas partie.
-  const visit = !isCurrent && visitLevel(u, club.central);
-  const chefs = u.membres.filter((m) => m.admin);
-  const others = u.membres.filter((m) => !m.admin);
-  const shown = all ? others : others.slice(0, 6);
-  return (
-    <article className={`panel org-card ${u.archive ? 'archived' : ''}`} style={{ borderTopColor: u.couleur }}>
-      <div className="org-card-head">
-        <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
-        <div className="grow">
-          <strong>{u.nom}</strong>
-          <small className="muted">
-            {t.label}
-            {u.date && ` · ${fmtRange(u.date, u.dateFin)}`}
-            {` · ${u.membres.length} membre${u.membres.length > 1 ? 's' : ''}`}
-            {u.archive && ' · archivée'}
-            {u.moi && !isCurrent && ' · tu en fais partie'}
-          </small>
-        </div>
-        {isCurrent && <span className="badge" style={{ background: u.couleur }}>Ouverte</span>}
-      </div>
-      {access !== 'aucun' && (
-        <span className={`badge central-access ${access}`} title={CENTRAL_ACCESS[access].aide}>
-          {CENTRAL_ACCESS[access].icon} Comité central : {access === 'lecture' ? 'consulter' : 'modifier / ajouter'}
-        </span>
-      )}
-      {u.description && <p className="org-desc">{u.description}</p>}
-      <ul className="org-members">
-        {chefs.map((m) => <MemberLine key={m.id} m={m} chef={t.chef} />)}
-        {!chefs.length && <li className="muted">{t.chef} : à désigner</li>}
-        {shown.map((m) => <MemberLine key={m.id} m={m} />)}
-      </ul>
-      {others.length > 6 && <button className="btn link small" onClick={() => setAll(!all)}>{all ? 'Réduire' : `+ ${others.length - 6} autres`}</button>}
-      {((u.moi && !isCurrent) || visit || onEdit) && (
-        <div className="org-actions">
-          {u.moi && !isCurrent && <button className="btn small primary" onClick={() => club.switchUnit(u.id)}>Ouvrir</button>}
-          {visit && (
-            <button className="btn small primary" onClick={() => club.switchUnit(u.id)} title={CENTRAL_ACCESS[visit].aide}>
-              {visit === 'lecture' ? '👁 Consulter' : '✏️ Ouvrir'}
-            </button>
-          )}
-          {onEdit && <button className="btn small" onClick={onEdit}>Modifier</button>}
-        </div>
-      )}
-    </article>
-  );
-}
-
-function MemberLine({ m, chef }: { m: OrgMember; chef?: string }) {
-  const label = m.poste ? posteBesideName(`${m.prenom} ${m.nom}`, m.poste) : m.roles.filter((r) => !r.startsWith('Admin')).join(', ') || chef || '';
-  return (
-    <li className={chef ? 'org-chef' : ''} title={m.roles.join(' + ')}>
-      <Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={26} />
-      <span className="grow">
-        <b>{m.prenom} {m.nom}</b>
-        {chef && <span className="org-star" title={`${chef} (admin de l’entité)`}> ★</span>}
-        {label && <small className="muted"> · {label}</small>}
-      </span>
-    </li>
-  );
-}
-
-function Directory({ people }: { people: DirectoryEntry[] }) {
-  const [q, setQ] = useState('');
-  const needle = q.trim().toLowerCase();
-  const list = people.filter((e) => `${e.prenom} ${e.nom} ${e.email} ${e.postes.map((p) => `${p.unit.nom} ${p.member.poste}`).join(' ')}`.toLowerCase().includes(needle));
-  return (
-    <>
-      <input className="login-search org-search" type="search" placeholder="Rechercher un nom, une entité, un poste…" value={q} onChange={(e) => setQ(e.target.value)} />
-      <div className="people">
-        {list.map((e) => (
-          <article key={e.key} className="panel person">
-            <Initials prenom={e.prenom} nom={e.nom} couleur={e.couleur} size={44} />
-            <div className="grow">
-              <strong>{e.prenom} {e.nom}</strong>
-              {e.email && <a href={`mailto:${e.email}`}>✉ {e.email}</a>}
-              <span className="org-pills">
-                {e.postes.map((p) => (
-                  <span key={p.unit.id} className="role-pill" style={{ background: p.unit.couleur }} title={`${p.unit.nom} · ${p.member.roles.join(' + ')}`}>
-                    {p.unit.nom}{p.member.admin ? ' ★' : ''}{posteBesideName(`${e.prenom} ${e.nom}`, p.member.poste) && ` · ${p.member.poste}`}
-                  </span>
-                ))}
-              </span>
-            </div>
-          </article>
+      {/* Pas de <ul> ici : les traits de l'arbre sont dessinés sur les listes. */}
+      <div className="arbre-postes">
+        {!lignes.some((l) => l.chef) && <span className="poste muted">★ {t.chef} : à désigner</span>}
+        {lignes.map((l) => (
+          <button key={l.m.id} type="button" className={`poste ${l.chef ? 'chef' : ''}`} onClick={() => onPersonne(l.m)}>
+            {l.chef && <span className="org-star">★ </span>}
+            {l.label}
+            {l.autres && <span className="autres"> · {l.autres}</span>}
+          </button>
         ))}
       </div>
-      {!list.length && <Empty>Personne ne correspond à « {q} ».</Empty>}
-      <p className="muted small-note">★ = président ou responsable. Une même personne (même adresse email) peut avoir un poste dans plusieurs entités.</p>
-    </>
+      {(onAjouter || onModifier) && (
+        <div className="arbre-pied">
+          {onAjouter && (
+            <button type="button" className="arbre-ajout" title={ouverte ? `Ajouter une personne à « ${u.nom} »` : `Ouvrir « ${u.nom} » et y ajouter une personne`} onClick={onAjouter}>
+              + Ajouter une personne
+            </button>
+          )}
+          {onModifier && <button type="button" className="arbre-regler" title={`Modifier l’entité « ${u.nom} »`} aria-label={`Modifier l’entité ${u.nom}`} onClick={onModifier}>⚙️</button>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -461,7 +391,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
                 {addable.map((e) => <option key={e.key} value={e.key}>{e.prenom} {e.nom}</option>)}
               </select>
               <p className="muted small-note">
-                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis Personnes › Membres de l’entité.
+                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis l’organigramme (« + Ajouter une personne », clic sur un poste).
               </p>
             </div>
           </>

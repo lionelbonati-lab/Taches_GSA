@@ -68,9 +68,14 @@ const RUBRIQUES: NavRubrique[] = [
     label: 'Personnes',
     icon: '👥',
     pages: [
-      { to: '/responsables', label: 'Responsables', icon: '👥', perm: 'tab.people', aide: 'Les personnes de l’entité : poste, coordonnées, rôles (ce qu’elles peuvent faire) et accès à l’appli.' },
+      {
+        to: '/organigramme',
+        label: 'Organigramme',
+        icon: '🏛️',
+        club: true,
+        aide: 'Le comité central, les sous-comités, groupes et équipes d’événement, et les postes de chacun. Un clic sur un poste ouvre la fiche de la personne (coordonnées, rôles, accès à l’appli) ; « + Ajouter une personne » sous l’entité.',
+      },
       { to: '/membres-club', label: 'Membres du club', icon: '📇', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli.' },
-      { to: '/organigramme', label: 'Organigramme', icon: '🏛️', club: true, aide: 'Le comité central, les sous-comités, groupes et équipes d’événement, et qui les dirige.' },
     ],
   },
 ];
@@ -88,11 +93,7 @@ type Acces = { can: (p: Permission) => boolean; club: boolean; registre: boolean
 export function navigation({ can, club, registre, type }: Acces) {
   const visible = (p: NavPage) => (!p.perm || can(p.perm)) && (!p.club || club) && (!p.registre || registre);
   const nom = (p: NavPage): NavPage =>
-    p.to === '/comite' && type === 'equipe'
-      ? { ...p, label: 'Réunions' }
-      : p.to === '/responsables' && type !== 'central'
-        ? { ...p, label: 'Membres', aide: p.aide.replace('Les personnes', 'Les membres') }
-        : p;
+    p.to === '/comite' && type === 'equipe' ? { ...p, label: 'Réunions' } : p;
   const rubriques = RUBRIQUES.map((r) => {
     const pages = r.pages.filter(visible).map(nom);
     // Une seule page : la rubrique prend son nom (ex. « Sondages » sans les séances).

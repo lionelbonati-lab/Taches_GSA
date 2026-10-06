@@ -57,27 +57,16 @@ export function parentDans<T extends Unit>(units: T[], u: T): T | undefined {
 export type Branche<T> = { u: T; enfants: Branche<T>[] };
 
 /**
- * Postes d'une entité pour l'organigramme, sans les noms : « ★ Président », « Moniteur ×2 »…
- * Sans poste : le rôle (ou « Président » / « Responsable » pour un admin). Le président / responsable en premier.
+ * Une ligne par personne pour l'organigramme, sans son nom : son poste (« ★ Président », « Moniteur »…)
+ * et ses autres fonctions. Sans poste : le rôle (ou « Président » / « Responsable » pour un admin).
+ * Les présidents / responsables en premier.
  */
-export function postesEntite(membres: OrgMember[], chef: string): { label: string; n: number; chef: boolean }[] {
-  const liste: { label: string; n: number; chef: boolean }[] = [];
-  for (const m of membres) {
-    const postes = [m.poste, ...(m.autresPostes ?? '').split(',')].map((x) => x.trim()).filter(Boolean);
-    const siens = postes.length ? postes : [m.admin ? chef : (m.roles.find((r) => !r.startsWith('Admin')) ?? 'Membre')];
-    const vus = new Set<string>();
-    siens.forEach((label, i) => {
-      const k = label.toLowerCase();
-      if (vus.has(k)) return;
-      vus.add(k);
-      const x = liste.find((y) => y.label.toLowerCase() === k);
-      if (x) {
-        x.n++;
-        x.chef ||= m.admin && i === 0;
-      } else liste.push({ label, n: 1, chef: m.admin && i === 0 });
-    });
-  }
-  return [...liste.filter((x) => x.chef), ...liste.filter((x) => !x.chef)];
+export function postesEntite(membres: OrgMember[], chef: string): { m: OrgMember; label: string; autres?: string; chef: boolean }[] {
+  return [...membres.filter((m) => m.admin), ...membres.filter((m) => !m.admin)].map((m) => {
+    const autres = (m.autresPostes ?? '').split(',').map((x) => x.trim()).filter(Boolean);
+    const label = (m.poste ?? '').trim() || autres.shift() || (m.admin ? chef : (m.roles.find((r) => !r.startsWith('Admin')) ?? 'Membre'));
+    return { m, label, autres: autres.length ? autres.join(', ') : undefined, chef: m.admin };
+  });
 }
 
 /** Arbre des entités : le comité central en haut, chaque entité sous celle dont elle dépend. */

@@ -32,8 +32,11 @@ export function Aide() {
   if (club) geste('Passer à une autre entité (sous-comité, groupe, équipe)', 'Le nom de l’entité en haut à gauche ▾. Chaque entité a ses propres tâches, séances et membres.');
   geste('Installer l’appli sur le téléphone ou l’ordinateur', '« 📲 Installer l’application » dans le menu du compte (« ☰ Plus » sur téléphone).');
   geste('Thème sombre, notifications', vers('/reglages'), '.');
-  if (chemin('/responsables') && can('admin.access'))
-    geste('Donner l’accès à l’appli à quelqu’un', vers('/responsables'), ' : « + Ajouter une personne » avec son email, puis « Créer l’accès ».');
+  if (chemin('/organigramme')) geste('Voir qui fait quoi, et ses coordonnées', vers('/organigramme'), ' : un clic sur un poste ouvre la fiche de la personne.');
+  if (chemin('/organigramme') && can('people.manage'))
+    geste('Ajouter une personne à l’entité', vers('/organigramme'), ' : « + Ajouter une personne » en bas de la liste des postes de l’entité.');
+  if (chemin('/organigramme') && can('admin.access'))
+    geste('Donner l’accès à l’appli à quelqu’un', vers('/organigramme'), ' : clic sur son poste (sa fiche doit avoir son email), puis « Créer l’accès ».');
   if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ».');
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
 

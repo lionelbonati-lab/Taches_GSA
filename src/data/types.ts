@@ -153,7 +153,7 @@ export type EmailWhen = { type: 'date'; date: string; heure: string } | { type: 
 export interface ScheduledEmail {
   id: string;
   taskId: string;
-  /** Personnes destinataires (leur adresse vient de l'onglet Responsables). */
+  /** Personnes destinataires (leur adresse vient de leur fiche dans l'entité). */
   destinataires: string[];
   /** Adresses supplémentaires, séparées par des virgules. */
   autres?: string;
