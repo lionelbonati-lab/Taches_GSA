@@ -459,6 +459,31 @@ export interface OrgUnit extends Unit {
   sections?: { id: string; nom: string }[];
 }
 
+/** Ticket envoyé à la caisse centrale depuis une autre entité. */
+export interface TicketCentral {
+  titre: string;
+  montant: number;
+  beneficiaire: string;
+  iban?: string;
+  remarque: string;
+  documents: TaskDoc[];
+}
+
+/** Suivi d'un ticket envoyé à la caisse centrale, tel que le voit son demandeur. */
+export interface SuiviTicket {
+  id: string;
+  titre: string;
+  montant: number;
+  beneficiaire: string;
+  etat: Paiement['etat'];
+  le: string;
+  unite: string;
+  caisse: string;
+  viseLe?: string | null;
+  payeLe?: string | null;
+  motif?: string | null;
+}
+
 /** Demande envoyée au comité central, telle que la voit l'entité qui l'a envoyée. */
 export interface MyRequest {
   id: string;
@@ -484,6 +509,8 @@ export interface Paiement {
   etat: 'recu' | 'visa' | 'valide' | 'paye' | 'refuse';
   demandePar: string;
   demandeLe: string;
+  /** Ticket envoyé à la caisse centrale par un membre d'une autre entité (pas de fiche ici : demandePar vide). */
+  externe?: { uniteId: string; unite: string; par: string; email?: string; userId?: string };
   /** Visa demandé par la caisse (`par`) à la personne `a` (jamais le demandeur). */
   visa?: { a: string; par: string; le: string; message?: string };
   /** Visa donné : signature et sceau posé sur le justificatif (`docVise` : copie du ticket avec le sceau). */

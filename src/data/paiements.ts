@@ -53,7 +53,10 @@ export const auComite = (data: AppData, p: Person) => {
 /** Signataires que la caisse peut choisir : les membres du comité de son entité, jamais le demandeur ;
  *  d'abord ceux qui ont le droit de viser. */
 export function signataires(data: AppData, t: Ticket) {
-  const comite = data.people.filter((p) => p.actif && p.id !== t.paiement.demandePar && auComite(data, p));
+  const ext = t.paiement.externe?.email;
+  const comite = data.people.filter(
+    (p) => p.actif && p.id !== t.paiement.demandePar && !(ext && p.email?.trim().toLowerCase() === ext) && auComite(data, p),
+  );
   const autorises = comite.filter((p) => hasPermission(userRoles(data.roles, p), 'paiements.valider'));
   return { autorises, autres: comite.filter((p) => !autorises.includes(p)) };
 }
@@ -65,6 +68,9 @@ export const sectionFinances = (data: AppData) =>
   (data.sections.find((s) => /compta|financ|caisse|trésor|tresor/i.test(s.nom)) ?? data.sections[0])?.id ?? '';
 
 export const nomDe = (data: AppData, id?: string) => fullName(data.people.find((p) => p.id === id));
+
+/** Demandeur du ticket : sa fiche, ou, pour un ticket reçu d'une autre entité, son nom et son entité. */
+export const demandeur = (data: AppData, p: Paiement) => (p.externe ? `${p.externe.par} (${p.externe.unite})` : nomDe(data, p.demandePar));
 
 /** Statut de la tâche selon l'état du ticket : ouvert tant qu'il n'est pas payé, terminé une fois payé, annulé si refusé. */
 export function statutPour(data: AppData, etat: Paiement['etat']) {
@@ -78,5 +84,5 @@ export function statutPour(data: AppData, etat: Paiement['etat']) {
 export function responsablesPour(data: AppData, t: Ticket) {
   const { etat, visa, demandePar } = t.paiement;
   const r = etat === 'visa' && visa ? [visa.a] : etat === 'recu' || etat === 'valide' ? holders(data, 'paiements.payer') : [];
-  return r.length ? r : [demandePar];
+  return r.length ? r : demandePar ? [demandePar] : [];
 }

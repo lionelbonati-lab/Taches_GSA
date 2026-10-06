@@ -5,7 +5,8 @@ import { CENTRAL_ID, loadMe, loadUnitData, loadUnits, resetDemo, saveMe, saveUni
 import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
-import type { Guest, MyRequest, OrgUnit, Person, Task, Unit } from './data/types';
+import type { Guest, MyRequest, OrgUnit, Person, SuiviTicket, Task, Unit } from './data/types';
+import { caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
 
@@ -166,8 +167,63 @@ export function DemoApp() {
           })
           .sort((a, b) => b.le.localeCompare(a.le));
       },
+      // Ticket d'un membre d'une autre entité, déposé chez la caisse centrale (version réelle : gsa_ticket_central).
+      async ticketCentral(r) {
+        if (!central || !me) throw new Error('Pas de comité central.');
+        const d = loadUnitData(central.id);
+        const caisse = caissiers(d).map((p) => p.id);
+        if (!caisse.length) throw new Error('La caisse centrale n’a pas encore de caissier');
+        const fiche = loadUnitData(current.id).people.find((p) => personKey(p, current.id) === me);
+        const par = `${fiche?.prenom ?? ''} ${fiche?.nom ?? ''}`.trim() || 'Membre';
+        const now = new Date().toISOString();
+        const t: Ticket = {
+          id: uid('tk'),
+          sectionId: sectionFinances(d),
+          sousSection: 'Remboursements',
+          titre: r.titre.trim(),
+          responsables: caisse,
+          statusId: statutPour(d, 'recu'),
+          delai: '',
+          remarque: r.remarque.trim(),
+          checklist: [],
+          documents: r.documents.map((x) => ({ ...x, par: '' })),
+          createdBy: '',
+          updatedAt: now,
+          paiement: {
+            montant: r.montant,
+            beneficiaire: r.beneficiaire.trim(),
+            iban: r.iban || undefined,
+            etat: 'recu',
+            demandePar: '',
+            demandeLe: now,
+            externe: { uniteId: current.id, unite: current.nom, par, email: fiche?.email?.trim().toLowerCase(), userId: me },
+          },
+        };
+        d.tasks.unshift(t);
+        d.log.unshift({ id: uid('l'), at: now, userId: '', action: `Ticket à rembourser de « ${current.nom} » (${par}) : « ${t.titre} » (${r.montant.toFixed(2)} CHF)` });
+        saveUnitData(central.id, d);
+      },
+      async mesTicketsCentraux(): Promise<SuiviTicket[]> {
+        if (!central || !me) return [];
+        return loadUnitData(central.id)
+          .tasks.filter((t): t is Ticket => !!t.paiement && t.paiement.externe?.userId === me)
+          .map((t) => ({
+            id: t.id,
+            titre: t.titre,
+            montant: t.paiement.montant,
+            beneficiaire: t.paiement.beneficiaire,
+            etat: t.paiement.etat,
+            le: t.paiement.demandeLe,
+            unite: t.paiement.externe!.unite,
+            caisse: central.nom,
+            viseLe: t.paiement.validation?.le,
+            payeLe: t.paiement.paye?.le,
+            motif: t.paiement.refus?.motif,
+          }))
+          .sort((a, b) => b.le.localeCompare(a.le));
+      },
     };
-  }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units]);
+  }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units, me]);
 
   const personId = useMemo(() => {
     if (!current || !me) return null;

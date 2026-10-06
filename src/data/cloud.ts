@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, CentralAccess, Guest, MyRequest, OrgMember, OrgUnit, UnitType } from './types';
+import type { AppData, CentralAccess, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TicketCentral, UnitType } from './types';
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
 
@@ -523,6 +523,20 @@ export async function proposeTask(source: string, tache: { titre: string; remarq
   const { data, error } = await sb().rpc('gsa_proposer_tache', { source, tache });
   if (error) throw new Error(error.message);
   return data as string;
+}
+
+/** Ticket envoyé à la caisse centrale depuis une entité (photo déjà déposée dans le dossier du comité central). */
+export async function sendCentralTicket(source: string, ticket: TicketCentral) {
+  const { data, error } = await sb().rpc('gsa_ticket_central', { source, ticket });
+  if (error) throw new Error(error.message);
+  return data as string;
+}
+
+/** Tickets que la personne connectée a envoyés à la caisse centrale, avec leur état. */
+export async function myCentralTickets(): Promise<SuiviTicket[]> {
+  const { data, error } = await sb().rpc('gsa_mes_tickets_centraux');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as SuiviTicket[];
 }
 
 /** Suivi des demandes de l'entité au comité central. */

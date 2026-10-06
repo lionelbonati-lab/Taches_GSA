@@ -58,6 +58,13 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/011_gsa_organigramme_caisse.sql` (appliqué le 06.10.2026) : `gsa_organigramme` indique pour chaque membre s'il tient la caisse de son entité (`caisse` : rôle non admin qui donne `paiements.payer`). Le formulaire des tickets ne propose ainsi que les entités qui ont un caissier désigné. Aucune donnée modifiée.
 
+`supabase/migrations/012_gsa_tickets_caisse_centrale.sql` (appliqué le 06.10.2026) : **tout membre du club peut envoyer un ticket à la caisse centrale**, sans être membre du comité central. Aucune donnée modifiée.
+
+- la photo est déposée dans le dossier du comité central sous un nom `tk-…` (règles de stockage `gsa_fichiers_ticket_*` : dépôt sans remplacement, relecture de ses propres dépôts, retrait seulement tant qu'aucun ticket ne les utilise) ;
+- `gsa_ticket_central(source, ticket)` contrôle le contenu (objet, montant, bénéficiaire, IBAN, justificatifs déposés par la personne) et crée le ticket chez la caisse centrale, adressé à ses caissiers, avec un demandeur « externe » (entité, nom, compte) ; refusé aux membres du comité central (ils passent par leur propre caisse) et s'il n'y a pas de caissier ;
+- `gsa_mes_tickets_centraux()` : la personne connectée suit l'état de ses tickets envoyés ;
+- `gsa_paiement_check` : un ticket « externe » ne peut être créé que par `gsa_ticket_central`, son demandeur ne change plus et ne peut pas le viser.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

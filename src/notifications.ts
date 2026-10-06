@@ -167,7 +167,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
     const caisse = holders(data, 'paiements.payer').includes(user.id);
     for (const t of paiementTasks(data)) {
       const { etat, montant, demandePar, visa } = t.paiement;
-      const qui = shortName(data.people.find((x) => x.id === demandePar));
+      const qui = t.paiement.externe ? `${t.paiement.externe.par} (${t.paiement.externe.unite})` : shortName(data.people.find((x) => x.id === demandePar));
       const todo =
         etat === 'recu' && caisse ? { icon: '📥', text: `Ticket reçu : « ${t.titre} »`, sub: `${chf(montant)} · ${qui} · visa à demander`, at: t.paiement.demandeLe }
         : etat === 'visa' && visa?.a === user.id && demandePar !== user.id ? { icon: '✍️', text: `Visa demandé : « ${t.titre} »`, sub: `${chf(montant)} · ${qui} · par ${shortName(data.people.find((x) => x.id === visa.par))}`, at: visa.le }

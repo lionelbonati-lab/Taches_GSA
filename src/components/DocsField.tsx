@@ -24,12 +24,14 @@ export function Thumb({ id }: { id: string }) {
   return url ? <img className="doc-thumb" src={url} alt="" /> : null;
 }
 
-export function DocsField({ docs, setDocs, disabled, compact, track }: {
+export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix }: {
   docs: TaskDoc[];
   setDocs: (fn: (d: TaskDoc[]) => TaskDoc[]) => void;
   disabled: boolean;
   compact?: boolean;
   track: DocTracking;
+  /** Préfixe des fichiers ajoutés (dépôt à la caisse centrale) ; pas de liens dans ce cas. */
+  idPrefix?: string;
 }) {
   const { data, user, cloud } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -49,7 +51,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track }: {
         setErr(`« ${f.name} » dépasse 10 Mo.`);
         continue;
       }
-      const id = uid('d');
+      const id = `${idPrefix ?? ''}${uid('d')}`;
       try {
         await saveFile(id, blob);
       } catch (e) {
@@ -125,7 +127,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track }: {
           <div className="doc-actions">
             <button type="button" className="btn small" onClick={() => fileRef.current?.click()} disabled={busy}>📎 Fichier</button>
             <button type="button" className="btn small" onClick={() => photoRef.current?.click()} disabled={busy}>📷 Photo</button>
-            <button type="button" className="btn small" onClick={() => setLink(link ? null : { url: '', nom: '' })}>🔗 Lien</button>
+            {!idPrefix && <button type="button" className="btn small" onClick={() => setLink(link ? null : { url: '', nom: '' })}>🔗 Lien</button>}
             {busy && <small className="muted">Ajout…</small>}
           </div>
           <input ref={fileRef} type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />

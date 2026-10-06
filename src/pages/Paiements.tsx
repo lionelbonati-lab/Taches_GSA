@@ -3,9 +3,9 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
-import type { AppData, Paiement, SceauPose, Task, TaskDoc, Timbre } from '../data/types';
+import type { AppData, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre } from '../data/types';
 import {
-  COULEURS_TIMBRE, ETATS, caissiers, chf, nomDe, paiementTasks, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, type Ticket,
+  COULEURS_TIMBRE, ETATS, caissiers, chf, demandeur, nomDe, paiementTasks, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, type Ticket,
 } from '../data/paiements';
 import { SCEAU_RATIO, apposerSceau, renderSceau, type SceauContenu } from '../data/sceau';
 import { deleteFiles, docIcon, getFile, openFile, saveFile } from '../data/files';
@@ -27,6 +27,7 @@ export function Paiements() {
   const [params, setParams] = useSearchParams();
   const focus = params.get('p');
   const [form, setForm] = useState<Ticket | 'nouveau' | null>(null);
+  const [envois, setEnvois] = useState(0);
   const caisse = can('paiements.payer');
   const moi = user?.id;
   const tous = paiementTasks(data).filter(
@@ -80,7 +81,7 @@ export function Paiements() {
       ) : (
         <>
           <p className="muted small no-print">
-            1. Photo du ticket, envoyée à la caisse de l’entité → 2. la caisse le reçoit et demande le visa à un membre du comité (jamais le demandeur) → 3. visa : signature et sceau « {timbreDe(data).texte} » posés sur le ticket → 4. la caisse fait le virement et met « OK ». Le paiement lui-même ne passe pas par l’appli.
+            1. Photo du ticket, envoyée à la caisse de l’entité ou à la caisse centrale → 2. la caisse le reçoit et demande le visa à un membre du comité (jamais le demandeur) → 3. visa : signature et sceau « {timbreDe(data).texte} » posés sur le ticket → 4. la caisse fait le virement et met « OK ». Le paiement lui-même ne passe pas par l’appli.
           </p>
           <div className="seg wrap no-print">
             {(aViser.length > 0 || !caisse) && tab('aviser', 'À viser')}
@@ -99,12 +100,46 @@ export function Paiements() {
         {list.map((t) => <TicketCard key={t.id} t={t} onEdit={() => setForm(t)} />)}
         {list.length === 0 && <Empty>{vide[onglet] ?? 'Aucun ticket.'}</Empty>}
       </div>
-      {form && <TicketForm ticket={form === 'nouveau' ? undefined : form} onClose={() => setForm(null)} />}
+      {!focused && onglet === 'miens' && <SuiviCentral version={envois} />}
+      {form && <TicketForm ticket={form === 'nouveau' ? undefined : form} onClose={() => setForm(null)} onEnvoye={() => { setEnvois((v) => v + 1); setOnglet('miens'); }} />}
     </div>
   );
 }
 
 /** Modèle du sceau, réglé par la caisse : en-tête, texte, couleur. */
+/** Tickets envoyés à la caisse centrale depuis une autre entité : ils n'y sont pas, on en suit l'état. */
+function SuiviCentral({ version }: { version: number }) {
+  const club = useClubOptional();
+  const [list, setList] = useState<SuiviTicket[]>([]);
+  useEffect(() => {
+    if (!club) return;
+    let actif = true;
+    club
+      .mesTicketsCentraux()
+      .then((l) => actif && setList(l))
+      .catch(() => actif && setList([]));
+    return () => {
+      actif = false;
+    };
+  }, [version, club?.current.id]);
+  if (!list.length) return null;
+  return (
+    <section className="suivi-central">
+      <h2>Envoyés à la caisse centrale</h2>
+      <ul>
+        {list.map((t) => (
+          <li key={t.id}>
+            <span className={`ticket-etat ${t.etat}`}>{ETATS[t.etat].icon} {ETATS[t.etat].label}</span>
+            <strong>{t.titre}</strong>
+            <span>{chf(t.montant)} · {fmtDate(t.le.slice(0, 10))}{t.etat === 'paye' && t.payeLe ? ` · payé le ${fmtDate(t.payeLe.slice(0, 10))}` : ''}</span>
+            {t.motif && <small className="muted">Motif : « {t.motif} »</small>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 function TimbreReglage() {
   const { data, update } = useStore();
   const [t, setT] = useState<Timbre>(() => timbreDe(data));
@@ -145,7 +180,6 @@ function SceauImg({ c }: { c: SceauContenu }) {
     let alive = true;
     renderSceau(c).then((s) => alive && setSrc(s)).catch(() => {});
     return () => { alive = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return src ? <img className="sceau" src={src} alt={`Sceau : ${c.texte}`} draggable={false} /> : null;
 }
@@ -202,7 +236,7 @@ function TicketCard({ t, onEdit }: { t: Ticket; onEdit: () => void }) {
       <header className="ticket-head">
         <div>
           <h3>{t.titre}</h3>
-          <small className="muted">Demandé par {nomDe(data, p.demandePar)} · {fmtDateTime(p.demandeLe)}</small>
+          <small className="muted">Demandé par {demandeur(data, p)} · {fmtDateTime(p.demandeLe)}</small>
         </div>
         <div className="ticket-montant">
           <strong>{chf(p.montant)}</strong>
@@ -310,7 +344,7 @@ function DemandeVisa({ t, onClose }: { t: Ticket; onClose: () => void }) {
       <input placeholder="Message (facultatif)" value={message} onChange={(e) => setMessage(e.target.value)} />
       <button className="btn small primary" disabled={!a} onClick={envoyer}>Envoyer la demande</button>
       <button className="btn small" onClick={onClose}>Annuler</button>
-      <small className="muted">Seuls les membres du comité de l’entité peuvent viser, jamais le demandeur ({nomDe(data, t.paiement.demandePar)}).</small>
+      <small className="muted">Seuls les membres du comité de l’entité peuvent viser, jamais le demandeur ({demandeur(data, t.paiement)}).</small>
     </div>
   );
 }
@@ -411,7 +445,7 @@ function VisaModal({ t, onClose }: { t: Ticket; onClose: () => void }) {
     <Modal title="Viser le ticket" onClose={onClose} wide>
       <p>
         <strong>{t.titre}</strong> · {chf(p.montant)}<br />
-        <small className="muted">À rembourser à {p.beneficiaire}{p.iban ? ` · ${p.iban}` : ''} · demandé par {nomDe(data, p.demandePar)}{p.visa?.message ? ` · « ${p.visa.message} »` : ''}</small>
+        <small className="muted">À rembourser à {p.beneficiaire}{p.iban ? ` · ${p.iban}` : ''} · demandé par {demandeur(data, p)}{p.visa?.message ? ` · « ${p.visa.message} »` : ''}</small>
       </p>
       <div className="visa-grid">
         <div>
@@ -469,15 +503,22 @@ function VisaModal({ t, onClose }: { t: Ticket; onClose: () => void }) {
   );
 }
 
-function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void }) {
-  const { data, user, update, guest } = useStore();
+const CENTRALE = '__caisse-centrale__';
+const AUTRE = '__autre__';
+
+function TicketForm({ ticket, onClose, onEnvoye }: { ticket?: Ticket; onClose: () => void; onEnvoye?: () => void }) {
+  const { data, user, update, guest, cloud } = useStore();
   const club = useClubOptional();
-  // Caisse destinataire : celle de l'entité ouverte ou d'une autre entité dont on est membre (le ticket y est créé),
-  // seulement si un caissier y est désigné.
+  // Caisse destinataire : celle de l'entité ouverte, celle d'une autre entité dont on est membre (le ticket y est créé),
+  // ou la caisse centrale pour qui n'est pas du comité central ; seulement là où un caissier est désigné.
   const nomsCaisse = caissiers(data).map((p) => fullName(p));
   const ici = !guest && nomsCaisse.length > 0;
   const autres = club && !ticket ? club.mine.filter((u) => u.id !== club.current.id && u.membres.some((m) => m.caisse)) : [];
-  const bloque = !ticket && !ici;
+  const central = club?.central;
+  const centrale = !ticket && !!central && !central.moi && central.id !== club?.current.id && central.membres.some((m) => m.caisse);
+  const [vers, setVers] = useState<'ici' | 'centrale'>(!ici && centrale ? 'centrale' : 'ici');
+  const versCentrale = vers === 'centrale' && centrale;
+  const bloque = !ticket && !(versCentrale || ici);
   const [titre, setTitre] = useState(ticket?.titre ?? '');
   const [montant, setMontant] = useState(ticket ? String(ticket.paiement.montant) : '');
   const [beneficiaire, setBeneficiaire] = useState(ticket?.paiement.beneficiaire ?? fullName(user ?? undefined));
@@ -487,25 +528,58 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
   const setDocs = (fn: (d: TaskDoc[]) => TaskDoc[]) => setDocsState(fn);
   const track = useRef<DocTracking>({ added: [], removed: [] });
   const [err, setErr] = useState('');
-  const people = data.people.filter((p) => p.actif);
+  const [busy, setBusy] = useState(false);
+  // « À rembourser à » : soi-même, une personne de l'entité, ou un autre nom saisi.
+  const moiNom = fullName(user ?? undefined);
+  const noms = [...new Set(data.people.filter((p) => p.actif).map((p) => fullName(p)))]
+    .filter((n) => n && n !== moiNom)
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+  const [autreNom, setAutreNom] = useState(() => !!beneficiaire && beneficiaire !== moiNom && !noms.includes(beneficiaire));
+  // Organigramme chargé après l'ouverture du formulaire : la caisse centrale reste le choix d'office d'une entité sans caissier.
+  useEffect(() => {
+    if (!ici && centrale && vers === 'ici' && !docs.length) setVers('centrale');
+  }, [ici, centrale]);
 
   const cancel = () => {
     deleteFiles(track.current.added);
     onClose();
   };
-  const changerCaisse = (id: string) => {
-    if (!club || id === club.current.id) return;
+  const choisirCaisse = (id: string) => {
+    if (!club) return;
+    if (id === CENTRALE || id === club.current.id) {
+      const v = id === CENTRALE ? 'centrale' : 'ici';
+      if (v === vers) return;
+      // Les photos déjà ajoutées sont dans le dossier de l'autre caisse : on les retire.
+      deleteFiles(track.current.added);
+      track.current.added = [];
+      setDocsState([]);
+      setVers(v);
+      return;
+    }
     deleteFiles(track.current.added);
     club.switchUnit(id, '#/paiements?nouveau=1');
   };
   const submit = () => {
-    if (bloque) return setErr('Choisis la caisse de l’une de tes entités.');
+    if (bloque) return setErr('Choisis la caisse à laquelle envoyer le ticket.');
     const m = parseMontant(montant);
     if (!titre.trim()) return setErr('Indique l’objet de la dépense.');
     if (!(m > 0)) return setErr('Indique le montant (ex. 42.50).');
     if (!beneficiaire.trim()) return setErr('Indique à qui rembourser.');
     if (!docs.length) return setErr('Ajoute la photo du ticket (ou le fichier).');
-    if (!user) return;
+    if (!user || busy) return;
+    if (versCentrale && club) {
+      setBusy(true);
+      club
+        .ticketCentral({ titre: titre.trim(), montant: m, beneficiaire: beneficiaire.trim(), iban: iban.trim().toUpperCase() || undefined, remarque: remarque.trim(), documents: docs })
+        .then(() => {
+          deleteFiles(track.current.removed);
+          onEnvoye?.();
+          onClose();
+        })
+        .catch((e: Error) => setErr(e.message))
+        .finally(() => setBusy(false));
+      return;
+    }
     const now = new Date().toISOString();
     const paiement: Paiement = {
       montant: m,
@@ -514,6 +588,7 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
       demandePar: ticket?.paiement.demandePar ?? user.id,
       demandeLe: ticket?.paiement.demandeLe ?? now,
     };
+    if (ticket?.paiement.externe) paiement.externe = ticket.paiement.externe;
     if (iban.trim()) paiement.iban = iban.trim().toUpperCase();
     const t = {
       ...(ticket ?? { id: uid('t'), sectionId: sectionFinances(data), sousSection: 'Remboursements', delai: '', checklist: [], createdBy: user.id }),
@@ -536,28 +611,35 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
     onClose();
   };
 
+  const options = club && !ticket ? [...(ici ? [club.current] : []), ...autres] : [];
+  const choix = options.length + (centrale ? 1 : 0);
+  const caisseCentrale = central ? central.membres.filter((m) => m.caisse).map((m) => `${m.prenom} ${m.nom}`.trim()) : [];
+  const note = ticket
+    ? ''
+    : versCentrale
+      ? `Caisse centrale (${central!.nom}) : ${caisseCentrale.join(', ')}. Tu suivras ton ticket ici, dans « Mes tickets ».`
+      : ici
+        ? `${club ? `Caisse ${club.current.nom}` : 'Caisse'} : ${nomsCaisse.join(', ')}.`
+        : `${guest ? 'Tu consultes cette entité en visiteur.' : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans « Responsables »).`} ${
+            choix ? 'Envoie ton ticket à l’une des caisses proposées.' : 'Aucune caisse ne peut recevoir ton ticket pour l’instant.'
+          }`;
+
   return (
     <Modal title={ticket ? 'Modifier le ticket' : 'Ticket à rembourser'} onClose={cancel}>
       <div className="form">
-        {club && autres.length > 0 && (
+        {club && (choix > 1 || (choix === 1 && bloque)) && (
           <label className="full">
             Envoyer à la caisse de
-            <select value={ici ? club.current.id : ''} onChange={(e) => changerCaisse(e.target.value)}>
-              {!ici && <option value="" disabled>Choisir la caisse…</option>}
-              {(ici ? [club.current, ...autres] : autres).map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
+            <select value={versCentrale ? CENTRALE : ici ? club.current.id : ''} onChange={(e) => choisirCaisse(e.target.value)}>
+              {bloque && <option value="" disabled>Choisir la caisse…</option>}
+              {options.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
+              {centrale && <option value={CENTRALE}>🏛️ Caisse centrale ({central!.nom})</option>}
             </select>
+            {choix > 1 && <small className="muted">À choisir avant d’ajouter la photo.</small>}
           </label>
         )}
-        {!ticket && (
-          <p className="muted small full">
-            {ici
-              ? `${club ? `Caisse ${club.current.nom}` : 'Caisse'} : ${nomsCaisse.join(', ')}.${autres.length ? ' Une autre entité ? Choisis-la ci-dessus avant d’ajouter la photo.' : ''}`
-              : `${guest ? 'Tu consultes cette entité en visiteur.' : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans « Responsables »).`} ${
-                  autres.length ? 'Envoie ton ticket à la caisse de l’une de tes entités.' : 'Aucune de tes entités n’a de caissier : le ticket ne peut pas encore être envoyé.'
-                }`}
-          </p>
-        )}
-        <DocsField docs={docs} setDocs={setDocs} disabled={false} track={track.current} />
+        {note && <p className="muted small full">{note}</p>}
+        <DocsField docs={docs} setDocs={setDocs} disabled={bloque} track={track.current} idPrefix={versCentrale ? (cloud ? `${central!.id}/tk-` : 'tk-') : undefined} />
         <label className="full">
           Objet de la dépense
           <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Ex. Courses pour le camp" />
@@ -568,8 +650,20 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
         </label>
         <label>
           À rembourser à
-          <input list="ticket-personnes" value={beneficiaire} onChange={(e) => setBeneficiaire(e.target.value)} />
-          <datalist id="ticket-personnes">{people.map((p) => <option key={p.id} value={fullName(p)} />)}</datalist>
+          <select
+            value={autreNom ? AUTRE : beneficiaire}
+            onChange={(e) => {
+              const v = e.target.value;
+              setAutreNom(v === AUTRE);
+              setBeneficiaire(v === AUTRE ? '' : v);
+            }}
+          >
+            {moiNom && <option value={moiNom}>Moi ({moiNom})</option>}
+            {noms.map((n) => <option key={n} value={n}>{n}</option>)}
+            {!moiNom && !noms.includes(beneficiaire) && !autreNom && <option value={beneficiaire}>{beneficiaire || 'Choisir…'}</option>}
+            <option value={AUTRE}>Autre personne (saisir le nom)…</option>
+          </select>
+          {autreNom && <input autoFocus value={beneficiaire} onChange={(e) => setBeneficiaire(e.target.value)} placeholder="Prénom et nom" />}
         </label>
         <label className="full">
           IBAN (facultatif)
@@ -584,7 +678,9 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={cancel}>Annuler</button>
-        <button className="btn primary" disabled={bloque} onClick={submit}>{ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}</button>
+        <button className="btn primary" disabled={bloque || busy} onClick={submit}>
+          {busy ? 'Envoi…' : ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}
+        </button>
       </div>
     </Modal>
   );

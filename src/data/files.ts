@@ -18,7 +18,8 @@ export function setServerFiles(committeeId: string) {
   cloudCommittee = committeeId;
 }
 const bucket = () => supabase!.storage.from(BUCKET);
-const path = (id: string) => `${cloudCommittee}/${id}`;
+/** Un identifiant « dossier/fichier » désigne un fichier d'un autre dossier (ticket déposé à la caisse centrale). */
+const path = (id: string) => (id.includes('/') ? id : `${cloudCommittee}/${id}`);
 
 function db(): Promise<IDBDatabase | null> {
   if (!dbPromise)
@@ -50,7 +51,7 @@ function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<
 
 export async function saveFile(id: string, blob: Blob) {
   if (cloudCommittee) {
-    const { error } = await bucket().upload(path(id), blob, { contentType: blob.type || 'application/octet-stream', upsert: true });
+    const { error } = await bucket().upload(path(id), blob, { contentType: blob.type || 'application/octet-stream', upsert: !id.includes('/') });
     if (error) throw new Error(`envoi impossible (${error.message})`);
     memory.set(id, blob);
     return;

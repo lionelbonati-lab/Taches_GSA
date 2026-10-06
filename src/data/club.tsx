@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { MyRequest, OrgUnit, Person, Unit, UnitType } from './types';
+import type { MyRequest, OrgUnit, Person, SuiviTicket, TicketCentral, Unit, UnitType } from './types';
 import { uid } from './utils';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
@@ -87,6 +87,10 @@ export interface Club {
   proposeTask: (r: NewRequest) => Promise<void>;
   /** Demandes envoyées au comité central par l'entité ouverte, avec leur suivi. */
   myRequests: () => Promise<MyRequest[]>;
+  /** Envoie un ticket à rembourser à la caisse centrale (membre d'une autre entité). */
+  ticketCentral: (t: TicketCentral) => Promise<void>;
+  /** Tickets envoyés à la caisse centrale par la personne connectée. */
+  mesTicketsCentraux: () => Promise<SuiviTicket[]>;
 }
 
 export const ClubCtx = createContext<Club | null>(null);

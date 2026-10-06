@@ -615,6 +615,10 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 /* ---------- Paiements (tickets à rembourser) ---------- */
 .tickets { display: flex; flex-direction: column; gap: 12px; }
 .ticket { padding: 14px 16px; border-left: 4px solid var(--border); }
+.suivi-central { margin-top: 20px; }
+.suivi-central h2 { font-size: 1rem; margin: 0 0 8px; }
+.suivi-central ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.suivi-central li { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding: 10px 12px; border: 1px solid var(--border); border-radius: 10px; }
 .ticket.etat-a_valider { border-left-color: #d97706; }
 .ticket.etat-valide { border-left-color: var(--primary); }
 .ticket.etat-paye { border-left-color: #16a34a; }
