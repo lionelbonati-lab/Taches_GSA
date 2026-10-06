@@ -69,6 +69,8 @@ const MEMBER_PERMS: Permission[] = ['tasks.viewAll', 'tasks.editOwn', 'tab.meeti
 const HELPER_PERMS: Permission[] = ['tasks.editOwn', 'tab.events', 'tab.people'];
 /** Caisse de l'entité : membre du comité qui reçoit les tickets à rembourser et fait les virements. */
 const CAISSE_PERMS: Permission[] = [...MEMBER_PERMS, 'paiements.payer'];
+/** Membre d'un comité d'organisation (sous-comité) : gère aussi les événements, dont la date de la prochaine édition. */
+const CO_PERMS: Permission[] = [...MEMBER_PERMS, 'events.manage'];
 
 /** Rôles de départ d'une nouvelle entité (modifiables ensuite dans sa console admin). */
 export function unitRoles(type: UnitType): Role[] {
@@ -84,8 +86,8 @@ export function unitRoles(type: UnitType): Role[] {
   if (type === 'equipe') return [admin('Admin (Responsable)'), role('membre', 'Membre de l’équipe', '#1d4ed8', MEMBER_PERMS), role('caissier', 'Caissier', '#047857', CAISSE_PERMS)];
   return [
     admin('Admin (Président du comité)'),
-    role('membre', 'Membre du comité', '#1d4ed8', MEMBER_PERMS),
-    role('caissier', 'Caissier', '#047857', CAISSE_PERMS),
+    role('membre', 'Membre du comité', '#1d4ed8', CO_PERMS),
+    role('caissier', 'Caissier', '#047857', [...CO_PERMS, 'paiements.payer']),
     role('benevole', 'Bénévole', '#9333ea', HELPER_PERMS),
   ];
 }

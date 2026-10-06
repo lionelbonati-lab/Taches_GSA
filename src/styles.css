@@ -738,6 +738,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .cal-chip.k-meeting { background: var(--primary); border-left-color: var(--primary); color: #fff; font-weight: 600; }
 .cal-chip.k-event { background: var(--event-bg); border-left-color: var(--event-fg); color: var(--event-fg); font-weight: 600; }
 .cal-chip.k-poll { background: var(--poll-bg); border-left-color: var(--poll-fg); color: var(--poll-fg); }
+.cal-chip.k-manif { background: color-mix(in srgb, var(--c) 16%, var(--surface)); border-left-color: var(--c); color: var(--text); font-weight: 600; cursor: pointer; }
 .cal-chip.k-sub { background: none; color: var(--muted); border-left-color: var(--border); }
 .cal-chip.k-sub::before { content: '↳ '; }
 .cal-chip.late { color: var(--late); background: var(--late-soft); }
@@ -752,6 +753,14 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .cal-row.k-meeting { border-left-color: var(--primary); }
 .cal-row.k-event { border-left-color: var(--event-fg); }
 .cal-row.k-poll { border-left-color: var(--poll-fg); }
+.cal-row.k-manif { border-left-color: var(--c); }
+.cal-manifs { position: relative; }
+.cal-manifs > summary { list-style: none; cursor: pointer; }
+.cal-manifs > summary::-webkit-details-marker { display: none; }
+.cal-manifs-panel { position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); padding: 10px 12px; display: grid; gap: 6px; min-width: 260px; max-width: min(360px, calc(100vw - 32px)); }
+.cal-manifs-panel input { flex: none; }
+.cal-manifs-panel .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; }
+.cal-manifs-panel .row { display: flex; gap: 6px; margin-top: 4px; }
 .cal-row:hover { border-color: var(--primary); }
 .cal-row-main { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .cal-row-main strong { font-size: 0.9rem; overflow-wrap: anywhere; }
@@ -773,6 +782,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   .cal-chip.k-meeting { background: var(--primary); }
   .cal-chip.k-event { background: var(--event-fg); }
   .cal-chip.k-poll { background: var(--poll-fg); }
+  .cal-chip.k-manif { background: var(--c); }
   .cal-chip.late { background: var(--late); }
 }
 

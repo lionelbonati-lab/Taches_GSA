@@ -124,7 +124,7 @@ function seedUnit(u: Unit): AppData {
  * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro
  * (v2 : postes au lieu des noms, sans tâches ; v3 : une caisse dans chaque entité).
  */
-const DEMO_VERSION = '3';
+const DEMO_VERSION = '4';
 const VERSION_KEY = 'taches-gsa-demo-version';
 /** Démo v2 déjà enregistrée : accès du comité central des entités de départ ajouté une fois (sans remise à zéro). */
 const ACCESS_KEY = 'taches-gsa-demo-acces-central';

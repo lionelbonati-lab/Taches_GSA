@@ -344,6 +344,8 @@ export interface Prefs {
   affichage: 'tableau' | 'kanban';
   pv?: Partial<PvSettings>;
   notif?: Partial<NotifPrefs>;
+  /** Agenda : manifestations du club (entités) dont la date n'est pas affichée. */
+  manifsMasquees?: string[];
 }
 
 /** Notification d'activité enregistrée (les rappels d'échéance sont calculés à la volée). */

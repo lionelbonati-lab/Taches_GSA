@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, Meeting, Poll, Task } from '../data/types';
+import type { ClubEvent, Meeting, OrgUnit, Poll, Task } from '../data/types';
+import { useClubOptional } from '../data/club';
+import { UNIT_TYPES } from '../data/units';
 import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, parentOf, today } from '../data/utils';
 import { isOpen } from '../data/polls';
 import { TaskModal, newTask } from '../components/TaskModal';
@@ -10,13 +12,16 @@ import { EVENT_FIELDS, ItemModal, checkEvent, MEETING_FIELDS, linkedTasksNote, n
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
+// Les dates des manifestations du club (sous-comités, équipes d'événement : prochaine édition) apparaissent dans l'agenda
+// de toutes les entités ; chacun choisit lesquelles afficher (réglage personnel, propre à chaque entité).
 
-type Kind = 'meeting' | 'event' | 'task' | 'poll';
+type Kind = 'meeting' | 'event' | 'task' | 'poll' | 'manif';
 type Item =
   | { kind: 'meeting'; key: string; date: string; m: Meeting }
   | { kind: 'event'; key: string; date: string; e: ClubEvent }
   | { kind: 'task'; key: string; date: string; t: Task }
-  | { kind: 'poll'; key: string; date: string; p: Poll };
+  | { kind: 'poll'; key: string; date: string; p: Poll }
+  | { kind: 'manif'; key: string; date: string; u: OrgUnit };
 
 const KINDS: { id: Kind; label: string }[] = [
   { id: 'meeting', label: '🗓️ Séances' },
@@ -41,7 +46,8 @@ function longDate(date: string) {
 }
 
 export function Calendar() {
-  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, saveTask, setToast } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, setToast } = useStore();
+  const club = useClubOptional();
   const { saveMeeting, removeMeeting, saveEvent, removeEvent } = useAgendaActions();
   const navigate = useNavigate();
   const [month, setMonth] = useState(monthOf(today()));
@@ -71,6 +77,17 @@ export function Calendar() {
   const addEvent = can('events.manage');
   const addTask = creatableSections().length > 0;
   const viewAll = can('tasks.viewAll');
+  // Manifestations datées du club ; celle de l'entité ouverte seulement si son agenda n'a pas déjà l'événement à cette date.
+  const manifs = useMemo(
+    () =>
+      (club?.units ?? [])
+        .filter((u) => (u.type === 'sous-comite' || u.type === 'equipe') && u.date && !u.archive)
+        .filter((u) => u.id !== club?.current.id || !data.events.some((e) => e.date === u.date))
+        .sort((a, b) => a.date!.localeCompare(b.date!)),
+    [club?.units, club?.current.id, data.events],
+  );
+  const masquees = prefs.manifsMasquees ?? [];
+  const toggleManif = (id: string) => setPrefs({ manifsMasquees: masquees.includes(id) ? masquees.filter((x) => x !== id) : [...masquees, id] });
   const effScope = viewAll ? scope : 'mes';
 
   // Jours affichés : semaines complètes (lundi → dimanche) couvrant le mois.
@@ -102,16 +119,22 @@ export function Calendar() {
         const n = Math.min(diffDays(e.date, endOf(e)), 30);
         for (let i = 0; i <= n; i++) push({ kind: 'event', key: i ? `${e.id}:${i}` : e.id, date: addDays(e.date, i), e });
       });
+    manifs.forEach((u) => {
+      if (masquees.includes(u.id)) return;
+      const n = Math.min(diffDays(u.date!, endOf({ date: u.date!, dateFin: u.dateFin })), 30);
+      for (let i = 0; i <= n; i++) push({ kind: 'manif', key: `m-${u.id}:${i}`, date: addDays(u.date!, i), u });
+    });
     if (kinds.includes('poll'))
       (data.polls ?? []).forEach((p) => p.dateLimite && (isOpen(p) || showDone) && push({ kind: 'poll', key: p.id, date: p.dateLimite, p }));
     for (const t of data.tasks) {
       if (!visible(t)) continue;
       if (kinds.includes('task') && t.delai) push({ kind: 'task', key: t.id, date: t.delai, t });
     }
-    const rank: Record<Kind, number> = { meeting: 0, event: 1, poll: 2, task: 3 };
+    const rank: Record<Kind, number> = { meeting: 0, manif: 1, event: 2, poll: 3, task: 4 };
     map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind]));
     return map;
-  }, [data, user, days, kinds, effScope, showDone, seeMeetings, seeEvents, canSeeTask]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, user, days, kinds, effScope, showDone, seeMeetings, seeEvents, canSeeTask, manifs, masquees.join()]);
 
   if (!user) return null;
 
@@ -138,6 +161,7 @@ export function Calendar() {
     if (it.kind === 'task') setTask({ t: it.t, isNew: false });
     else if (it.kind === 'meeting') (addMeeting ? setMeeting(it.m) : navigate('/comite'));
     else if (it.kind === 'event') (addEvent ? setEvent(it.e) : navigate('/evenements'));
+    else if (it.kind === 'manif') navigate(it.u.id === club?.current.id && seeEvents ? '/evenements' : '/organigramme');
     else navigate(`/sondages?id=${it.p.id}`);
   };
 
@@ -173,6 +197,10 @@ export function Calendar() {
       }
       case 'task': return it.t.titre;
       case 'poll': return `Fin : ${it.p.question}`;
+      case 'manif': {
+        const n = diffDays(it.u.date!, endOf({ date: it.u.date!, dateFin: it.u.dateFin })) + 1;
+        return `🎪 ${it.u.nom}${n > 1 ? ` (${diffDays(it.u.date!, it.date) + 1}/${n})` : ''}`;
+      }
     }
   };
   const chipTitle = (it: Item) => {
@@ -184,6 +212,7 @@ export function Calendar() {
         return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · liée à « ${p.titre} »` : ''}`;
       }
       case 'poll': return `Sondage : ${it.p.question} (date limite)`;
+      case 'manif': return `Manifestation : ${it.u.nom} · ${fmtRange(it.u.date, it.u.dateFin)}`;
     }
   };
   const chipClass = (it: Item) => {
@@ -191,7 +220,12 @@ export function Calendar() {
     const done = it.kind === 'task' && isDone(data, it.t);
     return `cal-chip k-${it.kind}${late ? ' late' : ''}${done ? ' done' : ''}`;
   };
-  const chipStyle = (it: Item) => (it.kind === 'task' ? { borderLeftColor: data.statuses.find((s) => s.id === it.t.statusId)?.couleur } : undefined);
+  const chipStyle = (it: Item) =>
+    it.kind === 'task'
+      ? { borderLeftColor: data.statuses.find((s) => s.id === it.t.statusId)?.couleur }
+      : it.kind === 'manif'
+        ? ({ '--c': it.u.couleur } as React.CSSProperties)
+        : undefined;
 
   const dayItems = byDay.get(selected) ?? [];
   const monthLabel = new Date(`${month}-15T12:00:00`).toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' });
@@ -226,6 +260,26 @@ export function Calendar() {
           {KINDS.filter((k) => (k.id !== 'meeting' || seeMeetings) && (k.id !== 'event' || seeEvents)).map((k) => (
             <button key={k.id} className={`chip small ${kinds.includes(k.id) ? 'on' : ''}`} onClick={() => toggleKind(k.id)}>{k.label}</button>
           ))}
+          {manifs.length > 0 && (
+            <details className="cal-manifs">
+              <summary className={`chip small ${masquees.length < manifs.length ? 'on' : ''}`}>
+                🎪 Manifestations {manifs.filter((u) => !masquees.includes(u.id)).length}/{manifs.length} ▾
+              </summary>
+              <div className="cal-manifs-panel">
+                <small className="muted">Dates des manifestations du club affichées dans cet agenda :</small>
+                {manifs.map((u) => (
+                  <label key={u.id} className="inline small-check">
+                    <input type="checkbox" checked={!masquees.includes(u.id)} onChange={() => toggleManif(u.id)} />
+                    <span className="dot" style={{ background: u.couleur }} /> {u.nom}{u.id === club?.current.id ? ' (cette entité)' : ''} <small className="muted">{fmtRange(u.date, u.dateFin)}</small>
+                  </label>
+                ))}
+                <div className="row">
+                  <button className="btn small" onClick={() => setPrefs({ manifsMasquees: [] })}>Toutes</button>
+                  <button className="btn small" onClick={() => setPrefs({ manifsMasquees: manifs.map((u) => u.id) })}>Aucune</button>
+                </div>
+              </div>
+            </details>
+          )}
           <label className="inline small-check"><input type="checkbox" checked={showDone} onChange={() => setShowDone(!showDone)} /> Terminées</label>
         </div>
       </div>
@@ -302,16 +356,17 @@ export function Calendar() {
             <ul className="cal-list">
               {dayItems.map((it) => (
                 <li key={it.key}>
-                  <button className={`cal-row k-${it.kind}`} onClick={() => open(it)}>
+                  <button className={`cal-row k-${it.kind}`} style={it.kind === 'manif' ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
-                        {{ meeting: '🗓️', event: '🎉', task: '✅', poll: '📊' }[it.kind]} {chipText(it)}
+                        {{ meeting: '🗓️', event: '🎉', task: '✅', poll: '📊', manif: '' }[it.kind]} {chipText(it)}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}
                         {it.kind === 'event' && (it.e.lieu || 'Événement du club')}
                         {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
                         {it.kind === 'poll' && 'date limite pour répondre'}
+                        {it.kind === 'manif' && `${UNIT_TYPES[it.u.type].label}${it.u.id === club?.current.id ? ' (cette entité)' : ''} · ${fmtRange(it.u.date, it.u.dateFin)}`}
                       </small>
                     </span>
                     {it.kind === 'task' && <StatusBadge task={it.t} />}
