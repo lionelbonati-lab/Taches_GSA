@@ -242,7 +242,7 @@ L'application peut s'installer comme une vraie appli (icône, fenêtre dédiée,
 | Android – Chrome | Bouton « Installer l'application » ou menu ⋮ › Installer l'application |
 | iPhone / iPad – Safari | Bouton Partager › Sur l'écran d'accueil |
 
-Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche**, **Mes tâches**, **Remboursement** et **Paiement** (ouvrent directement le formulaire de la demande). Une appli déjà installée peut devoir être réinstallée pour voir les nouveaux raccourcis.
+Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche**, **Remboursement**, **Paiement** (ouvrent directement le formulaire) et **Mes tâches**. Sur Android, Chrome ajoute « Paramètres des sites » et le lanceur n'affiche que 4 raccourcis : « Mes tâches », placé en dernier, n'y apparaît pas. Une appli déjà installée prend les nouveaux raccourcis à sa prochaine mise à jour (Android la fait de lui-même, en général dans la journée où l'appli est ouverte) ou en la réinstallant.
 
 **Nom et icône de l'appli** : par défaut « Tâches GSA » et le **logo du G.S. Ajoie** (écran d'accueil, raccourcis, notifications ; les raccourcis ont chacun leur icône). Les admins du comité central les changent dans **Console admin › Logo, couleur et nom** (version réelle), section « Nom et icône de l'appli installée » :
 - **Nom** : jusqu'à 30 caractères (sous l'icône, il est coupé au-delà d'une douzaine) ; repris dans l'en-tête de l'appli, l'onglet du navigateur, l'écran de connexion, les notifications, les emails d'accès et le pied des documents imprimés. « Reprendre « Tâches GSA » » revient au nom d'origine.

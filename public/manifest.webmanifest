@@ -29,15 +29,6 @@
       ]
     },
     {
-      "name": "Mes tâches",
-      "short_name": "Mes tâches",
-      "url": "./#/taches",
-      "icons": [
-        { "src": "raccourci-mes-taches.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-        { "src": "raccourci-mes-taches-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" }
-      ]
-    },
-    {
       "name": "Nouveau remboursement (photo du ticket)",
       "short_name": "Remboursement",
       "url": "./#/taches?nouveau=remboursement",
@@ -53,6 +44,15 @@
       "icons": [
         { "src": "raccourci-paiement.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
         { "src": "raccourci-paiement-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" }
+      ]
+    },
+    {
+      "name": "Mes tâches",
+      "short_name": "Mes tâches",
+      "url": "./#/taches",
+      "icons": [
+        { "src": "raccourci-mes-taches.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+        { "src": "raccourci-mes-taches-maskable.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" }
       ]
     }
   ]
