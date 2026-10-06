@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
-import { CENTRAL_ACCESS, centralAccess, directory, orgMembers, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type DirectoryEntry } from '../data/units';
+import { arbreEntites, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
 import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
 import { fmtRange, posteBesideName } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
@@ -9,7 +9,8 @@ import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
 import { CentralAccessChoice } from '../components/CentralAccess';
 
-// Organigramme du club : comité central, sous-comités, groupes et équipes d'événement, avec leurs membres.
+// Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
+// Un clic sur une entité affiche ses membres et permet de l'ouvrir.
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
 // chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité central
 // peut faire de ses données (rien voir, consulter, ou aussi modifier / ajouter des tâches).
@@ -23,6 +24,7 @@ export function Org() {
   const [view, setView] = useState<'entites' | 'personnes'>('entites');
   const [edit, setEdit] = useState<{ unit?: OrgUnit } | null>(null);
   const [created, setCreated] = useState<{ c: CreatedUnit; n: NewUnit } | null>(null);
+  const [detailId, setDetailId] = useState<string | null>(null);
   // Relire l'organigramme à l'ouverture (changements faits dans d'autres entités).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -33,10 +35,9 @@ export function Org() {
   const units = useMemo(() => club.units.map((u) => (u.id === club.current.id ? { ...u, membres: orgMembers(data) } : u)), [club.units, club.current.id, data]);
   const active = units.filter((u) => !u.archive);
   const archived = units.filter((u) => u.archive);
-  const central = active.find((u) => u.type === 'central');
   const people = useMemo(() => directory(active), [active]);
   const canEdit = (u: OrgUnit) => club.canManage || u.moiAdmin;
-  const card = (u: OrgUnit) => <UnitCard key={u.id} u={u} onEdit={canEdit(u) ? () => setEdit({ unit: u }) : undefined} />;
+  const detail = units.find((u) => u.id === detailId);
 
   return (
     <div>
@@ -45,8 +46,7 @@ export function Org() {
         {club.canManage && <button className="btn primary" onClick={() => setEdit({})}>+ Nouvelle entité</button>}
       </div>
       <p className="muted small-note">
-        Chaque entité a ses propres tâches, rôles, sections et statuts, invisibles des autres. Chacune peut envoyer une demande au comité central
-        (page d’accueil) et lui ouvrir ses données : 👁 consulter, ou ✏️ aussi modifier / ajouter des tâches (réglage de ses admins).
+        Les traits relient chaque entité à celle dont elle dépend. Clique sur une entité pour voir ses membres et l’ouvrir.
         {club.error && <span className="error"> {club.error}</span>}
       </p>
       <div className="seg wrap org-seg">
@@ -56,21 +56,16 @@ export function Org() {
 
       {view === 'entites' ? (
         <>
-          {central && <div className="org-central">{card(central)}</div>}
-          {SUB_TYPES.map((type) => {
-            const list = active.filter((u) => u.type === type);
-            return (
-              <section key={type} className="org-branch">
-                <h2>{UNIT_TYPES[type].icon} {UNIT_TYPES[type].plural} <span className="count">{list.length}</span></h2>
-                <p className="muted small-note">{UNIT_TYPES[type].aide}</p>
-                {list.length ? <div className="org-grid">{list.map(card)}</div> : <Empty>Aucun pour l’instant.</Empty>}
-              </section>
-            );
-          })}
+          {active.length ? <Arbre units={active} onOpen={(u) => setDetailId(u.id)} /> : <Empty>Aucune entité.</Empty>}
+          <p className="arbre-legende muted small-note">
+            {(['central', ...SUB_TYPES] as UnitType[]).map((t) => <span key={t}>{UNIT_TYPES[t].icon} {UNIT_TYPES[t].label}</span>)}
+            <span>★ {UNIT_TYPES.central.chef} / responsable</span>
+            <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
+          </p>
           {archived.length > 0 && (
             <details className="org-archives">
               <summary>🗄️ Entités archivées ({archived.length})</summary>
-              <div className="org-grid">{archived.map(card)}</div>
+              <div className="arbre-archives">{archived.map((u) => <Noeud key={u.id} u={u} onOpen={() => setDetailId(u.id)} />)}</div>
             </details>
           )}
         </>
@@ -78,6 +73,11 @@ export function Org() {
         <Directory people={people} />
       )}
 
+      {detail && (
+        <Modal title={detail.nom} onClose={() => setDetailId(null)}>
+          <UnitCard u={detail} onEdit={canEdit(detail) ? () => { setDetailId(null); setEdit({ unit: detail }); } : undefined} />
+        </Modal>
+      )}
       {edit && (
         <UnitModal
           unit={edit.unit}
@@ -91,6 +91,62 @@ export function Org() {
       )}
       {created && <Created {...created} onClose={() => setCreated(null)} />}
     </div>
+  );
+}
+
+// Largeur d'une colonne de l'arbre (carte + marges) : en dessous, l'arbre se présente de haut en bas, décalé à droite.
+const COLONNE = 196;
+
+/** L'arbre : de haut en bas comme un arbre généalogique, ou en liste décalée (téléphone, ou trop d'entités côte à côte). */
+function Arbre({ units, onOpen }: { units: OrgUnit[]; onOpen: (u: OrgUnit) => void }) {
+  const racines = useMemo(() => arbreEntites(units), [units]);
+  const cadre = useRef<HTMLDivElement>(null);
+  const [largeur, setLargeur] = useState(0);
+  useLayoutEffect(() => {
+    const el = cadre.current;
+    if (!el) return;
+    setLargeur(el.clientWidth);
+    if (typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver(() => setLargeur(el.clientWidth));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const feuilles = (b: Branche<OrgUnit>): number => (b.enfants.length ? b.enfants.reduce((n, x) => n + feuilles(x), 0) : 1);
+  const vertical = largeur < racines.reduce((n, b) => n + feuilles(b), 0) * COLONNE;
+  const branche = (b: Branche<OrgUnit>) => (
+    <li key={b.u.id}>
+      <Noeud u={b.u} onOpen={() => onOpen(b.u)} />
+      {b.enfants.length > 0 && <ul>{b.enfants.map(branche)}</ul>}
+    </li>
+  );
+  return (
+    <div ref={cadre} className="arbre-cadre">
+      <ul className={`arbre ${vertical ? 'vertical' : 'haut'}`}>{racines.map(branche)}</ul>
+    </div>
+  );
+}
+
+/** Une entité dans l'arbre : nom, type, président / responsable, nombre de membres. */
+function Noeud({ u, onOpen }: { u: OrgUnit; onOpen: () => void }) {
+  const club = useClub();
+  const t = UNIT_TYPES[u.type];
+  const chefs = u.membres.filter((m) => m.admin);
+  const access = centralAccess(u);
+  const ouverte = u.id === club.current.id;
+  return (
+    <button type="button" className={`arbre-noeud ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''}`} style={{ borderTopColor: u.couleur }} onClick={onOpen}>
+      <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
+      <span className="arbre-texte">
+        <strong>{u.nom}</strong>
+        <small>{t.label}{u.date && ` · ${fmtRange(u.date, u.dateFin)}`}</small>
+        <small>{chefs.length ? `★ ${chefs.map((m) => `${m.prenom} ${m.nom}`.trim()).join(', ')}` : `${t.chef} : à désigner`}</small>
+        <small>
+          {u.membres.length} membre{u.membres.length > 1 ? 's' : ''}
+          {ouverte ? ' · ouverte' : u.moi ? ' · tu en fais partie' : ''}
+        </small>
+      </span>
+      {access !== 'aucun' && <span className="arbre-acces" title={`Comité central : ${CENTRAL_ACCESS[access].label.toLowerCase()}`}>{CENTRAL_ACCESS[access].icon}</span>}
+    </button>
   );
 }
 
@@ -209,6 +265,12 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
   const [description, setDescription] = useState(unit?.description ?? '');
   const [archive, setArchive] = useState(!!unit?.archive);
   const [logo, setLogo] = useState(unit?.logo);
+  // Dans l'organigramme : l'entité dont elle dépend (pas elle-même, ni une entité qui dépend d'elle).
+  const actives = club.units.filter((u) => !u.archive);
+  const centralUnit = actives.find((u) => u.type === 'central');
+  const exclus = unit ? [unit.id, ...sousEntites(actives, unit.id)] : [];
+  const possibles = actives.filter((u) => !exclus.includes(u.id));
+  const [dependDe, setDependDe] = useState(() => (unit ? parentDans(actives, unit)?.id : undefined) ?? centralUnit?.id ?? '');
   // Accès du comité central : réglé par les admins de l'entité seulement.
   const [central, setCentral] = useState<CentralAccess>(unit ? centralAccess(unit) : 'aucun');
   const ownsAccess = !!unit && !isCentral && unit.moiAdmin;
@@ -228,6 +290,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
     if (dated(type) && dateFin && (!date || dateFin < date)) return setErr('Le dernier jour de l’événement ne peut pas précéder le premier.');
     const jour = dated(type) && date ? date : undefined;
     const base: Partial<Unit> = { nom: nom.trim(), couleur, description: description.trim() || undefined, date: jour, dateFin: jour && dateFin > jour ? dateFin : undefined };
+    const lien = dependDe && dependDe !== centralUnit?.id ? dependDe : undefined;
     setBusy(true);
     try {
       if (isNew) {
@@ -240,6 +303,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
         const n: NewUnit = {
           ...(base as Pick<Unit, 'nom' | 'couleur' | 'description' | 'date' | 'dateFin'>),
           type,
+          dependDe: lien,
           chef,
           membres: membres.map((k) => dir.find((e) => e.key === k)).filter((e): e is DirectoryEntry => !!e && e.key !== chefKey).map((e) => fromDirectory(e, '')),
         };
@@ -247,7 +311,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
       } else {
         const access = ownsAccess ? { central } : {};
         const image = logo !== unit.logo ? { logo } : {};
-        await club.updateUnit(unit.id, manage ? { ...base, type, archive, ...access, ...image } : { ...base, ...access, ...image });
+        await club.updateUnit(unit.id, manage ? { ...base, type, archive, dependDe: lien, ...access, ...image } : { ...base, ...access, ...image });
         if (ownsAccess && central !== centralAccess(unit) && unit.id === club.current.id) update(() => {}, `Accès du comité central : ${CENTRAL_ACCESS[central].label}`);
         onClose();
       }
@@ -271,6 +335,14 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
             Type
             <select value={type} disabled={!isNew && !manage} onChange={(e) => setType(e.target.value as UnitType)}>
               {SUB_TYPES.map((t) => <option key={t} value={t}>{UNIT_TYPES[t].icon} {UNIT_TYPES[t].label}</option>)}
+            </select>
+          </label>
+        )}
+        {!isCentral && (isNew || manage) && possibles.length > 1 && (
+          <label>
+            Dépend de <small className="muted">(trait dans l’organigramme)</small>
+            <select value={dependDe} onChange={(e) => setDependDe(e.target.value)}>
+              {possibles.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
             </select>
           </label>
         )}

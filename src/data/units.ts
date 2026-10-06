@@ -1,6 +1,6 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
-import type { AppData, CentralAccess, Guest, OrgMember, OrgUnit, Permission, Person, Role, Section, UnitType } from './types';
+import type { AppData, CentralAccess, Guest, OrgMember, OrgUnit, Permission, Person, Role, Section, Unit, UnitType } from './types';
 import { uid } from './utils';
 
 // Entités du club : comité central, sous-comités, groupes, équipes d'événement.
@@ -35,6 +35,49 @@ export const UNIT_TYPES: Record<UnitType, { label: string; plural: string; icon:
 };
 
 export const SUB_TYPES: UnitType[] = ['sous-comite', 'groupe', 'equipe'];
+
+// ---------- Organigramme en arbre ----------
+
+/**
+ * Entité dont dépend `u` dans l'organigramme : celle choisie (« Dépend de ») si elle est dans la liste,
+ * sinon le comité central. Une boucle (A dépend de B qui dépend de A) remonte au comité central.
+ */
+export function parentDans<T extends Unit>(units: T[], u: T): T | undefined {
+  if (u.type === 'central') return undefined;
+  const central = units.find((x) => x.type === 'central');
+  const parId = new Map(units.map((x) => [x.id, x]));
+  const choisi = u.dependDe ? parId.get(u.dependDe) : undefined;
+  if (!choisi || choisi.type === 'central') return central;
+  for (let p: T | undefined = choisi, n = 0; p && n <= units.length; p = p.dependDe ? parId.get(p.dependDe) : undefined, n++) {
+    if (p.id === u.id) return central;
+  }
+  return choisi;
+}
+
+export type Branche<T> = { u: T; enfants: Branche<T>[] };
+
+/** Arbre des entités : le comité central en haut, chaque entité sous celle dont elle dépend. */
+export function arbreEntites<T extends Unit>(units: T[]): Branche<T>[] {
+  const rang = (u: T) => (u.type === 'central' ? -1 : SUB_TYPES.indexOf(u.type));
+  const ordre = (a: T, b: T) => rang(a) - rang(b) || a.nom.localeCompare(b.nom, 'fr');
+  const fils = new Map<string, T[]>();
+  const racines: T[] = [];
+  for (const u of units) {
+    const p = parentDans(units, u);
+    if (p) fils.set(p.id, [...(fils.get(p.id) ?? []), u]);
+    else racines.push(u);
+  }
+  const branche = (u: T): Branche<T> => ({ u, enfants: (fils.get(u.id) ?? []).sort(ordre).map(branche) });
+  return racines.sort(ordre).map(branche);
+}
+
+/** Entités qui dépendent de `id`, directement ou non (on ne peut pas faire dépendre une entité de l'une d'elles). */
+export function sousEntites<T extends Unit>(units: T[], id: string): string[] {
+  const trouver = (b: Branche<T>[]): Branche<T> | undefined => b.reduce<Branche<T> | undefined>((r, x) => r ?? (x.u.id === id ? x : trouver(x.enfants)), undefined);
+  const tous = (b: Branche<T>): string[] => b.enfants.flatMap((x) => [x.u.id, ...tous(x)]);
+  const b = trouver(arbreEntites(units));
+  return b ? tous(b) : [];
+}
 
 /** Réglage d'une entité : ce que le comité central peut faire de ses données. */
 export const CENTRAL_ACCESS: Record<CentralAccess, { label: string; icon: string; aide: string }> = {

@@ -37,6 +37,8 @@ export interface NewUnit {
   description?: string;
   date?: string;
   dateFin?: string;
+  /** Entité dont elle dépend dans l'organigramme (sinon le comité central). */
+  dependDe?: string;
   /** Président ou responsable : admin de la nouvelle entité. */
   chef: NewMember;
   /** Autres membres de départ. */
@@ -83,7 +85,7 @@ export interface Club {
   switchUnit: (id: string, hash?: string) => void;
   refresh: () => void;
   createUnit: (u: NewUnit) => Promise<CreatedUnit>;
-  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli'>>) => Promise<void>;
+  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'dependDe'>>) => Promise<void>;
   /** Change la date de la prochaine édition de l'entité ouverte (ses admins, son droit « Gérer les événements », le comité central). */
   setEditionDate: (date: string, dateFin?: string) => Promise<void>;
   /** Envoie une tâche au comité central (depuis une autre entité). */

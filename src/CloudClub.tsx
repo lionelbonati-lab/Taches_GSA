@@ -85,6 +85,9 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
           rows: toRows(d),
           chefId: chef.id,
         });
+        // « Dépend de » (organigramme) : ajouté ensuite à la fiche, la création ne garde que les champs de départ.
+        const info = { couleur: n.couleur, description: n.description || undefined, date: n.date || undefined, dateFin: n.dateFin || undefined, dependDe: n.dependDe };
+        if (n.dependDe) await updateCommittee(r.unitId, { name: n.nom, type: n.type, info }).catch(() => {});
         refresh();
         return { unitId: r.unitId, email: r.email, password: r.password, existant: r.existant, avertissement: r.error };
       },
@@ -105,6 +108,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
             central: next.central && next.central !== 'aucun' ? next.central : undefined,
             logo: next.logo || undefined,
             couleurAppli: next.couleurAppli || undefined,
+            dependDe: next.dependDe || undefined,
           },
         });
         refresh();

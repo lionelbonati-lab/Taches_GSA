@@ -461,6 +461,8 @@ export interface Unit {
   logo?: string;
   /** Couleur de l'appli dans l'entité (#rrggbb). Sans choix : celle du comité central, sinon le bleu d'origine. */
   couleurAppli?: string;
+  /** Entité dont elle dépend dans l'organigramme (sinon le comité central). Affichage seulement : les accès suivent parentId. */
+  dependDe?: string;
 }
 
 /** Accès du comité central aux données d'une entité : rien voir, consulter, ou aussi ajouter et modifier des tâches. */

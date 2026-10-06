@@ -42,6 +42,8 @@ export interface UnitInfo {
   logo?: string;
   /** Couleur de l'appli (#rrggbb). */
   couleurAppli?: string;
+  /** Entité dont elle dépend dans l'organigramme (affichage seulement). */
+  dependDe?: string;
 }
 
 /**
@@ -485,6 +487,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     central: m.info.central,
     logo: isImage(m.info.logo) ? m.info.logo : undefined,
     couleurAppli: isCouleur(m.info.couleurAppli) ? m.info.couleurAppli : undefined,
+    dependDe: typeof m.info.dependDe === 'string' ? m.info.dependDe : undefined,
     membres: [],
     moi: !m.guest,
     moiAdmin: false,
@@ -511,6 +514,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       central: info.central,
       logo: isImage(info.logo) ? info.logo : undefined,
       couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
+      dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined })),
       moi: u.moi,
       moiAdmin: u.moiAdmin,
