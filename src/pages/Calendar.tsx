@@ -9,6 +9,7 @@ import { isOpen } from '../data/polls';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { Avatar, StatusBadge } from '../components/ui';
 import { EVENT_FIELDS, ItemModal, checkEvent, MEETING_FIELDS, linkedTasksNote, newEvent, newMeeting, useAgendaActions } from './Agenda';
+import { PageIntro } from '../components/Nav';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
@@ -274,6 +275,7 @@ export function Calendar() {
           ))}
         </div>
       </div>
+      <PageIntro />
 
       <div className="cal-bar">
         <div className="cal-nav">

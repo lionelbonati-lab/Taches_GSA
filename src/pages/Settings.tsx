@@ -9,6 +9,7 @@ import { PasswordForm } from './Real';
 import { switchMode } from '../data/mode';
 import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
+import { PageIntro } from '../components/Nav';
 
 export function Settings() {
   const { data, user, prefs, setPrefs, can, reset, restore, login, cloud, guest } = useStore();
@@ -64,6 +65,7 @@ export function Settings() {
   return (
     <div className="narrow">
       <h1>Réglages</h1>
+      <PageIntro />
       {cloud && (
         <section className="panel account">
           <h2>Mon compte</h2>
@@ -102,6 +104,13 @@ export function Settings() {
           <select value={prefs.affichage} onChange={(e) => setPrefs({ affichage: e.target.value as typeof prefs.affichage })}>
             <option value="tableau">Tableau</option>
             <option value="kanban">Kanban</option>
+          </select>
+        </label>
+        <label>
+          Phrase d’explication en haut des pages
+          <select value={prefs.explications === false ? 'non' : 'oui'} onChange={(e) => setPrefs({ explications: e.target.value === 'oui' })}>
+            <option value="oui">Afficher</option>
+            <option value="non">Masquer</option>
           </select>
         </label>
       </section>

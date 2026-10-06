@@ -11,6 +11,7 @@ import { useClubOptional } from '../data/club';
 import { archiveHtml, defaultTexte, enteteOf, hydrateArchive } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
 import { DocEntete, EnteteEditor, useUnitLogo } from '../components/Entete';
+import { PageIntro } from '../components/Nav';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête, convoqués, tâches par section.
@@ -245,7 +246,7 @@ export function Pv() {
       const m = d.meetings.find((x) => x.id === s1.id)!;
       m.pvArchives = [{ id: uid('pv'), at: new Date().toISOString(), by: user.id, titre, html, orientation: s.orientation }, ...(m.pvArchives ?? [])].slice(0, 10);
     }, `Ordre du jour « ${titre} » archivé dans la séance ${s1.titre}`);
-    setMsg(`📁 Archivé dans « ${s1.titre} » (onglet Comité).`);
+    setMsg(`📁 Archivé dans « ${s1.titre} » (liste des séances).`);
   };
 
   const plainText = () => {
@@ -544,6 +545,7 @@ export function Pv() {
           <button className="btn" onClick={copy}>📋 Copier le texte</button>
         </div>
       </div>
+      <PageIntro />
       {msg && <p className="pv-msg no-print">{msg}</p>}
 
       <div className="pv-layout">
@@ -580,7 +582,7 @@ export function Pv() {
               ) : (
                 <p className="muted">{excusesTxt || 'Personne pour l’instant.'}</p>
               )}
-              <small className="muted">Chacun peut aussi s’excuser lui-même dans l’onglet Comité.</small>
+              <small className="muted">Chacun peut aussi s’excuser lui-même dans la liste des séances.</small>
               <label>
                 Points particuliers (un par ligne)
                 <textarea rows={4} value={points} disabled={!canEdit} onChange={(e) => setPoints(e.target.value)} onBlur={savePoints} placeholder={'Ex. Budget 2027\nBilan de la Bruntrutaine'} />

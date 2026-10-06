@@ -103,28 +103,56 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .demo-tag { font-size: 0.65rem; background: #f59e0b; color: #fff; padding: 2px 6px; border-radius: 4px; letter-spacing: 0.05em; }
 .app-logo { width: auto; object-fit: contain; display: block; flex-shrink: 0; }
 .login-card .app-logo { margin: 0 auto; }
-.tabs { display: flex; gap: 2px; flex: 1; overflow-x: auto; }
-.tabs a { padding: 8px 10px; border-radius: 8px; color: var(--muted); white-space: nowrap; font-weight: 500; font-size: 0.95rem; }
-/* Écrans moyens : on garde tous les onglets visibles (nom de l'utilisateur masqué, onglets resserrés). */
-@media (max-width: 1700px) { .topbar .who-text { display: none; } .topbar { gap: 12px; } }
-@media (max-width: 1480px) { .topbar .tabs a { padding: 8px 7px; font-size: 0.9rem; } }
-@media (max-width: 1280px) {
-  .topbar .brand-name { display: none; }
-  .topbar .tabs a { padding: 6px 5px; font-size: 0.86rem; }
-}
+.tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
+.tabs a { padding: 8px 14px; border-radius: 8px; color: var(--muted); white-space: nowrap; font-weight: 500; font-size: 0.95rem; }
+/* Écrans moyens : nom de l'utilisateur masqué (il reste dans le menu du compte), rubriques resserrées. */
+@media (max-width: 1360px) { .topbar .who-text { display: none; } .topbar { gap: 12px; } }
 @media (max-width: 1100px) {
-  .topbar .tabs a { padding: 6px 4px; font-size: 0.8rem; }
-  .topbar .demo-tag { display: none; }
+  .topbar .brand-name, .topbar .demo-tag { display: none; }
+  .topbar .tabs a { padding: 7px 9px; font-size: 0.9rem; }
 }
-@media (max-width: 980px) {
+@media (max-width: 900px) {
   .topbar { gap: 8px; padding: 10px 12px; }
-  .topbar .tabs a { padding: 5px 3px; font-size: 0.76rem; }
+  .topbar .tabs a { padding: 6px 6px; font-size: 0.84rem; }
 }
 .tabs a:hover { background: var(--surface2); text-decoration: none; }
 .tabs a.active { background: var(--primary-soft); color: var(--primary); }
-.who { display: flex; align-items: center; gap: 10px; }
+.who { display: flex; align-items: center; gap: 10px; position: relative; }
+.who-btn { display: flex; align-items: center; gap: 8px; border: 1px solid transparent; background: none; border-radius: 999px; padding: 2px 8px 2px 2px; cursor: pointer; color: var(--text); font: inherit; text-align: left; }
+.who-btn:hover, .who-btn.on { background: var(--surface2); border-color: var(--border); }
 .who-text { display: flex; flex-direction: column; line-height: 1.2; }
 .who-text small { color: var(--muted); font-size: 0.78rem; }
+.unit-menu.compte-menu { left: auto; right: 0; min-width: 240px; }
+.compte-moi { display: flex; flex-direction: column; padding: 6px 8px 8px; border-bottom: 1px solid var(--border); margin-bottom: 4px; line-height: 1.3; }
+.compte-moi small { font-size: 0.78rem; }
+.unit-item.active { background: var(--primary-soft); color: var(--primary); }
+
+/* Pages d'une rubrique (ex. Comité : Séances, Ordre du jour, PV, Sondages). */
+.subtabs { display: flex; gap: 4px; margin: -8px 0 18px; padding-bottom: 8px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.subtabs::-webkit-scrollbar { display: none; }
+.subtabs a { padding: 7px 12px; border-radius: 999px; color: var(--muted); white-space: nowrap; font-weight: 500; font-size: 0.92rem; }
+.subtabs a:hover { background: var(--surface2); text-decoration: none; }
+.subtabs a.active { background: var(--primary); color: #fff; }
+/* À quoi sert la page : une phrase sous le titre. */
+.page-intro { color: var(--muted); margin: -4px 0 16px; max-width: 75ch; font-size: 0.93rem; }
+@media (max-width: 767px) {
+  .subtabs { gap: 2px; margin-top: -4px; }
+  .subtabs a { padding: 6px 10px; font-size: 0.88rem; }
+  .subtabs a span { display: none; }
+}
+
+/* Comment ça marche ? */
+.aide-page .panel > h2:first-child { margin-top: 0; }
+.aide-rubrique h3 { margin: 14px 0 4px; font-size: 1.02rem; }
+.aide-rubrique ul { margin: 0; padding-left: 22px; }
+.aide-rubrique li { margin: 3px 0; }
+.aide-rubrique .small-note { margin: 0 0 4px; }
+.aide-gestes { margin: 0; }
+.aide-gestes > div { padding: 8px 0; border-top: 1px solid var(--border); }
+.aide-gestes > div:first-child { border-top: none; padding-top: 0; }
+.aide-gestes dt { font-weight: 600; }
+.aide-gestes dd { margin: 2px 0 0; color: var(--muted); }
+.bienvenue { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; border-left: 4px solid var(--primary); }
 .content { padding: 24px; max-width: 1400px; margin: 0 auto; }
 .narrow { max-width: 720px; }
 
@@ -628,9 +656,12 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   .bottomnav a.active, .bottomnav button.active { color: var(--primary); font-weight: 600; text-decoration: none; }
   .bottomnav a.active span, .bottomnav button.active span { filter: none; opacity: 1; }
   .sheet-back { display: block; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 25; }
-  .sheet { position: absolute; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); background: var(--surface); border-radius: 16px 16px 0 0; padding: 12px; display: flex; flex-direction: column; }
+  .sheet { position: absolute; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); background: var(--surface); border-radius: 16px 16px 0 0; padding: 12px; display: flex; flex-direction: column; max-height: calc(100vh - 90px - env(safe-area-inset-bottom)); overflow-y: auto; }
+  .sheet-group { display: flex; flex-direction: column; }
+  .sheet-group + .sheet-group { border-top: 1px solid var(--border); margin-top: 4px; padding-top: 4px; }
+  .sheet-titre { padding: 8px 10px 0; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
   .sheet-user { display: flex; gap: 12px; align-items: center; padding: 8px 8px 14px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
-  .sheet-link { padding: 14px 10px; border-radius: 8px; color: var(--text); text-align: left; border: none; background: none; font-size: 1rem; cursor: pointer; }
+  .sheet-link { padding: 12px 10px; border-radius: 8px; color: var(--text); text-align: left; border: none; background: none; font-size: 1rem; cursor: pointer; }
   .sheet-link.active { background: var(--primary-soft); color: var(--primary); }
 }
 
@@ -867,7 +898,7 @@ code.password { font-size: 1.1rem; padding: 2px 8px; border-radius: 6px; backgro
 .unit-item:hover:not(.on) { background: var(--surface2); text-decoration: none; }
 .unit-item.on { background: var(--primary-soft); cursor: default; }
 .unit-item.link { color: var(--primary); border-top: 1px solid var(--border); border-radius: 0 0 8px 8px; margin-top: 4px; padding-top: 10px; }
-@media (max-width: 1280px) { .unit-btn { max-width: 160px; } }
+@media (max-width: 1100px) { .unit-btn { max-width: 160px; } }
 @media (max-width: 767px) {
   .unit-switch { flex: 1; min-width: 0; }
   .unit-btn { max-width: 100%; }

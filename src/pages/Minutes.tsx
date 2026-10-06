@@ -12,6 +12,7 @@ import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
 import { archiveHtml, defaultTexte, enteteOf } from '../data/entete';
 import { DocEntete, EnteteEditor, useUnitLogo } from '../components/Entete';
+import { PageIntro } from '../components/Nav';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -315,8 +316,8 @@ export function Minutes() {
     }, n > 1 ? `PV du ${s1.titre} corrigé : version ${n} validée` : `PV du ${s1.titre} validé et archivé`);
     setMsg(
       n > 1
-        ? `✅ Version ${n} validée et archivée (la version ${n - 1} reste consultable dans l’onglet Comité). Tu peux envoyer le PV corrigé.`
-        : `✅ PV validé et archivé dans « ${s1.titre} » (onglet Comité). Tu peux maintenant l’envoyer par email.`,
+        ? `✅ Version ${n} validée et archivée (la version ${n - 1} reste consultable dans la liste des séances). Tu peux envoyer le PV corrigé.`
+        : `✅ PV validé et archivé dans « ${s1.titre} » (liste des séances). Tu peux maintenant l’envoyer par email.`,
     );
   };
 
@@ -479,7 +480,7 @@ export function Minutes() {
     </div>
   );
 
-  if (!s1) return <p className="muted">Aucune séance de comité. Crée d’abord une séance dans l’onglet Comité.</p>;
+  if (!s1) return <p className="muted">Aucune séance de comité. Crée d’abord une séance dans la liste des séances.</p>;
 
   const statusBanner = m.valideLe && (
     <div className={`min-banner no-print ${m.enCorrection ? 'editing' : 'locked'}`}>
@@ -518,6 +519,7 @@ export function Minutes() {
           </div>
         </div>
       </div>
+      <PageIntro />
       {statusBanner}
       {msg && <p className="pv-msg no-print">{msg}</p>}
 

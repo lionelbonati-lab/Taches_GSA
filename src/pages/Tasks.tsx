@@ -8,6 +8,7 @@ import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { Avatar, DocPollIcons, Empty, LinkIcon, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
+import { PageIntro } from '../components/Nav';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
@@ -146,6 +147,7 @@ export function Tasks() {
           {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { eventId: f.event || undefined, meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>}
         </div>
       </div>
+      <PageIntro />
 
       <div className={`filters ${showFilters ? 'open' : ''}`}>
         <input className="search" placeholder="🔍 Rechercher…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />

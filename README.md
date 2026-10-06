@@ -38,9 +38,9 @@ Accès du comité central dans la démo : l'**École de cyclisme** le laisse **c
 Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au code :
 
 - **Créer un rôle** (vide ou copie d'un rôle existant), le renommer, changer sa couleur, le dupliquer, le supprimer (une fois retiré à tout le monde).
-- **Cocher les droits** de chaque rôle : tâches (voir toutes, créer/assigner, modifier toutes, modifier les siennes, supprimer), onglets visibles (Comité, Événements, Responsables), gestion (séances, événements, responsables), administration.
+- **Cocher les droits** de chaque rôle : tâches (voir toutes, créer/assigner, modifier toutes, modifier les siennes, supprimer), pages visibles (Séances, Ordre du jour, PV, Événements, Responsables, Membres du club), gestion (séances, événements, responsables), administration.
 - **Limiter un rôle à certaines sections** : ses droits « Tâches » ne s'appliquent alors qu'à ces sections.
-- **Cumuler plusieurs rôles** par personne (onglet Responsables / Membres › Modifier) : chaque rôle apporte ses droits sur ses propres sections.
+- **Cumuler plusieurs rôles** par personne (Personnes › Responsables / Membres › Modifier) : chaque rôle apporte ses droits sur ses propres sections.
 - Garde-fous : le rôle Admin est verrouillé, chacun garde au moins un rôle, il reste toujours un admin actif.
 
 ## Organisation du club (entités)
@@ -56,10 +56,10 @@ Le club = le **comité central** et ses entités, chacune avec **ses propres res
 
 Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Annulé).
 
-- **Organigramme** (onglet **Club**, ou menu de l'entité en haut à gauche) : toutes les entités et leurs membres (nom, poste, rôles, adresse email ; pas de numéros de téléphone), visible par tous les membres du club. Vue **Personnes** : l'annuaire, avec tous les postes de chacun.
+- **Organigramme** (Personnes › **Organigramme**, ou menu de l'entité en haut à gauche) : toutes les entités et leurs membres (nom, poste, rôles, adresse email ; pas de numéros de téléphone), visible par tous les membres du club. Vue **Personnes** : l'annuaire, avec tous les postes de chacun.
 - **Changer d'entité** : le menu en haut à gauche liste les entités dont on fait partie. Une même personne peut avoir un poste dans plusieurs entités (reconnue par son adresse email).
 - **Créer une entité** (admins du comité central) : « + Nouvelle entité » dans l'organigramme → nom, type, date, couleur, description, **responsable** (admin de l'entité, choisi dans l'annuaire ou nouvelle personne) et membres de départ (annuaire). Dans la version réelle, le compte du responsable est créé avec un mot de passe provisoire (à lui transmettre), et les membres qui ont déjà un compte retrouvent l'entité dans leur menu.
-- **Gérer son entité** : le président / responsable est admin de son entité ; il y gère membres, rôles et accès (onglet Membres), sections et statuts (console admin), et peut en modifier le nom, la couleur, la description et la date. Le type et l'**archivage** (jamais de suppression) sont réservés au comité central.
+- **Gérer son entité** : le président / responsable est admin de son entité ; il y gère membres, rôles et accès (Personnes › Membres), sections et statuts (console admin), et peut en modifier le nom, la couleur, la description et la date. Le type et l'**archivage** (jamais de suppression) sont réservés au comité central.
 - **Demandes au comité central** : depuis l'accueil d'une entité, **+ Demande** envoie une tâche au comité central (titre, détails, délai, section). Elle arrive dans ses tâches sans responsable, marquée **📨 nom de l'entité**, et apparaît dans « Demandes reçues » sur son accueil et dans les notifications de ceux qui attribuent les tâches. L'entité en suit l'avancement (statut, délai, qui s'en occupe) sans voir le reste des tâches du comité central.
 - **Accès du comité central** : chaque sous-comité, groupe ou équipe choisit ce que les membres du comité central peuvent faire de ses données, dans **Console admin › Accès du comité central** (ou la fiche de l'entité dans l'organigramme). Seuls les admins (★) de l'entité changent ce réglage ; le comité central le voit, grisé.
   - 🔒 **Rien voir** (par défaut) : l'entité reste fermée au comité central.
@@ -69,26 +69,38 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
 - **Logo** : le comité central met le **logo du club**, et chaque entité peut avoir le sien (ex. le logo de la manifestation), dans **Console admin › Logo et couleur** (comité central : « Logo, couleur et nom ») ou la fiche de l'entité dans l'organigramme (admins de l'entité et du comité central). L'image choisie (PNG, JPEG, WebP, GIF ou SVG) est réduite à 256 px avant d'être enregistrée. Le logo remplace celui de l'appli en haut à gauche, s'affiche sur les cartes de l'organigramme et dans le menu des entités, et sert d'image par défaut à l'en-tête de l'ordre du jour et du PV. Une entité sans logo affiche celui du club ; sans logo du club, l'icône de l'appli reste.
 - **Couleur de l'appli** (boutons, onglet actif, liens, calendrier…) : même onglet de la console admin, 8 teintes (dont « Vert GSA ») ou « Autre… » (couleur libre). Celle du comité central vaut pour tout le club (bleu d'origine par défaut) ; chaque entité peut choisir la sienne, sinon elle reprend celle du club. La teinte est ajustée automatiquement pour rester lisible (texte blanc sur les boutons, thème clair et sombre).
 
-## Onglets
+## Navigation
+
+Cinq rubriques en haut de l'écran (barre du bas sur téléphone, « ☰ Plus » pour le reste) ; une rubrique de plusieurs pages les propose juste en dessous (sous-onglets). Chacun ne voit que les pages permises par ses rôles.
+
+| Rubrique | Pages |
+|---|---|
+| 🏠 **Accueil** | résumé personnel |
+| ✅ **Tâches** | tâches, remboursements et paiements de factures |
+| 📅 **Agenda** | Calendrier · Événements |
+| 🗓️ **Comité** (« Séances » pour un groupe, « Réunions » pour une équipe) | Séances · Ordre du jour · PV · Sondages |
+| 👥 **Personnes** | Responsables (« Membres » hors comité central) · Membres du club · Organigramme |
+
+**Mon compte** (pastille en haut à droite ; « ☰ Plus » sur téléphone) : Réglages, Console admin (admins), **Comment ça marche ?** et déconnexion. Une **phrase d'explication** sous le titre de chaque page dit à quoi elle sert (masquable dans Réglages) ; **Comment ça marche ?** reprend toutes les pages et les gestes courants (selon les droits de chacun), et l'accueil y invite à la première visite. Les adresses des pages n'ont pas changé (liens déjà envoyés, raccourcis).
 
 - **Accueil** : compteurs de mes tâches par statut (**un clic ouvre la liste filtrée**, « En retard » compris), mes tâches en retard, échéances à 7 jours, emails à envoyer, prochaine séance, avancement des événements.
 - **Tâches** : section, sous-section, tâche, responsable(s), statut, délai, remarque, tâche principale / tâches liées, sous-tâches ; « Mes tâches / Toutes », filtres, tri, vue tableau ou kanban (glisser-déposer), export CSV, impression.
 - **Agenda** : vue **mensuelle** (lundi → dimanche) des séances de comité, événements, délais des tâches, fins de sondage ; filtres par type, « Mes tâches / Toutes », tâches terminées au choix. **+** sur chaque jour (ou boutons du panneau du jour) pour **ajouter une séance de comité, une tâche ou un événement** à cette date (selon les droits ; nouvelle séance numérotée d'après la précédente, 19h30). Clic sur un élément pour l'ouvrir ; **glisser-déposer** sur un autre jour pour changer sa date (une séance déplacée entraîne les délais qui lui sont liés). Sur mobile : pastilles de couleur par jour, liste du jour touché en dessous.
   **Agenda du club** : les **événements de toutes les entités** (nom, dates, lieu ; pas la description) et la **prochaine édition** de chaque sous-comité et équipe d'événement (🎪, sur un ou plusieurs jours) apparaissent dans l'agenda de **toutes les entités**, à la couleur de l'entité. Une édition n'est pas doublée si l'entité a déjà un événement à cette date. Le bouton **🎪 Agenda du club** permet de choisir les entités à afficher ; ce choix est personnel et propre à chaque entité. Un clic sur une case montre le détail du jour (entité, dates, lieu) ; un clic sur la ligne ouvre l'organigramme.
-- **Comité** : séances (date, lieu, ordre du jour, notes/PV) et tâches liées.
-- **Événements** : événements du club, sur **un ou plusieurs jours** (« Dernier jour »), avancement des tâches liées. Un événement sur plusieurs jours occupe chacun de ses jours dans l'agenda (« 1/3, 2/3… ») ; le glisser déplace tout l'événement. Il reste dans « Prochains événements » tant qu'il n'est pas terminé.
+- **Comité › Séances** : séances (date, lieu, excusés, ordre du jour et PV archivés) et tâches liées.
+- **Agenda › Événements** : événements du club, sur **un ou plusieurs jours** (« Dernier jour »), avancement des tâches liées. Un événement sur plusieurs jours occupe chacun de ses jours dans l'agenda (« 1/3, 2/3… ») ; le glisser déplace tout l'événement. Il reste dans « Prochains événements » tant qu'il n'est pas terminé.
 - **Prochaine édition** (sous-comité, équipe d'événement) : la date de la manifestation, sur un ou plusieurs jours, est affichée sur l'accueil et la page Événements de l'entité. **Son comité la change lui-même** (bouton « Changer la date » : ses admins, les membres du comité, qui ont « Gérer les événements » par défaut, et les admins du comité central), et peut déplacer du même coup l'événement de l'agenda (les délais des tâches liées suivent). Une édition passée invite à fixer la suivante.
-- **Responsables** (comité central) / **Membres** (autres entités) : **un seul écran pour les personnes de l'entité**. Chaque carte montre poste, nom, email, portable (liens mail / appel), rôles et, pour les admins de la version réelle, si la personne a un accès à l'appli. **Modifier** ouvre sa fiche : coordonnées, poste, **rôles** (cumulables ; changés par les admins), **accès à l'appli** (créer, nouveau mot de passe, retirer) et **Retirer de l'entité** (ses tâches restent ; « Personnes retirées » permet de la réactiver). **+ Ajouter une personne** propose les membres du club (registre, ou annuaire des entités pour qui n'y a pas accès) ou une nouvelle personne, puis son poste et son rôle.
-- **Annuaire** (📇 Membres du club) : voir la section suivante.
-- **Club** : organigramme et annuaire du club (voir ci-dessus).
-- **Réglages** : thème clair/sombre, vue par défaut.
+- **Personnes › Responsables** (comité central) / **Membres** (autres entités) : **un seul écran pour les personnes de l'entité**. Chaque carte montre poste, nom, email, portable (liens mail / appel), rôles et, pour les admins de la version réelle, si la personne a un accès à l'appli. **Modifier** ouvre sa fiche : coordonnées, poste, **rôles** (cumulables ; changés par les admins), **accès à l'appli** (créer, nouveau mot de passe, retirer) et **Retirer de l'entité** (ses tâches restent ; « Personnes retirées » permet de la réactiver). **+ Ajouter une personne** propose les membres du club (registre, ou annuaire des entités pour qui n'y a pas accès) ou une nouvelle personne, puis son poste et son rôle.
+- **Personnes › Membres du club** : voir la section suivante.
+- **Personnes › Organigramme** : organigramme et annuaire du club (voir ci-dessus).
+- **Réglages** : thème clair/sombre, vue par défaut, phrases d'explication, notifications, sauvegarde.
 - **Console admin** : rôles et matrice de permissions, **import CSV** (voir plus bas), sections/sous-sections, statuts, journal d'activité. Les sous-sections se **renomment** (les tâches suivent ; un nom déjà pris dans la section est refusé) et se **réordonnent** (▲ ▼) : cet ordre est repris dans les listes de choix, l'ordre du jour et le PV. Le nombre de tâches de chaque sous-section est affiché.
 
 ## Membres du club (annuaire) et imports CSV
 
-Onglet **📇 Annuaire** (« Membres du club ») : le **registre commun à tout le club**, une seule fiche par personne, **avec ou sans accès à l'appli** (licenciés, parents, bénévoles…) : prénom, nom, email, téléphone, **IBAN** et **groupes** de l'organigramme (École de cyclisme, Groupe compétition…).
+Page **📇 Membres du club** (rubrique Personnes) : le **registre commun à tout le club**, une seule fiche par personne, **avec ou sans accès à l'appli** (licenciés, parents, bénévoles…) : prénom, nom, email, téléphone, **IBAN** et **groupes** de l'organigramme (École de cyclisme, Groupe compétition…).
 
-- **Qui le voit** : les rôles qui ont le droit « Onglet Membres du club » (par défaut **Admin** et **Secrétaire**) et **les admins de toutes les entités** (présidents de CO, responsables de groupe…). Lecture et modification. Les autres membres ne le voient pas (l'IBAN reste confidentiel ; il est masqué dans la liste et lisible dans la fiche).
+- **Qui le voit** : les rôles qui ont le droit « Personnes › Membres du club » (par défaut **Admin** et **Secrétaire**) et **les admins de toutes les entités** (présidents de CO, responsables de groupe…). Lecture et modification. Les autres membres ne le voient pas (l'IBAN reste confidentiel ; il est masqué dans la liste et lisible dans la fiche).
 - **Une fiche unique** : dans chaque entité, la personne a un poste et des rôles ; ses coordonnées (prénom, nom, email, téléphone) sont celles du registre. **Modifiées dans le registre ou dans n'importe quelle entité, elles changent partout.** Une personne ajoutée dans une entité est rattachée au membre de même email, ou ajoutée au registre.
 - Recherche, filtre par groupe, avec ou sans poste ; postes de chacun dans les entités ; **📤 Exporter** (CSV pour Excel) ; suppression d'un membre seulement s'il n'a plus de poste dans une entité.
 - **📥 Importer** : fichier **CSV** (Excel : Fichier › Enregistrer sous › CSV ; Google Sheets : Fichier › Télécharger › CSV) ou **copier-coller** des lignes depuis le tableur, avec la ligne d'en-tête. **⬇️ Télécharger le modèle** donne les colonnes attendues (Prénom, Nom, Email, Téléphone, IBAN, Groupes). Un **aperçu** montre ce que devient chaque ligne avant de valider : nouveau, mise à jour, ignoré (déjà à jour, doublon) ou erreur (nom manquant, email invalide), avec les avertissements (IBAN invalide non importé, groupe inconnu…). Une personne déjà inscrite (**même email, sinon même prénom et nom**) est **mise à jour** : les cellules remplies remplacent ses valeurs, les cellules vides ne changent rien.
@@ -117,11 +129,11 @@ Une tâche peut être **liée à une tâche principale** (un niveau) : par ex. �
 - Dans une tâche : champ **Tâche principale** (liste par section) ; une tâche liée affiche en haut « ↳ Tâche liée à … » (clic pour ouvrir la tâche principale).
 - Dans une tâche principale : section **Tâches liées** avec avancement (« 3/8 terminées »), statut, responsables et délai de chacune (clic pour l'ouvrir), **+ Nouvelle tâche liée** (section, sous-section et délai repris), **🔗 Lier une tâche existante**, ✕ pour délier (la tâche reste), « Voir dans la liste ».
 - Liste des tâches : repères « ↳ tâche principale » et « 🔗 3/8 tâches liées », filtre « Tâche principale » (la tâche et ses tâches liées), filtres « Tâches principales » / « Tâches liées » ; export CSV : colonne « Tâche principale ».
-- Ordre du jour : les tâches liées s'affichent sous leur tâche principale ; une tâche principale qui porte le nom de sa sous-section devient la ligne de la sous-section. Onglet PV : tâches liées en retrait sous leur tâche principale.
+- Ordre du jour : les tâches liées s'affichent sous leur tâche principale ; une tâche principale qui porte le nom de sa sous-section devient la ligne de la sous-section. Page PV : tâches liées en retrait sous leur tâche principale.
 - Tâche récurrente : l'occurrence suivante d'une tâche liée est rattachée à l'occurrence suivante de sa tâche principale.
 - Supprimer une tâche principale garde ses tâches liées (sans tâche principale).
 
-Les **sous-tâches** restent une simple checklist (case à cocher + intitulé), cochables aussi pendant la séance dans l'onglet PV.
+Les **sous-tâches** restent une simple checklist (case à cocher + intitulé), cochables aussi pendant la séance dans Comité › PV.
 
 ## Emails programmés
 
@@ -141,7 +153,7 @@ Démo : le contenu des fichiers reste dans le navigateur de la personne qui les 
 
 ## Sondages
 
-Onglet **📊 Sondages** (filtres À voter / En cours / Terminés), sondages liés à une tâche (dans la fiche de la tâche) ou rattachés à une section :
+Page **📊 Sondages** (rubrique Comité) (filtres À voter / En cours / Terminés), sondages liés à une tâche (dans la fiche de la tâche) ou rattachés à une section :
 
 - **Oui / Non / Abstention**, **choix unique ou multiple**, **choix de dates** (type Doodle, avec tableau des disponibilités) ;
 - réponse **« Autre »** en option (case à cocher à la création, pour les trois types ; « Autre proposition » pour les dates) : qui la choisit doit écrire sa réponse. Les textes s'affichent sous la ligne « Autre » (sans nom si le sondage est anonyme), dans le tableau des disponibilités et dans le résumé de l'ordre du jour et du PV. « Autre » n'est jamais désignée meilleure option ;
@@ -153,7 +165,7 @@ Droits : « Créer des sondages » (Admin, Secrétaire, Comité par défaut) et 
 
 ## Ordre du jour
 
-Onglet **📝 Ordre du jour** (droit « Onglet Ordre du jour », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare le document de la **prochaine séance**, présenté comme les ordres du jour Word du club, **sans tableau** :
+Page **📝 Ordre du jour** (rubrique Comité ; droit « Comité › Ordre du jour », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare le document de la **prochaine séance**, présenté comme les ordres du jour Word du club, **sans tableau** :
 
 - en-tête : « Comité 29.10.26 », début de séance, lieu, **convoqués** (avec initiales), ligne **Excusés** à compléter ;
 - **Ordre du jour** numéroté : **1. Section** (gras) › **a. Sous-section** › **■ point** (tâche avec initiales du responsable, délai, et selon le cas « ⚠ en retard », « pour le Comité 6 », « ✓ fait », statut, remarque) › **◦ détails** (checklist, documents joints, sondage lié) ;
@@ -161,11 +173,11 @@ Onglet **📝 Ordre du jour** (droit « Onglet Ordre du jour », donné au Prés
 - cadre de notes et prochaine séance en pied de page.
 
 Réglages (mémorisés) : mise en forme **Liste numérotée** ou **Tableaux**, **niveau de détail** (complet / sections et sous-sections / sections seulement), séances, éléments inclus, regroupement (section, responsable, aucun) et tri, option « Séparer par échéance », détails affichés, statuts et sections inclus, titre, en-tête, orientation, taille du texte.
-**Excusés et points de la séance** (panneau de gauche) : un clic sur un membre l'**excuse** (ou le retire) ; la ligne « Excusés » du document se remplit (case ☒ dans la présentation en tableaux). Chacun peut aussi s'excuser lui-même dans l'onglet **Comité** : **🙋 Je serai absent(e)** sur une séance à venir, avec un motif facultatif (« Je serai finalement présent(e) » pour annuler). Les excusés sont repris dans les présences du PV. Les **points particuliers** de la séance s'écrivent aussi ici (un par ligne).
+**Excusés et points de la séance** (panneau de gauche) : un clic sur un membre l'**excuse** (ou le retire) ; la ligne « Excusés » du document se remplit (case ☒ dans la présentation en tableaux). Chacun peut aussi s'excuser lui-même dans **Comité › Séances** : **🙋 Je serai absent(e)** sur une séance à venir, avec un motif facultatif (« Je serai finalement présent(e) » pour annuler). Les excusés sont repris dans les présences du PV. Les **points particuliers** de la séance s'écrivent aussi ici (un par ligne).
 
-**✏️ Modifier le texte** (droit « Onglet Ordre du jour ») : le document devient modifiable directement (corriger, ajouter ou supprimer des lignes), puis **Enregistrer**. Cette version, gardée dans la séance, est celle que tout le comité voit, imprime, archive, envoie et copie ; les excusés y restent à jour, mais plus les changements de tâches ni de mise en page. **🔄 Revenir à la version générée** l'abandonne.
+**✏️ Modifier le texte** (droit « Comité › Ordre du jour ») : le document devient modifiable directement (corriger, ajouter ou supprimer des lignes), puis **Enregistrer**. Cette version, gardée dans la séance, est celle que tout le comité voit, imprime, archive, envoie et copie ; les excusés y restent à jour, mais plus les changements de tâches ni de mise en page. **🔄 Revenir à la version générée** l'abandonne.
 
-**En-tête** (Mise en page › **✏️ Modifier l'en-tête…**, avec le droit « Onglet Ordre du jour ») : commun à toute l'entité, avec aperçu :
+**En-tête** (Mise en page › **✏️ Modifier l'en-tête…**, avec le droit « Comité › Ordre du jour ») : commun à toute l'entité, avec aperçu :
 
 - image : le **logo de l'entité**, une **image propre** (ex. l'en-tête du papier à lettres du club, réduite à 1400 px de large) ou aucune ; taille petite, moyenne, grande ou **toute la largeur** (bannière) ;
 - texte libre sur plusieurs lignes (nom du club, adresse, site… ; la première ligne en gras), ou vide pour n'avoir que l'image ;
@@ -174,17 +186,17 @@ Réglages (mémorisés) : mise en forme **Liste numérotée** ou **Tableaux**, *
 
 Par défaut : logo de l'entité et « G.S. Ajoie – Comité » (ou le nom de l'entité). Les ordres du jour et PV archivés reprennent l'image actuelle de l'en-tête (elle n'est pas recopiée dans chaque archive).
 
-Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans l'onglet Comité), **Envoyer par email** aux membres du comité, **Copier le texte** (même numérotation, prêt à coller dans Word, un email ou WhatsApp).
+Actions : **Imprimer / PDF**, **Archiver dans la séance** (copie figée consultable et réimprimable dans Comité › Séances), **Envoyer par email** aux membres du comité, **Copier le texte** (même numérotation, prêt à coller dans Word, un email ou WhatsApp).
 
 ## PV (secrétaire)
 
-Onglet **🖊️ PV** (droit « Onglet PV », donné au Secrétaire et à l'Admin ; attribuable dans la console admin). Pour la séance choisie (par défaut celle du jour ou la prochaine) :
+Page **🖊️ PV** (rubrique Comité ; droit « Comité › PV », donné au Secrétaire et à l'Admin ; attribuable dans la console admin). Pour la séance choisie (par défaut celle du jour ou la prochaine) :
 
 - **Prise de notes** : reprend l'ordre du jour (sections, sous-sections, tâches, sondages) avec une zone de notes sous chaque section, chaque tâche (📝) et chaque sondage, plus « Divers » ; enregistrement automatique pendant la frappe.
 - **Séance** : ▶ Démarrer (heure de début, état des tâches mémorisé) / ⏹ Terminer ; présences (Présent / Excusé, « Tous présents »), invités.
-- **Mise à jour des tâches pendant la séance** : statut et délai directement sur la ligne, ✏️ modification complète, **+ Nouvelle tâche décidée** (échéance : prochaine séance) ; les tâches modifiées sont surlignées avec le détail du changement (↻ statut / délai / responsable). Seules les modifications faites depuis l'onglet PV figurent dans le PV (pas celles faites plus tard dans l'onglet Tâches).
+- **Mise à jour des tâches pendant la séance** : statut et délai directement sur la ligne, ✏️ modification complète, **+ Nouvelle tâche décidée** (échéance : prochaine séance) ; les tâches modifiées sont surlignées avec le détail du changement (↻ statut / délai / responsable). Seules les modifications faites depuis la page PV figurent dans le PV (pas celles faites plus tard dans l'onglet Tâches).
 - **📄 PV** : document « Procès-verbal – Comité 29.10.26 » avec heures, lieu, présents / excusés / absents / invités, points traités numérotés (notes, décisions, changements), nouvelles tâches décidées et prochaine séance ; option « Inclure tous les points de l'ordre du jour ».
-- **✏️ En-tête…** (avec le droit « Onglet PV ») : même réglage que pour l'ordre du jour. Tant qu'il n'est pas modifié, le PV reprend l'en-tête de l'ordre du jour ; « Revenir à l'en-tête de l'ordre du jour » annule un en-tête propre au PV.
+- **✏️ En-tête…** (avec le droit « Comité › PV ») : même réglage que pour l'ordre du jour. Tant qu'il n'est pas modifié, le PV reprend l'en-tête de l'ordre du jour ; « Revenir à l'en-tête de l'ordre du jour » annule un en-tête propre au PV.
 - **Imprimer / PDF**, **Copier le texte**, **Envoyer par email** au comité, **✅ Valider et archiver** : la secrétaire valide seule ; le PV validé est archivé dans la séance (onglet Comité, 📝) et le comité est notifié 🔔.
 - **Correction après coup** : un PV validé passe en lecture seule ; **✏️ Corriger le PV** rouvre notes, présences et points (modifications de tâches comprises), **Annuler la correction** revient à la version validée. La nouvelle validation crée la **version 2** (« corrigée le … », email « PV corrigé »), l'ancienne version reste archivée et le comité est notifié.
 
@@ -221,7 +233,7 @@ Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de n
 - ⚠️ résumé quotidien de tes tâches en retard ;
 - 🗓️ prochaine séance de comité (et « ordre du jour disponible » s'il a été archivé).
 
-Un clic ouvre directement la tâche (ou la liste filtrée / l'onglet Comité). Réglages → Notifications : choix des types, délais de prévenance, et **notifications de l'appareil** (téléphone / ordinateur, après autorisation) avec un bouton de test.
+Un clic ouvre directement la tâche (ou la liste filtrée / Comité › Séances). Réglages → Notifications : choix des types, délais de prévenance, et **notifications de l'appareil** (téléphone / ordinateur, après autorisation) avec un bouton de test.
 
 Limite de la démo : sans serveur, les notifications sont calculées dans le navigateur et celles de l'appareil ne partent qu'à l'ouverture de l'appli. La version réelle (base partagée + serveur) pourra les envoyer application fermée, y compris sur iPhone une fois l'appli installée.
 
@@ -271,7 +283,7 @@ Liens directs : https://lionelbonati-lab.github.io/Taches_GSA/?demo (à envoyer 
 - **Synchronisation** : le badge en haut à gauche indique ☁ À jour, ⏳ Envoi… ou ⚠ Hors ligne (avec le nombre de modifications en attente, envoyées au retour du réseau).
 
 - **Données** : chaque élément (tâche, séance, responsable, entrée du journal…) est une ligne de la table `gsa_items` ; seuls les éléments modifiés sont envoyés, avec une file d'attente en cas de coupure, et les modifications des autres membres arrivent en direct (`src/data/cloud.ts`).
-- **Accès** : onglet Responsables / Membres › Modifier › **Créer l'accès** crée le compte d'un responsable avec un mot de passe provisoire (à lui transmettre), qu'il remplace à la première connexion. Désactiver une fiche coupe l'accès. Aucun email n'est envoyé par le serveur.
+- **Accès** : Personnes › Responsables / Membres › Modifier › **Créer l'accès** crée le compte d'un responsable avec un mot de passe provisoire (à lui transmettre), qu'il remplace à la première connexion. Désactiver une fiche coupe l'accès. Aucun email n'est envoyé par le serveur.
 - **Mise en route** : à la première connexion du président, reprise d'une sauvegarde de la démo (Réglages › Sauvegarde) ou base vide.
 - **Fichiers joints** : stockage privé du serveur, dossier du comité.
 - **Entités** : chaque sous-comité, groupe ou équipe est un comité du serveur rattaché au comité central, avec ses propres données ; organigramme et demandes passent par des fonctions du serveur qui ne laissent sortir que le nécessaire. L'accès du comité central (consulter, modifier / ajouter) est appliqué par les règles du serveur, pas seulement par l'appli.

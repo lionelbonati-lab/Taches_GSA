@@ -42,6 +42,7 @@ export function Dashboard() {
   return (
     <div>
       <h1>Bonjour {user.prenom} 👋</h1>
+      <Bienvenue userId={user.id} />
       <EditionCard />
       <div className="stats">
         {/* Chaque case ouvre la liste de mes tâches filtrée sur ce statut. */}
@@ -138,6 +139,34 @@ export function Progress({ done, total }: { done: number; total: number }) {
     <div className="progress-wrap">
       <div className="progress"><div style={{ width: `${pct}%` }} /></div>
       <small className="muted">{done}/{total} tâches terminées</small>
+    </div>
+  );
+}
+
+/** Première visite : invitation à lire « Comment ça marche ? » (une fois par personne et par appareil). */
+function Bienvenue({ userId }: { userId: string }) {
+  const cle = `taches-gsa-bienvenue-${userId}`;
+  const [vu, setVu] = useState(() => {
+    try {
+      return !!localStorage.getItem(cle);
+    } catch {
+      return true;
+    }
+  });
+  if (vu) return null;
+  const fermer = () => {
+    try {
+      localStorage.setItem(cle, '1');
+    } catch {
+      /* ignore */
+    }
+    setVu(true);
+  };
+  return (
+    <div className="panel bienvenue" role="note">
+      <span className="grow">👋 <b>Nouveau dans l’appli ?</b> En deux minutes : où trouver quoi, et les gestes courants.</span>
+      <Link to="/aide" className="btn primary small" onClick={fermer}>Comment ça marche ?</Link>
+      <button className="icon-btn" aria-label="Fermer" title="Fermer" onClick={fermer}>✕</button>
     </div>
   );
 }

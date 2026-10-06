@@ -9,6 +9,7 @@ import { useClubOptional } from '../data/club';
 import { ImportsEntite } from '../components/ImportsEntite';
 import { CentralAccessPanel } from '../components/CentralAccess';
 import { LogoPanel } from '../components/LogoPanel';
+import { PageIntro, useChemin } from '../components/Nav';
 
 type Tab = 'roles' | 'lists' | 'import' | 'logo' | 'central' | 'log';
 
@@ -17,13 +18,17 @@ export function Admin() {
   const club = useClubOptional();
   // Sous-comité, groupe ou équipe : ce que le comité central peut faire de ses données.
   const sub = !!club && club.current.type !== 'central';
+  const chemin = useChemin();
+  const personnes = chemin('/responsables');
   return (
     <div>
       <h1>Console admin</h1>
-      <p className="muted">
-        Les personnes de l’entité, leurs rôles et leur accès à l’appli se gèrent dans l’onglet{' '}
-        <Link to="/responsables">{!club || club.current.type === 'central' ? 'Responsables' : 'Membres'}</Link>.
-      </p>
+      <PageIntro />
+      {personnes && (
+        <p className="muted">
+          Les personnes de l’entité (poste, rôles, accès à l’appli) se gèrent dans <Link to="/responsables">{personnes}</Link>.
+        </p>
+      )}
       <div className="seg wrap">
         <button className={tab === 'roles' ? 'on' : ''} onClick={() => setTab('roles')}>Rôles & permissions</button>
         <button className={tab === 'lists' ? 'on' : ''} onClick={() => setTab('lists')}>Sections & statuts</button>
@@ -216,7 +221,7 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
       </div>
       <div className="modal-foot">
         {!lock && (
-          <button className="btn danger" disabled={members.length > 0} title={members.length ? 'Retire d’abord ce rôle aux personnes concernées (onglet Utilisateurs)' : ''} onClick={remove}>
+          <button className="btn danger" disabled={members.length > 0} title={members.length ? 'Retire d’abord ce rôle aux personnes concernées (rubrique Personnes)' : ''} onClick={remove}>
             Supprimer
           </button>
         )}

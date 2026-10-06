@@ -375,6 +375,8 @@ export interface Prefs {
   notif?: Partial<NotifPrefs>;
   /** Agenda : entités du club dont les dates (édition, événements) ne sont pas affichées. */
   manifsMasquees?: string[];
+  /** Phrase d'explication en haut des pages (false : masquée). */
+  explications?: boolean;
 }
 
 /** Notification d'activité enregistrée (les rappels d'échéance sont calculés à la volée). */

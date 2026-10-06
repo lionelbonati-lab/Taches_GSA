@@ -5,6 +5,7 @@ import { isOpen } from '../data/polls';
 import { PollCard } from '../components/PollCard';
 import { PollEditor } from '../components/PollEditor';
 import { Empty } from '../components/ui';
+import { PageIntro } from '../components/Nav';
 
 type Filter = 'avoter' | 'encours' | 'termines';
 
@@ -32,6 +33,7 @@ export function Polls() {
         <h1>Sondages</h1>
         {can('polls.create') && <button className="btn primary" onClick={() => setCreating(true)}>+ Nouveau sondage</button>}
       </div>
+      <PageIntro />
       {focused ? (
         <p><a href="#/sondages">← Tous les sondages</a></p>
       ) : (

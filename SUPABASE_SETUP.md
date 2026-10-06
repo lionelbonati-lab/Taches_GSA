@@ -104,7 +104,7 @@ Aucun email n'est envoyé par Supabase (le serveur d'email par défaut est très
    where c.name = '<nom du comité>' and u.email = '<adresse du président>';
    ```
 2. Ouvrir l'appli, choisir **Version réelle**, se connecter : l'écran de mise en route propose de reprendre une sauvegarde de la démo ou de partir d'une base vide.
-3. Corriger les noms et adresses email dans l'onglet Responsables, puis créer les accès dans la console admin.
+3. Corriger les noms et adresses email dans Personnes › Responsables, puis y créer les accès (fiche de la personne › Créer l'accès).
 
 ## À savoir
 

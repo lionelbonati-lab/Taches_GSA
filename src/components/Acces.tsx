@@ -58,10 +58,10 @@ export function AccessCell({ person, access, onChange, onShow }: { person: Perso
   if (!person.actif) return <small className="muted">—</small>;
   return (
     <span className="access">
-      <button className="btn small primary" disabled={busy || !person.email} title={person.email ? '' : 'Ajoute d’abord son adresse email (onglet Responsables)'} onClick={() => act('creer')}>
+      <button className="btn small primary" disabled={busy || !person.email} title={person.email ? '' : 'Ajoute d’abord son adresse email à sa fiche'} onClick={() => act('creer')}>
         {busy ? 'Création…' : 'Créer l’accès'}
       </button>
-      {!person.email && <small className="muted">Adresse email manquante (onglet Responsables)</small>}
+      {!person.email && <small className="muted">Adresse email manquante sur sa fiche</small>}
       {err && <small className="error">{err}</small>}
     </span>
   );

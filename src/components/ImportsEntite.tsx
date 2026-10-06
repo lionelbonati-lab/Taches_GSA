@@ -42,7 +42,7 @@ export function ImportsEntite() {
               Une ligne par personne, avec son poste et son rôle dans cette entité. Une personne déjà présente (même email, sinon même prénom et nom)
               est mise à jour : cellules remplies, rôles ajoutés à ceux qu’elle a déjà ; une personne retirée est réactivée.
               {club && ' Ses coordonnées sont celles du registre « Membres du club » (communes à tout le club).'} L’accès à l’appli se crée ensuite
-              dans l’onglet {central ? 'Responsables' : 'Membres'}.
+              dans Personnes › {central ? 'Responsables' : 'Membres'}.
             </p>
           }
           analyser={(lignes) => analyserPersonnes(lignes, data, { admin, registre })}

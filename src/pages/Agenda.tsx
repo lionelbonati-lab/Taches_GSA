@@ -11,6 +11,7 @@ import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
 import { useUnitLogo } from '../components/Entete';
 import { hasPermission, userRoles } from '../data/permissions';
+import { PageIntro } from '../components/Nav';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
 
@@ -120,6 +121,7 @@ export function Meetings() {
         <h1>Séances du comité</h1>
         {manage && <button className="btn primary" onClick={() => setEdit(newMeeting(data.meetings))}>+ Nouvelle séance</button>}
       </div>
+      <PageIntro />
       <div className="agenda">
         {sorted.map((m) => {
           const tasks = data.tasks.filter((t) => t.meetingId === m.id);
@@ -202,6 +204,7 @@ export function Events() {
         <h1>Événements</h1>
         {manage && <button className="btn primary" onClick={() => setEdit(newEvent())}>+ Nouvel événement</button>}
       </div>
+      <PageIntro />
       <EditionCard />
       <div className="agenda">
         {sorted.map((e) => {

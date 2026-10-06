@@ -11,6 +11,7 @@ import type { Person } from '../data/types';
 import { fullName, isDone, uid } from '../data/utils';
 import { Avatar, Initials, Modal } from '../components/ui';
 import { AccessCell, CredentialsModal, type Shown } from '../components/Acces';
+import { PageIntro } from '../components/Nav';
 
 // Responsables (comité central) ou membres (autres entités) : un seul écran pour les personnes de l'entité,
 // leur poste, leurs rôles et leur accès à l'appli. Les coordonnées viennent du registre « Membres du club ».
@@ -63,6 +64,7 @@ export function People() {
         <h1>{central ? 'Responsables' : 'Membres'}</h1>
         {manage && <button className="btn primary" onClick={() => (club ? setAjout(true) : setEdit(blank()))}>+ Ajouter une personne</button>}
       </div>
+      <PageIntro />
       <div className="people">
         {people.map((p) => {
           const open = data.tasks.filter((t) => t.responsables.includes(p.id) && !isDone(data, t)).length;

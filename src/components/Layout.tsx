@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
-import type { Permission } from '../data/types';
 import { TaskModal, newTask } from './TaskModal';
 import { TicketForm } from './Tickets';
 import { GENRES, type GenreTicket } from '../data/paiements';
@@ -12,35 +11,25 @@ import { showSystemNotification, useNotifications } from '../notifications';
 import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
 import { CENTRAL_ACCESS, centralAccess, UNIT_TYPES } from '../data/units';
+import { SousOnglets, useNavigation } from './Nav';
 import { applyTabIcon, cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 
-export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean; club?: boolean; registre?: boolean }[] = [
-  { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
-  { to: '/taches', label: 'Tâches', icon: '✅', mobile: true },
-  { to: '/agenda', label: 'Agenda', icon: '📅', mobile: true },
-  { to: '/comite', label: 'Comité', icon: '🗓️', perm: 'tab.meetings', mobile: true },
-  { to: '/evenements', label: 'Événements', icon: '🎉', perm: 'tab.events' },
-  { to: '/sondages', label: 'Sondages', icon: '📊' },
-  { to: '/responsables', label: 'Responsables', icon: '👥', perm: 'tab.people' },
-  { to: '/ordre-du-jour', label: 'Ordre du jour', icon: '📝', perm: 'tab.pv' },
-  { to: '/pv', label: 'PV', icon: '🖊️', perm: 'tab.minutes' },
-  { to: '/organigramme', label: 'Organigramme', short: 'Club', icon: '🏛️', club: true },
-  { to: '/membres-club', label: 'Membres du club', short: 'Annuaire', icon: '📇', registre: true },
-  { to: '/reglages', label: 'Réglages', icon: '⚙️' },
-  { to: '/admin', label: 'Console admin', short: 'Admin', icon: '🛡️', perm: 'admin.access' },
-];
-
 export function Layout() {
-  const { user, myRoles, can, login, prefs, setToast, cloud, guest, creatableSections } = useStore();
+  const { user, myRoles, login, prefs, setToast, cloud, guest, creatableSections } = useStore();
   const club = useClubOptional();
   const [quick, setQuick] = useState(false);
   const [ticket, setTicket] = useState<GenreTicket | null>(null);
   const [fab, setFab] = useState(false);
   const [menu, setMenu] = useState(false);
+  const [compte, setCompte] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
-  useEffect(() => setMenu(false), [loc.pathname]);
+  const { rubriques, compte: pagesCompte, ouverte } = useNavigation();
+  useEffect(() => {
+    setMenu(false);
+    setCompte(false);
+  }, [loc.pathname]);
   // Raccourcis de l'application installée (appui long sur l'icône) : « Nouvelle tâche », « Remboursement », « Paiement ».
   useEffect(() => {
     const q = new URLSearchParams(loc.search);
@@ -124,11 +113,13 @@ export function Layout() {
       run: () => setTicket(g),
     })),
   ];
-  // Libellés selon l'entité ouverte : « Séances » pour un groupe, « Membres » hors comité central…
-  const unitType = club?.current.type ?? 'central';
-  const tabs = TABS.filter((t) => (!t.perm || can(t.perm)) && (!t.club || club) && (!t.registre || club?.membresAcces)).map((t) =>
-    t.to === '/comite' ? { ...t, label: UNIT_TYPES[unitType].seances } : t.to === '/responsables' && unitType !== 'central' ? { ...t, label: 'Membres' } : t,
-  );
+  // Rubrique ouverte (sous-onglets) ; sur téléphone, « Plus » regroupe les rubriques hors de la barre du bas et le compte.
+  const rubriqueOuverte = ouverte?.rubrique?.id;
+  const barre = rubriques.filter((r) => r.mobile);
+  const horsBarre = rubriques.filter((r) => !r.mobile);
+  const dansPlus = !!ouverte && !barre.some((r) => r.id === rubriqueOuverte);
+  const sortir = () => login(null);
+  const sortirLabel = cloud ? '🚪 Se déconnecter' : '🔄 Changer d’utilisateur';
 
   return (
     <div className="app">
@@ -140,24 +131,51 @@ export function Layout() {
         </div>
         {club && <UnitSwitch />}
         <nav className="tabs">
-          {tabs.map((t) => (
-            <NavLink key={t.to} to={t.to} end={t.to === '/'} title={t.label}>{t.short ?? t.label}</NavLink>
+          {rubriques.map((r) => (
+            <NavLink key={r.id} to={r.pages[0].to} end className={() => (r.id === rubriqueOuverte ? 'active' : '')} title={r.pages.map((p) => p.label).join(' · ')}>
+              {r.label}
+            </NavLink>
           ))}
         </nav>
         <Bell />
         <div className="who">
           <InstallButton variant="compact" hideWhenUnavailable />
-          <Avatar id={user.id} size={32} />
-          <div className="who-text">
-            <strong>{user.prenom} {user.nom}</strong>
-            <small>{user.poste} · {rolesText}</small>
-          </div>
-          {!cloud && <button className="btn small" onClick={() => login(null)} title="Changer d'utilisateur">Changer</button>}
+          <button
+            className={`who-btn ${compte || (ouverte && !ouverte.rubrique) ? 'on' : ''}`}
+            onClick={() => setCompte(!compte)}
+            aria-expanded={compte}
+            aria-haspopup="menu"
+            title="Mon compte : réglages, console admin, aide"
+          >
+            <Avatar id={user.id} size={32} />
+            <span className="who-text">
+              <strong>{user.prenom} {user.nom}</strong>
+              <small>{user.poste} · {rolesText}</small>
+            </span>
+            <span className="unit-caret">▾</span>
+          </button>
+          {!cloud && <button className="btn small" onClick={sortir} title="Changer d'utilisateur">Changer</button>}
+          {compte && (
+            <>
+              <div className="unit-back" onClick={() => setCompte(false)} />
+              <div className="unit-menu compte-menu" role="menu">
+                <div className="compte-moi">
+                  <strong>{user.prenom} {user.nom}</strong>
+                  <small className="muted">{user.poste} · {rolesText}</small>
+                </div>
+                {pagesCompte.map((p) => (
+                  <NavLink key={p.to} to={p.to} className="unit-item" role="menuitem">{p.icon} {p.label}</NavLink>
+                ))}
+                <button className="unit-item" role="menuitem" onClick={sortir}>{sortirLabel}</button>
+              </div>
+            </>
+          )}
         </div>
       </header>
 
       {guest && <GuestBanner />}
       <main className="content">
+        <SousOnglets />
         <Outlet />
       </main>
 
@@ -183,13 +201,13 @@ export function Layout() {
       )}
 
       <nav className="bottomnav">
-        {tabs.filter((t) => t.mobile).map((t) => (
-          <NavLink key={t.to} to={t.to} end={t.to === '/'}>
-            <span>{t.icon}</span>
-            {t.label}
+        {barre.map((r) => (
+          <NavLink key={r.id} to={r.pages[0].to} end className={() => (r.id === rubriqueOuverte ? 'active' : '')}>
+            <span>{r.icon}</span>
+            {r.label}
           </NavLink>
         ))}
-        <button className={menu ? 'active' : ''} onClick={() => setMenu(!menu)}>
+        <button className={menu || dansPlus ? 'active' : ''} onClick={() => setMenu(!menu)}>
           <span>☰</span>Plus
         </button>
       </nav>
@@ -204,11 +222,22 @@ export function Layout() {
                 <small>{user.poste} · {rolesText}</small>
               </div>
             </div>
-            {tabs.filter((t) => !t.mobile).map((t) => (
-              <NavLink key={t.to} to={t.to} className="sheet-link">{t.icon} {t.label}</NavLink>
+            {horsBarre.map((r) => (
+              <div key={r.id} className="sheet-group">
+                <small className="sheet-titre">{r.label}</small>
+                {r.pages.map((p) => (
+                  <NavLink key={p.to} to={p.to} className="sheet-link">{p.icon} {p.label}</NavLink>
+                ))}
+              </div>
             ))}
-            <InstallButton variant="sheet" />
-            <button className="sheet-link" onClick={() => login(null)}>{cloud ? '🚪 Se déconnecter' : '🔄 Changer d\'utilisateur'}</button>
+            <div className="sheet-group">
+              <small className="sheet-titre">Mon compte</small>
+              {pagesCompte.map((p) => (
+                <NavLink key={p.to} to={p.to} className="sheet-link">{p.icon} {p.label}</NavLink>
+              ))}
+              <InstallButton variant="sheet" />
+              <button className="sheet-link" onClick={sortir}>{sortirLabel}</button>
+            </div>
           </div>
         </div>
       )}

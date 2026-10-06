@@ -138,7 +138,7 @@ export function CloudApp() {
     case 'aucunComite':
       return (
         <Message title="Pas encore d’accès" onSignOut={signOut}>
-          <p>Le compte <b>{email}</b> n’est rattaché à aucun comité. Demande au président de te donner l’accès (onglet Responsables ou Membres de l’entité).</p>
+          <p>Le compte <b>{email}</b> n’est rattaché à aucun comité. Demande au président de te donner l’accès (Personnes › Responsables, ou Membres de l’entité).</p>
         </Message>
       );
     case 'choixComite':

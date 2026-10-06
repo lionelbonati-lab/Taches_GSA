@@ -1,6 +1,6 @@
 import type { Permission, Person, Role } from './types';
 
-export const PERMISSION_GROUPS = ['Tâches', 'Onglets visibles', 'Gestion', 'Administration'] as const;
+export const PERMISSION_GROUPS = ['Tâches', 'Pages visibles', 'Gestion', 'Administration'] as const;
 
 export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMISSION_GROUPS)[number]; sectionScoped?: boolean }[] = [
   { id: 'tasks.viewAll', label: 'Voir toutes les tâches', group: 'Tâches', sectionScoped: true },
@@ -8,12 +8,12 @@ export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMIS
   { id: 'tasks.editAny', label: 'Modifier toutes les tâches', group: 'Tâches', sectionScoped: true },
   { id: 'tasks.editOwn', label: 'Créer et modifier ses propres tâches', group: 'Tâches', sectionScoped: true },
   { id: 'tasks.delete', label: 'Supprimer des tâches', group: 'Tâches', sectionScoped: true },
-  { id: 'tab.meetings', label: 'Onglet Comité', group: 'Onglets visibles' },
-  { id: 'tab.events', label: 'Onglet Événements', group: 'Onglets visibles' },
-  { id: 'tab.people', label: 'Onglet Responsables', group: 'Onglets visibles' },
-  { id: 'tab.pv', label: 'Onglet Ordre du jour', group: 'Onglets visibles' },
-  { id: 'tab.minutes', label: 'Onglet PV (prise de notes, PV)', group: 'Onglets visibles' },
-  { id: 'club.membres', label: 'Onglet Membres du club (registre commun : coordonnées, IBAN, groupes)', group: 'Onglets visibles' },
+  { id: 'tab.meetings', label: 'Comité › Séances (liste des séances, excuses)', group: 'Pages visibles' },
+  { id: 'tab.events', label: 'Agenda › Événements', group: 'Pages visibles' },
+  { id: 'tab.people', label: 'Personnes › Responsables (ou Membres de l’entité)', group: 'Pages visibles' },
+  { id: 'tab.pv', label: 'Comité › Ordre du jour', group: 'Pages visibles' },
+  { id: 'tab.minutes', label: 'Comité › PV (prise de notes, PV)', group: 'Pages visibles' },
+  { id: 'club.membres', label: 'Personnes › Membres du club (registre commun : coordonnées, IBAN, groupes)', group: 'Pages visibles' },
   { id: 'meetings.manage', label: 'Gérer les séances de comité', group: 'Gestion' },
   { id: 'events.manage', label: 'Gérer les événements', group: 'Gestion' },
   { id: 'people.manage', label: 'Gérer les responsables', group: 'Gestion' },
