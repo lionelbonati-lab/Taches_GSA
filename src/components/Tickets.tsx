@@ -5,7 +5,7 @@ import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
 import type { AppData, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre } from '../data/types';
 import {
-  COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, responsablesPour, sectionFinances, signataires, statutPour, timbreDe,
+  COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, peutOuvrirTicket, responsablesPour, sectionFinances, signataires, statutPour, timbreDe,
   type GenreTicket, type Ticket,
 } from '../data/paiements';
 import { SCEAU_RATIO, apposerSceau, renderSceau, type SceauContenu } from '../data/sceau';
@@ -29,13 +29,16 @@ const parseMontant = (s: string) => {
 /** Remboursement ou paiement ouvert depuis les tâches (accueil, agenda, notification…). Rendu hors de #root
  *  pour que « Bon de paiement » n'imprime que lui. */
 export function TicketModal({ task, onClose }: { task: Task; onClose: () => void }) {
-  const { data } = useStore();
+  const { data, user, setToast } = useStore();
   const [edit, setEdit] = useState(false);
+  // Droit vérifié à l'ouverture : la personne qui vise perd l'accès une fois son visa donné (la fenêtre se ferme).
+  const [autorise] = useState(() => peutOuvrirTicket(data, task, user?.id));
   const t = data.tasks.find((x): x is Ticket => x.id === task.id && !!x.paiement);
   useEffect(() => {
-    if (!t) onClose(); // supprimé
+    if (!autorise) setToast(`🔒 « ${task.titre} » : seules la caisse, la personne qui a fait la demande et celle qui doit la viser peuvent l’ouvrir.`);
+    if (!t || !autorise) onClose(); // supprimé, ou pas le droit de l'ouvrir
   }, [!t]);
-  if (!t) return null;
+  if (!t || !autorise) return null;
   if (edit) return <TicketForm ticket={t} onClose={() => setEdit(false)} />;
   const g = genre(t.paiement);
   return createPortal(
@@ -288,7 +291,7 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
         {(p.etat === 'recu' || p.etat === 'refuse') && (mien || caisse) && <button className="btn danger" onClick={supprimer}>Supprimer</button>}
         {(p.etat === 'valide' || p.etat === 'paye') && p.validation?.docVise && <button className="btn" onClick={telecharger}>⬇️ Télécharger : {g.vise.toLowerCase()}</button>}
         {(p.etat === 'valide' || p.etat === 'paye') && <button className="btn" onClick={imprimer}>🖨 Bon de paiement</button>}
-        {p.etat === 'valide' && (caisse || p.validation?.par === moi) && <button className="btn link" onClick={retirerVisa}>Retirer le visa</button>}
+        {p.etat === 'valide' && caisse && <button className="btn link" onClick={retirerVisa}>Retirer le visa</button>}
         {p.etat === 'paye' && caisse && (
           <button className="btn link" onClick={() => confirm('Le virement n’a pas été fait ? La demande revient « à payer ».') && save(t, { etat: 'valide', paye: undefined }, `« ${t.titre} » remis « à payer »`)}>Annuler « payé »</button>
         )}

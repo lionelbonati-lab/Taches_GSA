@@ -3,7 +3,7 @@ import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
-import { ETATS, chf, genre } from '../data/paiements';
+import { ETATS, chf, genre, peutOuvrirTicket } from '../data/paiements';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -114,11 +114,13 @@ export function DocPollIcons({ task }: { task: Task }) {
 
 /** Remboursement / paiement : montant et étape du circuit, dans les listes de tâches. */
 export function TicketTag({ task }: { task: Task }) {
+  const { data, user } = useStore();
   const p = task.paiement;
   if (!p) return null;
+  const ferme = !peutOuvrirTicket(data, task, user?.id);
   return (
-    <small className={`ticket-tag ticket-etat ${p.etat}`} title={`${genre(p).nom} · ${ETATS[p.etat].label}`}>
-      {chf(p.montant)} · {ETATS[p.etat].icon} {ETATS[p.etat].court}
+    <small className={`ticket-tag ticket-etat ${p.etat}`} title={`${genre(p).nom} · ${ETATS[p.etat].label}${ferme ? ' · réservé à la caisse, au demandeur et à la personne qui vise' : ''}`}>
+      {ferme && '🔒 '}{chf(p.montant)} · {ETATS[p.etat].icon} {ETATS[p.etat].court}
     </small>
   );
 }

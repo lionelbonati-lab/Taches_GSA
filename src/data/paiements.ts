@@ -52,6 +52,13 @@ export const holders = (data: AppData, perm: 'paiements.valider' | 'paiements.pa
   return (expres.length ? expres : data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), perm))).map((p) => p.id);
 };
 
+/**
+ * Personnes qui peuvent ouvrir une demande : la caisse, le demandeur et les responsables de l'étape en cours
+ * (la personne qui doit viser, tant que le visa est demandé). Les autres la voient dans la liste sans l'ouvrir.
+ */
+export const peutOuvrirTicket = (data: AppData, t: Task, userId?: string) =>
+  !!userId && !!t.paiement && (holders(data, 'paiements.payer').includes(userId) || t.paiement.demandePar === userId || t.responsables.includes(userId));
+
 /** Personnes actives qui ont le droit par un rôle qui le donne expressément (pas seulement en tant qu'admin). */
 const expresses = (data: AppData, perm: 'paiements.valider' | 'paiements.payer') =>
   data.people.filter((p) => p.actif && userRoles(data.roles, p).some((r) => !r.locked && r.permissions.includes(perm)));
