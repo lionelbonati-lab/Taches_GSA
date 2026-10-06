@@ -8,7 +8,8 @@ import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, parentOf, 
 import { isOpen } from '../data/polls';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { Avatar, StatusBadge } from '../components/ui';
-import { EVENT_FIELDS, ItemModal, checkEvent, MEETING_FIELDS, linkedTasksNote, newEvent, newMeeting, useAgendaActions } from './Agenda';
+import { EVENT_FIELDS, ItemModal, MeetingModal, checkEvent, linkedTasksNote, newEvent, newMeeting, useAgendaActions, useMotSeance } from './Agenda';
+import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
@@ -51,7 +52,8 @@ function longDate(date: string) {
 export function Calendar() {
   const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, setToast } = useStore();
   const club = useClubOptional();
-  const { saveMeeting, removeMeeting, saveEvent, removeEvent } = useAgendaActions();
+  const { saveMeeting, saveEvent, removeEvent } = useAgendaActions();
+  const motSeance = useMotSeance();
   const navigate = useNavigate();
   const [month, setMonth] = useState(monthOf(today()));
   const [selected, setSelected] = useState(today());
@@ -170,7 +172,7 @@ export function Calendar() {
   const create = (kind: 'meeting' | 'task' | 'event', date: string) => {
     setMenu(null);
     setSelected(date);
-    if (kind === 'meeting') setMeeting(newMeeting(data.meetings, date));
+    if (kind === 'meeting') setMeeting(newMeeting(data.meetings, date, motSeance));
     else if (kind === 'event') setEvent(newEvent(date));
     else setTask({ t: newTask(user.id, { delai: date }), isNew: true });
   };
@@ -196,8 +198,10 @@ export function Calendar() {
     const when = fmtDate(date);
     if (it.kind === 'meeting') {
       const n = data.tasks.filter((t) => t.meetingId === it.m.id && t.delaiRef?.type === 'meeting').length;
-      saveMeeting({ ...it.m, date });
-      setToast(`🗓️ ${it.m.titre} déplacé au ${when}${n ? ` · le délai de ${n} tâche(s) suit` : ''}`);
+      // « Comité de mars 2027 » glissé en avril devient « Comité d’avril 2027 ».
+      const titre = titreSelonDate(it.m.titre, date) ?? it.m.titre;
+      saveMeeting({ ...it.m, date, titre });
+      setToast(`🗓️ ${titre} déplacé au ${when}${n ? ` · le délai de ${n} tâche(s) suit` : ''}`);
     } else if (it.kind === 'event') {
       // Glisser un des jours déplace tout l'événement.
       const delta = diffDays(it.date, date);
@@ -415,17 +419,7 @@ export function Calendar() {
       </div>
 
       {task && <TaskModal task={task.t} isNew={task.isNew} onClose={() => setTask(null)} />}
-      {meeting && (
-        <ItemModal
-          title="Séance de comité"
-          item={meeting}
-          note={linkedTasksNote(data.tasks, meeting.id, 'meeting')}
-          fields={MEETING_FIELDS}
-          onSave={saveMeeting}
-          onDelete={data.meetings.some((x) => x.id === meeting.id) ? removeMeeting : undefined}
-          onClose={() => setMeeting(null)}
-        />
-      )}
+      {meeting && <MeetingModal meeting={meeting} onClose={() => setMeeting(null)} />}
       {event && (
         <ItemModal
           title="Événement"

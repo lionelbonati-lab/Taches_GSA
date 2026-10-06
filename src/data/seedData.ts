@@ -391,7 +391,7 @@ export const sections: AppData['sections'] = [
 export const meetings: AppData['meetings'] = [
   {
     "id": "m1",
-    "titre": "Comité 1",
+    "titre": "Comité d’avril 2026",
     "date": "2026-04-09",
     "heure": "19:30",
     "lieu": "À définir",
@@ -400,7 +400,7 @@ export const meetings: AppData['meetings'] = [
   },
   {
     "id": "m2",
-    "titre": "Comité 2",
+    "titre": "Comité de mai 2026",
     "date": "2026-05-19",
     "heure": "19:30",
     "lieu": "Chez un membre du comité",
@@ -409,7 +409,7 @@ export const meetings: AppData['meetings'] = [
   },
   {
     "id": "m3",
-    "titre": "Comité 3",
+    "titre": "Comité de juin 2026",
     "date": "2026-06-30",
     "heure": "19:30",
     "lieu": "Chez un membre du comité",
@@ -418,7 +418,7 @@ export const meetings: AppData['meetings'] = [
   },
   {
     "id": "m4",
-    "titre": "Comité 4",
+    "titre": "Comité de septembre 2026",
     "date": "2026-09-03",
     "heure": "19:30",
     "lieu": "Chez un membre du comité",
@@ -427,7 +427,7 @@ export const meetings: AppData['meetings'] = [
   },
   {
     "id": "m5",
-    "titre": "Comité 5",
+    "titre": "Comité d’octobre 2026",
     "date": "2026-10-29",
     "heure": "19:30",
     "lieu": "À définir",
@@ -436,7 +436,7 @@ export const meetings: AppData['meetings'] = [
   },
   {
     "id": "m6",
-    "titre": "Comité 6",
+    "titre": "Comité de décembre 2026",
     "date": "2026-12-03",
     "heure": "19:30",
     "lieu": "À définir",
@@ -445,7 +445,7 @@ export const meetings: AppData['meetings'] = [
   },
   {
     "id": "m7",
-    "titre": "Comité 7",
+    "titre": "Comité de janvier 2027",
     "date": "2027-01-26",
     "heure": "19:30",
     "lieu": "À définir",
@@ -454,7 +454,7 @@ export const meetings: AppData['meetings'] = [
   },
   {
     "id": "m8",
-    "titre": "Comité 8",
+    "titre": "Comité de février 2027",
     "date": "2027-02-25",
     "heure": "19:30",
     "lieu": "À définir",
@@ -463,7 +463,7 @@ export const meetings: AppData['meetings'] = [
   },
   {
     "id": "m9",
-    "titre": "Comité 1 (2027)",
+    "titre": "Comité de mars 2027",
     "date": "2027-03-18",
     "heure": "19:30",
     "lieu": "À définir",

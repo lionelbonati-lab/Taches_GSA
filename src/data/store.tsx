@@ -3,6 +3,7 @@ import { makeSeed } from './seed';
 import { statuses as STATUSES } from './seedData';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
+import { seancePourSuivante } from './seances';
 import type { ActivityNotif, AppData, ChecklistItem, Guest, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
 import { clearFiles } from './files';
 import { AUTRE_ID } from './polls';
@@ -352,8 +353,13 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
 
       // Clôture d'une tâche récurrente → création de l'occurrence suivante.
       let next: Task | undefined;
+      let seance: ReturnType<typeof seancePourSuivante>;
       if (task.recurrence && !task.suivanteId && isDone(data, task) && !(before && isDone(data, before))) {
-        next = nextOccurrence(data, task);
+        // Tâche annuelle liée à une séance : elle passe à la séance du même mois l'an prochain (créée au besoin,
+        // sauf par un invité du comité central qui ne peut pas ajouter de séance).
+        seance = seancePourSuivante(data, task);
+        if (seance?.nouvelle && guest) seance = undefined;
+        next = nextOccurrence(data, task, seance?.meeting);
         task.suivanteId = next.id;
       }
 
@@ -385,7 +391,14 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           if (isNew) d.tasks.unshift(task);
           else d.tasks = d.tasks.map((x) => (x.id === task.id ? task : x));
           if (next) {
-            d.tasks.unshift(next);
+            let suivante = next;
+            if (seance?.nouvelle) {
+              // Ajoutée entre-temps (deux tâches clôturées d'affilée) : la tâche rejoint celle-ci.
+              const deja = d.meetings.find((m) => !m.unique && m.date.slice(0, 7) === seance!.meeting.date.slice(0, 7));
+              if (!deja) d.meetings.push(seance.meeting);
+              else suivante = applyDelaiRef(d, { ...next, meetingId: deja.id });
+            }
+            d.tasks.unshift(suivante);
             // Tâche principale reconduite : les occurrences suivantes de ses tâches liées la rejoignent.
             d.tasks
               .filter((x) => x.parentId === task.id)
@@ -399,9 +412,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
         },
         `${isNew ? 'Création' : 'Modification'} de la tâche « ${t.titre} »` +
-          (next ? ` — tâche récurrente : prochaine occurrence le ${fmtDate(next.delai)} pour ${who}` : ''),
+          (next ? ` — tâche récurrente : prochaine occurrence le ${fmtDate(next.delai)} pour ${who}` : '') +
+          (seance ? `, séance « ${seance.meeting.titre} »${seance.nouvelle ? ' (ajoutée)' : ''}` : ''),
       );
-      if (next) setToast(`🔁 Tâche récurrente reconduite au ${fmtDate(next.delai)} · ${who}`);
+      if (next) setToast(`🔁 Tâche récurrente reconduite au ${fmtDate(next.delai)} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
     },
     [update, data, userId, guest],
   );

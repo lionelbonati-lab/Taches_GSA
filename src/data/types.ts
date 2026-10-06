@@ -229,6 +229,8 @@ export interface Meeting {
   excuses?: Excuse[];
   /** Ordre du jour modifié à la main : remplace le document généré tant qu'on ne revient pas à celui-ci. */
   odjEdite?: { html: string; le: string; par: string };
+  /** Séance ponctuelle : ne revient pas l'année suivante (par défaut, une séance revient chaque année le même mois). */
+  unique?: boolean;
 }
 
 export interface Excuse {

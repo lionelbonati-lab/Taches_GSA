@@ -1,4 +1,4 @@
-import type { AppData, DelaiRef, DelaiUnite, Person, Recurrence, Task } from './types';
+import type { AppData, DelaiRef, DelaiUnite, Meeting, Person, Recurrence, Task } from './types';
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -131,13 +131,16 @@ export function delaiTarget(data: AppData, t: Task): { nom: string; date: string
   return m ? { nom: m.titre, date: m.date } : null;
 }
 
+/** Délai d'après la date de l'événement / de la séance et le décalage. */
+export const delaiDepuis = (r: Decalage, date: string) =>
+  r.unite === 'mois' && r.moisAvant !== undefined ? addMonths(date, -r.moisAvant) : addDays(date, -r.joursAvant);
+
 /** Recalcule le délai lié (ou retire le lien si l'événement / la séance n'existe plus). */
 export function applyDelaiRef<T extends Task>(data: AppData, t: T): T {
   if (!t.delaiRef) return t;
   const target = delaiTarget(data, t);
   if (!target) return { ...t, delaiRef: undefined };
-  const r = t.delaiRef;
-  return { ...t, delai: r.unite === 'mois' && r.moisAvant !== undefined ? addMonths(target.date, -r.moisAvant) : addDays(target.date, -r.joursAvant) };
+  return { ...t, delai: delaiDepuis(t.delaiRef, target.date) };
 }
 
 // ---------- Tâches récurrentes ----------
@@ -205,21 +208,25 @@ function nextParent(data: AppData, t: Task) {
   return parent.recurrence ? undefined : parent.id;
 }
 
-/** Prépare l'occurrence suivante d'une tâche récurrente qui vient d'être clôturée. */
-export function nextOccurrence(data: AppData, t: Task): Task {
+/**
+ * Prépare l'occurrence suivante d'une tâche récurrente qui vient d'être clôturée.
+ * `seance` : séance de l'année suivante pour une tâche annuelle liée à une séance (son délai lié la suit).
+ */
+export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
   const open = data.statuses.find((s) => !s.done) ?? data.statuses[0];
+  const suit = seance && t.delaiRef?.type === 'meeting' ? t.delaiRef : undefined;
   return {
     ...t,
     id: uid('t'),
     statusId: open.id,
-    delai: t.delai ? nextDate(t.delai, t.recurrence!) : '',
+    delai: suit ? delaiDepuis(suit, seance!.date) : t.delai ? nextDate(t.delai, t.recurrence!) : '',
     responsables: nextResponsables(data, t),
     checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
     parentId: nextParent(data, t),
-    // L'événement / la séance de cette année ne concernent pas l'occurrence suivante.
+    // L'événement de cette année ne concerne pas l'occurrence suivante ; la séance, seulement celle du même mois l'an prochain.
     eventId: undefined,
-    meetingId: undefined,
-    delaiRef: undefined,
+    meetingId: seance?.id,
+    delaiRef: suit,
     suivanteId: undefined,
     // La demande d'une autre entité concernait cette occurrence-ci.
     proposee: undefined,
