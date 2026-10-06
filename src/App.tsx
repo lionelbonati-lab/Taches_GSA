@@ -53,6 +53,7 @@ export function App() {
           {club?.membresAcces && <Route path="membres-club" element={<MembresClub />} />}
           <Route path="reglages" element={<Settings />} />
           {can('admin.access') && <Route path="admin" element={<Admin />} />}
+          {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}
           <Route path="aide" element={<Aide />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

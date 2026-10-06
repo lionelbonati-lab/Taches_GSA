@@ -1,5 +1,5 @@
-import { Fragment, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Fragment, useState, type ReactNode } from 'react';
+import { Link, Navigate, useParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { PERMISSIONS, PERMISSION_GROUPS } from '../data/permissions';
 import type { Permission, Role } from '../data/types';
@@ -10,39 +10,125 @@ import { ImportsEntite } from '../components/ImportsEntite';
 import { CentralAccessPanel } from '../components/CentralAccess';
 import { LogoPanel } from '../components/LogoPanel';
 import { PageIntro, useChemin } from '../components/Nav';
+import { CENTRAL_ACCESS, centralAccess } from '../data/units';
+import { COULEURS_APPLI } from '../data/couleur';
 
-type Tab = 'roles' | 'lists' | 'import' | 'logo' | 'central' | 'log';
+type Partie = { id: string; icon: string; titre: string; carte: string; aide: string; resume: string; contenu: ReactNode };
 
+/** Console admin : une page d'accueil qui explique chaque partie, puis une adresse par partie (/admin/droits…). */
 export function Admin() {
-  const [tab, setTab] = useState<Tab>('roles');
+  const { partie } = useParams();
+  const { data, prefs } = useStore();
   const club = useClubOptional();
-  // Sous-comité, groupe ou équipe : ce que le comité central peut faire de ses données.
-  const sub = !!club && club.current.type !== 'central';
   const chemin = useChemin();
+  const u = club?.current;
+  const central = !u || u.type === 'central';
+  // Sous-comité, groupe ou équipe : ce que le comité central peut faire de ses données.
+  const sub = !!u && !central;
   const personnes = chemin('/responsables');
+
+  const couleur = u?.couleurAppli ?? (sub ? club?.central?.couleurAppli : undefined);
+  const nomCouleur = couleur ? COULEURS_APPLI.find((x) => x.c === couleur.toLowerCase())?.nom.toLowerCase() ?? 'personnalisée' : 'bleu d’origine';
+  const parties: Partie[] = [
+    {
+      id: 'droits',
+      icon: '🔑',
+      titre: 'Rôles et droits',
+      carte: `Ce que chaque rôle (Secrétaire, Caissier…) permet de voir et de faire${sub ? ', et l’accès du comité central' : ''}.`,
+      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans ${personnes ?? 'sa fiche'} ; ici, tu coches ce que chaque rôle permet de voir et de faire.${sub ? ' Et ce que le comité central peut faire des données de l’entité.' : ''}`,
+      resume: `${data.roles.length} rôles${u && sub ? ` · comité central : ${CENTRAL_ACCESS[centralAccess(u)].label.toLowerCase()}` : ''}`,
+      contenu: (
+        <>
+          {sub && <CentralAccessPanel />}
+          {sub && <h2>Rôles de l’entité</h2>}
+          <Roles />
+        </>
+      ),
+    },
+    {
+      id: 'taches',
+      icon: '🗂️',
+      titre: 'Sections et statuts',
+      carte: 'Le rangement des tâches (sections, sous-sections) et leurs étapes (À faire, En cours…).',
+      aide: 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV) et leurs étapes (À faire, En cours, Terminé…).',
+      resume: `${data.sections.length} sections · ${data.statuses.length} statuts`,
+      contenu: <Lists />,
+    },
+    ...(u
+      ? [
+          {
+            id: 'apparence',
+            icon: '🎨',
+            titre: 'Apparence',
+            carte: central ? 'Logo, couleur, nom et icône de l’appli.' : 'Logo de l’entité et couleur de l’appli.',
+            aide: central
+              ? 'Logo et couleur de l’appli pour tout le club, et le nom et l’icône de l’appli installée sur les téléphones.'
+              : 'Logo de l’entité (en-tête de l’appli, documents) et couleur de l’appli quand elle est ouverte.',
+            resume: `${u.logo ? 'Logo choisi' : central ? 'Pas de logo' : 'Logo du club'} · couleur ${nomCouleur}`,
+            contenu: <LogoPanel />,
+          },
+        ]
+      : []),
+    {
+      id: 'import',
+      icon: '📥',
+      titre: 'Importer un fichier',
+      carte: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur.',
+      aide: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur (fichier CSV, avec un modèle à télécharger).',
+      resume: `${central ? 'Responsables' : 'Membres'}, tâches, événements`,
+      contenu: <ImportsEntite />,
+    },
+    {
+      id: 'historique',
+      icon: '🕓',
+      titre: 'Historique',
+      carte: 'Qui a fait quoi, et quand.',
+      aide: 'Toutes les modifications faites dans l’entité : qui a fait quoi, et quand.',
+      resume: data.log[0] ? `Dernière : ${fmtDateTime(data.log[0].at)}` : 'Aucune modification',
+      contenu: <Log />,
+    },
+  ];
+  const ouverte = parties.find((x) => x.id === partie);
+  if (partie && !ouverte) return <Navigate to="/admin" replace />;
+
+  if (ouverte)
+    return (
+      <div>
+        <p className="admin-retour no-print">
+          <Link to="/admin">‹ Console admin</Link>
+        </p>
+        <h1>{ouverte.icon} {ouverte.titre}</h1>
+        {prefs.explications !== false && <p className="page-intro">{ouverte.aide}</p>}
+        {ouverte.contenu}
+      </div>
+    );
+
   return (
     <div>
       <h1>Console admin</h1>
       <PageIntro />
-      {personnes && (
-        <p className="muted">
-          Les personnes de l’entité (poste, rôles, accès à l’appli) se gèrent dans <Link to="/responsables">{personnes}</Link>.
-        </p>
-      )}
-      <div className="seg wrap">
-        <button className={tab === 'roles' ? 'on' : ''} onClick={() => setTab('roles')}>Rôles & permissions</button>
-        <button className={tab === 'lists' ? 'on' : ''} onClick={() => setTab('lists')}>Sections & statuts</button>
-        <button className={tab === 'import' ? 'on' : ''} onClick={() => setTab('import')}>Import CSV</button>
-        {club && <button className={tab === 'logo' ? 'on' : ''} onClick={() => setTab('logo')}>{club.current.type === 'central' ? 'Logo, couleur et nom' : 'Logo et couleur'}</button>}
-        {sub && <button className={tab === 'central' ? 'on' : ''} onClick={() => setTab('central')}>Accès du comité central</button>}
-        <button className={tab === 'log' ? 'on' : ''} onClick={() => setTab('log')}>Journal d'activité</button>
+      <div className="admin-cartes">
+        {personnes && (
+          <Link to="/responsables" className="panel admin-carte">
+            <span className="admin-carte-icone" aria-hidden>👥</span>
+            <span>
+              <b>Personnes et accès</b>
+              <span className="muted">Ajouter quelqu’un, lui donner un poste et un rôle, créer son accès à l’appli.</span>
+              <small>Dans {personnes} · {data.people.filter((x) => x.actif).length} personnes</small>
+            </span>
+          </Link>
+        )}
+        {parties.map((x) => (
+          <Link key={x.id} to={`/admin/${x.id}`} className="panel admin-carte">
+            <span className="admin-carte-icone" aria-hidden>{x.icon}</span>
+            <span>
+              <b>{x.titre}</b>
+              <span className="muted">{x.carte}</span>
+              <small>{x.resume}</small>
+            </span>
+          </Link>
+        ))}
       </div>
-      {tab === 'roles' && <Roles />}
-      {tab === 'lists' && <Lists />}
-      {tab === 'import' && <ImportsEntite />}
-      {tab === 'logo' && <LogoPanel />}
-      {tab === 'central' && <CentralAccessPanel />}
-      {tab === 'log' && <Log />}
     </div>
   );
 }

@@ -78,7 +78,7 @@ const RUBRIQUES: NavRubrique[] = [
 /** Menu du compte (en haut à droite ; « Plus » sur téléphone). */
 export const PAGES_COMPTE: NavPage[] = [
   { to: '/reglages', label: 'Réglages', icon: '⚙️', aide: 'Ton compte, l’affichage, les notifications et la sauvegarde.' },
-  { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access', aide: 'Pour les admins : rôles et droits, sections et statuts, imports, logo et couleur, journal d’activité.' },
+  { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access', aide: 'Les réglages de l’entité, réservés à ses admins. Choisis ce que tu veux régler.' },
   { to: '/aide', label: 'Comment ça marche ?', icon: '❓', aide: 'Où trouver quoi, et les gestes courants.' },
 ];
 

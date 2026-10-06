@@ -1014,3 +1014,16 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .import-compte { gap: 6px; }
 .import-fini { font-weight: 600; }
 .seg + .import-csv { margin-top: 12px; }
+
+/* Console admin : page d'accueil à cartes, puis une page par partie. */
+.admin-cartes { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 12px; }
+.admin-carte { display: flex; gap: 14px; align-items: flex-start; margin: 0; padding: 16px; color: var(--text); transition: border-color 0.15s, transform 0.15s; }
+.admin-carte:hover { border-color: var(--primary); text-decoration: none; transform: translateY(-1px); }
+.admin-carte > span:last-child { display: flex; flex-direction: column; gap: 4px; }
+.admin-carte b { font-size: 1.05rem; }
+.admin-carte .muted { font-size: 0.92rem; line-height: 1.35; }
+.admin-carte small { color: var(--primary); font-weight: 600; font-size: 0.8rem; }
+.admin-carte-icone { font-size: 1.6rem; line-height: 1; width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.admin-retour { margin: -6px 0 4px; }
+.admin-retour a { font-weight: 600; }
+@media (max-width: 767px) { .admin-cartes { grid-template-columns: 1fr; } }

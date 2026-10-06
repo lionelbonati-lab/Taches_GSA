@@ -1,4 +1,4 @@
-// Nom de l'appli : celui publié avec le site (Console admin du comité central › Logo, couleur et nom),
+// Nom de l'appli : celui publié avec le site (Console admin du comité central › Apparence),
 // repris de la page (meta « application-name », écrite à la publication : scripts/icones-club.mjs), sinon « Tâches GSA ».
 
 export const NOM_ORIGINE = 'Tâches GSA';

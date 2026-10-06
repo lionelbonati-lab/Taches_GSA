@@ -31,7 +31,8 @@ export function Aide() {
   geste('Thème sombre, notifications', vers('/reglages'), '.');
   if (chemin('/responsables') && can('admin.access'))
     geste('Donner l’accès à l’appli à quelqu’un', vers('/responsables'), ' : « + Ajouter une personne » avec son email, puis « Créer l’accès ».');
-  if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles & permissions ».');
+  if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ».');
+  if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
 
   return (
     <div className="narrow aide-page">

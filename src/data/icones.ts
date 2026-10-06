@@ -3,7 +3,7 @@ import { isCouleur, teintes } from './couleur';
 
 // Icône de l'appli installée (écran d'accueil, accès rapides, notifications) : fichiers fixes du site (public/),
 // seuls fiables pour l'installation. Par défaut le logo du G.S. Ajoie ; les admins du comité central peuvent
-// la remplacer par le logo du club (Console admin › Logo, couleur et nom). L'appli prépare alors les images et les dépose
+// la remplacer par le logo du club (Console admin › Apparence). L'appli prépare alors les images et les dépose
 // dans le stockage public du serveur (bucket « gsa-public », dossier du comité central, migration 017) ;
 // la publication du site les reprend (scripts/icones-club.mjs, vérifié toutes les heures). Le nom de l'appli suit le même chemin.
 

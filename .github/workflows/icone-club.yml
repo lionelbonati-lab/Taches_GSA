@@ -1,4 +1,4 @@
-# Nom et icône de l'appli : les admins du comité central les changent dans l'appli (Console admin › Logo, couleur et nom).
+# Nom et icône de l'appli : les admins du comité central les changent dans l'appli (Console admin › Apparence).
 # Toutes les heures, ce workflow regarde si la version déposée sur le serveur est déjà en ligne, sinon relance la publication.
 # « Run workflow » (onglet Actions) fait la même vérification tout de suite.
 name: Nom et icône de l'appli
