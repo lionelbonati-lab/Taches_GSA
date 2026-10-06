@@ -906,6 +906,8 @@ code.password { font-size: 1.1rem; padding: 2px 8px; border-radius: 6px; backgro
 .couleur-apercu { align-items: center; gap: 10px; margin-top: 10px; }
 .couleur-panel { margin-top: 14px; }
 .icone-panel { margin-top: 14px; }
+.icone-panel h3 { margin: 16px 0 6px; font-size: 1rem; }
+.nom-appli input { flex: 1 1 220px; max-width: 320px; }
 .icone-apercus { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; margin: 12px 0; }
 .icone-apercus figure { margin: 0; display: grid; justify-items: center; gap: 6px; font-size: 0.8rem; color: var(--muted); }
 .icone-app { width: 72px; height: 72px; border-radius: 16px; background: #fff; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.25); }

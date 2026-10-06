@@ -10,6 +10,7 @@ import { migrate, SCHEMA } from '../data/store';
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { fmtDateTime, fullName, posteBesideName, uid } from '../data/utils';
 import type { AppData, Person } from '../data/types';
+import { nomAppli } from '../data/nomAppli';
 import { sortUnits, UNIT_TYPES } from '../data/units';
 
 // Écrans de la version réelle (avant d'entrer dans l'appli) et écran d'accueil (choix démo / version réelle).
@@ -19,7 +20,7 @@ function Card({ children, wide }: { children: ReactNode; wide?: boolean }) {
     <div className="login">
       <div className={`login-card ${wide ? 'wide' : ''}`}>
         <AppLogo size={56} />
-        <h1>Tâches GSA</h1>
+        <h1>{nomAppli()}</h1>
         {children}
       </div>
     </div>

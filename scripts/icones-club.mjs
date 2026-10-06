@@ -1,12 +1,14 @@
-// Icône de l'appli installée choisie dans la console admin (logo du club), reprise à la publication du site.
-// Les admins du comité central déposent les images dans le stockage public du serveur (migration 017) ;
-// ce script les copie dans dist/ à la place des icônes d'origine (public/), après contrôle (PNG à la bonne taille).
+// Nom et icône de l'appli installée choisis dans la console admin (comité central), repris à la publication du site.
+// Les admins du comité central déposent version.json (icône tirée du logo et/ou nom) et les images dans le stockage
+// public du serveur (migration 017) ; ce script les copie dans dist/ à la place des icônes d'origine (public/), après
+// contrôle (PNG à la bonne taille), et écrit le nom dans le manifest et la page (titre, meta).
 //
-//   node scripts/icones-club.mjs publier dist   → copie l'icône du club dans dist/ (ou garde celle d'origine)
-//   node scripts/icones-club.mjs verifier        → changement=true|false (GITHUB_OUTPUT) : icône déposée ≠ icône en ligne
+//   node scripts/icones-club.mjs publier dist   → applique le nom et l'icône du club à dist/ (ou garde ceux d'origine)
+//   node scripts/icones-club.mjs verifier        → changement=true|false (GITHUB_OUTPUT) : version déposée ≠ version en ligne
 //
-// Serveur injoignable : on reprend l'icône actuellement en ligne plutôt que de revenir à celle d'origine.
-// Images refusées : icône d'origine, et la version refusée est notée (pas de nouvelle publication à chaque vérification).
+// Serveur injoignable : on reprend ce qui est actuellement en ligne plutôt que de revenir à l'origine.
+// Envoi refusé (image ou nom non valable) : nom et icône d'origine, et la version refusée est notée
+// (pas de nouvelle publication à chaque vérification).
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -47,7 +49,7 @@ async function lireJson(url) {
   return v && typeof v === 'object' ? v : null;
 }
 
-/** version.json d'un dossier : objet, null (aucune icône). */
+/** version.json d'un dossier : objet, null (rien de personnalisé). */
 async function lireVersion(url) {
   const v = await lireJson(url);
   return v && versionValide(v.version) ? v : null;
@@ -81,7 +83,7 @@ async function telecharger(base, version) {
   return images;
 }
 
-/** Icône déposée sur le serveur ; serveur injoignable : celle en ligne. */
+/** Version déposée sur le serveur ; serveur injoignable : celle en ligne. */
 async function iconeVoulue() {
   if (!SOURCE) return { version: null };
   try {
@@ -89,33 +91,64 @@ async function iconeVoulue() {
     return v ? { ...v, base: SOURCE } : { version: null };
   } catch (e) {
     if (!(e instanceof Injoignable) || !SITE) throw e;
-    console.warn(`Serveur injoignable (${e.message}) : icône actuellement en ligne gardée.`);
+    console.warn(`Serveur injoignable (${e.message}) : version actuellement en ligne gardée.`);
     const v = await lireVersion(`${SITE}icone-version.json`).catch(() => null);
     return v ? { ...v, base: SITE } : { version: null };
   }
 }
 
+const NOM_MAX = 30;
+/** Nom choisi : texte propre de 30 caractères au plus ; undefined sans nom, null s'il n'est pas valable. */
+function nomChoisi(v) {
+  if (v.nom === undefined || v.nom === null) return undefined;
+  if (typeof v.nom !== 'string') return null;
+  const n = v.nom.replace(/\s+/g, ' ').trim();
+  return n && n.length <= NOM_MAX && !/[\u0000-\u001f\u007f<>]/.test(n) ? n : null;
+}
+const html = (t) => t.replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 async function publier(dist) {
   const voulue = await iconeVoulue();
-  const images = voulue.version ? await telecharger(voulue.base, voulue.version) : null;
-  if (!images) {
-    fs.writeFileSync(path.join(dist, 'icone-version.json'), `${JSON.stringify({ version: null, refusee: voulue.version ?? undefined })}\n`);
-    console.log(voulue.version ? `Icône du club ${voulue.version} refusée : icône d'origine (public/).` : "Icône d'origine (public/).");
+  const ecrire = (v) => fs.writeFileSync(path.join(dist, 'icone-version.json'), `${JSON.stringify(v)}\n`);
+  if (!voulue.version) {
+    ecrire({ version: null });
+    console.log("Nom et icône d'origine.");
     return;
   }
-  for (const [nom, buf] of Object.entries(images)) fs.writeFileSync(path.join(dist, nom), buf);
-  const { base: _base, ...version } = voulue;
-  fs.writeFileSync(path.join(dist, 'icone-version.json'), `${JSON.stringify(version)}\n`);
-  // Nouvelles adresses : les navigateurs et Android voient que l'icône a changé.
-  for (const f of ['manifest.webmanifest', 'index.html']) {
-    const p = path.join(dist, f);
-    let s = fs.readFileSync(p, 'utf8');
-    for (const nom of Object.keys(TAILLES)) s = s.replace(new RegExp(`(["/])${nom.replaceAll('.', '\\.')}"`, 'g'), `$1${nom}?v=${version.version}"`);
-    fs.writeFileSync(p, s);
+  const icone = voulue.icone !== false;
+  const nom = nomChoisi(voulue);
+  const images = nom === null ? null : icone ? await telecharger(voulue.base, voulue.version) : {};
+  if (!images) {
+    ecrire({ version: null, refusee: voulue.version });
+    console.log(`Envoi ${voulue.version} refusé (${nom === null ? 'nom non valable' : 'images non valables'}) : nom et icône d'origine.`);
+    return;
   }
+  for (const [n, buf] of Object.entries(images)) fs.writeFileSync(path.join(dist, n), buf);
+  const { base: _base, ...version } = voulue;
+  ecrire({ ...version, icone, nom });
+  const v = version.version;
+
+  // Manifest : nom, et nouvelles adresses des icônes (les navigateurs et Android voient qu'elles ont changé).
+  const pm = path.join(dist, 'manifest.webmanifest');
+  const man = JSON.parse(fs.readFileSync(pm, 'utf8'));
+  if (nom) man.name = man.short_name = nom;
+  if (icone) [...man.icons, ...(man.shortcuts ?? []).flatMap((r) => r.icons ?? [])].forEach((i) => (i.src = `${i.src}?v=${v}`));
+  fs.writeFileSync(pm, `${JSON.stringify(man, null, 2)}\n`);
+
+  // Page : titre et nom de l'appli (iPhone, appli), adresses des icônes.
+  const ph = path.join(dist, 'index.html');
+  let page = fs.readFileSync(ph, 'utf8');
+  if (nom) {
+    page = page
+      .replace(/<title>[^<]*<\/title>/, () => `<title>${html(nom)}</title>`)
+      .replace(/(<meta name="(?:apple-mobile-web-app-title|application-name)" content=")[^"]*"/g, (_, debut) => `${debut}${html(nom)}"`);
+  }
+  if (icone) for (const n of Object.keys(TAILLES)) page = page.replace(new RegExp(`(["/])${n.replaceAll('.', '\\.')}"`, 'g'), (_, a) => `${a}${n}?v=${v}"`);
+  fs.writeFileSync(ph, page);
+
   const sw = path.join(dist, 'sw.js');
-  fs.writeFileSync(sw, fs.readFileSync(sw, 'utf8').replace(/const CACHE = '([^']+)'/, `const CACHE = '$1-${version.version}'`));
-  console.log(`Icône du club ${version.version} (déposée le ${version.date}).`);
+  fs.writeFileSync(sw, fs.readFileSync(sw, 'utf8').replace(/const CACHE = '([^']+)'/, (_, c) => `const CACHE = '${c}-${v}'`));
+  console.log(`Version ${v} du ${version.date} : ${nom ? `nom « ${nom} »` : "nom d'origine"}, ${icone ? 'icône du club' : "icône d'origine"}.`);
 }
 
 async function verifier() {
@@ -123,10 +156,10 @@ async function verifier() {
   try {
     const deposee = SOURCE ? await lireVersion(`${SOURCE}version.json`) : null;
     const enLigne = await lireJson(`${SITE}icone-version.json`).catch(() => null);
-    // Version traitée par la dernière publication : en ligne, ou refusée (images non valables).
+    // Version traitée par la dernière publication : en ligne, ou refusée (envoi non valable).
     const traitee = [enLigne?.version, enLigne?.refusee].find(versionValide) ?? null;
     changement = (deposee?.version ?? null) !== traitee;
-    console.log(`Icône déposée : ${deposee?.version ?? "d'origine"} ; dernière publication : ${traitee ?? "d'origine"}.`);
+    console.log(`Version déposée : ${deposee?.version ?? "d'origine"} ; dernière publication : ${traitee ?? "d'origine"}.`);
   } catch (e) {
     console.warn(`Vérification impossible : ${e.message}`);
   }

@@ -10,6 +10,7 @@ import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { useClubOptional } from '../data/club';
+import { nomAppli } from '../data/nomAppli';
 import { CENTRAL_ACCESS, centralAccess, UNIT_TYPES } from '../data/units';
 import { applyTabIcon, cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
@@ -67,7 +68,7 @@ export function Layout() {
       /* ignore */
     }
     showSystemNotification(
-      `Tâches GSA · ${unread.length} notification${unread.length > 1 ? 's' : ''}`,
+      `${nomAppli()} · ${unread.length} notification${unread.length > 1 ? 's' : ''}`,
       unread.slice(0, 3).map((n) => `${n.icon} ${n.text}`).join('\n'),
       unread[0].link,
     );
@@ -87,7 +88,7 @@ export function Layout() {
     if (!fresh.length) return;
     fresh.forEach((n) => ref.keys.add(n.key));
     setToast(`📧 ${fresh[0].text}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''} — voir la cloche 🔔`);
-    if (notifPrefs.systeme) showSystemNotification('Tâches GSA · email à envoyer', fresh.map((n) => n.text).join('\n'), fresh[0].link);
+    if (notifPrefs.systeme) showSystemNotification(`${nomAppli()} · email à envoyer`, fresh.map((n) => n.text).join('\n'), fresh[0].link);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 
@@ -134,7 +135,7 @@ export function Layout() {
       <header className="topbar">
         <div className="brand">
           <AppLogo src={logoReady ? logo ?? null : undefined} size={30} />
-          <span className="brand-name">Tâches GSA</span>
+          <span className="brand-name">{nomAppli()}</span>
           {cloud ? <SyncBadge /> : <span className="demo-tag">DÉMO</span>}
         </div>
         {club && <UnitSwitch />}

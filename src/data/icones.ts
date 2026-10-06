@@ -3,9 +3,9 @@ import { isCouleur, teintes } from './couleur';
 
 // Icône de l'appli installée (écran d'accueil, accès rapides, notifications) : fichiers fixes du site (public/),
 // seuls fiables pour l'installation. Par défaut le logo du G.S. Ajoie ; les admins du comité central peuvent
-// la remplacer par le logo du club (Console admin › Logo et couleur). L'appli prépare alors les images et les dépose
+// la remplacer par le logo du club (Console admin › Logo, couleur et nom). L'appli prépare alors les images et les dépose
 // dans le stockage public du serveur (bucket « gsa-public », dossier du comité central, migration 017) ;
-// la publication du site les reprend (scripts/icones-club.mjs, vérifié toutes les heures).
+// la publication du site les reprend (scripts/icones-club.mjs, vérifié toutes les heures). Le nom de l'appli suit le même chemin.
 
 export const BUCKET_PUBLIC = 'gsa-public';
 /** Raccourcis sans couleur de l'appli choisie : vert du G.S. Ajoie (comme les icônes d'origine). */
@@ -135,9 +135,11 @@ export async function apercuRaccourci(nom: keyof typeof RACCOURCIS | string, cou
 }
 export const NOMS_RACCOURCIS = Object.keys(RACCOURCIS);
 
-export type VersionIcone = { version: string; date: string; logo: string; couleur: string };
+/** Appli installée personnalisée pour le club (version.json) : icône tirée du logo (icone) et/ou nom. */
+export type VersionIcone = { version: string; date: string; icone: boolean; logo?: string; couleur?: string; nom?: string };
+type Contenu = Omit<VersionIcone, 'version' | 'date'>;
 
-/** Empreinte courte du logo (pour savoir si l'icône publiée est encore à jour). */
+/** Empreinte courte (logo, version publiée). */
 async function empreinte(texte: string) {
   const h = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(texte));
   return [...new Uint8Array(h)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
@@ -145,8 +147,13 @@ async function empreinte(texte: string) {
 
 export const empreinteLogo = (logo: string) => empreinte(logo);
 
+async function nouvelleVersion(contenu: Contenu): Promise<VersionIcone> {
+  const date = new Date().toISOString();
+  return { version: await empreinte(`${JSON.stringify(contenu)}|${date}`), date, ...contenu };
+}
+
 /** Prépare toutes les images de l'icône à partir du logo et de la couleur de l'appli du club. */
-export async function preparerIcone(logo: string, couleurAppli?: string): Promise<{ fichiers: [string, Blob][]; version: VersionIcone }> {
+export async function preparerIcone(logo: string, couleurAppli?: string): Promise<{ fichiers: [string, Blob][]; logo: string; couleur: string }> {
   const img = await charger(logo);
   const fichiers: [string, Blob][] = [];
   for (const i of IMAGES) {
@@ -161,10 +168,7 @@ export async function preparerIcone(logo: string, couleurAppli?: string): Promis
     fichiers.push([`${nom}.png`, await enBlob(await raccourci(trace, couleur, false))]);
     fichiers.push([`${nom}-maskable.png`, await enBlob(await raccourci(trace, couleur, true))]);
   }
-  const logoEmpreinte = await empreinte(logo);
-  const date = new Date().toISOString();
-  const version: VersionIcone = { version: await empreinte(`${logoEmpreinte}|${couleur}|${date}`), date, logo: logoEmpreinte, couleur };
-  return { fichiers, version };
+  return { fichiers, logo: await empreinte(logo), couleur };
 }
 
 // ---------- Serveur (version réelle) ----------
@@ -173,22 +177,23 @@ const sb = () => {
   if (!supabase) throw new Error('Serveur indisponible');
   return supabase;
 };
+const store = () => sb().storage.from(BUCKET_PUBLIC);
 const chemin = (club: string, nom: string) => `${club}/${nom}`;
 
-/** Icône déposée pour le club (null : icône d'origine), lue sans cache. */
+/** Personnalisation déposée pour le club (null : icône et nom d'origine), lue sans cache. */
 export async function iconeDeposee(club: string): Promise<VersionIcone | null> {
-  const url = sb().storage.from(BUCKET_PUBLIC).getPublicUrl(chemin(club, 'version.json')).data.publicUrl;
+  const url = store().getPublicUrl(chemin(club, 'version.json')).data.publicUrl;
   const res = await fetch(`${url}?t=${Date.now()}`, { cache: 'no-store' });
   if (res.status === 400 || res.status === 404) return null;
   if (!res.ok) throw new Error(`Icône du club illisible (${res.status})`);
-  return (await res.json()) as VersionIcone;
+  const v = (await res.json()) as VersionIcone;
+  return { ...v, icone: v.icone !== false };
 }
 
 /** Adresse publique d'une image de l'icône déposée. */
-export const imageDeposee = (club: string, nom: string, version: string) =>
-  `${sb().storage.from(BUCKET_PUBLIC).getPublicUrl(chemin(club, nom)).data.publicUrl}?v=${version}`;
+export const imageDeposee = (club: string, nom: string, version: string) => `${store().getPublicUrl(chemin(club, nom)).data.publicUrl}?v=${version}`;
 
-/** Dernière publication du site : icône en ligne (null : celle d'origine) et version refusée (images non valables). */
+/** Dernière publication du site : version en ligne (null : icône et nom d'origine) et version refusée (envoi non valable). */
 export async function iconePubliee(): Promise<{ version: string | null; refusee?: string } | null> {
   try {
     const res = await fetch(`./icone-version.json?t=${Date.now()}`, { cache: 'no-store' });
@@ -200,23 +205,39 @@ export async function iconePubliee(): Promise<{ version: string | null; refusee?
   }
 }
 
-/** Dépose l'icône du club (images d'abord, version.json en dernier). */
-export async function deposerIcone(club: string, logo: string, couleurAppli?: string): Promise<VersionIcone> {
-  const { fichiers, version } = await preparerIcone(logo, couleurAppli);
-  const store = sb().storage.from(BUCKET_PUBLIC);
-  const envoi = async (nom: string, corps: Blob, type: string) => {
-    const { error } = await store.upload(chemin(club, nom), corps, { upsert: true, contentType: type, cacheControl: '60' });
-    if (error) throw new Error(`Icône non enregistrée : ${error.message}`);
-  };
-  for (const [nom, blob] of fichiers) await envoi(nom, blob, 'image/png');
-  await envoi('version.json', new Blob([JSON.stringify(version)], { type: 'application/json' }), 'application/json');
-  return version;
+async function envoyer(club: string, nom: string, corps: Blob, type: string) {
+  const { error } = await store().upload(chemin(club, nom), corps, { upsert: true, contentType: type, cacheControl: '60' });
+  if (error) throw new Error(`Non enregistré : ${error.message}`);
+}
+async function ecrireVersion(club: string, contenu: Contenu): Promise<VersionIcone> {
+  const v = await nouvelleVersion(contenu);
+  await envoyer(club, 'version.json', new Blob([JSON.stringify(v)], { type: 'application/json' }), 'application/json');
+  return v;
+}
+async function retirer(club: string, noms: string[]) {
+  const { error } = await store().remove(noms.map((n) => chemin(club, n)));
+  if (error) throw new Error(`Non retiré : ${error.message}`);
+}
+const IMAGES_ICONE = FICHIERS_ICONE.filter((n) => n !== 'version.json');
+
+/** Dépose l'icône tirée du logo du club (images d'abord, version.json en dernier), en gardant le nom choisi. */
+export async function deposerIcone(club: string, logo: string, couleurAppli?: string, nom?: string): Promise<VersionIcone> {
+  const icone = await preparerIcone(logo, couleurAppli);
+  for (const [n, blob] of icone.fichiers) await envoyer(club, n, blob, 'image/png');
+  return ecrireVersion(club, { icone: true, logo: icone.logo, couleur: icone.couleur, nom });
 }
 
-/** Retire l'icône du club : le site reprend l'icône d'origine (version.json d'abord). */
-export async function retirerIcone(club: string) {
-  const store = sb().storage.from(BUCKET_PUBLIC);
-  const { error } = await store.remove([chemin(club, 'version.json')]);
-  if (error) throw new Error(`Icône non retirée : ${error.message}`);
-  await store.remove(FICHIERS_ICONE.filter((n) => n !== 'version.json').map((n) => chemin(club, n)));
+/** Revient à l'icône d'origine, en gardant le nom choisi (sans nom : plus rien de personnalisé). */
+export async function retirerIcone(club: string, nom?: string) {
+  if (nom) await ecrireVersion(club, { icone: false, nom });
+  else await retirer(club, ['version.json']);
+  await retirer(club, IMAGES_ICONE);
+}
+
+/** Change le nom de l'appli (sans nom : celui d'origine), en gardant l'icône déposée. */
+export async function deposerNom(club: string, deposee: VersionIcone | null, nom?: string) {
+  if (deposee?.icone) return ecrireVersion(club, { icone: true, logo: deposee.logo, couleur: deposee.couleur, nom });
+  if (nom) return ecrireVersion(club, { icone: false, nom });
+  await retirer(club, ['version.json']);
+  return null;
 }

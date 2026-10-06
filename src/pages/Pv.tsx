@@ -9,6 +9,7 @@ import { selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
 import { useClubOptional } from '../data/club';
 import { archiveHtml, defaultTexte, enteteOf, hydrateArchive } from '../data/entete';
+import { nomAppli } from '../data/nomAppli';
 import { DocEntete, EnteteEditor, useUnitLogo } from '../components/Entete';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
@@ -864,7 +865,7 @@ export function Pv() {
                 <b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{heure(s2) && ` à ${heure(s2)}`} – Lieu : {s2.lieu || 'à définir'}
               </p>
             )}
-            <footer className="pv-foot">Document généré le {fmtDate(today())} par {fullName(user ?? undefined)} · Tâches GSA</footer>
+            <footer className="pv-foot">Document généré le {fmtDate(today())} par {fullName(user ?? undefined)} · {nomAppli()}</footer>
           </div>
           )}
         </div>

@@ -3,11 +3,13 @@ import { useStore } from '../data/store';
 import type { OrgUnit } from '../data/types';
 import { getMode } from '../data/mode';
 import { isImage } from '../data/logo';
+import { NOM_MAX, NOM_ORIGINE, nomPropre } from '../data/nomAppli';
 import {
   apercuIcone,
   apercuRaccourci,
   couleurRaccourcis,
   deposerIcone,
+  deposerNom,
   empreinteLogo,
   iconeDeposee,
   iconePubliee,
@@ -19,7 +21,7 @@ import {
 
 type Etat = { deposee: VersionIcone | null; publiee: { version: string | null; refusee?: string } | null };
 
-/** Console admin du comité central : l'icône de l'appli installée, tirée du logo du club (version réelle). */
+/** Console admin du comité central : nom et icône de l'appli installée (icône tirée du logo du club), version réelle. */
 export function IconePanel({ club }: { club: OrgUnit }) {
   const { update, setToast } = useStore();
   const reel = getMode() === 'reel';
@@ -30,6 +32,7 @@ export function IconePanel({ club }: { club: OrgUnit }) {
   const [erreur, setErreur] = useState('');
   const [busy, setBusy] = useState(false);
   const [apercu, setApercu] = useState<{ icone: string; raccourcis: string[]; empreinte: string } | null>(null);
+  const [saisie, setSaisie] = useState<string | null>(null);
 
   const charger = useCallback(async () => {
     try {
@@ -77,17 +80,27 @@ export function IconePanel({ club }: { club: OrgUnit }) {
   if (!reel)
     return (
       <section className="panel icone-panel">
-        <h2>Icône de l’appli installée</h2>
-        <p className="muted">Dans la version réelle, les admins du comité central peuvent remplacer l’icône d’origine (logo du G.S. Ajoie) par le logo du club.</p>
+        <h2>Nom et icône de l’appli installée</h2>
+        <p className="muted">
+          Dans la version réelle, les admins du comité central peuvent changer le nom de l’appli et remplacer l’icône d’origine (logo du G.S. Ajoie) par le logo du club.
+        </p>
       </section>
     );
 
   const deposee = etat?.deposee ?? null;
-  const aJour = !!deposee && !!apercu && deposee.logo === apercu.empreinte && deposee.couleur === couleur;
-  const enLigne = etat && (etat.publiee?.version ?? null) === (deposee?.version ?? null);
+  const nomDepose = deposee?.nom ?? '';
+  const iconeClub = !!deposee?.icone;
+  const aJour = !!deposee?.icone && !!apercu && deposee.logo === apercu.empreinte && deposee.couleur === couleur;
+  const enLigne = !!etat && (etat.publiee?.version ?? null) === (deposee?.version ?? null);
   const refusee = !!deposee && etat?.publiee?.refusee === deposee.version;
   const heures = deposee ? (Date.now() - Date.parse(deposee.date)) / 3.6e6 : 0;
-  const actuelle = (nom: string) => (deposee ? imageDeposee(club.id, nom, deposee.version) : `./${nom}`);
+  const actuelle = (nom: string) => (deposee?.icone ? imageDeposee(club.id, nom, deposee.version) : `./${nom}`);
+
+  const texte = saisie ?? nomDepose;
+  const nomVoulu = nomPropre(texte);
+  const nomRefuse = !!texte.trim() && !nomVoulu;
+  const nouveauNom = nomVoulu === NOM_ORIGINE ? '' : nomVoulu;
+  const nomChange = !nomRefuse && nouveauNom !== nomDepose;
 
   const action = async (fn: () => Promise<unknown>, journal: string, toast: string) => {
     setBusy(true);
@@ -96,6 +109,7 @@ export function IconePanel({ club }: { club: OrgUnit }) {
       await fn();
       update(() => {}, journal);
       setToast(toast);
+      setSaisie(null);
       await charger();
     } catch (e) {
       setErreur((e as Error).message);
@@ -104,24 +118,56 @@ export function IconePanel({ club }: { club: OrgUnit }) {
     }
   };
   const utiliser = () =>
-    action(() => deposerIcone(club.id, logo!, club.couleurAppli), 'Icône de l’appli : logo du club', 'Icône envoyée : en ligne dans l’heure');
+    action(() => deposerIcone(club.id, logo!, club.couleurAppli, nomDepose || undefined), 'Icône de l’appli : logo du club', 'Icône envoyée : en ligne dans l’heure');
   const origine = () => {
     if (!confirm('Revenir à l’icône d’origine (logo du G.S. Ajoie) pour l’appli installée ?')) return;
-    void action(() => retirerIcone(club.id), 'Icône de l’appli : icône d’origine', 'Icône d’origine rétablie : en ligne dans l’heure');
+    void action(() => retirerIcone(club.id, nomDepose || undefined), 'Icône de l’appli : icône d’origine', 'Icône d’origine rétablie : en ligne dans l’heure');
   };
+  const enregistrerNom = (nom: string) =>
+    action(
+      () => deposerNom(club.id, deposee, nom || undefined),
+      `Nom de l’appli : « ${nom || NOM_ORIGINE} »`,
+      `Nom « ${nom || NOM_ORIGINE} » envoyé : en ligne dans l’heure`,
+    );
 
   return (
     <section className="panel icone-panel">
-      <h2>Icône de l’appli installée</h2>
-      <p className="muted">
-        Écran d’accueil, accès rapides (appui long sur l’icône) et notifications, pour tout le club. Les accès rapides prennent la couleur de l’appli du club
-        (vert du G.S. Ajoie tant qu’elle n’est pas choisie).
+      <h2>Nom et icône de l’appli installée</h2>
+      <p className="muted">Pour tout le club : écran d’accueil, accès rapides, notifications, onglet du navigateur. Le site les publie dans l’heure.</p>
+
+      <h3>Nom</h3>
+      <div className="row wrap nom-appli">
+        <input
+          value={texte}
+          placeholder={NOM_ORIGINE}
+          maxLength={NOM_MAX}
+          disabled={!allowed || busy || !etat}
+          onChange={(e) => setSaisie(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && nomChange && void enregistrerNom(nouveauNom)}
+          aria-label="Nom de l’appli"
+        />
+        {allowed && (
+          <button className="btn primary" disabled={!nomChange || busy || !etat} onClick={() => void enregistrerNom(nouveauNom)}>
+            Enregistrer le nom
+          </button>
+        )}
+        {allowed && nomDepose && (
+          <button className="btn link" disabled={busy} onClick={() => void enregistrerNom('')}>
+            Reprendre « {NOM_ORIGINE} »
+          </button>
+        )}
+      </div>
+      {nomRefuse && <p className="error">Nom refusé : {NOM_MAX} caractères au plus, sans « &lt; » ni « &gt; ».</p>}
+      <p className="muted small-note">
+        Sous l’icône (coupé au-delà d’une douzaine de caractères), dans l’en-tête de l’appli, l’onglet du navigateur, les notifications et les emails d’accès.
       </p>
 
+      <h3>Icône</h3>
+      <p className="muted small-note">Les accès rapides (appui long sur l’icône) prennent la couleur de l’appli du club (vert du G.S. Ajoie tant qu’elle n’est pas choisie).</p>
       <div className="icone-apercus">
         <figure>
           <img className="icone-app" src={actuelle('icon-192.png')} alt="" />
-          <figcaption>{etat ? (deposee ? 'Actuelle : logo du club' : 'Actuelle : d’origine') : 'Actuelle'}</figcaption>
+          <figcaption>{etat ? (iconeClub ? 'Actuelle : logo du club' : 'Actuelle : d’origine') : 'Actuelle'}</figcaption>
         </figure>
         <div className="icone-raccourcis" aria-hidden>
           {NOMS_RACCOURCIS.map((n) => (
@@ -143,28 +189,14 @@ export function IconePanel({ club }: { club: OrgUnit }) {
           </>
         )}
       </div>
-
-      {etat && deposee && (
-        <p className="small-note" role="status">
-          {refusee
-            ? '⚠️ La publication du site a refusé ces images : envoie-les à nouveau.'
-            : enLigne
-              ? '✓ En ligne. Une appli déjà installée la prend d’elle-même après un moment (Android) ; sinon, la supprimer puis la réinstaller.'
-              : `Envoyée le ${new Date(deposee.date).toLocaleString('fr-CH', { dateStyle: 'short', timeStyle: 'short' })} : le site la publie dans l’heure.`}
-          {!enLigne && !refusee && heures > 3 && ' Toujours pas en ligne ? Sur GitHub : Actions › « Icône de l’appli » › Run workflow.'}
-        </p>
-      )}
-      {etat && !deposee && !enLigne && <p className="small-note" role="status">Icône d’origine rétablie : le site la publie dans l’heure.</p>}
-      {erreur && <p className="error">{erreur}</p>}
-
       {allowed ? (
         <div className="row wrap">
           {logo && apercu && (!aJour || refusee) && (
             <button className="btn primary" disabled={busy || !etat} onClick={() => void utiliser()}>
-              {busy ? 'Préparation…' : deposee ? 'Mettre à jour l’icône (logo et couleur actuels)' : 'Utiliser le logo du club comme icône'}
+              {busy ? 'Préparation…' : iconeClub ? 'Mettre à jour l’icône (logo et couleur actuels)' : 'Utiliser le logo du club comme icône'}
             </button>
           )}
-          {deposee && (
+          {iconeClub && (
             <button className="btn link" disabled={busy} onClick={origine}>
               Revenir à l’icône d’origine (G.S. Ajoie)
             </button>
@@ -172,8 +204,21 @@ export function IconePanel({ club }: { club: OrgUnit }) {
           {!logo && <p className="muted small-note">Mets d’abord un logo du club ci-dessus.</p>}
         </div>
       ) : (
-        <p className="muted small-note">Seuls les admins (★) du comité central changent l’icône de l’appli.</p>
+        <p className="muted small-note">Seuls les admins (★) du comité central changent le nom et l’icône de l’appli.</p>
       )}
+
+      {etat && deposee && (
+        <p className="small-note" role="status">
+          {refusee
+            ? '⚠️ La publication du site a refusé cet envoi : envoie-le à nouveau.'
+            : enLigne
+              ? '✓ En ligne. Une appli déjà installée les prend d’elle-même après un moment (Android) ; sinon, la supprimer puis la réinstaller.'
+              : `Envoyé le ${new Date(deposee.date).toLocaleString('fr-CH', { dateStyle: 'short', timeStyle: 'short' })} : le site le publie dans l’heure.`}
+          {!enLigne && !refusee && heures > 3 && ' Toujours pas en ligne ? Sur GitHub : Actions › « Nom et icône de l’appli » › Run workflow.'}
+        </p>
+      )}
+      {etat && !deposee && !enLigne && <p className="small-note" role="status">Nom et icône d’origine rétablis : le site les publie dans l’heure.</p>}
+      {erreur && <p className="error">{erreur}</p>}
     </section>
   );
 }

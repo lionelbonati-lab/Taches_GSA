@@ -8,6 +8,7 @@ import type { NotifPrefs } from '../data/types';
 import { PasswordForm } from './Real';
 import { switchMode } from '../data/mode';
 import { useClubOptional } from '../data/club';
+import { nomAppli } from '../data/nomAppli';
 
 export function Settings() {
   const { data, user, prefs, setPrefs, can, reset, restore, login, cloud, guest } = useStore();
@@ -57,7 +58,7 @@ export function Settings() {
   };
   const test = async () => {
     const body = unread.length ? unread.slice(0, 3).map((x) => `${x.icon} ${x.text}`).join('\n') : 'Aucune nouvelle notification. Bonne journée !';
-    const ok = await showSystemNotification('Tâches GSA · rappel du matin', body, unread[0]?.link ?? '/');
+    const ok = await showSystemNotification(`${nomAppli()} · rappel du matin`, body, unread[0]?.link ?? '/');
     setTestMsg(ok ? '✅ Notification envoyée à l’appareil.' : 'Impossible d’afficher une notification : autorise-les d’abord pour ce site.');
   };
   return (
@@ -144,7 +145,7 @@ export function Settings() {
       </section>
       <section className="panel">
         <h2>Application</h2>
-        <p className="muted">Installe Tâches GSA comme une application sur ton ordinateur ou ton téléphone : icône sur le bureau / l’écran d’accueil, fenêtre dédiée, ouverture même hors connexion.</p>
+        <p className="muted">Installe {nomAppli()} comme une application sur ton ordinateur ou ton téléphone : icône sur le bureau / l’écran d’accueil, fenêtre dédiée, ouverture même hors connexion.</p>
         <InstallButton />
       </section>
       {/* Visiteur du comité central : les sauvegardes de l'entité restent l'affaire de ses membres. */}

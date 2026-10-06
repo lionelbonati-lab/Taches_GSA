@@ -6,6 +6,7 @@ import { childrenOf, daysUntil, fmtDate, fullName, isDone, isLate, parentOf, rec
 import { TaskModal, newTask } from '../components/TaskModal';
 import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { GENRES, genreDe } from '../data/paiements';
+import { nomAppli } from '../data/nomAppli';
 import { Avatar, DocPollIcons, Empty, LinkIcon, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
@@ -202,7 +203,7 @@ export function Tasks() {
 
       {f.type && <CircuitPaiements total={list.length > 1 ? list.reduce((n, t) => n + (t.paiement?.montant ?? 0), 0) : undefined} />}
 
-      <p className="print-only">Tâches GSA – export du {fmtDate(new Date().toISOString().slice(0, 10))} – {list.length} tâches</p>
+      <p className="print-only">{nomAppli()} – export du {fmtDate(new Date().toISOString().slice(0, 10))} – {list.length} tâches</p>
 
       {list.length === 0 ? (
         <Empty>Aucune tâche ne correspond.</Empty>

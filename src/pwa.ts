@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { nomAppli } from './data/nomAppli';
 
 // Gestion de l'installation de l'application (PWA).
 // Chrome / Edge (ordinateur et Android) déclenchent « beforeinstallprompt » très tôt,
@@ -73,5 +74,5 @@ export function useInstall(): InstallState {
     return { kind: 'manual', steps: 'Firefox sur ordinateur ne sait pas installer d’application : ouvre l’adresse dans Chrome ou Edge.' };
   if (!window.isSecureContext)
     return { kind: 'manual', steps: 'L’installation n’est possible que depuis une adresse sécurisée (https://…).' };
-  return { kind: 'manual', steps: 'Utilise l’icône d’installation dans la barre d’adresse, ou le menu du navigateur › « Installer Tâches GSA » / « Ajouter à l’écran d’accueil ».' };
+  return { kind: 'manual', steps: `Utilise l’icône d’installation dans la barre d’adresse, ou le menu du navigateur › « Installer ${nomAppli()} » / « Ajouter à l’écran d’accueil ».` };
 }

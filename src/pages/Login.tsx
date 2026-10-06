@@ -5,6 +5,7 @@ import { directory } from '../data/units';
 import type { OrgUnit } from '../data/types';
 import { AppLogo, Initials } from '../components/ui';
 import { posteBesideName } from '../data/utils';
+import { nomAppli } from '../data/nomAppli';
 
 /** Démo : connexion en choisissant une personne de l'annuaire du club (sans mot de passe). */
 export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (key: string) => void; onReset: () => void }) {
@@ -15,7 +16,7 @@ export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (k
     <div className="login">
       <div className="login-card wide">
         <AppLogo src={units.find((u) => u.type === 'central')?.logo ?? null} size={56} />
-        <h1>Tâches GSA</h1>
+        <h1>{nomAppli()}</h1>
         <p className="muted">
           Démonstration – choisis un poste du club pour te connecter.
           <br />

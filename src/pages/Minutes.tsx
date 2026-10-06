@@ -9,6 +9,7 @@ import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '..
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { useClubOptional } from '../data/club';
+import { nomAppli } from '../data/nomAppli';
 import { archiveHtml, defaultTexte, enteteOf } from '../data/entete';
 import { DocEntete, EnteteEditor, useUnitLogo } from '../components/Entete';
 
@@ -473,7 +474,7 @@ export function Minutes() {
       )}
       <footer className="pv-foot">
         PV établi par {fullName(secretaire ?? user ?? undefined)} le {fmtDate(today())}
-        {m.valideLe && !m.enCorrection && ` · version ${version} validée le ${fmtDate(m.valideLe.slice(0, 10))}`} · Tâches GSA
+        {m.valideLe && !m.enCorrection && ` · version ${version} validée le ${fmtDate(m.valideLe.slice(0, 10))}`} · {nomAppli()}
       </footer>
     </div>
   );

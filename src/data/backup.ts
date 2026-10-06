@@ -1,5 +1,6 @@
 import type { AppData } from './types';
 import { clearFiles, getFile, saveFile } from './files';
+import { nomAppli } from './nomAppli';
 
 // Sauvegarde complète des données de la démo (un fichier .json) : tâches, séances, PV, sondages,
 // emails, responsables, rôles, réglages… et le contenu des fichiers joints.
@@ -53,7 +54,7 @@ export async function readBackup(file: File): Promise<Backup> {
     throw new Error('Ce fichier n’est pas lisible (JSON attendu).');
   }
   if (json?.app !== 'taches-gsa' || !Array.isArray(json.data?.tasks) || !Array.isArray(json.data?.people))
-    throw new Error('Ce fichier n’est pas une sauvegarde de Tâches GSA.');
+    throw new Error(`Ce fichier n’est pas une sauvegarde de ${nomAppli()}.`);
   return { ...json, files: json.files ?? {} };
 }
 

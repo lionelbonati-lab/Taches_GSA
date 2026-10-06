@@ -4,6 +4,7 @@ import { accessAction, type AccessInfo } from '../data/cloud';
 import type { Person } from '../data/types';
 import { fmtDateTime, fullName } from '../data/utils';
 import { Modal } from './ui';
+import { nomAppli } from '../data/nomAppli';
 
 // Accès à la version réelle d'une fiche (compte, mot de passe provisoire), réglé par les admins de l'entité.
 
@@ -70,8 +71,8 @@ export function CredentialsModal({ person, email, password, existant, intro, onC
   const [copied, setCopied] = useState(false);
   const url = `${location.origin}${location.pathname}`;
   const text = password
-    ? `Bonjour ${person.prenom},\n\nVoici ton accès à Tâches GSA (version réelle) :\n- Adresse : ${url}\n- Email : ${email}\n- Mot de passe provisoire : ${password}\n\nÀ la première connexion, choisis « Version réelle », puis ton propre mot de passe.\n`
-    : `Bonjour ${person.prenom},\n\nTu as maintenant accès à Tâches GSA (version réelle) : ${url}\nConnecte-toi avec ton adresse ${email} et ton mot de passe habituel.\n`;
+    ? `Bonjour ${person.prenom},\n\nVoici ton accès à ${nomAppli()} (version réelle) :\n- Adresse : ${url}\n- Email : ${email}\n- Mot de passe provisoire : ${password}\n\nÀ la première connexion, choisis « Version réelle », puis ton propre mot de passe.\n`
+    : `Bonjour ${person.prenom},\n\nTu as maintenant accès à ${nomAppli()} (version réelle) : ${url}\nConnecte-toi avec ton adresse ${email} et ton mot de passe habituel.\n`;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);
@@ -94,7 +95,7 @@ export function CredentialsModal({ person, email, password, existant, intro, onC
       )}
       <textarea className="full" readOnly rows={8} value={text} />
       <div className="modal-foot">
-        <a className="btn" href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent('Ton accès à Tâches GSA')}&body=${encodeURIComponent(text)}`}>📧 Préparer l’email</a>
+        <a className="btn" href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(`Ton accès à ${nomAppli()}`)}&body=${encodeURIComponent(text)}`}>📧 Préparer l’email</a>
         <button className="btn" onClick={copy}>{copied ? '✅ Copié' : '📋 Copier le message'}</button>
         <span className="grow" />
         <button className="btn primary" onClick={onClose}>Fermer</button>
