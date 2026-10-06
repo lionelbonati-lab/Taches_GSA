@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, CentralAccess, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TicketCentral, UnitType } from './types';
+import type { AppData, CentralAccess, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
 
@@ -546,6 +546,13 @@ export async function myCentralTickets(): Promise<SuiviTicket[]> {
 export async function setEditionDate(c: string, debut: string, fin?: string) {
   const { error } = await sb().rpc('gsa_date_edition', { c, debut, fin: fin ?? null });
   if (error) throw new Error(error.message);
+}
+
+/** Agenda du club : événements de toutes ses entités (gsa_agenda_club). */
+export async function fetchAgendaClub(club: string): Promise<AgendaClubEvent[]> {
+  const { data, error } = await sb().rpc('gsa_agenda_club', { club });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as AgendaClubEvent[];
 }
 
 /** Suivi des demandes de l'entité au comité central. */

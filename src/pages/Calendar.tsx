@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, Meeting, OrgUnit, Poll, Task } from '../data/types';
+import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, Poll, Task } from '../data/types';
 import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
 import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, parentOf, today } from '../data/utils';
@@ -12,8 +12,9 @@ import { EVENT_FIELDS, ItemModal, checkEvent, MEETING_FIELDS, linkedTasksNote, n
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
-// Les dates des manifestations du club (sous-comités, équipes d'événement : prochaine édition) apparaissent dans l'agenda
-// de toutes les entités ; chacun choisit lesquelles afficher (réglage personnel, propre à chaque entité).
+// Agenda du club : les événements des autres entités et la prochaine édition des manifestations (sous-comités,
+// équipes d'événement) apparaissent dans l'agenda de toutes les entités, à la couleur de l'entité ; chacun choisit
+// les entités à afficher (réglage personnel, propre à chaque entité).
 
 type Kind = 'meeting' | 'event' | 'task' | 'poll' | 'manif';
 type Item =
@@ -21,7 +22,8 @@ type Item =
   | { kind: 'event'; key: string; date: string; e: ClubEvent }
   | { kind: 'task'; key: string; date: string; t: Task }
   | { kind: 'poll'; key: string; date: string; p: Poll }
-  | { kind: 'manif'; key: string; date: string; u: OrgUnit };
+  /** Agenda du club : prochaine édition d'une manifestation, ou événement d'une autre entité (`e`). */
+  | { kind: 'manif'; key: string; date: string; u: OrgUnit; e?: AgendaClubEvent };
 
 const KINDS: { id: Kind; label: string }[] = [
   { id: 'meeting', label: '🗓️ Séances' },
@@ -77,14 +79,30 @@ export function Calendar() {
   const addEvent = can('events.manage');
   const addTask = creatableSections().length > 0;
   const viewAll = can('tasks.viewAll');
-  // Manifestations datées du club ; celle de l'entité ouverte seulement si son agenda n'a pas déjà l'événement à cette date.
+  // Agenda du club : événements de toutes les entités, lus sur le serveur (relus si une date d'édition change).
+  const [clubEvents, setClubEvents] = useState<AgendaClubEvent[]>([]);
+  const unitsKey = (club?.units ?? []).map((u) => `${u.id}:${u.date ?? ''}:${u.dateFin ?? ''}:${u.archive ? 1 : 0}`).join();
+  useEffect(() => {
+    if (!club) return;
+    let on = true;
+    club.agendaClub().then((r) => on && setClubEvents(r), () => on && setClubEvents([]));
+    return () => { on = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [club?.current.id, unitsKey]);
+  // Par entité : ses événements (ceux de l'entité ouverte sont déjà dans son agenda) et sa prochaine édition,
+  // sauf si l'un de ses événements tombe déjà à cette date.
   const manifs = useMemo(
     () =>
       (club?.units ?? [])
-        .filter((u) => (u.type === 'sous-comite' || u.type === 'equipe') && u.date && !u.archive)
-        .filter((u) => u.id !== club?.current.id || !data.events.some((e) => e.date === u.date))
-        .sort((a, b) => a.date!.localeCompare(b.date!)),
-    [club?.units, club?.current.id, data.events],
+        .filter((u) => !u.archive)
+        .map((u) => {
+          const own = u.id === club?.current.id;
+          const events = own ? [] : clubEvents.filter((e) => e.uniteId === u.id);
+          const edition = (u.type === 'sous-comite' || u.type === 'equipe') && !!u.date && !(own ? data.events : events).some((e) => e.date === u.date);
+          return { u, events, edition, own };
+        })
+        .filter((x) => x.events.length > 0 || x.edition),
+    [club?.units, club?.current.id, clubEvents, data.events],
   );
   const masquees = prefs.manifsMasquees ?? [];
   const toggleManif = (id: string) => setPrefs({ manifsMasquees: masquees.includes(id) ? masquees.filter((x) => x !== id) : [...masquees, id] });
@@ -119,10 +137,14 @@ export function Calendar() {
         const n = Math.min(diffDays(e.date, endOf(e)), 30);
         for (let i = 0; i <= n; i++) push({ kind: 'event', key: i ? `${e.id}:${i}` : e.id, date: addDays(e.date, i), e });
       });
-    manifs.forEach((u) => {
+    manifs.forEach(({ u, events, edition }) => {
       if (masquees.includes(u.id)) return;
-      const n = Math.min(diffDays(u.date!, endOf({ date: u.date!, dateFin: u.dateFin })), 30);
-      for (let i = 0; i <= n; i++) push({ kind: 'manif', key: `m-${u.id}:${i}`, date: addDays(u.date!, i), u });
+      const span = (key: string, x: { date: string; dateFin?: string }, e?: AgendaClubEvent) => {
+        const n = Math.min(diffDays(x.date, endOf(x)), 30);
+        for (let i = 0; i <= n; i++) push({ kind: 'manif', key: `${key}:${i}`, date: addDays(x.date, i), u, e });
+      };
+      if (edition) span(`m-${u.id}`, { date: u.date!, dateFin: u.dateFin });
+      events.forEach((e) => span(`c-${u.id}-${e.id}`, e, e));
     });
     if (kinds.includes('poll'))
       (data.polls ?? []).forEach((p) => p.dateLimite && (isOpen(p) || showDone) && push({ kind: 'poll', key: p.id, date: p.dateLimite, p }));
@@ -198,8 +220,9 @@ export function Calendar() {
       case 'task': return it.t.titre;
       case 'poll': return `Fin : ${it.p.question}`;
       case 'manif': {
-        const n = diffDays(it.u.date!, endOf({ date: it.u.date!, dateFin: it.u.dateFin })) + 1;
-        return `🎪 ${it.u.nom}${n > 1 ? ` (${diffDays(it.u.date!, it.date) + 1}/${n})` : ''}`;
+        const x = it.e ?? { date: it.u.date!, dateFin: it.u.dateFin };
+        const n = diffDays(x.date, endOf(x)) + 1;
+        return `${it.e ? it.e.nom : `🎪 ${it.u.nom}`}${n > 1 ? ` (${diffDays(x.date, it.date) + 1}/${n})` : ''}`;
       }
     }
   };
@@ -212,7 +235,10 @@ export function Calendar() {
         return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · liée à « ${p.titre} »` : ''}`;
       }
       case 'poll': return `Sondage : ${it.p.question} (date limite)`;
-      case 'manif': return `Manifestation : ${it.u.nom} · ${fmtRange(it.u.date, it.u.dateFin)}`;
+      case 'manif':
+        return it.e
+          ? `${it.u.nom} : ${it.e.nom} · ${fmtRange(it.e.date, it.e.dateFin)}${it.e.lieu ? ` · ${it.e.lieu}` : ''}`
+          : `Prochaine édition : ${it.u.nom} · ${fmtRange(it.u.date, it.u.dateFin)}`;
     }
   };
   const chipClass = (it: Item) => {
@@ -262,20 +288,23 @@ export function Calendar() {
           ))}
           {manifs.length > 0 && (
             <details className="cal-manifs">
-              <summary className={`chip small ${masquees.length < manifs.length ? 'on' : ''}`}>
-                🎪 Manifestations {manifs.filter((u) => !masquees.includes(u.id)).length}/{manifs.length} ▾
+              <summary className={`chip small ${manifs.some((x) => !masquees.includes(x.u.id)) ? 'on' : ''}`}>
+                🎪 Agenda du club {manifs.filter((x) => !masquees.includes(x.u.id)).length}/{manifs.length} ▾
               </summary>
               <div className="cal-manifs-panel">
-                <small className="muted">Dates des manifestations du club affichées dans cet agenda :</small>
-                {manifs.map((u) => (
+                <small className="muted">Entités dont les dates (prochaine édition, événements) sont affichées dans cet agenda :</small>
+                {manifs.map(({ u, events, edition, own }) => (
                   <label key={u.id} className="inline small-check">
                     <input type="checkbox" checked={!masquees.includes(u.id)} onChange={() => toggleManif(u.id)} />
-                    <span className="dot" style={{ background: u.couleur }} /> {u.nom}{u.id === club?.current.id ? ' (cette entité)' : ''} <small className="muted">{fmtRange(u.date, u.dateFin)}</small>
+                    <span className="dot" style={{ background: u.couleur }} /> {u.nom}{own ? ' (cette entité)' : ''}{' '}
+                    <small className="muted">
+                      {[edition && `édition ${fmtRange(u.date, u.dateFin)}`, events.length > 0 && `${events.length} événement${events.length > 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
+                    </small>
                   </label>
                 ))}
                 <div className="row">
                   <button className="btn small" onClick={() => setPrefs({ manifsMasquees: [] })}>Toutes</button>
-                  <button className="btn small" onClick={() => setPrefs({ manifsMasquees: manifs.map((u) => u.id) })}>Aucune</button>
+                  <button className="btn small" onClick={() => setPrefs({ manifsMasquees: manifs.map((x) => x.u.id) })}>Aucune</button>
                 </div>
               </div>
             </details>
@@ -331,7 +360,7 @@ export function Calendar() {
                       draggable={canMove(it)}
                       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag(it); }}
                       onDragEnd={() => { setDrag(null); setOver(null); }}
-                      onClick={(e) => { e.stopPropagation(); setSelected(d); open(it); }}
+                      onClick={(e) => { e.stopPropagation(); setSelected(d); if (it.kind !== 'manif') open(it); }}
                     >
                       {chipText(it)}
                     </button>
@@ -359,14 +388,17 @@ export function Calendar() {
                   <button className={`cal-row k-${it.kind}`} style={it.kind === 'manif' ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
-                        {{ meeting: '🗓️', event: '🎉', task: '✅', poll: '📊', manif: '' }[it.kind]} {chipText(it)}
+                        {{ meeting: '🗓️', event: '🎉', task: '✅', poll: '📊', manif: it.kind === 'manif' && it.e ? '🎉' : '' }[it.kind]} {chipText(it)}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}
                         {it.kind === 'event' && (it.e.lieu || 'Événement du club')}
                         {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
                         {it.kind === 'poll' && 'date limite pour répondre'}
-                        {it.kind === 'manif' && `${UNIT_TYPES[it.u.type].label}${it.u.id === club?.current.id ? ' (cette entité)' : ''} · ${fmtRange(it.u.date, it.u.dateFin)}`}
+                        {it.kind === 'manif' &&
+                          (it.e
+                            ? [it.u.nom, fmtRange(it.e.date, it.e.dateFin), it.e.lieu].filter(Boolean).join(' · ')
+                            : `${UNIT_TYPES[it.u.type].label}${it.u.id === club?.current.id ? ' (cette entité)' : ''} · prochaine édition ${fmtRange(it.u.date, it.u.dateFin)}`)}
                       </small>
                     </span>
                     {it.kind === 'task' && <StatusBadge task={it.t} />}

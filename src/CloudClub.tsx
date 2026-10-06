@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, fetchOrg, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, type Membership } from './data/cloud';
+import { accessAction, fetchAgendaClub, fetchOrg, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -118,6 +118,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         await sendCentralTicket(m.committeeId, t);
       },
       mesTicketsCentraux: () => myCentralTickets(),
+      agendaClub: () => fetchAgendaClub(clubId),
     };
   }, [org, list, m, loading, error, refresh, onSwitch]);
 

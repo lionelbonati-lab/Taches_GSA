@@ -306,6 +306,16 @@ export interface PvSettings {
   taille: 'petite' | 'normale' | 'grande';
 }
 
+/** Événement d'une entité, partagé avec tout le club pour l'agenda (sans sa description). */
+export interface AgendaClubEvent {
+  uniteId: string;
+  id: string;
+  nom: string;
+  date: string;
+  dateFin?: string;
+  lieu: string;
+}
+
 export interface ClubEvent {
   id: string;
   nom: string;
@@ -344,7 +354,7 @@ export interface Prefs {
   affichage: 'tableau' | 'kanban';
   pv?: Partial<PvSettings>;
   notif?: Partial<NotifPrefs>;
-  /** Agenda : manifestations du club (entités) dont la date n'est pas affichée. */
+  /** Agenda : entités du club dont les dates (édition, événements) ne sont pas affichées. */
   manifsMasquees?: string[];
 }
 

@@ -67,6 +67,8 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/013_gsa_date_edition.sql` (appliqué le 06.10.2026) : `gsa_date_edition(entité, début, fin)` change la date de la prochaine édition d'un sous-comité ou d'une équipe d'événement (`committees.info.date` et `dateFin`, rien d'autre) ; réservé aux admins de l'entité, à ses membres qui ont le droit « Gérer les événements » et aux admins du comité central. Ajout pur, aucune donnée modifiée.
 
+`supabase/migrations/014_gsa_agenda_club.sql` (appliqué le 06.10.2026) : `gsa_agenda_club(club)` donne à tout membre du club les événements de toutes ses entités non archivées (nom, dates, lieu ; pas la description), pour l'agenda du club. Lecture seule, ajout pur.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

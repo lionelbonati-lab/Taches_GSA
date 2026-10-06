@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { MyRequest, OrgUnit, Person, SuiviTicket, TicketCentral, Unit, UnitType } from './types';
+import type { MyRequest, OrgUnit, Person, SuiviTicket, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
@@ -94,6 +94,8 @@ export interface Club {
   ticketCentral: (t: TicketCentral) => Promise<void>;
   /** Tickets envoyés à la caisse centrale par la personne connectée. */
   mesTicketsCentraux: () => Promise<SuiviTicket[]>;
+  /** Événements de toutes les entités du club (agenda ; sans description). */
+  agendaClub: () => Promise<AgendaClubEvent[]>;
 }
 
 export const ClubCtx = createContext<Club | null>(null);

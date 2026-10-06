@@ -5,7 +5,7 @@ import { CENTRAL_ID, loadMe, loadUnitData, loadUnits, resetDemo, saveMe, saveUni
 import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
-import type { Guest, MyRequest, OrgUnit, Person, SuiviTicket, Task, Unit } from './data/types';
+import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SuiviTicket, Task, Unit } from './data/types';
 import { caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
@@ -207,6 +207,14 @@ export function DemoApp() {
         d.tasks.unshift(t);
         d.log.unshift({ id: uid('l'), at: now, userId: '', action: `Ticket à rembourser de « ${current.nom} » (${par}) : « ${t.titre} » (${r.montant.toFixed(2)} CHF)` });
         saveUnitData(central.id, d);
+      },
+      // Agenda du club : événements de toutes les entités (version réelle : gsa_agenda_club).
+      async agendaClub(): Promise<AgendaClubEvent[]> {
+        return units
+          .filter((u) => !u.archive)
+          .flatMap((u) => loadUnitData(u.id).events.map((e) => ({ uniteId: u.id, id: e.id, nom: e.nom, date: e.date, dateFin: e.dateFin, lieu: e.lieu })))
+          .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date))
+          .sort((a, b) => a.date.localeCompare(b.date));
       },
       async mesTicketsCentraux(): Promise<SuiviTicket[]> {
         if (!central || !me) return [];
