@@ -233,7 +233,7 @@ export function useNotifications() {
 /** Affiche une notification de l'appareil (via le service worker quand il existe, indispensable sur Android). */
 export async function showSystemNotification(title: string, body: string, link = '/') {
   if (!('Notification' in window) || Notification.permission !== 'granted') return false;
-  const options: NotificationOptions = { body, icon: './icon-192.png', badge: './icon-192.png', tag: 'taches-gsa', data: { url: `./#${link}` } };
+  const options: NotificationOptions = { body, icon: './icon-192.png', badge: './badge-96.png', tag: 'taches-gsa', data: { url: `./#${link}` } };
   try {
     const reg = 'serviceWorker' in navigator ? await navigator.serviceWorker.getRegistration() : undefined;
     if (reg) await reg.showNotification(title, options);

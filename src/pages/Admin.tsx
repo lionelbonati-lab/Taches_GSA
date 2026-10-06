@@ -28,7 +28,7 @@ export function Admin() {
         <button className={tab === 'roles' ? 'on' : ''} onClick={() => setTab('roles')}>Rôles & permissions</button>
         <button className={tab === 'lists' ? 'on' : ''} onClick={() => setTab('lists')}>Sections & statuts</button>
         <button className={tab === 'import' ? 'on' : ''} onClick={() => setTab('import')}>Import CSV</button>
-        {club && <button className={tab === 'logo' ? 'on' : ''} onClick={() => setTab('logo')}>Logo</button>}
+        {club && <button className={tab === 'logo' ? 'on' : ''} onClick={() => setTab('logo')}>Logo et couleur</button>}
         {sub && <button className={tab === 'central' ? 'on' : ''} onClick={() => setTab('central')}>Accès du comité central</button>}
         <button className={tab === 'log' ? 'on' : ''} onClick={() => setTab('log')}>Journal d'activité</button>
       </div>

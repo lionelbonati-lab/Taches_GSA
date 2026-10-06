@@ -453,8 +453,10 @@ export interface Unit {
   archive?: boolean;
   /** Ce que le comité central peut faire des données de l'entité (réglage de ses admins ; absent = rien). */
   central?: CentralAccess;
-  /** Logo (image réduite, data URL) : en-tête de l'appli, documents, icône. Sans logo, celui du club. */
+  /** Logo (image réduite, data URL) : en-tête de l'appli, documents, icône de l'onglet. Sans logo, celui du club. */
   logo?: string;
+  /** Couleur de l'appli dans l'entité (#rrggbb). Sans choix : celle du comité central, sinon le bleu d'origine. */
+  couleurAppli?: string;
 }
 
 /** Accès du comité central aux données d'une entité : rien voir, consulter, ou aussi ajouter et modifier des tâches. */

@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
+import { isCouleur } from './couleur';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -39,6 +40,8 @@ export interface UnitInfo {
   central?: CentralAccess;
   /** Logo (data URL PNG, JPEG ou WebP, 200 Ko au plus : contrôlé par le serveur). */
   logo?: string;
+  /** Couleur de l'appli (#rrggbb). */
+  couleurAppli?: string;
 }
 
 /**
@@ -481,6 +484,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     archive: !!m.info.archive,
     central: m.info.central,
     logo: isImage(m.info.logo) ? m.info.logo : undefined,
+    couleurAppli: isCouleur(m.info.couleurAppli) ? m.info.couleurAppli : undefined,
     membres: [],
     moi: !m.guest,
     moiAdmin: false,
@@ -506,6 +510,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       archive: !!info.archive,
       central: info.central,
       logo: isImage(info.logo) ? info.logo : undefined,
+      couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined })),
       moi: u.moi,
       moiAdmin: u.moiAdmin,

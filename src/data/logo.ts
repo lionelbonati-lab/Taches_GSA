@@ -3,7 +3,7 @@ import { getMode } from './mode';
 // Logo du club et des entités, et images des en-têtes de documents.
 // Les images sont réduites dans le navigateur et gardées en data URL (fiche de l'entité, réglages des en-têtes) :
 // pas de fichier à héberger, elles s'impriment telles quelles.
-// Le logo affiché devient aussi l'icône de l'appli : onglet du navigateur, écran d'accueil (iPhone), appli installée.
+// Le logo propre d'une entité devient l'icône de l'onglet quand elle est ouverte.
 
 /** Logo : 256 px au plus (côté le plus long). */
 export const LOGO_SIZE = 256;
@@ -68,100 +68,46 @@ export async function prepareImage(file: File, kind: 'logo' | 'banniere'): Promi
   }
 }
 
-/** Icône carrée (PNG) : le logo centré, sur fond blanc (iPhone et Android n'aiment pas la transparence) ou transparent. */
-async function squareIcon(logo: string, size: number, pad: number, bg: string | null): Promise<string> {
+/** Icône carrée (PNG) : le logo centré sur fond transparent. */
+async function squareIcon(logo: string, size: number): Promise<string> {
   const img = await loadImage(logo);
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = size;
   const ctx = canvas.getContext('2d')!;
   ctx.imageSmoothingQuality = 'high';
-  if (bg) {
-    ctx.fillStyle = bg;
-    ctx.fillRect(0, 0, size, size);
-  }
-  const box = size * (1 - 2 * pad);
-  const k = box / Math.max(img.naturalWidth, img.naturalHeight);
+  const k = size / Math.max(img.naturalWidth, img.naturalHeight);
   const w = img.naturalWidth * k;
   const h = img.naturalHeight * k;
   ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
   return canvas.toDataURL('image/png');
 }
 
-// ---------- Icône de l'appli ----------
+// ---------- Icône de l'onglet ----------
 
-interface Original {
-  el: HTMLLinkElement;
-  href: string;
-  type: string | null;
-}
-let originals: Original[] | null = null;
+let originals: { el: HTMLLinkElement; href: string }[] | null = null;
 let applied = '';
-let manifestBase: Record<string, unknown> | null = null;
-let manifestUrl = '';
-
-const links = () => [...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"], link[rel="apple-touch-icon"], link[rel="manifest"]')];
-
-function restore() {
-  originals?.forEach((o) => {
-    o.el.href = o.href;
-    if (o.type) o.el.type = o.type;
-    else o.el.removeAttribute('type');
-  });
-}
 
 /**
- * Le logo devient l'icône de l'appli (sans logo : l'icône d'origine).
- * - onglet du navigateur (favicon) ;
- * - iPhone / iPad : icône proposée par « Sur l'écran d'accueil » ;
- * - Chrome / Edge : manifeste de l'appli recréé avec le logo (installation).
- * Une appli déjà installée garde son icône : la réinstaller pour prendre le nouveau logo.
+ * Onglet du navigateur : le logo propre de l'entité ouverte, sinon l'icône du club.
+ * L'icône de l'appli installée (écran d'accueil, accès rapides) reste celle du club : fichiers fixes du site
+ * (public/icon-*.png), seuls fiables pour Android, iPhone et ordinateur.
  */
-export async function applyAppIcon(logo?: string) {
+export async function applyTabIcon(logo?: string) {
   const key = isImage(logo) ? logo : '';
   if (key === applied) return;
   applied = key;
-  originals ??= links().map((el) => ({ el, href: el.getAttribute('href') ?? '', type: el.getAttribute('type') }));
+  originals ??= [...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')].map((el) => ({ el, href: el.getAttribute('href') ?? '' }));
+  const restore = () => originals?.forEach((o) => (o.el.href = o.href));
   if (!key) return restore();
   try {
-    const [fav, apple, i192, i512, mask] = await Promise.all([
-      squareIcon(key, 64, 0, null),
-      squareIcon(key, 180, 0.08, '#ffffff'),
-      squareIcon(key, 192, 0.06, '#ffffff'),
-      squareIcon(key, 512, 0.06, '#ffffff'),
-      squareIcon(key, 512, 0.18, '#ffffff'),
-    ]);
-    if (applied !== key) return;
-    for (const o of originals) {
-      const rel = o.el.rel;
-      if (rel === 'manifest') continue;
-      o.el.href = rel === 'apple-touch-icon' ? apple : fav;
-      if (rel !== 'apple-touch-icon') o.el.type = 'image/png';
-    }
-    const manifest = originals.find((o) => o.el.rel === 'manifest');
-    if (manifest) {
-      const base = new URL('./', window.location.href).href;
-      if (!manifestBase) {
-        try {
-          manifestBase = (await (await fetch(new URL(manifest.href, base).href)).json()) as Record<string, unknown>;
-        } catch {
-          manifestBase = {};
-        }
-      }
-      if (applied !== key) return;
-      const icon = (src: string, sizes: string, purpose = 'any') => ({ src, sizes, type: 'image/png', purpose });
-      const shortcuts = (manifestBase.shortcuts as { url: string }[] | undefined)?.map((s) => ({ ...s, url: new URL(s.url, base).href, icons: [icon(i192, '192x192')] }));
-      // Adresses absolues : le manifeste recréé n'a pas d'adresse propre sur le site.
-      const json = { ...manifestBase, id: base, start_url: base, scope: base, icons: [icon(i192, '192x192'), icon(i512, '512x512'), icon(mask, '512x512', 'maskable')], ...(shortcuts ? { shortcuts } : {}) };
-      if (manifestUrl) URL.revokeObjectURL(manifestUrl);
-      manifestUrl = URL.createObjectURL(new Blob([JSON.stringify(json)], { type: 'application/manifest+json' }));
-      manifest.el.href = manifestUrl;
-    }
+    const fav = await squareIcon(key, 64);
+    if (applied === key) originals.forEach((o) => (o.el.href = fav));
   } catch {
     restore();
   }
 }
 
-// Dernier logo affiché, repris dès le lancement (écran de connexion, icône) avant le chargement des données.
+// Dernier logo affiché, repris dès le lancement (écran de connexion) avant le chargement des données.
 const cacheKey = () => `taches-gsa-logo-${getMode() ?? 'accueil'}`;
 
 export function cachedLogo(): string | undefined {

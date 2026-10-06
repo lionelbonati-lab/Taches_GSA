@@ -207,8 +207,8 @@ export function resetDemo() {
   try {
     const units = read<Unit[]>(CLUB_KEY) ?? SEED_UNITS;
     units.forEach((u) => localStorage.removeItem(unitStorageKey(u.id)));
-    // Avec le dernier logo affiché (icône de l'appli).
-    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo'].forEach((k) => localStorage.removeItem(k));
+    // Avec le dernier logo et la dernière couleur affichés (écran de connexion).
+    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }

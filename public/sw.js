@@ -1,8 +1,8 @@
 // Service worker de l'application installée (PWA).
 // - Pages : réseau d'abord, repli sur la dernière version en cache (hors-ligne).
 // - Fichiers /assets/ (noms uniques à chaque build) : cache d'abord.
-const CACHE = 'taches-gsa-v3';
-const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './icon.svg'];
+const CACHE = 'taches-gsa-v4';
+const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './favicon-32.png', './icon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

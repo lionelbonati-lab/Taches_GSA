@@ -11,7 +11,8 @@ import { Bell } from './Bell';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { useClubOptional } from '../data/club';
 import { CENTRAL_ACCESS, centralAccess, UNIT_TYPES } from '../data/units';
-import { applyAppIcon, cacheLogo } from '../data/logo';
+import { applyTabIcon, cacheLogo } from '../data/logo';
+import { applyAppColor, cacheColor } from '../data/couleur';
 
 export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean; club?: boolean; registre?: boolean }[] = [
   { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
@@ -90,14 +91,24 @@ export function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 
-  // Logo de l'entité ouverte, sinon celui du club : en-tête et icône de l'appli.
+  // Logo de l'entité ouverte, sinon celui du club : en-tête. Logo propre de l'entité : icône de l'onglet.
   const logo = club?.current.logo ?? club?.central?.logo;
   const logoReady = !!logo || !club?.loading;
+  const ownLogo = club?.current.logo !== club?.central?.logo ? club?.current.logo : undefined;
   useEffect(() => {
     if (!logoReady) return;
     cacheLogo(logo);
-    void applyAppIcon(logo);
-  }, [logo, logoReady]);
+    void applyTabIcon(ownLogo);
+  }, [logo, ownLogo, logoReady]);
+
+  // Couleur de l'appli : celle de l'entité ouverte, sinon celle du club (comité central).
+  const couleur = club?.current.couleurAppli ?? club?.central?.couleurAppli;
+  const couleurReady = !!couleur || !club?.loading;
+  useEffect(() => {
+    if (!couleurReady) return;
+    cacheColor(couleur);
+    applyAppColor(couleur);
+  }, [couleur, couleurReady]);
 
   if (!user) return null;
   const rolesText = myRoles.map((r) => r.label).join(' + ') || 'Aucun rôle';
