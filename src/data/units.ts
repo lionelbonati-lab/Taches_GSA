@@ -145,6 +145,7 @@ export function orgMembers(d: Pick<AppData, 'people' | 'roles'>): OrgMember[] {
       couleur: p.couleur,
       roles: d.roles.filter((r) => p.roles.includes(r.id)).map((r) => r.label),
       admin: p.roles.includes(ADMIN_ROLE_ID),
+      caisse: d.roles.some((r) => p.roles.includes(r.id) && !r.locked && r.permissions.includes('paiements.payer')),
     }));
 }
 

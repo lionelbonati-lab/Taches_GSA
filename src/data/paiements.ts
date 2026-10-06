@@ -33,10 +33,16 @@ export const can = (data: AppData, p: Person | null | undefined, perm: 'paiement
 /** Personnes actives qui ont le droit par un rôle qui le donne expressément ; à défaut, les admins
  *  (qui ont tous les droits). Ainsi les tickets vont à la caisse, pas au président. */
 export const holders = (data: AppData, perm: 'paiements.valider' | 'paiements.payer') => {
-  const actifs = data.people.filter((p) => p.actif);
-  const expres = actifs.filter((p) => userRoles(data.roles, p).some((r) => !r.locked && r.permissions.includes(perm)));
-  return (expres.length ? expres : actifs.filter((p) => hasPermission(userRoles(data.roles, p), perm))).map((p) => p.id);
+  const expres = expresses(data, perm);
+  return (expres.length ? expres : data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), perm))).map((p) => p.id);
 };
+
+/** Personnes actives qui ont le droit par un rôle qui le donne expressément (pas seulement en tant qu'admin). */
+const expresses = (data: AppData, perm: 'paiements.valider' | 'paiements.payer') =>
+  data.people.filter((p) => p.actif && userRoles(data.roles, p).some((r) => !r.locked && r.permissions.includes(perm)));
+
+/** Caissiers de l'entité : sans eux, elle ne reçoit pas de tickets. */
+export const caissiers = (data: AppData) => expresses(data, 'paiements.payer');
 
 /** Membres du comité de l'entité : ceux qui ont l'onglet Séances ou le droit de viser. */
 export const auComite = (data: AppData, p: Person) => {

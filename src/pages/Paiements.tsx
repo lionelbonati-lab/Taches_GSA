@@ -5,7 +5,7 @@ import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
 import type { AppData, Paiement, SceauPose, Task, TaskDoc, Timbre } from '../data/types';
 import {
-  COULEURS_TIMBRE, ETATS, chf, holders, nomDe, paiementTasks, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, type Ticket,
+  COULEURS_TIMBRE, ETATS, caissiers, chf, nomDe, paiementTasks, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, type Ticket,
 } from '../data/paiements';
 import { SCEAU_RATIO, apposerSceau, renderSceau, type SceauContenu } from '../data/sceau';
 import { deleteFiles, docIcon, getFile, openFile, saveFile } from '../data/files';
@@ -472,9 +472,12 @@ function VisaModal({ t, onClose }: { t: Ticket; onClose: () => void }) {
 function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void }) {
   const { data, user, update, guest } = useStore();
   const club = useClubOptional();
-  // Caisse destinataire : celle de l'entité ouverte ou d'une autre entité dont on est membre (le ticket y est créé).
-  const caisses = club && !ticket ? [...(guest ? [] : [club.current]), ...club.mine.filter((u) => u.id !== club.current.id)] : [];
-  const caissiers = holders(data, 'paiements.payer').map((id) => nomDe(data, id));
+  // Caisse destinataire : celle de l'entité ouverte ou d'une autre entité dont on est membre (le ticket y est créé),
+  // seulement si un caissier y est désigné.
+  const nomsCaisse = caissiers(data).map((p) => fullName(p));
+  const ici = !guest && nomsCaisse.length > 0;
+  const autres = club && !ticket ? club.mine.filter((u) => u.id !== club.current.id && u.membres.some((m) => m.caisse)) : [];
+  const bloque = !ticket && !ici;
   const [titre, setTitre] = useState(ticket?.titre ?? '');
   const [montant, setMontant] = useState(ticket ? String(ticket.paiement.montant) : '');
   const [beneficiaire, setBeneficiaire] = useState(ticket?.paiement.beneficiaire ?? fullName(user ?? undefined));
@@ -496,7 +499,7 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
     club.switchUnit(id, '#/paiements?nouveau=1');
   };
   const submit = () => {
-    if (guest) return setErr('Choisis la caisse de l’une de tes entités.');
+    if (bloque) return setErr('Choisis la caisse de l’une de tes entités.');
     const m = parseMontant(montant);
     if (!titre.trim()) return setErr('Indique l’objet de la dépense.');
     if (!(m > 0)) return setErr('Indique le montant (ex. 42.50).');
@@ -536,22 +539,24 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
   return (
     <Modal title={ticket ? 'Modifier le ticket' : 'Ticket à rembourser'} onClose={cancel}>
       <div className="form">
-        {caisses.length > 1 || guest ? (
+        {club && autres.length > 0 && (
           <label className="full">
             Envoyer à la caisse de
-            <select value={guest ? '' : club?.current.id} onChange={(e) => changerCaisse(e.target.value)}>
-              {guest && <option value="" disabled>Choisir l’entité…</option>}
-              {caisses.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
+            <select value={ici ? club.current.id : ''} onChange={(e) => changerCaisse(e.target.value)}>
+              {!ici && <option value="" disabled>Choisir la caisse…</option>}
+              {(ici ? [club.current, ...autres] : autres).map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
             </select>
           </label>
-        ) : null}
-        {!guest && (
+        )}
+        {!ticket && (
           <p className="muted small full">
-            {club ? `Caisse ${club.current.nom}` : 'Caisse'} : {caissiers.join(', ') || 'personne pour l’instant (rôle « Caissier » à attribuer)'}.
-            {caisses.length > 1 && ' Une autre entité ? Choisis-la ci-dessus avant d’ajouter la photo.'}
+            {ici
+              ? `${club ? `Caisse ${club.current.nom}` : 'Caisse'} : ${nomsCaisse.join(', ')}.${autres.length ? ' Une autre entité ? Choisis-la ci-dessus avant d’ajouter la photo.' : ''}`
+              : `${guest ? 'Tu consultes cette entité en visiteur.' : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans « Responsables »).`} ${
+                  autres.length ? 'Envoie ton ticket à la caisse de l’une de tes entités.' : 'Aucune de tes entités n’a de caissier : le ticket ne peut pas encore être envoyé.'
+                }`}
           </p>
         )}
-        {guest && <p className="muted small full">Tu consultes cette entité en visiteur : envoie ton ticket à la caisse de l’une de tes entités.</p>}
         <DocsField docs={docs} setDocs={setDocs} disabled={false} track={track.current} />
         <label className="full">
           Objet de la dépense
@@ -579,7 +584,7 @@ function TicketForm({ ticket, onClose }: { ticket?: Ticket; onClose: () => void 
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={cancel}>Annuler</button>
-        <button className="btn primary" disabled={!!guest} onClick={submit}>{ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}</button>
+        <button className="btn primary" disabled={bloque} onClick={submit}>{ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}</button>
       </div>
     </Modal>
   );

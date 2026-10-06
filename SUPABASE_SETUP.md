@@ -56,6 +56,8 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/010_gsa_paiements_entites.sql` (appliqué le 05.10.2026) : **une caisse par entité**. Un ticket est enregistré dans l'entité dont on choisit la caisse (comité central, sous-comité, groupe, équipe) ; la caisse de chaque entité ne fait viser que **les membres de son comité** : fiche active de l'entité avec un rôle qui donne l'onglet Comité (`tab.meetings`) ou le droit de viser, ou admin de l'entité (`gsa_fiche_au_comite`). Contrôlé à la demande de visa et au moment du visa (une personne sortie du comité entre-temps ne vise plus). Aucune donnée modifiée. Rôle « Caissier » : créé dans les nouvelles entités ; dans une entité existante sans caisse, il est ajouté à l'ouverture par un admin, à attribuer ensuite dans « Responsables ».
 
+`supabase/migrations/011_gsa_organigramme_caisse.sql` (appliqué le 06.10.2026) : `gsa_organigramme` indique pour chaque membre s'il tient la caisse de son entité (`caisse` : rôle non admin qui donne `paiements.payer`). Le formulaire des tickets ne propose ainsi que les entités qui ont un caissier désigné. Aucune donnée modifiée.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

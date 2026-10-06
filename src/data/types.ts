@@ -445,6 +445,8 @@ export interface OrgMember {
   couleur: string;
   roles: string[];
   admin: boolean;
+  /** Tient la caisse de l'entité (rôle qui donne expressément le droit « Caisse »). */
+  caisse?: boolean;
 }
 
 export interface OrgUnit extends Unit {
