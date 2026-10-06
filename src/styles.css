@@ -705,12 +705,14 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .genre-note { background: var(--surface2); padding: 8px 10px; border-radius: 8px; margin: 0; }
 .circuit-paiements { margin-bottom: 12px; }
 .circuit-paiements p { margin: 0 0 8px; }
+.circuit-paiements .entete-bon { margin-bottom: 12px; }
 @media print {
   /* Bon de paiement : seule la fenêtre du ticket (rendue hors de #root) est imprimée. */
   body.printing-ticket #root { display: none !important; }
   body.printing-ticket .modal-back { position: static; display: block; background: none; padding: 0; overflow: visible; }
   body.printing-ticket .modal { box-shadow: none; max-height: none; overflow: visible; width: auto; max-width: none; margin: 0; }
-  body.printing-ticket .modal-head .icon-btn { display: none; }
+  body.printing-ticket .modal-head { display: none; }
+  .bon-entete h2 { margin: 6px 0 10px; font-size: 1.2rem; }
   .ticket { border: 1px solid #999; break-inside: avoid; }
   .ticket-doc { border: none; box-shadow: none !important; width: auto; }
   /* Bon de paiement : le justificatif d'origine, sans la copie visée ; le sceau signé figure une seule fois, en bas. */

@@ -1,20 +1,21 @@
 import type { AppData, Entete, Unit } from './types';
 import { isImage } from './logo';
 
-// En-têtes des documents imprimés (ordre du jour, PV) : réglage commun à l'entité (données partagées « entetes »).
+// En-têtes des documents imprimés (ordre du jour, PV, bon de paiement) : réglage commun à l'entité (données partagées « entetes »).
 
-export type DocKind = 'odj' | 'pv';
-export const DOC_LABEL: Record<DocKind, string> = { odj: 'l’ordre du jour', pv: 'le PV' };
+export type DocKind = 'odj' | 'pv' | 'bon';
+export const DOC_LABEL: Record<DocKind, string> = { odj: 'l’ordre du jour', pv: 'le PV', bon: 'le bon de paiement' };
+export const DOC_DE: Record<DocKind, string> = { odj: 'de l’ordre du jour', pv: 'du PV', bon: 'du bon de paiement' };
 
 /** Texte par défaut : nom du club, et de l'entité hors comité central. */
 export const defaultTexte = (unit?: Pick<Unit, 'nom' | 'type'>) => (!unit || unit.type === 'central' ? 'G.S. Ajoie – Comité' : `G.S. Ajoie – ${unit.nom}`);
 
 export const defaultEntete = (texte: string): Entete => ({ image: 'logo', taille: 'petite', texte, disposition: 'gauche', couleur: '#1d4ed8', trait: false });
 
-/** En-tête réglé pour ce document ; PV sans réglage : celui de l'ordre du jour ; sinon l'en-tête par défaut. */
+/** En-tête réglé pour ce document ; PV ou bon de paiement sans réglage : celui de l'ordre du jour ; sinon l'en-tête par défaut. */
 export function enteteOf(data: AppData, doc: DocKind, texte: string): { e: Entete; source: DocKind | null } {
   const own = data.entetes?.[doc];
-  const odj = doc === 'pv' && !own ? data.entetes?.odj : undefined;
+  const odj = doc !== 'odj' && !own ? data.entetes?.odj : undefined;
   const set = own ?? odj;
   return { e: { ...defaultEntete(texte), ...set }, source: own ? doc : odj ? 'odj' : null };
 }

@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { DOC_LABEL, defaultEntete, enteteImage, enteteOf, type DocKind } from '../data/entete';
+import { DOC_DE, DOC_LABEL, defaultEntete, enteteImage, enteteOf, type DocKind } from '../data/entete';
 import { isImage } from '../data/logo';
 import type { Entete } from '../data/types';
 import { ImagePicker } from './ImagePicker';
 import { Modal } from './ui';
 
-// En-tête des documents imprimés (ordre du jour, PV) et son réglage, commun à toute l'entité.
+// En-tête des documents imprimés (ordre du jour, PV, bon de paiement) et son réglage, commun à toute l'entité.
 
 const TAILLES: { id: Entete['taille']; label: string }[] = [
   { id: 'petite', label: 'Petite' },
@@ -55,7 +55,7 @@ export function EnteteEditor({ doc, texte, onClose }: { doc: DocKind; texte: str
   const [err, setErr] = useState('');
   const set = (patch: Partial<Entete>) => setE((x) => ({ ...x, ...patch }));
   const odj = data.entetes?.odj;
-  const label = doc === 'odj' ? 'de l’ordre du jour' : 'du PV';
+  const label = DOC_DE[doc];
 
   const save = () => {
     if (e.image === 'perso' && !isImage(e.imagePerso)) return setErr('Choisis l’image, ou une autre option.');
@@ -70,7 +70,7 @@ export function EnteteEditor({ doc, texte, onClose }: { doc: DocKind; texte: str
       const next = { ...d.entetes };
       delete next[doc];
       d.entetes = next;
-    }, `En-tête ${label} : retour à l’en-tête ${doc === 'pv' && odj ? 'de l’ordre du jour' : 'par défaut'}`);
+    }, `En-tête ${label} : retour à l’en-tête ${doc !== 'odj' && odj ? 'de l’ordre du jour' : 'par défaut'}`);
     onClose();
   };
 
@@ -78,7 +78,7 @@ export function EnteteEditor({ doc, texte, onClose }: { doc: DocKind; texte: str
     <Modal title={`En-tête ${label}`} onClose={onClose} wide>
       <p className="muted small-note">
         Commun à toute l’entité : chacun imprime {DOC_LABEL[doc]} avec cet en-tête.
-        {doc === 'pv' && current.source === 'odj' && ' Pour l’instant, le PV reprend l’en-tête de l’ordre du jour.'}
+        {doc !== 'odj' && current.source === 'odj' && ` Pour l’instant, ${DOC_LABEL[doc]} reprend l’en-tête de l’ordre du jour.`}
       </p>
       <div className="form">
         <div className="full">
@@ -127,15 +127,15 @@ export function EnteteEditor({ doc, texte, onClose }: { doc: DocKind; texte: str
         <div className="pv-sheet portrait t-normale">
           <header className="pv-head">
             <DocEntete e={e} source={doc} logo={logo} />
-            <p className="pv-kicker">{doc === 'odj' ? 'Ordre du jour' : 'Procès-verbal'}</p>
-            <h1>Comité …</h1>
+            <p className="pv-kicker">{doc === 'odj' ? 'Ordre du jour' : doc === 'pv' ? 'Procès-verbal' : 'Bon de paiement'}</p>
+            <h1>{doc === 'bon' ? 'Remboursement · CHF …' : 'Comité …'}</h1>
           </header>
         </div>
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot wrap">
-        {doc === 'pv' && odj && <button className="btn" onClick={() => setE({ ...defaultEntete(texte), ...odj })}>Reprendre l’en-tête de l’ordre du jour</button>}
-        {current.source === doc && <button className="btn link" onClick={reset}>{doc === 'pv' && odj ? 'Revenir à l’en-tête de l’ordre du jour' : 'Revenir à l’en-tête par défaut'}</button>}
+        {doc !== 'odj' && odj && <button className="btn" onClick={() => setE({ ...defaultEntete(texte), ...odj })}>Reprendre l’en-tête de l’ordre du jour</button>}
+        {current.source === doc && <button className="btn link" onClick={reset}>{doc !== 'odj' && odj ? 'Revenir à l’en-tête de l’ordre du jour' : 'Revenir à l’en-tête par défaut'}</button>}
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
         <button className="btn primary" onClick={save}>Enregistrer</button>

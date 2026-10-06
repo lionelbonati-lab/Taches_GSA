@@ -389,7 +389,7 @@ export interface AppData {
   /** Clés des notifications déjà vues, par utilisateur. */
   notifLues?: Record<string, string[]>;
   /** En-têtes des documents imprimés (sans réglage : logo et nom de l'entité ; PV : celui de l'ordre du jour). */
-  entetes?: { odj?: Entete; pv?: Entete };
+  entetes?: { odj?: Entete; pv?: Entete; bon?: Entete };
   /** Sceau « OK pour paiement » des tickets à rembourser. */
   timbre?: Timbre;
 }
