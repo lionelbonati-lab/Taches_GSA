@@ -571,7 +571,25 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .sheet .install-help { margin: 0 10px 8px; }
 
 /* ---------- Mobile ---------- */
-.fab, .bottomnav, .mobile-only, .sheet-back { display: none; }
+.bottomnav, .mobile-only, .sheet-back { display: none; }
+
+/* Bouton flottant « + » : tâche, remboursement, paiement (menu au-dessus du bouton). */
+.content { padding-bottom: 100px; }
+.fab {
+  display: flex; align-items: center; justify-content: center;
+  position: fixed; right: 24px; bottom: 24px; z-index: 30;
+  width: 58px; height: 58px; border-radius: 50%; border: none;
+  background: var(--primary); color: #fff; font-size: 2rem; box-shadow: 0 6px 18px rgba(29, 78, 216, 0.45); cursor: pointer;
+  transition: transform 0.15s;
+}
+.fab.open { transform: rotate(45deg); }
+.fab-back { position: fixed; inset: 0; z-index: 29; background: rgba(15, 23, 42, 0.3); }
+.fab-menu { position: fixed; right: 24px; bottom: 96px; z-index: 31; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.fab-menu button {
+  padding: 11px 18px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text);
+  font-size: 0.95rem; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+.fab-menu button:hover { border-color: var(--primary); color: var(--primary); }
 
 @media (max-width: 767px) {
   body { font-size: 15px; }
@@ -594,12 +612,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   .modal-back { align-items: flex-end; padding: 0; }
   .modal, .modal.wide { max-width: none; border-radius: 16px 16px 0 0; max-height: 94vh; padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
 
-  .fab {
-    display: flex; align-items: center; justify-content: center;
-    position: fixed; right: 18px; bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 30;
-    width: 58px; height: 58px; border-radius: 50%; border: none;
-    background: var(--primary); color: #fff; font-size: 2rem; box-shadow: 0 6px 18px rgba(29, 78, 216, 0.45); cursor: pointer;
-  }
+  .fab { right: 18px; bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .fab-menu { right: 18px; bottom: calc(146px + env(safe-area-inset-bottom)); }
   .bottomnav {
     display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 30;
     background: var(--surface); border-top: 1px solid var(--border);
@@ -702,7 +716,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 
 /* ---------- Impression ---------- */
 @media print {
-  .topbar, .bottomnav, .fab, .actions, .filters, .mobile-only, .no-print, .toast { display: none !important; }
+  .topbar, .bottomnav, .fab, .fab-menu, .fab-back, .actions, .filters, .mobile-only, .no-print, .toast { display: none !important; }
   .pv-layout { display: block; }
   .pv-preview { overflow: visible; padding: 0; background: none; }
   .pv-sheet { width: auto !important; min-height: 0 !important; box-shadow: none; padding: 0; margin: 0; }

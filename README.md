@@ -172,14 +172,14 @@ Onglet **🖊️ PV** (droit « Onglet PV », donné au Secrétaire et à l'Admi
 
 ## Remboursements et paiements (dans les tâches)
 
-Pas d'onglet à part : les demandes sont des **tâches** (section des finances), avec deux boutons dans **Tâches** :
+Pas d'onglet à part : les demandes sont des **tâches** (section des finances). Le **bouton flottant « + »** (en bas à droite, sur téléphone comme sur ordinateur, depuis n'importe quelle page) propose **✅ Nouvelle tâche** (ajout rapide) et :
 
 - **🧾 Nouveau remboursement** : rembourser une personne qui a **avancé de l'argent** (photo de son ticket de caisse ; « À rembourser à » : soi-même, une personne de l'entité ou un autre nom). Sous-section « Remboursements ».
 - **💳 Nouveau paiement** : payer une **facture directement à qui l'a envoyée** (fournisseur, prestataire…) : photo ou PDF de la facture, « À payer à », IBAN s'il n'est pas sur la facture, **échéance** facultative (= délai de la tâche, visible dans l'agenda). Sous-section « Paiements ».
 
 Le virement ne se fait pas dans l'appli : elle sert à **demander, viser et suivre**. Circuit : **justificatif → caisse → demande de visa → visa → virement**. Un clic sur la tâche ouvre la fenêtre de la demande (état, justificatifs, sceau, actions) au lieu du formulaire de tâche ; son statut suit le circuit (pas de changement direct, ni par glisser-déposer).
 
-1. **Demande** : un des deux boutons (ou les raccourcis **Remboursement** / **Paiement** de l'icône) → **caisse destinataire** (entité ouverte par défaut ; « Envoyer à la caisse de » : une autre de ses entités, ou la **caisse centrale**, ouverte à tous les membres du club), photo prise directement avec l'appareil (📷 Photo) ou fichier existant (📎 Fichier, PDF compris), objet, montant, bénéficiaire, IBAN, remarque. La demande part à la caisse (« 📥 À traiter »).
+1. **Demande** : « + » › remboursement ou paiement (ou les raccourcis **Remboursement** / **Paiement** de l'icône) → **caisse destinataire** (entité ouverte par défaut ; « Envoyer à la caisse de » : une autre de ses entités, ou la **caisse centrale**, ouverte à tous les membres du club), photo prise directement avec l'appareil (📷 Photo) ou fichier existant (📎 Fichier, PDF compris), objet, montant, bénéficiaire, IBAN, remarque. La demande part à la caisse (« 📥 À traiter »).
 2. **Caisse** (droit « Caisse », rôle Caissier de l'entité) : contrôle le ticket puis **demande le visa** à un **membre du comité de son entité** (avec un message facultatif) ; les bénévoles ne sont pas proposés. Le demandeur n'est jamais proposé : **on ne vise pas sa propre demande**. La caisse peut aussi refuser, ou changer de signataire tant que le visa n'est pas donné.
 3. **Visa** : la personne désignée ouvre le ticket, **glisse le sceau sur une zone libre de la photo** (taille réglable), peut adapter le texte, puis **signe au doigt, au stylet ou à la souris**. Le sceau « OK pour paiement · montant · date · signature · nom » est incrusté dans une copie du ticket (« ✔ Ticket visé », ajoutée aux justificatifs). Elle peut aussi refuser, avec un motif.
 4. **Paiement** : la caisse **télécharge le document fini** (« ⬇️ Télécharger : ticket visé / facture visée » : la photo avec le sceau signé), fait le virement dans son e-banking puis appuie sur **✅ Virement fait (OK)** → « Payé ».

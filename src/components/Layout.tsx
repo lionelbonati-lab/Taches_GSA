@@ -3,6 +3,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
 import type { Permission } from '../data/types';
 import { TaskModal, newTask } from './TaskModal';
+import { TicketForm } from './Tickets';
+import { GENRES, type GenreTicket } from '../data/paiements';
 import { AppLogo, Avatar, Toast, UnitMark } from './ui';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
@@ -30,16 +32,20 @@ export function Layout() {
   const { user, myRoles, can, login, prefs, setToast, cloud, guest, creatableSections } = useStore();
   const club = useClubOptional();
   const [quick, setQuick] = useState(false);
+  const [ticket, setTicket] = useState<GenreTicket | null>(null);
+  const [fab, setFab] = useState(false);
   const [menu, setMenu] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
   useEffect(() => setMenu(false), [loc.pathname]);
-  // Raccourci de l'application installée (appui long sur l'icône) : « Nouvelle tâche ».
+  // Raccourcis de l'application installée (appui long sur l'icône) : « Nouvelle tâche », « Remboursement », « Paiement ».
   useEffect(() => {
-    if (new URLSearchParams(loc.search).has('ajout')) {
-      setQuick(true);
-      navigate(loc.pathname, { replace: true });
-    }
+    const q = new URLSearchParams(loc.search);
+    const n = q.get('nouveau');
+    if (!q.has('ajout') && !n) return;
+    if (q.has('ajout')) setQuick(true);
+    else if (n === 'paiement' || n === 'remboursement') setTicket(n === 'paiement' ? 'facture' : 'remboursement');
+    navigate(loc.pathname, { replace: true });
   }, [loc.search, loc.pathname, navigate]);
 
   useEffect(() => {
@@ -95,6 +101,16 @@ export function Layout() {
   if (!user) return null;
   const rolesText = myRoles.map((r) => r.label).join(' + ') || 'Aucun rôle';
   const canCreate = creatableSections().length > 0;
+  // Bouton flottant « + » : tâche (ajout rapide), remboursement, paiement de facture.
+  // (Un visiteur du comité central y choisit la caisse de l'une de ses entités.)
+  const ajouts = [
+    ...(canCreate ? [{ label: '✅ Nouvelle tâche', title: 'Ajout rapide d’une tâche', run: () => setQuick(true) }] : []),
+    ...(['remboursement', 'facture'] as const).map((g) => ({
+      label: `${GENRES[g].icon} ${GENRES[g].nouveau}`,
+      title: g === 'facture' ? 'Payer une facture directement à qui l’a envoyée' : 'Rembourser une personne qui a avancé de l’argent',
+      run: () => setTicket(g),
+    })),
+  ];
   // Libellés selon l'entité ouverte : « Séances » pour un groupe, « Membres » hors comité central…
   const unitType = club?.current.type ?? 'central';
   const tabs = TABS.filter((t) => (!t.perm || can(t.perm)) && (!t.club || club)).map((t) =>
@@ -132,7 +148,26 @@ export function Layout() {
         <Outlet />
       </main>
 
-      {!menu && canCreate && <button className="fab" onClick={() => setQuick(true)} aria-label="Ajout rapide de tâche">+</button>}
+      {!menu && ajouts.length > 0 && (
+        <>
+          {fab && <div className="fab-back" onClick={() => setFab(false)} />}
+          {fab && (
+            <div className="fab-menu" role="menu">
+              {ajouts.map((a) => (
+                <button key={a.label} role="menuitem" title={a.title} onClick={() => { setFab(false); a.run(); }}>{a.label}</button>
+              ))}
+            </div>
+          )}
+          <button
+            className={`fab ${fab ? 'open' : ''}`}
+            onClick={() => (ajouts.length === 1 ? ajouts[0].run() : setFab(!fab))}
+            aria-label={ajouts.length === 1 ? 'Ajout rapide de tâche' : 'Ajouter'}
+            aria-expanded={ajouts.length > 1 ? fab : undefined}
+          >
+            +
+          </button>
+        </>
+      )}
 
       <nav className="bottomnav">
         {tabs.filter((t) => t.mobile).map((t) => (
@@ -167,6 +202,7 @@ export function Layout() {
 
       <Toast />
       {quick && canCreate && <TaskModal quick isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
+      {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
     </div>
   );
 }

@@ -18,6 +18,9 @@ import { Modal } from './ui';
 // Remboursements et paiements de factures : des tâches de la section des finances, ouvertes dans cette fenêtre
 // (circuit caisse → visa → virement) au lieu du formulaire de tâche.
 
+/** Événement de la fenêtre après un envoi à la caisse centrale (le suivi se recharge). */
+const ENVOI_CENTRAL = 'gsa-envoi-caisse-centrale';
+
 const parseMontant = (s: string) => {
   const n = parseFloat(s.replace(/['’\s]/g, '').replace(',', '.'));
   return Number.isFinite(n) ? Math.round(n * 100) / 100 : NaN;
@@ -64,9 +67,16 @@ export function CircuitPaiements({ total }: { total?: number }) {
 }
 
 /** Demandes envoyées à la caisse centrale depuis une autre entité : elles n'y sont pas, on en suit l'état. */
-export function SuiviCentral({ version }: { version: number }) {
+export function SuiviCentral() {
   const club = useClubOptional();
   const [list, setList] = useState<SuiviTicket[]>([]);
+  // Rechargé après chaque envoi (formulaire ouvert depuis le bouton « + », sur n'importe quelle page).
+  const [version, setVersion] = useState(0);
+  useEffect(() => {
+    const k = () => setVersion((v) => v + 1);
+    window.addEventListener(ENVOI_CENTRAL, k);
+    return () => window.removeEventListener(ENVOI_CENTRAL, k);
+  }, []);
   useEffect(() => {
     if (!club || club.central?.moi) return;
     let actif = true;
@@ -544,6 +554,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
         .ticketCentral({ type: facture ? 'facture' : undefined, delai: facture && echeance ? echeance : undefined, titre: titre.trim(), montant: m, beneficiaire: beneficiaire.trim(), iban: iban.trim().toUpperCase() || undefined, remarque: remarque.trim(), documents: docs })
         .then(() => {
           deleteFiles(track.current.removed);
+          window.dispatchEvent(new Event(ENVOI_CENTRAL));
           onEnvoye?.();
           onClose();
         })

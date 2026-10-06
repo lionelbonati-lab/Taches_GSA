@@ -4,8 +4,8 @@ import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { childrenOf, daysUntil, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
-import { CircuitPaiements, SuiviCentral, TicketForm } from '../components/Tickets';
-import { GENRES, genreDe, type GenreTicket } from '../data/paiements';
+import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
+import { GENRES, genreDe } from '../data/paiements';
 import { Avatar, DocPollIcons, Empty, LinkIcon, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
@@ -39,16 +39,7 @@ export function Tasks() {
     setEdit(null);
     if (params.get('tache')) navigate('/taches', { replace: true });
   };
-  // Nouveau remboursement / paiement (boutons, raccourcis de l'icône : /taches?nouveau=remboursement|paiement).
-  const [ticket, setTicket] = useState<GenreTicket | null>(() => {
-    const n = params.get('nouveau');
-    return n === 'paiement' ? 'facture' : n === 'remboursement' ? 'remboursement' : null;
-  });
-  const closeTicket = () => {
-    setTicket(null);
-    if (params.get('nouveau')) navigate('/taches', { replace: true });
-  };
-  const [envois, setEnvois] = useState(0);
+
   const [showFilters, setShowFilters] = useState(!!params.get('statut') || !!params.get('type'));
   const [hideDone, setHideDone] = useState(true);
   const [dragId, setDragId] = useState<string | null>(null);
@@ -151,8 +142,6 @@ export function Tasks() {
           <button className="btn" onClick={() => setShowFilters(!showFilters)}>Filtres{activeFilters ? ` (${activeFilters})` : ''}</button>
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
-          {!guest && <button className="btn" onClick={() => setTicket('remboursement')} title="Rembourser une personne qui a avancé de l’argent">{GENRES.remboursement.icon} {GENRES.remboursement.nouveau}</button>}
-          {!guest && <button className="btn" onClick={() => setTicket('facture')} title="Payer une facture directement à qui l’a envoyée">{GENRES.facture.icon} {GENRES.facture.nouveau}</button>}
           {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { eventId: f.event || undefined, meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>}
         </div>
       </div>
@@ -278,9 +267,8 @@ export function Tasks() {
         </div>
       )}
 
-      {effScope === 'mes' && !guest && <SuiviCentral version={envois} />}
+      {effScope === 'mes' && !guest && <SuiviCentral />}
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} onClose={closeEdit} />}
-      {ticket && <TicketForm type={ticket} onClose={closeTicket} onEnvoye={() => setEnvois((v) => v + 1)} />}
     </div>
   );
 }
