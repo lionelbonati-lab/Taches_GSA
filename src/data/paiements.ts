@@ -31,7 +31,7 @@ export const GENRES: Record<GenreTicket, { icon: string; nom: string; nouveau: s
 };
 export const genre = (p: Pick<Paiement, 'type'>) => GENRES[genreDe(p)];
 
-export const TIMBRE_DEFAUT: Timbre = { entete: '', texte: 'OK pour paiement', couleur: '#1d4ed8' };
+export const TIMBRE_DEFAUT: Timbre = { entete: '', texte: 'OK pour paiement', couleur: '#1d4ed8', fond: 85, encre: 100 };
 export const COULEURS_TIMBRE = [
   { id: '#1d4ed8', label: 'Bleu' },
   { id: '#b91c1c', label: 'Rouge' },

@@ -12,7 +12,13 @@ export interface SceauContenu {
   nom: string;
   /** Signature (PNG) ; sans elle, un emplacement vide. */
   signature?: string;
+  /** Opacité du fond blanc, en % (0 : transparent ; 85 par défaut). */
+  fond?: number;
+  /** Opacité du cadre, du texte et de la signature, en % (100 par défaut). */
+  encre?: number;
 }
+
+const pct = (v: number | undefined, def: number) => Math.min(100, Math.max(0, v ?? def)) / 100;
 
 const W = 480;
 const H = 300;
@@ -33,7 +39,7 @@ function fit(ctx: CanvasRenderingContext2D, text: string, size: number, weight: 
   while (ctx.measureText(text).width > max && --s > 10);
 }
 
-/** Image PNG du sceau (fond blanc légèrement transparent, double cadre, texte de la couleur du timbre). */
+/** Image PNG du sceau (fond blanc plus ou moins transparent, double cadre, texte de la couleur du timbre). */
 export async function renderSceau(c: SceauContenu, scale = 2): Promise<string> {
   const cv = document.createElement('canvas');
   cv.width = W * scale;
@@ -45,8 +51,10 @@ export async function renderSceau(c: SceauContenu, scale = 2): Promise<string> {
     ctx.roundRect(inset, inset, W - 2 * inset, H - 2 * inset, r);
   };
   box(4, 20);
-  ctx.fillStyle = 'rgba(255,255,255,0.86)';
+  ctx.fillStyle = `rgba(255,255,255,${pct(c.fond, 85)})`;
   ctx.fill();
+  const encre = pct(c.encre, 100);
+  ctx.globalAlpha = encre;
   ctx.strokeStyle = c.couleur;
   ctx.lineWidth = 5;
   ctx.stroke();
@@ -78,7 +86,7 @@ export async function renderSceau(c: SceauContenu, scale = 2): Promise<string> {
     ctx.drawImage(img, W / 2 - (img.width * k) / 2, bottom - img.height * k, img.width * k, img.height * k);
   } else {
     ctx.save();
-    ctx.globalAlpha = 0.45;
+    ctx.globalAlpha = 0.45 * encre;
     ctx.font = 'italic 18px system-ui, sans-serif';
     ctx.fillText('signature', W / 2, (top + bottom) / 2 + 6);
     ctx.restore();

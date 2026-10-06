@@ -106,7 +106,17 @@ export function SuiviCentral() {
   );
 }
 
-/** Modèle du sceau, réglé par la caisse : en-tête, texte, couleur. */
+/** Curseur de transparence (0 % : opaque) d'une opacité enregistrée en %. */
+function Transparence({ label, opacite, max = 100, onChange }: { label: string; opacite: number; max?: number; onChange: (opacite: number) => void }) {
+  return (
+    <label className="small sceau-taille">
+      <span>{label} : {100 - opacite} %</span>
+      <input type="range" min={0} max={max} step={5} value={100 - opacite} onChange={(e) => onChange(100 - +e.target.value)} />
+    </label>
+  );
+}
+
+/** Modèle du sceau, réglé par la caisse : en-tête, texte, couleur, transparence. */
 function TimbreReglage() {
   const { data, update } = useStore();
   const [t, setT] = useState<Timbre>(() => timbreDe(data));
@@ -130,12 +140,18 @@ function TimbreReglage() {
             ))}
           </div>
           <div className="full">
-            <button className="btn primary small" disabled={!modifie || !t.texte.trim()} onClick={() => update((d) => { d.timbre = { entete: t.entete.trim(), texte: t.texte.trim(), couleur: t.couleur }; }, `Sceau de paiement modifié : « ${t.texte.trim()} »`)}>Enregistrer</button>
+            <Transparence label="Transparence du fond" opacite={t.fond ?? 85} onChange={(fond) => setT({ ...t, fond })} />
+            <Transparence label="Transparence du texte et du cadre" opacite={t.encre ?? 100} max={70} onChange={(encre) => setT({ ...t, encre })} />
+          </div>
+          <div className="full">
+            <button className="btn primary small" disabled={!modifie || !t.texte.trim()} onClick={() => update((d) => { d.timbre = { entete: t.entete.trim(), texte: t.texte.trim(), couleur: t.couleur, fond: t.fond, encre: t.encre }; }, `Sceau de paiement modifié : « ${t.texte.trim()} »`)}>Enregistrer</button>
           </div>
         </div>
-        <SceauImg c={{ ...t, montant: 'CHF 0.00', date: fmtDate(today()), nom: 'Prénom Nom' }} />
+        <div className="sceau-apercu" title="Aperçu sur un document">
+          <SceauImg c={{ ...t, montant: 'CHF 0.00', date: fmtDate(today()), nom: 'Prénom Nom' }} />
+        </div>
       </div>
-      <small className="muted">La date, le montant, la signature et le nom de la personne qui vise sont ajoutés au moment du visa.</small>
+      <small className="muted">La date, le montant, la signature et le nom de la personne qui vise sont ajoutés au moment du visa. Un fond transparent laisse voir le document sous le sceau ; la personne qui vise peut encore l’ajuster.</small>
     </details>
   );
 }
@@ -156,7 +172,7 @@ function sceauDe(data: AppData, t: Ticket): SceauContenu | null {
   const v = t.paiement.validation;
   if (!v) return null;
   const s = v.sceau ?? timbreDe(data);
-  return { entete: s.entete, texte: s.texte, couleur: s.couleur, montant: chf(t.paiement.montant), date: fmtDate(v.le.slice(0, 10)), nom: nomDe(data, v.par), signature: v.signature };
+  return { entete: s.entete, texte: s.texte, couleur: s.couleur, fond: s.fond, encre: s.encre, montant: chf(t.paiement.montant), date: fmtDate(v.le.slice(0, 10)), nom: nomDe(data, v.par), signature: v.signature };
 }
 
 function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onClose: () => void }) {
@@ -373,6 +389,7 @@ function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onV
   const [docId, setDocId] = useState(images[0]?.id);
   const modele = timbreDe(data);
   const [texte, setTexte] = useState(modele.texte);
+  const [fond, setFond] = useState(modele.fond ?? 85);
   const [png, setPng] = useState<string>();
   const [pose, setPose] = useState({ x: 0.5, y: 0.6, largeur: 0.45 });
   const [aspect, setAspect] = useState(1.4); // hauteur / largeur de l'image
@@ -380,7 +397,7 @@ function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onV
   const [err, setErr] = useState('');
   const zone = useRef<HTMLDivElement>(null);
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
-  const contenu: SceauContenu = { entete: modele.entete, texte: texte.trim() || modele.texte, couleur: modele.couleur, montant: chf(p.montant), date: fmtDate(today()), nom: fullName(user ?? undefined), signature: png };
+  const contenu: SceauContenu = { entete: modele.entete, texte: texte.trim() || modele.texte, couleur: modele.couleur, fond, encre: modele.encre, montant: chf(p.montant), date: fmtDate(today()), nom: fullName(user ?? undefined), signature: png };
 
   const clamp = (q: typeof pose, asp = aspect) => {
     const h = (q.largeur * SCEAU_RATIO) / asp;
@@ -410,7 +427,7 @@ function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onV
     setErr('');
     try {
       const le = new Date().toISOString();
-      const sceau: SceauPose = { entete: contenu.entete, texte: contenu.texte, couleur: contenu.couleur, docId, ...pose };
+      const sceau: SceauPose = { entete: contenu.entete, texte: contenu.texte, couleur: contenu.couleur, fond, encre: contenu.encre, docId, ...pose };
       let documents = t.documents ?? [];
       let docVise: string | undefined;
       if (docId) {
@@ -462,6 +479,7 @@ function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onV
                 Taille du sceau
                 <input type="range" min={20} max={90} value={Math.round(pose.largeur * 100)} onChange={(e) => setPose(clamp({ ...pose, largeur: +e.target.value / 100 }))} />
               </label>
+              <Transparence label="Transparence du fond" opacite={fond} onChange={setFond} />
               <small className="muted">Glisse le sceau sur une zone libre {g.duDoc}.</small>
             </>
           ) : (

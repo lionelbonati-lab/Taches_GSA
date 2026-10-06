@@ -548,6 +548,10 @@ export interface Timbre {
   /** Texte principal, ex. « OK pour paiement ». */
   texte: string;
   couleur: string;
+  /** Opacité du fond blanc, en % (0 : fond transparent ; 85 par défaut). */
+  fond?: number;
+  /** Opacité du cadre, du texte et de la signature, en % (100 par défaut). */
+  encre?: number;
 }
 
 /** Sceau posé sur un justificatif : texte, position et largeur (en fraction de l'image). */
@@ -555,6 +559,8 @@ export interface SceauPose {
   entete: string;
   texte: string;
   couleur: string;
+  fond?: number;
+  encre?: number;
   docId?: string;
   x: number;
   y: number;

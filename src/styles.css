@@ -663,7 +663,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .ticket-doc .doc-icon { font-size: 2rem; line-height: 80px; }
 .ticket-doc small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.7rem; }
 .ticket-visa { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; margin: 8px 0; }
-.ticket-visa .sceau { width: 240px; max-width: 100%; }
+.ticket-visa .sceau { width: 240px; max-width: 100%; background: #fff; border-radius: 12px; }
 .ticket-alerte { background: var(--primary-soft); color: var(--primary); padding: 6px 10px; border-radius: 8px; margin: 8px 0; font-weight: 600; }
 .ticket-doc.vise { border-color: #16a34a; box-shadow: 0 0 0 1px #16a34a; }
 .ticket-doc.vise small { color: #16a34a; font-weight: 600; }
@@ -673,7 +673,10 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .timbre-reglage { padding: 10px 14px; margin-bottom: 12px; }
 .timbre-reglage summary { cursor: pointer; font-weight: 600; }
 .timbre-grid { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 14px; align-items: center; margin: 10px 0 6px; }
-.timbre-grid .sceau { width: 100%; }
+.timbre-grid .sceau { width: 100%; display: block; }
+/* Aperçu du sceau sur un faux document (lignes de texte), pour juger de la transparence. */
+.sceau-apercu { padding: 14px 10px; border: 1px solid var(--border); border-radius: 8px; background: repeating-linear-gradient(#fff 0 9px, #9aa3af 9px 12px); }
+.visa-grid > div > .sceau { width: 100%; background: #fff; border-radius: 12px; }
 .couleurs { display: flex; gap: 8px; }
 .pastille { width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--surface); box-shadow: 0 0 0 1px var(--border); cursor: pointer; }
 .pastille.on { box-shadow: 0 0 0 3px var(--text); }
