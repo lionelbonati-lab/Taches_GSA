@@ -19,7 +19,8 @@ export type Permission =
   | 'settings.lists'
   | 'admin.access'
   | 'paiements.valider'
-  | 'paiements.payer';
+  | 'paiements.payer'
+  | 'club.membres';
 
 export interface Person {
   id: string;
@@ -33,6 +34,24 @@ export interface Person {
   roles: RoleId[];
   actif: boolean;
   couleur: string;
+  /** Fiche du registre « Membres du club » : coordonnées communes à toutes les entités. */
+  membreId?: string;
+}
+
+/**
+ * Membre du club (registre commun à toutes les entités, onglet « Membres du club ») : une seule fiche par personne,
+ * avec ou sans accès à l'appli. Les fiches des entités (Person) y sont liées par membreId.
+ */
+export interface ClubMembre {
+  id: string;
+  prenom: string;
+  nom: string;
+  email: string;
+  telephone: string;
+  iban: string;
+  couleur: string;
+  /** Groupes de l'organigramme (identifiants des entités de type « groupe »). */
+  groupes: string[];
 }
 
 export interface Role {
@@ -463,6 +482,8 @@ export interface OrgMember {
   admin: boolean;
   /** Tient la caisse de l'entité (rôle qui donne expressément le droit « Caisse »). */
   caisse?: boolean;
+  /** Fiche du registre « Membres du club ». */
+  membreId?: string;
 }
 
 export interface OrgUnit extends Unit {

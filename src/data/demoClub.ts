@@ -3,7 +3,8 @@ import { people as centralPeople } from './seedData';
 import { migrate } from './store';
 import { unitData } from './units';
 import { clearFiles } from './files';
-import type { AppData, ClubEvent, Meeting, Person, Unit } from './types';
+import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
+import type { AppData, ClubEvent, ClubMembre, Meeting, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
 // Le site est public : aucun nom, chaque personne est désignée par son poste (adresses @gsajoie.example),
@@ -13,6 +14,7 @@ export const CENTRAL_ID = 'u-central';
 const CLUB_KEY = 'taches-gsa-demo-club';
 export const ME_KEY = 'taches-gsa-demo-moi';
 export const UNIT_KEY = 'taches-gsa-demo-unite';
+const MEMBRES_KEY = 'taches-gsa-demo-membres';
 /** Ancienne connexion de la démo (fiche du comité central). */
 const OLD_USER_KEY = 'taches-gsa-user';
 
@@ -206,9 +208,111 @@ export function resetDemo() {
     const units = read<Unit[]>(CLUB_KEY) ?? SEED_UNITS;
     units.forEach((u) => localStorage.removeItem(unitStorageKey(u.id)));
     // Avec le dernier logo affiché (icône de l'appli).
-    [CLUB_KEY, ME_KEY, UNIT_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo'].forEach((k) => localStorage.removeItem(k));
+    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo'].forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }
 }
 
+// ---------- Membres du club (registre commun ; version réelle : migration 016) ----------
+
+/** Membres sans poste dans une entité (licenciés, parents, membres de soutien) : fictifs, sans téléphone ni IBAN. */
+const EXTRAS: Partial<ClubMembre>[] = [
+  { prenom: 'Licencié École 1', couleur: '#16a34a', groupes: ['u-ecole'] },
+  { prenom: 'Licencié École 2', couleur: '#0d9488', groupes: ['u-ecole'] },
+  { prenom: 'Parent École 1', email: 'parent.ecole1@gsajoie.example', couleur: '#ca8a04', groupes: ['u-ecole'] },
+  { prenom: 'Coureur Compétition 3', email: 'coureur3@gsajoie.example', couleur: '#ea580c', groupes: ['u-competition'] },
+  { prenom: 'Membre Soutien 1', email: 'soutien1@gsajoie.example', couleur: '#475569' },
+];
+
+const unitIds = () => (read<Unit[]>(CLUB_KEY) ?? SEED_UNITS).map((u) => u.id);
+
+export const loadMembres = (): ClubMembre[] => read<ClubMembre[]>(MEMBRES_KEY) ?? [];
+const writeMembres = (list: ClubMembre[]) => write(MEMBRES_KEY, list);
+
+/** Coordonnées du registre recopiées dans les fiches liées des entités (sauf `sauf`, l'entité ouverte). */
+function propager(list: ClubMembre[], sauf?: string) {
+  if (!list.length) return;
+  for (const id of unitIds()) {
+    if (id === sauf || !read(unitStorageKey(id))) continue;
+    const d = loadUnitData(id);
+    if (appliquerMembres(d, list)) saveUnitData(id, d);
+  }
+}
+
+/**
+ * Fiches d'une entité liées au registre, comme le serveur : lien gardé (même s'il manque dans `d`), sinon membre de même
+ * email, sinon nouveau membre. Des coordonnées modifiées passent dans le registre puis dans les autres fiches liées.
+ */
+export function lierFiches(unitId: string, d: AppData): AppData {
+  const list = loadMembres();
+  const avant = read<AppData>(unitStorageKey(unitId))?.people ?? [];
+  const changes: ClubMembre[] = [];
+  let modifie = false;
+  for (const p of d.people) {
+    const mid = p.membreId || avant.find((x) => x.id === p.id)?.membreId;
+    let m = mid ? list.find((x) => x.id === mid) : undefined;
+    if (!m && emailKey(p.email)) m = list.find((x) => emailKey(x.email) === emailKey(p.email));
+    if (!m) {
+      if (!nomMembre(p)) continue;
+      m = nouveauMembre({ ...coordonnees(p), id: mid, couleur: p.couleur });
+      list.push(m);
+      modifie = true;
+    } else if (!memesCoordonnees(p, m)) {
+      Object.assign(m, coordonnees(p));
+      changes.push(m);
+      modifie = true;
+    }
+    p.membreId = m.id;
+  }
+  if (modifie) {
+    writeMembres(list);
+    appliquerMembres(d, changes);
+    propager(changes, unitId);
+  }
+  return d;
+}
+
+/** Registre créé au premier passage : membres sans poste, puis les fiches de toutes les entités (comité central d'abord). */
+export function initMembres(units: Unit[]) {
+  if (read(MEMBRES_KEY)) return;
+  writeMembres(EXTRAS.map(nouveauMembre));
+  for (const u of sortCentralFirst(units)) {
+    const d = lierFiches(u.id, loadUnitData(u.id));
+    saveUnitData(u.id, d);
+    // Démo : les personnes qui ont un poste dans un groupe en font partie.
+    if (u.type === 'groupe') {
+      const list = loadMembres();
+      d.people.filter((p) => p.actif).forEach((p) => {
+        const m = list.find((x) => x.id === p.membreId);
+        if (m && !m.groupes.includes(u.id)) m.groupes.push(u.id);
+      });
+      writeMembres(list);
+    }
+  }
+}
+
+const sortCentralFirst = (units: Unit[]) => [...units].sort((a, b) => +(a.type !== 'central') - +(b.type !== 'central'));
+
+/**
+ * Enregistre des membres (nouveaux ou modifiés) et recopie leurs coordonnées dans les fiches des entités,
+ * sauf l'entité ouverte (`sauf`), mise à jour par la page elle-même.
+ */
+export function saveMembres(maj: ClubMembre[], sauf?: string) {
+  const list = loadMembres();
+  for (const m of maj) {
+    const i = list.findIndex((x) => x.id === m.id);
+    if (i >= 0) list[i] = m;
+    else list.push(m);
+  }
+  writeMembres(list);
+  propager(maj, sauf);
+}
+
+/** Supprime un membre du registre (refusé s'il a encore une fiche active dans une entité). */
+export function deleteMembre(id: string) {
+  for (const u of unitIds())
+    if (read(unitStorageKey(u)) && loadUnitData(u).people.some((p) => p.actif && p.membreId === id))
+      throw new Error('Ce membre a encore un poste dans une entité du club : retire-le d’abord de ses entités');
+  writeMembres(loadMembres().filter((m) => m.id !== id));
+}

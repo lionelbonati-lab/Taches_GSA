@@ -86,7 +86,7 @@ export function RealLogin() {
       <button className="btn link" onClick={() => setForgot(!forgot)}>Mot de passe oublié ou pas encore de compte ?</button>
       {forgot && (
         <p className="muted small-note">
-          Les accès sont créés par le président (ou un admin) dans la console admin. Demande-lui un accès ou un nouveau mot de passe provisoire :
+          Les accès sont créés par le président (ou un admin) dans l’onglet Responsables ou Membres de l’entité. Demande-lui un accès ou un nouveau mot de passe provisoire :
           tu choisiras ton propre mot de passe à la connexion suivante.
         </p>
       )}

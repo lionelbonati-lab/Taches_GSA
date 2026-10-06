@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, CentralAccess, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TicketCentral, UnitType, AgendaClubEvent } from './types';
+import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
 
@@ -506,7 +506,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       archive: !!info.archive,
       central: info.central,
       logo: isImage(info.logo) ? info.logo : undefined,
-      membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined })),
+      membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined })),
       moi: u.moi,
       moiAdmin: u.moiAdmin,
       sections: u.sections ?? undefined,
@@ -553,6 +553,45 @@ export async function fetchAgendaClub(club: string): Promise<AgendaClubEvent[]> 
   const { data, error } = await sb().rpc('gsa_agenda_club', { club });
   if (error) throw new Error(error.message);
   return (data ?? []) as AgendaClubEvent[];
+}
+
+// ---------- Membres du club (registre commun, migration 016) ----------
+
+/** Erreur lisible : registre pas encore installé sur le serveur (migration 016). */
+function registreErreur(e: { message: string; code?: string }): Error {
+  return new Error(e.code === '42P01' || (/gsa_club_membres|gsa_membres_acces/.test(e.message) && /exist|find|schema cache/i.test(e.message))
+    ? 'Le registre des membres du club n’est pas encore installé sur le serveur (mise à jour 016).'
+    : e.message);
+}
+
+/** L'utilisateur a-t-il accès au registre du club (droit « club.membres » ou admin d'une entité) ? */
+export async function membresAcces(club: string): Promise<boolean> {
+  const { data, error } = await sb().rpc('gsa_membres_acces', { club });
+  return !error && data === true;
+}
+
+export async function fetchMembres(club: string): Promise<ClubMembre[]> {
+  const out: ClubMembre[] = [];
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await sb().from('gsa_club_membres').select('id,data').eq('club_id', club).range(from, from + 999);
+    if (error) throw registreErreur(error);
+    out.push(...(data ?? []).map((r: { id: string; data: Omit<ClubMembre, 'id'> }) => ({ ...r.data, groupes: r.data.groupes ?? [], id: r.id })));
+    if ((data ?? []).length < 1000) return out;
+  }
+}
+
+/** Enregistre des membres (nouveaux ou modifiés) ; le serveur recopie leurs coordonnées dans les fiches liées. */
+export async function saveMembres(club: string, list: ClubMembre[]) {
+  for (let i = 0; i < list.length; i += 200) {
+    const rows = list.slice(i, i + 200).map(({ id, ...data }) => ({ club_id: club, id, data }));
+    const { error } = await sb().from('gsa_club_membres').upsert(rows, { onConflict: 'club_id,id' });
+    if (error) throw registreErreur(error);
+  }
+}
+
+export async function deleteMembre(club: string, id: string) {
+  const { error } = await sb().from('gsa_club_membres').delete().eq('club_id', club).eq('id', id);
+  if (error) throw registreErreur(error);
 }
 
 /** Suivi des demandes de l'entité au comité central. */

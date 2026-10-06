@@ -71,6 +71,14 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/015_gsa_paiements_factures.sql` (appliqué le 06.10.2026) : remboursements et **paiements de factures**. `gsa_ticket_central` accepte `type: 'facture'` (sous-section « Paiements », échéance facultative dans `delai`) en plus du remboursement ; `gsa_mes_tickets_centraux` renvoie le type. Remplacement des deux fonctions de 012 (même signature, mêmes contrôles) ; aucune donnée modifiée.
 
+`supabase/migrations/016_gsa_membres_club.sql` (**à appliquer**) : **registre « Membres du club »**, une fiche par personne pour tout le club.
+
+- table `gsa_club_membres (club_id, id, data)` (club = comité central) : prénom, nom, email, téléphone, IBAN, couleur, groupes (entités de type groupe) ; contenu normalisé et borné par `gsa_club_membres_guard` ;
+- accès (lecture et écriture) : `gsa_membres_acces(club)` = droit `club.membres` ou admin dans l'une des entités du club ; les autres membres n'y ont pas accès ;
+- lien des fiches des entités (`gsa_items`, kind `people`, `data.membreId`) par le déclencheur `gsa_items_registre` : lien gardé, sinon membre de même email, sinon nouveau membre ; des coordonnées modifiées dans une entité passent dans le registre, et `gsa_club_membres_diffuse` les recopie dans toutes les autres fiches liées (sans boucle). Suppression d'un membre refusée tant qu'il a une fiche active (`gsa_club_membres_suppression`) ;
+- reprise : les fiches existantes sont regroupées par email (comité central d'abord) ; **leurs valeurs ne changent pas**, seul `membreId` est ajouté ;
+- le rôle « Secrétaire » du comité central reçoit le droit `club.membres` ; `gsa_organigramme` renvoie aussi le `membreId` de chaque fiche.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

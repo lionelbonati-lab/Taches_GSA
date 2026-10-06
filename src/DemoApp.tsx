@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, loadMe, loadUnitData, loadUnits, resetDemo, saveMe, saveUnitData, saveUnits, UNIT_KEY } from './data/demoClub';
+import { CENTRAL_ID, deleteMembre, initMembres, lierFiches, loadMe, loadMembres, loadUnitData, loadUnits, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, UNIT_KEY } from './data/demoClub';
 import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, visitLevel } from './data/units';
-import { ADMIN_ROLE_ID } from './data/permissions';
+import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
+import { emailKey } from './data/membres';
 import { uid } from './data/utils';
 import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SuiviTicket, Task, Unit } from './data/types';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
@@ -23,12 +24,18 @@ const readUnit = () => {
 };
 
 export function DemoApp() {
-  const [units, setUnits] = useState<Unit[]>(() => loadUnits());
+  const [units, setUnits] = useState<Unit[]>(() => {
+    const u = loadUnits();
+    initMembres(u);
+    return u;
+  });
   const [me, setMe] = useState<string | null>(() => loadMe());
   const [unitId, setUnitId] = useState<string | null>(readUnit);
   // Entité ouverte en visiteur (comité central) : pas reprise au prochain lancement ni par la personne suivante.
   const [visitId, setVisitId] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
+  // Fiches de l'entité ouverte modifiées depuis le registre des membres du club : l'écran les relit.
+  const [epoch, setEpoch] = useState(0);
 
   // Organigramme : membres de chaque entité, lus dans ses données.
   const org: OrgUnit[] = useMemo(
@@ -55,6 +62,19 @@ export function DemoApp() {
     setMe(null);
     setVisitId(null);
   }, []);
+
+  // Registre des membres du club : droit « club.membres » (ou admin) dans l'une des entités.
+  const membresAcces = useMemo(
+    () =>
+      !!me &&
+      units.some((u) => {
+        const d = loadUnitData(u.id);
+        const p = d.people.find((x) => x.actif && personKey(x, u.id) === me);
+        return !!p && hasPermission(userRoles(d.roles, p), 'club.membres');
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [units, me, version],
+  );
 
   const mineAll = org.filter((u) => u.moi);
   const central = org.find((u) => u.type === 'central') ?? null;
@@ -109,7 +129,7 @@ export function DemoApp() {
         const chef = toPerson(n.chef, [ADMIN_ROLE_ID]);
         base.people = [chef, ...n.membres.filter((m) => m.email.toLowerCase() !== n.chef.email.toLowerCase()).map((m) => toPerson(m, [defaultRoleId(base.roles)]))];
         base.log[0].userId = chef.id;
-        saveUnitData(id, base);
+        saveUnitData(id, lierFiches(id, base));
         const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, description: n.description, date: n.date, dateFin: n.dateFin }];
         saveUnits(next);
         setUnits(next);
@@ -237,8 +257,31 @@ export function DemoApp() {
           }))
           .sort((a, b) => b.le.localeCompare(a.le));
       },
+      membresAcces,
+      async membres() {
+        if (!membresAcces) throw new Error('Réservé aux personnes qui ont le droit « Membres du club ».');
+        return loadMembres();
+      },
+      async saveMembres(list) {
+        if (!membresAcces) throw new Error('Réservé aux personnes qui ont le droit « Membres du club ».');
+        // Adresse de la personne connectée changée : elle reste connectée.
+        const avant = loadMembres();
+        const moi = list.find((m) => emailKey(avant.find((x) => x.id === m.id)?.email) === me && emailKey(m.email) && emailKey(m.email) !== me);
+        saveMembres(list);
+        if (moi) {
+          saveMe(emailKey(moi.email));
+          setMe(emailKey(moi.email));
+        }
+        setEpoch((e) => e + 1);
+        refresh();
+      },
+      async deleteMembre(id) {
+        if (!membresAcces) throw new Error('Réservé aux personnes qui ont le droit « Membres du club ».');
+        deleteMembre(id);
+        refresh();
+      },
     };
-  }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units, me]);
+  }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units, me, membresAcces]);
 
   const personId = useMemo(() => {
     if (!current || !me) return null;
@@ -252,7 +295,8 @@ export function DemoApp() {
       current
         ? {
             load: () => loadUnitData(current.id),
-            save: (d) => saveUnitData(current.id, d),
+            save: (d) => saveUnitData(current.id, lierFiches(current.id, d)),
+            epoch,
             personId,
             guest,
             logout,
@@ -264,7 +308,7 @@ export function DemoApp() {
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [current?.id, personId, guest, logout],
+    [current?.id, personId, guest, logout, epoch],
   );
 
   if (!me || !club || !demo) {

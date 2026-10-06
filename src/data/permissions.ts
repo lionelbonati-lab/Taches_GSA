@@ -13,6 +13,7 @@ export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMIS
   { id: 'tab.people', label: 'Onglet Responsables', group: 'Onglets visibles' },
   { id: 'tab.pv', label: 'Onglet Ordre du jour', group: 'Onglets visibles' },
   { id: 'tab.minutes', label: 'Onglet PV (prise de notes, PV)', group: 'Onglets visibles' },
+  { id: 'club.membres', label: 'Onglet Membres du club (registre commun : coordonnées, IBAN, groupes)', group: 'Onglets visibles' },
   { id: 'meetings.manage', label: 'Gérer les séances de comité', group: 'Gestion' },
   { id: 'events.manage', label: 'Gérer les événements', group: 'Gestion' },
   { id: 'people.manage', label: 'Gérer les responsables', group: 'Gestion' },

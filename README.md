@@ -40,7 +40,7 @@ Tout se règle dans **Console admin → Rôles & permissions**, sans toucher au 
 - **Créer un rôle** (vide ou copie d'un rôle existant), le renommer, changer sa couleur, le dupliquer, le supprimer (une fois retiré à tout le monde).
 - **Cocher les droits** de chaque rôle : tâches (voir toutes, créer/assigner, modifier toutes, modifier les siennes, supprimer), onglets visibles (Comité, Événements, Responsables), gestion (séances, événements, responsables), administration.
 - **Limiter un rôle à certaines sections** : ses droits « Tâches » ne s'appliquent alors qu'à ces sections.
-- **Cumuler plusieurs rôles** par personne (onglet Utilisateurs) : chaque rôle apporte ses droits sur ses propres sections.
+- **Cumuler plusieurs rôles** par personne (onglet Responsables / Membres › Modifier) : chaque rôle apporte ses droits sur ses propres sections.
 - Garde-fous : le rôle Admin est verrouillé, chacun garde au moins un rôle, il reste toujours un admin actif.
 
 ## Organisation du club (entités)
@@ -59,7 +59,7 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
 - **Organigramme** (onglet **Club**, ou menu de l'entité en haut à gauche) : toutes les entités et leurs membres (nom, poste, rôles, adresse email ; pas de numéros de téléphone), visible par tous les membres du club. Vue **Personnes** : l'annuaire, avec tous les postes de chacun.
 - **Changer d'entité** : le menu en haut à gauche liste les entités dont on fait partie. Une même personne peut avoir un poste dans plusieurs entités (reconnue par son adresse email).
 - **Créer une entité** (admins du comité central) : « + Nouvelle entité » dans l'organigramme → nom, type, date, couleur, description, **responsable** (admin de l'entité, choisi dans l'annuaire ou nouvelle personne) et membres de départ (annuaire). Dans la version réelle, le compte du responsable est créé avec un mot de passe provisoire (à lui transmettre), et les membres qui ont déjà un compte retrouvent l'entité dans leur menu.
-- **Gérer son entité** : le président / responsable est admin de son entité ; il y gère membres, rôles, sections, statuts et accès (console admin), et peut en modifier le nom, la couleur, la description et la date. Le type et l'**archivage** (jamais de suppression) sont réservés au comité central. Onglet Responsables/Membres : **📇 Depuis l'annuaire du club** reprend une personne d'une autre entité.
+- **Gérer son entité** : le président / responsable est admin de son entité ; il y gère membres, rôles et accès (onglet Membres), sections et statuts (console admin), et peut en modifier le nom, la couleur, la description et la date. Le type et l'**archivage** (jamais de suppression) sont réservés au comité central.
 - **Demandes au comité central** : depuis l'accueil d'une entité, **+ Demande** envoie une tâche au comité central (titre, détails, délai, section). Elle arrive dans ses tâches sans responsable, marquée **📨 nom de l'entité**, et apparaît dans « Demandes reçues » sur son accueil et dans les notifications de ceux qui attribuent les tâches. L'entité en suit l'avancement (statut, délai, qui s'en occupe) sans voir le reste des tâches du comité central.
 - **Accès du comité central** : chaque sous-comité, groupe ou équipe choisit ce que les membres du comité central peuvent faire de ses données, dans **Console admin › Accès du comité central** (ou la fiche de l'entité dans l'organigramme). Seuls les admins (★) de l'entité changent ce réglage ; le comité central le voit, grisé.
   - 🔒 **Rien voir** (par défaut) : l'entité reste fermée au comité central.
@@ -77,10 +77,27 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
 - **Comité** : séances (date, lieu, ordre du jour, notes/PV) et tâches liées.
 - **Événements** : événements du club, sur **un ou plusieurs jours** (« Dernier jour »), avancement des tâches liées. Un événement sur plusieurs jours occupe chacun de ses jours dans l'agenda (« 1/3, 2/3… ») ; le glisser déplace tout l'événement. Il reste dans « Prochains événements » tant qu'il n'est pas terminé.
 - **Prochaine édition** (sous-comité, équipe d'événement) : la date de la manifestation, sur un ou plusieurs jours, est affichée sur l'accueil et la page Événements de l'entité. **Son comité la change lui-même** (bouton « Changer la date » : ses admins, les membres du comité, qui ont « Gérer les événements » par défaut, et les admins du comité central), et peut déplacer du même coup l'événement de l'agenda (les délais des tâches liées suivent). Une édition passée invite à fixer la suivante.
-- **Responsables** : poste, nom, prénom, email, portable (liens mail / appel).
+- **Responsables** (comité central) / **Membres** (autres entités) : **un seul écran pour les personnes de l'entité**. Chaque carte montre poste, nom, email, portable (liens mail / appel), rôles et, pour les admins de la version réelle, si la personne a un accès à l'appli. **Modifier** ouvre sa fiche : coordonnées, poste, **rôles** (cumulables ; changés par les admins), **accès à l'appli** (créer, nouveau mot de passe, retirer) et **Retirer de l'entité** (ses tâches restent ; « Personnes retirées » permet de la réactiver). **+ Ajouter une personne** propose les membres du club (registre, ou annuaire des entités pour qui n'y a pas accès) ou une nouvelle personne, puis son poste et son rôle.
+- **Annuaire** (📇 Membres du club) : voir la section suivante.
 - **Club** : organigramme et annuaire du club (voir ci-dessus).
 - **Réglages** : thème clair/sombre, vue par défaut.
-- **Console admin** : rôles, activation des comptes, matrice de permissions, sections/sous-sections, statuts, journal d'activité. Les sous-sections se **renomment** (les tâches suivent ; un nom déjà pris dans la section est refusé) et se **réordonnent** (▲ ▼) : cet ordre est repris dans les listes de choix, l'ordre du jour et le PV. Le nombre de tâches de chaque sous-section est affiché.
+- **Console admin** : rôles et matrice de permissions, **import CSV** (voir plus bas), sections/sous-sections, statuts, journal d'activité. Les sous-sections se **renomment** (les tâches suivent ; un nom déjà pris dans la section est refusé) et se **réordonnent** (▲ ▼) : cet ordre est repris dans les listes de choix, l'ordre du jour et le PV. Le nombre de tâches de chaque sous-section est affiché.
+
+## Membres du club (annuaire) et imports CSV
+
+Onglet **📇 Annuaire** (« Membres du club ») : le **registre commun à tout le club**, une seule fiche par personne, **avec ou sans accès à l'appli** (licenciés, parents, bénévoles…) : prénom, nom, email, téléphone, **IBAN** et **groupes** de l'organigramme (École de cyclisme, Groupe compétition…).
+
+- **Qui le voit** : les rôles qui ont le droit « Onglet Membres du club » (par défaut **Admin** et **Secrétaire**) et **les admins de toutes les entités** (présidents de CO, responsables de groupe…). Lecture et modification. Les autres membres ne le voient pas (l'IBAN reste confidentiel ; il est masqué dans la liste et lisible dans la fiche).
+- **Une fiche unique** : dans chaque entité, la personne a un poste et des rôles ; ses coordonnées (prénom, nom, email, téléphone) sont celles du registre. **Modifiées dans le registre ou dans n'importe quelle entité, elles changent partout.** Une personne ajoutée dans une entité est rattachée au membre de même email, ou ajoutée au registre.
+- Recherche, filtre par groupe, avec ou sans poste ; postes de chacun dans les entités ; **📤 Exporter** (CSV pour Excel) ; suppression d'un membre seulement s'il n'a plus de poste dans une entité.
+- **📥 Importer** : fichier **CSV** (Excel : Fichier › Enregistrer sous › CSV ; Google Sheets : Fichier › Télécharger › CSV) ou **copier-coller** des lignes depuis le tableur, avec la ligne d'en-tête. **⬇️ Télécharger le modèle** donne les colonnes attendues (Prénom, Nom, Email, Téléphone, IBAN, Groupes). Un **aperçu** montre ce que devient chaque ligne avant de valider : nouveau, mise à jour, ignoré (déjà à jour, doublon) ou erreur (nom manquant, email invalide), avec les avertissements (IBAN invalide non importé, groupe inconnu…). Une personne déjà inscrite (**même email, sinon même prénom et nom**) est **mise à jour** : les cellules remplies remplacent ses valeurs, les cellules vides ne changent rien.
+
+**Console admin › Import CSV** (chaque entité, ses admins) : même principe (modèle, fichier ou copier-coller, aperçu) pour
+- les **responsables / membres** de l'entité : Prénom, Nom, Email, Téléphone, Poste, Rôle (noms des rôles de l'entité, séparés par des virgules). Une personne déjà là est mise à jour (rôles ajoutés à ceux qu'elle a, réactivée si elle avait été retirée) ; une nouvelle est reliée au registre du club. Le rôle Admin n'est donné que par un admin. Les accès à l'appli se créent ensuite dans l'onglet Membres ;
+- les **tâches** : Titre, Section, Sous-section, Responsables (prénom et nom, poste ou email), Délai (31.12.2026 ou 2026-12-31), Statut, Remarque. Une valeur inconnue est signalée et remplacée par la valeur par défaut ; une tâche de même titre dans la même section n'est pas reprise ;
+- les **événements** : Nom, Date, Date de fin, Lieu, Description ; même nom à la même date = mise à jour.
+
+Les CSV avec point-virgule, virgule ou tabulation, en UTF-8 ou en encodage Windows (Excel), sont reconnus ; les intitulés de colonnes courants aussi (E-mail, Tél, Natel, Fonction, Échéance…).
 
 ## Délais liés à un événement
 
@@ -247,7 +264,7 @@ Liens directs : https://lionelbonati-lab.github.io/Taches_GSA/?demo (à envoyer 
 - **Synchronisation** : le badge en haut à gauche indique ☁ À jour, ⏳ Envoi… ou ⚠ Hors ligne (avec le nombre de modifications en attente, envoyées au retour du réseau).
 
 - **Données** : chaque élément (tâche, séance, responsable, entrée du journal…) est une ligne de la table `gsa_items` ; seuls les éléments modifiés sont envoyés, avec une file d'attente en cas de coupure, et les modifications des autres membres arrivent en direct (`src/data/cloud.ts`).
-- **Accès** : console admin › Utilisateurs › **Créer l'accès** crée le compte d'un responsable avec un mot de passe provisoire (à lui transmettre), qu'il remplace à la première connexion. Désactiver une fiche coupe l'accès. Aucun email n'est envoyé par le serveur.
+- **Accès** : onglet Responsables / Membres › Modifier › **Créer l'accès** crée le compte d'un responsable avec un mot de passe provisoire (à lui transmettre), qu'il remplace à la première connexion. Désactiver une fiche coupe l'accès. Aucun email n'est envoyé par le serveur.
 - **Mise en route** : à la première connexion du président, reprise d'une sauvegarde de la démo (Réglages › Sauvegarde) ou base vide.
 - **Fichiers joints** : stockage privé du serveur, dossier du comité.
 - **Entités** : chaque sous-comité, groupe ou équipe est un comité du serveur rattaché au comité central, avec ses propres données ; organigramme et demandes passent par des fonctions du serveur qui ne laissent sortir que le nécessaire. L'accès du comité central (consulter, modifier / ajouter) est appliqué par les règles du serveur, pas seulement par l'appli.

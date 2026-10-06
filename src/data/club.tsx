@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { MyRequest, OrgUnit, Person, SuiviTicket, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { ClubMembre, MyRequest, OrgUnit, Person, SuiviTicket, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
@@ -49,7 +49,7 @@ export interface CreatedUnit {
   email?: string;
   password?: string;
   existant?: boolean;
-  /** Entité créée, mais une étape a échoué (accès à créer depuis sa console admin). */
+  /** Entité créée, mais une étape a échoué (accès à créer depuis l’onglet Membres de l’entité). */
   avertissement?: string;
 }
 
@@ -96,6 +96,13 @@ export interface Club {
   mesTicketsCentraux: () => Promise<SuiviTicket[]>;
   /** Événements de toutes les entités du club (agenda ; sans description). */
   agendaClub: () => Promise<AgendaClubEvent[]>;
+  /** Registre « Membres du club » : accès (droit « club.membres » ou admin de l'une des entités du club). */
+  membresAcces: boolean;
+  membres: () => Promise<ClubMembre[]>;
+  /** Enregistre des membres (nouveaux ou modifiés) ; leurs coordonnées passent dans les fiches liées des entités. */
+  saveMembres: (list: ClubMembre[]) => Promise<void>;
+  /** Supprime un membre du registre (refusé s'il a encore un poste actif dans une entité). */
+  deleteMembre: (id: string) => Promise<void>;
 }
 
 export const ClubCtx = createContext<Club | null>(null);

@@ -18,7 +18,7 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 15;
+export const SCHEMA = 16;
 
 /**
  * Mises à niveau des données déjà enregistrées (évite de tout réinitialiser).
@@ -57,6 +57,8 @@ export function migrate(d: AppData): AppData {
       d.roles.push({ id: 'caissier', label: 'Caissier', couleur: '#047857', permissions: [...base, 'paiements.payer'], sections: [] });
     }
   }
+  // v16 : registre « Membres du club » ; le Secrétaire y a accès par défaut (les admins l'ont déjà).
+  if ((d.schema ?? 7) < 16) d.roles.filter((r) => r.id === 'secretaire' && !r.permissions.includes('club.membres')).forEach((r) => r.permissions.push('club.membres'));
   d.schema = SCHEMA;
   return d;
 }
@@ -146,6 +148,8 @@ export interface DemoMode {
   reset: () => void;
   /** Entité ouverte par un membre du comité central qui n'en fait pas partie. */
   guest?: Guest | null;
+  /** Change quand les données de l'entité ont été modifiées hors de l'écran (registre des membres du club) : relues. */
+  epoch?: number;
 }
 
 /** Version réelle : connexion au serveur et données du comité chargées. */
@@ -234,6 +238,13 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, cloud]);
+
+  // Démo : fiches de l'entité modifiées depuis le registre des membres du club : relues.
+  const epoch = demo?.epoch;
+  useEffect(() => {
+    if (epoch && demo) setData(demo.load());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [epoch]);
 
   // Version réelle : modifications des autres membres reçues en direct ; modification refusée → version du serveur.
   useEffect(() => {

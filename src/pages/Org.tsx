@@ -6,7 +6,7 @@ import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/
 import { fmtRange, posteBesideName } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
 import { ImagePicker } from '../components/ImagePicker';
-import { CredentialsModal } from './Admin';
+import { CredentialsModal } from '../components/Acces';
 import { CentralAccessChoice } from '../components/CentralAccess';
 
 // Organigramme du club : comité central, sous-comités, groupes et équipes d'événement, avec leurs membres.
@@ -349,7 +349,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
                 {addable.map((e) => <option key={e.key} value={e.key}>{e.prenom} {e.nom}</option>)}
               </select>
               <p className="muted small-note">
-                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis sa console admin.
+                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis l’onglet Membres de l’entité.
               </p>
             </div>
           </>

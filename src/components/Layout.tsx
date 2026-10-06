@@ -13,7 +13,7 @@ import { useClubOptional } from '../data/club';
 import { CENTRAL_ACCESS, centralAccess, UNIT_TYPES } from '../data/units';
 import { applyAppIcon, cacheLogo } from '../data/logo';
 
-export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean; club?: boolean }[] = [
+export const TABS: { to: string; label: string; short?: string; icon: string; perm?: Permission; mobile?: boolean; club?: boolean; registre?: boolean }[] = [
   { to: '/', label: 'Accueil', icon: '🏠', mobile: true },
   { to: '/taches', label: 'Tâches', icon: '✅', mobile: true },
   { to: '/agenda', label: 'Agenda', icon: '📅', mobile: true },
@@ -24,6 +24,7 @@ export const TABS: { to: string; label: string; short?: string; icon: string; pe
   { to: '/ordre-du-jour', label: 'Ordre du jour', icon: '📝', perm: 'tab.pv' },
   { to: '/pv', label: 'PV', icon: '🖊️', perm: 'tab.minutes' },
   { to: '/organigramme', label: 'Organigramme', short: 'Club', icon: '🏛️', club: true },
+  { to: '/membres-club', label: 'Membres du club', short: 'Annuaire', icon: '📇', registre: true },
   { to: '/reglages', label: 'Réglages', icon: '⚙️' },
   { to: '/admin', label: 'Console admin', short: 'Admin', icon: '🛡️', perm: 'admin.access' },
 ];
@@ -113,7 +114,7 @@ export function Layout() {
   ];
   // Libellés selon l'entité ouverte : « Séances » pour un groupe, « Membres » hors comité central…
   const unitType = club?.current.type ?? 'central';
-  const tabs = TABS.filter((t) => (!t.perm || can(t.perm)) && (!t.club || club)).map((t) =>
+  const tabs = TABS.filter((t) => (!t.perm || can(t.perm)) && (!t.club || club) && (!t.registre || club?.membresAcces)).map((t) =>
     t.to === '/comite' ? { ...t, label: UNIT_TYPES[unitType].seances } : t.to === '/responsables' && unitType !== 'central' ? { ...t, label: 'Membres' } : t,
   );
 

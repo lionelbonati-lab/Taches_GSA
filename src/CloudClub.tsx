@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, fetchAgendaClub, fetchOrg, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, type Membership } from './data/cloud';
+import { accessAction, deleteMembre, fetchAgendaClub, fetchMembres, fetchOrg, membresAcces, saveMembres, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -17,13 +17,15 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
   const [list, setList] = useState<Membership[]>([m]);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
+  const [acces, setAcces] = useState(false);
 
   const refresh = useCallback(() => {
     setLoading(true);
-    Promise.all([fetchOrg(clubId), myMemberships(userId)])
-      .then(([o, l]) => {
+    Promise.all([fetchOrg(clubId), myMemberships(userId), membresAcces(clubId)])
+      .then(([o, l, a]) => {
         setOrg(o);
         setList(l);
+        setAcces(a);
         setError('');
       })
       .catch((e: Error) => setError(`Organigramme indisponible : ${e.message}`))
@@ -119,8 +121,18 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       },
       mesTicketsCentraux: () => myCentralTickets(),
       agendaClub: () => fetchAgendaClub(clubId),
+      membresAcces: acces,
+      membres: () => fetchMembres(clubId),
+      async saveMembres(l) {
+        await saveMembres(clubId, l);
+        refresh();
+      },
+      async deleteMembre(id) {
+        await deleteMembre(clubId, id);
+        refresh();
+      },
     };
-  }, [org, list, m, loading, error, refresh, onSwitch]);
+  }, [org, list, m, loading, error, refresh, onSwitch, acces, clubId]);
 
   return <ClubCtx.Provider value={club}>{children}</ClubCtx.Provider>;
 }
