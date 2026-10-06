@@ -259,7 +259,8 @@ function TicketCard({ t, onEdit }: { t: Ticket; onEdit: () => void }) {
       {msg && <p className="error no-print">{msg}</p>}
       <div className="ticket-actions no-print">
         {p.etat === 'recu' && caisse && !demande && <button className="btn primary" onClick={() => setDemande(true)}>✍️ Demander le visa</button>}
-        {p.etat === 'visa' && caisse && !demande && <button className="btn" onClick={() => setDemande(true)}>Changer de signataire</button>}
+        {/* La personne qui vise ne change pas de signataire (même si elle a aussi le droit Caisse, ex. un admin). */}
+        {p.etat === 'visa' && caisse && !pourMoi && !demande && <button className="btn" onClick={() => setDemande(true)}>Changer de signataire</button>}
         {pourMoi && <button className="btn primary" onClick={() => setViser(true)}>✍️ Viser et signer</button>}
         {((p.etat === 'recu' && caisse) || pourMoi) && refus === null && <button className="btn" onClick={() => setRefus('')}>Refuser</button>}
         {p.etat === 'valide' && caisse && ok === null && <button className="btn primary" onClick={() => setOk('')}>✅ Virement fait (OK)</button>}
