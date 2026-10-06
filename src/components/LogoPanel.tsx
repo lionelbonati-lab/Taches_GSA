@@ -3,8 +3,9 @@ import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { COULEUR_DEFAUT, COULEURS_APPLI } from '../data/couleur';
 import { ImagePicker } from './ImagePicker';
+import { IconePanel } from './IconePanel';
 
-/** Console admin : logo et couleur de l'appli de l'entité ouverte (comité central : ceux du club), enregistrés dès qu'on les choisit. */
+/** Console admin : logo et couleur de l'appli de l'entité ouverte (comité central : ceux du club, et l'icône de l'appli installée). */
 export function LogoPanel() {
   const club = useClubOptional();
   const { update, setToast } = useStore();
@@ -44,8 +45,8 @@ export function LogoPanel() {
         </p>
         <ImagePicker kind="logo" value={u.logo} onChange={change} disabled={!allowed} empty={central ? 'Pas de logo : celui du G.S. Ajoie' : 'Pas de logo : celui du club'} />
         <p className="muted small-note">
-          PNG, JPEG, WebP, GIF ou SVG ; de préférence carré, sur fond transparent ou blanc. L’image est réduite (256 px) avant d’être enregistrée.
-          L’icône de l’appli installée (écran d’accueil, accès rapides) est toujours le logo du G.S. Ajoie.
+          PNG, JPEG, WebP, GIF ou SVG ; de préférence carré, sur fond transparent ou blanc. L’image est réduite (256 px) avant d’être enregistrée.{' '}
+          {central ? 'L’icône de l’appli installée se règle plus bas.' : 'L’icône de l’appli installée (écran d’accueil, accès rapides) est celle du club.'}
         </p>
         {!allowed && <p className="muted small-note">Seuls les admins (★) de l’entité et du comité central changent le logo.</p>}
       </section>
@@ -95,6 +96,8 @@ export function LogoPanel() {
         )}
         {!allowed && <p className="muted small-note">Seuls les admins (★) de l’entité et du comité central changent la couleur.</p>}
       </section>
+
+      {central && <IconePanel club={u} />}
     </>
   );
 }

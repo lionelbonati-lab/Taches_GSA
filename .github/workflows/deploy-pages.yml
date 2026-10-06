@@ -1,4 +1,5 @@
-# Publie l'application sur GitHub Pages à chaque mise à jour de la branche principale.
+# Publie l'application sur GitHub Pages à chaque mise à jour de la branche principale
+# (et quand l'icône de l'appli change : workflow icone-club.yml).
 name: Publication GitHub Pages
 
 on:
@@ -26,6 +27,8 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
+      # Icône de l'appli choisie dans la console admin (logo du club, migration 017), sinon celle d'origine.
+      - run: node scripts/icones-club.mjs publier dist
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

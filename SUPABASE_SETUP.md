@@ -79,6 +79,8 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - reprise : les fiches existantes sont regroupées par email (comité central d'abord) ; **leurs valeurs ne changent pas**, seul `membreId` est ajouté ;
 - le rôle « Secrétaire » du comité central reçoit le droit `club.membres` ; `gsa_organigramme` renvoie aussi le `membreId` de chaque fiche.
 
+`supabase/migrations/017_gsa_icone.sql` (à appliquer) : **icône de l'appli installée** tirée du logo du club. Bucket public `gsa-public` (PNG et JSON, 1 Mo au plus par fichier) : dossier `<id du comité central>/` avec les images préparées par l'appli (Console admin › Logo et couleur) et `version.json`. Lecture publique (ce sont les icônes du site) ; dépôt, remplacement et retrait réservés aux admins du comité central (`gsa_icone_ecriture`), et seulement pour les noms de fichiers attendus. La publication du site (`scripts/icones-club.mjs`, workflows « Publication GitHub Pages » et « Icône de l'appli ») reprend ces images après contrôle (PNG à la bonne taille), sinon garde l'icône d'origine. Ajout pur, aucune donnée modifiée.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`

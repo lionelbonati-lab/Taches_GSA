@@ -1,0 +1,29 @@
+# Icône de l'appli : les admins du comité central la changent dans l'appli (Console admin › Logo et couleur).
+# Toutes les heures, ce workflow regarde si l'icône déposée sur le serveur est déjà en ligne, sinon relance la publication.
+# « Run workflow » (onglet Actions) fait la même vérification tout de suite.
+name: Icône de l'appli
+
+on:
+  schedule:
+    - cron: '23 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  verifier:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: icone
+        run: node scripts/icones-club.mjs verifier
+      - if: steps.icone.outputs.changement == 'true'
+        run: gh workflow run deploy-pages.yml --ref "$GITHUB_REF_NAME"
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}

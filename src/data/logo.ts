@@ -90,7 +90,7 @@ let applied = '';
 /**
  * Onglet du navigateur : le logo propre de l'entité ouverte, sinon l'icône du club.
  * L'icône de l'appli installée (écran d'accueil, accès rapides) reste celle du club : fichiers fixes du site
- * (public/icon-*.png), seuls fiables pour Android, iPhone et ordinateur.
+ * (public/icon-*.png, ou celles tirées du logo du club à la publication : icones.ts), seuls fiables pour l'installation.
  */
 export async function applyTabIcon(logo?: string) {
   const key = isImage(logo) ? logo : '';
