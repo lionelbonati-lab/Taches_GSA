@@ -68,7 +68,8 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
     return () => window.removeEventListener('keydown', k);
   }, [onClose]);
   return (
-    <div ref={ref} className="modal-back" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    // Un appui à côté de la fenêtre ne la ferme pas (on perdrait la saisie) : ✕, Annuler / Fermer ou Échap.
+    <div ref={ref} className="modal-back">
       <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
         <div className="modal-head">
           <h2>{title}</h2>
