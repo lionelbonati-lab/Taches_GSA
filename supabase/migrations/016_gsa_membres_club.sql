@@ -181,7 +181,7 @@ begin
     select i.committee_id, i.id, i.data, coalesce(c.parent_id, c.id) as club
     from public.gsa_items i join public.committees c on c.id = i.committee_id
     where i.kind = 'people' and not i.deleted and nullif(i.data ->> 'membreId', '') is null
-    order by (c.parent_id is not null), c.created_at, i.pos
+    order by (c.parent_id is not null), c.name, c.id, i.pos
   loop
     club = p.club;
     co = public.gsa_coordonnees(p.data);
