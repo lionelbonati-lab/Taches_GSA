@@ -27,7 +27,6 @@ export function People() {
   const people = data.people.filter((p) => p.actif);
   const inactifs = data.people.filter((p) => !p.actif);
   const central = !club || club.current.type === 'central';
-  const blank = (): Person => ({ id: uid('p'), poste: '', nom: '', prenom: '', email: '', telephone: '', roles: [defaultRoleId(data.roles)], actif: true, couleur: '#0f766e' });
 
   // Version réelle : comptes rattachés aux fiches (adresse, dernière connexion), pour les admins.
   const [access, setAccess] = useState<AccessInfo[] | null>(null);
@@ -62,7 +61,7 @@ export function People() {
     <div>
       <div className="page-head">
         <h1>{central ? 'Responsables' : 'Membres'}</h1>
-        {manage && <button className="btn primary" onClick={() => (club ? setAjout(true) : setEdit(blank()))}>+ Ajouter une personne</button>}
+        {manage && <button className="btn primary" onClick={() => setAjout(true)}>+ Ajouter une personne</button>}
       </div>
       <PageIntro />
       <div className="people">
@@ -128,17 +127,35 @@ export function People() {
           onClose={() => setEdit(null)}
         />
       )}
-      {ajout && club && (
-        <AjouterPersonne
-          onPick={(p) => {
-            setAjout(false);
-            setEdit(p ?? blank());
-          }}
-          onClose={() => setAjout(false)}
-        />
-      )}
+      {ajout && <NouvellePersonne onClose={() => setAjout(false)} />}
       {shown && <CredentialsModal {...shown} onClose={() => setShown(null)} />}
     </div>
+  );
+}
+
+/** Ajouter une personne à l'entité ouverte : choisir quelqu'un du club (sinon nouvelle personne), puis sa fiche.
+ *  Aussi ouvert depuis l'organigramme (bouton « + » sous les postes d'une entité). */
+export function NouvellePersonne({ onClose }: { onClose: () => void }) {
+  const { data, update } = useStore();
+  const club = useClubOptional();
+  const blank = (): Person => ({ id: uid('p'), poste: '', nom: '', prenom: '', email: '', telephone: '', roles: [defaultRoleId(data.roles)], actif: true, couleur: '#0f766e' });
+  const [fiche, setFiche] = useState<Person | null>(() => (club ? null : blank()));
+  if (!fiche) return <AjouterPersonne onPick={(p) => setFiche(p ?? blank())} onClose={onClose} />;
+  return (
+    <PersonModal
+      person={fiche}
+      central={!club || club.current.type === 'central'}
+      access={null}
+      onAccessChange={() => {}}
+      onShow={() => {}}
+      onSave={(p, action) => {
+        const isNew = !data.people.some((x) => x.id === p.id);
+        update((d) => {
+          d.people = isNew ? [...d.people, p] : d.people.map((x) => (x.id === p.id ? p : x));
+        }, action);
+      }}
+      onClose={onClose}
+    />
   );
 }
 

@@ -56,6 +56,30 @@ export function parentDans<T extends Unit>(units: T[], u: T): T | undefined {
 
 export type Branche<T> = { u: T; enfants: Branche<T>[] };
 
+/**
+ * Postes d'une entité pour l'organigramme, sans les noms : « ★ Président », « Moniteur ×2 »…
+ * Sans poste : le rôle (ou « Président » / « Responsable » pour un admin). Le président / responsable en premier.
+ */
+export function postesEntite(membres: OrgMember[], chef: string): { label: string; n: number; chef: boolean }[] {
+  const liste: { label: string; n: number; chef: boolean }[] = [];
+  for (const m of membres) {
+    const postes = [m.poste, ...(m.autresPostes ?? '').split(',')].map((x) => x.trim()).filter(Boolean);
+    const siens = postes.length ? postes : [m.admin ? chef : (m.roles.find((r) => !r.startsWith('Admin')) ?? 'Membre')];
+    const vus = new Set<string>();
+    siens.forEach((label, i) => {
+      const k = label.toLowerCase();
+      if (vus.has(k)) return;
+      vus.add(k);
+      const x = liste.find((y) => y.label.toLowerCase() === k);
+      if (x) {
+        x.n++;
+        x.chef ||= m.admin && i === 0;
+      } else liste.push({ label, n: 1, chef: m.admin && i === 0 });
+    });
+  }
+  return [...liste.filter((x) => x.chef), ...liste.filter((x) => !x.chef)];
+}
+
 /** Arbre des entités : le comité central en haut, chaque entité sous celle dont elle dépend. */
 export function arbreEntites<T extends Unit>(units: T[]): Branche<T>[] {
   const rang = (u: T) => (u.type === 'central' ? -1 : SUB_TYPES.indexOf(u.type));
