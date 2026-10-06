@@ -81,7 +81,7 @@ Statuts de départ : ceux du club (À faire, En cours, En attente, Terminé, Ann
 - **Paiements** : tickets à rembourser (voir plus bas).
 - **Club** : organigramme et annuaire du club (voir ci-dessus).
 - **Réglages** : thème clair/sombre, vue par défaut.
-- **Console admin** : rôles, activation des comptes, matrice de permissions, sections/sous-sections, statuts, journal d'activité.
+- **Console admin** : rôles, activation des comptes, matrice de permissions, sections/sous-sections, statuts, journal d'activité. Les sous-sections se **renomment** (les tâches suivent ; un nom déjà pris dans la section est refusé) et se **réordonnent** (▲ ▼) : cet ordre est repris dans les listes de choix, l'ordre du jour et le PV. Le nombre de tâches de chaque sous-section est affiché.
 
 ## Délais liés à un événement
 

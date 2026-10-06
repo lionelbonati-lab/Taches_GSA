@@ -400,7 +400,7 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
 }
 
 function Lists() {
-  const { data, update } = useStore();
+  const { data, update, setToast } = useStore();
   const [newSec, setNewSec] = useState('');
   const [newSub, setNewSub] = useState<Record<string, string>>({});
   const [newStatus, setNewStatus] = useState('');
@@ -410,6 +410,29 @@ function Lists() {
     update((d) => { d.sections.push({ id: uid('sec'), nom: newSec.trim(), sousSections: [] }); }, `Ajout de la section « ${newSec.trim()} »`);
     setNewSec('');
   };
+
+  // Sous-sections : renommer (les tâches suivent) et changer l'ordre (listes de choix, ordre du jour, PV).
+  const renameSub = (secId: string, old: string, input: HTMLInputElement) => {
+    const v = input.value.trim();
+    const sec = data.sections.find((x) => x.id === secId);
+    if (!sec || !v || v === old) return void (input.value = old);
+    if (sec.sousSections.includes(v)) {
+      input.value = old;
+      return setToast(`« ${v} » existe déjà dans ${sec.nom}`);
+    }
+    const n = data.tasks.filter((t) => t.sectionId === secId && t.sousSection === old).length;
+    update((d) => {
+      const x = d.sections.find((y) => y.id === secId)!;
+      x.sousSections = x.sousSections.map((y) => (y === old ? v : y));
+      d.tasks.forEach((t) => { if (t.sectionId === secId && t.sousSection === old) t.sousSection = v; });
+    }, `Sous-section « ${old} » (${sec.nom}) renommée en « ${v} »${n ? ` · ${n} tâche(s)` : ''}`);
+  };
+  const moveSub = (secId: string, i: number, dir: -1 | 1) =>
+    update((d) => {
+      const l = d.sections.find((y) => y.id === secId)!.sousSections;
+      const j = i + dir;
+      if (j >= 0 && j < l.length) [l[i], l[j]] = [l[j], l[i]];
+    }, `Ordre des sous-sections de ${data.sections.find((x) => x.id === secId)?.nom ?? ''} modifié`);
 
   return (
     <div className="grid2">
@@ -423,14 +446,35 @@ function Lists() {
                 <input className="grow" defaultValue={s.nom} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.nom) update((d) => { d.sections.find((x) => x.id === s.id)!.nom = v; }, `Section « ${s.nom} » renommée en « ${v} »`); }} />
                 <button className="btn small danger" disabled={used > 0} title={used ? `${used} tâche(s) utilisent cette section` : ''} onClick={() => update((d) => { d.sections = d.sections.filter((x) => x.id !== s.id); }, `Suppression de la section « ${s.nom} »`)}>Supprimer</button>
               </div>
-              <div className="chips">
-                {s.sousSections.map((ss) => (
-                  <span key={ss} className="chip on">
-                    {ss}
-                    <button className="chip-x" aria-label={`Retirer ${ss}`} onClick={() => update((d) => { const x = d.sections.find((y) => y.id === s.id)!; x.sousSections = x.sousSections.filter((y) => y !== ss); }, `Suppression de la sous-section « ${ss} »`)}>✕</button>
-                  </span>
-                ))}
-              </div>
+              {s.sousSections.length > 0 && (
+                <ul className="sub-list">
+                  {s.sousSections.map((ss, i) => {
+                    const n = data.tasks.filter((t) => t.sectionId === s.id && t.sousSection === ss).length;
+                    return (
+                      <li key={`${i}-${ss}`}>
+                        <button className="icon-btn" disabled={i === 0} onClick={() => moveSub(s.id, i, -1)} aria-label={`Monter ${ss}`}>▲</button>
+                        <button className="icon-btn" disabled={i === s.sousSections.length - 1} onClick={() => moveSub(s.id, i, 1)} aria-label={`Descendre ${ss}`}>▼</button>
+                        <input
+                          className="grow"
+                          defaultValue={ss}
+                          aria-label={`Nom de la sous-section ${ss}`}
+                          onBlur={(e) => renameSub(s.id, ss, e.target)}
+                          onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+                        />
+                        {n > 0 && <small className="muted" title={`${n} tâche(s) dans cette sous-section`}>{n}</small>}
+                        <button
+                          className="chip-x"
+                          aria-label={`Retirer ${ss}`}
+                          title={n ? `${n} tâche(s) gardent ce nom de sous-section` : 'Retirer'}
+                          onClick={() => update((d) => { const x = d.sections.find((y) => y.id === s.id)!; x.sousSections = x.sousSections.filter((y) => y !== ss); }, `Suppression de la sous-section « ${ss} »`)}
+                        >
+                          ✕
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
               <div className="row">
                 <input placeholder="Nouvelle sous-section" value={newSub[s.id] ?? ''} onChange={(e) => setNewSub({ ...newSub, [s.id]: e.target.value })} />
                 <button className="btn small" onClick={() => { const v = (newSub[s.id] ?? '').trim(); if (!v) return; update((d) => { d.sections.find((x) => x.id === s.id)!.sousSections.push(v); }, `Ajout de la sous-section « ${v} » à ${s.nom}`); setNewSub({ ...newSub, [s.id]: '' }); }}>Ajouter</button>
