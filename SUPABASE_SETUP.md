@@ -71,7 +71,7 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/015_gsa_paiements_factures.sql` (appliqué le 06.10.2026) : remboursements et **paiements de factures**. `gsa_ticket_central` accepte `type: 'facture'` (sous-section « Paiements », échéance facultative dans `delai`) en plus du remboursement ; `gsa_mes_tickets_centraux` renvoie le type. Remplacement des deux fonctions de 012 (même signature, mêmes contrôles) ; aucune donnée modifiée.
 
-`supabase/migrations/016_gsa_membres_club.sql` (**à appliquer**) : **registre « Membres du club »**, une fiche par personne pour tout le club.
+`supabase/migrations/016_gsa_membres_club.sql` (appliqué le 06.10.2026) : **registre « Membres du club »**, une fiche par personne pour tout le club.
 
 - table `gsa_club_membres (club_id, id, data)` (club = comité central) : prénom, nom, email, téléphone, IBAN, couleur, groupes (entités de type groupe) ; contenu normalisé et borné par `gsa_club_membres_guard` ;
 - accès (lecture et écriture) : `gsa_membres_acces(club)` = droit `club.membres` ou admin dans l'une des entités du club ; les autres membres n'y ont pas accès ;
