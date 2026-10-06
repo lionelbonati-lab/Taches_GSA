@@ -116,22 +116,29 @@ Page **📇 Membres du club** (rubrique Personnes) : le **registre commun à tou
 
 Les CSV avec point-virgule, virgule ou tabulation, en UTF-8 ou en encodage Windows (Excel), sont reconnus ; les intitulés de colonnes courants aussi (E-mail, Tél, Natel, Fonction, Échéance…).
 
+## Fiche d'une tâche
+
+Un seul formulaire, le même partout (bouton « + Nouvelle tâche », bouton flottant **+**, clic sur une tâche) :
+
+- **toujours visible, l'essentiel** : **Tâche** (que faut-il faire ?), **Section** (la sous-section apparaît seulement si la section en a), **Pour quand ?**, **Qui s'en occupe ?** (les personnes choisies, ✕ pour en retirer une, « ＋ Ajouter… » pour en ajouter ; « Moi » en premier), **Remarque** ; en modification, aussi le **Statut** ;
+- **le reste à la demande**, par la ligne **« Ajouter : »** : ☑️ Checklist, 📎 Document, 🔁 Répétition, 🔗 Lier à… (événement, séance de comité, tâche principale, tâches liées), 📊 Sondage et 📧 Email (une fois la tâche enregistrée ; la fenêtre s'ouvre directement). Une partie remplie reste affichée quand on rouvre la tâche ; une partie vide ne prend pas de place.
+
 ## Délais liés à un événement
 
-Dans une tâche, le champ **Délai** propose « Date fixe » ou directement la liste des prochains événements et séances de comité, puis **Quand ?** : un nombre libre de **jours, semaines ou mois**, **avant ou après** (ex. 10 jours avant, 6 semaines avant, 2 mois avant, 3 jours après ; 0 = le jour même). Les mois suivent le calendrier : « 1 mois avant » le 15.11 donne le 15.10.
+Dans une tâche, **Pour quand ?** est une date ; le lien **📌 ou selon un événement / une séance** propose la liste des prochains événements et séances de comité, puis : un nombre libre de **jours, semaines ou mois**, **avant ou après** (ex. 10 jours avant, 6 semaines avant, 2 mois avant, 3 jours après ; 0 = le jour même). Les mois suivent le calendrier : « 1 mois avant » le 15.11 donne le 15.10.
 Le délai **suit ensuite automatiquement** la date : si le tournoi est déplacé d'une semaine, toutes ses tâches liées bougent avec lui. Repère 🔗 dans les listes (le survol indique la référence), filtre « Délai lié » dans Tâches.
 
 ## Tâches récurrentes
 
-Champ **Répétition** d'une tâche : chaque semaine, mois, trimestre, semestre ou année (repère 🔁, filtre « Tâches récurrentes »).
+**Ajouter : 🔁 Répétition** dans une tâche : chaque semaine, mois, trimestre, semestre ou année (repère 🔁, filtre « Tâches récurrentes »).
 Quand la tâche passe à un statut de clôture (« Terminé »), la suivante est **créée automatiquement** avec le délai décalé, le statut « À faire » et la checklist remise à zéro. Elle est attribuée **au poste** (ex. Trésorier) : si le titulaire a changé entre-temps, elle va à son successeur. Une tâche rouverte puis refermée ne crée pas de doublon.
 
 ## Tâches liées et sous-tâches
 
 Une tâche peut être **liée à une tâche principale** (un niveau) : par ex. « AG 13.03.2027 » avec « Reserver le lieu », « Organiser le repas », « Préparer le PowerPoint »… Chaque tâche liée est une tâche à part entière (responsables, délai lié, statut, remarque, documents, sondages, emails, répétition).
 
-- Dans une tâche : champ **Tâche principale** (liste par section) ; une tâche liée affiche en haut « ↳ Tâche liée à … » (clic pour ouvrir la tâche principale).
-- Dans une tâche principale : section **Tâches liées** avec avancement (« 3/8 terminées »), statut, responsables et délai de chacune (clic pour l'ouvrir), **+ Nouvelle tâche liée** (section, sous-section et délai repris), **🔗 Lier une tâche existante**, ✕ pour délier (la tâche reste), « Voir dans la liste ».
+- Dans une tâche (**Ajouter : 🔗 Lier à…**) : champ **Tâche principale** (liste par section) ; une tâche liée affiche en haut « ↳ Tâche liée à … » (clic pour ouvrir la tâche principale).
+- Dans une tâche principale (cadre **🔗 Liens**) : **Tâches liées** avec avancement (« 3/8 terminées »), statut, responsables et délai de chacune (clic pour l'ouvrir), **+ Nouvelle tâche liée** (section, sous-section et délai repris), **🔗 Lier une tâche existante**, ✕ pour délier (la tâche reste), « Voir dans la liste ».
 - Liste des tâches : repères « ↳ tâche principale » et « 🔗 3/8 tâches liées », filtre « Tâche principale » (la tâche et ses tâches liées), filtres « Tâches principales » / « Tâches liées » ; export CSV : colonne « Tâche principale ».
 - Ordre du jour : les tâches liées s'affichent sous leur tâche principale ; une tâche principale qui porte le nom de sa sous-section devient la ligne de la sous-section. Page PV : tâches liées en retrait sous leur tâche principale.
 - Tâche récurrente : l'occurrence suivante d'une tâche liée est rattachée à l'occurrence suivante de sa tâche principale.
@@ -141,7 +148,7 @@ Les **sous-tâches** restent une simple checklist (case à cocher + intitulé), 
 
 ## Emails programmés
 
-Dans une tâche, **📧 Programmer un email** : destinataires (responsables cochés par défaut, autres membres, adresses supplémentaires), **quand** (1 mois / 2 semaines / 1 semaine / 3 jours avant le délai, la veille, le jour même, 1 à 7 jours après pour une relance, ou date précise) et heure, objet et message avec champs automatiques ({tâche}, {délai}, {section}, {responsables}, {statut}, {remarque}, {lien}, {expéditeur}) et aperçu. Option « Ne pas envoyer si la tâche est déjà terminée ».
+Dans une tâche enregistrée, **Ajouter : 📧 Email** (puis **📧 Programmer un email** pour les suivants) : destinataires (responsables cochés par défaut, autres membres, adresses supplémentaires), **quand** (1 mois / 2 semaines / 1 semaine / 3 jours avant le délai, la veille, le jour même, 1 à 7 jours après pour une relance, ou date précise) et heure, objet et message avec champs automatiques ({tâche}, {délai}, {section}, {responsables}, {statut}, {remarque}, {lien}, {expéditeur}) et aperçu. Option « Ne pas envoyer si la tâche est déjà terminée ».
 
 - Un email calé sur le délai **suit le délai** s'il change (y compris un délai lié à un événement).
 - États : 🕓 programmé, 📨 à envoyer, ✅ envoyé (date), ⛔ annulé, ✔️ pas envoyé car tâche terminée ; actions Envoyer maintenant, Modifier, Annuler, Reprogrammer, Supprimer. Repère 📧 et filtre « Avec email programmé » dans Tâches.
@@ -151,13 +158,13 @@ Limite de la démo : sans serveur, l'appli ne peut pas envoyer d'email elle-mêm
 
 ## Documents joints
 
-Dans une tâche (et dans l'ajout rapide sur mobile) : **📎 Fichier** (PDF, Word, Excel, images… 10 Mo max), **📷 Photo** (appareil photo du téléphone, photo réduite automatiquement) et **🔗 Lien** (Google Drive, Dropbox, ClubDesk…). Clic sur un document pour l'ouvrir ; aperçu des images ; repère 📎 dans les listes ; noms des documents sous la tâche dans l'ordre du jour.
+Dans une tâche (**Ajouter : 📎 Document**) : **📎 Fichier** (PDF, Word, Excel, images… 10 Mo max), **📷 Photo** (appareil photo du téléphone, photo réduite automatiquement) et **🔗 Lien** (Google Drive, Dropbox, ClubDesk…). Clic sur un document pour l'ouvrir ; aperçu des images ; repère 📎 dans les listes ; noms des documents sous la tâche dans l'ordre du jour.
 
 Démo : le contenu des fichiers reste dans le navigateur de la personne qui les ajoute (les autres ne les voient pas) et est effacé par « Réinitialiser la démo ». La version réelle les stockera sur le serveur, partagés entre tous.
 
 ## Sondages
 
-Page **📊 Sondages** (rubrique Comité) (filtres À voter / En cours / Terminés), sondages liés à une tâche (dans la fiche de la tâche) ou rattachés à une section :
+Page **📊 Sondages** (rubrique Comité) (filtres À voter / En cours / Terminés), sondages liés à une tâche (**Ajouter : 📊 Sondage** dans la fiche de la tâche) ou rattachés à une section :
 
 - **Oui / Non / Abstention**, **choix unique ou multiple**, **choix de dates** (type Doodle, avec tableau des disponibilités) ;
 - réponse **« Autre »** en option (case à cocher à la création, pour les trois types ; « Autre proposition » pour les dates) : qui la choisit doit écrire sa réponse. Les textes s'affichent sous la ligne « Autre » (sans nom si le sondage est anonyme), dans le tableau des disponibilités et dans le résumé de l'ordre du jour et du PV. « Autre » n'est jamais désignée meilleure option ;
@@ -206,7 +213,7 @@ Page **🖊️ PV** (rubrique Comité ; droit « Comité › PV », donné au Se
 
 ## Remboursements et paiements (dans les tâches)
 
-Pas d'onglet à part : les demandes sont des **tâches** (section des finances). Le **bouton flottant « + »** (en bas à droite, sur téléphone comme sur ordinateur, depuis n'importe quelle page) propose **✅ Nouvelle tâche** (ajout rapide) et :
+Pas d'onglet à part : les demandes sont des **tâches** (section des finances). Le **bouton flottant « + »** (en bas à droite, sur téléphone comme sur ordinateur, depuis n'importe quelle page) propose **✅ Nouvelle tâche** (la même fiche que partout) et :
 
 - **🧾 Nouveau remboursement** : rembourser une personne qui a **avancé de l'argent** (photo de son ticket de caisse ; « À rembourser à » : soi-même, une personne de l'entité ou un autre nom). Sous-section « Remboursements ».
 - **💳 Nouveau paiement** : payer une **facture directement à qui l'a envoyée** (fournisseur, prestataire…) : photo ou PDF de la facture, « À payer à », IBAN s'il n'est pas sur la facture, **échéance** facultative (= délai de la tâche, visible dans l'agenda). Sous-section « Paiements ».
@@ -247,7 +254,7 @@ Réglages → **Sauvegarde des données** : **⬇ Télécharger une sauvegarde**
 
 ## Mobile et installation (PWA)
 
-Sous 768 px : barre de navigation en bas, tâches en cartes avec changement de statut d'un tap, bouton **+** pour l'ajout rapide.
+Sous 768 px : barre de navigation en bas, tâches en cartes avec changement de statut d'un tap, bouton **+** pour ajouter une tâche, un remboursement ou un paiement.
 
 L'application peut s'installer comme une vraie appli (icône, fenêtre dédiée, fonctionne hors connexion) via le bouton **📲 Installer l'application** (en-tête, menu « Plus » sur mobile, ou Réglages → Application) :
 

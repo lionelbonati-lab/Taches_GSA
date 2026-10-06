@@ -246,7 +246,7 @@ export function Layout() {
       )}
 
       <Toast />
-      {quick && canCreate && <TaskModal quick isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
+      {quick && canCreate && <TaskModal isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
     </div>
   );

@@ -669,6 +669,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
             {facture
               ? 'Facture à payer directement à qui l’a envoyée (fournisseur, prestataire…) : ajoute la facture (photo ou PDF).'
               : 'Pour rembourser une personne qui a avancé de l’argent : ajoute la photo du ticket de caisse.'}
+            {note && <span className="muted"><br />{note}</span>}
           </p>
         )}
         {club && (choix > 1 || (choix === 1 && bloque)) && (
@@ -682,8 +683,14 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
             {choix > 1 && <small className="muted">À choisir avant d’ajouter la photo.</small>}
           </label>
         )}
-        {note && <p className="muted small full">{note}</p>}
-        <DocsField docs={docs} setDocs={setDocs} disabled={bloque} track={track.current} idPrefix={versCentrale ? (cloud ? `${central!.id}/tk-` : 'tk-') : undefined} />
+        <DocsField
+          docs={docs}
+          setDocs={setDocs}
+          disabled={bloque}
+          track={track.current}
+          idPrefix={versCentrale ? (cloud ? `${central!.id}/tk-` : 'tk-') : undefined}
+          legende={facture ? '📄 La facture' : '🧾 Photo du ticket'}
+        />
         <label className="full">
           {facture ? 'Objet de la facture' : 'Objet de la dépense'}
           <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder={facture ? 'Ex. Impression des affiches' : 'Ex. Courses pour le camp'} />

@@ -3,11 +3,12 @@ import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
 import { EmailsField } from './EmailsField';
+import { emailsOf } from '../data/emails';
 import { deleteFiles } from '../data/files';
 import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import type { DelaiUnite, Recurrence, Task } from '../data/types';
-import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, shortName, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
+import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
@@ -27,7 +28,7 @@ export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
   };
 }
 
-type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; quick?: boolean; openEmailId?: string };
+type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string };
 
 /** Fenêtre d'une tâche ; un remboursement ou un paiement de facture s'ouvre dans la sienne (circuit caisse → visa → virement). */
 export function TaskModal(props: TaskModalProps) {
@@ -35,7 +36,10 @@ export function TaskModal(props: TaskModalProps) {
   return <TaskEditor {...props} />;
 }
 
-function TaskEditor({ task, isNew, onClose, quick, openEmailId }: TaskModalProps) {
+/** Parties facultatives : affichées si elles sont remplies, sinon ajoutées à la demande (« Ajouter : »). */
+type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails';
+
+function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask } = useStore();
   // Nouvelle tâche ouverte par un visiteur du comité central : il n'est pas responsable possible dans l'entité.
   const [t, setT] = useState<Task>(() => (isNew ? { ...task, responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)) } : task));
@@ -46,6 +50,8 @@ function TaskEditor({ task, isNew, onClose, quick, openEmailId }: TaskModalProps
   const [err, setErr] = useState('');
   const track = useRef<DocTracking>({ added: [], removed: [] });
   const [newPoll, setNewPoll] = useState(false);
+  const [ouverts, setOuverts] = useState<Extra[]>([]);
+  const [nouvelEmail, setNouvelEmail] = useState(false);
   if (!user) return null;
 
   const editable = isNew ? true : canEditTask(task);
@@ -113,15 +119,49 @@ function TaskEditor({ task, isNew, onClose, quick, openEmailId }: TaskModalProps
 
   const dis = !editable;
   const postes = postesFor(data, t, isNew ? undefined : task) ?? [];
+  const polls = (data.polls ?? []).filter((p) => p.taskId === task.id);
+  const rempli: Record<Extra, boolean> = {
+    checklist: t.checklist.length > 0,
+    docs: (t.documents ?? []).length > 0,
+    repetition: !!t.recurrence,
+    liens: !!(t.eventId || t.meetingId || t.parentId || kids.length),
+    emails: !isNew && emailsOf(data, task.id).length > 0,
+  };
+  const voit = (x: Extra) => rempli[x] || ouverts.includes(x);
+  const ouvrir = (x: Extra) => setOuverts((o) => [...o, x]);
+  const ajouts: { label: string; aide: string; run: () => void; si: boolean }[] = [
+    { label: '☑️ Checklist', aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist') },
+    { label: '📎 Document', aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs') },
+    { label: '🔁 Répétition', aide: 'La tâche revient chaque semaine, chaque mois, chaque année…', run: () => ouvrir('repetition'), si: !voit('repetition') },
+    { label: '🔗 Lier à…', aide: 'Un événement, une séance de comité ou une autre tâche', run: () => ouvrir('liens'), si: !voit('liens') },
+    { label: '📊 Sondage', aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create') },
+    {
+      label: '📧 Email',
+      aide: 'Un email envoyé à une date choisie',
+      run: () => {
+        setNouvelEmail(true);
+        ouvrir('emails');
+      },
+      si: !isNew && !voit('emails'),
+    },
+  ].filter((a) => a.si);
+  // Personnes à ajouter : soi-même d'abord.
+  const aAjouter = assignable.filter((p) => !t.responsables.includes(p.id)).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
+  const nomPoste = (p: (typeof data.people)[number]) => {
+    const n = fullName(p);
+    const nom = p.id === user.id ? `Moi (${n})` : n;
+    return p.poste && !n.includes(p.poste) ? `${nom} · ${p.poste}` : nom;
+  };
+
   return (
-    <Modal title={quick ? 'Ajout rapide' : isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'} onClose={cancel} wide={!quick}>
+    <Modal title={isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'} onClose={cancel} wide>
       <div className="form">
-        {!quick && parent && (
+        {parent && (
           <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>
             ↳ Tâche liée à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
           </button>
         )}
-        {!quick && t.proposee && (
+        {t.proposee && (
           <p className="full proposal-banner">
             📨 Demande de <b>{t.proposee.unite}</b>, envoyée par {t.proposee.par} le {fmtDate(t.proposee.le.slice(0, 10))}.
             <span className="muted"> L’entité suit l’avancement (statut, délai, responsables) depuis son accueil.</span>
@@ -129,7 +169,7 @@ function TaskEditor({ task, isNew, onClose, quick, openEmailId }: TaskModalProps
         )}
         <label className="full">
           Tâche
-          <input autoFocus value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ?" />
+          <input autoFocus={isNew} value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ?" />
         </label>
         <label>
           Section
@@ -138,7 +178,8 @@ function TaskEditor({ task, isNew, onClose, quick, openEmailId }: TaskModalProps
             {sectionChoices.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
           </select>
         </label>
-        {!quick && (
+        <DelaiField t={t} setT={setT} disabled={dis} />
+        {(!!section?.sousSections.length || !!t.sousSection) && (
           <label>
             Sous-section
             <select value={t.sousSection} disabled={dis || !section} onChange={(e) => set('sousSection', e.target.value)}>
@@ -147,23 +188,86 @@ function TaskEditor({ task, isNew, onClose, quick, openEmailId }: TaskModalProps
             </select>
           </label>
         )}
-        <DelaiField t={t} setT={setT} disabled={dis} />
-        <label>
-          Statut
-          <select value={t.statusId} disabled={dis} onChange={(e) => set('statusId', e.target.value)}>
-            {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-        </label>
-        {!quick && (
+        {!isNew && (
           <label>
-            Répétition
+            Statut
+            <select value={t.statusId} disabled={dis} onChange={(e) => set('statusId', e.target.value)}>
+              {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </label>
+        )}
+        <div className="full qui">
+          <span className="field-label">Qui s’en occupe ?</span>
+          <div className="chips">
+            {t.responsables.map((id) => {
+              const p = data.people.find((x) => x.id === id);
+              const retirable = !dis && assignable.some((x) => x.id === id);
+              return (
+                <span key={id} className={`chip on ${retirable ? '' : 'locked'}`}>
+                  {fullName(p)}
+                  {retirable && <button type="button" className="chip-x" aria-label={`Retirer ${fullName(p)}`} onClick={() => toggleResp(id)}>✕</button>}
+                </span>
+              );
+            })}
+            {!t.responsables.length && <span className="muted">Personne pour l’instant.</span>}
+            {!dis && aAjouter.length > 0 && (
+              <select className="chip-add" value="" aria-label="Ajouter une personne" onChange={(e) => e.target.value && toggleResp(e.target.value)}>
+                <option value="">＋ Ajouter…</option>
+                {aAjouter.map((p) => <option key={p.id} value={p.id}>{nomPoste(p)}</option>)}
+              </select>
+            )}
+          </div>
+          {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
+        </div>
+        {(!dis || !!t.remarque) && (
+          <label className="full">
+            Remarque
+            <textarea rows={2} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} placeholder="Détails utiles (facultatif)" />
+          </label>
+        )}
+
+        {voit('checklist') && (
+          <fieldset className="full">
+            <legend>☑️ Checklist{t.checklist.length > 0 && ` · ${t.checklist.filter((c) => c.done).length}/${t.checklist.length}`}</legend>
+            {t.checklist.map((c) => (
+              <div key={c.id} className="check-row">
+                <label className="inline">
+                  <input type="checkbox" checked={c.done} disabled={dis} onChange={() => set('checklist', t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)))} />
+                  <span className={c.done ? 'strike' : ''}>{c.label}</span>
+                </label>
+                {!dis && <button type="button" className="icon-btn" onClick={() => set('checklist', t.checklist.filter((x) => x.id !== c.id))} aria-label="Retirer">✕</button>}
+              </div>
+            ))}
+            {!dis && (
+              <div className="row">
+                <input
+                  autoFocus={!t.checklist.length}
+                  value={newItem}
+                  placeholder="Ajouter une étape…"
+                  onChange={(e) => setNewItem(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newItem.trim()) {
+                      e.preventDefault();
+                      addItem();
+                    }
+                  }}
+                />
+                <button type="button" className="btn" onClick={addItem}>Ajouter</button>
+              </div>
+            )}
+          </fieldset>
+        )}
+        {voit('docs') && <DocsField docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track.current} />}
+        {voit('repetition') && (
+          <label className="full">
+            🔁 Répétition
             <select value={t.recurrence ?? ''} disabled={dis} onChange={(e) => set('recurrence', (e.target.value || undefined) as Recurrence | undefined)}>
               <option value="">Aucune (tâche unique)</option>
               {RECURRENCES.map((r) => <option key={r.id} value={r.id}>🔁 {r.label}</option>)}
             </select>
           </label>
         )}
-        {!quick && t.recurrence && (
+        {t.recurrence && (
           <p className="full recur-note">
             🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement{t.delai ? <> pour le <b>{fmtDate(nextDate(t.delai, t.recurrence))}</b></> : ' (sans délai)'}
             {postes.length > 0 && <> et attribuée au poste <b>{postes.join(', ')}</b></>}
@@ -171,161 +275,110 @@ function TaskEditor({ task, isNew, onClose, quick, openEmailId }: TaskModalProps
             {task.suivanteId && <><br />Occurrence suivante déjà créée.</>}
           </p>
         )}
-        <fieldset className="full">
-          <legend>Responsable(s)</legend>
-          <div className="chips">
-            {assignable.map((p) => (
-              <button type="button" key={p.id} disabled={dis} className={`chip ${t.responsables.includes(p.id) ? 'on' : ''}`} onClick={() => toggleResp(p.id)}>
-                {shortName(p)}
-              </button>
-            ))}
-            {/* Responsables déjà assignés mais hors de la liste sélectionnable (inactif / autres) */}
-            {t.responsables.filter((id) => !assignable.some((p) => p.id === id)).map((id) => (
-              <span key={id} className="chip on locked">{fullName(data.people.find((p) => p.id === id))}</span>
-            ))}
-          </div>
-          {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
-        </fieldset>
-        {quick && (
-          <DocsField compact docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track.current} />
-        )}
-        {!quick && (
-          <>
-            <label>
-              Événement lié
-              <select value={t.eventId ?? ''} disabled={dis} onChange={(e) => setT((x) => applyDelaiRef(data, { ...x, eventId: e.target.value || undefined }))}>
-                <option value="">—</option>
-                {data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
-              </select>
-            </label>
-            <label>
-              Séance de comité liée
-              <select value={t.meetingId ?? ''} disabled={dis} onChange={(e) => setT((x) => applyDelaiRef(data, { ...x, meetingId: e.target.value || undefined }))}>
-                <option value="">—</option>
-                {data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>)}
-              </select>
-            </label>
-            {!kids.length && (
-              <label className="full">
-                Tâche principale
-                <select
-                  value={t.parentId ?? ''}
-                  disabled={dis}
-                  onChange={(e) => {
-                    const p = data.tasks.find((x) => x.id === e.target.value);
-                    setT((x) => ({ ...x, parentId: p?.id, ...(p && !x.sectionId ? { sectionId: p.sectionId, sousSection: p.sousSection } : {}) }));
-                  }}
-                >
-                  <option value="">Aucune (tâche indépendante)</option>
-                  {bySection(parentChoices).map((g) => (
-                    <optgroup key={g.sec.id} label={g.sec.nom}>
-                      {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
-                    </optgroup>
-                  ))}
+        {voit('liens') && (
+          <fieldset className="full liens">
+            <legend>🔗 Liens</legend>
+            <div className="form">
+              <label>
+                Événement lié
+                <select value={t.eventId ?? ''} disabled={dis} onChange={(e) => setT((x) => applyDelaiRef(data, { ...x, eventId: e.target.value || undefined }))}>
+                  <option value="">—</option>
+                  {data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
                 </select>
               </label>
-            )}
-            <label className="full">
-              Remarque
-              <textarea rows={3} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} />
-            </label>
-            {!t.parentId && (
-              <fieldset className="full linked">
-                <legend>Tâches liées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</legend>
-                {isNew ? (
-                  <small className="muted">Enregistre d’abord la tâche pour lui lier d’autres tâches.</small>
-                ) : (
-                  <>
-                    {kids.length > 0 && (
-                      <>
-                        <div className="progress"><div style={{ width: `${Math.round((kids.filter((k) => isDone(data, k)).length / kids.length) * 100)}%` }} /></div>
-                        <ul className="linked-list">
-                          {kids.map((k) => (
-                            <li key={k.id} className={isDone(data, k) ? 'done' : ''}>
-                              <button type="button" className="linked-row" onClick={() => setOther({ task: k, isNew: false })}>
-                                <span className="linked-title">{k.titre}</span>
-                                <span className="avatars">{k.responsables.slice(0, 3).map((id) => <Avatar key={id} id={id} size={20} />)}</span>
-                                <span className={`linked-date ${isLate(data, k) ? 'late-text' : 'muted'}`}>{k.delai ? fmtDate(k.delai) : '—'}</span>
-                                <StatusBadge task={k} />
-                              </button>
-                              {editable && <button type="button" className="icon-btn" title="Délier (la tâche reste, sans tâche principale)" onClick={() => linkTask(k.id, undefined)}>✕</button>}
-                            </li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
-                    {!kids.length && <small className="muted">Aucune tâche liée. Une tâche liée a son propre responsable, délai et statut.</small>}
-                    {editable && (
-                      <div className="row wrap">
-                        <button
-                          type="button"
-                          className="btn small"
-                          onClick={() => setOther({ task: newTask(user.id, { parentId: task.id, sectionId: task.sectionId, sousSection: task.sousSection, delai: task.delai }), isNew: true })}
-                        >
-                          + Nouvelle tâche liée
-                        </button>
-                        {!linking ? (
-                          linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}>🔗 Lier une tâche existante</button>
-                        ) : (
-                          <select autoFocus defaultValue="" onChange={(e) => { if (e.target.value) linkTask(e.target.value, task.id); setLinking(false); }} onBlur={() => setLinking(false)}>
-                            <option value="">— Choisir la tâche à lier —</option>
-                            {bySection(linkable).map((g) => (
-                              <optgroup key={g.sec.id} label={g.sec.nom}>
-                                {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
-                              </optgroup>
-                            ))}
-                          </select>
-                        )}
-                        {kids.length > 0 && <a className="small-link" href={`#/taches?parent=${task.id}`}>Voir dans la liste →</a>}
-                      </div>
-                    )}
-                  </>
-                )}
-              </fieldset>
-            )}
-            <fieldset className="full">
-              <legend>Checklist / sous-tâches</legend>
-              {t.checklist.map((c) => (
-                <div key={c.id} className="check-row">
-                  <label className="inline">
-                    <input type="checkbox" checked={c.done} disabled={dis} onChange={() => set('checklist', t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)))} />
-                    <span className={c.done ? 'strike' : ''}>{c.label}</span>
-                  </label>
-                  {!dis && <button type="button" className="icon-btn" onClick={() => set('checklist', t.checklist.filter((x) => x.id !== c.id))} aria-label="Retirer">✕</button>}
-                </div>
-              ))}
-              {!dis && (
-                <div className="row">
-                  <input
-                    value={newItem}
-                    placeholder="Ajouter une sous-tâche…"
-                    onChange={(e) => setNewItem(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && newItem.trim()) {
-                        e.preventDefault();
-                        addItem();
-                      }
+              <label>
+                Séance de comité liée
+                <select value={t.meetingId ?? ''} disabled={dis} onChange={(e) => setT((x) => applyDelaiRef(data, { ...x, meetingId: e.target.value || undefined }))}>
+                  <option value="">—</option>
+                  {data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>)}
+                </select>
+              </label>
+              {!kids.length && (
+                <label className="full">
+                  Tâche principale
+                  <select
+                    value={t.parentId ?? ''}
+                    disabled={dis}
+                    onChange={(e) => {
+                      const p = data.tasks.find((x) => x.id === e.target.value);
+                      setT((x) => ({ ...x, parentId: p?.id, ...(p && !x.sectionId ? { sectionId: p.sectionId, sousSection: p.sousSection } : {}) }));
                     }}
-                  />
-                  <button type="button" className="btn" onClick={addItem}>Ajouter</button>
+                  >
+                    <option value="">Aucune (tâche indépendante)</option>
+                    {bySection(parentChoices).map((g) => (
+                      <optgroup key={g.sec.id} label={g.sec.nom}>
+                        {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                </label>
+              )}
+              {!t.parentId && !isNew && (
+                <div className="full linked">
+                  <span className="field-label">Tâches liées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</span>
+                  {kids.length > 0 && (
+                    <>
+                      <div className="progress"><div style={{ width: `${Math.round((kids.filter((k) => isDone(data, k)).length / kids.length) * 100)}%` }} /></div>
+                      <ul className="linked-list">
+                        {kids.map((k) => (
+                          <li key={k.id} className={isDone(data, k) ? 'done' : ''}>
+                            <button type="button" className="linked-row" onClick={() => setOther({ task: k, isNew: false })}>
+                              <span className="linked-title">{k.titre}</span>
+                              <span className="avatars">{k.responsables.slice(0, 3).map((id) => <Avatar key={id} id={id} size={20} />)}</span>
+                              <span className={`linked-date ${isLate(data, k) ? 'late-text' : 'muted'}`}>{k.delai ? fmtDate(k.delai) : '—'}</span>
+                              <StatusBadge task={k} />
+                            </button>
+                            {editable && <button type="button" className="icon-btn" title="Délier (la tâche reste, sans tâche principale)" onClick={() => linkTask(k.id, undefined)}>✕</button>}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {!kids.length && <small className="muted">Aucune. Une tâche liée a son propre responsable, délai et statut.</small>}
+                  {editable && (
+                    <div className="row wrap">
+                      <button
+                        type="button"
+                        className="btn small"
+                        onClick={() => setOther({ task: newTask(user.id, { parentId: task.id, sectionId: task.sectionId, sousSection: task.sousSection, delai: task.delai }), isNew: true })}
+                      >
+                        + Nouvelle tâche liée
+                      </button>
+                      {!linking ? (
+                        linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}>🔗 Lier une tâche existante</button>
+                      ) : (
+                        <select autoFocus defaultValue="" onChange={(e) => { if (e.target.value) linkTask(e.target.value, task.id); setLinking(false); }} onBlur={() => setLinking(false)}>
+                          <option value="">— Choisir la tâche à lier —</option>
+                          {bySection(linkable).map((g) => (
+                            <optgroup key={g.sec.id} label={g.sec.nom}>
+                              {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
+                            </optgroup>
+                          ))}
+                        </select>
+                      )}
+                      {kids.length > 0 && <a className="small-link" href={`#/taches?parent=${task.id}`}>Voir dans la liste →</a>}
+                    </div>
+                  )}
                 </div>
               )}
-            </fieldset>
-            <DocsField docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track.current} />
-            <fieldset className="full">
-              <legend>Sondages</legend>
-              {(data.polls ?? []).filter((p) => p.taskId === task.id).map((p) => <PollCard key={p.id} poll={p} compact />)}
-              {isNew ? (
-                <small className="muted">Enregistre d’abord la tâche pour y ajouter un sondage.</small>
-              ) : (
-                can('polls.create') && <button type="button" className="btn small" onClick={() => setNewPoll(true)}>📊 Créer un sondage</button>
-              )}
-              {!isNew && <a className="small-link" href="#/sondages">Voir tous les sondages →</a>}
-            </fieldset>
-            <EmailsField task={task} isNew={isNew} openEmailId={openEmailId} />
-            {!isNew && <small className="muted full">Dernière modification : {fmtDateTime(task.updatedAt)} · créée par {task.parCentral ? `${task.parCentral} (comité central)` : fullName(data.people.find((p) => p.id === task.createdBy))}</small>}
-          </>
+            </div>
+          </fieldset>
         )}
+        {polls.length > 0 && (
+          <fieldset className="full">
+            <legend>📊 Sondages</legend>
+            {polls.map((p) => <PollCard key={p.id} poll={p} compact />)}
+            <a className="small-link" href="#/sondages">Voir tous les sondages →</a>
+          </fieldset>
+        )}
+        {voit('emails') && <EmailsField task={task} isNew={isNew} openEmailId={openEmailId} nouveau={nouvelEmail} />}
+        {editable && ajouts.length > 0 && (
+          <div className="full task-plus">
+            <span>Ajouter :</span>
+            {ajouts.map((a) => <button key={a.label} type="button" className="chip" title={a.aide} onClick={a.run}>{a.label}</button>)}
+          </div>
+        )}
+        {!isNew && <small className="muted full">Dernière modification : {fmtDateTime(task.updatedAt)} · créée par {task.parCentral ? `${task.parCentral} (comité central)` : fullName(data.people.find((p) => p.id === task.createdBy))}</small>}
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
@@ -341,11 +394,12 @@ function TaskEditor({ task, isNew, onClose, quick, openEmailId }: TaskModalProps
 }
 
 /**
- * Délai : date fixe, ou date calculée à partir d'un événement / d'une séance
+ * Pour quand ? Une date, ou une date calculée à partir d'un événement / d'une séance
  * (« 1 semaine avant le Tournoi d'automne ») qui suit ensuite ses changements de date.
  */
 function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Task) => void; disabled: boolean }) {
   const { data } = useStore();
+  const [choisir, setChoisir] = useState(false);
   const refId = t.delaiRef ? (t.delaiRef.type === 'event' ? t.eventId : t.meetingId) : undefined;
   const mode = t.delaiRef && refId ? `${t.delaiRef.type}:${refId}` : 'fixe';
   const upcoming = <T extends { id: string; date: string; dateFin?: string }>(list: T[], current?: string) =>
@@ -354,7 +408,10 @@ function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
   const meetings = upcoming(data.meetings, t.meetingId);
 
   const onMode = (v: string) => {
-    if (v === 'fixe') return setT((x) => ({ ...x, delaiRef: undefined }));
+    if (v === 'fixe') {
+      setChoisir(false);
+      return setT((x) => ({ ...x, delaiRef: undefined }));
+    }
     const [type, id] = v.split(':') as ['event' | 'meeting', string];
     setT((x) =>
       applyDelaiRef(data, {
@@ -365,33 +422,41 @@ function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
     );
   };
 
-  return (
-    <>
-      <label>
-        Délai
-        <select value={mode} disabled={disabled} onChange={(e) => onMode(e.target.value)}>
-          <option value="fixe">📆 Date fixe</option>
-          {events.length > 0 && (
-            <optgroup label="Selon un événement">
-              {events.map((e) => <option key={e.id} value={`event:${e.id}`}>🎉 {e.nom} ({fmtRange(e.date, e.dateFin)})</option>)}
-            </optgroup>
-          )}
-          {meetings.length > 0 && (
-            <optgroup label="Selon une séance de comité">
-              {meetings.map((m) => <option key={m.id} value={`meeting:${m.id}`}>🗓️ {m.titre} ({fmtDate(m.date)})</option>)}
-            </optgroup>
-          )}
-        </select>
-      </label>
-      {mode === 'fixe' ? (
-        <label>
-          Date
-          <input type="date" value={t.delai} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, delai: e.target.value }))} />
-        </label>
-      ) : (
-        <QuandField t={t} setT={setT} disabled={disabled} />
+  const choix = (
+    <select value={mode} disabled={disabled} aria-label="Date fixe, ou selon un événement / une séance" onChange={(e) => onMode(e.target.value)}>
+      <option value="fixe">📆 Date fixe</option>
+      {events.length > 0 && (
+        <optgroup label="Selon un événement">
+          {events.map((e) => <option key={e.id} value={`event:${e.id}`}>🎉 {e.nom} ({fmtRange(e.date, e.dateFin)})</option>)}
+        </optgroup>
       )}
-    </>
+      {meetings.length > 0 && (
+        <optgroup label="Selon une séance de comité">
+          {meetings.map((m) => <option key={m.id} value={`meeting:${m.id}`}>🗓️ {m.titre} ({fmtDate(m.date)})</option>)}
+        </optgroup>
+      )}
+    </select>
+  );
+
+  return (
+    <div className="delai-field">
+      <span className="field-label">Pour quand ?</span>
+      {mode === 'fixe' ? (
+        <>
+          <input type="date" aria-label="Pour quand ?" value={t.delai} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, delai: e.target.value }))} />
+          {choisir
+            ? choix
+            : !disabled && events.length + meetings.length > 0 && (
+                <button type="button" className="link-btn" onClick={() => setChoisir(true)}>📌 ou selon un événement / une séance</button>
+              )}
+        </>
+      ) : (
+        <>
+          {choix}
+          <QuandField t={t} setT={setT} disabled={disabled} />
+        </>
+      )}
+    </div>
   );
 }
 
@@ -414,7 +479,6 @@ function QuandField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
   };
   return (
     <div className="quand">
-      <span className="field-label">Quand ?</span>
       <div className="quand-row">
         <input
           type="number"

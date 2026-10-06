@@ -311,6 +311,18 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .quand-row { display: flex; gap: 6px; }
 .quand-row input { width: 4.5em; flex: none; }
 .quand-row select { flex: 1 1 0; min-width: 0; }
+/* Formulaire de tâche : l'essentiel, puis « Ajouter : » pour le reste. */
+.delai-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.delai-field .field-label { margin-bottom: 0; }
+.link-btn { align-self: flex-start; background: none; border: none; padding: 2px 0; color: var(--primary); font-size: 0.85rem; cursor: pointer; text-align: left; }
+.link-btn:hover { text-decoration: underline; }
+.qui .chips { align-items: center; margin-bottom: 0; }
+.chip .chip-x { border: none; background: none; padding: 0 0 0 4px; margin: 0; color: inherit; cursor: pointer; font-size: 0.8rem; line-height: 1; }
+.chip-add { width: auto; max-width: 100%; border-radius: 999px; padding: 5px 10px; font-size: 0.85rem; }
+.task-plus { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.task-plus > span { font-size: 0.85rem; color: var(--muted); margin-right: 2px; }
+.liens > .form { gap: 10px; }
+.linked .field-label { margin-bottom: 6px; }
 .recur-note { margin: 0; background: var(--primary-soft); border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; }
 .toast {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 60;

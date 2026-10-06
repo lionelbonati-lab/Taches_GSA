@@ -24,7 +24,7 @@ export function Thumb({ id }: { id: string }) {
   return url ? <img className="doc-thumb" src={url} alt="" /> : null;
 }
 
-export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix }: {
+export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, legende = 'Documents' }: {
   docs: TaskDoc[];
   setDocs: (fn: (d: TaskDoc[]) => TaskDoc[]) => void;
   disabled: boolean;
@@ -32,6 +32,8 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix }:
   track: DocTracking;
   /** Préfixe des fichiers ajoutés (dépôt à la caisse centrale) ; pas de liens dans ce cas. */
   idPrefix?: string;
+  /** Titre du cadre (ex. « Photo du ticket »). */
+  legende?: string;
 }) {
   const { data, user, cloud } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
@@ -103,7 +105,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix }:
 
   return (
     <fieldset className={`full docs ${compact ? 'compact' : ''}`}>
-      <legend>Documents {docs.length > 0 && `(${docs.length})`}</legend>
+      <legend>{legende} {docs.length > 0 && `(${docs.length})`}</legend>
       {docs.length > 0 && (
         <ul className="doc-list">
           {docs.map((d) => (
