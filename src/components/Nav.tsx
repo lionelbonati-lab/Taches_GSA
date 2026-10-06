@@ -31,8 +31,14 @@ export function SousOnglets() {
   const { ouverte } = useNavigation();
   const barre = useRef<HTMLElement>(null);
   const r = ouverte?.rubrique;
-  // Téléphone : la page ouverte reste visible dans la barre (qui défile de côté).
-  useEffect(() => barre.current?.querySelector('a.active')?.scrollIntoView({ block: 'nearest', inline: 'nearest' }), [ouverte?.page.to]);
+  // Téléphone : la page ouverte reste visible dans la barre (qui défile de côté). Seule la barre bouge, jamais la page.
+  useEffect(() => {
+    const bar = barre.current;
+    const a = bar?.querySelector('a.active');
+    if (!bar || !a) return;
+    const [x, b] = [a.getBoundingClientRect(), bar.getBoundingClientRect()];
+    if (x.left < b.left || x.right > b.right) bar.scrollLeft += x.left - b.left - 12;
+  }, [ouverte?.page.to]);
   if (!r || r.pages.length < 2) return null;
   return (
     <nav ref={barre} className="subtabs no-print" aria-label={r.label}>

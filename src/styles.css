@@ -135,6 +135,10 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .subtabs a.active { background: var(--primary); color: #fff; }
 /* À quoi sert la page : une phrase sous le titre. */
 .page-intro { color: var(--muted); margin: -4px 0 16px; max-width: 75ch; font-size: 0.93rem; }
+/* Erreur d'affichage : message à copier au lieu d'un écran blanc. */
+.erreur-appli { max-width: 760px; margin: 16px auto; }
+.erreur-appli h2 { margin-top: 0; }
+.erreur-appli pre { white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; background: var(--surface2); padding: 10px; border-radius: 8px; max-height: 40vh; overflow: auto; }
 @media (max-width: 767px) {
   .subtabs { gap: 2px; margin-top: -4px; }
   .subtabs a { padding: 6px 10px; font-size: 0.88rem; }

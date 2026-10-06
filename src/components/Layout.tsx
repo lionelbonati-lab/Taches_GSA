@@ -12,6 +12,7 @@ import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
 import { CENTRAL_ACCESS, centralAccess, UNIT_TYPES } from '../data/units';
 import { SousOnglets, useNavigation } from './Nav';
+import { ErrorBoundary } from './ErrorBoundary';
 import { applyTabIcon, cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 
@@ -176,7 +177,9 @@ export function Layout() {
       {guest && <GuestBanner />}
       <main className="content">
         <SousOnglets />
-        <Outlet />
+        <ErrorBoundary page={loc.pathname}>
+          <Outlet />
+        </ErrorBoundary>
       </main>
 
       {!menu && ajouts.length > 0 && (

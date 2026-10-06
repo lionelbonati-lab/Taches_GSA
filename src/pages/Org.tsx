@@ -25,7 +25,9 @@ export function Org() {
   const [created, setCreated] = useState<{ c: CreatedUnit; n: NewUnit } | null>(null);
   // Relire l'organigramme à l'ouverture (changements faits dans d'autres entités).
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => club.refresh(), []);
+  useEffect(() => {
+    club.refresh();
+  }, []);
 
   // L'entité ouverte : ses membres tels qu'ils sont maintenant (modifications pas encore relues).
   const units = useMemo(() => club.units.map((u) => (u.id === club.current.id ? { ...u, membres: orgMembers(data) } : u)), [club.units, club.current.id, data]);

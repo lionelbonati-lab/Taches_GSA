@@ -6,6 +6,7 @@ import { CloudApp } from './CloudApp';
 import { Welcome } from './pages/Real';
 import { initPwa } from './pwa';
 import { applyAppColor, cachedColor } from './data/couleur';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles.css';
 
 initPwa();
@@ -18,12 +19,14 @@ const mode = getMode();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {mode === 'reel' ? (
-      <CloudApp />
-    ) : mode === 'demo' ? (
-      <DemoApp />
-    ) : (
-      <Welcome />
-    )}
+    <ErrorBoundary>
+      {mode === 'reel' ? (
+        <CloudApp />
+      ) : mode === 'demo' ? (
+        <DemoApp />
+      ) : (
+        <Welcome />
+      )}
+    </ErrorBoundary>
   </StrictMode>,
 );
