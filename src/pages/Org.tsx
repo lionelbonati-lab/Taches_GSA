@@ -18,6 +18,8 @@ import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
 // Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
+// Par défaut une vue d'ensemble épurée ; « ✏️ Modifier l'organigramme » montre les outils ci-dessous (poignées,
+// câblage, ⚙️, « + Ajouter une personne », disposition automatique).
 // Une entité entière peut faire partie des membres d'une autre (ligne « 👥 », fenêtre LienModal) : ses membres suivent.
 // « + Ajouter une personne » en bas de la liste (entité ouverte, ou entité dont on est admin : on l'ouvre d'abord).
 // Un clic sur le nom d'une entité l'ouvre ; ⚙️ modifie sa fiche.
@@ -66,12 +68,15 @@ export function Org() {
   const [lien, setLien] = useState<{ unitId: string; id: string } | null>(null);
   const [ajout, setAjout] = useState(false);
   const peutAjouter = can('people.manage');
+  // Mode « Modifier » : poignées, câblage, ⚙️ et « + Ajouter » ; sinon une vue d'ensemble épurée.
+  const [modeModifier, setModeModifier] = useState(false);
   // Câblage : câble tiré (souris, doigt) ou personne choisie (sans glisser), fenêtre de confirmation.
   const cablable = useCablable();
   const [cablage, setCablage] = useState(false);
   const [choisi, setChoisi] = useState<Source | null>(null);
   const [depot, setDepot] = useState<{ u: OrgUnit; source: Source | null } | null>(null);
-  // Arrivée depuis une autre entité (?entite=<entité>&ajouter=1 ou &personne=<fiche>) : ouvert une fois l'entité chargée.
+  // Arrivée depuis une autre entité (?entite=<entité>&ajouter=1 ou &personne=<fiche>, &modifier si on était en mode
+  // « Modifier ») : ouvert une fois l'entité chargée.
   const [params, setParams] = useSearchParams();
   const entite = params.get('entite');
   useEffect(() => {
@@ -80,10 +85,19 @@ export function Org() {
     const lie = params.get('lien');
     const ajouter = params.has('ajouter');
     setParams({}, { replace: true });
+    if (params.has('modifier') || (ajouter && peutAjouter)) setModeModifier(true);
     if (ajouter && peutAjouter) setAjout(true);
     if (personne) setFiche({ unitId: entite, personId: personne });
     if (lie) setLien({ unitId: entite, id: lie });
   }, [entite, club.current.id, params, peutAjouter, setParams]);
+  // ?modifier (console admin › Personnes et accès) : directement en mode « Modifier ».
+  useEffect(() => {
+    if (!params.has('modifier') || params.has('entite')) return;
+    setModeModifier(true);
+    const reste = new URLSearchParams(params);
+    reste.delete('modifier');
+    setParams(reste, { replace: true });
+  }, [params, setParams]);
   // Relire l'organigramme à l'ouverture (changements faits dans d'autres entités).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -98,6 +112,13 @@ export function Org() {
   const active = units.filter((u) => !u.archive);
   const archived = units.filter((u) => u.archive);
   const peutCabler = active.some(cablable);
+  const peutModifier = club.canManage || peutAjouter || peutCabler || units.some((u) => u.moiAdmin);
+  const edition = modeModifier && peutModifier;
+  const terminer = () => {
+    setModeModifier(false);
+    setCablage(false);
+    setChoisi(null);
+  };
   const candidats = useCandidats(units, cablage || !!depot);
   const cleChoisi = choisi && choisi !== 'nouvelle' ? choisi.key : undefined;
   const tirage = useTirage(
@@ -117,15 +138,16 @@ export function Org() {
     return {
       onPersonne: (m) => setFiche({ unitId: u.id, personId: m.id }),
       onLien: (id) => setLien({ unitId: u.id, id }),
-      onAjouter: u.archive ? undefined : ouverte ? (peutAjouter ? () => setAjout(true) : undefined) : admin(u) ? () => club.switchUnit(u.id, `#/organigramme?entite=${u.id}&ajouter=1`) : undefined,
+      onAjouter:
+        !edition || u.archive ? undefined : ouverte ? (peutAjouter ? () => setAjout(true) : undefined) : admin(u) ? () => club.switchUnit(u.id, `#/organigramme?entite=${u.id}&ajouter=1`) : undefined,
       ouvrir:
         ouverte || (!u.moi && !visit)
           ? undefined
           : u.moi
             ? { label: 'Ouvrir', aide: `Ouvrir « ${u.nom} »`, go: () => club.switchUnit(u.id) }
             : { label: visit === 'lecture' ? '👁 Consulter' : '✏️ Ouvrir', aide: CENTRAL_ACCESS[visit as CentralAccess].aide, go: () => club.switchUnit(u.id) },
-      onModifier: club.canManage || u.moiAdmin ? () => setEdit({ unit: u }) : undefined,
-      cablage: peutCabler
+      onModifier: edition && (club.canManage || u.moiAdmin) ? () => setEdit({ unit: u }) : undefined,
+      cablage: edition && peutCabler
         ? {
             onTirer: (e, m) => tirage.commencer(e, () => candidatDe(candidats, u, m)),
             tireJuste: tirage.tireJuste,
@@ -158,29 +180,39 @@ export function Org() {
     <div>
       <div className="page-head">
         <h1>🏛️ Organigramme du club</h1>
-        <div className="row wrap">
-          {peutCabler && (
-            <button
-              className={`btn ${cablage ? 'on' : ''}`}
-              aria-pressed={cablage}
-              title="Désigner le responsable d’une entité en y tirant un câble depuis une personne"
-              onClick={() => {
-                setCablage(!cablage);
-                setChoisi(null);
-              }}
-            >
-              🔌 Câbler
-            </button>
-          )}
-          {club.canManage && <button className="btn primary" onClick={() => setEdit({})}>+ Nouvelle entité</button>}
-        </div>
+        {edition ? (
+          <div className="row wrap">
+            {peutCabler && (
+              <button
+                className={`btn ${cablage ? 'on' : ''}`}
+                aria-pressed={cablage}
+                title="Désigner le responsable d’une entité en y tirant un câble depuis une personne"
+                onClick={() => {
+                  setCablage(!cablage);
+                  setChoisi(null);
+                }}
+              >
+                🔌 Câbler
+              </button>
+            )}
+            {club.canManage && <button className="btn" onClick={() => setEdit({})}>+ Nouvelle entité</button>}
+            <button className="btn primary" onClick={terminer}>✓ Terminer</button>
+          </div>
+        ) : (
+          peutModifier && <button className="btn" onClick={() => setModeModifier(true)}>✏️ Modifier l’organigramme</button>
+        )}
       </div>
-      <p className="muted small-note">
-        Les traits relient chaque entité à celle dont elle dépend ; un câble de couleur part du responsable (★) d’une entité, là où il siège dans l’entité mère. Clique sur une personne pour voir la fiche de la personne, sur le nom d’une entité pour l’ouvrir.
-        {peutCabler && !cablage && ' Tire un câble d’une personne jusqu’à une entité pour en faire son responsable.'}
-        {active.some((u) => !u.archive && (club.canManage || u.moiAdmin)) && ' Sur un écran large, une carte se déplace en la tirant par son nom (au doigt : par sa poignée en haut).'}
-        {club.error && <span className="error"> {club.error}</span>}
-      </p>
+      {edition ? (
+        <p className="org-edition">
+          <b>✏️ Modification</b>
+          {active.some((u) => club.canManage || u.moiAdmin) && <span>Déplace une carte en la tirant par son nom (au doigt : par sa poignée en haut).</span>}
+          {peutCabler && !cablage && <span>Tire une personne jusqu’à une entité pour en faire le responsable (★).</span>}
+          {units.some((u) => club.canManage || u.moiAdmin) ? <span>⚙️ modifie l’entité.</span> : peutAjouter && <span>« + Ajouter une personne » sous l’entité.</span>}
+        </p>
+      ) : (
+        <p className="muted small-note">Clique sur une personne pour voir sa fiche, sur le nom d’une entité pour l’ouvrir.</p>
+      )}
+      {club.error && <p className="error small-note">{club.error}</p>}
       {cablage && (
         <CablagePanel
           candidats={candidats}
@@ -194,13 +226,11 @@ export function Org() {
           }}
         />
       )}
-      {active.length ? <Arbre units={active} actions={actions} /> : <Empty>Aucune entité.</Empty>}
+      {active.length ? <Arbre units={active} actions={actions} edition={edition} /> : <Empty>Aucune entité.</Empty>}
       <p className="arbre-legende muted small-note">
-        {(['central', ...SUB_TYPES] as UnitType[]).map((t) => <span key={t}>{UNIT_TYPES[t].icon} {UNIT_TYPES[t].label}</span>)}
-        <span>★ {UNIT_TYPES.central.chef} / responsable</span>
-        <span><span className="legende-cable" aria-hidden="true" /> câble : le responsable, depuis l’entité mère</span>
+        <span>★ responsable</span>
+        <span><span className="legende-cable" aria-hidden="true" /> câble : du responsable, dans l’entité mère</span>
         <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
-        {active.some((u) => club.canManage || u.moiAdmin) && <span>⚙️ modifier l’entité</span>}
       </p>
       {archived.length > 0 && (
         <details className="org-archives">
@@ -214,7 +244,7 @@ export function Org() {
         <FicheMembre
           u={ficheUnit}
           m={ficheMembre}
-          onModifier={admin(ficheUnit) ? () => club.switchUnit(ficheUnit.id, `#/organigramme?entite=${ficheUnit.id}&personne=${ficheMembre.id}`) : undefined}
+          onModifier={admin(ficheUnit) ? () => club.switchUnit(ficheUnit.id, `#/organigramme?entite=${ficheUnit.id}&personne=${ficheMembre.id}${edition ? '&modifier' : ''}`) : undefined}
           onClose={() => setFiche(null)}
         />
       )}
@@ -238,7 +268,7 @@ export function Org() {
             setLien(null);
             setFiche({ unitId: lienUnit.id, personId: m.id });
           }}
-          onModifier={admin(lienUnit) ? () => club.switchUnit(lienUnit.id, `#/organigramme?entite=${lienUnit.id}&lien=${lien.id}`) : undefined}
+          onModifier={admin(lienUnit) ? () => club.switchUnit(lienUnit.id, `#/organigramme?entite=${lienUnit.id}&lien=${lien.id}${edition ? '&modifier' : ''}`) : undefined}
           onClose={() => setLien(null)}
         />
       )}
@@ -250,13 +280,23 @@ export function Org() {
 }
 
 // Largeur d'une colonne de l'arbre (carte + marges) : en dessous, l'arbre se présente de haut en bas, décalé à droite.
-const COLONNE = 216;
+const COLONNE = 240;
+// Une carte d'au moins tant de lignes s'élargit sur deux colonnes (de haut en bas).
+const GRANDE = 10;
+
+/** Lignes de la carte d'une entité : une par personne (fonctions groupées), une par entité membre. */
+function lignesDe(u: OrgUnit, units: OrgUnit[]) {
+  const t = UNIT_TYPES[u.type];
+  // Membres venus d'une autre entité : regroupés sur sa ligne « 👥 », sauf s'ils ont une fonction dans celle-ci.
+  const lignes = postesEntite(u.membres.filter((m) => !m.viaEntite || m.admin || m.poste || m.autresPostes), t.chef);
+  return { lignes, groupes: groupesLies(u, units) };
+}
 
 /**
  * L'arbre : de haut en bas comme un arbre généalogique, ou en liste décalée (téléphone, ou trop d'entités côte à côte).
- * De haut en bas, les cartes posées à la main sont à leur place (disposition libre).
+ * De haut en bas, les cartes posées à la main sont à leur place (disposition libre) ; en mode « Modifier », on les déplace.
  */
-function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => Actions }) {
+function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: OrgUnit) => Actions; edition: boolean }) {
   const club = useClub();
   const racines = useMemo(() => arbreEntites(units), [units]);
   const cadre = useRef<HTMLDivElement>(null);
@@ -270,8 +310,21 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const feuilles = (b: Branche<OrgUnit>): number => (b.enfants.length ? b.enfants.reduce((n, x) => n + feuilles(x), 0) : 1);
-  const vertical = largeur < racines.reduce((n, b) => n + feuilles(b), 0) * COLONNE;
+  const grandes = useMemo(
+    () =>
+      new Set(
+        units
+          .filter((u) => {
+            const { lignes, groupes } = lignesDe(u, units);
+            return lignes.length + groupes.length + (lignes.some((l) => l.chef) ? 0 : 1) >= GRANDE;
+          })
+          .map((u) => u.id),
+      ),
+    [units],
+  );
+  // Colonnes qu'il faut côte à côte : une par carte du bas (deux pour une grande carte).
+  const colonnes = (b: Branche<OrgUnit>): number => Math.max(grandes.has(b.u.id) ? 2 : 1, b.enfants.reduce((n, x) => n + colonnes(x), 0));
+  const vertical = largeur < racines.reduce((n, b) => n + colonnes(b), 0) * COLONNE;
   // Câbles : du responsable dans l'entité mère jusqu'à l'entité, dessinés sur le plan de l'arbre.
   const plan = useRef<HTMLDivElement>(null);
   const arbre = useRef<HTMLUListElement>(null);
@@ -282,16 +335,17 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
     cadre,
     units,
     actif: !vertical,
-    peut: (u) => !u.archive && (club.canManage || u.moiAdmin),
+    peut: (u) => edition && !u.archive && (club.canManage || u.moiAdmin),
     placer: club.placerCartes,
   });
   const branche = (b: Branche<OrgUnit>) => (
     <li key={b.u.id}>
-      <Noeud u={b.u} {...actions(b.u)} deplacer={disposition.deplacer(b.u)} />
+      <Noeud u={b.u} {...actions(b.u)} deplacer={disposition.deplacer(b.u)} grande={!vertical && grandes.has(b.u.id)} />
       {b.enfants.length > 0 && <ul>{b.enfants.map(branche)}</ul>}
     </li>
   );
   const n = disposition.remettables.length;
+  const ignorees = edition && disposition.ignorees;
   return (
     <>
       <div ref={cadre} className="arbre-cadre">
@@ -302,10 +356,10 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
         </div>
       </div>
       {/* Sous l'arbre : s'il apparaît, l'arbre ne bouge pas sous la carte qu'on vient de poser. */}
-      {(disposition.erreur || disposition.ignorees || n > 0) && (
+      {(disposition.erreur || ignorees || n > 0) && (
         <div className="arbre-outils">
           {disposition.erreur && <span className="error small-note">{disposition.erreur}</span>}
-          {disposition.ignorees && <span className="muted small-note">Des cartes sont placées à la main : leur disposition s’affiche sur un écran plus large.</span>}
+          {ignorees && <span className="muted small-note">Des cartes sont placées à la main : leur disposition s’affiche sur un écran plus large.</span>}
           {n > 0 && (
             <button
               type="button"
@@ -323,34 +377,39 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
 }
 
 /**
- * Une entité dans l'arbre : nom, type, nombre de membres, puis une ligne par personne (son nom et ses fonctions)
- * qui ouvre sa fiche, et le bouton « + » pour y ajouter quelqu'un quand on en a le droit.
+ * Une entité dans l'arbre : nom et type, une ligne « N membres · Ouvrir › », puis une ligne par personne
+ * (son nom et ses fonctions) qui ouvre sa fiche. En mode « Modifier » : poignée, ⚙️ et « + Ajouter une personne ».
+ * Une grande carte (comité central) range ses lignes sur deux colonnes.
  */
-function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, deplacer }: { u: OrgUnit } & Actions) {
+function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, deplacer, grande }: { u: OrgUnit; grande?: boolean } & Actions) {
   const club = useClub();
   const t = UNIT_TYPES[u.type];
-  // Membres venus d'une autre entité : regroupés sur sa ligne « 👥 », sauf s'ils ont une fonction dans celle-ci.
-  const lignes = postesEntite(u.membres.filter((m) => !m.viaEntite || m.admin || m.poste || m.autresPostes), t.chef);
-  const groupes = groupesLies(u, club.units);
+  const { lignes, groupes } = lignesDe(u, club.units);
   const access = centralAccess(u);
   const ouverte = u.id === club.current.id;
   const cible = cablage?.cible;
+  // L'accès du comité central : déjà dit par « 👁 Consulter » / « ✏️ Ouvrir » quand on le visite à ce titre.
+  const acces = access !== 'aucun' && !(ouvrir && !u.moi);
   const texte = (
     <>
-      <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
-      <span className="arbre-texte">
-        <strong>{u.nom}</strong>
-        <small>{t.label}{u.date && ` · ${fmtRange(u.date, u.dateFin)}`}</small>
-        <small>
-          {u.membres.length} membre{u.membres.length > 1 ? 's' : ''}
-          {ouverte ? ' · ouverte' : ouvrir ? <span className="arbre-lien"> · {ouvrir.label} ›</span> : u.moi ? ' · tu en fais partie' : ''}
-        </small>
+      <span className="arbre-titre">
+        <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
+        <span className="arbre-texte">
+          <strong>{u.nom}</strong>
+          <small>{t.label}{u.date && ` · ${fmtRange(u.date, u.dateFin)}`}</small>
+        </span>
+      </span>
+      <span className="arbre-meta">
+        <span>{u.membres.length} membre{u.membres.length > 1 ? 's' : ''}</span>
+        {ouverte && <span className="arbre-ouverte">ouverte</span>}
+        {acces && <span className="arbre-acces" title={`Comité central : ${CENTRAL_ACCESS[access].label.toLowerCase()}`}>{CENTRAL_ACCESS[access].icon}</span>}
+        {ouvrir && <span className="arbre-lien">{ouvrir.label} ›</span>}
       </span>
     </>
   );
   return (
     <div
-      className={`arbre-noeud ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${cible?.actif || (cible && cablage?.mode) ? 'cablage-cible' : ''} ${cible?.survol ? 'cablage-survol' : ''} ${deplacer ? 'deplacable' : ''}`}
+      className={`arbre-noeud ${grande ? 'grande' : ''} ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${cible?.actif || (cible && cablage?.mode) ? 'cablage-cible' : ''} ${cible?.survol ? 'cablage-survol' : ''} ${deplacer ? 'deplacable' : ''}`}
       style={{ borderTopColor: u.couleur }}
       data-noeud={u.id}
       onPointerDown={deplacer?.onPointerDown}
@@ -369,7 +428,6 @@ function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, 
       ) : (
         <div className="arbre-tete">{texte}</div>
       )}
-      {access !== 'aucun' && <span className="arbre-acces" title={`Comité central : ${CENTRAL_ACCESS[access].label.toLowerCase()}`}>{CENTRAL_ACCESS[access].icon}</span>}
       {/* Pas de <ul> ici : les traits de l'arbre sont dessinés sur les listes. */}
       <div className="arbre-postes">
         {!lignes.some((l) => l.chef) && <span className="poste muted">★ {t.chef} : à désigner</span>}
@@ -592,7 +650,7 @@ function UnitModal({ unit, onClose, onCreated }: { unit?: OrgUnit; onClose: () =
                 {addable.map((e) => <option key={e.key} value={e.key}>{e.prenom} {e.nom}</option>)}
               </select>
               <p className="muted small-note">
-                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis l’organigramme (« + Ajouter une personne », clic sur une personne).
+                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis l’organigramme (« ✏️ Modifier l’organigramme » › « + Ajouter une personne », clic sur une personne).
               </p>
             </div>
           </>

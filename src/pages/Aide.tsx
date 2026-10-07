@@ -42,13 +42,13 @@ export function Aide() {
   // Organigramme : dans le menu des entités (en haut à gauche), pas dans les rubriques.
   const orga = club && <><Link to="/organigramme">Organigramme du club</Link> (menu des entités, en haut à gauche)</>;
   if (orga) geste('Voir qui fait quoi, et ses coordonnées', orga, ' : un clic sur une personne ouvre la fiche de la personne.');
-  if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « + Ajouter une personne » en bas de la liste des postes de l’entité.');
+  if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « ✏️ Modifier l’organigramme », puis « + Ajouter une personne » en bas de la liste des postes de l’entité.');
   if (orga && club?.liens && club.units.length > 1 && user?.roles.includes(ADMIN_ROLE_ID))
-    geste('Ajouter toute une entité aux membres de la tienne', orga, ' : « + Ajouter une personne » › « 👥 Tous les membres de … ». Qui rejoint ou quitte cette entité rejoint ou quitte aussi la tienne, automatiquement ; tu peux ajouter d’autres personnes en plus.');
+    geste('Ajouter toute une entité aux membres de la tienne', orga, ' : « ✏️ Modifier l’organigramme » › « + Ajouter une personne » › « 👥 Tous les membres de … ». Qui rejoint ou quitte cette entité rejoint ou quitte aussi la tienne, automatiquement ; tu peux ajouter d’autres personnes en plus.');
   if (orga && club?.units.some((u) => !u.archive && u.type !== 'central' && (club?.canManage || u.moiAdmin)))
-    geste('Désigner le responsable d’une entité', orga, ' : « 🔌 Câbler », puis tire un câble de la personne jusqu’à l’entité (au doigt : depuis la prise ● au bout de sa ligne ; sans glisser : touche-la, puis « ★ Responsable » sous l’entité). Le câble reste affiché, de la personne dans l’entité mère jusqu’à l’entité. Quelqu’un qui n’est dans aucune entité se trouve dans la liste du haut, ou « ＋ Nouvelle personne ».');
+    geste('Désigner le responsable d’une entité', orga, ' : « ✏️ Modifier l’organigramme » › « 🔌 Câbler », puis tire un câble de la personne jusqu’à l’entité (au doigt : depuis la prise ● au bout de sa ligne ; sans glisser : touche-la, puis « ★ Responsable » sous l’entité). Le câble reste affiché, de la personne dans l’entité mère jusqu’à l’entité. Quelqu’un qui n’est dans aucune entité se trouve dans la liste du haut, ou « ＋ Nouvelle personne ».');
   if (orga && club?.units.some((u) => !u.archive && (club?.canManage || u.moiAdmin)))
-    geste('Ranger l’organigramme à ta façon', orga, ' : tire une carte par son nom (au doigt : par sa poignée en haut) et pose-la où tu veux ; traits et câbles suivent. Tout le monde voit la même disposition. Double-clic sur la poignée : la carte revient à sa place ; « ↺ Disposition automatique » sous l’organigramme : toutes les cartes. Sur un écran large seulement.');
+    geste('Ranger l’organigramme à ta façon', orga, ' : « ✏️ Modifier l’organigramme », puis tire une carte par son nom (au doigt : par sa poignée en haut) et pose-la où tu veux ; traits et câbles suivent. Tout le monde voit la même disposition. Double-clic sur la poignée : la carte revient à sa place ; « ↺ Disposition automatique » sous l’organigramme : toutes les cartes. Sur un écran large seulement.');
   if (orga && can('admin.access')) geste('Donner l’accès à l’appli à quelqu’un', orga, ' : clic sur son nom (sa fiche doit avoir son email), puis « Créer l’accès ».');
   if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ».');
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
@@ -83,7 +83,7 @@ export function Aide() {
             <p className="muted small-note">Le nom de l’entité ouverte, en haut à gauche ▾.</p>
             <ul>
               <li>Passer à une autre de tes entités (sous-comité, groupe, équipe).</li>
-              <li><Link to="/organigramme">Organigramme du club</Link> : le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. Un clic sur une personne ouvre sa fiche (coordonnées, rôles, accès à l’appli) ; « + Ajouter une personne » sous l’entité.</li>
+              <li><Link to="/organigramme">Organigramme du club</Link> : le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. Un clic sur une personne ouvre sa fiche (coordonnées, rôles, accès à l’appli) ; « ✏️ Modifier l’organigramme » pour ajouter quelqu’un, ranger les cartes ou modifier une entité.</li>
             </ul>
           </div>
         )}

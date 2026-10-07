@@ -122,7 +122,7 @@ export function Admin() {
       <PageIntro />
       <div className="admin-cartes">
         {personnes && (
-          <Link to="/organigramme" className="panel admin-carte">
+          <Link to="/organigramme?modifier" className="panel admin-carte">
             <span className="admin-carte-icone" aria-hidden>👥</span>
             <span>
               <b>Personnes et accès</b>

@@ -179,7 +179,9 @@ function tracer(plan: HTMLElement, liens: LienResponsable[], vertical: boolean):
     const a = rel(mere);
     const c = rel(cible);
     const milieu = (c.l + c.r) / 2;
-    const gauche = !vertical && milieu < (a.l + a.r) / 2;
+    // Côté de sortie : celui de l'entité ; sur une grande carte (deux colonnes), celui de la colonne de la personne.
+    const grande = mere.classList.contains('grande');
+    const gauche = !vertical && (grande ? (s.l + s.r) / 2 : milieu) < (a.l + a.r) / 2;
     const k = parCible.get(l.vers) ?? 0;
     parCible.set(l.vers, k + 1);
     const loin = vertical ? c.t : Math.abs(milieu - (gauche ? a.l : a.r));
