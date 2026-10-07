@@ -10,7 +10,7 @@ import { switchMode } from '../data/mode';
 import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
 import { PageIntro } from '../components/Nav';
-import { AccueilModal, useBlocsAccueil } from '../components/Accueil';
+import { AccueilModal, accueilPerso } from '../components/Accueil';
 
 export function Settings() {
   const { dataLocale: data, user, prefs, setPrefs, can, reset, restore, login, cloud, guest } = useStore();
@@ -19,8 +19,6 @@ export function Settings() {
   const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [last, setLast] = useState(lastBackupAt());
   const [accueil, setAccueil] = useState(false);
-  const blocs = useBlocsAccueil();
-  const masques = blocs.filter((b) => prefs.accueilMasque?.telephone?.includes(b.id) || prefs.accueilMasque?.ordinateur?.includes(b.id)).length;
   const fileRef = useRef<HTMLInputElement>(null);
 
   const exportAll = async () => {
@@ -120,11 +118,9 @@ export function Settings() {
         <div className="full row">
           <span className="grow">
             Mon accueil{' '}
-            <small className="muted">
-              {masques ? `(${masques} bloc${masques > 1 ? 's' : ''} masqué${masques > 1 ? 's' : ''} sur téléphone ou ordinateur)` : '(tout est affiché)'}
-            </small>
+            <small className="muted">{accueilPerso(prefs) ? '(personnalisé)' : '(tout est affiché, dans l’ordre d’origine)'}</small>
           </span>
-          <button type="button" className="btn small" onClick={() => setAccueil(true)}>⚙ Choisir ce qui s’affiche</button>
+          <button type="button" className="btn small" onClick={() => setAccueil(true)}>⚙ Choisir les blocs et leur ordre</button>
         </div>
         {accueil && <AccueilModal onClose={() => setAccueil(false)} />}
       </section>

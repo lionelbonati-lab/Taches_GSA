@@ -442,6 +442,12 @@ export interface Prefs {
   explications?: boolean;
   /** Accueil : blocs masqués, sur téléphone et sur ordinateur (tout est affiché par défaut). */
   accueilMasque?: { telephone?: string[]; ordinateur?: string[] };
+  /** Accueil : ordre des blocs (le même sur téléphone et sur ordinateur). */
+  accueilOrdre?: string[];
+  /** Accueil : compteurs masqués (statuts, « retard »), sur téléphone et sur ordinateur. */
+  compteursMasque?: { telephone?: string[]; ordinateur?: string[] };
+  /** Accueil : ordre des compteurs. */
+  compteursOrdre?: string[];
 }
 
 /** Notification d'activité enregistrée (les rappels d'échéance sont calculés à la volée). */

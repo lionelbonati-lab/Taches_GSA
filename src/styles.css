@@ -239,6 +239,13 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .stat:hover { text-decoration: none; }
 .stat b { font-size: 1.8rem; }
 .stat span { color: var(--muted); font-size: 0.85rem; }
+/* Téléphone : compteurs compacts, le nombre devant le libellé, trois par ligne. */
+@media (max-width: 767px) {
+  .stats { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 6px; }
+  .stat { flex-direction: row; align-items: baseline; gap: 6px; padding: 6px 10px; border-top-width: 3px; min-width: 0; }
+  .stat b { font-size: 1.1rem; }
+  .stat span { font-size: 0.75rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
 .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
 .link-panel { display: flex; flex-direction: column; gap: 4px; color: var(--text); }
 .link-panel:hover { text-decoration: none; border-color: var(--primary); }
@@ -328,9 +335,16 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .link-btn:hover { text-decoration: underline; }
 .qui .chips { align-items: center; margin-bottom: 0; }
 .chip .chip-x { border: none; background: none; padding: 0 0 0 4px; margin: 0; color: inherit; cursor: pointer; font-size: 0.8rem; line-height: 1; }
-.accueil-blocs th:not(:first-child), .accueil-blocs td:not(:first-child) { text-align: center; width: 30%; }
+.accueil-blocs th:nth-child(n + 3), .accueil-blocs td:nth-child(n + 3) { text-align: center; width: 22%; }
+.accueil-blocs .ordre { width: 1%; white-space: nowrap; padding-left: 2px; padding-right: 2px; }
+.accueil-blocs .ordre .icon-btn { padding: 4px 7px; font-size: 1rem; }
+.accueil-blocs .ordre .icon-btn:disabled { opacity: 0.3; cursor: default; }
 .accueil-blocs .ici { background: color-mix(in srgb, var(--primary) 8%, transparent); }
 .accueil-blocs input[type='checkbox'] { width: 20px; height: 20px; }
+.table-scroll + .table-scroll { margin-top: 12px; }
+.compteur-nom { border-left: 4px solid; padding-left: 6px; }
+/* Compteurs rangés plus bas que d'habitude : un peu d'air au-dessus. */
+.grid2 + .bloc-compteurs, .accueil-bloc:not(.bloc-edition) + .bloc-compteurs { margin-top: 16px; }
 .chip-add { width: auto; max-width: 100%; border-radius: 999px; padding: 5px 10px; font-size: 0.85rem; }
 .task-plus { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--border); }
 .task-plus > span { font-size: 0.85rem; color: var(--muted); margin-right: 2px; }
