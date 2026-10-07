@@ -777,6 +777,15 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   /* Bon de paiement : le justificatif d'origine, sans la copie visée ; le sceau signé figure une seule fois, en bas. */
   .ticket-docs.avec-vise .ticket-doc.vise { display: none; }
   .ticket-doc .doc-thumb { width: auto; height: auto; max-width: 100%; max-height: 150mm; object-fit: contain; }
+  /* Toujours une seule page A4, quel que soit l'en-tête (bannière comprise) : le justificatif prend la place qui reste
+     sous l'en-tête et les informations, le sceau reste en bas. */
+  @page bon { size: A4 portrait; margin: 10mm; }
+  body.printing-ticket .modal { page: bon; height: 262mm; display: flex; flex-direction: column; padding: 0; }
+  body.printing-ticket .bon-entete, body.printing-ticket .ticket > * { flex: none; }
+  body.printing-ticket .ticket { flex: 1 1 0; min-height: 0; display: flex; flex-direction: column; }
+  body.printing-ticket .ticket-docs { flex: 1 1 0; min-height: 25mm; flex-wrap: nowrap; }
+  body.printing-ticket .ticket-doc { flex: 1 1 0; min-width: 0; min-height: 0; padding: 0; }
+  body.printing-ticket .ticket-doc .doc-thumb { flex: 1 1 0; min-height: 0; width: 100%; max-height: none; object-fit: scale-down; }
 }
 
 /* ---------- Impression ---------- */
