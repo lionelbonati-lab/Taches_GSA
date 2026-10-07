@@ -147,6 +147,11 @@ export function DemoApp() {
         saveUnits(next);
         setUnits(next);
       },
+      async placerCartes(places) {
+        const next = units.map((u) => (u.id in places ? { ...u, carte: places[u.id] ?? undefined } : u));
+        saveUnits(next);
+        setUnits(next);
+      },
       async setEditionDate(date, dateFin) {
         const next = units.map((u) => (u.id === current.id ? { ...u, date, dateFin: dateFin && dateFin > date ? dateFin : undefined } : u));
         saveUnits(next);

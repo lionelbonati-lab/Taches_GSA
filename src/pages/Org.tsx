@@ -14,6 +14,7 @@ import { CredentialsModal } from '../components/Acces';
 import { CentralAccessChoice } from '../components/CentralAccess';
 import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
 import { CablagePanel, CablesOrganigramme, candidatDe, liensResponsables, nomCandidat, ResponsableModal, useCablable, useCandidats, useTirage, type Source } from '../components/Cablage';
+import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
 // Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
@@ -21,6 +22,8 @@ import { CablagePanel, CablesOrganigramme, candidatDe, liensResponsables, nomCan
 // « + Ajouter une personne » en bas de la liste (entité ouverte, ou entité dont on est admin : on l'ouvre d'abord).
 // Un clic sur le nom d'une entité l'ouvre ; ⚙️ modifie sa fiche.
 // Câbles : de la ligne du responsable (★) d'une entité dans son entité mère jusqu'à l'entité, toujours affichés.
+// Disposition libre : les admins posent les cartes où ils veulent (en-tête à la souris, poignée au doigt) ;
+// la place est enregistrée avec l'entité, la même pour tous (Disposition.tsx).
 // Câblage (admins du comité central, ou d'une entité) : un câble tiré d'une personne jusqu'à une entité en fait
 // le responsable ; « 🔌 Câbler » ajoute les poignées ● (doigt), les personnes du club qui ne sont dans aucune entité,
 // et le choix sans glisser.
@@ -50,6 +53,8 @@ interface Actions {
     onChoisir: (m: OrgMember) => void;
     cible?: { actif: boolean; survol: boolean; onDeposer: () => void; label: string };
   };
+  /** Carte qu'on peut poser ailleurs sur l'organigramme (disposition libre). */
+  deplacer?: Deplacer;
 }
 
 export function Org() {
@@ -173,6 +178,7 @@ export function Org() {
       <p className="muted small-note">
         Les traits relient chaque entité à celle dont elle dépend ; un câble de couleur part du responsable (★) d’une entité, là où il siège dans l’entité mère. Clique sur une personne pour voir la fiche de la personne, sur le nom d’une entité pour l’ouvrir.
         {peutCabler && !cablage && ' Tire un câble d’une personne jusqu’à une entité pour en faire son responsable.'}
+        {active.some((u) => !u.archive && (club.canManage || u.moiAdmin)) && ' Sur un écran large, une carte se déplace en la tirant par son nom (au doigt : par sa poignée en haut).'}
         {club.error && <span className="error"> {club.error}</span>}
       </p>
       {cablage && (
@@ -246,8 +252,12 @@ export function Org() {
 // Largeur d'une colonne de l'arbre (carte + marges) : en dessous, l'arbre se présente de haut en bas, décalé à droite.
 const COLONNE = 216;
 
-/** L'arbre : de haut en bas comme un arbre généalogique, ou en liste décalée (téléphone, ou trop d'entités côte à côte). */
+/**
+ * L'arbre : de haut en bas comme un arbre généalogique, ou en liste décalée (téléphone, ou trop d'entités côte à côte).
+ * De haut en bas, les cartes posées à la main sont à leur place (disposition libre).
+ */
 function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => Actions }) {
+  const club = useClub();
   const racines = useMemo(() => arbreEntites(units), [units]);
   const cadre = useRef<HTMLDivElement>(null);
   const [largeur, setLargeur] = useState(0);
@@ -264,20 +274,51 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
   const vertical = largeur < racines.reduce((n, b) => n + feuilles(b), 0) * COLONNE;
   // Câbles : du responsable dans l'entité mère jusqu'à l'entité, dessinés sur le plan de l'arbre.
   const plan = useRef<HTMLDivElement>(null);
+  const arbre = useRef<HTMLUListElement>(null);
   const liens = useMemo(() => liensResponsables(units), [units]);
+  const disposition = useDisposition({
+    plan,
+    arbre,
+    cadre,
+    units,
+    actif: !vertical,
+    peut: (u) => !u.archive && (club.canManage || u.moiAdmin),
+    placer: club.placerCartes,
+  });
   const branche = (b: Branche<OrgUnit>) => (
     <li key={b.u.id}>
-      <Noeud u={b.u} {...actions(b.u)} />
+      <Noeud u={b.u} {...actions(b.u)} deplacer={disposition.deplacer(b.u)} />
       {b.enfants.length > 0 && <ul>{b.enfants.map(branche)}</ul>}
     </li>
   );
+  const n = disposition.remettables.length;
   return (
-    <div ref={cadre} className="arbre-cadre">
-      <div ref={plan} className={`arbre-plan ${vertical ? 'vertical' : 'haut'} ${liens.length ? 'avec-cables' : ''}`}>
-        <ul className={`arbre ${vertical ? 'vertical' : 'haut'}`}>{racines.map(branche)}</ul>
-        <CablesOrganigramme plan={plan} liens={liens} vertical={vertical} units={units} />
+    <>
+      <div ref={cadre} className="arbre-cadre">
+        <div ref={plan} className={`arbre-plan ${vertical ? 'vertical' : 'haut'} ${liens.length ? 'avec-cables' : ''} ${disposition.libre ? 'libre' : ''}`}>
+          {disposition.libre && <TraitsOrganigramme plan={plan} units={units} />}
+          <ul ref={arbre} className={`arbre ${vertical ? 'vertical' : 'haut'}`}>{racines.map(branche)}</ul>
+          <CablesOrganigramme plan={plan} liens={liens} vertical={vertical} units={units} />
+        </div>
       </div>
-    </div>
+      {/* Sous l'arbre : s'il apparaît, l'arbre ne bouge pas sous la carte qu'on vient de poser. */}
+      {(disposition.erreur || disposition.ignorees || n > 0) && (
+        <div className="arbre-outils">
+          {disposition.erreur && <span className="error small-note">{disposition.erreur}</span>}
+          {disposition.ignorees && <span className="muted small-note">Des cartes sont placées à la main : leur disposition s’affiche sur un écran plus large.</span>}
+          {n > 0 && (
+            <button
+              type="button"
+              className="btn small"
+              title="Remettre les cartes déplacées à leur place dans l’arbre"
+              onClick={() => confirm(`Remettre ${n > 1 ? `les ${n} cartes déplacées à leur place` : 'la carte déplacée à sa place'} dans l’arbre ? Pour tout le monde.`) && disposition.toutRemettre()}
+            >
+              ↺ Disposition automatique
+            </button>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -285,7 +326,7 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
  * Une entité dans l'arbre : nom, type, nombre de membres, puis une ligne par personne (son nom et ses fonctions)
  * qui ouvre sa fiche, et le bouton « + » pour y ajouter quelqu'un quand on en a le droit.
  */
-function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage }: { u: OrgUnit } & Actions) {
+function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, deplacer }: { u: OrgUnit } & Actions) {
   const club = useClub();
   const t = UNIT_TYPES[u.type];
   // Membres venus d'une autre entité : regroupés sur sa ligne « 👥 », sauf s'ils ont une fonction dans celle-ci.
@@ -309,12 +350,22 @@ function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage }
   );
   return (
     <div
-      className={`arbre-noeud ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${cible?.actif || (cible && cablage?.mode) ? 'cablage-cible' : ''} ${cible?.survol ? 'cablage-survol' : ''}`}
+      className={`arbre-noeud ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${cible?.actif || (cible && cablage?.mode) ? 'cablage-cible' : ''} ${cible?.survol ? 'cablage-survol' : ''} ${deplacer ? 'deplacable' : ''}`}
       style={{ borderTopColor: u.couleur }}
       data-noeud={u.id}
+      onPointerDown={deplacer?.onPointerDown}
     >
+      {deplacer && (
+        <span
+          className="poignee"
+          data-poignee
+          title={`Déplacer la carte${deplacer.remettre ? ' (double-clic : la remettre à sa place dans l’arbre)' : ''}`}
+          aria-hidden="true"
+          onDoubleClick={deplacer.remettre}
+        />
+      )}
       {ouvrir ? (
-        <button type="button" className="arbre-tete" title={ouvrir.aide} onClick={ouvrir.go}>{texte}</button>
+        <button type="button" className="arbre-tete" title={ouvrir.aide} onClick={() => !deplacer?.bougeJuste() && ouvrir.go()}>{texte}</button>
       ) : (
         <div className="arbre-tete">{texte}</div>
       )}

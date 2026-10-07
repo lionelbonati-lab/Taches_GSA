@@ -41,7 +41,7 @@ export function AppLogo({ src, size }: { src?: string | null; size: number }) {
 /** Pastille d'une entité : son logo, sinon l'icône de son type sur sa couleur. */
 export function UnitMark({ logo, couleur, icon, className }: { logo?: string; couleur: string; icon: string; className: string }) {
   return isImage(logo) ? (
-    <span className={`${className} has-logo`} style={{ borderColor: couleur }}><img src={logo} alt="" /></span>
+    <span className={`${className} has-logo`} style={{ borderColor: couleur }}><img src={logo} alt="" draggable={false} /></span>
   ) : (
     <span className={className} style={{ background: couleur }}>{icon}</span>
   );

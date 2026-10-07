@@ -1,6 +1,6 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
-import type { AppData, CentralAccess, Guest, OrgMember, OrgUnit, Permission, Person, Role, Section, Unit, UnitType } from './types';
+import type { AppData, Carte, CentralAccess, Guest, OrgMember, OrgUnit, Permission, Person, Role, Section, Unit, UnitType } from './types';
 import { posteBesideName, uid } from './utils';
 
 // Entités du club : comité central, sous-comités, groupes, équipes d'événement.
@@ -52,6 +52,14 @@ export function parentDans<T extends Unit>(units: T[], u: T): T | undefined {
     if (p.id === u.id) return central;
   }
   return choisi;
+}
+
+/** Place d'une carte de l'organigramme lue des données (entiers, dans des limites raisonnables), sinon undefined. */
+export function lireCarte(c: unknown): Carte | undefined {
+  if (!c || typeof c !== 'object') return undefined;
+  const { x, y } = c as Record<string, unknown>;
+  const ok = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && Math.abs(n) <= 20000;
+  return ok(x) && ok(y) ? { x: Math.round(x), y: Math.round(y) } : undefined;
 }
 
 export type Branche<T> = { u: T; enfants: Branche<T>[] };

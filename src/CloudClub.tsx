@@ -11,6 +11,27 @@ import type { OrgUnit } from './data/types';
 // Exception : une entité peut ouvrir ses données au comité central (consulter, ou aussi modifier / ajouter) ;
 // ses membres l'ouvrent alors en visiteur, avec leur fiche du comité central (règles du serveur : 006).
 
+/** Enregistre le nom et la fiche (colonne info) d'une entité telle qu'elle doit être. */
+function ecrireEntite(u: OrgUnit) {
+  return updateCommittee(u.id, {
+    name: u.nom,
+    type: u.type,
+    info: {
+      couleur: u.couleur,
+      description: u.description || undefined,
+      date: u.date || undefined,
+      dateFin: u.date && u.dateFin && u.dateFin > u.date ? u.dateFin : undefined,
+      archive: u.archive || undefined,
+      // Réglage de l'entité : le serveur garde l'ancienne valeur si l'auteur n'en est pas admin.
+      central: u.central && u.central !== 'aucun' ? u.central : undefined,
+      logo: u.logo || undefined,
+      couleurAppli: u.couleurAppli || undefined,
+      dependDe: u.dependDe || undefined,
+      carte: u.carte,
+    },
+  });
+}
+
 export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; userId: string; onSwitch: (m: Membership) => void; children: ReactNode }) {
   const clubId = m.parentId ?? m.committeeId;
   const [org, setOrg] = useState<OrgUnit[] | null>(null);
@@ -96,24 +117,19 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       async updateUnit(id, patch) {
         const u = units.find((x) => x.id === id);
         if (!u) throw new Error('Entité introuvable.');
-        const next = { ...u, ...patch };
-        await updateCommittee(id, {
-          name: next.nom,
-          type: next.type,
-          info: {
-            couleur: next.couleur,
-            description: next.description || undefined,
-            date: next.date || undefined,
-            dateFin: next.date && next.dateFin && next.dateFin > next.date ? next.dateFin : undefined,
-            archive: next.archive || undefined,
-            // Réglage de l'entité : le serveur garde l'ancienne valeur si l'auteur n'en est pas admin.
-            central: next.central && next.central !== 'aucun' ? next.central : undefined,
-            logo: next.logo || undefined,
-            couleurAppli: next.couleurAppli || undefined,
-            dependDe: next.dependDe || undefined,
-          },
-        });
+        await ecrireEntite({ ...u, ...patch });
         refresh();
+      },
+      async placerCartes(places) {
+        const faits = await Promise.allSettled(
+          Object.entries(places).map(([id, carte]) => {
+            const u = units.find((x) => x.id === id);
+            return u ? ecrireEntite({ ...u, carte: carte ?? undefined }) : Promise.reject(new Error('Entité introuvable.'));
+          }),
+        );
+        refresh();
+        const echec = faits.find((r): r is PromiseRejectedResult => r.status === 'rejected');
+        if (echec) throw echec.reason instanceof Error ? echec.reason : new Error(String(echec.reason));
       },
       async setEditionDate(date, dateFin) {
         await setEditionDate(m.committeeId, date, dateFin);

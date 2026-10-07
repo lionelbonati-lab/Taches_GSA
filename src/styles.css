@@ -992,7 +992,8 @@ button.arbre-tete:hover strong, button.arbre-tete:hover .arbre-lien { text-decor
 /* Organigramme câblé : un câble tiré d'une personne jusqu'à une entité = son responsable ; il reste dessiné. */
 .btn.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
 .arbre-plan { position: relative; }
-.arbre-plan.haut { min-width: max-content; }
+/* De haut en bas, le plan épouse l'arbre (les places posées à la main se comptent depuis son coin) ; centré. */
+.arbre-plan.haut { width: max-content; margin: 0 auto; }
 .arbre-plan.vertical.avec-cables { padding-right: 18px; }
 .cables { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
 .cables .halo, .cable-volant .halo { fill: none; stroke: var(--bg); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
@@ -1017,6 +1018,21 @@ body.cable-en-cours, body.cable-en-cours * { cursor: grabbing !important; user-s
 .arbre-postes .poste.choisi .autres { color: inherit; opacity: 0.85; }
 .arbre-noeud.cablage-cible { outline: 2px dashed color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: 3px; }
 .arbre-noeud.cablage-survol { outline: 3px solid var(--primary); outline-offset: 3px; background: var(--primary-soft); }
+/* Disposition libre : cartes posées à la main, traits d'une carte à l'autre (les traits des listes sont masqués). */
+.arbre-plan.libre .arbre.haut ul::before, .arbre-plan.libre .arbre.haut ul > li::before, .arbre-plan.libre .arbre.haut ul > li::after { display: none; }
+.traits { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+.traits path { fill: none; stroke: color-mix(in srgb, var(--muted) 60%, transparent); stroke-width: 2; stroke-linejoin: round; }
+.arbre-noeud.deplacable { user-select: none; -webkit-user-select: none; }
+.arbre-noeud.deplacable img { -webkit-user-drag: none; }
+.arbre-noeud.deplacable > div.arbre-tete { cursor: grab; }
+.arbre-noeud.posee { z-index: 1; }
+.arbre-noeud.en-mouvement { z-index: 3; box-shadow: 0 12px 30px rgb(0 0 0 / 0.22); }
+.poignee { position: absolute; top: -10px; left: 50%; display: grid; place-items: center; width: 34px; height: 16px; margin-left: -17px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: grab; touch-action: none; }
+.poignee::before { content: ''; position: absolute; inset: -9px -6px; }
+.poignee::after { content: ''; width: 16px; height: 6px; background: radial-gradient(circle, currentColor 1.1px, transparent 1.6px) 0 0 / 4px 3px; }
+.poignee:hover, .en-mouvement .poignee { color: var(--primary); border-color: var(--primary); }
+body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+.arbre-outils { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 10px; margin-top: 6px; }
 .cablage-depose { margin-top: 2px; padding: 4px 6px; font: inherit; font-size: 0.78rem; font-weight: 600; text-align: left; color: var(--primary); background: var(--primary-soft); border: 1px dashed var(--primary); border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
 .cablage-panel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; position: sticky; top: 64px; z-index: 5; }
 .cablage-tete { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }

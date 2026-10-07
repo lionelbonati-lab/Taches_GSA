@@ -542,6 +542,14 @@ export interface Unit {
   couleurAppli?: string;
   /** Entité dont elle dépend dans l'organigramme (sinon le comité central). Affichage seulement : les accès suivent parentId. */
   dependDe?: string;
+  /** Place de sa carte dans l'organigramme, posée à la main (sinon sa place dans l'arbre). */
+  carte?: Carte;
+}
+
+/** Coin haut gauche d'une carte de l'organigramme, en pixels depuis le coin haut gauche de l'arbre. */
+export interface Carte {
+  x: number;
+  y: number;
 }
 
 /** Accès du comité central aux données d'une entité : rien voir, consulter, ou aussi ajouter et modifier des tâches. */

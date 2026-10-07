@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrgUnit, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
-import { UNIT_COLORS } from './units';
+import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrgUnit, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
+import { lireCarte, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
 import type { NouveauResponsable } from './cablage';
@@ -45,6 +45,8 @@ export interface UnitInfo {
   couleurAppli?: string;
   /** Entité dont elle dépend dans l'organigramme (affichage seulement). */
   dependDe?: string;
+  /** Place de sa carte dans l'organigramme, posée à la main (affichage seulement). */
+  carte?: Carte;
 }
 
 /**
@@ -489,6 +491,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     logo: isImage(m.info.logo) ? m.info.logo : undefined,
     couleurAppli: isCouleur(m.info.couleurAppli) ? m.info.couleurAppli : undefined,
     dependDe: typeof m.info.dependDe === 'string' ? m.info.dependDe : undefined,
+    carte: lireCarte(m.info.carte),
     membres: [],
     moi: !m.guest,
     moiAdmin: false,
@@ -516,6 +519,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       logo: isImage(info.logo) ? info.logo : undefined,
       couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
       dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
+      carte: lireCarte(info.carte),
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined, viaFiche: m.viaFiche ?? undefined })),
       moi: u.moi,
       moiAdmin: u.moiAdmin,

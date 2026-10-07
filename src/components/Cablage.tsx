@@ -131,11 +131,12 @@ export function liensResponsables(units: OrgUnit[]): LienResponsable[] {
   return out;
 }
 
-type Point = [number, number];
+export type Point = [number, number];
 interface Trace { id: string; d: string; s: Point; t: Point; couleur: string; titre: string; de: string; ligne: string; vers: string }
 
 /** Chemin à angles arrondis passant par ces points (lignes droites, sans traverser les cartes). */
-function chemin(points: Point[], rayon = 7) {
+/** Chemin à angles droits arrondis passant par `points`. */
+export function chemin(points: Point[], rayon = 7) {
   const p = points.filter((q, i) => i === 0 || q[0] !== points[i - 1][0] || q[1] !== points[i - 1][1]);
   const f = (n: number) => Math.round(n * 10) / 10;
   let d = `M${f(p[0][0])},${f(p[0][1])}`;
@@ -205,40 +206,62 @@ function tracer(plan: HTMLElement, liens: LienResponsable[], vertical: boolean):
       const x = bord + sens * (8 + rang * Math.min(3, 8 / Math.max(1, n - 1)));
       const vers = x > milieu ? 1 : -1;
       const tx = milieu + vers * (Math.min(32, (c.r - c.l) / 4) + 8 * k);
-      const by = c.t - 6 - rang * Math.min(3, 10 / Math.max(1, n - 1)) - 2 * k;
+      // Carte posée plus bas (disposition libre) : le câble passe juste sous la carte mère, puis descend vers l'entité.
+      const by = Math.min(c.t - 6, a.b + 30) - rang * Math.min(3, 10 / Math.max(1, n - 1)) - 2 * k;
       points = [[bord, y], [x, y], [x, by], [tx, by], [tx, c.t]];
     }
     return { id: l.id, d: chemin(points), s: points[0], t: points[points.length - 1], couleur: l.couleur, titre: l.titre, de: l.de, ligne: l.ligne, vers: l.vers };
   });
 }
 
-/** Les câbles, dessinés par-dessus le plan de l'arbre ; recalculés quand une carte change de taille ou de place. */
-export function CablesOrganigramme({ plan, liens, vertical, units }: { plan: RefObject<HTMLDivElement | null>; liens: LienResponsable[]; vertical: boolean; units: OrgUnit[] }) {
-  const [traces, setTraces] = useState<Trace[]>([]);
+/** Événement envoyé au plan de l'arbre quand une carte y change de place (disposition libre). */
+export const BOUGE = 'organigramme:bouge';
+
+/**
+ * Dessin posé sur le plan de l'arbre : `poser` est relancé quand le plan ou une carte change de taille,
+ * quand une carte change de place (BOUGE), et une fois les polices chargées.
+ */
+export function useSurPlan(plan: RefObject<HTMLElement | null>, poser: () => void, deps: unknown[]) {
+  const dernier = useRef(poser);
+  dernier.current = poser;
   useLayoutEffect(() => {
     const el = plan.current;
     if (!el) return;
-    const poser = () => {
-      const t = tracer(el, liens, vertical);
-      setTraces((old) => (JSON.stringify(old) === JSON.stringify(t) ? old : t));
-    };
-    poser();
+    const maintenant = () => dernier.current();
+    maintenant();
     let raf = 0;
     const plusTard = () => {
       cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(poser);
+      raf = requestAnimationFrame(maintenant);
     };
     const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(plusTard);
     ro?.observe(el);
     el.querySelectorAll('[data-noeud]').forEach((n) => ro?.observe(n));
     window.addEventListener('resize', plusTard);
+    el.addEventListener(BOUGE, maintenant);
     document.fonts?.ready.then(plusTard).catch(() => {});
     return () => {
       cancelAnimationFrame(raf);
       ro?.disconnect();
       window.removeEventListener('resize', plusTard);
+      el.removeEventListener(BOUGE, maintenant);
     };
-  }, [plan, liens, vertical, units]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plan, ...deps]);
+}
+
+/** Les câbles, dessinés par-dessus le plan de l'arbre ; recalculés quand une carte change de taille ou de place. */
+export function CablesOrganigramme({ plan, liens, vertical, units }: { plan: RefObject<HTMLDivElement | null>; liens: LienResponsable[]; vertical: boolean; units: OrgUnit[] }) {
+  const [traces, setTraces] = useState<Trace[]>([]);
+  useSurPlan(
+    plan,
+    () => {
+      if (!plan.current) return;
+      const t = tracer(plan.current, liens, vertical);
+      setTraces((old) => (JSON.stringify(old) === JSON.stringify(t) ? old : t));
+    },
+    [liens, vertical, units],
+  );
   if (!traces.length) return null;
   return (
     <svg className="cables" aria-hidden="true">

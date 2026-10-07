@@ -47,6 +47,8 @@ export function Aide() {
     geste('Ajouter toute une entité aux membres de la tienne', orga, ' : « + Ajouter une personne » › « 👥 Tous les membres de … ». Qui rejoint ou quitte cette entité rejoint ou quitte aussi la tienne, automatiquement ; tu peux ajouter d’autres personnes en plus.');
   if (orga && club?.units.some((u) => !u.archive && u.type !== 'central' && (club?.canManage || u.moiAdmin)))
     geste('Désigner le responsable d’une entité', orga, ' : « 🔌 Câbler », puis tire un câble de la personne jusqu’à l’entité (au doigt : depuis la prise ● au bout de sa ligne ; sans glisser : touche-la, puis « ★ Responsable » sous l’entité). Le câble reste affiché, de la personne dans l’entité mère jusqu’à l’entité. Quelqu’un qui n’est dans aucune entité se trouve dans la liste du haut, ou « ＋ Nouvelle personne ».');
+  if (orga && club?.units.some((u) => !u.archive && (club?.canManage || u.moiAdmin)))
+    geste('Ranger l’organigramme à ta façon', orga, ' : tire une carte par son nom (au doigt : par sa poignée en haut) et pose-la où tu veux ; traits et câbles suivent. Tout le monde voit la même disposition. Double-clic sur la poignée : la carte revient à sa place ; « ↺ Disposition automatique » sous l’organigramme : toutes les cartes. Sur un écran large seulement.');
   if (orga && can('admin.access')) geste('Donner l’accès à l’appli à quelqu’un', orga, ' : clic sur son nom (sa fiche doit avoir son email), puis « Créer l’accès ».');
   if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ».');
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
