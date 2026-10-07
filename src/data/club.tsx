@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { ClubMembre, MyRequest, NouvelleProposition, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
+import type { NouveauResponsable } from './cablage';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
 // L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
@@ -108,6 +109,11 @@ export interface Club {
   sondagesPartages: () => Promise<SondagePartage[] | null>;
   /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */
   voterSondagePartage: (uniteId: string, pollId: string, choix: string[], texte?: string) => Promise<void>;
+  /**
+   * Organigramme câblé : fait d'une personne le responsable (★) d'une entité du club (pas le comité central) ;
+   * sa fiche y est reprise ou créée. Admins du comité central, ou de l'entité. `compte` : son compte au club lui ouvre l'entité.
+   */
+  definirResponsable: (uniteId: string, r: NouveauResponsable) => Promise<{ compte: boolean }>;
   /** Envoie une proposition d'amélioration de l'appli au comité central (tout membre du club). */
   proposerAmelioration: (p: NouvelleProposition) => Promise<void>;
   /** Propositions envoyées par la personne connectée, avec leur suivi ; null : le serveur ne les gère pas encore (migration 022). */

@@ -989,6 +989,26 @@ button.arbre-tete:hover strong, button.arbre-tete:hover .arbre-lien { text-decor
 .arbre-postes .poste .autres { color: var(--muted); font-weight: 400; }
 /* Entité entière parmi les membres (lien « Membres de ») */
 .arbre-postes .poste.lien { font-weight: 600; color: var(--primary); }
+/* Organigramme câblé : personne tirée sur une entité = son responsable. */
+.btn.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
+.arbre-postes .poste[draggable='true'] { cursor: grab; }
+.arbre-postes .poste.choisi { background: var(--primary); color: #fff; }
+.arbre-postes .poste.choisi .autres { color: inherit; opacity: 0.85; }
+.arbre-noeud.cablage-cible { outline: 2px dashed color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: 3px; }
+.arbre-noeud.cablage-survol { outline: 3px solid var(--primary); outline-offset: 3px; background: var(--primary-soft); }
+.cablage-depose { margin-top: 2px; padding: 4px 6px; font: inherit; font-size: 0.78rem; font-weight: 600; text-align: left; color: var(--primary); background: var(--primary-soft); border: 1px dashed var(--primary); border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
+.cablage-panel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; position: sticky; top: 64px; z-index: 5; }
+.cablage-tete { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
+.cablage-tete p { margin: 0; }
+.cablage-cherche { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+.cablage-personnes { display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; }
+.cablage-puce { cursor: grab; }
+.cablage-choisi { margin: 0; font-size: 0.9rem; }
+.cablage-qui { display: flex; gap: 10px; align-items: center; margin: 0; }
+.cablage-qui span { display: flex; flex-direction: column; }
+.cablage-actuels { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
+.cablage-actuels legend { font-size: 0.85rem; color: var(--muted); font-weight: 500; padding: 0 4px; }
+@media (max-width: 767px) { .cablage-panel { position: static; } .cablage-personnes { max-height: 90px; } }
 .lien-note { background: var(--primary-soft); color: var(--text); border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; font-size: 0.88rem; }
 .lien-role { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 4px; }
 .lien-apercu { margin: 6px 0 4px; }

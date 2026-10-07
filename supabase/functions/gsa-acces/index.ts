@@ -194,6 +194,92 @@ Deno.serve(async (req) => {
     return json({ unitId, email: login, password, existant: !password, lies: links.size - 1 });
   }
 
+  // Organigramme câblé : une personne tirée sur une entité en devient le responsable (★, rôle Admin).
+  // Admin du comité central (committeeId = comité central) ou de l'entité elle-même (committeeId = l'entité).
+  // Sa fiche est reprise (même fiche du registre, ou même adresse) ou créée ; même règle que l'appli (src/data/cablage.ts).
+  // Son compte, s'il en a déjà un au club, lui ouvre l'entité ; sinon, l'accès se crée depuis sa fiche.
+  if (action === 'responsable') {
+    const uniteId = String(body.uniteId ?? '');
+    const { data: u } = await db.from('committees').select('id, parent_id, type, info').eq('id', uniteId).maybeSingle();
+    if (!u || !u.parent_id) return json({ error: 'Le responsable se désigne pour une entité du club (pas le comité central).' }, 400);
+    if (u.id !== committeeId && u.parent_id !== committeeId) return json({ error: 'Réservé aux admins du comité central ou de l’entité.' }, 403);
+    if (u.info?.archive) return json({ error: 'Cette entité est archivée.' }, 400);
+    const r = (body.responsable ?? {}) as Record<string, unknown>;
+    const txt = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+    const prenom = txt(r.prenom, 80);
+    const nom = txt(r.nom, 80);
+    const email = txt(r.email, 200).toLowerCase();
+    const membreId = txt(r.membreId, 100) || undefined;
+    if (!prenom && !nom) return json({ error: 'Nom de la personne manquant.' }, 400);
+    if (email && !EMAIL.test(email)) return json({ error: 'Adresse email invalide.' }, 400);
+    const chef = u.type === 'sous-comite' ? 'Président' : 'Responsable';
+    const poste = txt(r.poste, 80) || chef;
+    const couleur = typeof r.couleur === 'string' && /^#[0-9a-f]{6}$/i.test(r.couleur) ? r.couleur : '#64748b';
+    const cle = (s: unknown) => String(s ?? '').trim().toLowerCase();
+
+    const { data: rows } = await db.from('gsa_items').select('id, pos, data').eq('committee_id', uniteId).eq('kind', 'people').eq('deleted', false);
+    const people = (rows ?? []) as { id: string; pos: number; data: Record<string, unknown> }[];
+    const meme = (p: { data: Record<string, unknown> }) => (!!membreId && p.data.membreId === membreId) || (!!email && cle(p.data.email) === email);
+    const found = people.find((p) => meme(p) && p.data.actif !== false) ?? people.find(meme);
+    const roles = (p: { data: Record<string, unknown> }) => (Array.isArray(p.data.roles) ? (p.data.roles as string[]) : []);
+    let fiche: string;
+    if (found) {
+      const ancien = String(found.data.poste ?? '').trim();
+      const autres = [...new Set([...(ancien && cle(ancien) !== cle(poste) ? [ancien] : []), ...String(found.data.autresPostes ?? '').split(',').map((x) => x.trim()).filter(Boolean)])].filter((x) => cle(x) !== cle(poste));
+      // Fiche venue d'une autre entité (lien « Membres de ») : elle devient la sienne, un lien n'est jamais admin.
+      const { viaEntite: _v, viaFiche: _f, exclu: _e, ...data } = found.data;
+      const next = {
+        ...data,
+        actif: true,
+        roles: ['admin', ...roles(found).filter((x) => x !== 'admin')],
+        poste,
+        autresPostes: autres.length ? autres.join(', ') : undefined,
+        membreId: found.data.membreId || membreId,
+        telephone: found.data.telephone || txt(r.telephone, 40),
+      };
+      const { error } = await db.from('gsa_items').update({ data: JSON.parse(JSON.stringify(next)) }).eq('committee_id', uniteId).eq('kind', 'people').eq('id', found.id);
+      if (error) return json({ error: error.message }, 400);
+      fiche = found.id;
+    } else {
+      fiche = `p${crypto.randomUUID().replace(/-/g, '').slice(0, 10)}`;
+      const data = JSON.parse(JSON.stringify({ id: fiche, prenom, nom, email, telephone: txt(r.telephone, 40), couleur, poste, roles: ['admin'], actif: true, membreId }));
+      const pos = people.reduce((n, p) => Math.max(n, p.pos), 0) + 1;
+      const { error } = await db.from('gsa_items').insert({ committee_id: uniteId, kind: 'people', id: fiche, pos, data });
+      if (error) return json({ error: error.message }, 400);
+    }
+    // Responsables actuels : ils restent membres, sans ★ (sauf s'ils doivent le rester aussi).
+    let retires = 0;
+    if (r.garder !== true) {
+      const { data: rr } = await db.from('gsa_items').select('id, data').eq('committee_id', uniteId).eq('kind', 'roles').eq('deleted', false);
+      const autresRoles = ((rr ?? []) as { id: string; data: Record<string, unknown> }[]).filter((x) => x.id !== 'admin');
+      const defaut =
+        autresRoles.find((x) => x.id === 'comite' || x.id === 'membre')?.id ??
+        [...autresRoles].sort((a, b) => (Array.isArray(a.data.permissions) ? a.data.permissions.length : 0) - (Array.isArray(b.data.permissions) ? b.data.permissions.length : 0))[0]?.id ??
+        'admin';
+      for (const p of people) {
+        if (p.id === fiche || !roles(p).includes('admin')) continue;
+        const reste = roles(p).filter((x) => x !== 'admin');
+        const ex = String(p.data.poste ?? '').trim();
+        const etaitChef = !!ex && (cle(ex) === cle(chef) || cle(ex) === cle(poste));
+        const { error } = await db.from('gsa_items').update({ data: { ...p.data, roles: reste.length ? reste : [defaut], poste: etaitChef ? '' : p.data.poste } }).eq('committee_id', uniteId).eq('kind', 'people').eq('id', p.id);
+        if (!error) retires++;
+      }
+    }
+    // Accès : son compte au club (même adresse que l'une de ses fiches), s'il en a un.
+    let compte = false;
+    if (email) {
+      const userId = (await clubAccounts(db, uniteId)).get(email);
+      if (userId) {
+        const { data: m } = await db.from('gsa_members').select('person_id').eq('committee_id', uniteId).eq('user_id', userId).maybeSingle();
+        const { data: autre } = await db.from('gsa_members').select('user_id').eq('committee_id', uniteId).eq('person_id', fiche).maybeSingle();
+        if (!m && !autre) compte = !(await db.from('gsa_members').insert({ committee_id: uniteId, user_id: userId, person_id: fiche })).error;
+        else if (m && !m.person_id && !autre) compte = !(await db.from('gsa_members').update({ person_id: fiche }).eq('committee_id', uniteId).eq('user_id', userId)).error;
+        else compte = m?.person_id === fiche || autre?.user_id === userId;
+      }
+    }
+    return json({ personId: fiche, compte, retires });
+  }
+
   if (!personId) return json({ error: 'Responsable manquant.' }, 400);
   const { data: person } = await db.from('gsa_items').select('data, deleted').eq('committee_id', committeeId).eq('kind', 'people').eq('id', personId).maybeSingle();
   const { data: link } = await db.from('gsa_members').select('user_id, owner').eq('committee_id', committeeId).eq('person_id', personId).maybeSingle();

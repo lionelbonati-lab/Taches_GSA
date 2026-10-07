@@ -102,6 +102,7 @@ Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people
 - `reinitialiser` : nouveau mot de passe provisoire ; refusé si le compte appartient aussi à une entité dont l'appelant n'est pas admin (un responsable de groupe ne peut pas changer le mot de passe du président).
 - `retirer` : supprime le lien (le compte n'a plus accès au comité).
 - `creerUnite` (admins du comité central) : crée une entité avec ses données de départ, crée le compte de son responsable s'il n'existe pas (mot de passe provisoire) et rattache les membres de départ qui ont déjà un compte (même adresse email).
+- `responsable` (admins du comité central, ou de l'entité ; **écrite, pas encore déployée**) : organigramme câblé, désigne le responsable d'un sous-comité, groupe ou équipe. Reprend sa fiche dans l'entité (fiche du registre ou même adresse) ou la crée, lui donne le rôle Admin et sa fonction, et, sauf « garder aussi », retire le rôle Admin aux responsables actuels (ils restent membres). S'il a déjà un compte dans le club (même adresse), il est rattaché à l'entité ; sinon on crée son accès depuis sa fiche. Tant qu'elle n'est pas déployée, l'appli l'indique et ne change rien.
 
 Aucun email n'est envoyé par Supabase (le serveur d'email par défaut est très limité) : l'admin transmet lui-même le mot de passe provisoire.
 

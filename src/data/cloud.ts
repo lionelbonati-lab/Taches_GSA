@@ -4,6 +4,7 @@ import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProp
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
+import type { NouveauResponsable } from './cablage';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -680,7 +681,9 @@ export interface AccessInfo {
 export type AccessRequest =
   | { action: 'liste'; committeeId: string }
   | { action: 'creer' | 'reinitialiser' | 'retirer'; committeeId: string; personId: string; email?: string }
-  | { action: 'creerUnite'; committeeId: string; unite: { nom: string; type: UnitType; info: UnitInfo }; rows: Row[]; chefId: string };
+  | { action: 'creerUnite'; committeeId: string; unite: { nom: string; type: UnitType; info: UnitInfo }; rows: Row[]; chefId: string }
+  /** Organigramme câblé : `committeeId` est l'entité dont l'appelant est admin (comité central, ou l'entité elle-même). */
+  | { action: 'responsable'; committeeId: string; uniteId: string; responsable: NouveauResponsable };
 
 export async function accessAction<T = Record<string, unknown>>(body: AccessRequest): Promise<T> {
   const { data, error } = await sb().functions.invoke('gsa-acces', { body });

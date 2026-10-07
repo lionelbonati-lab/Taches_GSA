@@ -45,6 +45,8 @@ export function Aide() {
   if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « + Ajouter une personne » en bas de la liste des postes de l’entité.');
   if (orga && club?.liens && club.units.length > 1 && user?.roles.includes(ADMIN_ROLE_ID))
     geste('Ajouter toute une entité aux membres de la tienne', orga, ' : « + Ajouter une personne » › « 👥 Tous les membres de … ». Qui rejoint ou quitte cette entité rejoint ou quitte aussi la tienne, automatiquement ; tu peux ajouter d’autres personnes en plus.');
+  if (orga && club?.units.some((u) => !u.archive && u.type !== 'central' && (club?.canManage || u.moiAdmin)))
+    geste('Désigner le responsable d’une entité', orga, ' : « 🔌 Câbler », puis tire la personne sur l’entité (sur téléphone : touche-la, puis « ★ Responsable » sous l’entité). Quelqu’un qui n’est dans aucune entité se trouve dans la liste du haut, ou « ＋ Nouvelle personne ».');
   if (orga && can('admin.access')) geste('Donner l’accès à l’appli à quelqu’un', orga, ' : clic sur son nom (sa fiche doit avoir son email), puis « Créer l’accès ».');
   if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ».');
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');

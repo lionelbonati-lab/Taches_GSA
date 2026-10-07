@@ -2,7 +2,8 @@ import { useCallback, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { CENTRAL_ID, deleteMembre, initMembres, lierFiches, loadMe, loadMembres, loadUnitData, loadUnits, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, synchroDemo, UNIT_KEY } from './data/demoClub';
-import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, visitLevel } from './data/units';
+import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, UNIT_TYPES, visitLevel } from './data/units';
+import { poserResponsable } from './data/cablage';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey } from './data/membres';
 import { uid } from './data/utils';
@@ -195,6 +196,23 @@ export function DemoApp() {
             };
           })
           .sort((a, b) => b.le.localeCompare(a.le));
+      },
+      // Organigramme câblé (version réelle : gsa-acces, action « responsable »).
+      async definirResponsable(uniteId, r) {
+        const u = org.find((x) => x.id === uniteId);
+        if (!u || u.type === 'central') throw new Error('Le responsable se désigne pour une entité du club (pas le comité central).');
+        if (!central?.moiAdmin && !u.moiAdmin) throw new Error('Réservé aux admins du comité central ou de l’entité.');
+        if (u.archive) throw new Error('Cette entité est archivée.');
+        const d = loadUnitData(uniteId);
+        poserResponsable(d, r, UNIT_TYPES[u.type].chef);
+        const n = synchroDemo(uniteId, d);
+        saveUnitData(uniteId, lierFiches(uniteId, n ?? d));
+        propagerLiens(uniteId);
+        // Entité ouverte : l'écran relit ses données.
+        if (uniteId === current.id) setEpoch((e) => e + 1);
+        refresh();
+        // Démo : on se connecte avec l'adresse de sa fiche.
+        return { compte: !!emailKey(r.email) };
       },
       // Proposition d'amélioration de l'appli, rangée au comité central (version réelle : gsa_proposer_amelioration).
       async proposerAmelioration(r) {

@@ -123,6 +123,21 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         await proposeTask(m.committeeId, { titre: r.titre, remarque: r.remarque, delai: r.delai, sectionId: r.sectionId });
       },
       myRequests: () => myRequests(m.committeeId),
+      async definirResponsable(uniteId, r) {
+        const u = units.find((x) => x.id === uniteId);
+        if (!u || u.type === 'central') throw new Error('Le responsable se désigne pour une entité du club (pas le comité central).');
+        // Admin du comité central : il agit depuis le comité central ; sinon, admin de l'entité elle-même.
+        const committeeId = central?.moiAdmin ? central.id : uniteId;
+        try {
+          const res = await accessAction<{ compte?: boolean }>({ action: 'responsable', committeeId, uniteId, responsable: r });
+          return { compte: !!res.compte };
+        } catch (e) {
+          if ((e as Error).message === 'Action inconnue.') throw new Error('Le serveur ne sait pas encore câbler l’organigramme : la fonction « gsa-acces » doit d’abord être mise à jour.');
+          throw e;
+        } finally {
+          refresh();
+        }
+      },
       async proposerAmelioration(p) {
         await proposerAmelioration(clubId, m.committeeId, p);
       },
