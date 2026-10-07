@@ -492,6 +492,8 @@ export interface AppData {
   timbre?: Timbre;
   /** Entités dont tous les membres font aussi partie de celle-ci (fiches liées tenues à jour). */
   membresDe?: LienEntite[];
+  /** Comité central : propositions d'amélioration de l'appli reçues des membres du club. */
+  propositions?: Proposition[];
 }
 
 /** En-tête des documents imprimés (ordre du jour, PV, bon de paiement), commun à toute l'entité. */
@@ -629,6 +631,30 @@ export interface MyRequest {
   supprimee: boolean;
   responsables: string[];
 }
+
+/** Proposition d'amélioration de l'appli : envoyée par un membre du club, rangée dans les données du comité central. */
+export interface Proposition {
+  id: string;
+  genre: 'idee' | 'probleme' | 'autre';
+  texte: string;
+  /** Page de l'appli concernée (ex. /taches) ; aucune : l'appli en général. */
+  page?: string;
+  le: string;
+  /** Nom de l'auteur et entité d'où il l'a envoyée (pris sur sa fiche). */
+  par: string;
+  unite?: string;
+  /** Clé de l'auteur (son compte ; en démo, son adresse), pour qu'il en suive la réponse. */
+  auteur: string;
+  statut: 'nouvelle' | 'etudiee' | 'retenue' | 'faite' | 'refusee';
+  reponse?: string;
+  reponduLe?: string;
+  reponduPar?: string;
+  /** Suivi par l'auteur (version réelle) : supprimée par le comité central. */
+  supprimee?: boolean;
+}
+
+/** Ce que l'auteur écrit ; le reste (nom, entité, date, statut) est ajouté à l'envoi. */
+export type NouvelleProposition = Pick<Proposition, 'genre' | 'texte' | 'page'>;
 
 /** Ticket à rembourser (le paiement se fait hors de l'appli : la caisse fait le virement). */
 export interface Paiement {

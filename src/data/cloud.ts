@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
+import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrgUnit, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -53,7 +53,7 @@ export interface UnitInfo {
 export const GUEST_WRITABLE = new Set(['tasks', 'emails', 'notifications', 'log']);
 
 /** Collections de l'appli enregistrées élément par élément. */
-const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log'] as const;
+const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions'] as const;
 /** Tables personne → valeur (réglages, notifications vues). */
 const MAP_KINDS = ['prefs', 'notifLues'] as const;
 /** Listes dont l'ordre est choisi par l'utilisateur (sinon l'ordre d'ajout est conservé). */
@@ -633,6 +633,26 @@ export async function voterSondagePartage(unite: string, source: string, sondage
 export async function saveTachePartagee(unite: string, source: string, task: Task) {
   const { error } = await sb().rpc('gsa_modifier_tache_partagee', { unite, source, tache: task.id, modif: task });
   if (error) throw new Error(error.message);
+}
+
+/** Proposition d'amélioration de l'appli, enregistrée au comité central (le serveur y met le nom et l'entité de l'auteur). */
+export async function proposerAmelioration(club: string, source: string, p: NouvelleProposition) {
+  const { data, error } = await sb().rpc('gsa_proposer_amelioration', { club, source, proposition: p });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') throw new Error('Le serveur ne reçoit pas encore les propositions (migration 022 à appliquer).');
+    throw new Error(error.message);
+  }
+  return data as string;
+}
+
+/** Propositions envoyées par la personne connectée ; null : le serveur ne les gère pas encore (migration 022). */
+export async function mesPropositions(club: string): Promise<Proposition[] | null> {
+  const { data, error } = await sb().rpc('gsa_mes_propositions', { club });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') return null;
+    throw new Error(error.message);
+  }
+  return (data ?? []) as Proposition[];
 }
 
 /** Suivi des demandes de l'entité au comité central. */

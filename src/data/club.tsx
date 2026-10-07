@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ClubMembre, MyRequest, OrgUnit, Person, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { ClubMembre, MyRequest, NouvelleProposition, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
@@ -108,6 +108,10 @@ export interface Club {
   sondagesPartages: () => Promise<SondagePartage[] | null>;
   /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */
   voterSondagePartage: (uniteId: string, pollId: string, choix: string[], texte?: string) => Promise<void>;
+  /** Envoie une proposition d'amélioration de l'appli au comité central (tout membre du club). */
+  proposerAmelioration: (p: NouvelleProposition) => Promise<void>;
+  /** Propositions envoyées par la personne connectée, avec leur suivi ; null : le serveur ne les gère pas encore (migration 022). */
+  mesPropositions: () => Promise<Proposition[] | null>;
   /** Registre « Membres du club » : accès (droit « club.membres » ou admin de l'une des entités du club). */
   membresAcces: boolean;
   membres: () => Promise<ClubMembre[]>;

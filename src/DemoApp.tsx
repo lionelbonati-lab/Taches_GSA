@@ -6,7 +6,7 @@ import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData,
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey } from './data/membres';
 import { uid } from './data/utils';
-import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, partageDe } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
@@ -195,6 +195,35 @@ export function DemoApp() {
             };
           })
           .sort((a, b) => b.le.localeCompare(a.le));
+      },
+      // Proposition d'amélioration de l'appli, rangée au comité central (version réelle : gsa_proposer_amelioration).
+      async proposerAmelioration(r) {
+        if (!central || !me) throw new Error('Pas de comité central.');
+        const texte = r.texte.trim().slice(0, 4000);
+        if (!texte) throw new Error('La proposition est vide');
+        // Nom : sa fiche dans l'entité ouverte, sinon au comité central, sinon dans une autre entité.
+        const ids = [current.id, central.id, ...units.map((u) => u.id)];
+        const fiche = ids.map((id) => loadUnitData(id).people.find((p) => p.actif && personKey(p, id) === me)).find((p) => !!p) ?? (guest ? guest.person : undefined);
+        const p: Proposition = {
+          id: uid('am'),
+          genre: r.genre,
+          texte,
+          page: r.page || undefined,
+          le: new Date().toISOString(),
+          par: `${fiche?.prenom ?? ''} ${fiche?.nom ?? ''}`.trim() || 'Membre du club',
+          unite: current.nom,
+          auteur: me,
+          statut: 'nouvelle',
+        };
+        const d = loadUnitData(central.id);
+        d.propositions = [p, ...(d.propositions ?? [])];
+        saveUnitData(central.id, d);
+        // Comité central ouvert : l'écran relit ses données.
+        if (current.id === central.id) setEpoch((e) => e + 1);
+      },
+      async mesPropositions() {
+        if (!central || !me) return [];
+        return (loadUnitData(central.id).propositions ?? []).filter((p) => p.auteur === me).sort((a, b) => b.le.localeCompare(a.le));
       },
       // Remboursement / paiement demandé par un membre d'une autre entité à la caisse centrale (version réelle : gsa_ticket_central).
       async ticketCentral(r) {

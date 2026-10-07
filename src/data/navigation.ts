@@ -76,8 +76,26 @@ const RUBRIQUES: NavRubrique[] = [
 export const PAGES_COMPTE: NavPage[] = [
   { to: '/reglages', label: 'Réglages', icon: '⚙️', aide: 'Ton compte, l’affichage, les notifications et la sauvegarde.' },
   { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access', aide: 'Les réglages de l’entité, réservés à ses admins. Choisis ce que tu veux régler.' },
+  {
+    to: '/propositions',
+    label: 'Proposer une amélioration',
+    icon: '💡',
+    club: true,
+    aide: 'Une idée pour l’appli, ou quelque chose qui ne marche pas ? Écris-le ici : le comité central l’étudie et te répond sur cette page.',
+  },
   { to: '/aide', label: 'Comment ça marche ?', icon: '❓', aide: 'Où trouver quoi, et les gestes courants.' },
 ];
+
+/** Nom d'une page de l'appli (« Comité › PV »), quels que soient les droits ; l'adresse elle-même si inconnue. */
+export function libellePage(to: string) {
+  if (to === '/organigramme') return 'Organigramme';
+  for (const r of RUBRIQUES) {
+    const p = r.pages.find((x) => x.to === to);
+    if (p) return r.pages.length > 1 ? `${r.label} › ${p.label}` : p.label;
+  }
+  const p = PAGES_COMPTE.find((x) => x.to === to);
+  return p ? p.label : to;
+}
 
 type Acces = { can: (p: Permission) => boolean; club: boolean; registre: boolean; type: UnitType };
 

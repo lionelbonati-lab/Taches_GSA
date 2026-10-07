@@ -165,7 +165,7 @@ export function Layout() {
                   <small className="muted">{user.poste} · {rolesText}</small>
                 </div>
                 {pagesCompte.map((p) => (
-                  <NavLink key={p.to} to={p.to} className="unit-item" role="menuitem">{p.icon} {p.label}</NavLink>
+                  <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="unit-item" role="menuitem">{p.icon} {p.label}</NavLink>
                 ))}
                 <button className="unit-item" role="menuitem" onClick={sortir}>{sortirLabel}</button>
               </div>
@@ -236,7 +236,7 @@ export function Layout() {
             <div className="sheet-group">
               <small className="sheet-titre">Mon compte</small>
               {pagesCompte.map((p) => (
-                <NavLink key={p.to} to={p.to} className="sheet-link">{p.icon} {p.label}</NavLink>
+                <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="sheet-link">{p.icon} {p.label}</NavLink>
               ))}
               <InstallButton variant="sheet" />
               <button className="sheet-link" onClick={sortir}>{sortirLabel}</button>

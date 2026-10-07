@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, deleteMembre, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, deleteMembre, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -123,6 +123,10 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         await proposeTask(m.committeeId, { titre: r.titre, remarque: r.remarque, delai: r.delai, sectionId: r.sectionId });
       },
       myRequests: () => myRequests(m.committeeId),
+      async proposerAmelioration(p) {
+        await proposerAmelioration(clubId, m.committeeId, p);
+      },
+      mesPropositions: () => mesPropositions(clubId),
       async ticketCentral(t) {
         await sendCentralTicket(m.committeeId, t);
       },

@@ -162,6 +162,21 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
       });
     }
 
+  // Comité central : propositions d'amélioration de l'appli pas encore étudiées, pour ses admins.
+  if (p.assign && data.propositions?.length && hasPermission(userRoles(data.roles, user), 'admin.access'))
+    for (const x of data.propositions) {
+      if (x.statut !== 'nouvelle') continue;
+      items.push({
+        key: `proposition:${x.id}`,
+        icon: x.genre === 'probleme' ? '🐞' : '💡',
+        text: `Proposition d’amélioration : « ${x.texte.length > 70 ? `${x.texte.slice(0, 67)}…` : x.texte} »`,
+        sub: `de ${x.par}${x.unite ? ` (${x.unite})` : ''}`,
+        link: '/propositions',
+        at: x.le,
+        kind: 'activite',
+      });
+    }
+
   // Remboursements et paiements : à traiter et virement à faire (caisse), visa demandé (signataire), réponses au demandeur.
   if (p.assign) {
     const caisse = holders(data, 'paiements.payer').includes(user.id);
