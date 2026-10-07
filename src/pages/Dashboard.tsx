@@ -12,10 +12,10 @@ import { EmailSend } from '../components/EmailsField';
 import { IncomingRequests, OutgoingRequests } from '../components/Requests';
 import { useClubOptional } from '../data/club';
 import { EditionCard } from '../components/Edition';
-import { AccueilModal, useAccueil } from '../components/Accueil';
+import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../components/Accueil';
 
 export function Dashboard() {
-  const { data, user, saveTask, guest } = useStore();
+  const { data, user, saveTask, guest, prefs, setPrefs, can, canSeeTask } = useStore();
   const club = useClubOptional();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
@@ -29,7 +29,12 @@ export function Dashboard() {
   const my = guest ? '' : 'mes ';
   const open = mine.filter((t) => !isDone(data, t));
   const late = open.filter((t) => isLate(data, t)).sort((a, b) => a.delai.localeCompare(b.delai));
-  const soon = open.filter((t) => { const n = t.delai ? daysUntil(t.delai) : -1; return n >= 0 && n <= 7; }).sort((a, b) => a.delai.localeCompare(b.delai));
+  // Bloc « À faire » : nombre de jours et tâches (les miennes, ou toutes celles que je vois) au choix de chacun.
+  const jours = joursAFaire(prefs.aFaireJours);
+  const toutes = !guest && !!prefs.aFaireToutes && can('tasks.viewAll');
+  const soon = (toutes ? data.tasks.filter((t) => canSeeTask(t) && !isDone(data, t)) : open)
+    .filter((t) => { const n = t.delai ? daysUntil(t.delai) : -1; return n >= 0 && n <= jours; })
+    .sort((a, b) => a.delai.localeCompare(b.delai));
   const nextMeeting = [...data.meetings].filter((m) => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
   const nextEvents = [...data.events].filter((e) => endOf(e) >= today()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
   const onStatus = (t: Task, s: string) => saveTask({ ...t, statusId: s }, false);
@@ -73,8 +78,15 @@ export function Dashboard() {
       case 'semaine':
         return (
           <>
-            <h2>📅 À faire dans les 7 jours</h2>
-            {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Aucune échéance cette semaine.</Empty>}
+            <h2>
+              📅 À faire dans les{' '}
+              <select className="h2-select" value={jours} aria-label="Nombre de jours" title="Combien de jours à l’avance" onChange={(e) => setPrefs({ aFaireJours: Number(e.target.value) === 7 ? undefined : Number(e.target.value) })}>
+                {JOURS_A_FAIRE.includes(jours) ? null : <option value={jours}>{jours}</option>}
+                {JOURS_A_FAIRE.map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>{' '}
+              jours{toutes && <small className="muted"> · toutes les tâches</small>}
+            </h2>
+            {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>{jours <= 7 ? 'Aucune échéance cette semaine.' : `Aucune échéance dans les ${jours} jours.`}</Empty>}
           </>
         );
       case 'demandes':

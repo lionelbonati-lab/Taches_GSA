@@ -22,18 +22,23 @@ export function useTelephone() {
 }
 
 export type Appareil = 'telephone' | 'ordinateur';
+
+/** Bloc « À faire » : jours proposés ; 7 par défaut. */
+export const JOURS_A_FAIRE = [3, 7, 14, 21, 30, 60, 90];
+export const joursAFaire = (n?: number) => (n && Number.isInteger(n) && n > 0 && n <= 365 ? n : 7);
 type Element = { id: string; label: string; couleur?: string };
 
 /** Blocs de l'accueil que la personne peut afficher ou masquer, dans l'ordre d'origine. */
 export function useBlocsAccueil(): Element[] {
-  const { can, guest } = useStore();
+  const { can, guest, prefs } = useStore();
   const club = useClubOptional();
   const central = club?.current.type === 'central';
+  const jours = joursAFaire(prefs.aFaireJours);
   return [
     { id: 'edition', label: '📅 Date de l’édition', si: hasEdition(club?.current) },
     { id: 'compteurs', label: '🔢 Compteurs de mes tâches', si: true },
     { id: 'retard', label: guest ? '⚠ Tâches en retard' : '⚠ Mes tâches en retard', si: true },
-    { id: 'semaine', label: '📅 À faire dans les 7 jours', si: true },
+    { id: 'semaine', label: `📅 À faire dans les ${jours} jours`, si: true },
     { id: 'demandes', label: central ? '📨 Demandes reçues' : '📨 Demandes au comité central', si: !!club && (central || !guest) },
     { id: 'emails', label: '📧 Mes emails à envoyer et programmés', si: true },
     { id: 'sondages', label: '📊 Sondages à voter', si: true },
@@ -64,7 +69,7 @@ export function ordonner(ids: string[], ordre?: string[]) {
 
 /** La personne a changé son accueil (ordre ou blocs / compteurs masqués). */
 export const accueilPerso = (p: Prefs) =>
-  !!(p.accueilOrdre?.length || p.compteursOrdre?.length || p.accueilMasque?.telephone?.length || p.accueilMasque?.ordinateur?.length || p.compteursMasque?.telephone?.length || p.compteursMasque?.ordinateur?.length);
+  !!(p.aFaireJours || p.aFaireToutes || p.accueilOrdre?.length || p.compteursOrdre?.length || p.accueilMasque?.telephone?.length || p.accueilMasque?.ordinateur?.length || p.compteursMasque?.telephone?.length || p.compteursMasque?.ordinateur?.length);
 
 /** Ce que la personne voit sur son accueil, sur cet appareil, dans son ordre. */
 export function useAccueil() {
@@ -150,9 +155,10 @@ function Rangement({ titre, elements, masque, ordre, appareil, setMasque, setOrd
 
 /** Choix et ordre des blocs et des compteurs de l'accueil ; affichage séparé sur téléphone et sur ordinateur. */
 export function AccueilModal({ onClose }: { onClose: () => void }) {
-  const { prefs, setPrefs, data } = useStore();
+  const { prefs, setPrefs, data, can, guest } = useStore();
   const blocs = useBlocsAccueil();
   const { appareil } = useAccueil();
+  const jours = joursAFaire(prefs.aFaireJours);
   return (
     <Modal title="Mon accueil" onClose={onClose}>
       <p className="muted" style={{ marginTop: 0 }}>
@@ -177,8 +183,26 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
         setOrdre={(o) => setPrefs({ compteursOrdre: o })}
       />
       <p className="muted small-note">Sur ordinateur, quand des tâches et d’autres blocs se suivent, les tâches vont à gauche et les autres à droite, chacun dans cet ordre.</p>
+      <fieldset className="accueil-afaire">
+        <legend>📅 Bloc « À faire »</legend>
+        <label>
+          Échéances des
+          <select value={jours} onChange={(e) => setPrefs({ aFaireJours: Number(e.target.value) === 7 ? undefined : Number(e.target.value) })}>
+            {JOURS_A_FAIRE.map((n) => <option key={n} value={n}>{n} prochains jours</option>)}
+          </select>
+        </label>
+        {can('tasks.viewAll') && !guest && (
+          <label>
+            Tâches
+            <select value={prefs.aFaireToutes ? 'toutes' : 'mes'} onChange={(e) => setPrefs({ aFaireToutes: e.target.value === 'toutes' || undefined })}>
+              <option value="mes">Mes tâches</option>
+              <option value="toutes">Toutes les tâches que je vois</option>
+            </select>
+          </label>
+        )}
+      </fieldset>
       <div className="modal-foot">
-        <button className="btn" disabled={!accueilPerso(prefs)} onClick={() => setPrefs({ accueilMasque: undefined, accueilOrdre: undefined, compteursMasque: undefined, compteursOrdre: undefined })}>
+        <button className="btn" disabled={!accueilPerso(prefs)} onClick={() => setPrefs({ accueilMasque: undefined, accueilOrdre: undefined, compteursMasque: undefined, compteursOrdre: undefined, aFaireJours: undefined, aFaireToutes: undefined })}>
           Accueil d’origine
         </button>
         <span className="grow" />

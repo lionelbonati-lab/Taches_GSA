@@ -343,6 +343,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .accueil-blocs input[type='checkbox'] { width: 20px; height: 20px; }
 .table-scroll + .table-scroll { margin-top: 12px; }
 .compteur-nom { border-left: 4px solid; padding-left: 6px; }
+.h2-select { width: auto; font: inherit; color: inherit; background: transparent; border: none; border-bottom: 1px dashed var(--muted); border-radius: 0; padding: 0 2px; cursor: pointer; }
+.accueil-afaire { display: flex; gap: 12px; flex-wrap: wrap; margin: 12px 0 0; }
+.accueil-afaire label { flex: 1 1 200px; }
 /* Compteurs rangés plus bas que d'habitude : un peu d'air au-dessus. */
 .grid2 + .bloc-compteurs, .accueil-bloc:not(.bloc-edition) + .bloc-compteurs { margin-top: 16px; }
 .chip-add { width: auto; max-width: 100%; border-radius: 999px; padding: 5px 10px; font-size: 0.85rem; }

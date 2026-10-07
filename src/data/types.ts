@@ -448,6 +448,10 @@ export interface Prefs {
   compteursMasque?: { telephone?: string[]; ordinateur?: string[] };
   /** Accueil : ordre des compteurs. */
   compteursOrdre?: string[];
+  /** Accueil, bloc « À faire » : échéances des N prochains jours (7 par défaut). */
+  aFaireJours?: number;
+  /** Accueil, bloc « À faire » : toutes les tâches de l'entité, pas seulement les miennes (droit « Voir toutes les tâches »). */
+  aFaireToutes?: boolean;
 }
 
 /** Notification d'activité enregistrée (les rappels d'échéance sont calculés à la volée). */
