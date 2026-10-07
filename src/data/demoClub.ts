@@ -4,6 +4,7 @@ import { migrate } from './store';
 import { unitData } from './units';
 import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
+import { membresPropres, synchroLiens } from './liens';
 import type { AppData, ClubEvent, ClubMembre, Meeting, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
@@ -315,4 +316,29 @@ export function deleteMembre(id: string) {
     if (read(unitStorageKey(u)) && loadUnitData(u).people.some((p) => p.actif && p.membreId === id))
       throw new Error('Ce membre a encore un poste dans une entité du club : retire-le d’abord de ses entités');
   writeMembres(loadMembres().filter((m) => m.id !== id));
+}
+
+// ---------- Entité entière parmi les membres d'une autre (version réelle : migration 020) ----------
+
+/** Fiches liées de l'entité `id` remises à jour (comme le serveur) ; null si rien ne change. */
+export const synchroDemo = (id: string, d: AppData) => synchroLiens(id, d, (u) => (unitIds().includes(u) ? loadUnitData(u).people : null));
+
+/** Ce qui compte pour les entités liées : les membres propres de l'entité et leurs coordonnées. */
+export const signatureMembres = (people: Person[]) =>
+  JSON.stringify(membresPropres(people).map((p) => [p.id, p.prenom, p.nom, p.email, p.telephone, p.couleur, p.membreId]));
+
+/** Membres propres de `id` changés : les entités qui la comptent parmi leurs membres suivent ; vrai si l'une a changé. */
+export function propagerLiens(id: string): boolean {
+  let change = false;
+  for (const b of unitIds()) {
+    if (b === id || !read(unitStorageKey(b))) continue;
+    const d = loadUnitData(b);
+    if (!d.membresDe?.some((l) => l.uniteId === id)) continue;
+    const n = synchroDemo(b, d);
+    if (n) {
+      saveUnitData(b, lierFiches(b, n));
+      change = true;
+    }
+  }
+  return change;
 }

@@ -7,14 +7,23 @@ import { accessAction, type AccessInfo } from '../data/cloud';
 import { emailKey, nomMembre } from '../data/membres';
 import { norm } from '../data/csv';
 import { defaultRoleId, directory, personKey, UNIT_TYPES } from '../data/units';
+import { roleDuLien } from '../data/liens';
 import type { OrgMember, OrgUnit, Person } from '../data/types';
 import { fullName, isDone, uid } from '../data/utils';
-import { Avatar, Initials, Modal } from './ui';
+import { Avatar, Initials, Modal, UnitMark } from './ui';
 import { AccessCell, CredentialsModal, type Shown } from './Acces';
 
 // Les personnes d'une entité, ouvertes depuis l'organigramme : ajouter quelqu'un (« + » sous l'entité),
 // voir ou modifier sa fiche (clic sur son nom) : poste, rôles, accès à l'appli, retrait.
 // Les coordonnées viennent du registre « Membres du club ».
+// On peut aussi y ajouter toute une entité : ses membres en font partie et suivent (voir data/liens.ts).
+
+/** Nom de l'entité par laquelle une fiche liée fait partie de l'entité. */
+function useVia(id: string | undefined) {
+  const club = useClubOptional();
+  if (!id) return '';
+  return club?.units.find((u) => u.id === id)?.nom ?? 'une autre entité';
+}
 
 /** Postes de la personne dans les autres entités du club (même adresse email). */
 function useAussi(key: string | undefined, exclure: string | undefined) {
@@ -42,6 +51,7 @@ export function FichePersonne({ id, onClose }: { id: string; onClose: () => void
   const club = useClubOptional();
   const p = data.people.find((x) => x.id === id);
   const aussi = useAussi(p && club ? personKey(p, club.current.id) : undefined, club?.current.id);
+  const via = useVia(p?.viaEntite);
   if (!p) return null;
   if (can('people.manage') || can('admin.access')) return <ModifierPersonne person={p} onClose={onClose} />;
   // Coordonnées : pour qui a le droit de les voir (rôle), comme l'ancienne page des responsables.
@@ -51,6 +61,7 @@ export function FichePersonne({ id, onClose }: { id: string; onClose: () => void
     <FicheLecture
       titre={fullName(p)}
       avatar={<Avatar id={p.id} size={56} />}
+      entite={via ? `👥 Avec les membres de « ${via} »` : undefined}
       poste={p.poste}
       autresPostes={p.autresPostes}
       email={contact ? p.email : undefined}
@@ -66,11 +77,12 @@ export function FichePersonne({ id, onClose }: { id: string; onClose: () => void
 /** Fiche d'une personne d'une autre entité (organigramme) : en lecture ; un admin de l'entité l'y ouvre pour la modifier. */
 export function FicheMembre({ u, m, onModifier, onClose }: { u: OrgUnit; m: OrgMember; onModifier?: () => void; onClose: () => void }) {
   const aussi = useAussi(personKey(m, u.id), u.id);
+  const via = useVia(m.viaEntite);
   return (
     <FicheLecture
       titre={nomMembre(m) || m.poste}
       avatar={<Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={56} />}
-      entite={`${UNIT_TYPES[u.type].icon} ${u.nom}`}
+      entite={`${UNIT_TYPES[u.type].icon} ${u.nom}${via ? ` · avec les membres de « ${via} »` : ''}`}
       poste={m.poste || (m.admin ? UNIT_TYPES[u.type].chef : '')}
       autresPostes={m.autresPostes}
       email={m.email}
@@ -191,6 +203,9 @@ function PersonModal({ person, central, access, accessErr, onAccessChange, onSho
   const label = central ? 'responsable' : 'membre';
   const aussi = useAussi(before && club ? personKey(before, club.current.id) : undefined, club?.current.id);
   const open = before ? data.tasks.filter((t) => t.responsables.includes(before.id) && !isDone(data, t)).length : 0;
+  // Fiche liée : membre parce qu'elle fait partie d'une autre entité (lien « Membres de »).
+  const via = useVia(v.viaEntite);
+  const ici = club?.current.nom ?? 'l’entité';
 
   const valider = () => {
     if (!nomMembre(v)) return 'Indique au moins un prénom ou un nom.';
@@ -207,13 +222,23 @@ function PersonModal({ person, central, access, accessErr, onAccessChange, onSho
     onClose();
   };
   const retirer = () => {
-    if (!before || !confirm(`Retirer ${fullName(before)} de l’entité ?${cloud ? ' Son accès à l’appli est aussi coupé.' : ''} Ses tâches restent ; tu pourras le réactiver.`)) return;
+    if (!before) return;
+    // Fiche liée : retirée à la main, elle ne revient pas avec le lien (la personne reste dans l'autre entité).
+    if (before.viaEntite) {
+      if (!confirm(`Retirer ${fullName(before)} de « ${ici} » ? Elle reste membre de « ${via} », mais ne fera plus partie de « ${ici} ».${cloud ? ' Son accès à « ' + ici + ' » est aussi coupé.' : ''} Ses tâches restent ; tu pourras la réactiver.`)) return;
+      onSave({ ...before, actif: false, exclu: true }, `${fullName(before)} retiré de l’entité (membre de « ${via} »)`);
+      return onClose();
+    }
+    if (!confirm(`Retirer ${fullName(before)} de l’entité ?${cloud ? ' Son accès à l’appli est aussi coupé.' : ''} Ses tâches restent ; tu pourras le réactiver.`)) return;
     onSave({ ...before, actif: false }, `${fullName(before)} retiré de l’entité`);
     onClose();
   };
 
   return (
     <Modal title={isNew ? `Nouveau ${label}` : fullName(person)} onClose={onClose}>
+      {before?.actif && via && (
+        <p className="lien-note">👥 Fait partie de « {ici} » avec tous les membres de « {via} » : en quittant « {via} », elle quitte aussi « {ici} ».</p>
+      )}
       {before?.actif && (
         <p className="fiche-infos muted">
           {aussi.length > 0 && <span>Aussi : {aussi.join(' · ')}</span>}
@@ -232,10 +257,11 @@ function PersonModal({ person, central, access, accessErr, onAccessChange, onSho
           <div className="chips">
             {data.roles.map((r) => {
               const on = v.roles.includes(r.id);
-              // Garde-fous : le rôle Admin ne se retire ni à soi-même ni au dernier admin, et seul un admin le donne.
-              const locked = !admin || (r.id === ADMIN_ROLE_ID && ((on && (self || lastAdmin)) || (!on && !user?.roles.includes(ADMIN_ROLE_ID))));
+              // Garde-fous : le rôle Admin ne se retire ni à soi-même ni au dernier admin, et seul un admin le donne ;
+              // pas à une fiche liée (membre par une autre entité).
+              const locked = !admin || (r.id === ADMIN_ROLE_ID && ((on && (self || lastAdmin)) || (!on && (!user?.roles.includes(ADMIN_ROLE_ID) || !!v.viaEntite))));
               return (
-                <button key={r.id} type="button" className={`chip role-chip ${on ? 'on' : ''}`} style={on ? { background: r.couleur, borderColor: r.couleur } : {}} disabled={locked} onClick={() => set({ roles: on ? v.roles.filter((x) => x !== r.id) : [...v.roles, r.id] })}>
+                <button key={r.id} type="button" className={`chip role-chip ${on ? 'on' : ''}`} style={on ? { background: r.couleur, borderColor: r.couleur } : {}} disabled={locked} title={r.id === ADMIN_ROLE_ID && v.viaEntite && !on ? `Membre avec « ${via} » : le rôle Admin se donne à une personne ajoutée elle-même` : undefined} onClick={() => set({ roles: on ? v.roles.filter((x) => x !== r.id) : [...v.roles, r.id] })}>
                   {r.label}
                 </button>
               );
@@ -281,9 +307,10 @@ interface Candidat {
 
 /** Ajouter une personne : quelqu'un du club (registre « Membres du club », sinon annuaire des entités) ou une nouvelle personne. */
 function AjouterPersonne({ onPick, onClose }: { onPick: (p: Person | null) => void; onClose: () => void }) {
-  const { data } = useStore();
+  const { data, user } = useStore();
   const club = useClubOptional()!;
   const [q, setQ] = useState('');
+  const [entite, setEntite] = useState<OrgUnit | null>(null);
   const [registre, setRegistre] = useState<Candidat[] | null>(null);
   const acces = club.membresAcces;
   const { membres, units } = club;
@@ -317,8 +344,11 @@ function AjouterPersonne({ onPick, onClose }: { onPick: (p: Person | null) => vo
     membreId: e.postes.find((x) => x.member.membreId)?.member.membreId,
     info: e.postes.map((p) => `${UNIT_TYPES[p.unit.type].icon} ${p.unit.nom}${p.member.poste ? ` · ${p.member.poste}` : ''}`).join('  '),
   }));
-  const fiche = (c: Candidat) =>
-    data.people.find((p) => (c.personId && p.id === c.personId) || (c.membreId && p.membreId === c.membreId) || (c.email && emailKey(p.email) === emailKey(c.email)));
+  // Sa fiche dans l'entité (active d'abord : une fiche liée active passe avant une ancienne fiche retirée).
+  const fiche = (c: Candidat) => {
+    const l = data.people.filter((p) => (c.personId && p.id === c.personId) || (c.membreId && p.membreId === c.membreId) || (c.email && emailKey(p.email) === emailKey(c.email)));
+    return l.find((p) => p.actif) ?? l[0];
+  };
   const candidats = registre ?? annuaire;
   // Personnes retirées de l'entité qui ne sont plus ailleurs dans le club : elles restent à réactiver.
   const retirees: Candidat[] = data.people
@@ -329,9 +359,15 @@ function AjouterPersonne({ onPick, onClose }: { onPick: (p: Person | null) => vo
     .filter((c) => !fiche(c)?.actif)
     .filter((c) => !needle || norm(`${c.prenom} ${c.nom} ${c.email} ${c.info}`).includes(needle))
     .sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`, 'fr'));
+  // Toute une entité (admins) : ses membres en font partie et suivent.
+  const deja = new Set((data.membresDe ?? []).map((l) => l.uniteId));
+  const entites = club.liens && user?.roles.includes(ADMIN_ROLE_ID)
+    ? units.filter((u) => !u.archive && u.id !== club.current.id && !deja.has(u.id) && (!needle || norm(u.nom).includes(needle)))
+    : [];
   const choisir = (c: Candidat) => {
     const ancienne = fiche(c);
-    if (ancienne) return onPick({ ...ancienne, actif: true });
+    // Ajoutée elle-même : une ancienne fiche liée devient la sienne (elle ne dépend plus de l'autre entité).
+    if (ancienne) return onPick({ ...ancienne, actif: true, viaEntite: undefined, viaFiche: undefined, exclu: undefined });
     onPick({
       id: uid('p'),
       poste: '',
@@ -345,14 +381,27 @@ function AjouterPersonne({ onPick, onClose }: { onPick: (p: Person | null) => vo
       ...(c.membreId ? { membreId: c.membreId } : {}),
     });
   };
+  if (entite) return <AjouterEntite u={entite} onBack={() => setEntite(null)} onClose={onClose} />;
   return (
     <Modal title="Ajouter une personne" onClose={onClose}>
-      <p className="muted">{registre ? 'Choisis un membre du club' : 'Choisis une personne qui a déjà un poste dans le club'}, ou crée une nouvelle personne. Tu indiques ensuite son poste et son rôle.</p>
+      <p className="muted">
+        {registre ? 'Choisis un membre du club' : 'Choisis une personne qui a déjà un poste dans le club'}, ou crée une nouvelle personne. Tu indiques ensuite son poste et son rôle.
+        {entites.length > 0 && ' Tu peux aussi ajouter toute une entité : tous ses membres en font partie et suivent.'}
+      </p>
       <div className="row wrap">
         <input className="login-search grow" type="search" autoFocus placeholder="Rechercher un nom, un email…" value={q} onChange={(e) => setQ(e.target.value)} />
         <button className="btn primary" onClick={() => onPick(null)}>+ Nouvelle personne</button>
       </div>
       <div className="login-list">
+        {entites.map((u) => (
+          <button key={u.id} className="login-user entite-choix" onClick={() => setEntite(u)}>
+            <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={UNIT_TYPES[u.type].icon} />
+            <span>
+              <strong>👥 Tous les membres de « {u.nom} »</strong>
+              <small>{UNIT_TYPES[u.type].label} · {u.membres.filter((m) => !m.viaEntite).length} membre(s), qui suivent automatiquement</small>
+            </span>
+          </button>
+        ))}
         {list.slice(0, 200).map((c) => (
           <button key={c.key} className="login-user" onClick={() => choisir(c)}>
             <Initials prenom={c.prenom} nom={c.nom} couleur={c.couleur} size={36} />
@@ -363,6 +412,49 @@ function AjouterPersonne({ onPick, onClose }: { onPick: (p: Person | null) => vo
           </button>
         ))}
         {!list.length && <p className="muted">{needle ? `Personne ne correspond à « ${q} ».` : 'Tout le monde fait déjà partie de cette entité.'}</p>}
+      </div>
+    </Modal>
+  );
+}
+
+/** Toute une entité parmi les membres de l'entité ouverte : ses membres y arrivent avec le rôle choisi, puis suivent. */
+function AjouterEntite({ u, onBack, onClose }: { u: OrgUnit; onBack: () => void; onClose: () => void }) {
+  const { data, update, setToast } = useStore();
+  const club = useClubOptional()!;
+  const roles = data.roles.filter((r) => r.id !== ADMIN_ROLE_ID);
+  const [role, setRole] = useState(() => roleDuLien(data) ?? '');
+  const membres = u.membres.filter((m) => !m.viaEntite);
+  const ici = club.current.nom;
+  const ajouter = () => {
+    update((d) => {
+      d.membresDe = [...(d.membresDe ?? []).filter((l) => l.uniteId !== u.id), { uniteId: u.id, ...(role ? { role } : {}) }];
+    }, `Ajout de tous les membres de « ${u.nom} »`);
+    setToast(`👥 Les membres de « ${u.nom} » font maintenant partie de « ${ici} »`);
+    onClose();
+  };
+  return (
+    <Modal title={`👥 Tous les membres de « ${u.nom} »`} onClose={onClose}>
+      <p>
+        Les membres de « {u.nom} » font partie de « {ici} ». Qui rejoint ou quitte « {u.nom} » plus tard rejoint ou quitte aussi « {ici} », automatiquement.
+        Ceux qui font déjà partie de « {ici} » eux-mêmes ne sont pas doublés ; tu peux toujours ajouter d’autres personnes.
+      </p>
+      <div className="chips lien-apercu">
+        {membres.map((m) => <span key={m.id} className="chip">{nomMembre(m) || m.poste}</span>)}
+        {!membres.length && <span className="muted">« {u.nom} » n’a pas encore de membre : ils arriveront avec lui.</span>}
+      </div>
+      {roles.length > 0 && (
+        <label className="lien-role">
+          Leur rôle dans « {ici} »
+          <select value={role} onChange={(e) => setRole(e.target.value)}>
+            {roles.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
+          <small className="muted">Chacun pourra ensuite en changer (clic sur son nom dans l’organigramme). Pas le rôle Admin.</small>
+        </label>
+      )}
+      <div className="modal-foot">
+        <button className="btn" onClick={onBack}>‹ Retour</button>
+        <span className="grow" />
+        <button className="btn primary" onClick={ajouter}>Ajouter les membres de « {u.nom} »</button>
       </div>
     </Modal>
   );

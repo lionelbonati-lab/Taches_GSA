@@ -79,6 +79,8 @@ export interface Club {
   visitable: OrgUnit[];
   /** Admin du comité central : crée et modifie les entités du club. */
   canManage: boolean;
+  /** Toute une entité parmi les membres d'une autre : tenu à jour par le serveur (migration 020) ou par la démo. */
+  liens: boolean;
   loading: boolean;
   error: string;
   /** Ouvre une autre entité ; `hash` : page à afficher ensuite (par défaut l'accueil). */

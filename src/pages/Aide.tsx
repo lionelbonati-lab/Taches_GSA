@@ -2,12 +2,13 @@ import { Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
+import { ADMIN_ROLE_ID } from '../data/permissions';
 import { nomAppli } from '../data/nomAppli';
 import { useChemin, useNavigation } from '../components/Nav';
 
 /** « Comment ça marche ? » : où trouver quoi (selon les droits de chacun) et les gestes courants. */
 export function Aide() {
-  const { can, cloud } = useStore();
+  const { can, cloud, user } = useStore();
   const club = useClubOptional();
   const { rubriques, compte } = useNavigation();
   const chemin = useChemin();
@@ -38,6 +39,8 @@ export function Aide() {
   const orga = club && <><Link to="/organigramme">Organigramme du club</Link> (menu des entités, en haut à gauche)</>;
   if (orga) geste('Voir qui fait quoi, et ses coordonnées', orga, ' : un clic sur une personne ouvre la fiche de la personne.');
   if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « + Ajouter une personne » en bas de la liste des postes de l’entité.');
+  if (orga && club?.liens && club.units.length > 1 && user?.roles.includes(ADMIN_ROLE_ID))
+    geste('Ajouter toute une entité aux membres de la tienne', orga, ' : « + Ajouter une personne » › « 👥 Tous les membres de … ». Qui rejoint ou quitte cette entité rejoint ou quitte aussi la tienne, automatiquement ; tu peux ajouter d’autres personnes en plus.');
   if (orga && can('admin.access')) geste('Donner l’accès à l’appli à quelqu’un', orga, ' : clic sur son nom (sa fiche doit avoir son email), puis « Créer l’accès ».');
   if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ».');
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');

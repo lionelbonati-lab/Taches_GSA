@@ -45,6 +45,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       mine: units.filter((u) => u.moi && reachable.has(u.id) && (!u.archive || u.id === current.id)),
       visitable: units.filter((u) => visitLevel(u, central) && (!u.archive || u.id === current.id)),
       canManage: !!central?.moiAdmin,
+      // Avant la migration 020, l'organigramme ne donne pas les liens : rien ne tiendrait les membres à jour.
+      liens: !!org?.some((u) => u.liens),
       loading,
       error,
       refresh,

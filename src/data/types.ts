@@ -36,6 +36,22 @@ export interface Person {
   couleur: string;
   /** Fiche du registre « Membres du club » : coordonnées communes à toutes les entités. */
   membreId?: string;
+  /**
+   * Fiche liée : la personne fait partie de l'entité parce qu'elle est membre de cette autre entité (lien « Membres de »).
+   * Tenue à jour automatiquement : elle quitte l'entité en quittant l'autre.
+   */
+  viaEntite?: string;
+  /** Fiche liée : sa fiche dans l'autre entité. */
+  viaFiche?: string;
+  /** Fiche liée retirée de l'entité à la main : elle n'y revient pas avec le lien. */
+  exclu?: boolean;
+}
+
+/** Une autre entité dont tous les membres font partie de l'entité (organigramme : « Membres de « … » »). */
+export interface LienEntite {
+  uniteId: string;
+  /** Rôle donné à ses membres quand ils arrivent (jamais Admin). */
+  role?: string;
 }
 
 /**
@@ -444,6 +460,8 @@ export interface AppData {
   entetes?: { odj?: Entete; pv?: Entete; bon?: Entete };
   /** Sceau « OK pour paiement » des tickets à rembourser. */
   timbre?: Timbre;
+  /** Entités dont tous les membres font aussi partie de celle-ci (fiches liées tenues à jour). */
+  membresDe?: LienEntite[];
 }
 
 /** En-tête des documents imprimés (ordre du jour, PV, bon de paiement), commun à toute l'entité. */
@@ -521,6 +539,8 @@ export interface OrgMember {
   caisse?: boolean;
   /** Fiche du registre « Membres du club ». */
   membreId?: string;
+  /** Membre par le lien d'une autre entité (son identifiant). */
+  viaEntite?: string;
 }
 
 export interface OrgUnit extends Unit {
@@ -531,6 +551,8 @@ export interface OrgUnit extends Unit {
   moiAdmin: boolean;
   /** Comité central : sections (choix de la section d'une demande). */
   sections?: { id: string; nom: string }[];
+  /** Entités dont tous les membres en font partie (lien « Membres de »). */
+  liens?: string[];
 }
 
 /** Ticket envoyé à la caisse centrale depuis une autre entité. */

@@ -498,7 +498,7 @@ export function membershipUnit(m: Membership): OrgUnit {
 export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
   const { data, error } = await sb().rpc('gsa_organigramme', { club: clubId });
   if (error) throw new Error(error.message);
-  type R = { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; moi: boolean; moiAdmin: boolean; membres: OrgMember[]; sections: { id: string; nom: string }[] | null };
+  type R = { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; moi: boolean; moiAdmin: boolean; membres: OrgMember[]; sections: { id: string; nom: string }[] | null; liens?: string[] | null };
   return ((data ?? []) as R[]).map((u) => {
     const info = u.info ?? {};
     return {
@@ -515,10 +515,12 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       logo: isImage(info.logo) ? info.logo : undefined,
       couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
       dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
-      membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined })),
+      membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined })),
       moi: u.moi,
       moiAdmin: u.moiAdmin,
       sections: u.sections ?? undefined,
+      // Avant la migration 020 : pas de liens (undefined) ; ensuite, [] pour une entité sans lien.
+      liens: Array.isArray(u.liens) ? u.liens : undefined,
     };
   });
 }

@@ -209,6 +209,7 @@ export function orgMembers(d: Pick<AppData, 'people' | 'roles'>): OrgMember[] {
       admin: p.roles.includes(ADMIN_ROLE_ID),
       caisse: d.roles.some((r) => p.roles.includes(r.id) && !r.locked && r.permissions.includes('paiements.payer')),
       membreId: p.membreId,
+      viaEntite: p.viaEntite,
     }));
 }
 

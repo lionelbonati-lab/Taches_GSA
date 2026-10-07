@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, initMembres, lierFiches, loadMe, loadMembres, loadUnitData, loadUnits, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, UNIT_KEY } from './data/demoClub';
+import { CENTRAL_ID, deleteMembre, initMembres, lierFiches, loadMe, loadMembres, loadUnitData, loadUnits, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey } from './data/membres';
@@ -50,6 +50,7 @@ export function DemoApp() {
           moi: !!mine,
           moiAdmin: !!mine?.roles.includes(ADMIN_ROLE_ID),
           sections: u.type === 'central' ? d.sections.map((s) => ({ id: s.id, nom: s.nom })) : undefined,
+          liens: d.membresDe?.length ? d.membresDe.map((l) => l.uniteId) : undefined,
         };
       }),
     // `version` : relire après une modification faite dans une autre entité.
@@ -120,6 +121,7 @@ export function DemoApp() {
       mine: mineAll.filter((u) => !u.archive || u.id === current.id),
       visitable: visitAll.filter((u) => !u.archive || u.id === current.id),
       canManage: !!central?.moiAdmin,
+      liens: true,
       loading: false,
       error: '',
       switchUnit,
@@ -318,8 +320,23 @@ export function DemoApp() {
     () =>
       current
         ? {
-            load: () => loadUnitData(current.id),
-            save: (d) => saveUnitData(current.id, lierFiches(current.id, d)),
+            load: () => {
+              const d = loadUnitData(current.id);
+              const n = synchroDemo(current.id, d);
+              if (n) saveUnitData(current.id, lierFiches(current.id, n));
+              return n ?? d;
+            },
+            // Comme le serveur : fiches liées au registre ; liens « Membres de » tenus à jour, dans l'entité ouverte
+            // (relue si elle a changé) et dans celles qui la comptent parmi leurs membres.
+            save: (d) => {
+              const avant = signatureMembres(loadUnitData(current.id).people);
+              const n = synchroDemo(current.id, d);
+              const next = lierFiches(current.id, n ?? d);
+              saveUnitData(current.id, next);
+              const autres = signatureMembres(next.people) !== avant && propagerLiens(current.id);
+              if (n) setEpoch((e) => e + 1);
+              if (autres || n) refresh();
+            },
             epoch,
             personId,
             guest,
@@ -332,7 +349,7 @@ export function DemoApp() {
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [current?.id, personId, guest, logout, epoch],
+    [current?.id, personId, guest, logout, epoch, refresh],
   );
 
   if (!me || !club || !demo) {

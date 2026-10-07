@@ -5,7 +5,10 @@ import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data
 import { arbreEntites, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
 import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
 import { fmtRange } from '../data/utils';
-import { Empty, Modal, UnitMark } from '../components/ui';
+import { Empty, Initials, Modal, UnitMark } from '../components/ui';
+import { ADMIN_ROLE_ID } from '../data/permissions';
+import { groupesLies, roleDuLien } from '../data/liens';
+import { nomMembre } from '../data/membres';
 import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
 import { CentralAccessChoice } from '../components/CentralAccess';
@@ -13,6 +16,7 @@ import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Pers
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
 // Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
+// Une entité entière peut faire partie des membres d'une autre (ligne « 👥 », fenêtre LienModal) : ses membres suivent.
 // « + Ajouter une personne » en bas de la liste (entité ouverte, ou entité dont on est admin : on l'ouvre d'abord).
 // Un clic sur le nom d'une entité l'ouvre ; ⚙️ modifie sa fiche.
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
@@ -25,6 +29,8 @@ const dated = (t: UnitType) => t === 'sous-comite' || t === 'equipe';
 /** Ce qu'on peut faire depuis la carte d'une entité. */
 interface Actions {
   onPersonne: (m: OrgMember) => void;
+  /** Membres d'une autre entité qui en font tous partie (lien). */
+  onLien: (id: string) => void;
   onAjouter?: () => void;
   ouvrir?: { label: string; aide: string; go: () => void };
   onModifier?: () => void;
@@ -36,6 +42,7 @@ export function Org() {
   const [edit, setEdit] = useState<{ unit?: OrgUnit } | null>(null);
   const [created, setCreated] = useState<{ c: CreatedUnit; n: NewUnit } | null>(null);
   const [fiche, setFiche] = useState<{ unitId: string; personId: string } | null>(null);
+  const [lien, setLien] = useState<{ unitId: string; id: string } | null>(null);
   const [ajout, setAjout] = useState(false);
   const peutAjouter = can('people.manage');
   // Arrivée depuis une autre entité (?entite=<entité>&ajouter=1 ou &personne=<fiche>) : ouvert une fois l'entité chargée.
@@ -44,10 +51,12 @@ export function Org() {
   useEffect(() => {
     if (!entite || entite !== club.current.id) return;
     const personne = params.get('personne');
+    const lie = params.get('lien');
     const ajouter = params.has('ajouter');
     setParams({}, { replace: true });
     if (ajouter && peutAjouter) setAjout(true);
     if (personne) setFiche({ unitId: entite, personId: personne });
+    if (lie) setLien({ unitId: entite, id: lie });
   }, [entite, club.current.id, params, peutAjouter, setParams]);
   // Relire l'organigramme à l'ouverture (changements faits dans d'autres entités).
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -56,7 +65,10 @@ export function Org() {
   }, []);
 
   // L'entité ouverte : ses membres tels qu'ils sont maintenant (modifications pas encore relues).
-  const units = useMemo(() => club.units.map((u) => (u.id === club.current.id ? { ...u, membres: orgMembers(data) } : u)), [club.units, club.current.id, data]);
+  const units = useMemo(
+    () => club.units.map((u) => (u.id === club.current.id ? { ...u, membres: orgMembers(data), liens: data.membresDe?.map((l) => l.uniteId) } : u)),
+    [club.units, club.current.id, data],
+  );
   const active = units.filter((u) => !u.archive);
   const archived = units.filter((u) => u.archive);
   // Entité dont on est admin (autre que l'ouverte) : on l'ouvre pour y ajouter ou modifier quelqu'un.
@@ -66,6 +78,7 @@ export function Org() {
     const visit = !ouverte && visitLevel(u, club.central);
     return {
       onPersonne: (m) => setFiche({ unitId: u.id, personId: m.id }),
+      onLien: (id) => setLien({ unitId: u.id, id }),
       onAjouter: u.archive ? undefined : ouverte ? (peutAjouter ? () => setAjout(true) : undefined) : admin(u) ? () => club.switchUnit(u.id, `#/organigramme?entite=${u.id}&ajouter=1`) : undefined,
       ouvrir:
         ouverte || (!u.moi && !visit)
@@ -77,6 +90,7 @@ export function Org() {
     };
   };
   const ficheUnit = fiche && units.find((u) => u.id === fiche.unitId);
+  const lienUnit = lien && units.find((u) => u.id === lien.unitId);
   const ficheMembre = ficheUnit?.membres.find((m) => m.id === fiche?.personId);
 
   return (
@@ -124,6 +138,18 @@ export function Org() {
         />
       )}
       {created && <Created {...created} onClose={() => setCreated(null)} />}
+      {lien && lienUnit && (
+        <LienModal
+          u={lienUnit}
+          id={lien.id}
+          onPersonne={(m) => {
+            setLien(null);
+            setFiche({ unitId: lienUnit.id, personId: m.id });
+          }}
+          onModifier={admin(lienUnit) ? () => club.switchUnit(lienUnit.id, `#/organigramme?entite=${lienUnit.id}&lien=${lien.id}`) : undefined}
+          onClose={() => setLien(null)}
+        />
+      )}
       {ajout && <NouvellePersonne onClose={() => setAjout(false)} />}
     </div>
   );
@@ -165,10 +191,12 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
  * Une entité dans l'arbre : nom, type, nombre de membres, puis une ligne par personne (son nom et ses fonctions)
  * qui ouvre sa fiche, et le bouton « + » pour y ajouter quelqu'un quand on en a le droit.
  */
-function Noeud({ u, onPersonne, onAjouter, ouvrir, onModifier }: { u: OrgUnit } & Actions) {
+function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier }: { u: OrgUnit } & Actions) {
   const club = useClub();
   const t = UNIT_TYPES[u.type];
-  const lignes = postesEntite(u.membres, t.chef);
+  // Membres venus d'une autre entité : regroupés sur sa ligne « 👥 », sauf s'ils ont une fonction dans celle-ci.
+  const lignes = postesEntite(u.membres.filter((m) => !m.viaEntite || m.admin || m.poste || m.autresPostes), t.chef);
+  const groupes = groupesLies(u, club.units);
   const access = centralAccess(u);
   const ouverte = u.id === club.current.id;
   const texte = (
@@ -200,6 +228,12 @@ function Noeud({ u, onPersonne, onAjouter, ouvrir, onModifier }: { u: OrgUnit } 
             {l.chef && <span className="org-star">★ </span>}
             {l.nom}
             {l.postes && <span className="autres"> · {l.postes}</span>}
+          </button>
+        ))}
+        {groupes.map((g) => (
+          <button key={g.id} type="button" className="poste lien" title={`Tous les membres de « ${g.unite?.nom ?? '?'} » font partie de « ${u.nom} »`} onClick={() => onLien(g.id)}>
+            👥 {g.unite?.nom ?? 'Entité supprimée'}
+            <span className="autres"> · {g.membres.length} membre{g.membres.length > 1 ? 's' : ''}</span>
           </button>
         ))}
       </div>
@@ -447,6 +481,69 @@ function Created({ c, n, onClose }: { c: CreatedUnit; n: NewUnit; onClose: () =>
         <span className="grow" />
         {mine && <button className="btn" onClick={() => club.switchUnit(c.unitId)}>Ouvrir « {n.nom} »</button>}
         <button className="btn primary" onClick={onClose}>Fermer</button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Une entité dont tous les membres font partie d'une autre : la liste de ceux qui en font partie par ce lien
+ * (un clic ouvre leur fiche) ; ses admins choisissent leur rôle à l'arrivée ou retirent le lien.
+ */
+function LienModal({ u, id, onPersonne, onModifier, onClose }: { u: OrgUnit; id: string; onPersonne: (m: OrgMember) => void; onModifier?: () => void; onClose: () => void }) {
+  const club = useClub();
+  const { data, user, update } = useStore();
+  const a = club.units.find((x) => x.id === id);
+  const nomA = a?.nom ?? 'entité supprimée';
+  const membres = u.membres.filter((m) => m.viaEntite === id);
+  const ouverte = u.id === club.current.id;
+  const lien = ouverte ? data.membresDe?.find((l) => l.uniteId === id) : undefined;
+  const admin = ouverte && !!lien && !!user?.roles.includes(ADMIN_ROLE_ID);
+  const roles = data.roles.filter((r) => r.id !== ADMIN_ROLE_ID);
+  const role = lien ? roleDuLien(data, lien.role) : undefined;
+  const changerRole = (r: string) =>
+    update((d) => {
+      d.membresDe = (d.membresDe ?? []).map((l) => (l.uniteId === id ? { ...l, role: r } : l));
+    }, `Membres de « ${nomA} » : rôle « ${roles.find((x) => x.id === r)?.label ?? r} » à leur arrivée`);
+  const retirer = () => {
+    if (!confirm(`Retirer « ${nomA} » de « ${u.nom} » ? Ses membres qui ne font pas partie de « ${u.nom} » à titre personnel en sont retirés ; leurs tâches restent.`)) return;
+    update((d) => {
+      d.membresDe = (d.membresDe ?? []).filter((l) => l.uniteId !== id);
+    }, `« ${nomA} » retiré des membres`);
+    onClose();
+  };
+  return (
+    <Modal title={`👥 Membres de « ${nomA} »`} onClose={onClose}>
+      <p className="muted">
+        Tous les membres de « {nomA} » font partie de « {u.nom} » : qui rejoint ou quitte « {nomA} » rejoint ou quitte aussi « {u.nom} », automatiquement.
+        {' '}« {u.nom} » peut aussi avoir d’autres personnes (« + Ajouter une personne »).
+      </p>
+      <div className="login-list lien-membres">
+        {membres.map((m) => (
+          <button key={m.id} type="button" className="login-user" onClick={() => onPersonne(m)}>
+            <Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={32} />
+            <span>
+              <strong>{nomMembre(m) || m.poste}</strong>
+              <small>{[m.poste, m.autresPostes, m.roles.join(', ')].filter(Boolean).join(' · ')}</small>
+            </span>
+          </button>
+        ))}
+        {!membres.length && <p className="muted">Personne pour l’instant : ses membres font déjà partie de « {u.nom} » eux-mêmes, ou « {nomA} » n’a pas encore de membre.</p>}
+      </div>
+      {admin && roles.length > 0 && (
+        <label className="lien-role">
+          Rôle de ses membres dans « {u.nom} » quand ils arrivent
+          <select value={role ?? ''} onChange={(e) => changerRole(e.target.value)}>
+            {roles.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
+          </select>
+          <small className="muted">Chacun garde ensuite le sien (clic sur son nom pour le changer). Jamais Admin : un admin s’ajoute lui-même.</small>
+        </label>
+      )}
+      <div className="modal-foot">
+        {admin && <button className="btn danger" onClick={retirer}>Retirer « {nomA} »</button>}
+        <span className="grow" />
+        <button className="btn" onClick={onClose}>Fermer</button>
+        {onModifier && <button className="btn primary" onClick={onModifier}>Modifier dans « {u.nom} »</button>}
       </div>
     </Modal>
   );

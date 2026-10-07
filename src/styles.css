@@ -967,6 +967,14 @@ button.arbre-tete:hover strong, button.arbre-tete:hover .arbre-lien { text-decor
 .arbre-postes button.poste:hover { background: var(--primary-soft); color: var(--primary); }
 .arbre-postes .poste.chef { font-weight: 600; }
 .arbre-postes .poste .autres { color: var(--muted); font-weight: 400; }
+/* Entité entière parmi les membres (lien « Membres de ») */
+.arbre-postes .poste.lien { font-weight: 600; color: var(--primary); }
+.lien-note { background: var(--primary-soft); color: var(--text); border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; font-size: 0.88rem; }
+.lien-role { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 4px; }
+.lien-apercu { margin: 6px 0 4px; }
+.lien-membres { max-height: 45vh; overflow-y: auto; margin: 12px 0 6px; }
+.lien-membres .login-user { text-align: left; padding: 6px 10px; }
+.login-user.entite-choix strong { color: var(--primary); }
 .arbre-ajout { align-self: flex-start; padding: 2px 5px; font: inherit; font-size: 0.72rem; white-space: nowrap; color: var(--primary); background: none; border: 1px dashed var(--border); border-radius: 6px; cursor: pointer; }
 .arbre-ajout:hover { border-color: var(--primary); background: var(--primary-soft); }
 /* De haut en bas, comme un arbre généalogique. */
