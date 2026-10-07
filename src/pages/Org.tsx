@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
@@ -13,15 +13,17 @@ import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
 import { CentralAccessChoice } from '../components/CentralAccess';
 import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
-import { CablagePanel, candidatDe, nomCandidat, ResponsableModal, useCablable, useCandidats, type Source } from '../components/Cablage';
+import { CablagePanel, CablesOrganigramme, candidatDe, liensResponsables, nomCandidat, ResponsableModal, useCablable, useCandidats, useTirage, type Source } from '../components/Cablage';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
 // Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
 // Une entité entière peut faire partie des membres d'une autre (ligne « 👥 », fenêtre LienModal) : ses membres suivent.
 // « + Ajouter une personne » en bas de la liste (entité ouverte, ou entité dont on est admin : on l'ouvre d'abord).
 // Un clic sur le nom d'une entité l'ouvre ; ⚙️ modifie sa fiche.
-// Câblage (admins du comité central, ou d'une entité) : une personne tirée sur une entité en devient le responsable ;
-// « 🔌 Câbler » ajoute les personnes du club qui ne sont dans aucune entité, et le choix au toucher (téléphone).
+// Câbles : de la ligne du responsable (★) d'une entité dans son entité mère jusqu'à l'entité, toujours affichés.
+// Câblage (admins du comité central, ou d'une entité) : un câble tiré d'une personne jusqu'à une entité en fait
+// le responsable ; « 🔌 Câbler » ajoute les poignées ● (doigt), les personnes du club qui ne sont dans aucune entité,
+// et le choix sans glisser.
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
 // chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité central
 // peut faire de ses données (rien voir, consulter, ou aussi modifier / ajouter des tâches).
@@ -37,15 +39,16 @@ interface Actions {
   onAjouter?: () => void;
   ouvrir?: { label: string; aide: string; go: () => void };
   onModifier?: () => void;
-  /** Organigramme câblé : lignes de personnes à tirer, entité où les déposer. */
+  /** Organigramme câblé : lignes de personnes d'où tirer un câble, entité où le brancher. */
   cablage?: {
-    onTirer: (m: OrgMember | null) => void;
-    /** Mode « Câbler » : un toucher choisit la personne au lieu d'ouvrir sa fiche. */
+    onTirer: (e: ReactPointerEvent<HTMLElement>, m: OrgMember) => void;
+    tireJuste: () => boolean;
+    /** Mode « Câbler » : poignées ●, et un toucher choisit la personne au lieu d'ouvrir sa fiche. */
     mode: boolean;
     /** Clé de la personne choisie (personKey). */
     choisi?: string;
     onChoisir: (m: OrgMember) => void;
-    cible?: { actif: boolean; survol: boolean; onSurvol: (on: boolean) => void; onDeposer: (glisse: boolean) => void; label: string };
+    cible?: { actif: boolean; survol: boolean; onDeposer: () => void; label: string };
   };
 }
 
@@ -58,19 +61,11 @@ export function Org() {
   const [lien, setLien] = useState<{ unitId: string; id: string } | null>(null);
   const [ajout, setAjout] = useState(false);
   const peutAjouter = can('people.manage');
-  // Câblage : personne tirée (souris) ou choisie (toucher), survol d'une entité, fenêtre de confirmation.
+  // Câblage : câble tiré (souris, doigt) ou personne choisie (sans glisser), fenêtre de confirmation.
   const cablable = useCablable();
   const [cablage, setCablage] = useState(false);
-  const glisse = useRef<Source | null>(null);
-  const [glisseActif, setGlisseActif] = useState(false);
-  const [survol, setSurvol] = useState<string | null>(null);
   const [choisi, setChoisi] = useState<Source | null>(null);
   const [depot, setDepot] = useState<{ u: OrgUnit; source: Source | null } | null>(null);
-  const tirer = (x: Source | null) => {
-    glisse.current = x;
-    setGlisseActif(!!x);
-    if (!x) setSurvol(null);
-  };
   // Arrivée depuis une autre entité (?entite=<entité>&ajouter=1 ou &personne=<fiche>) : ouvert une fois l'entité chargée.
   const [params, setParams] = useSearchParams();
   const entite = params.get('entite');
@@ -100,6 +95,15 @@ export function Org() {
   const peutCabler = active.some(cablable);
   const candidats = useCandidats(units, cablage || !!depot);
   const cleChoisi = choisi && choisi !== 'nouvelle' ? choisi.key : undefined;
+  const tirage = useTirage(
+    (id, source) => {
+      const u = units.find((x) => x.id === id);
+      if (!u) return;
+      setDepot({ u, source });
+      setChoisi(null);
+    },
+    (id) => units.some((x) => x.id === id && cablable(x)),
+  );
   // Entité dont on est admin (autre que l'ouverte) : on l'ouvre pour y ajouter ou modifier quelqu'un.
   const admin = (u: OrgUnit) => u.id !== club.current.id && u.moiAdmin && club.mine.some((x) => x.id === u.id);
   const actions = (u: OrgUnit): Actions => {
@@ -118,7 +122,8 @@ export function Org() {
       onModifier: club.canManage || u.moiAdmin ? () => setEdit({ unit: u }) : undefined,
       cablage: peutCabler
         ? {
-            onTirer: (m) => tirer(m ? candidatDe(candidats, u, m) : null),
+            onTirer: (e, m) => tirage.commencer(e, () => candidatDe(candidats, u, m)),
+            tireJuste: tirage.tireJuste,
             mode: cablage,
             choisi: cleChoisi,
             onChoisir: (m) => {
@@ -127,12 +132,10 @@ export function Org() {
             },
             cible: cablable(u)
               ? {
-                  actif: glisseActif,
-                  survol: survol === u.id,
-                  onSurvol: (on) => setSurvol(on ? u.id : null),
-                  onDeposer: (souris) => {
-                    setDepot({ u, source: souris ? glisse.current : choisi });
-                    tirer(null);
+                  actif: tirage.tir,
+                  survol: tirage.survol === u.id,
+                  onDeposer: () => {
+                    setDepot({ u, source: choisi });
                     setChoisi(null);
                   },
                   label: choisi ? `★ ${choisi === 'nouvelle' ? 'Nouvelle personne' : nomCandidat(choisi)} : ${UNIT_TYPES[u.type].chef.toLowerCase()}` : `★ ${UNIT_TYPES[u.type].chef}…`,
@@ -155,7 +158,7 @@ export function Org() {
             <button
               className={`btn ${cablage ? 'on' : ''}`}
               aria-pressed={cablage}
-              title="Désigner le responsable d’une entité en y tirant une personne"
+              title="Désigner le responsable d’une entité en y tirant un câble depuis une personne"
               onClick={() => {
                 setCablage(!cablage);
                 setChoisi(null);
@@ -168,8 +171,8 @@ export function Org() {
         </div>
       </div>
       <p className="muted small-note">
-        Les traits relient chaque entité à celle dont elle dépend. Clique sur une personne pour voir la fiche de la personne, sur le nom d’une entité pour l’ouvrir.
-        {peutCabler && !cablage && ' Tire une personne sur une entité pour en faire son responsable (★).'}
+        Les traits relient chaque entité à celle dont elle dépend ; un câble de couleur part du responsable (★) d’une entité, là où il siège dans l’entité mère. Clique sur une personne pour voir la fiche de la personne, sur le nom d’une entité pour l’ouvrir.
+        {peutCabler && !cablage && ' Tire un câble d’une personne jusqu’à une entité pour en faire son responsable.'}
         {club.error && <span className="error"> {club.error}</span>}
       </p>
       {cablage && (
@@ -177,7 +180,8 @@ export function Org() {
           candidats={candidats}
           choisi={choisi}
           onChoisir={setChoisi}
-          onTirer={tirer}
+          onTirer={(e, s) => tirage.commencer(e, () => s)}
+          tireJuste={tirage.tireJuste}
           onFin={() => {
             setCablage(false);
             setChoisi(null);
@@ -188,6 +192,7 @@ export function Org() {
       <p className="arbre-legende muted small-note">
         {(['central', ...SUB_TYPES] as UnitType[]).map((t) => <span key={t}>{UNIT_TYPES[t].icon} {UNIT_TYPES[t].label}</span>)}
         <span>★ {UNIT_TYPES.central.chef} / responsable</span>
+        <span><span className="legende-cable" aria-hidden="true" /> câble : le responsable, depuis l’entité mère</span>
         <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
         {active.some((u) => club.canManage || u.moiAdmin) && <span>⚙️ modifier l’entité</span>}
       </p>
@@ -233,6 +238,7 @@ export function Org() {
       )}
       {ajout && <NouvellePersonne onClose={() => setAjout(false)} />}
       {depot && <ResponsableModal u={depot.u} source={depot.source} candidats={candidats} onClose={() => setDepot(null)} />}
+      {tirage.volant}
     </div>
   );
 }
@@ -256,6 +262,9 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
   }, []);
   const feuilles = (b: Branche<OrgUnit>): number => (b.enfants.length ? b.enfants.reduce((n, x) => n + feuilles(x), 0) : 1);
   const vertical = largeur < racines.reduce((n, b) => n + feuilles(b), 0) * COLONNE;
+  // Câbles : du responsable dans l'entité mère jusqu'à l'entité, dessinés sur le plan de l'arbre.
+  const plan = useRef<HTMLDivElement>(null);
+  const liens = useMemo(() => liensResponsables(units), [units]);
   const branche = (b: Branche<OrgUnit>) => (
     <li key={b.u.id}>
       <Noeud u={b.u} {...actions(b.u)} />
@@ -264,7 +273,10 @@ function Arbre({ units, actions }: { units: OrgUnit[]; actions: (u: OrgUnit) => 
   );
   return (
     <div ref={cadre} className="arbre-cadre">
-      <ul className={`arbre ${vertical ? 'vertical' : 'haut'}`}>{racines.map(branche)}</ul>
+      <div ref={plan} className={`arbre-plan ${vertical ? 'vertical' : 'haut'} ${liens.length ? 'avec-cables' : ''}`}>
+        <ul className={`arbre ${vertical ? 'vertical' : 'haut'}`}>{racines.map(branche)}</ul>
+        <CablesOrganigramme plan={plan} liens={liens} vertical={vertical} units={units} />
+      </div>
     </div>
   );
 }
@@ -299,24 +311,7 @@ function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage }
     <div
       className={`arbre-noeud ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${cible?.actif || (cible && cablage?.mode) ? 'cablage-cible' : ''} ${cible?.survol ? 'cablage-survol' : ''}`}
       style={{ borderTopColor: u.couleur }}
-      onDragOver={
-        cible?.actif
-          ? (e) => {
-              e.preventDefault();
-              e.dataTransfer.dropEffect = 'copy';
-              if (!cible.survol) cible.onSurvol(true);
-            }
-          : undefined
-      }
-      onDragLeave={cible?.actif ? (e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && cible.onSurvol(false) : undefined}
-      onDrop={
-        cible?.actif
-          ? (e) => {
-              e.preventDefault();
-              cible.onDeposer(true);
-            }
-          : undefined
-      }
+      data-noeud={u.id}
     >
       {ouvrir ? (
         <button type="button" className="arbre-tete" title={ouvrir.aide} onClick={ouvrir.go}>{texte}</button>
@@ -331,34 +326,30 @@ function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage }
           <button
             key={l.m.id}
             type="button"
-            className={`poste ${l.chef ? 'chef' : ''} ${cablage?.choisi === personKey(l.m, u.id) ? 'choisi' : ''}`}
-            draggable={!!cablage}
-            onDragStart={
-              cablage
-                ? (e) => {
-                    e.dataTransfer.setData('text/plain', l.nom);
-                    e.dataTransfer.effectAllowed = 'copy';
-                    cablage.onTirer(l.m);
-                  }
-                : undefined
-            }
-            onDragEnd={cablage ? () => cablage.onTirer(null) : undefined}
-            onClick={() => (cablage?.mode ? cablage.onChoisir(l.m) : onPersonne(l.m))}
+            data-ligne={`${u.id}|${l.m.id}`}
+            className={`poste ${l.chef ? 'chef' : ''} ${cablage ? 'tirable' : ''} ${cablage?.choisi === personKey(l.m, u.id) ? 'choisi' : ''}`}
+            onPointerDown={cablage ? (e) => cablage.onTirer(e, l.m) : undefined}
+            onClick={() => {
+              if (cablage?.tireJuste()) return;
+              if (cablage?.mode) cablage.onChoisir(l.m);
+              else onPersonne(l.m);
+            }}
           >
+            {cablage?.mode && <span className="prise" data-prise title="Tirer le câble jusqu’à une entité" aria-hidden="true" />}
             {l.chef && <span className="org-star">★ </span>}
             {l.nom}
             {l.postes && <span className="autres"> · {l.postes}</span>}
           </button>
         ))}
         {groupes.map((g) => (
-          <button key={g.id} type="button" className="poste lien" title={`Tous les membres de « ${g.unite?.nom ?? '?'} » font partie de « ${u.nom} »`} onClick={() => onLien(g.id)}>
+          <button key={g.id} type="button" data-ligne={`${u.id}|lien:${g.id}`} className="poste lien" title={`Tous les membres de « ${g.unite?.nom ?? '?'} » font partie de « ${u.nom} »`} onClick={() => onLien(g.id)}>
             👥 {g.unite?.nom ?? 'Entité supprimée'}
             <span className="autres"> · {g.membres.length} membre{g.membres.length > 1 ? 's' : ''}</span>
           </button>
         ))}
       </div>
       {cible && cablage?.mode && (
-        <button type="button" className="cablage-depose" onClick={() => cible.onDeposer(false)}>
+        <button type="button" className="cablage-depose" onClick={() => cible.onDeposer()}>
           {cible.label}
         </button>
       )}

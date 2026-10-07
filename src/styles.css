@@ -989,9 +989,30 @@ button.arbre-tete:hover strong, button.arbre-tete:hover .arbre-lien { text-decor
 .arbre-postes .poste .autres { color: var(--muted); font-weight: 400; }
 /* Entité entière parmi les membres (lien « Membres de ») */
 .arbre-postes .poste.lien { font-weight: 600; color: var(--primary); }
-/* Organigramme câblé : personne tirée sur une entité = son responsable. */
+/* Organigramme câblé : un câble tiré d'une personne jusqu'à une entité = son responsable ; il reste dessiné. */
 .btn.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
-.arbre-postes .poste[draggable='true'] { cursor: grab; }
+.arbre-plan { position: relative; }
+.arbre-plan.haut { min-width: max-content; }
+.arbre-plan.vertical.avec-cables { padding-right: 18px; }
+.cables { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
+.cables .halo, .cable-volant .halo { fill: none; stroke: var(--bg); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
+.cables .fil, .cable-volant .fil { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.cables .fil { pointer-events: visibleStroke; }
+.cables g:hover .fil { stroke-width: 4; }
+.cables .bout, .cable-volant .bout { fill: currentColor; stroke: var(--surface); stroke-width: 1.5; }
+.cable-volant { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; overflow: visible; pointer-events: none; z-index: 60; color: var(--primary); }
+.cable-volant .fiche { fill: var(--surface); stroke: currentColor; stroke-width: 3; }
+body.cable-en-cours, body.cable-en-cours * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+.arbre-postes .poste.tirable { cursor: grab; user-select: none; -webkit-user-select: none; }
+/* Poignée ● au bout de la ligne (mode « Câbler ») : on la tire au doigt sans faire défiler la page. */
+.prise { float: right; position: relative; width: 24px; height: 18px; margin: -1px -4px -1px 4px; touch-action: none; cursor: grab; }
+.prise::after { content: ''; position: absolute; right: 5px; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--surface); border: 2px solid var(--primary); }
+.poste:hover .prise::after, .poste.choisi .prise::after { background: var(--primary); }
+.poste.choisi .prise::after { border-color: #fff; }
+[data-prise] { touch-action: none; }
+.prise-exemple { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); vertical-align: -1px; }
+.legende-cable { display: inline-block; position: relative; width: 22px; height: 3px; margin-right: 2px; vertical-align: middle; border-radius: 2px; background: var(--primary); }
+.legende-cable::before { content: ''; position: absolute; left: -2px; top: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
 .arbre-postes .poste.choisi { background: var(--primary); color: #fff; }
 .arbre-postes .poste.choisi .autres { color: inherit; opacity: 0.85; }
 .arbre-noeud.cablage-cible { outline: 2px dashed color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: 3px; }
