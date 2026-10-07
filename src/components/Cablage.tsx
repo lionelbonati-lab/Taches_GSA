@@ -134,7 +134,6 @@ export function liensResponsables(units: OrgUnit[]): LienResponsable[] {
 export type Point = [number, number];
 interface Trace { id: string; d: string; s: Point; t: Point; couleur: string; titre: string; de: string; ligne: string; vers: string }
 
-/** Chemin à angles arrondis passant par ces points (lignes droites, sans traverser les cartes). */
 /** Chemin à angles droits arrondis passant par `points`. */
 export function chemin(points: Point[], rayon = 7) {
   const p = points.filter((q, i) => i === 0 || q[0] !== points[i - 1][0] || q[1] !== points[i - 1][1]);
@@ -153,24 +152,243 @@ export function chemin(points: Point[], rayon = 7) {
   return `${d} L${f(z[0])},${f(z[1])}`;
 }
 
+/** Écart entre deux câbles parallèles (de haut en bas). */
+const PAS = 9;
+/** En liste (téléphone) : écart entre deux voies, à droite des cartes. */
+const PAS_LISTE = 5;
+/** Sous une entité mère d'où partent n câbles : de la carte à la barre de l'arbre (un niveau par câble, puis 18 px). */
+export const bandeCables = (n: number) => 18 + n * PAS;
+/** En liste : place à droite des cartes pour n câbles. */
+export const margeCables = (n: number) => Math.min(44, 12 + n * PAS_LISTE);
+
+type Boite = { l: number; r: number; t: number; b: number };
+/** Un câble à tracer : ligne du responsable (hauteur y) dans l'entité mère a, vers l'entité c. */
+interface Prevu { l: LienResponsable; y: number; a: Boite; c: Boite; gauche: boolean }
+/** Segment d'un câble : horizontal à la hauteur v (de..a en x), ou vertical à l'abscisse v (de..a en y). */
+type Segment = { h: boolean; v: number; de: number; a: number };
+
+const segments = (p: Point[]): Segment[] =>
+  p.slice(1).map((q, i) => {
+    const o = p[i];
+    return o[0] === q[0] && o[1] !== q[1]
+      ? { h: false, v: o[0], de: Math.min(o[1], q[1]), a: Math.max(o[1], q[1]) }
+      : { h: true, v: o[1], de: Math.min(o[0], q[0]), a: Math.max(o[0], q[0]) };
+  });
+const coupe = (s: Segment, t: Segment) => {
+  if (s.h === t.h) return false;
+  const [h, v] = s.h ? [s, t] : [t, s];
+  return v.v > h.de + 0.5 && v.v < h.a - 0.5 && h.v > v.de + 0.5 && h.v < v.a - 0.5;
+};
+/** Nombre de croisements entre ces câbles. */
+function croisements(chemins: Point[][]) {
+  const segs = chemins.map(segments);
+  let n = 0;
+  for (let i = 0; i < segs.length; i++) for (let j = i + 1; j < segs.length; j++) for (const s of segs[i]) for (const t of segs[j]) if (coupe(s, t)) n++;
+  return n;
+}
+const permutations = <T,>(l: T[]): T[][] => (l.length <= 1 ? [l] : l.flatMap((x, i) => permutations([...l.slice(0, i), ...l.slice(i + 1)]).map((p) => [x, ...p])));
+const factorielle = (n: number): number => (n <= 1 ? 1 : n * factorielle(n - 1));
+const entre = (v: number, a: number, b: number) => v > Math.min(a, b) + 0.5 && v < Math.max(a, b) - 0.5;
+
 /**
- * Tracé des câbles sur le plan de l'arbre. De haut en bas : le câble sort de la ligne du responsable par le côté
- * de la carte, descend à côté, puis entre par le haut de la carte de l'entité. En liste (téléphone) : il longe
- * les cartes à droite et entre par le côté droit de l'entité.
+ * Câbles d'une même entité mère (de haut en bas) : chacun sort de la ligne du responsable par le côté de la carte,
+ * descend dans sa voie le long de la carte, longe le dessous de la carte à son niveau (au-dessus de la barre de
+ * l'arbre), puis entre par le haut de l'entité. Voies et niveaux sont espacés de PAS et choisis pour que les câbles
+ * ne se croisent pas : la ligne la plus basse contre la carte, puis les niveaux dans l'ordre que demandent les
+ * voies et les entrées traversées ; s'il reste des croisements, d'autres ordres sont essayés.
  */
+function routerMere(cables: Prevu[], autres: Boite[]): Point[][] {
+  const a = cables[0].a;
+  const n = cables.length;
+  const cotes = [true, false].map((g) => cables.flatMap((p, i) => (p.gauche === g ? [i] : [])));
+  // Autres cartes à côté (même hauteur) : les voies se resserrent pour tenir dans l'espace libre.
+  const pas = cotes.map((ids, j) => {
+    if (!ids.length) return PAS;
+    const [haut, bas] = [Math.min(...ids.map((i) => cables[i].y)) - 4, a.b + n * PAS + 4];
+    const ecarts = autres.filter((o) => o.b > haut && o.t < bas && (j === 0 ? o.r <= a.l + 0.5 : o.l >= a.r - 0.5)).map((o) => (j === 0 ? a.l - o.r : o.l - a.r));
+    return Math.max(3, Math.min(PAS, Math.floor((Math.min(Infinity, ...ecarts) - 6) / ids.length)));
+  });
+  const voies = (gauche: number[], droite: number[]) => {
+    const x: number[] = [];
+    gauche.forEach((i, r) => (x[i] = a.l - pas[0] * (r + 1)));
+    droite.forEach((i, r) => (x[i] = a.r + pas[1] * (r + 1)));
+    return x;
+  };
+  // Entrée dans l'entité, du côté d'où vient le câble ; le k-ième câble venant de ce côté entre k pas plus loin du milieu.
+  const entree = (i: number, x: number, k: number) => {
+    const { c } = cables[i];
+    const milieu = (c.l + c.r) / 2;
+    return milieu + (x > milieu ? 1 : -1) * (Math.min(32, (c.r - c.l) / 4) + PAS * k);
+  };
+  // ordres : de la voie contre la carte à la plus extérieure (gauche, droite), et du niveau le plus haut au plus bas.
+  const tracer1 = (gauche: number[], droite: number[], niveaux: number[]) => {
+    const x = voies(gauche, droite);
+    const h: number[] = [];
+    niveaux.forEach((i, r) => (h[i] = Math.min(cables[i].c.t - 6, a.b + PAS * (r + 1))));
+    // Vers une même entité, d'un même côté : le câble le plus haut va le plus loin (plus près du milieu), sans croiser les autres.
+    const k: number[] = [];
+    const vus = new Map<string, number>();
+    for (const i of niveaux) {
+      const cle = `${cables[i].l.vers}|${x[i] > (cables[i].c.l + cables[i].c.r) / 2}`;
+      k[i] = vus.get(cle) ?? 0;
+      vus.set(cle, k[i] + 1);
+    }
+    return cables.map(({ y }, i): Point[] => {
+      const tx = entree(i, x[i], k[i]);
+      return [[cables[i].gauche ? a.l : a.r, y], [x[i], y], [x[i], h[i]], [tx, h[i]], [tx, cables[i].c.t]];
+    });
+  };
+  // Voies : la ligne la plus basse contre la carte (sa sortie ne coupe aucune voie).
+  let [g, d] = cotes.map((ids) => [...ids].sort((i, j) => cables[j].y - cables[i].y));
+  // Niveaux : le câble qui passe sous la voie d'un autre est plus bas que lui ; celui qui passe au-dessus de l'entrée
+  // d'un autre est plus haut. Dans le doute, le plus long trajet en haut.
+  const x = voies(g, d);
+  const t = cables.map((_, i) => entree(i, x[i], 0));
+  const dessus = cables.map((_, j) => cables.map((_, i) => i !== j && (entre(x[j], x[i], t[i]) || (cables[i].l.vers !== cables[j].l.vers && entre(t[i], x[j], t[j])))));
+  // dessus[j][i] : j doit être au-dessus de i.
+  const reste = new Set(cables.map((_, i) => i));
+  let lv: number[] = [];
+  while (reste.size) {
+    const attente = (i: number) => [...reste].filter((j) => dessus[j][i]).length;
+    const i = [...reste].sort((p, q) => attente(p) - attente(q) || Math.abs(t[q] - x[q]) - Math.abs(t[p] - x[p]) || p - q)[0];
+    lv.push(i);
+    reste.delete(i);
+  }
+  let meilleur = tracer1(g, d, lv);
+  let cout = croisements(meilleur);
+  if (!cout) return meilleur;
+  if (factorielle(g.length) * factorielle(d.length) * factorielle(n) <= 720) {
+    for (const pg of permutations(g))
+      for (const pd of permutations(d))
+        for (const pl of permutations(lv)) {
+          const e = tracer1(pg, pd, pl);
+          const c = croisements(e);
+          if (c < cout) [meilleur, cout] = [e, c];
+          if (!cout) return meilleur;
+        }
+    return meilleur;
+  }
+  // Sinon : des échanges (deux voies d'un côté, ou deux niveaux) tant que ça diminue les croisements.
+  for (let tour = 0; tour < 30 && cout; tour++) {
+    const ordres = [g, d, lv];
+    let suite = ordres;
+    for (let q = 0; q < 3; q++)
+      for (let i = 0; i < ordres[q].length; i++)
+        for (let j = i + 1; j < ordres[q].length; j++) {
+          const o = [...ordres[q]];
+          [o[i], o[j]] = [o[j], o[i]];
+          const essai = ordres.map((e, r) => (r === q ? o : e));
+          const e = tracer1(essai[0], essai[1], essai[2]);
+          const c = croisements(e);
+          if (c < cout) [meilleur, cout, suite] = [e, c, essai];
+        }
+    if (suite === ordres) break;
+    [g, d, lv] = suite;
+  }
+  return meilleur;
+}
+
+/**
+ * En liste (téléphone) : les câbles longent les cartes à droite et entrent par le côté droit de l'entité.
+ * Un câble dont le trajet en contient un autre prend une voie plus à l'extérieur : ils s'emboîtent sans se croiser.
+ * Vers une même entité, le câble venu de plus haut entre plus bas.
+ */
+function routerListe(cables: Prevu[], droite: number): Point[][] {
+  const k: number[] = [];
+  const vus = new Map<string, number>();
+  for (const i of cables.map((_, i) => i).sort((i, j) => cables[j].y - cables[i].y)) {
+    k[i] = vus.get(cables[i].l.vers) ?? 0;
+    vus.set(cables[i].l.vers, k[i] + 1);
+  }
+  const bas = cables.map((p, i) => p.c.t + 22 + PAS * k[i]);
+  const ordre = cables.map((_, i) => i).sort((i, j) => bas[i] - cables[i].y - (bas[j] - cables[j].y));
+  const voie: number[] = [];
+  ordre.forEach((i, r) => {
+    voie[i] = 0;
+    for (const j of ordre.slice(0, r)) if (cables[j].y < bas[i] && cables[i].y < bas[j]) voie[i] = Math.max(voie[i], voie[j] + 1);
+  });
+  return cables.map((p, i) => {
+    const x = droite + 7 + PAS_LISTE * voie[i];
+    return [[p.a.r, p.y], [x, p.y], [x, bas[i]], [p.c.r, bas[i]]];
+  });
+}
+
+/** Un câble vu depuis l'entité mère : rang de la ligne du responsable ; côté (grande carte : sa colonne ; sinon null). */
+export type Depart = { rang: number; gauche: boolean | null };
+
+/**
+ * Ordre des entités sous leur mère pour que leurs câbles se croisent le moins (routerMere, routerListe).
+ * De haut en bas, d'un même côté, la ligne la plus haute va vers l'entité la plus à l'extérieur, et les câbles de
+ * gauche vont plus à gauche que ceux de droite ; sans grande carte, la première moitié des entités est à gauche.
+ * En liste, la ligne la plus haute va vers l'entité la plus éloignée. `depart` : les câbles de chaque entité reliée,
+ * `ordre` : leur ordre de départ. Renvoie le meilleur ordre et la place des entités sans câble (`milieu`).
+ */
+export function ordreDesEntites(ordre: string[], depart: Map<string, Depart[]>, liste: boolean): { ordre: string[]; milieu: number } {
+  const m = ordre.length;
+  const s = Math.floor(m / 2);
+  const cout = (o: string[]) => {
+    const c = o.flatMap((id, p) => (depart.get(id) ?? []).map((d) => ({ id, p, rang: d.rang, g: d.gauche ?? p < s })));
+    let n = 0;
+    for (let i = 0; i < c.length; i++)
+      for (let j = i + 1; j < c.length; j++) {
+        const [a, b] = c[i].rang <= c[j].rang ? [c[i], c[j]] : [c[j], c[i]];
+        if (a.id === b.id || a.rang === b.rang) continue;
+        // a : la ligne la plus haute.
+        if (liste) n += a.p < b.p ? 1 : 0;
+        else if (a.g === b.g) n += a.g === a.p > b.p ? 1 : 0;
+        else n += (a.g ? b.p < a.p : a.p < b.p) ? 1 : 0;
+      }
+    return n;
+  };
+  let meilleur = ordre;
+  let min = cout(ordre);
+  if (min && m <= 7) {
+    for (const o of permutations(ordre)) {
+      const c = cout(o);
+      if (c < min) [meilleur, min] = [o, c];
+      if (!min) break;
+    }
+  } else {
+    // Beaucoup d'entités : déplacer une entité ailleurs tant que ça diminue les croisements.
+    for (let tour = 0; tour < 20 && min; tour++) {
+      let mieux = false;
+      for (let i = 0; i < m; i++)
+        for (let j = 0; j < m; j++) {
+          if (i === j) continue;
+          const o = [...meilleur];
+          o.splice(j, 0, ...o.splice(i, 1));
+          const c = cout(o);
+          if (c < min) [meilleur, min, mieux] = [o, c, true];
+        }
+      if (!mieux) break;
+    }
+  }
+  if (liste) return { ordre: meilleur, milieu: m };
+  // Grande carte : les entités sans câble entre celles reliées surtout à gauche et celles reliées surtout à droite.
+  if ([...depart.values()].flat().some((d) => d.gauche !== null)) {
+    const g = meilleur.map((id) => (depart.get(id) ?? []).reduce((n, d) => n + (d.gauche ? 1 : -1), 0));
+    let [milieu, pire] = [0, Infinity];
+    for (let k = 0; k <= m; k++) {
+      const mal = g.slice(0, k).filter((x) => x < 0).length + g.slice(k).filter((x) => x > 0).length;
+      if (mal < pire) [milieu, pire] = [k, mal];
+    }
+    return { ordre: meilleur, milieu };
+  }
+  return { ordre: meilleur, milieu: s };
+}
+
+/** Tracé des câbles sur le plan de l'arbre : de haut en bas, par entité mère (routerMere) ; en liste, à droite (routerListe). */
 function tracer(plan: HTMLElement, liens: LienResponsable[], vertical: boolean): Trace[] {
   const base = plan.getBoundingClientRect();
-  const rel = (e: Element) => {
+  const rel = (e: Element): Boite => {
     const r = e.getBoundingClientRect();
     return { l: r.left - base.left, r: r.right - base.left, t: r.top - base.top, b: r.bottom - base.top };
   };
   const trouver = (sel: string) => plan.querySelector(sel);
   const ligne = (de: string, id: string) => trouver(`[data-ligne="${CSS.escape(`${de}|${id}`)}"]`);
-  const cartes = [...plan.querySelectorAll('[data-noeud]')];
-  const droite = vertical && cartes.length ? Math.max(...cartes.map((c) => rel(c).r)) : 0;
-  const parCible = new Map<string, number>();
-  // Les câbles d'un même côté de l'entité mère s'emboîtent : le plus lointain prend la voie la plus à l'extérieur.
-  const prevus = liens.flatMap((l) => {
+  const cartes = [...plan.querySelectorAll<HTMLElement>('[data-noeud]')].map((e) => ({ id: e.dataset.noeud ?? '', ...rel(e) }));
+  const parLigne = new Map<Element, Prevu[]>();
+  const prevus = liens.flatMap((l): Prevu[] => {
     const src = ligne(l.de, l.ligne) ?? (l.lien ? ligne(l.de, `lien:${l.lien}`) : null);
     const mere = trouver(`[data-noeud="${CSS.escape(l.de)}"]`);
     const cible = trouver(`[data-noeud="${CSS.escape(l.vers)}"]`);
@@ -178,40 +396,27 @@ function tracer(plan: HTMLElement, liens: LienResponsable[], vertical: boolean):
     const s = rel(src);
     const a = rel(mere);
     const c = rel(cible);
-    const milieu = (c.l + c.r) / 2;
     // Côté de sortie : celui de l'entité ; sur une grande carte (deux colonnes), celui de la colonne de la personne.
-    const grande = mere.classList.contains('grande');
-    const gauche = !vertical && (grande ? (s.l + s.r) / 2 : milieu) < (a.l + a.r) / 2;
-    const k = parCible.get(l.vers) ?? 0;
-    parCible.set(l.vers, k + 1);
-    const loin = vertical ? c.t : Math.abs(milieu - (gauche ? a.l : a.r));
-    return [{ l, y: (s.t + s.b) / 2, a, c, milieu, gauche, k, loin, groupe: `${l.de}|${gauche}` }];
+    const gauche = (mere.classList.contains('grande') ? (s.l + s.r) / 2 : (c.l + c.r) / 2) < (a.l + a.r) / 2;
+    const p = { l, y: (s.t + s.b) / 2, a, c, gauche };
+    parLigne.set(src, [...(parLigne.get(src) ?? []), p]);
+    return [p];
   });
-  const rangs = new Map<(typeof prevus)[number], { rang: number; n: number }>();
-  for (const g of new Set(prevus.map((p) => p.groupe))) {
-    const dans = prevus.filter((p) => p.groupe === g).sort((x, y) => x.loin - y.loin);
-    dans.forEach((p, i) => rangs.set(p, { rang: i, n: dans.length }));
+  // Une personne responsable de plusieurs entités : ses câbles sortent de sa ligne l'un au-dessus de l'autre.
+  for (const g of parLigne.values()) g.forEach((p, i) => (p.y += (i - (g.length - 1) / 2) * 5));
+  const chemins = new Map<Prevu, Point[]>();
+  if (vertical) {
+    const droite = cartes.length ? Math.max(...cartes.map((c) => c.r)) : 0;
+    routerListe(prevus, droite).forEach((pts, i) => chemins.set(prevus[i], pts));
+  } else {
+    for (const de of new Set(prevus.map((p) => p.l.de))) {
+      const groupe = prevus.filter((p) => p.l.de === de);
+      routerMere(groupe, cartes.filter((c) => c.id !== de)).forEach((pts, i) => chemins.set(groupe[i], pts));
+    }
   }
   return prevus.map((p) => {
-    const { l, y, a, c, milieu, gauche, k } = p;
-    const { rang, n } = rangs.get(p)!;
-    let points: Point[];
-    if (vertical) {
-      // Voies à droite des cartes, la plus lointaine à l'extérieur ; entrée par le côté droit de l'entité.
-      const x = droite + 8 + rang * Math.min(4, 12 / Math.max(1, n - 1));
-      const ty = c.t + 22 + 8 * k;
-      points = [[a.r, y], [x, y], [x, ty], [c.r, ty]];
-    } else {
-      // Voie le long de la carte mère, puis au-dessus des cartes (la plus lointaine plus haut), entrée par le haut.
-      const sens = gauche ? -1 : 1;
-      const bord = gauche ? a.l : a.r;
-      const x = bord + sens * (8 + rang * Math.min(3, 8 / Math.max(1, n - 1)));
-      const vers = x > milieu ? 1 : -1;
-      const tx = milieu + vers * (Math.min(32, (c.r - c.l) / 4) + 8 * k);
-      // Carte posée plus bas (disposition libre) : le câble passe juste sous la carte mère, puis descend vers l'entité.
-      const by = Math.min(c.t - 6, a.b + 30) - rang * Math.min(3, 10 / Math.max(1, n - 1)) - 2 * k;
-      points = [[bord, y], [x, y], [x, by], [tx, by], [tx, c.t]];
-    }
+    const points = chemins.get(p)!;
+    const { l } = p;
     return { id: l.id, d: chemin(points), s: points[0], t: points[points.length - 1], couleur: l.couleur, titre: l.titre, de: l.de, ligne: l.ligne, vers: l.vers };
   });
 }

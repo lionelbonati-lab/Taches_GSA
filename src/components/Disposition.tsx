@@ -129,13 +129,22 @@ export function useDisposition({ plan, arbre, cadre, units, actif, peut, placer 
       marges.current = m;
       p.style.padding = m.t || m.r || m.b || m.l ? `${m.t}px ${m.r}px ${m.b}px ${m.l}px` : '';
     }
+    // Le plan est centré dans le cadre : agrandi, il décalerait l'arbre de la moitié de la place ajoutée. L'arbre reste
+    // donc à sa place (centrée), la marge de gauche compense ce qui est ajouté à gauche.
+    const c = cadre.current;
+    if (c) {
+      const st = getComputedStyle(c);
+      const large = c.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+      const gauche = m.t || m.r || m.b || m.l ? `${Math.max(0, Math.floor((large - aw) / 2) - m.l)}px` : '';
+      if (p.style.marginLeft !== gauche) p.style.marginLeft = gauche;
+    }
     // Câbles et traits redessinés quand une carte a changé de place (le reste : leurs propres observateurs).
     trace += p.style.padding;
     if (trace !== dernier.current) {
       dernier.current = trace;
       p.dispatchEvent(new Event(BOUGE));
     }
-  }, [plan, arbre]);
+  }, [plan, arbre, cadre]);
 
   useLayoutEffect(() => {
     const g = geste.current;
@@ -152,13 +161,14 @@ export function useDisposition({ plan, arbre, cadre, units, actif, peut, placer 
       raf = requestAnimationFrame(appliquer);
     });
     ro.observe(a);
+    if (cadre.current) ro.observe(cadre.current);
     a.querySelectorAll('[data-noeud]').forEach((n) => ro.observe(n));
     document.fonts?.ready.then(appliquer).catch(() => {});
     return () => {
       cancelAnimationFrame(raf);
       ro.disconnect();
     };
-  }, [arbre, appliquer, units, actif]);
+  }, [arbre, cadre, appliquer, units, actif]);
 
   const enregistrer = (choix: Record<string, Carte | null>) => {
     setErreur('');
@@ -322,12 +332,12 @@ export function useDisposition({ plan, arbre, cadre, units, actif, peut, placer 
 type Boite = { l: number; r: number; t: number; b: number };
 
 /** Trait d'une entité mère à une entité : par le bas et le haut des cartes, sinon d'un côté à l'autre. */
-function trait(a: Boite, c: Boite): string | null {
+function trait(a: Boite, c: Boite, bande = 18): string | null {
   const ax = (a.l + a.r) / 2;
   const cx = (c.l + c.r) / 2;
   if (c.t >= a.b + 16) {
-    // En dessous : comme dans l'arbre, une barre à 18 px sous la carte mère.
-    const y = Math.min(a.b + 18, (a.b + c.t) / 2);
+    // En dessous : comme dans l'arbre, une barre sous la carte mère (sous les câbles qui en partent).
+    const y = Math.min(a.b + bande, (a.b + c.t) / 2);
     return chemin([[ax, a.b], [ax, y], [cx, y], [cx, c.t]]);
   }
   if (c.l >= a.r + 16 || c.r <= a.l - 16) {
@@ -345,8 +355,11 @@ function trait(a: Boite, c: Boite): string | null {
   return null;
 }
 
-/** Les traits de l'arbre quand des cartes sont posées à la main : de chaque entité mère à ses entités, sous les cartes. */
-export function TraitsOrganigramme({ plan, units }: { plan: RefObject<HTMLDivElement | null>; units: OrgUnit[] }) {
+/**
+ * Les traits de l'arbre quand des cartes sont posées à la main : de chaque entité mère à ses entités, sous les cartes.
+ * `bandes` : hauteur réservée sous une entité mère (câbles qui en partent) avant la barre du trait.
+ */
+export function TraitsOrganigramme({ plan, units, bandes }: { plan: RefObject<HTMLDivElement | null>; units: OrgUnit[]; bandes: Map<string, number> }) {
   const [traits, setTraits] = useState<{ id: string; d: string }[]>([]);
   const paires = useMemo(() => units.flatMap((u) => {
     const p = parentDans(units, u);
@@ -365,12 +378,12 @@ export function TraitsOrganigramme({ plan, units }: { plan: RefObject<HTMLDivEle
       const t = paires.flatMap(([de, vers]) => {
         const a = boite(de);
         const c = boite(vers);
-        const d = a && c && trait(a, c);
+        const d = a && c && trait(a, c, bandes.get(de));
         return d ? [{ id: `${de}>${vers}`, d }] : [];
       });
       setTraits((old) => (JSON.stringify(old) === JSON.stringify(t) ? old : t));
     },
-    [paires],
+    [paires, bandes],
   );
   return (
     <svg className="traits" aria-hidden="true">

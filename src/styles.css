@@ -968,8 +968,8 @@ code.password { font-size: 1.1rem; padding: 2px 8px; border-radius: 6px; backgro
 .arbre-noeud { position: relative; display: flex; flex-direction: column; gap: 8px; width: 224px; min-height: 64px; padding: 10px 12px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-top: 4px solid; border-radius: 10px; box-shadow: var(--shadow); }
 /* Grande carte (comité central) : deux colonnes de lignes, la largeur de deux cartes. */
 .arbre-noeud.grande { width: 464px; }
-.arbre-noeud.grande .arbre-postes { display: block; columns: 2; column-gap: 18px; }
-.arbre-noeud.grande .arbre-postes > * { break-inside: avoid; }
+.arbre-noeud.grande .arbre-postes.deux { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; align-items: start; }
+.arbre-colonne { display: flex; flex-direction: column; min-width: 0; }
 .arbre-noeud.ouverte { outline: 2px solid var(--primary); outline-offset: 2px; }
 .arbre-noeud.archived { opacity: 0.75; }
 .arbre-noeud .org-icon { width: 36px; height: 36px; font-size: 1.1rem; border-radius: 9px; }
@@ -1002,7 +1002,7 @@ button.arbre-tete:hover strong, button.arbre-tete:hover .arbre-lien { text-decor
 .arbre-plan { position: relative; }
 /* De haut en bas, le plan épouse l'arbre (les places posées à la main se comptent depuis son coin) ; centré. */
 .arbre-plan.haut { width: max-content; margin: 0 auto; }
-.arbre-plan.vertical.avec-cables { padding-right: 18px; }
+.arbre-plan.vertical.avec-cables { padding-right: var(--voies, 18px); }
 .cables { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
 .cables .halo, .cable-volant .halo { fill: none; stroke: var(--bg); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
 .cables .fil, .cable-volant .fil { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
@@ -1067,10 +1067,10 @@ body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-s
 .arbre-ajout:hover { border-color: var(--primary); background: var(--primary-soft); }
 /* De haut en bas, comme un arbre généalogique. */
 .arbre.haut { display: flex; justify-content: center; min-width: max-content; }
-.arbre.haut ul { display: flex; justify-content: center; position: relative; padding-top: 18px; }
+.arbre.haut ul { display: flex; justify-content: center; position: relative; padding-top: var(--bande, 18px); }
 .arbre.haut li { display: flex; flex-direction: column; align-items: center; padding: 18px 8px 0; }
 .arbre.haut > li { padding-top: 0; }
-.arbre.haut ul::before { content: ''; position: absolute; top: 0; left: 50%; margin-left: -1px; height: 18px; border-left: 2px solid var(--cable); }
+.arbre.haut ul::before { content: ''; position: absolute; top: 0; left: 50%; margin-left: -1px; height: var(--bande, 18px); border-left: 2px solid var(--cable); }
 .arbre.haut ul > li::before { content: ''; position: absolute; top: 0; left: 0; right: 0; border-top: 2px solid var(--cable); }
 .arbre.haut ul > li:first-child::before { left: 50%; margin-left: -1px; border-top-left-radius: 8px; }
 .arbre.haut ul > li:last-child::before { right: 50%; margin-right: -1px; }

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import { Children, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
@@ -13,7 +13,7 @@ import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
 import { CentralAccessChoice } from '../components/CentralAccess';
 import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
-import { CablagePanel, CablesOrganigramme, candidatDe, liensResponsables, nomCandidat, ResponsableModal, useCablable, useCandidats, useTirage, type Source } from '../components/Cablage';
+import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
 import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
@@ -289,8 +289,35 @@ function lignesDe(u: OrgUnit, units: OrgUnit[]) {
   const t = UNIT_TYPES[u.type];
   // Membres venus d'une autre entité : regroupés sur sa ligne « 👥 », sauf s'ils ont une fonction dans celle-ci.
   const lignes = postesEntite(u.membres.filter((m) => !m.viaEntite || m.admin || m.poste || m.autresPostes), t.chef);
-  return { lignes, groupes: groupesLies(u, units) };
+  const groupes = groupesLies(u, units);
+  // Les rangées affichées, dans l'ordre : clé (celle de data-ligne) et texte (pour partager une grande carte en deux).
+  const rangees = [
+    ...(lignes.some((l) => l.chef) ? [] : [{ cle: '', texte: `★ ${t.chef} : à désigner` }]),
+    ...lignes.map((l) => ({ cle: l.m.id, texte: `${l.chef ? '★ ' : ''}${l.nom}${l.postes ? ` · ${l.postes}` : ''}` })),
+    ...groupes.map((g) => ({ cle: `lien:${g.id}`, texte: `👥 ${g.unite?.nom ?? 'Entité supprimée'} · ${g.membres.length} membres` })),
+  ];
+  return { lignes, groupes, rangees };
 }
+
+/** Grande carte : nombre de rangées de la colonne de gauche, pour deux colonnes de même hauteur (≈ 29 caractères par ligne). */
+function coupure(rangees: { texte: string }[]) {
+  const poids = rangees.map((r) => Math.max(1, Math.ceil(r.texte.length / 29)));
+  const total = poids.reduce((a, b) => a + b, 0);
+  let [k, gauche, meilleur] = [0, 0, Infinity];
+  poids.forEach((p, i) => {
+    gauche += p;
+    // À égalité, la colonne de gauche est la plus longue.
+    const haut = Math.max(gauche, total - gauche);
+    if (haut < meilleur || (haut === meilleur && gauche > total - gauche)) [k, meilleur] = [i + 1, haut];
+  });
+  return k;
+}
+
+/** Rang, dans l'entité mère, de la ligne d'où part un câble (sinon -1). */
+const rangDuLien = (l: LienResponsable, rangees: { cle: string }[]) => {
+  const i = rangees.findIndex((r) => r.cle === l.ligne);
+  return i >= 0 ? i : rangees.findIndex((r) => r.cle === `lien:${l.lien}`);
+};
 
 /**
  * L'arbre : de haut en bas comme un arbre généalogique, ou en liste décalée (téléphone, ou trop d'entités côte à côte).
@@ -310,18 +337,8 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const grandes = useMemo(
-    () =>
-      new Set(
-        units
-          .filter((u) => {
-            const { lignes, groupes } = lignesDe(u, units);
-            return lignes.length + groupes.length + (lignes.some((l) => l.chef) ? 0 : 1) >= GRANDE;
-          })
-          .map((u) => u.id),
-      ),
-    [units],
-  );
+  const rangees = useMemo(() => new Map(units.map((u) => [u.id, lignesDe(u, units).rangees])), [units]);
+  const grandes = useMemo(() => new Set(units.filter((u) => (rangees.get(u.id)?.length ?? 0) >= GRANDE).map((u) => u.id)), [units, rangees]);
   // Colonnes qu'il faut côte à côte : une par carte du bas (deux pour une grande carte).
   const colonnes = (b: Branche<OrgUnit>): number => Math.max(grandes.has(b.u.id) ? 2 : 1, b.enfants.reduce((n, x) => n + colonnes(x), 0));
   const vertical = largeur < racines.reduce((n, b) => n + colonnes(b), 0) * COLONNE;
@@ -329,6 +346,42 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
   const plan = useRef<HTMLDivElement>(null);
   const arbre = useRef<HTMLUListElement>(null);
   const liens = useMemo(() => liensResponsables(units), [units]);
+  // Sous chaque entité mère : une bande pour ses câbles (un niveau chacun) avant la barre de l'arbre.
+  const bandes = useMemo(() => {
+    const n = new Map<string, number>();
+    for (const l of liens) n.set(l.de, (n.get(l.de) ?? 0) + 1);
+    return new Map([...n].map(([de, k]) => [de, bandeCables(k)]));
+  }, [liens]);
+  // Ordre des entités sous leur mère : celles reliées par un câble suivent les lignes de leur responsable, pour que
+  // les câbles ne se croisent pas. De haut en bas : la ligne la plus haute vers l'entité la plus à l'extérieur
+  // (grande carte : colonne de gauche à gauche, de droite à droite) ; en liste : la plus haute vers la plus éloignée.
+  const ordonnees = useMemo(() => {
+    const ordonner = (b: Branche<OrgUnit>): Branche<OrgUnit> => {
+      const enfants = b.enfants.map(ordonner);
+      const r = rangees.get(b.u.id) ?? [];
+      const k = grandes.has(b.u.id) && !vertical ? coupure(r) : 0;
+      const depart = new Map<string, Depart[]>();
+      for (const l of liens) {
+        const rang = l.de === b.u.id ? rangDuLien(l, r) : -1;
+        if (rang >= 0) depart.set(l.vers, [...(depart.get(l.vers) ?? []), { rang, gauche: k ? rang < k : null }]);
+      }
+      const relies = enfants.filter((e) => depart.has(e.u.id));
+      if (!relies.length) return { u: b.u, enfants };
+      // Départ : les entités dans l'ordre des lignes de leur responsable (la plus haute à l'extérieur).
+      const haut = (e: Branche<OrgUnit>) => Math.min(...depart.get(e.u.id)!.map((d) => d.rang));
+      const tri = [...relies].sort((x, y) => haut(x) - haut(y));
+      const debut = vertical
+        ? tri.reverse()
+        : k
+          ? [...tri.filter((e) => haut(e) < k), ...tri.filter((e) => haut(e) >= k).reverse()]
+          : [...tri.filter((_, i) => i % 2 === 0), ...tri.filter((_, i) => i % 2 === 1).reverse()];
+      const { ordre, milieu } = ordreDesEntites(debut.map((e) => e.u.id), depart, vertical);
+      const parId = new Map(enfants.map((e) => [e.u.id, e]));
+      const o = ordre.map((id) => parId.get(id)!);
+      return { u: b.u, enfants: [...o.slice(0, milieu), ...enfants.filter((e) => !depart.has(e.u.id)), ...o.slice(milieu)] };
+    };
+    return racines.map(ordonner);
+  }, [racines, rangees, liens, grandes, vertical]);
   const disposition = useDisposition({
     plan,
     arbre,
@@ -341,7 +394,7 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
   const branche = (b: Branche<OrgUnit>) => (
     <li key={b.u.id}>
       <Noeud u={b.u} {...actions(b.u)} deplacer={disposition.deplacer(b.u)} grande={!vertical && grandes.has(b.u.id)} />
-      {b.enfants.length > 0 && <ul>{b.enfants.map(branche)}</ul>}
+      {b.enfants.length > 0 && <ul style={vertical ? undefined : ({ '--bande': `${bandes.get(b.u.id) ?? bandeCables(0)}px` } as CSSProperties)}>{b.enfants.map(branche)}</ul>}
     </li>
   );
   const n = disposition.remettables.length;
@@ -349,9 +402,13 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
   return (
     <>
       <div ref={cadre} className="arbre-cadre">
-        <div ref={plan} className={`arbre-plan ${vertical ? 'vertical' : 'haut'} ${liens.length ? 'avec-cables' : ''} ${disposition.libre ? 'libre' : ''}`}>
-          {disposition.libre && <TraitsOrganigramme plan={plan} units={units} />}
-          <ul ref={arbre} className={`arbre ${vertical ? 'vertical' : 'haut'}`}>{racines.map(branche)}</ul>
+        <div
+          ref={plan}
+          className={`arbre-plan ${vertical ? 'vertical' : 'haut'} ${liens.length ? 'avec-cables' : ''} ${disposition.libre ? 'libre' : ''}`}
+          style={vertical ? ({ '--voies': `${margeCables(liens.length)}px` } as CSSProperties) : undefined}
+        >
+          {disposition.libre && <TraitsOrganigramme plan={plan} units={units} bandes={bandes} />}
+          <ul ref={arbre} className={`arbre ${vertical ? 'vertical' : 'haut'}`}>{ordonnees.map(branche)}</ul>
           <CablesOrganigramme plan={plan} liens={liens} vertical={vertical} units={units} />
         </div>
       </div>
@@ -376,6 +433,18 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
   );
 }
 
+/** Les rangées d'une carte ; `deux` > 0 : sur deux colonnes, les `deux` premières à gauche (grande carte). */
+function Postes({ deux, children }: { deux: number; children: ReactNode }) {
+  if (!deux) return <div className="arbre-postes">{children}</div>;
+  const r = Children.toArray(children);
+  return (
+    <div className="arbre-postes deux">
+      <div className="arbre-colonne">{r.slice(0, deux)}</div>
+      <div className="arbre-colonne">{r.slice(deux)}</div>
+    </div>
+  );
+}
+
 /**
  * Une entité dans l'arbre : nom et type, une ligne « N membres · Ouvrir › », puis une ligne par personne
  * (son nom et ses fonctions) qui ouvre sa fiche. En mode « Modifier » : poignée, ⚙️ et « + Ajouter une personne ».
@@ -384,7 +453,7 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
 function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, deplacer, grande }: { u: OrgUnit; grande?: boolean } & Actions) {
   const club = useClub();
   const t = UNIT_TYPES[u.type];
-  const { lignes, groupes } = lignesDe(u, club.units);
+  const { lignes, groupes, rangees } = lignesDe(u, club.units);
   const access = centralAccess(u);
   const ouverte = u.id === club.current.id;
   const cible = cablage?.cible;
@@ -429,7 +498,7 @@ function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, 
         <div className="arbre-tete">{texte}</div>
       )}
       {/* Pas de <ul> ici : les traits de l'arbre sont dessinés sur les listes. */}
-      <div className="arbre-postes">
+      <Postes deux={grande ? coupure(rangees) : 0}>
         {!lignes.some((l) => l.chef) && <span className="poste muted">★ {t.chef} : à désigner</span>}
         {lignes.map((l) => (
           <button
@@ -456,7 +525,7 @@ function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, 
             <span className="autres"> · {g.membres.length} membre{g.membres.length > 1 ? 's' : ''}</span>
           </button>
         ))}
-      </div>
+      </Postes>
       {cible && cablage?.mode && (
         <button type="button" className="cablage-depose" onClick={() => cible.onDeposer()}>
           {cible.label}
