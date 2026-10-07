@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TicketCentral, UnitType, AgendaClubEvent } from './types';
+import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TacheTransmise, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -601,6 +601,13 @@ export async function saveMembres(club: string, list: ClubMembre[]) {
 export async function deleteMembre(club: string, id: string) {
   const { error } = await sb().from('gsa_club_membres').delete().eq('club_id', club).eq('id', id);
   if (error) throw registreErreur(error);
+}
+
+/** Comité central : tâches que les entités du club lui transmettent (ordre du jour ; migration 018). */
+export async function fetchTachesTransmises(club: string): Promise<TacheTransmise[]> {
+  const { data, error } = await sb().rpc('gsa_taches_transmises', { club });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as TacheTransmise[];
 }
 
 /** Suivi des demandes de l'entité au comité central. */

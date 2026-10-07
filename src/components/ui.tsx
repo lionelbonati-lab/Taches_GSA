@@ -85,9 +85,14 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
 
-/** Petits repères : 🔁 tâche récurrente, 🔗 délai lié à un événement / une séance. */
+/** Petits repères : 🔁 tâche récurrente, 🏛️ transmise au comité central, 🔗 délai lié à un événement / une séance. */
 export function RecurIcon({ task }: { task: Task }) {
-  return task.recurrence ? <span className="ticon" title={`Tâche récurrente : ${recurrenceLabel(task.recurrence).toLowerCase()}`}>🔁</span> : null;
+  return (
+    <>
+      {task.recurrence && <span className="ticon" title={`Tâche récurrente : ${recurrenceLabel(task.recurrence).toLowerCase()}`}>🔁</span>}
+      {task.auCentral && <span className="ticon" title="Transmise au comité central : elle figure dans son ordre du jour">🏛️</span>}
+    </>
+  );
 }
 
 export function LinkIcon({ task }: { task: Task }) {

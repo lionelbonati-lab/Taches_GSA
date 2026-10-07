@@ -6,7 +6,8 @@ import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData,
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey } from './data/membres';
 import { uid } from './data/utils';
-import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SuiviTicket, Task, Unit } from './data/types';
+import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SuiviTicket, TacheTransmise, Task, Unit } from './data/types';
+import { versTransmise } from './data/transmises';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
@@ -236,6 +237,16 @@ export function DemoApp() {
           .flatMap((u) => loadUnitData(u.id).events.map((e) => ({ uniteId: u.id, id: e.id, nom: e.nom, date: e.date, dateFin: e.dateFin, lieu: e.lieu })))
           .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date))
           .sort((a, b) => a.date.localeCompare(b.date));
+      },
+      // Comité central : tâches transmises par les entités (version réelle : gsa_taches_transmises).
+      async tachesTransmises(): Promise<TacheTransmise[]> {
+        if (current.type !== 'central') return [];
+        return units
+          .filter((u) => u.type !== 'central' && !u.archive)
+          .flatMap((u) => {
+            const d = loadUnitData(u.id);
+            return d.tasks.filter((t) => t.auCentral && !t.paiement).map((t) => versTransmise(u, d, t));
+          });
       },
       async mesTicketsCentraux(): Promise<SuiviTicket[]> {
         if (!central || !me) return [];

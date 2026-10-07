@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ClubMembre, MyRequest, OrgUnit, Person, SuiviTicket, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { ClubMembre, MyRequest, OrgUnit, Person, SuiviTicket, TacheTransmise, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
@@ -98,6 +98,8 @@ export interface Club {
   mesTicketsCentraux: () => Promise<SuiviTicket[]>;
   /** Événements de toutes les entités du club (agenda ; sans description). */
   agendaClub: () => Promise<AgendaClubEvent[]>;
+  /** Comité central : tâches que les entités lui transmettent (ordre du jour). */
+  tachesTransmises: () => Promise<TacheTransmise[]>;
   /** Registre « Membres du club » : accès (droit « club.membres » ou admin de l'une des entités du club). */
   membresAcces: boolean;
   membres: () => Promise<ClubMembre[]>;

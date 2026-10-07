@@ -11,6 +11,9 @@ import { archiveHtml, hydrateArchive } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
+import { useClubOptional } from '../data/club';
+import { avecTransmises } from '../data/transmises';
+import type { TacheTransmise } from '../data/types';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête, convoqués, tâches par section.
@@ -22,7 +25,7 @@ export const DEFAULT_PV: PvSettings = {
   titre: '',
   club: 'G.S. Ajoie – Comité',
   afficherClub: true,
-  parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true },
+  parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true, transmises: true },
   groupBy: 'section',
   tri: 'delai',
   separerParEcheance: false,
@@ -81,7 +84,25 @@ export function Pv() {
   const logo = useUnitLogo();
   const entete = useEntete();
 
-  const secName = (id: string) => data.sections.find((x) => x.id === id)?.nom ?? '';
+  // Comité central : tâches transmises par les entités, rangées sous leur événement ou la section du groupe.
+  const club = useClubOptional();
+  const central = club?.current.type === 'central';
+  const [transmises, setTransmises] = useState<TacheTransmise[]>([]);
+  useEffect(() => {
+    if (!club || !central) return;
+    let actif = true;
+    club.tachesTransmises().then((l) => actif && setTransmises(l)).catch(() => actif && setTransmises([]));
+    return () => {
+      actif = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [club?.current.id]);
+  const { data: odj, responsables: respTransmises } = useMemo(
+    () => avecTransmises(data, central && s.parts.transmises ? transmises : []),
+    [data, central, s.parts.transmises, transmises],
+  );
+
+  const secName = (id: string) => odj.sections.find((x) => x.id === id)?.nom ?? '';
   const person = (id: string) => data.people.find((p) => p.id === id);
   const committee: Person[] = data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
   const canEdit = can('tab.pv');
@@ -112,7 +133,7 @@ export function Pv() {
   useEffect(() => setDraft(null), [s1Id]);
 
   // ---------- Sélection des tâches (partagée avec l'onglet PV) ----------
-  const { late, avant1, avant2, bilan, since } = selectAgenda(data, s0, s1, s2, {
+  const { late, avant1, avant2, bilan, since } = selectAgenda(odj, s0, s1, s2, {
     retards: s.parts.retards,
     avantProchaine: s.parts.avantProchaine,
     avantSuivante: s.parts.avantSuivante,
@@ -157,7 +178,7 @@ export function Pv() {
   const group = (list: Task[], keepEmpty = false): Group[] => {
     if (s.groupBy === 'aucun') return [{ key: 'all', label: '', tasks: order(list) }];
     if (s.groupBy === 'section')
-      return data.sections
+      return odj.sections
         .filter((sec) => !s.sectionsExclues.includes(sec.id))
         .map((sec) => ({ key: sec.id, label: sec.nom, tasks: order(list.filter((t) => t.sectionId === sec.id), sec) }))
         .filter((g) => g.tasks.length || keepEmpty);
@@ -213,7 +234,8 @@ export function Pv() {
   }, [titre]);
   // Sous-tâche : case, intitulé et initiales de la personne chargée.
   const checkText = (_t: Task, c: ChecklistItem) => `${c.done ? '☑' : '☐'} ${c.label}`;
-  const respText = (t: Task) => t.responsables.map((id) => initials(person(id))).join(', ') || '—';
+  // Tâche transmise par une entité : les noms de ses responsables (personnes de l'entité).
+  const respText = (t: Task) => respTransmises.get(t.id)?.join(', ') || t.responsables.map((id) => initials(person(id))).join(', ') || '—';
 
   // ---------- Actions ----------
   const print = () => window.print();
@@ -596,6 +618,7 @@ export function Pv() {
               ['bilan', 'Tâches terminées depuis la dernière séance'],
               ['sondages', 'Sondages en cours et récents'],
               ['notes', 'Cadre de notes et décisions'],
+              ...(central ? [['transmises', `Tâches transmises par les entités${transmises.length ? ` (${transmises.length})` : ''}`]] : []),
             ] as [keyof PvSettings['parts'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
             ))}
@@ -673,7 +696,7 @@ export function Pv() {
             </div>
             <small className="muted">Sections incluses</small>
             <div className="chips">
-              {data.sections.map((x) => (
+              {odj.sections.map((x) => (
                 <button key={x.id} className={`chip ${!s.sectionsExclues.includes(x.id) ? 'on' : ''}`} onClick={() => set({ sectionsExclues: toggleIn(s.sectionsExclues, x.id) })}>{x.nom}</button>
               ))}
             </div>

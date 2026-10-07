@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, deleteMembre, fetchAgendaClub, fetchMembres, fetchOrg, membresAcces, saveMembres, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, type Membership } from './data/cloud';
+import { accessAction, deleteMembre, fetchAgendaClub, fetchTachesTransmises, fetchMembres, fetchOrg, membresAcces, saveMembres, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -126,6 +126,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       },
       mesTicketsCentraux: () => myCentralTickets(),
       agendaClub: () => fetchAgendaClub(clubId),
+      tachesTransmises: () => (current.type === 'central' ? fetchTachesTransmises(current.id) : Promise.resolve([])),
       membresAcces: acces,
       membres: () => fetchMembres(clubId),
       async saveMembres(l) {

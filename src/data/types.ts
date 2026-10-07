@@ -196,6 +196,8 @@ export interface Task {
   updatedAt: string;
   /** Tâche proposée au comité central par un sous-comité, un groupe ou une équipe. */
   proposee?: Proposal;
+  /** Transmise au comité central (sous-comité, groupe, équipe) : la tâche reste dans l'entité et figure dans l'ordre du jour du comité central. */
+  auCentral?: boolean;
   /** Tâche ajoutée par un membre du comité central (entité ouverte en « modifier / ajouter ») : son nom. */
   parCentral?: string;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
@@ -208,6 +210,23 @@ export interface Proposal {
   unite: string;
   par: string;
   le: string;
+}
+
+/** Tâche d'une entité transmise au comité central, telle que la lit son ordre du jour (gsa_taches_transmises). */
+export interface TacheTransmise {
+  uniteId: string;
+  unite: string;
+  type: UnitType;
+  id: string;
+  titre: string;
+  delai: string;
+  remarque: string;
+  statut: string;
+  termine: boolean;
+  termineeLe?: string;
+  /** Noms des responsables (personnes de l'entité). */
+  responsables: string[];
+  checklist: ChecklistItem[];
 }
 
 export interface Meeting {
@@ -313,6 +332,8 @@ export interface PvSettings {
     bilan: boolean;
     sondages: boolean;
     notes: boolean;
+    /** Comité central : tâches transmises par les entités. */
+    transmises: boolean;
   };
   groupBy: 'section' | 'responsable' | 'aucun';
   tri: 'delai' | 'statut' | 'titre';

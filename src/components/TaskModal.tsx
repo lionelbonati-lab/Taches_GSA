@@ -7,6 +7,8 @@ import { emailsOf } from '../data/emails';
 import { deleteFiles } from '../data/files';
 import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
+import { useClubOptional } from '../data/club';
+import { libellePlace } from '../data/transmises';
 import type { DelaiUnite, Recurrence, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
@@ -52,7 +54,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const [newPoll, setNewPoll] = useState(false);
   const [ouverts, setOuverts] = useState<Extra[]>([]);
   const [nouvelEmail, setNouvelEmail] = useState(false);
+  const club = useClubOptional();
   if (!user) return null;
+  // Sous-comité, groupe ou équipe : la tâche peut figurer dans l'ordre du jour du comité central.
+  const versCentral = club?.central && club.current.type !== 'central' && !t.paiement ? libellePlace(club.central.sections ?? [], club.current) : null;
 
   const editable = isNew ? true : canEditTask(task);
   const canAssignOthers = t.sectionId ? canAssign(t.sectionId) : creatableSections().some((s) => canAssign(s.id));
@@ -223,6 +228,15 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           <label className="full">
             Remarque
             <textarea rows={2} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} placeholder="Détails utiles (facultatif)" />
+          </label>
+        )}
+        {versCentral && (!dis || t.auCentral) && (
+          <label className="inline full au-central">
+            <input type="checkbox" checked={!!t.auCentral} disabled={dis} onChange={(e) => set('auCentral', e.target.checked || undefined)} />
+            <span>
+              🏛️ Transmettre au comité central
+              <small className="muted"> · elle figurera dans son ordre du jour, {versCentral}</small>
+            </span>
           </label>
         )}
 
