@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierFiches, lireBrut, loadMe, loadMembres, loadUnitData, loadUnits, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
+import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadUnitData, loadUnits, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, UNIT_TYPES, visitLevel } from './data/units';
 import { poserResponsable } from './data/cablage';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
@@ -145,6 +145,8 @@ export function DemoApp() {
         const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, description: n.description, date: n.date, dateFin: n.dateFin, dependDe: n.dependDe }];
         saveUnits(next);
         setUnits(next);
+        // Organigramme : les postes qui portent son nom (« Camp de Pentecôte » au comité central) lui sont liés.
+        if (!classique && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
         return { unitId: id };
       },
       async updateUnit(id, patch) {
@@ -153,6 +155,7 @@ export function DemoApp() {
         const next = units.map((u) => (u.id === id ? { ...u, ...patch, central: admin && patch.central ? patch.central : u.central } : u));
         saveUnits(next);
         setUnits(next);
+        if (!classique && patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
       },
       async placerCartes(places) {
         const next = units.map((u) => (u.id in places ? { ...u, carte: places[u.id] ?? undefined } : u));

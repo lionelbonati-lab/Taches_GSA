@@ -13,8 +13,11 @@ import { uid } from './utils';
 // d'avant devient bénévole), dans les bénévoles elle devient simple bénévole. Glissée depuis une autre fiche, elle
 // la quitte (déplacer). Le rôle suit : Admin pour un ★, membre du comité pour un poste, bénévole sinon.
 // Un poste peut être lié au ★ d'une autre entité (ex. « Compétition » au comité central ↔ ★ du groupe compétition) :
-// son titulaire en est ★ ; changer l'un change l'autre (synchroniser). Plusieurs postes d'une entité liés à la même
-// (ex. deux « Compétition » au comité central) : autant de co-responsables, un poste lié chacun.
+// son titulaire en est ★ ; changer l'un change l'autre (synchroniser). Le lien se fait tout seul par le nom (un poste
+// qui porte le nom d'une entité), et se corrige dans les réglages du poste. Plusieurs postes d'une entité liés à la
+// même (ex. deux « Compétition » au comité central) : autant de co-responsables, un poste lié chacun.
+// Une personne n'a qu'une ligne par fiche : un ★ sur la sienne dans le titre (avec ses postes), un responsable sur une
+// ligne avec tous ses postes.
 // Les fonctions des fiches (poste, autres postes) restent à jour : le reste de l'appli les lit comme avant.
 
 const cle = (s?: string) => (s ?? '').trim().toLowerCase();
@@ -60,21 +63,38 @@ export function roleResponsable(roles: Role[]): string | undefined {
 
 // ---------- Les trois zones d'une fiche (affichage) ----------
 
+/** Une ligne de la fiche : une personne et ses postes (dans l'ordre de la fiche), ou un poste à pourvoir. */
+export interface LigneFiche {
+  m?: OrgMember;
+  postes: Poste[];
+}
 export interface ZonesFiche {
-  etoiles: OrgMember[];
-  postes: { poste: Poste; m?: OrgMember }[];
+  /** Les ★, chacun avec ses postes (sur sa ligne du titre). */
+  etoiles: (LigneFiche & { m: OrgMember })[];
+  /** Une ligne par responsable (tous ses postes), à la place de son premier poste ; un poste à pourvoir : sa ligne. */
+  lignes: LigneFiche[];
   /** Ni ★ ni titulaire d'un poste ; les membres reçus d'une autre entité restent sur la ligne « 👥 » de celle-ci. */
   benevoles: OrgMember[];
 }
 
 export function zonesFiche(u: Pick<OrgUnit, 'membres' | 'postes'>): ZonesFiche {
   const parId = new Map(u.membres.map((m) => [m.id, m]));
-  const postes = (u.postes ?? []).map((poste) => ({ poste, m: poste.titulaire ? parId.get(poste.titulaire) : undefined }));
-  const tenus = new Set(postes.flatMap((x) => (x.m ? [x.m.id] : [])));
+  const postes = u.postes ?? [];
+  const de = (m: OrgMember) => postes.filter((x) => x.titulaire === m.id);
+  const lignes: LigneFiche[] = [];
+  const vus = new Set<string>();
+  for (const poste of postes) {
+    const m = poste.titulaire ? parId.get(poste.titulaire) : undefined;
+    if (!m) lignes.push({ postes: [poste] });
+    else if (!m.admin && !vus.has(m.id)) {
+      vus.add(m.id);
+      lignes.push({ m, postes: de(m) });
+    }
+  }
   return {
-    etoiles: u.membres.filter((m) => m.admin),
-    postes,
-    benevoles: u.membres.filter((m) => !m.admin && !tenus.has(m.id) && !(m.viaEntite && !fonctionsDe(m).length)),
+    etoiles: u.membres.filter((m) => m.admin).map((m) => ({ m, postes: de(m) })),
+    lignes,
+    benevoles: u.membres.filter((m) => !m.admin && !vus.has(m.id) && !(m.viaEntite && !fonctionsDe(m).length)),
   };
 }
 
@@ -126,9 +146,21 @@ function proche(postes: Poste[], nom: string) {
   return meilleur;
 }
 
+// Mots qui ne disent pas de quelle entité il s'agit (« Groupe compétition » ↔ poste « Compétition »).
+const GENERIQUES = new Set(['comite', 'central', 'sous', 'groupe', 'equipe', 'evenement', 'responsable', 'responsables', 'president', 'presidente', 'chef']);
+const cleNom = (s: string) => [...new Set(mots(s).filter((w) => !GENERIQUES.has(w)))].sort().join(' ');
+
+/** L'entité qui porte le nom du poste (« Camp de Pentecôte », « Compétition » ↔ « Groupe compétition ») : une seule, sinon aucune. */
+export function entiteDuNom(units: Unit[], nom: string, sauf: string): Unit | undefined {
+  const k = cleNom(nom);
+  const l = k ? units.filter((u) => !u.archive && u.id !== sauf && cleNom(u.nom) === k) : [];
+  return l.length === 1 ? l[0] : undefined;
+}
+
 /**
  * Fiches qui n'ont pas encore de postes : postes déduits des fonctions ; les câbles d'avant (le ★ d'une entité, membre
- * de son entité mère) deviennent des postes liés. Modifie `data` ; renvoie les entités modifiées.
+ * de son entité mère) deviennent des postes liés, puis chaque poste qui porte le nom d'une entité lui est lié. Modifie
+ * `data` ; renvoie les entités modifiées.
  */
 export function convertirPostes(units: Unit[], data: Map<string, AppData>): string[] {
   const neufs = units.filter((u) => {
@@ -155,7 +187,9 @@ export function convertirPostes(units: Unit[], data: Map<string, AppData>): stri
       po.lien = u.id;
     }
   }
-  return neufs.map((u) => u.id);
+  const m: Monde = { units, data, notes: [] };
+  for (const u of neufs) if (!u.archive) lierNoms(m, u.id, data.get(u.id)!.postes!.map((x) => x.id));
+  return units.filter((u) => neufs.includes(u) || m.touchees?.has(u.id)).map((u) => u.id);
 }
 
 // ---------- Modifications ----------
@@ -193,14 +227,15 @@ export type OpOrga =
   | { type: 'nouveauPoste'; uniteId: string; nom: string }
   | { type: 'renommer'; uniteId: string; posteId: string; nom: string }
   | { type: 'supprimerPoste'; uniteId: string; posteId: string }
-  /** `garde` : le poste a un titulaire et l'entité un autre ★ : qui tient les deux. */
-  | { type: 'lier'; uniteId: string; posteId: string; lien: string | null; garde?: 'titulaire' | 'etoile' };
+  | { type: 'lier'; uniteId: string; posteId: string; lien: string | null };
 
 /** Les entités du club et leurs données (modifiées sur place) ; `notes` : ce qui a suivi par les postes liés. */
 export interface Monde {
   units: Unit[];
   data: Map<string, AppData>;
   notes: string[];
+  /** Entités modifiées par un lien fait par le nom (convertirPostes). */
+  touchees?: Set<string>;
 }
 
 function entite(m: Monde, id: string) {
@@ -475,6 +510,9 @@ function placer(m: Monde, qui: Qui, depuis: Depuis | undefined, vers: Vers): str
     B.postes.push(po);
     donnerPoste(B.d, po, p);
     msg = `Nouveau poste « ${n} » dans « ${B.u.nom} » : ${nom}`;
+    synchroniser(m, avant);
+    lierNoms(m, B.u.id, [po.id]);
+    return msg + (quitte ? ` (quitte « ${quitte} »)` : '');
   } else {
     rendreBenevole(B.d, p);
     msg = `${nom} : ${benevolesDe(B.u.type).un} de « ${B.u.nom} »`;
@@ -483,7 +521,11 @@ function placer(m: Monde, qui: Qui, depuis: Depuis | undefined, vers: Vers): str
   return msg + (quitte ? ` (quitte « ${quitte} »)` : '');
 }
 
-function lier(m: Monde, uniteId: string, posteId: string, lien: string | null, garde?: 'titulaire' | 'etoile'): string {
+/**
+ * Lie le poste au ★ de l'entité `lien` (null : le délie). Une seule règle : son titulaire en devient ★ (co-responsable
+ * s'il y en a déjà) ; à pourvoir, il va à un ★ qui n'a pas encore de poste lié, sinon il reste à pourvoir.
+ */
+function lier(m: Monde, uniteId: string, posteId: string, lien: string | null): string {
   const A = entite(m, uniteId);
   const po = A.postes.find((x) => x.id === posteId);
   if (!po) throw new Error('Ce poste n’existe plus.');
@@ -497,40 +539,58 @@ function lier(m: Monde, uniteId: string, posteId: string, lien: string | null, g
   const avant = etatLiens(m);
   const h = po.titulaire ? A.d.people.find((x) => x.id === po.titulaire && x.actif) : undefined;
   const etoiles = C.d.people.filter(estEtoile);
-  // Les ★ déjà liés par un autre poste de l'entité restent à leur poste : celui-ci va à un ★ libre, sinon son titulaire devient co-responsable.
   const libre = etoilesLibres(A.d, C.u.id, etoiles.map(quiDe), po.id)[0];
   let suite = '';
   if (!h && libre) {
     donnerPoste(A.d, po, fiche(A.d, libre, true));
     suite = ` : ${nomDe(libre)}`;
-  } else if (!h && etoiles.length) {
-    suite = ' : à pourvoir (son titulaire sera co-responsable)';
-  } else if (h && !etoiles.some((e) => memeQui(e, h))) {
-    if (libre && garde === 'etoile') {
-      const ancien = donnerPoste(A.d, po, fiche(A.d, libre, true));
-      if (ancien) liberer(A.d, ancien);
-      suite = ` : ${nomDe(libre)}${ancien ? ` à la place de ${nomDe(ancien)}` : ''}`;
-    } else {
-      donnerEtoile(C.d, C.u, fiche(C.d, quiDe(h), true));
-      suite = ` : ${nomDe(h)} devient ${etoiles.length ? 'co-responsable (★)' : '★'} de « ${C.u.nom} »`;
-    }
+  } else if (!h) {
+    suite = ' : à pourvoir';
+  } else if (!etoiles.some((e) => memeQui(e, h))) {
+    donnerEtoile(C.d, C.u, fiche(C.d, quiDe(h), true));
+    suite = ` : ${nomDe(h)} devient ${etoiles.length ? 'co-responsable (★)' : '★'} de « ${C.u.nom} »`;
   }
   po.lien = lien;
   synchroniser(m, avant);
   return `« ${po.nom} » de « ${A.u.nom} » lié au ★ de « ${C.u.nom} »${suite}`;
 }
 
+/** Les postes `ids` de l'entité `uniteId` qui ne sont liés à rien : liés à l'entité qui porte leur nom, s'il y en a une. */
+function lierNoms(m: Monde, uniteId: string, ids: string[]) {
+  const A = entite(m, uniteId);
+  for (const id of ids) {
+    const po = A.postes.find((x) => x.id === id);
+    const c = po && !po.lien ? entiteDuNom(m.units, po.nom, uniteId) : undefined;
+    if (!c || !m.data.get(c.id)) continue;
+    const avant = new Map(m.units.map((u) => [u.id, JSON.stringify(m.data.get(u.id))]));
+    m.notes.push(lier(m, uniteId, id, c.id));
+    m.touchees ??= new Set();
+    for (const u of m.units) if (JSON.stringify(m.data.get(u.id)) !== avant.get(u.id)) m.touchees.add(u.id);
+  }
+}
+
+/** Entité créée ou renommée : les postes qui portent son nom, dans les autres entités, lui sont liés. */
+export function lierEntite(m: Monde, id: string) {
+  for (const u of m.units) {
+    const d = m.data.get(u.id);
+    if (u.archive || u.id === id || !d?.postes) continue;
+    lierNoms(m, u.id, d.postes.filter((x) => !x.lien && entiteDuNom(m.units, x.nom, u.id)?.id === id).map((x) => x.id));
+  }
+}
+
 /** Applique une modification de l'organigramme ; renvoie ce qui a été fait ('' : rien). */
 export function appliquer(m: Monde, op: OpOrga): string {
   const msg = (() => {
     if (op.type === 'placer') return placer(m, op.qui, op.depuis, op.vers);
-    if (op.type === 'lier') return lier(m, op.uniteId, op.posteId, op.lien, op.garde);
+    if (op.type === 'lier') return lier(m, op.uniteId, op.posteId, op.lien);
     const A = entite(m, op.uniteId);
     if (op.type === 'nouveauPoste') {
       const n = op.nom.trim();
       if (!n) throw new Error('Donne un nom au poste.');
-      A.postes.push({ id: uid('po'), nom: n });
-      return `Nouveau poste « ${n} » dans « ${A.u.nom} » : à pourvoir`;
+      const po: Poste = { id: uid('po'), nom: n };
+      A.postes.push(po);
+      lierNoms(m, A.u.id, [po.id]);
+      return `Nouveau poste « ${n} » dans « ${A.u.nom} »${po.titulaire ? '' : ' : à pourvoir'}`;
     }
     const po = A.postes.find((x) => x.id === op.posteId);
     if (!po) throw new Error('Ce poste n’existe plus.');
@@ -545,6 +605,7 @@ export function appliquer(m: Monde, op: OpOrga): string {
       }
       const ancien = po.nom;
       po.nom = n;
+      lierNoms(m, A.u.id, [po.id]);
       return `Poste « ${ancien} » renommé « ${n} »`;
     }
     const t = retirerPoste(A.d, po);
@@ -571,13 +632,19 @@ export function suivre(m: Monde, id: string, avant: AppData) {
   const liens = etatLiens({ ...m, data: new Map(m.data).set(id, avant) });
   const ben = roleBenevole(d.roles);
   const benevole = (p: Person) => !p.roles.includes(ADMIN_ROLE_ID) && p.roles.length > 0 && p.roles.every((r) => r === ben) && ben !== roleResponsable(d.roles);
+  // Postes créés ou renommés : liés ensuite à l'entité qui porte leur nom.
+  const nommes: string[] = [];
   const occuper = (p: Person, nom: string) => {
     if (GENERIQUE.test(nom) || postes.some((po) => po.titulaire === p.id && cle(po.nom) === cle(nom))) return;
     // Le titre d'un ★ (« Président ») n'est pas un poste.
     if (p.roles.includes(ADMIN_ROLE_ID) && cle(nom) === cle(p.poste)) return;
     const libre = postes.find((po) => !po.titulaire && cle(po.nom) === cle(nom));
     if (libre) libre.titulaire = p.id;
-    else postes.push({ id: uid('po'), nom, titulaire: p.id });
+    else {
+      const po = { id: uid('po'), nom, titulaire: p.id };
+      postes.push(po);
+      nommes.push(po.id);
+    }
   };
   for (const p of d.people) {
     const tient = postes.filter((po) => po.titulaire === p.id);
@@ -597,26 +664,13 @@ export function suivre(m: Monde, id: string, avant: AppData) {
     for (const po of tient) {
       if (apres.some((x) => cle(x) === cle(po.nom))) continue;
       const nouveau = ajoutees.shift();
-      if (nouveau) po.nom = nouveau;
-      else po.titulaire = undefined;
+      if (nouveau) {
+        po.nom = nouveau;
+        nommes.push(po.id);
+      } else po.titulaire = undefined;
     }
     for (const nom of ajoutees) occuper(p, nom);
   }
   synchroniser(m, liens);
-}
-
-/**
- * Lier ce poste au ★ de l'entité `lien` demande un choix : le poste a un titulaire, l'entité un autre ★ qui n'est pas
- * déjà lié par un autre poste (sinon le titulaire devient simplement co-responsable).
- */
-export function conflitLien(units: OrgUnit[], uniteId: string, posteId: string, lien: string): { titulaire: string; etoile: string } | null {
-  const a = units.find((u) => u.id === uniteId);
-  const c = units.find((u) => u.id === lien);
-  const po = a?.postes?.find((x) => x.id === posteId);
-  const h = po?.titulaire ? a?.membres.find((x) => x.id === po.titulaire) : undefined;
-  const etoiles = c?.membres.filter((x) => x.admin) ?? [];
-  if (!a || !h || etoiles.some((e) => memeQui(e, h))) return null;
-  const pris = (a.postes ?? []).flatMap((x) => (x.id !== posteId && x.lien === lien && x.titulaire ? a.membres.filter((y) => y.id === x.titulaire) : []));
-  const libre = etoiles.find((e) => !pris.some((p) => memeQui(p, e)));
-  return libre ? { titulaire: nomDe(h), etoile: nomDe(libre) } : null;
+  lierNoms(m, id, nommes);
 }

@@ -2,7 +2,7 @@ import { Children, useEffect, useRef, useState, type PointerEvent as ReactPointe
 import { useClub } from '../data/club';
 import { norm } from '../data/csv';
 import { groupesLies } from '../data/liens';
-import { benevolesDe, conflitLien, fonctionsLibres, memeQui, nomDe, zonesFiche, type Depuis, type OpOrga, type Qui, type Vers } from '../data/organigramme';
+import { benevolesDe, fonctionsLibres, memeQui, nomDe, zonesFiche, type Depuis, type LigneFiche, type OpOrga, type Qui, type Vers } from '../data/organigramme';
 import { CENTRAL_ACCESS, centralAccess, UNIT_COLORS, UNIT_TYPES } from '../data/units';
 import { fmtRange, posteBesideName } from '../data/utils';
 import type { OrgMember, OrgUnit, Poste } from '../data/types';
@@ -41,9 +41,21 @@ export function coupure(rangees: { texte: string }[]) {
   return k;
 }
 
-/** Ligne d'un poste de la fiche (son titulaire, ou « à pourvoir ») : rangées de la zone « Responsables ». */
+/** Les postes d'une ligne : celui que son nom dit déjà (« Vice-président » au poste de vice-président), et les autres, à la suite. */
+export function partsLigne(m: OrgMember, postes: Poste[]) {
+  const nom = nomDe(m);
+  const cache = postes.find((x) => !posteBesideName(nom, x.nom));
+  return { nom, cache, autres: postes.filter((x) => x !== cache) };
+}
+
+/** Rangées de la zone « Responsables » : une par personne (clé, et celles de ses postes : départs des câbles), ou poste à pourvoir. */
 export const rangeesPostes = (u: OrgUnit) =>
-  zonesFiche(u).postes.map(({ poste, m }) => ({ cle: `poste:${poste.id}`, texte: m ? `${nomDe(m)} · ${poste.nom}` : `${poste.nom} · à pourvoir` }));
+  zonesFiche(u).lignes.map(({ m, postes }) => {
+    const cles = postes.map((x) => `poste:${x.id}`);
+    if (!m) return { cle: cles[0], cles, texte: `${postes[0].nom} · à pourvoir` };
+    const { nom, autres } = partsLigne(m, postes);
+    return { cle: `resp:${m.id}`, cles, texte: [nom, ...autres.map((x) => x.nom)].join(' · ') };
+  });
 
 // ---------- Glisser-déposer ----------
 
@@ -57,6 +69,8 @@ export interface Prise {
   poste?: string;
   /** Pilule de la recherche (la reconnaître « en main »). */
   cle?: string;
+  /** Glissée avec Ctrl / Alt : posée sans quitter sa fiche (copie). */
+  copie?: boolean;
 }
 
 /** Une zone où poser (attribut data-cible) : « entité|titre », « entité|etoile|fiche », « entité|poste|poste », « entité|nouveau », « entité|benevoles », « corbeille ». */
@@ -90,20 +104,25 @@ export interface Glisser {
 /**
  * Glisser une personne : elle suit le pointeur (la page défile près des bords) ; lâchée sur une zone (data-cible) où
  * `peut`, `deposer` est appelé. Échap annule. « En main » (après un toucher) : un toucher sur une zone la pose.
+ * Ctrl (ou Alt, ⌘) enfoncé pendant le glisser : copie, elle reste aussi dans sa fiche (la prise n'a plus de `depuis`).
  */
 export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; deposer: (p: Prise, cible: string) => void; libelle: (p: Prise, cible: string) => string }): Glisser {
   const [glisse, setGlisse] = useState<Prise | null>(null);
   const [enMain, setEnMain] = useState<Prise | null>(null);
   const [survol, setSurvol] = useState<string | null>(null);
+  const [copie, setCopie] = useState(false);
+  const copieRef = useRef(false);
   const pointeur = useRef<Point>([0, 0]);
   const juste = useRef(false);
   const viser = useRef(() => {});
   const fns = useRef(opts);
   fns.current = opts;
 
+  /** Ce qu'on posera : copiée, elle ne quitte pas sa fiche. */
+  const posee = (p: Prise): Prise => (copieRef.current && p.depuis ? { ...p, depuis: undefined, copie: true } : p);
   const zone = (p: Prise, x: number, y: number) => {
     const c = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-cible]')?.dataset.cible ?? null;
-    return c && fns.current.peut(p, c) ? c : null;
+    return c && fns.current.peut(posee(p), c) ? c : null;
   };
 
   const commencer: Glisser['commencer'] = (e, prise, partout = false) => {
@@ -123,13 +142,24 @@ export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; d
       window.removeEventListener('pointerup', fin);
       window.removeEventListener('pointercancel', annule);
       window.removeEventListener('keydown', echap);
+      window.removeEventListener('keyup', touche);
       document.body.classList.remove('glisse-en-cours');
+      copieRef.current = false;
+      setCopie(false);
       setGlisse(null);
       setSurvol(null);
+    };
+    const copier = (k: boolean) => {
+      if (k === copieRef.current) return;
+      copieRef.current = k;
+      setCopie(k);
+      vise();
     };
     const bouge = (ev: PointerEvent) => {
       if (ev.pointerId !== id) return;
       pointeur.current = [ev.clientX, ev.clientY];
+      copieRef.current = ev.ctrlKey || ev.altKey || ev.metaKey;
+      setCopie(copieRef.current);
       if (!p) {
         if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
         p = prise();
@@ -142,7 +172,7 @@ export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; d
     };
     const fin = (ev: PointerEvent) => {
       if (ev.pointerId !== id) return;
-      const [c, q] = [cible, p];
+      const [c, q] = [cible, p && posee(p)];
       arreter();
       if (!q) return;
       juste.current = true;
@@ -150,11 +180,23 @@ export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; d
       if (c) fns.current.deposer(q, c);
     };
     const annule = (ev: PointerEvent) => ev.pointerId === id && arreter();
-    const echap = (ev: KeyboardEvent) => ev.key === 'Escape' && arreter();
+    const MODIF = ['Control', 'Alt', 'Meta'];
+    const echap = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') return arreter();
+      if (!p || !MODIF.includes(ev.key)) return;
+      ev.preventDefault();
+      copier(true);
+    };
+    const touche = (ev: KeyboardEvent) => {
+      if (!p || !MODIF.includes(ev.key)) return;
+      ev.preventDefault();
+      copier(ev.ctrlKey || ev.altKey || ev.metaKey);
+    };
     window.addEventListener('pointermove', bouge);
     window.addEventListener('pointerup', fin);
     window.addEventListener('pointercancel', annule);
     window.addEventListener('keydown', echap);
+    window.addEventListener('keyup', touche);
   };
 
   // En main : un toucher sur une zone de l'organigramme la pose ; ailleurs dans l'arbre, rien ne s'ouvre. Échap : lâcher.
@@ -191,8 +233,14 @@ export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; d
     justeGlisse: () => juste.current,
     volant: glisse && (
       <>
-        <Volant prise={glisse} action={survol ? fns.current.libelle(glisse, survol) : ''} pointeur={pointeur} onDefile={() => viser.current()} />
-        {glisse.depuis && (
+        <Volant
+          prise={glisse}
+          copie={copie && !!glisse.depuis}
+          action={survol ? fns.current.libelle(posee(glisse), survol) : ''}
+          pointeur={pointeur}
+          onDefile={() => viser.current()}
+        />
+        {glisse.depuis && !copie && (
           <div className={`glisse-corbeille ${survol === 'corbeille' ? 'survol' : ''}`} data-cible="corbeille">
             🗑 Retirer de la fiche
           </div>
@@ -203,7 +251,7 @@ export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; d
 }
 
 /** La personne glissée, sous le pointeur, avec ce qui se passera si on la lâche ici. */
-function Volant({ prise, action, pointeur, onDefile }: { prise: Prise; action: string; pointeur: RefObject<Point>; onDefile: () => void }) {
+function Volant({ prise, copie, action, pointeur, onDefile }: { prise: Prise; copie: boolean; action: string; pointeur: RefObject<Point>; onDefile: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
   const defile = useRef(onDefile);
   defile.current = onDefile;
@@ -230,8 +278,9 @@ function Volant({ prise, action, pointeur, onDefile }: { prise: Prise; action: s
       <span className="orga-pilule on">
         <Initials prenom={prise.qui.prenom} nom={prise.qui.nom} couleur={prise.couleur} size={20} />
         <b>{prise.nom}</b>
+        {copie && <span className="glisse-copie" title="Copie : elle reste aussi dans sa fiche">＋</span>}
       </span>
-      {action && <span className="glisse-action">{action}</span>}
+      {action && <span className="glisse-action">{copie ? `Copie · ${action}` : action}</span>}
     </div>
   );
 }
@@ -346,8 +395,7 @@ export interface OrgaVue {
   /** On peut modifier cette fiche (admins de l'entité ou du comité central). */
   peut: (u: OrgUnit) => boolean;
   glisser: Glisser;
-  /** ⛓ tiré d'un poste jusqu'à une autre fiche : le lier à son ★. */
-  lier: { commencer: (e: ReactPointerEvent<HTMLElement>, u: OrgUnit, p: Poste) => void; tireJuste: () => boolean; survol: string | null; tir: boolean };
+  /** Réglages d'un poste : nom, lien, suppression. */
   onPoste: (u: OrgUnit, p: Poste) => void;
   onNouveauPoste: (u: OrgUnit) => void;
   deplies: Set<string>;
@@ -364,8 +412,9 @@ export interface ActionsFiche {
 }
 
 /**
- * Une entité : titre (nom, ★), responsables (un poste par ligne, vacant en rouge, ⛓ lié au ★ d'une autre entité),
- * bénévoles (repliés). En mode « Modifier » : poignées ⠿, zones où poser, ⛓ à tirer, « ＋ Poste », ⚙️.
+ * Une entité : titre (nom, ★ avec leurs postes), responsables (une ligne par personne avec tous ses postes ; un poste à
+ * pourvoir, en rouge, sur sa ligne ; ⛓ lié au ★ d'une autre entité), bénévoles (repliés). Chaque personne n'y figure
+ * qu'une fois. En mode « Modifier » : poignées ⠿, zones où poser (chaque poste en est une), « ＋ Poste », ⚙️.
  */
 export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a: ActionsFiche; deplacer?: Deplacer; grande?: boolean }) {
   const club = useClub();
@@ -402,6 +451,91 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
           ),
         }
       : { onPointerDown: undefined, poignee: null };
+  /** ⛓ d'un poste lié au ★ d'une autre entité (le câble part d'ici). */
+  const lieA = (poste: Poste) => (poste.lien ? club.units.find((x) => x.id === poste.lien && !x.archive) : undefined);
+  const chaine = (poste: Poste) => {
+    const c = lieA(poste);
+    return c && <span className="ligne-lie" style={{ color: c.couleur }} title={`Lié au ★ de « ${c.nom} » : changer l’un change l’autre`} aria-label={`lié à ${c.nom}`}>⛓</span>;
+  };
+  // Un clic sur un poste : ses réglages en mode « Modifier » (nom, lien, suppression), sinon la fiche de la personne.
+  const clicPoste = (m: OrgMember | undefined, poste: Poste) => (peut ? () => o.onPoste(u, poste) : m ? () => a.onPersonne(m) : undefined);
+  /** Un poste à la suite d'un nom : zone où poser (on prend sa place), à glisser (la personne quitte ce poste). */
+  const segment = (m: OrgMember, poste: Poste) => {
+    const { onPointerDown } = tirer(m, { uniteId: u.id, personId: m.id, zone: 'poste', posteId: poste.id }, poste.nom);
+    const cache = !posteBesideName(nomDe(m), poste.nom);
+    const clic = clicPoste(m, poste);
+    return (
+      <span
+        key={poste.id}
+        className={`ligne-poste ${cache ? 'cache' : ''} ${sur(`poste|${poste.id}`)}`}
+        data-ligne={k(`poste:${poste.id}`)}
+        data-cible={cible(`poste|${poste.id}`)}
+        title={peut ? `${poste.nom} : glisser quelqu’un ici pour qu’il prenne ce poste ; clic : ses réglages` : undefined}
+        onPointerDown={
+          onPointerDown &&
+          ((e) => {
+            e.stopPropagation();
+            onPointerDown(e);
+          })
+        }
+        onClick={(e) => {
+          e.stopPropagation();
+          if (!g.justeGlisse()) clic?.();
+        }}
+      >
+        {/* Le poste que le nom dit déjà (« Vice-président ») : seulement son ⛓ (ou ✎ pour le régler). */}
+        {cache ? (
+          lieA(poste) ? chaine(poste) : peut && <span className="ligne-regler" aria-label={`Réglages du poste « ${poste.nom} »`}>✎</span>
+        ) : (
+          <>
+            {' · '}
+            {poste.nom}
+            {chaine(poste)}
+          </>
+        )}
+      </span>
+    );
+  };
+  /** Une ligne des responsables : la personne et tous ses postes, ou un poste à pourvoir. */
+  const ligne = ({ m, postes }: LigneFiche) => {
+    if (!m) {
+      const poste = postes[0];
+      const clic = clicPoste(undefined, poste);
+      return (
+        <button
+          key={poste.id}
+          type="button"
+          data-ligne={k(`poste:${poste.id}`)}
+          data-cible={cible(`poste|${poste.id}`)}
+          className={`poste vacant ${clic ? '' : 'inerte'} ${sur(`poste|${poste.id}`)}`}
+          onClick={() => !g.justeGlisse() && clic?.()}
+        >
+          {poste.nom}
+          {chaine(poste)}
+          <span className="autres"> · à pourvoir</span>
+        </button>
+      );
+    }
+    // Le nom porte le poste qu'il dit déjà, sinon le premier : on le glisse, on pose dessus.
+    const { nom, cache } = partsLigne(m, postes);
+    const base = cache ?? postes[0];
+    const { onPointerDown, poignee } = tirer(m, { uniteId: u.id, personId: m.id, zone: 'poste', posteId: base.id }, base.nom);
+    return (
+      <button
+        key={m.id}
+        type="button"
+        data-ligne={k(`resp:${m.id}`)}
+        data-cible={cible(`poste|${base.id}`)}
+        className={`poste ${peut ? 'tirable' : ''} ${sur(`poste|${base.id}`)}`}
+        onPointerDown={onPointerDown}
+        onClick={() => !g.justeGlisse() && a.onPersonne(m)}
+      >
+        {poignee}
+        {nom}
+        {postes.map((x) => segment(m, x))}
+      </button>
+    );
+  };
   const n = z.benevoles.length;
   const texte = (
     <>
@@ -422,7 +556,7 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
   );
   return (
     <div
-      className={`arbre-noeud fiche ${grande ? 'grande' : ''} ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${deplacer ? 'deplacable' : ''} ${pose ? 'fiche-pose' : ''} ${o.lier.tir && o.lier.survol === u.id ? 'cablage-survol' : ''}`}
+      className={`arbre-noeud fiche ${grande ? 'grande' : ''} ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${deplacer ? 'deplacable' : ''} ${pose ? 'fiche-pose' : ''}`}
       style={{ borderTopColor: u.couleur }}
       data-noeud={u.id}
       onPointerDown={deplacer?.onPointerDown}
@@ -444,9 +578,10 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
           <div className="arbre-tete">{texte}</div>
         )}
         <div className="fiche-etoiles">
-          {z.etoiles.map((m) => {
+          {z.etoiles.map(({ m, postes }) => {
             const { onPointerDown, poignee } = tirer(m, { uniteId: u.id, personId: m.id, zone: 'titre' });
             const titre = m.poste || t.chef;
+            const nom = nomDe(m);
             // ★ lié : il tient un poste d'une autre entité lié à celle-ci (co-responsables : un poste chacun).
             const lie = club.units
               .filter((v) => !v.archive && v.id !== u.id)
@@ -465,8 +600,9 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
                 {poignee}
                 {lie && <span className="fiche-lie" style={{ color: lie.v.couleur }} aria-label={`lié à ${lie.v.nom}`}>⛓</span>}
                 <span className="org-star">★ </span>
-                {nomDe(m)}
-                {posteBesideName(nomDe(m), titre) && <span className="autres"> · {titre}</span>}
+                {nom}
+                {posteBesideName(nom, titre) && <span className="autres"> · {titre}</span>}
+                {postes.map((x) => segment(m, x))}
               </button>
             );
           })}
@@ -474,63 +610,11 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
         </div>
       </div>
       {/* Responsables : un poste par ligne ; poser une personne sur un poste le lui donne, à côté : un nouveau poste. */}
-      {(z.postes.length > 0 || peut) && (
+      {(z.lignes.length > 0 || peut) && (
         <div className={`fiche-zone fiche-resp ${sur('nouveau')}`} data-cible={cible('nouveau')}>
           {peut && <span className="fiche-zone-titre">Responsables</span>}
           <Postes deux={grande ? coupure(rangeesPostes(u)) : 0}>
-            {z.postes.map(({ poste, m }) => {
-              const lie = poste.lien ? club.units.find((x) => x.id === poste.lien && !x.archive) : undefined;
-              const { onPointerDown, poignee } = m ? tirer(m, { uniteId: u.id, personId: m.id, zone: 'poste', posteId: poste.id }, poste.nom) : { onPointerDown: undefined, poignee: null };
-              // Un nom ouvre sa fiche ; un poste à pourvoir, ses réglages (aussi par son ⛓).
-              const clic = m ? () => a.onPersonne(m) : peut ? () => o.onPoste(u, poste) : undefined;
-              return (
-                <button
-                  key={poste.id}
-                  type="button"
-                  data-ligne={k(`poste:${poste.id}`)}
-                  data-cible={cible(`poste|${poste.id}`)}
-                  className={`poste ${m ? '' : 'vacant'} ${onPointerDown ? 'tirable' : ''} ${clic ? '' : 'inerte'} ${sur(`poste|${poste.id}`)}`}
-                  title={lie ? `Lié au ★ de « ${lie.nom} » : changer l’un change l’autre` : undefined}
-                  onPointerDown={onPointerDown}
-                  onClick={() => !g.justeGlisse() && !o.lier.tireJuste() && clic?.()}
-                >
-                  {poignee}
-                  {peut ? (
-                    <span
-                      className={`fiche-lier ${lie ? 'lie' : ''}`}
-                      style={lie ? { color: lie.couleur } : undefined}
-                      data-prise
-                      role="button"
-                      aria-label={`Réglages du poste « ${poste.nom} »`}
-                      title={`Réglages du poste (nom, lien, suppression) · tirer jusqu’à une autre fiche : ce poste sera lié à son ★${lie ? ` (lié à « ${lie.nom} »)` : ''}`}
-                      onPointerDown={(e) => {
-                        e.stopPropagation();
-                        o.lier.commencer(e, u, poste);
-                      }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!o.lier.tireJuste() && !g.justeGlisse()) o.onPoste(u, poste);
-                      }}
-                    >
-                      ⛓
-                    </span>
-                  ) : (
-                    lie && <span className="fiche-lie" style={{ color: lie.couleur }} aria-label={`lié à ${lie.nom}`}>⛓</span>
-                  )}
-                  {m ? (
-                    <>
-                      {nomDe(m)}
-                      {posteBesideName(nomDe(m), poste.nom) && <span className="autres"> · {poste.nom}</span>}
-                    </>
-                  ) : (
-                    <>
-                      {poste.nom}
-                      <span className="autres"> · à pourvoir</span>
-                    </>
-                  )}
-                </button>
-              );
-            })}
+            {z.lignes.map((l) => ligne(l))}
           </Postes>
           {peut && (
             <button type="button" className="fiche-ajout" title="Ajouter un poste, à pourvoir" onClick={() => o.onNouveauPoste(u)}>
@@ -620,24 +704,19 @@ export function NomPosteModal({ u, qui, defaut, onOk, onClose }: { u: OrgUnit; q
 }
 
 /** Un poste : son nom, son lien au ★ d'une autre entité, sa suppression ; la fiche de son titulaire. */
-export function PosteModal({ u, poste, units, lienPropose, faire, onPersonne, onClose }: {
+export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
   u: OrgUnit;
   poste: Poste;
   units: OrgUnit[];
-  /** Entité où l'on vient de tirer le ⛓ (lien à confirmer). */
-  lienPropose?: string;
   faire: (op: OpOrga[]) => Promise<boolean>;
   onPersonne: (m: OrgMember) => void;
   onClose: () => void;
 }) {
   const [nom, setNom] = useState(poste.nom);
-  const [lien, setLien] = useState(lienPropose ?? poste.lien ?? '');
-  const [garde, setGarde] = useState<'titulaire' | 'etoile'>('titulaire');
+  const [lien, setLien] = useState(poste.lien ?? '');
   const [busy, setBusy] = useState(false);
   const m = poste.titulaire ? u.membres.find((x) => x.id === poste.titulaire) : undefined;
   const autres = units.filter((x) => !x.archive && x.id !== u.id);
-  const conflit = lien && lien !== poste.lien ? conflitLien(units, u.id, poste.id, lien) : null;
-  const cible = units.find((x) => x.id === lien);
   const go = async (ops: OpOrga[]) => {
     setBusy(true);
     if (await faire(ops)) onClose();
@@ -646,7 +725,7 @@ export function PosteModal({ u, poste, units, lienPropose, faire, onPersonne, on
   const enregistrer = () => {
     const ops: OpOrga[] = [];
     if (nom.trim() && nom.trim() !== poste.nom) ops.push({ type: 'renommer', uniteId: u.id, posteId: poste.id, nom: nom.trim() });
-    if ((lien || null) !== (poste.lien ?? null)) ops.push({ type: 'lier', uniteId: u.id, posteId: poste.id, lien: lien || null, garde: conflit ? garde : undefined });
+    if ((lien || null) !== (poste.lien ?? null)) ops.push({ type: 'lier', uniteId: u.id, posteId: poste.id, lien: lien || null });
     if (!ops.length) return onClose();
     void go(ops);
   };
@@ -677,19 +756,8 @@ export function PosteModal({ u, poste, units, lienPropose, faire, onPersonne, on
             <option value="">— Aucune entité —</option>
             {autres.map((x) => <option key={x.id} value={x.id}>{UNIT_TYPES[x.type].icon} {x.nom}</option>)}
           </select>
-          <small className="muted">Le titulaire de ce poste est alors ★ de cette entité : changer l’un change l’autre, automatiquement. Plusieurs postes liés à la même entité : autant de co-responsables (★).</small>
+          <small className="muted">Le titulaire de ce poste est ★ de cette entité : changer l’un change l’autre, automatiquement. Fait tout seul quand le poste porte le nom d’une entité.</small>
         </label>
-        {conflit && cible && (
-          <fieldset className="full cablage-actuels">
-            <legend>Qui occupe les deux ?</legend>
-            <label className="inline">
-              <input type="radio" checked={garde === 'titulaire'} onChange={() => setGarde('titulaire')} /> {conflit.titulaire} (devient aussi ★ de « {cible.nom} », co-responsable)
-            </label>
-            <label className="inline">
-              <input type="radio" checked={garde === 'etoile'} onChange={() => setGarde('etoile')} /> {conflit.etoile} (★ de « {cible.nom} », prend ce poste)
-            </label>
-          </fieldset>
-        )}
       </div>
       <div className="modal-foot">
         <button

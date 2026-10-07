@@ -1115,12 +1115,14 @@ body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-s
 .fiche-plier:hover { color: var(--primary); background: var(--primary-soft); }
 .fiche-plier .autres { font-size: 0.74rem; }
 .fiche-liste { padding: 2px 0 0 10px; }
-/* ⛓ : à tirer jusqu'à une autre fiche (mode « Modifier »), ou poste déjà lié (couleur de l'entité liée). */
-.fiche-lier, .fiche-lie { float: right; margin: -1px -4px -1px 4px; padding: 0 3px; font-size: 0.78rem; line-height: 1.35; border-radius: 4px; }
-.fiche-lier { color: var(--muted); opacity: 0.55; cursor: pointer; touch-action: none; }
-.fiche-lier:hover { background: var(--surface2); }
-.fiche .poste:hover .fiche-lier, .fiche-lier:hover { opacity: 1; color: var(--primary); }
-.fiche-lie, .fiche-lier.lie { font-weight: 700; opacity: 1; }
+/* ⛓ : poste lié au ★ d'une autre entité (couleur de l'entité liée), sur le poste et sur la ligne du ★.
+   Une ligne par personne : ses postes à la suite de son nom (chacun : zone où poser, ⛓ s'il est lié). */
+.fiche-lie { float: right; margin: -1px -4px -1px 4px; padding: 0 3px; font-size: 0.78rem; font-weight: 700; line-height: 1.35; }
+.ligne-poste { color: var(--muted); font-weight: 400; border-radius: 4px; }
+.ligne-poste[title]:hover { color: var(--primary); text-decoration: underline; }
+.ligne-lie { margin-left: 3px; font-size: 0.78rem; font-weight: 700; }
+.ligne-regler { margin-left: 4px; padding: 0 3px; font-size: 0.78rem; color: var(--muted); opacity: 0.6; border-radius: 4px; }
+.ligne-regler:hover, .ligne-poste:hover .ligne-regler { opacity: 1; color: var(--primary); background: var(--surface2); }
 /* Poignée ⠿ : glisser au doigt (la page ne défile pas), ou toucher pour la prendre en main. */
 .fiche-prise { float: right; position: relative; width: 20px; height: 18px; margin: -1px -4px -1px 2px; color: var(--muted); touch-action: none; cursor: grab; }
 .fiche-prise::after { content: ''; position: absolute; right: 5px; top: 4px; width: 8px; height: 11px; background: radial-gradient(circle, currentColor 1.1px, transparent 1.5px) 0 0 / 4px 3.6px; }
@@ -1134,6 +1136,7 @@ body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-s
 body.glisse-en-cours, body.glisse-en-cours * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 .glisse-volant { position: fixed; left: 0; top: 0; z-index: 70; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; will-change: transform; }
 .glisse-volant .orga-pilule { box-shadow: 0 8px 22px rgb(0 0 0 / 0.22); }
+.glisse-copie { display: inline-grid; place-items: center; width: 18px; height: 18px; margin-left: 2px; font-size: 0.8rem; font-weight: 800; color: #fff; background: var(--success, #16a34a); border-radius: 50%; }
 .glisse-action { max-width: 260px; padding: 3px 8px; font-size: 0.78rem; font-weight: 600; color: #fff; background: var(--primary); border-radius: 6px; box-shadow: 0 4px 12px rgb(0 0 0 / 0.18); }
 .glisse-corbeille { position: fixed; left: 50%; bottom: 24px; z-index: 65; transform: translateX(-50%); padding: 12px 22px; font-weight: 600; color: var(--danger); background: var(--surface); border: 2px dashed var(--danger); border-radius: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); }
 .glisse-corbeille.survol { color: #fff; background: var(--danger); border-style: solid; }

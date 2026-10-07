@@ -5,7 +5,7 @@ import { unitData } from './units';
 import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
 import { membresPropres, synchroLiens } from './liens';
-import { convertirPostes, suivre } from './organigramme';
+import { convertirPostes, lierEntite, suivre } from './organigramme';
 import type { AppData, ClubEvent, ClubMembre, Meeting, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
@@ -128,9 +128,9 @@ function seedUnit(u: Unit): AppData {
 /**
  * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro
  * (v2 : postes au lieu des noms, sans tâches ; v3 : une caisse dans chaque entité ; v5 : deux co-responsables du groupe
- * compétition).
+ * compétition ; v6 : postes liés par leur nom, une ligne par personne).
  */
-const DEMO_VERSION = '5';
+const DEMO_VERSION = '6';
 const VERSION_KEY = 'taches-gsa-demo-version';
 /** Démo v2 déjà enregistrée : accès du comité central des entités de départ ajouté une fois (sans remise à zéro). */
 const ACCESS_KEY = 'taches-gsa-demo-acces-central';
@@ -224,6 +224,26 @@ export function suivrePostes(id: string, avant: AppData, d: AppData): { d: AppDa
   }
   const ici = JSON.stringify(data.get(id)) !== brut.get(id);
   return { d: ici ? data.get(id)! : d, ici, autres };
+}
+
+/**
+ * Entité créée ou renommée : les postes qui portent son nom, dans les autres entités, lui sont liés, et leurs titulaires
+ * en deviennent ★ (data/organigramme, lierEntite). Renvoie les entités modifiées (enregistrées).
+ */
+export function lierEntiteDemo(id: string): string[] {
+  const units = loadUnits();
+  const data = new Map(units.map((u) => [u.id, loadUnitData(u.id)]));
+  if (!data.get(id)?.postes) return [];
+  const brut = new Map([...data].map(([k, v]) => [k, JSON.stringify(v)]));
+  lierEntite({ units, data, notes: [] }, id);
+  const changees = units.filter((u) => JSON.stringify(data.get(u.id)) !== brut.get(u.id)).map((u) => u.id);
+  for (const k of changees) {
+    const x = data.get(k)!;
+    const n = synchroDemo(k, x);
+    saveUnitData(k, lierFiches(k, n ?? x));
+  }
+  for (const k of changees) propagerLiens(k);
+  return changees;
 }
 
 /** Personne connectée à la démo (son adresse email) ; reprend l'ancienne connexion par fiche du comité central. */

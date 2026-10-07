@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
 import { arbreEntites, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
-import type { CentralAccess, OrgMember, OrgUnit, Poste, Unit, UnitType } from '../data/types';
+import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
 import { fmtRange } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
 import { ADMIN_ROLE_ID } from '../data/permissions';
@@ -16,7 +16,7 @@ import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Pers
 import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensPostes, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
 import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
 import { coupure, EnMain, Fiche, lireCible, NomPosteModal, PosteModal, Postes, rangeesPostes, Recherche, useGlisser, type OrgaVue, type Prise } from '../components/Organiser';
-import { benevolesDe, conflitLien, nomDe, type OpOrga } from '../data/organigramme';
+import { benevolesDe, nomDe, type OpOrga } from '../data/organigramme';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
 // Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
@@ -143,7 +143,7 @@ export function Org() {
       return n;
     });
   const [nommer, setNommer] = useState<{ uniteId: string; prise?: Prise } | null>(null);
-  const [posteOuvert, setPosteOuvert] = useState<{ uniteId: string; posteId: string; lienPropose?: string } | null>(null);
+  const [posteOuvert, setPosteOuvert] = useState<{ uniteId: string; posteId: string } | null>(null);
   const [fait, setFait] = useState<{ message: string; annuler?: () => Promise<void>; erreur?: boolean } | null>(null);
   useEffect(() => {
     if (!fait) return;
@@ -218,29 +218,11 @@ export function Org() {
       void faire({ type: 'placer', qui: p.qui, depuis: p.depuis, vers: v });
     },
   });
-  // ⛓ tiré d'un poste jusqu'à une autre fiche : le poste est lié à son ★ (si le poste et l'entité ont chacun quelqu'un : choisir).
-  const lierDe = useRef('');
-  const lierTirage = useTirage<{ u: OrgUnit; poste: Poste }>(
-    (id, { u, poste }) => {
-      if (conflitLien(units, u.id, poste.id, id)) setPosteOuvert({ uniteId: u.id, posteId: poste.id, lienPropose: id });
-      else void faire({ type: 'lier', uniteId: u.id, posteId: poste.id, lien: id });
-    },
-    (id) => id !== lierDe.current && units.some((x) => x.id === id && !x.archive),
-  );
   const vue: OrgaVue | undefined = orga
     ? {
         edition,
         peut: peutFiche,
         glisser,
-        lier: {
-          commencer: (e, u, poste) => {
-            lierDe.current = u.id;
-            lierTirage.commencer(e, () => ({ u, poste }));
-          },
-          tireJuste: lierTirage.tireJuste,
-          survol: lierTirage.survol,
-          tir: lierTirage.tir,
-        },
         onPoste: (u, p) => setPosteOuvert({ uniteId: u.id, posteId: p.id }),
         onNouveauPoste: (u) => setNommer({ uniteId: u.id }),
         deplies,
@@ -333,9 +315,9 @@ export function Org() {
       {edition && orga ? (
         <p className="org-edition">
           <b>✏️ Modification</b>
-          <span>Glisse une personne sur le titre d’une fiche (★), sur un poste ou dans ses bénévoles (au doigt : par sa poignée ⠿, ou touche-la puis touche la zone).</span>
+          <span>Glisse une personne sur le titre d’une fiche (★), sur un poste ou dans ses bénévoles (au doigt : par sa poignée ⠿, ou touche-la puis touche la zone). Elle quitte sa fiche ; avec Ctrl (ou Alt) enfoncé, elle y reste aussi.</span>
           <span>Pour placer quelqu’un d’autre : cherche-le en haut à gauche.</span>
-          <span>Tire le ⛓ d’un poste jusqu’à une autre fiche : il sera lié à son ★ (un clic sur ⛓ : nom, lien ou suppression du poste).</span>
+          <span>Un poste qui porte le nom d’une entité y est lié tout seul ; un clic sur un poste : son nom, son lien, sa suppression.</span>
           {active.some((u) => club.canManage || u.moiAdmin) && <span>Déplace une carte en la tirant par son nom.</span>}
         </p>
       ) : edition ? (
@@ -372,7 +354,7 @@ export function Org() {
       {vue ? (
         <p className="arbre-legende muted small-note">
           <span>★ titre de la fiche (président, responsable)</span>
-          <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité : changer l’un change l’autre</span>
+          <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité (même nom) : changer l’un change l’autre</span>
           <span><span className="error">rouge</span> : poste à pourvoir</span>
           <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
         </p>
@@ -450,7 +432,6 @@ export function Org() {
             u={u}
             poste={poste}
             units={units}
-            lienPropose={posteOuvert.lienPropose}
             faire={faire}
             onPersonne={(m) => {
               setPosteOuvert(null);
@@ -473,7 +454,6 @@ export function Org() {
       )}
       {tirage.volant}
       {glisser.volant}
-      {lierTirage.volant}
     </div>
   );
 }
@@ -501,9 +481,9 @@ function lignesDe(u: OrgUnit, units: OrgUnit[]) {
   return { lignes, groupes, rangees };
 }
 
-/** Rang, dans l'entité mère, de la ligne d'où part un câble (sinon -1). */
-const rangDuLien = (l: LienResponsable, rangees: { cle: string }[]) => {
-  const i = rangees.findIndex((r) => r.cle === l.ligne);
+/** Rang, dans l'entité mère, de la ligne d'où part un câble (sinon -1). Fiches : une ligne porte tous les postes d'une personne. */
+const rangDuLien = (l: LienResponsable, rangees: { cle: string; cles?: string[] }[]) => {
+  const i = rangees.findIndex((r) => r.cle === l.ligne || r.cles?.includes(l.ligne));
   return i >= 0 ? i : rangees.findIndex((r) => r.cle === `lien:${l.lien}`);
 };
 
@@ -556,7 +536,8 @@ function Arbre({ units, actions, edition, orga }: { units: OrgUnit[]; actions: (
       const k = grandes.has(b.u.id) && !vertical ? coupure(r) : 0;
       const depart = new Map<string, Depart[]>();
       for (const l of liens) {
-        const rang = l.de === b.u.id ? rangDuLien(l, r) : -1;
+        // Fiches : un poste d'un ★ est sur sa ligne du titre, au-dessus des responsables.
+        const rang = l.de !== b.u.id ? -1 : orga ? Math.max(0, rangDuLien(l, r)) : rangDuLien(l, r);
         if (rang >= 0) depart.set(l.vers, [...(depart.get(l.vers) ?? []), { rang, gauche: k ? rang < k : null }]);
       }
       const relies = enfants.filter((e) => depart.has(e.u.id));
@@ -575,7 +556,7 @@ function Arbre({ units, actions, edition, orga }: { units: OrgUnit[]; actions: (
       return { u: b.u, enfants: [...o.slice(0, milieu), ...enfants.filter((e) => !depart.has(e.u.id)), ...o.slice(milieu)] };
     };
     return racines.map(ordonner);
-  }, [racines, rangees, liens, grandes, vertical]);
+  }, [racines, rangees, liens, grandes, vertical, orga]);
   const disposition = useDisposition({
     plan,
     arbre,
