@@ -13,7 +13,8 @@ import { uid } from './utils';
 // d'avant devient bénévole), dans les bénévoles elle devient simple bénévole. Glissée depuis une autre fiche, elle
 // la quitte (déplacer). Le rôle suit : Admin pour un ★, membre du comité pour un poste, bénévole sinon.
 // Un poste peut être lié au ★ d'une autre entité (ex. « Compétition » au comité central ↔ ★ du groupe compétition) :
-// son titulaire en est le ★ ; changer l'un change l'autre (synchroniser).
+// son titulaire en est ★ ; changer l'un change l'autre (synchroniser). Plusieurs postes d'une entité liés à la même
+// (ex. deux « Compétition » au comité central) : autant de co-responsables, un poste lié chacun.
 // Les fonctions des fiches (poste, autres postes) restent à jour : le reste de l'appli les lit comme avant.
 
 const cle = (s?: string) => (s ?? '').trim().toLowerCase();
@@ -348,10 +349,23 @@ function etatLiens(m: Monde): Map<string, EtatLien> {
 
 const dans = (l: Qui[], q?: Qui) => !!q && l.some((x) => memeQui(x, q));
 
+/** Titulaires (actifs) des postes de `d` liés à l'entité `c`, sauf le poste `sauf`. */
+const titulairesLies = (d: AppData, c: string, sauf?: string) =>
+  (d.postes ?? []).flatMap((x) => {
+    const p = x.id !== sauf && x.lien === c && x.titulaire ? d.people.find((y) => y.id === x.titulaire && y.actif) : undefined;
+    return p ? [p] : [];
+  });
+/** Co-responsables : les ★ de `c` qui ne tiennent pas déjà un autre poste de `d` lié à `c` (un poste lié par ★). */
+const etoilesLibres = (d: AppData, c: string, etoiles: Qui[], sauf?: string) => {
+  const pris = titulairesLies(d, c, sauf);
+  return etoiles.filter((e) => !pris.some((p) => memeQui(p, e)));
+};
+
 /**
- * Après une modification : les postes liés suivent. Le titulaire d'un poste lié a changé : il devient le ★ de l'entité
- * liée, à la place de l'ancien (qui la quitte s'il n'y a plus rien). Le ★ lié a changé : le nouveau ★ prend le poste
- * (l'ancien titulaire quitte l'entité du poste s'il n'y a plus rien) ; sans nouveau ★, le poste est à pourvoir.
+ * Après une modification : les postes liés suivent. Le titulaire d'un poste lié a changé : il devient ★ de l'entité
+ * liée, à la place de l'ancien (qui la quitte s'il n'y a plus rien). Un ★ lié n'est plus ★ : un nouveau ★ (pas déjà
+ * lié par un autre poste) prend le poste (l'ancien titulaire quitte l'entité du poste s'il n'y a plus rien) ; sinon,
+ * le poste est à pourvoir. Plusieurs postes d'une entité liés à la même : autant de co-responsables (★).
  */
 function synchroniser(m: Monde, avant: Map<string, EtatLien>) {
   for (let tour = 0; tour < 8; tour++) {
@@ -364,7 +378,8 @@ function synchroniser(m: Monde, avant: Map<string, EtatLien>) {
       const poste = A.postes.find((x) => x.id === l.poste)!;
       const pChange = l.h ? !b.h || !memeQui(b.h, l.h) : !!b.h;
       if (pChange) {
-        if (b.h && dans(l.etoiles, b.h)) {
+        // L'ancien titulaire reste ★ s'il tient encore un autre poste lié à la même entité.
+        if (b.h && dans(l.etoiles, b.h) && !titulairesLies(A.d, C.u.id, poste.id).some((p) => memeQui(p, b.h!))) {
           const x = ficheDe(C.d.people, b.h);
           if (x && estEtoile(x)) {
             retirerEtoile(C.d, x);
@@ -381,20 +396,20 @@ function synchroniser(m: Monde, avant: Map<string, EtatLien>) {
         }
         continue;
       }
-      const nouveaux = l.etoiles.filter((e) => !dans(b.etoiles, e));
       let libre = !l.h;
+      let libere = false;
       if (l.h && !dans(l.etoiles, l.h)) {
         const x = retirerPoste(A.d, poste);
         if (x) liberer(A.d, x);
-        change = libre = true;
-        if (!nouveaux.length) m.notes.push(`${poste.nom} de « ${A.u.nom} » : à pourvoir`);
+        change = libre = libere = true;
       }
-      if (libre && nouveaux.length) {
-        const p = fiche(A.d, nouveaux[0], true);
+      const n = libre ? etoilesLibres(A.d, C.u.id, l.etoiles.filter((e) => !dans(b.etoiles, e)), poste.id)[0] : undefined;
+      if (n) {
+        const p = fiche(A.d, n, true);
         donnerPoste(A.d, poste, p);
         m.notes.push(`${poste.nom} de « ${A.u.nom} » : ${nomDe(p)}`);
         change = true;
-      }
+      } else if (libere) m.notes.push(`${poste.nom} de « ${A.u.nom} » : à pourvoir`);
     }
     if (!change) return;
   }
@@ -482,18 +497,22 @@ function lier(m: Monde, uniteId: string, posteId: string, lien: string | null, g
   const avant = etatLiens(m);
   const h = po.titulaire ? A.d.people.find((x) => x.id === po.titulaire && x.actif) : undefined;
   const etoiles = C.d.people.filter(estEtoile);
+  // Les ★ déjà liés par un autre poste de l'entité restent à leur poste : celui-ci va à un ★ libre, sinon son titulaire devient co-responsable.
+  const libre = etoilesLibres(A.d, C.u.id, etoiles.map(quiDe), po.id)[0];
   let suite = '';
-  if (!h && etoiles.length) {
-    donnerPoste(A.d, po, fiche(A.d, quiDe(etoiles[0]), true));
-    suite = ` : ${nomDe(etoiles[0])}`;
+  if (!h && libre) {
+    donnerPoste(A.d, po, fiche(A.d, libre, true));
+    suite = ` : ${nomDe(libre)}`;
+  } else if (!h && etoiles.length) {
+    suite = ' : à pourvoir (son titulaire sera co-responsable)';
   } else if (h && !etoiles.some((e) => memeQui(e, h))) {
-    if (etoiles.length && garde === 'etoile') {
-      const ancien = donnerPoste(A.d, po, fiche(A.d, quiDe(etoiles[0]), true));
+    if (libre && garde === 'etoile') {
+      const ancien = donnerPoste(A.d, po, fiche(A.d, libre, true));
       if (ancien) liberer(A.d, ancien);
-      suite = ` : ${nomDe(etoiles[0])}${ancien ? ` à la place de ${nomDe(ancien)}` : ''}`;
+      suite = ` : ${nomDe(libre)}${ancien ? ` à la place de ${nomDe(ancien)}` : ''}`;
     } else {
       donnerEtoile(C.d, C.u, fiche(C.d, quiDe(h), true));
-      suite = ` : ${nomDe(h)} devient ★ de « ${C.u.nom} »`;
+      suite = ` : ${nomDe(h)} devient ${etoiles.length ? 'co-responsable (★)' : '★'} de « ${C.u.nom} »`;
     }
   }
   po.lien = lien;
@@ -586,13 +605,18 @@ export function suivre(m: Monde, id: string, avant: AppData) {
   synchroniser(m, liens);
 }
 
-/** Lier ce poste au ★ de l'entité `lien` demande un choix : le poste a un titulaire, l'entité un autre ★. */
+/**
+ * Lier ce poste au ★ de l'entité `lien` demande un choix : le poste a un titulaire, l'entité un autre ★ qui n'est pas
+ * déjà lié par un autre poste (sinon le titulaire devient simplement co-responsable).
+ */
 export function conflitLien(units: OrgUnit[], uniteId: string, posteId: string, lien: string): { titulaire: string; etoile: string } | null {
   const a = units.find((u) => u.id === uniteId);
   const c = units.find((u) => u.id === lien);
   const po = a?.postes?.find((x) => x.id === posteId);
   const h = po?.titulaire ? a?.membres.find((x) => x.id === po.titulaire) : undefined;
   const etoiles = c?.membres.filter((x) => x.admin) ?? [];
-  if (!h || !etoiles.length || etoiles.some((e) => memeQui(e, h))) return null;
-  return { titulaire: nomDe(h), etoile: nomDe(etoiles[0]) };
+  if (!a || !h || etoiles.some((e) => memeQui(e, h))) return null;
+  const pris = (a.postes ?? []).flatMap((x) => (x.id !== posteId && x.lien === lien && x.titulaire ? a.membres.filter((y) => y.id === x.titulaire) : []));
+  const libre = etoiles.find((e) => !pris.some((p) => memeQui(p, e)));
+  return libre ? { titulaire: nomDe(h), etoile: nomDe(libre) } : null;
 }

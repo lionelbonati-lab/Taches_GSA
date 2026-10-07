@@ -74,7 +74,8 @@ const MEMBERS: Record<string, P[]> = {
   ],
   'u-competition': [
     ['Compétition 1', '#ea580c', 'Responsable', 'admin'],
-    ['Compétition 2', '#0891b2', 'Entraîneur', 'moniteur'],
+    // Co-responsables : chacun tient un poste « Compétition » du comité central, lié au ★ du groupe.
+    ['Compétition 2', '#0891b2', 'Responsable', 'admin'],
     ['Entraîneur route', '#4f46e5', 'Entraîneur route', 'moniteur'],
     ['Course préparation 1', '#b45309', 'Coureur', 'membre'],
     ['Coureur', '#be185d', 'Coureur', 'membre'],
@@ -126,9 +127,10 @@ function seedUnit(u: Unit): AppData {
 
 /**
  * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro
- * (v2 : postes au lieu des noms, sans tâches ; v3 : une caisse dans chaque entité).
+ * (v2 : postes au lieu des noms, sans tâches ; v3 : une caisse dans chaque entité ; v5 : deux co-responsables du groupe
+ * compétition).
  */
-const DEMO_VERSION = '4';
+const DEMO_VERSION = '5';
 const VERSION_KEY = 'taches-gsa-demo-version';
 /** Démo v2 déjà enregistrée : accès du comité central des entités de départ ajouté une fois (sans remise à zéro). */
 const ACCESS_KEY = 'taches-gsa-demo-acces-central';

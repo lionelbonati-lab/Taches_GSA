@@ -2,7 +2,7 @@ import { Children, useEffect, useRef, useState, type PointerEvent as ReactPointe
 import { useClub } from '../data/club';
 import { norm } from '../data/csv';
 import { groupesLies } from '../data/liens';
-import { benevolesDe, conflitLien, fonctionsLibres, nomDe, zonesFiche, type Depuis, type OpOrga, type Qui, type Vers } from '../data/organigramme';
+import { benevolesDe, conflitLien, fonctionsLibres, memeQui, nomDe, zonesFiche, type Depuis, type OpOrga, type Qui, type Vers } from '../data/organigramme';
 import { CENTRAL_ACCESS, centralAccess, UNIT_COLORS, UNIT_TYPES } from '../data/units';
 import { fmtRange, posteBesideName } from '../data/utils';
 import type { OrgMember, OrgUnit, Poste } from '../data/types';
@@ -447,6 +447,10 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
           {z.etoiles.map((m) => {
             const { onPointerDown, poignee } = tirer(m, { uniteId: u.id, personId: m.id, zone: 'titre' });
             const titre = m.poste || t.chef;
+            // ★ lié : il tient un poste d'une autre entité lié à celle-ci (co-responsables : un poste chacun).
+            const lie = club.units
+              .filter((v) => !v.archive && v.id !== u.id)
+              .flatMap((v) => (v.postes ?? []).filter((x) => x.lien === u.id && v.membres.some((y) => y.id === x.titulaire && memeQui(y, m))).map((x) => ({ v, x })))[0];
             return (
               <button
                 key={m.id}
@@ -454,10 +458,12 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
                 data-ligne={k(`etoile:${m.id}`)}
                 data-cible={cible(`etoile|${m.id}`)}
                 className={`poste chef ${peut ? 'tirable' : ''} ${sur(`etoile|${m.id}`)}`}
+                title={lie ? `Lié au poste « ${lie.x.nom} » de « ${lie.v.nom} » : changer l’un change l’autre` : undefined}
                 onPointerDown={onPointerDown}
                 onClick={() => !g.justeGlisse() && a.onPersonne(m)}
               >
                 {poignee}
+                {lie && <span className="fiche-lie" style={{ color: lie.v.couleur }} aria-label={`lié à ${lie.v.nom}`}>⛓</span>}
                 <span className="org-star">★ </span>
                 {nomDe(m)}
                 {posteBesideName(nomDe(m), titre) && <span className="autres"> · {titre}</span>}
@@ -671,13 +677,13 @@ export function PosteModal({ u, poste, units, lienPropose, faire, onPersonne, on
             <option value="">— Aucune entité —</option>
             {autres.map((x) => <option key={x.id} value={x.id}>{UNIT_TYPES[x.type].icon} {x.nom}</option>)}
           </select>
-          <small className="muted">Le titulaire de ce poste est alors le ★ de cette entité : changer l’un change l’autre, automatiquement.</small>
+          <small className="muted">Le titulaire de ce poste est alors ★ de cette entité : changer l’un change l’autre, automatiquement. Plusieurs postes liés à la même entité : autant de co-responsables (★).</small>
         </label>
         {conflit && cible && (
           <fieldset className="full cablage-actuels">
             <legend>Qui occupe les deux ?</legend>
             <label className="inline">
-              <input type="radio" checked={garde === 'titulaire'} onChange={() => setGarde('titulaire')} /> {conflit.titulaire} (devient aussi ★ de « {cible.nom} »)
+              <input type="radio" checked={garde === 'titulaire'} onChange={() => setGarde('titulaire')} /> {conflit.titulaire} (devient aussi ★ de « {cible.nom} », co-responsable)
             </label>
             <label className="inline">
               <input type="radio" checked={garde === 'etoile'} onChange={() => setGarde('etoile')} /> {conflit.etoile} (★ de « {cible.nom} », prend ce poste)
