@@ -11,9 +11,6 @@ import { archiveHtml, hydrateArchive } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
-import { useClubOptional } from '../data/club';
-import { avecTransmises } from '../data/transmises';
-import type { TacheTransmise } from '../data/types';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête, convoqués, tâches par section.
@@ -25,7 +22,7 @@ export const DEFAULT_PV: PvSettings = {
   titre: '',
   club: 'G.S. Ajoie – Comité',
   afficherClub: true,
-  parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true, transmises: true },
+  parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true, partagees: true },
   groupBy: 'section',
   tri: 'delai',
   separerParEcheance: false,
@@ -63,7 +60,7 @@ interface Part {
 }
 
 export function Pv() {
-  const { data, user, prefs, setPrefs, update, can } = useStore();
+  const { data, user, prefs, setPrefs, update, can, autresResp } = useStore();
   const s = withDefaults(prefs.pv);
   const set = (patch: Partial<PvSettings>) => setPrefs({ pv: { ...s, ...patch } });
   const setPart = (k: keyof PvSettings['parts'], v: boolean) => set({ parts: { ...s.parts, [k]: v } });
@@ -84,23 +81,10 @@ export function Pv() {
   const logo = useUnitLogo();
   const entete = useEntete();
 
-  // Comité central : tâches transmises par les entités, rangées sous leur événement ou la section du groupe.
-  const club = useClubOptional();
-  const central = club?.current.type === 'central';
-  const [transmises, setTransmises] = useState<TacheTransmise[]>([]);
-  useEffect(() => {
-    if (!club || !central) return;
-    let actif = true;
-    club.tachesTransmises().then((l) => actif && setTransmises(l)).catch(() => actif && setTransmises([]));
-    return () => {
-      actif = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [club?.current.id]);
-  const { data: odj, responsables: respTransmises } = useMemo(
-    () => avecTransmises(data, central && s.parts.transmises ? transmises : []),
-    [data, central, s.parts.transmises, transmises],
-  );
+  // Tâches partagées par d'autres entités : dans l'ordre du jour comme les autres (rangées sous leur événement,
+  // la section qui porte le nom de l'entité, ou la section choisie), sauf si on les retire.
+  const nbPartagees = data.tasks.filter((t) => t.source).length;
+  const odj = useMemo(() => (s.parts.partagees ? data : { ...data, tasks: data.tasks.filter((t) => !t.source) }), [data, s.parts.partagees]);
 
   const secName = (id: string) => odj.sections.find((x) => x.id === id)?.nom ?? '';
   const person = (id: string) => data.people.find((p) => p.id === id);
@@ -234,8 +218,8 @@ export function Pv() {
   }, [titre]);
   // Sous-tâche : case, intitulé et initiales de la personne chargée.
   const checkText = (_t: Task, c: ChecklistItem) => `${c.done ? '☑' : '☐'} ${c.label}`;
-  // Tâche transmise par une entité : les noms de ses responsables (personnes de l'entité).
-  const respText = (t: Task) => respTransmises.get(t.id)?.join(', ') || t.responsables.map((id) => initials(person(id))).join(', ') || '—';
+  // Tâche partagée : aussi les responsables des autres entités (noms complets).
+  const respText = (t: Task) => [t.responsables.map((id) => initials(person(id))).join(', '), autresResp(t)].filter(Boolean).join(' · ') || '—';
 
   // ---------- Actions ----------
   const print = () => window.print();
@@ -618,7 +602,7 @@ export function Pv() {
               ['bilan', 'Tâches terminées depuis la dernière séance'],
               ['sondages', 'Sondages en cours et récents'],
               ['notes', 'Cadre de notes et décisions'],
-              ...(central ? [['transmises', `Tâches transmises par les entités${transmises.length ? ` (${transmises.length})` : ''}`]] : []),
+              ...(nbPartagees || !s.parts.partagees ? [['partagees', `Tâches partagées par d’autres entités${nbPartagees ? ` (${nbPartagees})` : ''}`]] : []),
             ] as [keyof PvSettings['parts'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
             ))}

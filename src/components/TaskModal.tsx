@@ -8,7 +8,7 @@ import { deleteFiles } from '../data/files';
 import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { libellePlace } from '../data/transmises';
+import { libellePlace, partageDe } from '../data/partage';
 import type { DelaiUnite, Recurrence, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
@@ -39,10 +39,10 @@ export function TaskModal(props: TaskModalProps) {
 }
 
 /** Parties facultatives : affichées si elles sont remplies, sinon ajoutées à la demande (« Ajouter : »). */
-type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails';
+type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage';
 
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask, autresResp } = useStore();
   // Nouvelle tâche ouverte par un visiteur du comité central : il n'est pas responsable possible dans l'entité.
   const [t, setT] = useState<Task>(() => (isNew ? { ...task, responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)) } : task));
   const [newItem, setNewItem] = useState('');
@@ -56,8 +56,31 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const [nouvelEmail, setNouvelEmail] = useState(false);
   const club = useClubOptional();
   if (!user) return null;
-  // Sous-comité, groupe ou équipe : la tâche peut figurer dans l'ordre du jour du comité central.
-  const versCentral = club?.central && club.current.type !== 'central' && !t.paiement ? libellePlace(club.central.sections ?? [], club.current) : null;
+  // Partage avec d'autres entités du club (tâche de l'entité ouverte) ; tâche partagée par une autre entité : t.source.
+  const partage = partageDe(t, club?.central?.id);
+  const partageables = club && !t.paiement && !t.source ? club.units.filter((u) => u.id !== club.current.id && (!u.archive || partage.includes(u.id))) : [];
+  const nomUnite = (id: string) => club?.units.find((u) => u.id === id)?.nom ?? '';
+  const versCentral = club?.central && club.current.type !== 'central' && partage.includes(club.central.id) ? libellePlace(club.central.sections ?? [], club.current) : '';
+  const togglePartage = (id: string) =>
+    setT((x) => {
+      const l = partageDe(x, club?.central?.id);
+      const retire = l.includes(id);
+      const next = retire ? l.filter((y) => y !== id) : [...l, id];
+      const respPartage = { ...x.respPartage };
+      const placePartage = { ...x.placePartage };
+      if (retire) {
+        delete respPartage[id];
+        delete placePartage[id];
+      }
+      return {
+        ...x,
+        partage: next.length ? next : undefined,
+        auCentral: undefined,
+        respPartage: Object.keys(respPartage).length ? respPartage : undefined,
+        placePartage: Object.keys(placePartage).length ? placePartage : undefined,
+      };
+    });
+  const autres = autresResp(t);
 
   const editable = isNew ? true : canEditTask(task);
   const canAssignOthers = t.sectionId ? canAssign(t.sectionId) : creatableSections().some((s) => canAssign(s.id));
@@ -77,9 +100,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const kids = isNew ? [] : childrenOf(data, task.id).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   const parent = parentOf(data, t);
   const parentChoices = data.tasks
-    .filter((x) => x.id === t.parentId || (x.id !== task.id && !x.parentId && !isDone(data, x)))
+    .filter((x) => !x.source && (x.id === t.parentId || (x.id !== task.id && !x.parentId && !isDone(data, x))))
     .sort((a, b) => a.titre.localeCompare(b.titre));
-  const linkable = data.tasks.filter((x) => x.id !== task.id && !x.parentId && !childrenOf(data, x.id).length && !isDone(data, x));
+  const linkable = data.tasks.filter((x) => !x.source && x.id !== task.id && !x.parentId && !childrenOf(data, x.id).length && !isDone(data, x));
   const secName = (id: string) => data.sections.find((s) => s.id === id)?.nom ?? '';
   const bySection = <T extends Task>(list: T[]) =>
     data.sections.map((sec) => ({ sec, list: list.filter((x) => x.sectionId === sec.id) })).filter((g) => g.list.length);
@@ -131,14 +154,16 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     repetition: !!t.recurrence,
     liens: !!(t.eventId || t.meetingId || t.parentId || kids.length),
     emails: !isNew && emailsOf(data, task.id).length > 0,
+    partage: partage.length > 0,
   };
   const voit = (x: Extra) => rempli[x] || ouverts.includes(x);
   const ouvrir = (x: Extra) => setOuverts((o) => [...o, x]);
-  const ajouts: { label: string; aide: string; run: () => void; si: boolean }[] = [
-    { label: '☑️ Checklist', aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist') },
+  const ajouts: { label: string; aide: string; run: () => void; si: boolean; partagee?: boolean }[] = [
+    { label: '☑️ Checklist', aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist'), partagee: true },
     { label: '📎 Document', aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs') },
     { label: '🔁 Répétition', aide: 'La tâche revient chaque semaine, chaque mois, chaque année…', run: () => ouvrir('repetition'), si: !voit('repetition') },
     { label: '🔗 Lier à…', aide: 'Un événement, une séance de comité ou une autre tâche', run: () => ouvrir('liens'), si: !voit('liens') },
+    { label: '🤝 Partager', aide: 'Avec d’autres entités du club : elles la voient et la modifient comme les leurs', run: () => ouvrir('partage'), si: !voit('partage') && partageables.length > 0 },
     { label: '📊 Sondage', aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create') },
     {
       label: '📧 Email',
@@ -149,7 +174,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       },
       si: !isNew && !voit('emails'),
     },
-  ].filter((a) => a.si);
+    // Tâche d'une autre entité : documents, liens, répétition, sondages et emails restent les siens.
+  ].filter((a) => a.si && (!t.source || a.partagee));
   // Personnes à ajouter : soi-même d'abord.
   const aAjouter = assignable.filter((p) => !t.responsables.includes(p.id)).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
   const nomPoste = (p: (typeof data.people)[number]) => {
@@ -165,6 +191,14 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>
             ↳ Tâche liée à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
           </button>
+        )}
+        {t.source && (
+          <p className="full partage-banner">
+            🤝 Tâche de <b>{t.source.unite}</b>, partagée avec {club?.current.nom ?? 'cette entité'} : tu peux la modifier comme les tiennes, elle reste enregistrée chez elle.
+            {partage.filter((id) => id !== club?.current.id).length > 0 && (
+              <span className="muted"> Partagée aussi avec : {partage.filter((id) => id !== club?.current.id).map(nomUnite).filter(Boolean).join(', ')}.</span>
+            )}
+          </p>
         )}
         {t.proposee && (
           <p className="full proposal-banner">
@@ -183,7 +217,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             {sectionChoices.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
           </select>
         </label>
-        <DelaiField t={t} setT={setT} disabled={dis} />
+        <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />
         {(!!section?.sousSections.length || !!t.sousSection) && (
           <label>
             Sous-section
@@ -222,6 +256,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               </select>
             )}
           </div>
+          {autres && <small className="muted autres-resp">Aussi : {autres}</small>}
           {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </div>
         {(!dis || !!t.remarque) && (
@@ -230,14 +265,24 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             <textarea rows={2} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} placeholder="Détails utiles (facultatif)" />
           </label>
         )}
-        {versCentral && (!dis || t.auCentral) && (
-          <label className="inline full au-central">
-            <input type="checkbox" checked={!!t.auCentral} disabled={dis} onChange={(e) => set('auCentral', e.target.checked || undefined)} />
-            <span>
-              🏛️ Transmettre au comité central
-              <small className="muted"> · elle figurera dans son ordre du jour, {versCentral}</small>
-            </span>
-          </label>
+        {partageables.length > 0 && voit('partage') && (!dis || partage.length > 0) && (
+          <div className="full partage">
+            <span className="field-label">🤝 Partager avec d’autres entités</span>
+            <div className="chips">
+              {partageables
+                .filter((u) => !dis || partage.includes(u.id))
+                .map((u) => (
+                  <button key={u.id} type="button" className={`chip ${partage.includes(u.id) ? 'on' : ''}`} disabled={dis} aria-pressed={partage.includes(u.id)} onClick={() => togglePartage(u.id)}>
+                    {u.type === 'central' ? '🏛️ ' : ''}{u.nom}
+                  </button>
+                ))}
+            </div>
+            <small className="muted">
+              {partage.length
+                ? `Elles la voient dans leurs tâches et leur ordre du jour, et la modifient comme les leurs${versCentral ? ` (comité central : ${versCentral})` : ''}.`
+                : 'La tâche reste ici ; les entités choisies la voient dans leurs tâches et leur ordre du jour, et peuvent la modifier.'}
+            </small>
+          </div>
         )}
 
         {voit('checklist') && (
@@ -392,7 +437,12 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             {ajouts.map((a) => <button key={a.label} type="button" className="chip" title={a.aide} onClick={a.run}>{a.label}</button>)}
           </div>
         )}
-        {!isNew && <small className="muted full">Dernière modification : {fmtDateTime(task.updatedAt)} · créée par {task.parCentral ? `${task.parCentral} (comité central)` : fullName(data.people.find((p) => p.id === task.createdBy))}</small>}
+        {!isNew && (
+          <small className="muted full">
+            Dernière modification : {fmtDateTime(task.updatedAt)}{task.modifiePar ? ` par ${task.modifiePar}` : ''} ·{' '}
+            {task.source ? `tâche de ${task.source.unite}` : `créée par ${task.parCentral ? `${task.parCentral} (comité central)` : fullName(data.people.find((p) => p.id === task.createdBy))}`}
+          </small>
+        )}
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
@@ -411,7 +461,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
  * Pour quand ? Une date, ou une date calculée à partir d'un événement / d'une séance
  * (« 1 semaine avant le Tournoi d'automne ») qui suit ensuite ses changements de date.
  */
-function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Task) => void; disabled: boolean }) {
+function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: (fn: (x: Task) => Task) => void; disabled: boolean; dateSeule?: boolean }) {
   const { data } = useStore();
   const [choisir, setChoisir] = useState(false);
   const refId = t.delaiRef ? (t.delaiRef.type === 'event' ? t.eventId : t.meetingId) : undefined;
@@ -460,7 +510,7 @@ function DelaiField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
           <input type="date" aria-label="Pour quand ?" value={t.delai} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, delai: e.target.value }))} />
           {choisir
             ? choix
-            : !disabled && events.length + meetings.length > 0 && (
+            : !disabled && !dateSeule && events.length + meetings.length > 0 && (
                 <button type="button" className="link-btn" onClick={() => setChoisir(true)}>📌 ou selon un événement / une séance</button>
               )}
         </>

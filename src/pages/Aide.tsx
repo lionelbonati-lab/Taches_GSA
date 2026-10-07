@@ -29,8 +29,8 @@ export function Aide() {
   if (chemin('/ordre-du-jour')) geste('Préparer une séance', vers('/ordre-du-jour'), ' : choisis la séance, relis, puis imprime ou envoie par email.');
   if (chemin('/pv')) geste('Tenir le PV', vers('/pv'), ' : « Prise de notes » pendant la séance, puis « Valider et archiver » et l’envoyer.');
   geste('Voter ou poser une question au comité', vers('/sondages'), '. Un sondage qui attend ta réponse apparaît aussi à l’accueil.');
-  if (club && club.current.type !== 'central' && club.central)
-    geste('Mettre une tâche à l’ordre du jour du comité central', 'Dans la tâche, coche « 🏛️ Transmettre au comité central » : elle figure dans son ordre du jour (sous l’événement, ou la section du groupe) et reste la tienne.');
+  if (club && club.units.length > 1)
+    geste('Partager une tâche avec d’autres entités (comité central, CO, groupe…)', 'Dans la tâche, « Ajouter : » › « 🤝 Partager », puis choisis les entités : elles la voient dans leurs tâches et leur ordre du jour (sous l’événement, ou la section qui porte ton nom) et la modifient comme les leurs. Elle reste enregistrée chez toi, repérée 🤝.');
   if (club) geste('Passer à une autre entité (sous-comité, groupe, équipe)', 'Le nom de l’entité en haut à gauche ▾ (l’organigramme du club y est aussi). Chaque entité a ses propres tâches, séances et membres.');
   geste('Installer l’appli sur le téléphone ou l’ordinateur', '« 📲 Installer l’application » dans le menu du compte (« ☰ Plus » sur téléphone).');
   geste('Thème sombre, notifications', vers('/reglages'), '.');

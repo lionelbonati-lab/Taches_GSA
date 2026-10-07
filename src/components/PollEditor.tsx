@@ -4,6 +4,7 @@ import type { Poll, PollType } from '../data/types';
 import { OUINON, POLL_TYPES, autreOption, committeeOf } from '../data/polls';
 import { shortName, today, uid } from '../data/utils';
 import { Modal } from './ui';
+import { estPartagee } from '../data/partage';
 
 const emptyOptions = (type: PollType): Poll['options'] =>
   type === 'ouinon' ? OUINON : type === 'dates'
@@ -125,7 +126,7 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
             Section de l’ordre du jour
             <select value={p.sectionId ?? ''} onChange={(e) => set({ sectionId: e.target.value || undefined })}>
               <option value="">— Aucune (bloc « Sondages ») —</option>
-              {data.sections.map((sec) => <option key={sec.id} value={sec.id}>{sec.nom}</option>)}
+              {data.sections.filter((sec) => !estPartagee(sec.id)).map((sec) => <option key={sec.id} value={sec.id}>{sec.nom}</option>)}
             </select>
           </label>
         )}

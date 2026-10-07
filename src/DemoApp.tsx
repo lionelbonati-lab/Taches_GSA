@@ -6,8 +6,8 @@ import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData,
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey } from './data/membres';
 import { uid } from './data/utils';
-import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SuiviTicket, TacheTransmise, Task, Unit } from './data/types';
-import { versTransmise } from './data/transmises';
+import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import { fusionPartagee, partageDe } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
@@ -238,15 +238,28 @@ export function DemoApp() {
           .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date))
           .sort((a, b) => a.date.localeCompare(b.date));
       },
-      // Comité central : tâches transmises par les entités (version réelle : gsa_taches_transmises).
-      async tachesTransmises(): Promise<TacheTransmise[]> {
-        if (current.type !== 'central') return [];
+      // Tâches que les autres entités partagent avec l'entité ouverte (version réelle : gsa_taches_partagees, 019).
+      async tachesPartagees(): Promise<TachePartagee[]> {
+        if (guest) return [];
         return units
-          .filter((u) => u.type !== 'central' && !u.archive)
+          .filter((u) => u.id !== current.id && !u.archive)
           .flatMap((u) => {
             const d = loadUnitData(u.id);
-            return d.tasks.filter((t) => t.auCentral && !t.paiement).map((t) => versTransmise(u, d, t));
+            const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
+            return d.tasks
+              .filter((t) => !t.paiement && partageDe(t, u.parentId).includes(current.id))
+              .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts }));
           });
+      },
+      // Modification depuis l'entité ouverte, enregistrée dans l'entité de la tâche (version réelle : gsa_modifier_tache_partagee).
+      async modifierTachePartagee(uniteId, task) {
+        const u = units.find((x) => x.id === uniteId);
+        const d = loadUnitData(uniteId);
+        const old = d.tasks.find((t) => t.id === task.id);
+        if (guest || !u || u.archive || !old || old.paiement || !partageDe(old, u.parentId).includes(current.id))
+          throw new Error('Cette tâche n’est plus partagée avec cette entité.');
+        d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id) : t));
+        saveUnitData(uniteId, d);
       },
       async mesTicketsCentraux(): Promise<SuiviTicket[]> {
         if (!central || !me) return [];
@@ -292,7 +305,7 @@ export function DemoApp() {
         refresh();
       },
     };
-  }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units, me, membresAcces]);
+  }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units, me, membresAcces, guest]);
 
   const personId = useMemo(() => {
     if (!current || !me) return null;

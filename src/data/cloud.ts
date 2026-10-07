@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TacheTransmise, TicketCentral, UnitType, AgendaClubEvent } from './types';
+import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -603,11 +603,17 @@ export async function deleteMembre(club: string, id: string) {
   if (error) throw registreErreur(error);
 }
 
-/** Comité central : tâches que les entités du club lui transmettent (ordre du jour ; migration 018). */
-export async function fetchTachesTransmises(club: string): Promise<TacheTransmise[]> {
-  const { data, error } = await sb().rpc('gsa_taches_transmises', { club });
+/** Tâches que d'autres entités du club partagent avec l'entité (migration 019). */
+export async function fetchTachesPartagees(unite: string): Promise<TachePartagee[]> {
+  const { data, error } = await sb().rpc('gsa_taches_partagees', { unite });
   if (error) throw new Error(error.message);
-  return (data ?? []) as TacheTransmise[];
+  return (data ?? []) as TachePartagee[];
+}
+
+/** Modification d'une tâche partagée, enregistrée dans son entité (le serveur ne garde que les champs modifiables). */
+export async function saveTachePartagee(unite: string, source: string, task: Task) {
+  const { error } = await sb().rpc('gsa_modifier_tache_partagee', { unite, source, tache: task.id, modif: task });
+  if (error) throw new Error(error.message);
 }
 
 /** Suivi des demandes de l'entité au comité central. */

@@ -313,6 +313,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 
 /* ---------- Délais liés / récurrence ---------- */
 .ticon { font-size: 0.85em; cursor: help; }
+/* Tâche partagée par une autre entité : son nom. */
+.tsource { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0 6px; border-radius: 999px; border: 1px solid #0e7490; color: #0e7490; vertical-align: middle; white-space: nowrap; }
 .delai-calc { color: var(--primary); font-weight: 600; }
 .quand { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
 .quand .field-label { margin-bottom: 0; }
@@ -1020,6 +1022,9 @@ button.arbre-tete:hover strong, button.arbre-tete:hover .arbre-lien { text-decor
 .access-option.on { border-color: var(--primary); background: var(--primary-soft); }
 .access-option.off { cursor: default; opacity: 0.8; }
 .access-panel { max-width: 720px; margin-top: 12px; }
+.partage-banner { margin: 0; border: 1px solid #0e7490; background: color-mix(in srgb, #0e7490 10%, var(--surface)); border-radius: 8px; padding: 7px 10px; font-size: 0.9rem; }
+.partage .chips { margin-top: 4px; }
+.autres-resp { display: block; margin-top: 4px; }
 .proposal-banner { margin: 0; border: 1px solid #0e7490; background: color-mix(in srgb, #0e7490 10%, var(--surface)); border-radius: 8px; padding: 7px 10px; font-size: 0.9rem; }
 h2.with-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .request { display: flex; flex-direction: column; gap: 4px; }

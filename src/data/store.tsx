@@ -1,16 +1,18 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { makeSeed } from './seed';
 import { statuses as STATUSES } from './seedData';
 import { hasPermission, userRoles } from './permissions';
-import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, uid } from './utils';
+import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, today, uid } from './utils';
 import { seancePourSuivante } from './seances';
-import type { ActivityNotif, AppData, ChecklistItem, Guest, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, Task } from './types';
+import type { ActivityNotif, AppData, ChecklistItem, Guest, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, TachePartagee, Task } from './types';
 import { clearFiles } from './files';
 import { AUTRE_ID } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
 import { applyRows, GUEST_WRITABLE, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
+import { useClubOptional } from './club';
+import { autresResponsables, avecPartagees, estPartagee, texteAutres, versOrigine } from './partage';
 
 // Couche de données. Démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Version réelle : mêmes données, synchronisées avec le serveur par CloudSync (voir cloud.ts).
@@ -118,6 +120,12 @@ function linkSubtasks(d: AppData) {
   d.notifications = (d.notifications ?? []).filter((n) => (n.type as string) !== 'subtask');
 }
 
+/** Tâches partagées par d'autres entités et sections ajoutées pour elles : affichées, jamais enregistrées ici. */
+function sansPartagees(d: AppData) {
+  d.tasks = d.tasks.filter((t) => !estPartagee(t.id));
+  d.sections = d.sections.filter((s) => !estPartagee(s.id));
+}
+
 /** Droits d'un membre du comité central dans une entité qui lui est ouverte (jamais de suppression ni de gestion). */
 function guestRole(g: Guest): Role {
   const write: Permission[] = g.niveau === 'ecriture' ? ['tasks.createAny', 'tasks.editAny'] : [];
@@ -170,6 +178,8 @@ interface Store {
   /** Membre du comité central qui consulte (ou complète) l'entité sans en faire partie ; null pour ses membres. */
   guest: Guest | null;
   data: AppData;
+  /** Données de l'entité seules, sans les tâches partagées par d'autres entités (réglages, console admin). */
+  dataLocale: AppData;
   user: Person | null;
   /** Rôles de l'utilisateur connecté. */
   myRoles: Role[];
@@ -178,6 +188,8 @@ interface Store {
   canSeeTask: (t: Task) => boolean;
   canEditTask: (t: Task) => boolean;
   canDeleteTask: (t: Task) => boolean;
+  /** Responsables d'autres entités (tâche partagée) : « Prénom Nom (Entité) », vide sinon. */
+  autresResp: (t: Task) => string;
   canAssignOthers: (sectionId: string) => boolean;
   /** Sections dans lesquelles l'utilisateur peut créer une tâche. */
   creatableSections: () => Section[];
@@ -259,11 +271,45 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     return sync.listen((rows) => setData((prev) => applyRows(prev, rows, sync.posOf)));
   }, [cloud]);
 
+  // Tâches que d'autres entités du club partagent avec celle-ci : relues à l'ouverture, au retour sur l'appli
+  // et chaque minute (leurs modifications ne passent pas par la synchronisation de l'entité).
+  const club = useClubOptional();
+  const clubRef = useRef(club);
+  clubRef.current = club;
+  const moi = club?.current.id;
+  const [partagees, setPartagees] = useState<TachePartagee[]>([]);
+  const lecture = useRef(0);
+  const chargerPartagees = useCallback(() => {
+    const c = clubRef.current;
+    if (!c || guest) return;
+    const n = ++lecture.current;
+    c.tachesPartagees()
+      .then((l) => n === lecture.current && setPartagees(l))
+      .catch(() => {});
+  }, [guest]);
+  useEffect(() => {
+    chargerPartagees();
+    const vis = () => document.visibilityState === 'visible' && chargerPartagees();
+    const timer = setInterval(chargerPartagees, 60_000);
+    window.addEventListener('focus', chargerPartagees);
+    document.addEventListener('visibilitychange', vis);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', chargerPartagees);
+      document.removeEventListener('visibilitychange', vis);
+    };
+  }, [chargerPartagees, moi]);
+
   const user = guest ? guest.person : data.people.find((p) => p.id === userId && p.actif) ?? null;
   const myRoles = useMemo(() => (guest ? [guestRole(guest)] : userRoles(data.roles, user)), [guest, data.roles, user]);
   // Visiteur : sa fiche s'ajoute aux données affichées (désactivée : ni assignable, ni dans la liste des membres)
   // pour que son nom s'affiche dans le journal et les tâches ; elle n'est jamais enregistrée.
-  const view = useMemo(() => (guest ? { ...data, people: [...data.people, { ...guest.person, actif: false }] } : data), [data, guest]);
+  // Tâches partagées par d'autres entités : ajoutées aux données affichées (jamais enregistrées dans l'entité).
+  const units = club?.units;
+  const view = useMemo(() => {
+    const base = guest ? { ...data, people: [...data.people, { ...guest.person, actif: false }] } : data;
+    return moi && units && partagees.length ? avecPartagees(base, partagees, moi, units) : base;
+  }, [data, guest, partagees, moi, units]);
 
   const login = useCallback((id: string | null) => {
     if (cloud) {
@@ -304,6 +350,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const next = structuredClone(prev);
         fn(next);
         keepGuestWrites(prev, next);
+        sansPartagees(next);
         // Les délais liés suivent automatiquement la date de leur événement / séance.
         next.tasks = next.tasks.map((t) => applyDelaiRef(next, t));
         const by = guest ? ` — par ${fullName(guest.person)} (comité central)` : '';
@@ -322,6 +369,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const next = structuredClone(prev);
         fn(next);
         keepGuestWrites(prev, next);
+        sansPartagees(next);
         return next;
       });
     },
@@ -339,9 +387,36 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [userId, guest],
   );
 
+  // Tâche partagée par une autre entité : enregistrée dans la sienne ; ici, le journal et les notifications.
+  const savePartagee = useCallback(
+    (t: Task) => {
+      const c = clubRef.current;
+      const x = partagees.find((p) => p.uniteId === t.source?.uniteId && p.task.id === t.source?.id);
+      if (!c || !x || !moi) return setToast('⚠️ Cette tâche n’est plus partagée avec cette entité.');
+      const before = view.tasks.find((y) => y.id === t.id);
+      const par = user ? `${fullName(user)} (${c.current.nom})` : c.current.nom;
+      const next = versOrigine(x.task, t, x, { moi, statuses: data.statuses, people: data.people, units: c.units, par, aujourdhui: today() });
+      setPartagees((l) => l.map((p) => (p === x ? { ...p, task: next } : p)));
+      const actor = userId ?? '?';
+      const at = new Date().toISOString();
+      const notifs: ActivityNotif[] = t.responsables
+        .filter((id) => id !== actor && !before?.responsables.includes(id))
+        .map((id) => ({ id: uid('n'), userId: id, type: 'assign', taskId: t.id, by: actor, at }));
+      update((d) => {
+        if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
+      }, `Modification de la tâche « ${t.titre} » (partagée par ${x.unite})`);
+      c.modifierTachePartagee(x.uniteId, next)
+        .catch((e: Error) => setToast(`⚠️ Modification non enregistrée dans « ${x.unite} » : ${e.message}`))
+        .finally(chargerPartagees);
+    },
+    [partagees, moi, view.tasks, user, data.statuses, data.people, userId, update, chargerPartagees],
+  );
+
   const saveTask = useCallback(
     (t: Task, isNew: boolean) => {
-      const task: Task = { ...t, updatedAt: new Date().toISOString() };
+      if (t.source) return savePartagee(t);
+      // Modifiée ici : ce n'est plus une entité du partage qui l'a modifiée en dernier.
+      const task: Task = { ...t, updatedAt: new Date().toISOString(), modifiePar: undefined };
       if (guest && isNew) task.parCentral = fullName(guest.person);
       const before = data.tasks.find((x) => x.id === task.id);
       // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
@@ -417,7 +492,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       );
       if (next) setToast(`🔁 Tâche récurrente reconduite au ${fmtDate(next.delai)} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
     },
-    [update, data, userId, guest],
+    [update, data, userId, guest, savePartagee],
   );
 
   const markNotifsRead = useCallback(
@@ -501,7 +576,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     (taskId: string, parentId: string | undefined) => {
       const t = data.tasks.find((x) => x.id === taskId);
       const p = parentId ? data.tasks.find((x) => x.id === parentId) : data.tasks.find((x) => x.id === t?.parentId);
-      if (!t) return;
+      // Tâches partagées par une autre entité : pas de lien avec les tâches d'ici.
+      if (!t || (parentId && !p)) return;
       update((d) => {
         const x = d.tasks.find((y) => y.id === taskId);
         if (x) {
@@ -555,6 +631,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     cloud,
     guest,
     data: view,
+    dataLocale: data,
     user,
     myRoles,
     can,
@@ -562,7 +639,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     canSeeTask: (t) =>
       (!!user && (t.responsables.includes(user.id) || t.paiement?.demandePar === user.id)) || can('tasks.viewAll', t.sectionId) || (!!t.paiement && can('paiements.payer')),
     canEditTask: (t) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t)),
-    canDeleteTask: (t) => can('tasks.delete', t.sectionId),
+    canDeleteTask: (t) => !t.source && can('tasks.delete', t.sectionId),
+    autresResp: (t) => (moi && units ? texteAutres(autresResponsables(t, moi, data.people, units)) : ''),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
     creatableSections: () => data.sections.filter((s) => can('tasks.createAny', s.id) || can('tasks.editOwn', s.id)),
     prefs,

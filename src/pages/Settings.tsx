@@ -12,7 +12,7 @@ import { nomAppli } from '../data/nomAppli';
 import { PageIntro } from '../components/Nav';
 
 export function Settings() {
-  const { data, user, prefs, setPrefs, can, reset, restore, login, cloud, guest } = useStore();
+  const { dataLocale: data, user, prefs, setPrefs, can, reset, restore, login, cloud, guest } = useStore();
   const club = useClubOptional();
   const [pwd, setPwd] = useState<'ferme' | 'ouvert' | 'ok'>('ferme');
   const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);

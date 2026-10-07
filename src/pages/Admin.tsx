@@ -20,7 +20,7 @@ type Partie = { id: string; icon: string; titre: string; carte: string; aide: st
 /** Console admin : une page d'accueil qui explique chaque partie, puis une adresse par partie (/admin/droits…). */
 export function Admin() {
   const { partie } = useParams();
-  const { data, prefs } = useStore();
+  const { dataLocale: data, prefs } = useStore();
   const club = useClubOptional();
   const u = club?.current;
   const central = !u || u.type === 'central';
@@ -147,7 +147,7 @@ export function Admin() {
 }
 
 function Roles() {
-  const { data, update } = useStore();
+  const { dataLocale: data, update } = useStore();
   const [edit, setEdit] = useState<{ role: Role; isNew: boolean } | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -223,7 +223,7 @@ function Roles() {
 }
 
 function NewRole({ onClose, onCreate }: { onClose: () => void; onCreate: (label: string, base: string) => void }) {
-  const { data } = useStore();
+  const { dataLocale: data } = useStore();
   const [label, setLabel] = useState('');
   const [base, setBase] = useState('comite');
   const exists = data.roles.some((r) => r.label.toLowerCase() === label.trim().toLowerCase());
@@ -253,7 +253,7 @@ function NewRole({ onClose, onCreate }: { onClose: () => void; onCreate: (label:
 }
 
 function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
-  const { data, update } = useStore();
+  const { dataLocale: data, update } = useStore();
   const [label, setLabel] = useState(role.label);
   const [couleur, setCouleur] = useState(role.couleur);
   const [sections, setSections] = useState<string[]>(role.sections);
@@ -335,7 +335,7 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
 }
 
 function Lists() {
-  const { data, update, setToast } = useStore();
+  const { dataLocale: data, update, setToast } = useStore();
   const [newSec, setNewSec] = useState('');
   const [newSub, setNewSub] = useState<Record<string, string>>({});
   const [newStatus, setNewStatus] = useState('');
@@ -449,7 +449,7 @@ function Lists() {
 }
 
 function Log() {
-  const { data } = useStore();
+  const { dataLocale: data } = useStore();
   return (
     <table className="table">
       <thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th></tr></thead>

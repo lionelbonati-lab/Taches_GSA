@@ -1,5 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useStore } from '../data/store';
+import { useClubOptional } from '../data/club';
+import { partageDe } from '../data/partage';
 import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
@@ -85,12 +87,18 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
 
-/** Petits repères : 🔁 tâche récurrente, 🏛️ transmise au comité central, 🔗 délai lié à un événement / une séance. */
+/** Petits repères : 🔁 tâche récurrente, 🤝 tâche partagée entre entités, 🔗 délai lié à un événement / une séance. */
 export function RecurIcon({ task }: { task: Task }) {
+  const club = useClubOptional();
+  const avec = partageDe(task, club?.central?.id).map((id) => club?.units.find((u) => u.id === id)?.nom).filter(Boolean);
+  const partage = task.source
+    ? `Tâche de ${task.source.unite}, partagée avec cette entité`
+    : avec.length ? `Partagée avec ${avec.join(', ')}` : task.partage?.length || task.auCentral ? 'Partagée avec d’autres entités' : '';
   return (
     <>
       {task.recurrence && <span className="ticon" title={`Tâche récurrente : ${recurrenceLabel(task.recurrence).toLowerCase()}`}>🔁</span>}
-      {task.auCentral && <span className="ticon" title="Transmise au comité central : elle figure dans son ordre du jour">🏛️</span>}
+      {partage && <span className="ticon" title={partage}>🤝</span>}
+      {task.source && <span className="tsource">{task.source.unite}</span>}
     </>
   );
 }

@@ -196,8 +196,21 @@ export interface Task {
   updatedAt: string;
   /** Tâche proposée au comité central par un sous-comité, un groupe ou une équipe. */
   proposee?: Proposal;
-  /** Transmise au comité central (sous-comité, groupe, équipe) : la tâche reste dans l'entité et figure dans l'ordre du jour du comité central. */
+  /**
+   * Entités du club avec qui la tâche est partagée : elle reste dans son entité, et chacune la voit dans ses tâches
+   * (et son ordre du jour) et la modifie comme les siennes.
+   */
+  partage?: string[];
+  /** Ancienne case « Transmettre au comité central » : partagée avec le comité central. */
   auCentral?: boolean;
+  /** Responsables choisis par les entités du partage, parmi leurs propres membres (par entité). */
+  respPartage?: Record<string, string[]>;
+  /** Section choisie par les entités du partage (par entité ; sinon rangée automatiquement). */
+  placePartage?: Record<string, { sectionId: string; sousSection: string }>;
+  /** Dernière modification faite depuis une entité du partage : « Nom (entité) ». */
+  modifiePar?: string;
+  /** Affichage seulement (jamais enregistré) : tâche d'une autre entité, partagée avec l'entité ouverte. */
+  source?: { uniteId: string; unite: string; id: string; responsables: string[] };
   /** Tâche ajoutée par un membre du comité central (entité ouverte en « modifier / ajouter ») : son nom. */
   parCentral?: string;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
@@ -212,21 +225,14 @@ export interface Proposal {
   le: string;
 }
 
-/** Tâche d'une entité transmise au comité central, telle que la lit son ordre du jour (gsa_taches_transmises). */
-export interface TacheTransmise {
+/** Tâche d'une autre entité partagée avec l'entité ouverte, telle que la lit le serveur (gsa_taches_partagees). */
+export interface TachePartagee {
   uniteId: string;
   unite: string;
   type: UnitType;
-  id: string;
-  titre: string;
-  delai: string;
-  remarque: string;
-  statut: string;
-  termine: boolean;
-  termineeLe?: string;
-  /** Noms des responsables (personnes de l'entité). */
-  responsables: string[];
-  checklist: ChecklistItem[];
+  task: Task;
+  /** Statuts de l'entité de la tâche (correspondance avec ceux de l'entité ouverte). */
+  statuts: { id: string; label: string; done: boolean }[];
 }
 
 export interface Meeting {
@@ -332,8 +338,8 @@ export interface PvSettings {
     bilan: boolean;
     sondages: boolean;
     notes: boolean;
-    /** Comité central : tâches transmises par les entités. */
-    transmises: boolean;
+    /** Tâches partagées par d'autres entités. */
+    partagees: boolean;
   };
   groupBy: 'section' | 'responsable' | 'aucun';
   tri: 'delai' | 'statut' | 'titre';
