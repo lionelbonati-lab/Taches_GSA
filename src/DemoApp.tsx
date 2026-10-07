@@ -1,12 +1,14 @@
 import { useCallback, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, initMembres, lierFiches, loadMe, loadMembres, loadUnitData, loadUnits, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, synchroDemo, UNIT_KEY } from './data/demoClub';
+import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierFiches, lireBrut, loadMe, loadMembres, loadUnitData, loadUnits, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, UNIT_TYPES, visitLevel } from './data/units';
 import { poserResponsable } from './data/cablage';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
-import { emailKey } from './data/membres';
+import { emailKey, nouveauMembre } from './data/membres';
+import { appliquer, estEtoile } from './data/organigramme';
 import { uid } from './data/utils';
+import { demoClassique } from './data/mode';
 import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, partageDe } from './data/partage';
@@ -30,6 +32,7 @@ export function DemoApp() {
   const [units, setUnits] = useState<Unit[]>(() => {
     const u = loadUnits();
     initMembres(u);
+    initPostes(u);
     return u;
   });
   const [me, setMe] = useState<string | null>(() => loadMe());
@@ -39,6 +42,8 @@ export function DemoApp() {
   const [version, setVersion] = useState(0);
   // Fiches de l'entité ouverte modifiées depuis le registre des membres du club : l'écran les relit.
   const [epoch, setEpoch] = useState(0);
+  // ?demo&classique : l'organigramme câblé d'avant (sans glisser-déposer ni postes).
+  const [classique] = useState(demoClassique);
 
   // Organigramme : membres de chaque entité, lus dans ses données.
   const org: OrgUnit[] = useMemo(
@@ -53,6 +58,7 @@ export function DemoApp() {
           moiAdmin: !!mine?.roles.includes(ADMIN_ROLE_ID),
           sections: u.type === 'central' ? d.sections.map((s) => ({ id: s.id, nom: s.nom })) : undefined,
           liens: d.membresDe?.length ? d.membresDe.map((l) => l.uniteId) : undefined,
+          postes: d.postes,
         };
       }),
     // `version` : relire après une modification faite dans une autre entité.
@@ -134,6 +140,7 @@ export function DemoApp() {
         const chef = toPerson(n.chef, [ADMIN_ROLE_ID]);
         base.people = [chef, ...n.membres.filter((m) => m.email.toLowerCase() !== n.chef.email.toLowerCase()).map((m) => toPerson(m, [defaultRoleId(base.roles)]))];
         base.log[0].userId = chef.id;
+        base.postes = [];
         saveUnitData(id, lierFiches(id, base));
         const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, description: n.description, date: n.date, dateFin: n.dateFin, dependDe: n.dependDe }];
         saveUnits(next);
@@ -218,6 +225,44 @@ export function DemoApp() {
         refresh();
         // Démo : on se connecte avec l'adresse de sa fiche.
         return { compte: !!emailKey(r.email) };
+      },
+      // Organigramme à glisser-déposer (démo seulement pour l'instant ; voir data/organigramme.ts).
+      organiser: classique ? undefined : async (op) => {
+        const brut = new Map(units.map((u) => [u.id, lireBrut(u.id)]));
+        // Personne pas encore au club : sa fiche du registre d'abord, pour la retrouver d'une entité à l'autre.
+        if (op.type === 'placer' && !op.qui.membreId && !emailKey(op.qui.email)) {
+          if (!op.qui.prenom.trim() && !op.qui.nom.trim()) throw new Error('Indique au moins son prénom ou son nom.');
+          const n = nouveauMembre({ prenom: op.qui.prenom, nom: op.qui.nom, couleur: op.qui.couleur });
+          saveMembres([n]);
+          op = { ...op, qui: { ...op.qui, membreId: n.id } };
+        }
+        const data = new Map(units.map((u) => [u.id, loadUnitData(u.id)]));
+        const avant = new Map([...data].map(([id, d]) => [id, JSON.stringify(d)]));
+        const message = appliquer({ units, data, notes: [] }, op);
+        const changees = units.filter((u) => JSON.stringify(data.get(u.id)) !== avant.get(u.id));
+        // Comme le serveur le fera : les fiches touchées directement, par leurs admins ou ceux du comité central (lier un
+        // poste : aussi l'entité liée, si elle change). Celles qui suivent par un poste lié suivent : c'est le principe du lien.
+        const directes = new Set(op.type === 'placer' ? [op.depuis?.uniteId, op.vers.zone === 'corbeille' ? undefined : op.vers.uniteId] : op.type === 'lier' ? [op.uniteId, op.lien] : [op.uniteId]);
+        for (const u of changees)
+          if (directes.has(u.id) && !central?.moiAdmin && !org.find((x) => x.id === u.id)?.moiAdmin) throw new Error(`Réservé aux admins de « ${u.nom} » ou du comité central.`);
+        if (central && changees.some((u) => u.id === central.id) && !data.get(central.id)!.people.some(estEtoile)) throw new Error('Le comité central garde au moins un ★.');
+        for (const u of changees) {
+          const d = data.get(u.id)!;
+          const n = synchroDemo(u.id, d);
+          saveUnitData(u.id, lierFiches(u.id, n ?? d));
+        }
+        for (const u of changees) propagerLiens(u.id);
+        const apres = new Map(units.map((u) => [u.id, lireBrut(u.id)]));
+        if (changees.some((u) => u.id === current.id)) setEpoch((e) => e + 1);
+        if (changees.length) refresh();
+        return {
+          message,
+          annuler: async () => {
+            for (const u of units) if (apres.get(u.id) !== brut.get(u.id)) ecrireBrut(u.id, brut.get(u.id) ?? null);
+            setEpoch((e) => e + 1);
+            refresh();
+          },
+        };
       },
       // Proposition d'amélioration de l'appli, rangée au comité central (version réelle : gsa_proposer_amelioration).
       async proposerAmelioration(r) {
@@ -401,14 +446,18 @@ export function DemoApp() {
             },
             // Comme le serveur : fiches liées au registre ; liens « Membres de » tenus à jour, dans l'entité ouverte
             // (relue si elle a changé) et dans celles qui la comptent parmi leurs membres.
+            // Organigramme à glisser-déposer : ses postes et les postes liés suivent les personnes modifiées ici.
             save: (d) => {
-              const avant = signatureMembres(loadUnitData(current.id).people);
+              const ancien = loadUnitData(current.id);
+              const avant = signatureMembres(ancien.people);
               const n = synchroDemo(current.id, d);
-              const next = lierFiches(current.id, n ?? d);
+              const postes = !classique ? suivrePostes(current.id, ancien, lierFiches(current.id, n ?? d)) : null;
+              const next = postes?.d ?? lierFiches(current.id, n ?? d);
               saveUnitData(current.id, next);
               const autres = signatureMembres(next.people) !== avant && propagerLiens(current.id);
-              if (n) setEpoch((e) => e + 1);
-              if (autres || n) refresh();
+              for (const k of postes?.autres ?? []) propagerLiens(k);
+              if (n || postes?.ici) setEpoch((e) => e + 1);
+              if (autres || n || postes?.ici || postes?.autres.length) refresh();
             },
             epoch,
             personId,

@@ -131,6 +131,30 @@ export function liensResponsables(units: OrgUnit[]): LienResponsable[] {
   return out;
 }
 
+/**
+ * Organigramme à glisser-déposer (démo) : un câble par poste lié, de la ligne du poste jusqu'à l'entité liée
+ * (dont le titulaire est le ★).
+ */
+export function liensPostes(units: OrgUnit[]): LienResponsable[] {
+  const out: LienResponsable[] = [];
+  for (const u of units) {
+    for (const p of u.postes ?? []) {
+      const c = p.lien ? units.find((x) => x.id === p.lien && x.id !== u.id) : undefined;
+      if (!c) continue;
+      const m = p.titulaire ? u.membres.find((x) => x.id === p.titulaire) : undefined;
+      out.push({
+        id: `${u.id}|poste:${p.id}>${c.id}`,
+        de: u.id,
+        ligne: `poste:${p.id}`,
+        vers: c.id,
+        couleur: c.couleur,
+        titre: `⛓ ${p.nom} de « ${u.nom} » = ★ de « ${c.nom} » : ${m ? `${m.prenom} ${m.nom}`.trim() || m.poste : 'à pourvoir'}`,
+      });
+    }
+  }
+  return out;
+}
+
 export type Point = [number, number];
 interface Trace { id: string; d: string; s: Point; t: Point; couleur: string; titre: string; de: string; ligne: string; vers: string }
 
@@ -313,6 +337,19 @@ function routerListe(cables: Prevu[], droite: number): Point[][] {
   });
 }
 
+/**
+ * Vers une entité qui n'est pas en dessous (à côté, au-dessus) : par le côté de la carte, au-dessus des deux cartes,
+ * puis dans l'entité par le haut. Le k-ième de ces câbles d'une même carte passe k pas plus loin.
+ */
+function routerAutre(p: Prevu, k: number): Point[] {
+  const { a, c, y } = p;
+  const gauche = (c.l + c.r) / 2 < (a.l + a.r) / 2;
+  const x = gauche ? a.l - PAS * (k + 1) : a.r + PAS * (k + 1);
+  const h = Math.min(c.t, a.t) - 12 - PAS * k;
+  const tx = (c.l + c.r) / 2 + (gauche ? 1 : -1) * (Math.min(32, (c.r - c.l) / 4) + PAS * k);
+  return [[gauche ? a.l : a.r, y], [x, y], [x, h], [tx, h], [tx, c.t]];
+}
+
 /** Un câble vu depuis l'entité mère : rang de la ligne du responsable ; côté (grande carte : sa colonne ; sinon null). */
 export type Depart = { rang: number; gauche: boolean | null };
 
@@ -410,8 +447,10 @@ function tracer(plan: HTMLElement, liens: LienResponsable[], vertical: boolean):
     routerListe(prevus, droite).forEach((pts, i) => chemins.set(prevus[i], pts));
   } else {
     for (const de of new Set(prevus.map((p) => p.l.de))) {
-      const groupe = prevus.filter((p) => p.l.de === de);
-      routerMere(groupe, cartes.filter((c) => c.id !== de)).forEach((pts, i) => chemins.set(groupe[i], pts));
+      // Vers les entités dessous : routerMere ; vers les autres (poste lié à une entité à côté ou au-dessus) : routerAutre.
+      const groupe = prevus.filter((p) => p.l.de === de && p.c.t > p.a.b + 4);
+      if (groupe.length) routerMere(groupe, cartes.filter((c) => c.id !== de)).forEach((pts, i) => chemins.set(groupe[i], pts));
+      prevus.filter((p) => p.l.de === de && !(p.c.t > p.a.b + 4)).forEach((p, k) => chemins.set(p, routerAutre(p, k)));
     }
   }
   return prevus.map((p) => {
@@ -491,7 +530,7 @@ export function CablesOrganigramme({ plan, liens, vertical, units }: { plan: Ref
  * Le câble suit le pointeur (la page défile près des bords) ; lâché sur une entité où l'on peut le brancher,
  * `deposer` est appelé. Échap annule.
  */
-export function useTirage(deposer: (uniteId: string, source: Source) => void, peutDeposer: (uniteId: string) => boolean) {
+export function useTirage<S = Source>(deposer: (uniteId: string, source: S) => void, peutDeposer: (uniteId: string) => boolean) {
   const [tir, setTir] = useState<HTMLElement | null>(null);
   const [survol, setSurvol] = useState<string | null>(null);
   const pointeur = useRef<Point>([0, 0]);
@@ -500,14 +539,14 @@ export function useTirage(deposer: (uniteId: string, source: Source) => void, pe
   const fns = useRef({ deposer, peutDeposer });
   fns.current = { deposer, peutDeposer };
 
-  const commencer = (e: ReactPointerEvent<HTMLElement>, source: () => Source) => {
+  const commencer = (e: ReactPointerEvent<HTMLElement>, source: () => S) => {
     if (e.button !== 0 || (e.pointerType !== 'mouse' && !(e.target as Element).closest('[data-prise]'))) return;
     const el = e.currentTarget;
     const id = e.pointerId;
     const [x0, y0] = [e.clientX, e.clientY];
     let parti = false;
     let cible: string | null = null;
-    let s: Source | null = null;
+    let s: S | null = null;
     const vise = () => {
       const n = document.elementFromPoint(pointeur.current[0], pointeur.current[1])?.closest<HTMLElement>('[data-noeud]');
       const u = n?.dataset.noeud ?? null;
@@ -544,7 +583,7 @@ export function useTirage(deposer: (uniteId: string, source: Source) => void, pe
       // Le clic qui suit le relâchement n'ouvre pas la fiche.
       juste.current = true;
       setTimeout(() => (juste.current = false), 0);
-      if (c && s) fns.current.deposer(c, s);
+      if (c && s !== null) fns.current.deposer(c, s);
     };
     const annule = (ev: PointerEvent) => ev.pointerId === id && arreter();
     const echap = (ev: KeyboardEvent) => ev.key === 'Escape' && arreter();

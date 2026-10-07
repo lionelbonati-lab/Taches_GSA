@@ -5,6 +5,7 @@ import { unitData } from './units';
 import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
 import { membresPropres, synchroLiens } from './liens';
+import { convertirPostes, suivre } from './organigramme';
 import type { AppData, ClubEvent, ClubMembre, Meeting, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
@@ -178,6 +179,50 @@ export function loadUnitData(id: string): AppData {
 }
 
 export const saveUnitData = (id: string, d: AppData) => write(unitStorageKey(id), d);
+
+/** Données d'une entité telles qu'enregistrées (pour annuler une modification de l'organigramme). */
+export const lireBrut = (id: string) => {
+  try {
+    return localStorage.getItem(unitStorageKey(id));
+  } catch {
+    return null;
+  }
+};
+export const ecrireBrut = (id: string, s: string | null) => {
+  try {
+    if (s === null) localStorage.removeItem(unitStorageKey(id));
+    else localStorage.setItem(unitStorageKey(id), s);
+  } catch {
+    /* stockage indisponible */
+  }
+};
+
+/** Organigramme à glisser-déposer : postes des fiches qui n'en ont pas (déduits des fonctions, liens des câbles d'avant). */
+export function initPostes(units: Unit[]) {
+  const data = new Map(units.map((u) => [u.id, loadUnitData(u.id)]));
+  if (![...data.values()].some((d) => !d.postes)) return;
+  for (const id of convertirPostes(units, data)) saveUnitData(id, data.get(id)!);
+}
+
+/**
+ * Personnes de l'entité `id` modifiées hors de l'organigramme (`avant` → `d`) : ses postes et les postes liés suivent
+ * (data/organigramme, suivre). Renvoie ses données à enregistrer, et les autres entités modifiées (déjà enregistrées).
+ */
+export function suivrePostes(id: string, avant: AppData, d: AppData): { d: AppData; ici: boolean; autres: string[] } {
+  if (!d.postes || JSON.stringify([avant.people, avant.postes]) === JSON.stringify([d.people, d.postes])) return { d, ici: false, autres: [] };
+  const units = loadUnits();
+  const data = new Map(units.map((u) => [u.id, u.id === id ? (JSON.parse(JSON.stringify(d)) as AppData) : loadUnitData(u.id)]));
+  const brut = new Map([...data].map(([k, v]) => [k, JSON.stringify(v)]));
+  suivre({ units, data, notes: [] }, id, avant);
+  const autres = units.filter((u) => u.id !== id && JSON.stringify(data.get(u.id)) !== brut.get(u.id)).map((u) => u.id);
+  for (const k of autres) {
+    const x = data.get(k)!;
+    const n = synchroDemo(k, x);
+    saveUnitData(k, lierFiches(k, n ?? x));
+  }
+  const ici = JSON.stringify(data.get(id)) !== brut.get(id);
+  return { d: ici ? data.get(id)! : d, ici, autres };
+}
 
 /** Personne connectée à la démo (son adresse email) ; reprend l'ancienne connexion par fiche du comité central. */
 export function loadMe(): string | null {

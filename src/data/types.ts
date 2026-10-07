@@ -45,6 +45,8 @@ export interface Person {
   viaFiche?: string;
   /** Fiche liée retirée de l'entité à la main : elle n'y revient pas avec le lien. */
   exclu?: boolean;
+  /** Organigramme : arrivée dans l'entité par un poste lié (démo) ; quand elle perd sa place, elle quitte l'entité. */
+  parLien?: boolean;
 }
 
 /** Une autre entité dont tous les membres font partie de l'entité (organigramme : « Membres de « … » »). */
@@ -494,6 +496,21 @@ export interface AppData {
   membresDe?: LienEntite[];
   /** Comité central : propositions d'amélioration de l'appli reçues des membres du club. */
   propositions?: Proposition[];
+  /** Organigramme à glisser-déposer (démo) : postes de la zone « Responsables » de la fiche ; absent : à déduire des fonctions. */
+  postes?: Poste[];
+}
+
+/**
+ * Poste de la fiche d'une entité dans l'organigramme (zone « Responsables ») : il existe même vacant (affiché en rouge).
+ * Son titulaire a son nom parmi ses fonctions (poste, autres postes).
+ */
+export interface Poste {
+  id: string;
+  nom: string;
+  /** Fiche de la personne qui l'occupe ; absent : à pourvoir. */
+  titulaire?: string;
+  /** Poste lié au ★ d'une autre entité (son identifiant) : son titulaire en est le ★, changer l'un change l'autre. */
+  lien?: string;
 }
 
 /** En-tête des documents imprimés (ordre du jour, PV, bon de paiement), commun à toute l'entité. */
@@ -595,6 +612,8 @@ export interface OrgUnit extends Unit {
   sections?: { id: string; nom: string }[];
   /** Entités dont tous les membres en font partie (lien « Membres de »). */
   liens?: string[];
+  /** Organigramme à glisser-déposer (démo) : postes de sa fiche, vacants compris. */
+  postes?: Poste[];
 }
 
 /** Ticket envoyé à la caisse centrale depuis une autre entité. */

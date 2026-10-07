@@ -1088,6 +1088,79 @@ body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-s
 .arbre-archives { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .org-icon { width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
 .org-star { color: #b45309; }
+/* Organigramme à glisser-déposer (démo) : fiches à trois zones — titre (★), responsables (postes), bénévoles (repliés). */
+.arbre-noeud.fiche { gap: 6px; }
+.fiche-titre { display: flex; flex-direction: column; gap: 6px; margin: -3px -5px 0; padding: 3px 5px 0; border-radius: 7px; }
+.fiche-etoiles, .fiche-liste { display: flex; flex-direction: column; }
+.fiche-etoiles { padding-top: 6px; border-top: 1px solid var(--border); }
+.fiche .poste { position: relative; display: block; width: 100%; margin: 0 -4px; padding: 2px 4px; box-sizing: content-box; font: inherit; font-size: 0.82rem; line-height: 1.35; text-align: left; overflow-wrap: break-word; color: inherit; background: none; border: 0; border-radius: 4px; }
+.fiche button.poste { cursor: pointer; }
+.fiche button.poste:hover { background: var(--primary-soft); color: var(--primary); }
+.fiche .poste.chef { font-weight: 600; }
+.fiche .poste .autres { color: var(--muted); font-weight: 400; }
+.fiche .poste.inerte { cursor: default; }
+.fiche button.poste.inerte:hover { background: none; color: inherit; }
+/* Poste à pourvoir (ou ★ à désigner) : en rouge. */
+.fiche .poste.vacant, .fiche .poste.vacant .autres { color: var(--danger); }
+.fiche button.poste.vacant:hover { color: var(--danger); background: color-mix(in srgb, var(--danger) 10%, transparent); }
+.fiche .poste.tirable { cursor: grab; user-select: none; -webkit-user-select: none; }
+.fiche-zone { margin: 0 -5px; padding: 0 5px; border-radius: 7px; }
+.fiche-zone .arbre-postes { padding-top: 0; border-top: 0; }
+.fiche-resp { padding-top: 6px; border-top: 1px solid var(--border); border-top-left-radius: 0; border-top-right-radius: 0; }
+.fiche-zone-titre { display: block; margin-bottom: 1px; font-size: 0.68rem; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.fiche-ajout { display: inline-block; margin-top: 3px; padding: 1px 6px; font: inherit; font-size: 0.72rem; color: var(--primary); background: none; border: 1px dashed var(--border); border-radius: 6px; cursor: pointer; }
+.fiche-ajout:hover { border-color: var(--primary); background: var(--primary-soft); }
+.fiche-benevoles { padding-top: 4px; border-top: 1px dashed var(--border); border-top-left-radius: 0; border-top-right-radius: 0; }
+.fiche-plier { display: block; width: 100%; margin: 0 -4px; padding: 2px 4px; box-sizing: content-box; font: inherit; font-size: 0.78rem; text-align: left; color: var(--muted); background: none; border: 0; border-radius: 4px; cursor: pointer; }
+.fiche-plier:hover { color: var(--primary); background: var(--primary-soft); }
+.fiche-plier .autres { font-size: 0.74rem; }
+.fiche-liste { padding: 2px 0 0 10px; }
+/* ⛓ : à tirer jusqu'à une autre fiche (mode « Modifier »), ou poste déjà lié (couleur de l'entité liée). */
+.fiche-lier, .fiche-lie { float: right; margin: -1px -4px -1px 4px; padding: 0 3px; font-size: 0.78rem; line-height: 1.35; border-radius: 4px; }
+.fiche-lier { color: var(--muted); opacity: 0.55; cursor: pointer; touch-action: none; }
+.fiche-lier:hover { background: var(--surface2); }
+.fiche .poste:hover .fiche-lier, .fiche-lier:hover { opacity: 1; color: var(--primary); }
+.fiche-lie, .fiche-lier.lie { font-weight: 700; opacity: 1; }
+/* Poignée ⠿ : glisser au doigt (la page ne défile pas), ou toucher pour la prendre en main. */
+.fiche-prise { float: right; position: relative; width: 20px; height: 18px; margin: -1px -4px -1px 2px; color: var(--muted); touch-action: none; cursor: grab; }
+.fiche-prise::after { content: ''; position: absolute; right: 5px; top: 4px; width: 8px; height: 11px; background: radial-gradient(circle, currentColor 1.1px, transparent 1.5px) 0 0 / 4px 3.6px; }
+.fiche .poste:hover .fiche-prise { color: var(--primary); }
+@media (pointer: fine) { .fiche-prise { display: none; } }
+/* En train de placer quelqu'un : les zones où le poser, en pointillés (sans rien décaler) ; celle sous le pointeur, en couleur. */
+.fiche-pose .fiche-titre, .fiche-pose .fiche-zone { outline: 1px dashed color-mix(in srgb, var(--primary) 35%, transparent); outline-offset: -1px; }
+.fiche .survol, .fiche .fiche-pose .survol, .fiche-pose .fiche-titre.survol, .fiche-pose .fiche-zone.survol { background: var(--primary-soft); outline: 2px solid var(--primary); outline-offset: -1px; }
+.fiche .poste.survol { color: var(--primary); }
+.fiche .poste.vacant.survol { color: var(--danger); }
+body.glisse-en-cours, body.glisse-en-cours * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
+.glisse-volant { position: fixed; left: 0; top: 0; z-index: 70; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; pointer-events: none; will-change: transform; }
+.glisse-volant .orga-pilule { box-shadow: 0 8px 22px rgb(0 0 0 / 0.22); }
+.glisse-action { max-width: 260px; padding: 3px 8px; font-size: 0.78rem; font-weight: 600; color: #fff; background: var(--primary); border-radius: 6px; box-shadow: 0 4px 12px rgb(0 0 0 / 0.18); }
+.glisse-corbeille { position: fixed; left: 50%; bottom: 24px; z-index: 65; transform: translateX(-50%); padding: 12px 22px; font-weight: 600; color: var(--danger); background: var(--surface); border: 2px dashed var(--danger); border-radius: 12px; box-shadow: 0 8px 24px rgb(0 0 0 / 0.2); }
+.glisse-corbeille.survol { color: #fff; background: var(--danger); border-style: solid; }
+/* Recherche en haut à gauche : les personnes du club en pilules, à glisser sur une fiche. */
+.orga-barre { position: sticky; top: 64px; z-index: 6; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px 12px; margin: 0 0 10px; pointer-events: none; }
+.orga-barre > * { pointer-events: auto; }
+.orga-recherche { position: relative; width: min(300px, 100%); }
+.orga-recherche input { width: 100%; box-shadow: var(--shadow); }
+.orga-pilules { position: absolute; left: 0; top: calc(100% + 6px); z-index: 7; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; max-height: min(60vh, 420px); overflow-y: auto; padding: 2px 6px 6px 0; }
+.orga-pilule { display: inline-flex; align-items: center; gap: 8px; max-width: 300px; padding: 4px 12px 4px 4px; font: inherit; text-align: left; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 999px; box-shadow: var(--shadow); cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none; }
+.orga-pilule:hover { border-color: var(--primary); }
+.orga-pilule.on { color: var(--primary); background: var(--primary-soft); border-color: var(--primary); }
+.orga-pilule > span:last-child { display: flex; flex-direction: column; min-width: 0; }
+.orga-pilule b { font-size: 0.85rem; line-height: 1.25; }
+.orga-pilule small { overflow: hidden; font-size: 0.72rem; line-height: 1.25; color: var(--muted); white-space: nowrap; text-overflow: ellipsis; }
+.orga-plus { display: grid; place-items: center; width: 22px; height: 22px; font-weight: 700; color: var(--primary); background: var(--primary-soft); border-radius: 50%; }
+.orga-enmain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 6px 8px 6px 12px; font-size: 0.85rem; background: var(--surface); border: 2px solid var(--primary); border-radius: 10px; box-shadow: var(--shadow); }
+.orga-fait { display: flex; align-items: center; gap: 10px; width: max-content; cursor: default; }
+.orga-fait.erreur { background: var(--danger); }
+.orga-fait .btn { flex-shrink: 0; color: var(--text); }
+.orga-fait-x { padding: 0 4px; font-size: 1.2rem; line-height: 1; color: inherit; background: none; border: 0; cursor: pointer; opacity: 0.7; }
+.poste-titulaire { display: flex; align-items: center; gap: 10px; padding: 8px 10px; background: var(--surface2); border-radius: 8px; }
+.poste-titulaire .grow { display: flex; flex-direction: column; }
+@media (max-width: 767px) {
+  .orga-barre { top: 56px; }
+  .glisse-corbeille { bottom: calc(84px + env(safe-area-inset-bottom)); }
+}
 .org-archives { margin-top: 18px; }
 .person .also { font-size: 0.8rem; }
 .fiche-personne { margin-bottom: 4px; }

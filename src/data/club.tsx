@@ -2,6 +2,7 @@ import { createContext, useContext } from 'react';
 import type { Carte, ClubMembre, MyRequest, NouvelleProposition, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 import type { NouveauResponsable } from './cablage';
+import type { OpOrga } from './organigramme';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
 // L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
@@ -116,6 +117,11 @@ export interface Club {
    * sa fiche y est reprise ou créée. Admins du comité central, ou de l'entité. `compte` : son compte au club lui ouvre l'entité.
    */
   definirResponsable: (uniteId: string, r: NouveauResponsable) => Promise<{ compte: boolean }>;
+  /**
+   * Organigramme à glisser-déposer (fiches à trois zones, postes liés) : pour l'instant dans la démo seulement
+   * (absent : l'organigramme câblé). Renvoie ce qui a été fait et de quoi l'annuler.
+   */
+  organiser?: (op: OpOrga) => Promise<{ message: string; annuler: () => Promise<void> }>;
   /** Envoie une proposition d'amélioration de l'appli au comité central (tout membre du club). */
   proposerAmelioration: (p: NouvelleProposition) => Promise<void>;
   /** Propositions envoyées par la personne connectée, avec leur suivi ; null : le serveur ne les gère pas encore (migration 022). */

@@ -1,9 +1,9 @@
-import { Children, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
 import { arbreEntites, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
-import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
+import type { CentralAccess, OrgMember, OrgUnit, Poste, Unit, UnitType } from '../data/types';
 import { fmtRange } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
 import { ADMIN_ROLE_ID } from '../data/permissions';
@@ -13,8 +13,10 @@ import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
 import { CentralAccessChoice } from '../components/CentralAccess';
 import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
-import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
+import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensPostes, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
 import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
+import { coupure, EnMain, Fiche, lireCible, NomPosteModal, PosteModal, Postes, rangeesPostes, Recherche, useGlisser, type OrgaVue, type Prise } from '../components/Organiser';
+import { benevolesDe, conflitLien, nomDe, type OpOrga } from '../data/organigramme';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
 // Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
@@ -106,7 +108,7 @@ export function Org() {
 
   // L'entité ouverte : ses membres tels qu'ils sont maintenant (modifications pas encore relues).
   const units = useMemo(
-    () => club.units.map((u) => (u.id === club.current.id ? { ...u, membres: orgMembers(data), liens: data.membresDe?.map((l) => l.uniteId) } : u)),
+    () => club.units.map((u) => (u.id === club.current.id ? { ...u, membres: orgMembers(data), liens: data.membresDe?.map((l) => l.uniteId), postes: data.postes ?? u.postes } : u)),
     [club.units, club.current.id, data],
   );
   const active = units.filter((u) => !u.archive);
@@ -119,7 +121,133 @@ export function Org() {
     setCablage(false);
     setChoisi(null);
   };
-  const candidats = useCandidats(units, cablage || !!depot);
+  // Organigramme à glisser-déposer (démo) : fiches à trois zones, recherche en haut à gauche, postes liés.
+  const orga = !!club.organiser;
+  const [q, setQ] = useState('');
+  const [deplies, setDeplies] = useState<Set<string>>(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem(DEPLIES) ?? '[]') as string[]);
+    } catch {
+      return new Set();
+    }
+  });
+  const deplier = (id: string) =>
+    setDeplies((s) => {
+      const n = new Set(s);
+      if (!n.delete(id)) n.add(id);
+      try {
+        localStorage.setItem(DEPLIES, JSON.stringify([...n]));
+      } catch {
+        /* navigation privée : repliées à la prochaine visite */
+      }
+      return n;
+    });
+  const [nommer, setNommer] = useState<{ uniteId: string; prise?: Prise } | null>(null);
+  const [posteOuvert, setPosteOuvert] = useState<{ uniteId: string; posteId: string; lienPropose?: string } | null>(null);
+  const [fait, setFait] = useState<{ message: string; annuler?: () => Promise<void>; erreur?: boolean } | null>(null);
+  useEffect(() => {
+    if (!fait) return;
+    const t = setTimeout(() => setFait(null), 8000);
+    return () => clearTimeout(t);
+  }, [fait]);
+  /** Une ou plusieurs modifications de l'organigramme ; ce qui a été fait s'affiche en bas, avec « Annuler ». */
+  const faire = async (ops: OpOrga | OpOrga[]) => {
+    if (!club.organiser) return false;
+    const annulers: (() => Promise<void>)[] = [];
+    const messages: string[] = [];
+    try {
+      for (const op of Array.isArray(ops) ? ops : [ops]) {
+        const r = await club.organiser(op);
+        annulers.unshift(r.annuler);
+        if (r.message) messages.push(r.message);
+      }
+    } catch (e) {
+      for (const a of annulers) await a();
+      setFait({ message: e instanceof Error ? e.message : String(e), erreur: true });
+      return false;
+    }
+    if (messages.length)
+      setFait({
+        message: messages.join(' · '),
+        annuler: async () => {
+          for (const a of annulers) await a();
+          setFait({ message: 'Annulé.' });
+        },
+      });
+    return true;
+  };
+  const peutFiche = (u?: OrgUnit) => !!u && !u.archive && (club.canManage || !!u.moiAdmin);
+  const uniteDe = (id: string) => units.find((x) => x.id === id);
+  const glisser = useGlisser({
+    peut: (p, c) => {
+      const v = lireCible(c);
+      if (p.depuis && !peutFiche(uniteDe(p.depuis.uniteId))) return false;
+      if (v.zone === 'corbeille') return !!p.depuis;
+      if (!peutFiche(uniteDe(v.uniteId))) return false;
+      // Là où elle est déjà : rien à faire.
+      const d = p.depuis;
+      if (!d || d.uniteId !== v.uniteId) return true;
+      if (v.zone === 'etoile') return !(d.zone === 'titre' && v.personId === d.personId);
+      if (v.zone === 'poste') return !(d.zone === 'poste' && v.posteId === d.posteId) && !(d.zone === 'titre' && uniteDe(v.uniteId)?.postes?.find((x) => x.id === v.posteId)?.titulaire === d.personId);
+      return v.zone === 'nouveau' || v.zone !== d.zone;
+    },
+    libelle: (p, c) => {
+      const v = lireCible(c);
+      if (v.zone === 'corbeille') return `🗑 Retirer de « ${uniteDe(p.depuis?.uniteId ?? '')?.nom ?? '?'} »`;
+      const u = uniteDe(v.uniteId);
+      if (!u) return '';
+      const t = UNIT_TYPES[u.type];
+      if (v.zone === 'titre') return `★ ${t.chef.toLowerCase()} de « ${u.nom} »`;
+      if (v.zone === 'etoile') {
+        const m = u.membres.find((x) => x.id === v.personId);
+        return `★ à la place de ${m ? nomDe(m) : '?'}`;
+      }
+      if (v.zone === 'poste') {
+        const po = u.postes?.find((x) => x.id === v.posteId);
+        const m = po?.titulaire ? u.membres.find((x) => x.id === po.titulaire) : undefined;
+        return `${po?.nom ?? 'Poste'}${m ? ` à la place de ${nomDe(m)}` : ''}`;
+      }
+      if (v.zone === 'nouveau') return `＋ Nouveau poste dans « ${u.nom} »`;
+      const b = benevolesDe(u.type).un;
+      return `${b[0].toUpperCase()}${b.slice(1)} de « ${u.nom} »`;
+    },
+    deposer: (p, c) => {
+      const v = lireCible(c);
+      if (p.cle) setQ('');
+      if (v.zone === 'nouveau') return setNommer({ uniteId: v.uniteId, prise: p });
+      void faire({ type: 'placer', qui: p.qui, depuis: p.depuis, vers: v });
+    },
+  });
+  // ⛓ tiré d'un poste jusqu'à une autre fiche : le poste est lié à son ★ (si le poste et l'entité ont chacun quelqu'un : choisir).
+  const lierDe = useRef('');
+  const lierTirage = useTirage<{ u: OrgUnit; poste: Poste }>(
+    (id, { u, poste }) => {
+      if (conflitLien(units, u.id, poste.id, id)) setPosteOuvert({ uniteId: u.id, posteId: poste.id, lienPropose: id });
+      else void faire({ type: 'lier', uniteId: u.id, posteId: poste.id, lien: id });
+    },
+    (id) => id !== lierDe.current && units.some((x) => x.id === id && !x.archive),
+  );
+  const vue: OrgaVue | undefined = orga
+    ? {
+        edition,
+        peut: peutFiche,
+        glisser,
+        lier: {
+          commencer: (e, u, poste) => {
+            lierDe.current = u.id;
+            lierTirage.commencer(e, () => ({ u, poste }));
+          },
+          tireJuste: lierTirage.tireJuste,
+          survol: lierTirage.survol,
+          tir: lierTirage.tir,
+        },
+        onPoste: (u, p) => setPosteOuvert({ uniteId: u.id, posteId: p.id }),
+        onNouveauPoste: (u) => setNommer({ uniteId: u.id }),
+        deplies,
+        deplier,
+      }
+    : undefined;
+  const candidats = useCandidats(units, cablage || !!depot || (orga && modeModifier));
   const cleChoisi = choisi && choisi !== 'nouvelle' ? choisi.key : undefined;
   const tirage = useTirage(
     (id, source) => {
@@ -147,7 +275,7 @@ export function Org() {
             ? { label: 'Ouvrir', aide: `Ouvrir « ${u.nom} »`, go: () => club.switchUnit(u.id) }
             : { label: visit === 'lecture' ? '👁 Consulter' : '✏️ Ouvrir', aide: CENTRAL_ACCESS[visit as CentralAccess].aide, go: () => club.switchUnit(u.id) },
       onModifier: edition && (club.canManage || u.moiAdmin) ? () => setEdit({ unit: u }) : undefined,
-      cablage: edition && peutCabler
+      cablage: edition && peutCabler && !orga
         ? {
             onTirer: (e, m) => tirage.commencer(e, () => candidatDe(candidats, u, m)),
             tireJuste: tirage.tireJuste,
@@ -182,7 +310,7 @@ export function Org() {
         <h1>🏛️ Organigramme du club</h1>
         {edition ? (
           <div className="row wrap">
-            {peutCabler && (
+            {peutCabler && !orga && (
               <button
                 className={`btn ${cablage ? 'on' : ''}`}
                 aria-pressed={cablage}
@@ -202,7 +330,15 @@ export function Org() {
           peutModifier && <button className="btn" onClick={() => setModeModifier(true)}>✏️ Modifier l’organigramme</button>
         )}
       </div>
-      {edition ? (
+      {edition && orga ? (
+        <p className="org-edition">
+          <b>✏️ Modification</b>
+          <span>Glisse une personne sur le titre d’une fiche (★), sur un poste ou dans ses bénévoles (au doigt : par sa poignée ⠿, ou touche-la puis touche la zone).</span>
+          <span>Pour placer quelqu’un d’autre : cherche-le en haut à gauche.</span>
+          <span>Tire le ⛓ d’un poste jusqu’à une autre fiche : il sera lié à son ★ (un clic sur ⛓ : nom, lien ou suppression du poste).</span>
+          {active.some((u) => club.canManage || u.moiAdmin) && <span>Déplace une carte en la tirant par son nom.</span>}
+        </p>
+      ) : edition ? (
         <p className="org-edition">
           <b>✏️ Modification</b>
           {active.some((u) => club.canManage || u.moiAdmin) && <span>Déplace une carte en la tirant par son nom (au doigt : par sa poignée en haut).</span>}
@@ -213,6 +349,12 @@ export function Org() {
         <p className="muted small-note">Clique sur une personne pour voir sa fiche, sur le nom d’une entité pour l’ouvrir.</p>
       )}
       {club.error && <p className="error small-note">{club.error}</p>}
+      {edition && orga && (
+        <div className="orga-barre">
+          <Recherche q={q} setQ={setQ} candidats={candidats} glisser={glisser} />
+          <EnMain glisser={glisser} onRetirer={(p) => p.depuis && void faire({ type: 'placer', qui: p.qui, depuis: p.depuis, vers: { zone: 'corbeille' } })} />
+        </div>
+      )}
       {cablage && (
         <CablagePanel
           candidats={candidats}
@@ -226,16 +368,27 @@ export function Org() {
           }}
         />
       )}
-      {active.length ? <Arbre units={active} actions={actions} edition={edition} /> : <Empty>Aucune entité.</Empty>}
-      <p className="arbre-legende muted small-note">
-        <span>★ responsable</span>
-        <span><span className="legende-cable" aria-hidden="true" /> câble : du responsable, dans l’entité mère</span>
-        <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
-      </p>
+      {active.length ? <Arbre units={active} actions={actions} edition={edition} orga={vue} /> : <Empty>Aucune entité.</Empty>}
+      {vue ? (
+        <p className="arbre-legende muted small-note">
+          <span>★ titre de la fiche (président, responsable)</span>
+          <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité : changer l’un change l’autre</span>
+          <span><span className="error">rouge</span> : poste à pourvoir</span>
+          <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
+        </p>
+      ) : (
+        <p className="arbre-legende muted small-note">
+          <span>★ responsable</span>
+          <span><span className="legende-cable" aria-hidden="true" /> câble : du responsable, dans l’entité mère</span>
+          <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
+        </p>
+      )}
       {archived.length > 0 && (
         <details className="org-archives">
           <summary>🗄️ Entités archivées ({archived.length})</summary>
-          <div className="arbre-archives">{archived.map((u) => <Noeud key={u.id} u={u} {...actions(u)} />)}</div>
+          <div className="arbre-archives">
+            {archived.map((u) => (vue ? <Fiche key={u.id} u={u} o={{ ...vue, edition: false }} a={actions(u)} /> : <Noeud key={u.id} u={u} {...actions(u)} />))}
+          </div>
         </details>
       )}
 
@@ -274,10 +427,59 @@ export function Org() {
       )}
       {ajout && <NouvellePersonne onClose={() => setAjout(false)} />}
       {depot && <ResponsableModal u={depot.u} source={depot.source} candidats={candidats} onClose={() => setDepot(null)} />}
+      {nommer && uniteDe(nommer.uniteId) && (
+        <NomPosteModal
+          u={uniteDe(nommer.uniteId)!}
+          qui={nommer.prise?.nom}
+          defaut={nommer.prise?.poste}
+          onOk={(nom) =>
+            faire(
+              nommer.prise
+                ? { type: 'placer', qui: nommer.prise.qui, depuis: nommer.prise.depuis, vers: { zone: 'nouveau', uniteId: nommer.uniteId, nom } }
+                : { type: 'nouveauPoste', uniteId: nommer.uniteId, nom },
+            )
+          }
+          onClose={() => setNommer(null)}
+        />
+      )}
+      {posteOuvert && (() => {
+        const u = uniteDe(posteOuvert.uniteId);
+        const poste = u?.postes?.find((x) => x.id === posteOuvert.posteId);
+        return u && poste ? (
+          <PosteModal
+            u={u}
+            poste={poste}
+            units={units}
+            lienPropose={posteOuvert.lienPropose}
+            faire={faire}
+            onPersonne={(m) => {
+              setPosteOuvert(null);
+              setFiche({ unitId: u.id, personId: m.id });
+            }}
+            onClose={() => setPosteOuvert(null)}
+          />
+        ) : null;
+      })()}
+      {fait && (
+        <div className={`toast orga-fait ${fait.erreur ? 'erreur' : ''}`} role="status">
+          <span>{fait.message}</span>
+          {fait.annuler && (
+            <button type="button" className="btn small" onClick={() => void fait.annuler!()}>
+              ↶ Annuler
+            </button>
+          )}
+          <button type="button" className="orga-fait-x" aria-label="Fermer" onClick={() => setFait(null)}>×</button>
+        </div>
+      )}
       {tirage.volant}
+      {glisser.volant}
+      {lierTirage.volant}
     </div>
   );
 }
+
+// Organigramme à glisser-déposer : fiches dont les bénévoles sont dépliés (sur cet appareil).
+const DEPLIES = 'taches-gsa-orga-deplies';
 
 // Largeur d'une colonne de l'arbre (carte + marges) : en dessous, l'arbre se présente de haut en bas, décalé à droite.
 const COLONNE = 240;
@@ -299,20 +501,6 @@ function lignesDe(u: OrgUnit, units: OrgUnit[]) {
   return { lignes, groupes, rangees };
 }
 
-/** Grande carte : nombre de rangées de la colonne de gauche, pour deux colonnes de même hauteur (≈ 29 caractères par ligne). */
-function coupure(rangees: { texte: string }[]) {
-  const poids = rangees.map((r) => Math.max(1, Math.ceil(r.texte.length / 29)));
-  const total = poids.reduce((a, b) => a + b, 0);
-  let [k, gauche, meilleur] = [0, 0, Infinity];
-  poids.forEach((p, i) => {
-    gauche += p;
-    // À égalité, la colonne de gauche est la plus longue.
-    const haut = Math.max(gauche, total - gauche);
-    if (haut < meilleur || (haut === meilleur && gauche > total - gauche)) [k, meilleur] = [i + 1, haut];
-  });
-  return k;
-}
-
 /** Rang, dans l'entité mère, de la ligne d'où part un câble (sinon -1). */
 const rangDuLien = (l: LienResponsable, rangees: { cle: string }[]) => {
   const i = rangees.findIndex((r) => r.cle === l.ligne);
@@ -323,7 +511,7 @@ const rangDuLien = (l: LienResponsable, rangees: { cle: string }[]) => {
  * L'arbre : de haut en bas comme un arbre généalogique, ou en liste décalée (téléphone, ou trop d'entités côte à côte).
  * De haut en bas, les cartes posées à la main sont à leur place (disposition libre) ; en mode « Modifier », on les déplace.
  */
-function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: OrgUnit) => Actions; edition: boolean }) {
+function Arbre({ units, actions, edition, orga }: { units: OrgUnit[]; actions: (u: OrgUnit) => Actions; edition: boolean; orga?: OrgaVue }) {
   const club = useClub();
   const racines = useMemo(() => arbreEntites(units), [units]);
   const cadre = useRef<HTMLDivElement>(null);
@@ -337,7 +525,8 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
-  const rangees = useMemo(() => new Map(units.map((u) => [u.id, lignesDe(u, units).rangees])), [units]);
+  // Fiches à trois zones (orga) : les rangées sont les postes ; sinon une par personne.
+  const rangees = useMemo(() => new Map(units.map((u) => [u.id, orga ? rangeesPostes(u) : lignesDe(u, units).rangees])), [units, orga]);
   const grandes = useMemo(() => new Set(units.filter((u) => (rangees.get(u.id)?.length ?? 0) >= GRANDE).map((u) => u.id)), [units, rangees]);
   // Colonnes qu'il faut côte à côte : une par carte du bas (deux pour une grande carte).
   const colonnes = (b: Branche<OrgUnit>): number => Math.max(grandes.has(b.u.id) ? 2 : 1, b.enfants.reduce((n, x) => n + colonnes(x), 0));
@@ -345,13 +534,18 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
   // Câbles : du responsable dans l'entité mère jusqu'à l'entité, dessinés sur le plan de l'arbre.
   const plan = useRef<HTMLDivElement>(null);
   const arbre = useRef<HTMLUListElement>(null);
-  const liens = useMemo(() => liensResponsables(units), [units]);
-  // Sous chaque entité mère : une bande pour ses câbles (un niveau chacun) avant la barre de l'arbre.
+  // Fiches à trois zones : du poste lié jusqu'à l'entité dont son titulaire est le ★.
+  const liens = useMemo(() => (orga ? liensPostes(units) : liensResponsables(units)), [units, orga]);
+  // Sous chaque entité mère : une bande pour ses câbles vers les entités en dessous (un niveau chacun) avant la barre de l'arbre.
   const bandes = useMemo(() => {
     const n = new Map<string, number>();
-    for (const l of liens) n.set(l.de, (n.get(l.de) ?? 0) + 1);
+    const dessous = new Map<string, Set<string>>();
+    for (const l of liens) {
+      if (!dessous.has(l.de)) dessous.set(l.de, new Set(sousEntites(units, l.de)));
+      if (dessous.get(l.de)!.has(l.vers)) n.set(l.de, (n.get(l.de) ?? 0) + 1);
+    }
     return new Map([...n].map(([de, k]) => [de, bandeCables(k)]));
-  }, [liens]);
+  }, [liens, units]);
   // Ordre des entités sous leur mère : celles reliées par un câble suivent les lignes de leur responsable, pour que
   // les câbles ne se croisent pas. De haut en bas : la ligne la plus haute vers l'entité la plus à l'extérieur
   // (grande carte : colonne de gauche à gauche, de droite à droite) ; en liste : la plus haute vers la plus éloignée.
@@ -393,7 +587,11 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
   });
   const branche = (b: Branche<OrgUnit>) => (
     <li key={b.u.id}>
-      <Noeud u={b.u} {...actions(b.u)} deplacer={disposition.deplacer(b.u)} grande={!vertical && grandes.has(b.u.id)} />
+      {orga ? (
+        <Fiche u={b.u} o={orga} a={actions(b.u)} deplacer={disposition.deplacer(b.u)} grande={!vertical && grandes.has(b.u.id)} />
+      ) : (
+        <Noeud u={b.u} {...actions(b.u)} deplacer={disposition.deplacer(b.u)} grande={!vertical && grandes.has(b.u.id)} />
+      )}
       {b.enfants.length > 0 && <ul style={vertical ? undefined : ({ '--bande': `${bandes.get(b.u.id) ?? bandeCables(0)}px` } as CSSProperties)}>{b.enfants.map(branche)}</ul>}
     </li>
   );
@@ -430,18 +628,6 @@ function Arbre({ units, actions, edition }: { units: OrgUnit[]; actions: (u: Org
         </div>
       )}
     </>
-  );
-}
-
-/** Les rangées d'une carte ; `deux` > 0 : sur deux colonnes, les `deux` premières à gauche (grande carte). */
-function Postes({ deux, children }: { deux: number; children: ReactNode }) {
-  if (!deux) return <div className="arbre-postes">{children}</div>;
-  const r = Children.toArray(children);
-  return (
-    <div className="arbre-postes deux">
-      <div className="arbre-colonne">{r.slice(0, deux)}</div>
-      <div className="arbre-colonne">{r.slice(deux)}</div>
-    </div>
   );
 }
 

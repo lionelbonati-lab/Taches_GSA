@@ -231,7 +231,7 @@ export function useDisposition({ plan, arbre, cadre, units, actif, peut, placer 
     const poignee = !!cible.closest('[data-poignee]');
     // Souris : par l'en-tête ou le fond de la carte ; doigt : par la poignée (ailleurs, la page défile).
     if (e.button !== 0 || geste.current || (e.pointerType !== 'mouse' && !poignee)) return;
-    if (!poignee && cible.closest('[data-ligne], .arbre-pied, .cablage-depose')) return;
+    if (!poignee && cible.closest('[data-ligne], .arbre-pied, .cablage-depose, .fiche-zone')) return;
     const p = plan.current;
     const a = arbre.current;
     if (!p || !a) return;
