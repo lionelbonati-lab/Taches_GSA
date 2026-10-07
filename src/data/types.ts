@@ -440,6 +440,8 @@ export interface Prefs {
   manifsMasquees?: string[];
   /** Phrase d'explication en haut des pages (false : masquée). */
   explications?: boolean;
+  /** Accueil : blocs masqués, sur téléphone et sur ordinateur (tout est affiché par défaut). */
+  accueilMasque?: { telephone?: string[]; ordinateur?: string[] };
 }
 
 /** Notification d'activité enregistrée (les rappels d'échéance sont calculés à la volée). */

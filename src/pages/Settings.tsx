@@ -10,6 +10,7 @@ import { switchMode } from '../data/mode';
 import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
 import { PageIntro } from '../components/Nav';
+import { AccueilModal, useBlocsAccueil } from '../components/Accueil';
 
 export function Settings() {
   const { dataLocale: data, user, prefs, setPrefs, can, reset, restore, login, cloud, guest } = useStore();
@@ -17,6 +18,9 @@ export function Settings() {
   const [pwd, setPwd] = useState<'ferme' | 'ouvert' | 'ok'>('ferme');
   const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [last, setLast] = useState(lastBackupAt());
+  const [accueil, setAccueil] = useState(false);
+  const blocs = useBlocsAccueil();
+  const masques = blocs.filter((b) => prefs.accueilMasque?.telephone?.includes(b.id) || prefs.accueilMasque?.ordinateur?.includes(b.id)).length;
   const fileRef = useRef<HTMLInputElement>(null);
 
   const exportAll = async () => {
@@ -113,6 +117,16 @@ export function Settings() {
             <option value="non">Masquer</option>
           </select>
         </label>
+        <div className="full row">
+          <span className="grow">
+            Mon accueil{' '}
+            <small className="muted">
+              {masques ? `(${masques} bloc${masques > 1 ? 's' : ''} masqué${masques > 1 ? 's' : ''} sur téléphone ou ordinateur)` : '(tout est affiché)'}
+            </small>
+          </span>
+          <button type="button" className="btn small" onClick={() => setAccueil(true)}>⚙ Choisir ce qui s’affiche</button>
+        </div>
+        {accueil && <AccueilModal onClose={() => setAccueil(false)} />}
       </section>
       <section className="panel form">
         <h2 className="full">Notifications</h2>

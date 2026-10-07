@@ -12,13 +12,21 @@ import { EmailSend } from '../components/EmailsField';
 import { IncomingRequests, OutgoingRequests } from '../components/Requests';
 import { useClubOptional } from '../data/club';
 import { EditionCard } from '../components/Edition';
+import { AccueilModal, useAccueil, useBlocsAccueil } from '../components/Accueil';
 
 export function Dashboard() {
-  const { data, user, can, saveTask, guest } = useStore();
+  const { data, user, saveTask, guest } = useStore();
   const club = useClubOptional();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
+  const [reglage, setReglage] = useState(false);
+  const { appareil, voit: voitBloc } = useAccueil();
+  const blocs = useBlocsAccueil();
   if (!user) return null;
+  // Blocs que la personne a choisi de voir sur cet appareil (« ⚙ Personnaliser »).
+  const voit = (id: string) => blocs.some((b) => b.id === id) && voitBloc(id);
+  const gauche = voit('retard') || voit('semaine');
+  const droite = ['demandes', 'emails', 'sondages', 'seance', 'evenements'].some(voit);
 
   // Membre du comité central qui ouvre l'entité : il n'y a pas de tâches à lui, l'accueil montre celles de l'entité.
   const mine = guest ? data.tasks : data.tasks.filter((t) => t.responsables.includes(user.id));
@@ -38,13 +46,102 @@ export function Dashboard() {
     .sort((a, b) => a.at.localeCompare(b.at));
   const toSend = myEmails.filter((x) => x.st === 'aEnvoyer');
   const upcoming = myEmails.filter((x) => x.st === 'programme').slice(0, 3);
+  const toVote = (data.polls ?? []).filter((p) => isOpen(p) && p.cleMoi && !p.votes[p.cleMoi]);
+
+  const taches = gauche && (
+    <section>
+      {voit('retard') && (
+        <>
+          <h2>⚠ {guest ? 'Tâches en retard' : 'Mes tâches en retard'}</h2>
+          {late.length ? <div className="cards">{late.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Rien en retard, bravo !</Empty>}
+        </>
+      )}
+      {voit('semaine') && (
+        <>
+          <h2>📅 À faire dans les 7 jours</h2>
+          {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Aucune échéance cette semaine.</Empty>}
+        </>
+      )}
+    </section>
+  );
+  const cote = droite && (
+    <aside>
+      {voit('demandes') && club && club.current.type !== 'central' && !guest && <OutgoingRequests />}
+      {voit('demandes') && club?.current.type === 'central' && <IncomingRequests onOpen={setEdit} />}
+      {voit('emails') && toSend.length > 0 && (
+        <>
+          <h2>📧 Emails à envoyer</h2>
+          {toSend.map(({ e, t }) => (
+            <div key={e.id} className="panel email-due">
+              <strong>{fillTemplate(data, t, e, e.objet)}</strong>
+              <span className="muted">{whenLabel(t, e.quand)}</span>
+              <button className="btn small primary" onClick={() => setSend({ task: t, email: e })}>✉ Envoyer</button>
+            </div>
+          ))}
+        </>
+      )}
+      {voit('emails') && upcoming.length > 0 && (
+        <>
+          <h2>🕓 Prochains emails programmés</h2>
+          {upcoming.map(({ e, t }) => (
+            <button key={e.id} className="panel link-panel email-next" onClick={() => setEdit(t)}>
+              <strong>{fillTemplate(data, t, e, e.objet)}</strong>
+              <span className="muted">{whenLabel(t, e.quand)}</span>
+            </button>
+          ))}
+        </>
+      )}
+      {voit('sondages') && toVote.length > 0 && (
+        <>
+          <h2>📊 Sondages à voter</h2>
+          {toVote.map((p) => (
+            <Link key={p.id} to={`/sondages?id=${p.id}`} className="panel link-panel">
+              <strong>{p.question}</strong>
+              <span className="muted">{p.dateLimite ? `Réponds avant le ${fmtDate(p.dateLimite)}` : 'En attente de ta réponse'}</span>
+            </Link>
+          ))}
+        </>
+      )}
+      {voit('seance') && (
+        <>
+          <h2>{club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}</h2>
+          {nextMeeting ? (
+            <Link to="/comite" className="panel link-panel">
+              <strong>{nextMeeting.titre}</strong>
+              <span>{fmtDate(nextMeeting.date)} · {nextMeeting.lieu} <em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em></span>
+              <pre className="odj">{nextMeeting.ordreDuJour}</pre>
+            </Link>
+          ) : <Empty>Aucune séance planifiée.</Empty>}
+        </>
+      )}
+      {voit('evenements') && (
+        <>
+          <h2>Prochains événements</h2>
+          {nextEvents.map((e) => {
+            const tasks = data.tasks.filter((t) => t.eventId === e.id);
+            const done = tasks.filter((t) => isDone(data, t)).length;
+            return (
+              <Link key={e.id} to={`/taches?event=${e.id}`} className="panel link-panel">
+                <strong>{e.nom}</strong>
+                <span>{fmtRange(e.date, e.dateFin)} · {e.lieu}</span>
+                <Progress done={done} total={tasks.length} />
+              </Link>
+            );
+          })}
+        </>
+      )}
+    </aside>
+  );
 
   return (
     <div>
-      <h1>Bonjour {user.prenom} 👋</h1>
+      <div className="page-head">
+        <h1>Bonjour {user.prenom} 👋</h1>
+        <button className="btn small" onClick={() => setReglage(true)} aria-label="Personnaliser l’accueil" title="Choisir ce qui s’affiche sur ton accueil">⚙<span className="hide-mobile"> Personnaliser</span></button>
+      </div>
       <Bienvenue userId={user.id} />
-      <EditionCard />
-      <div className="stats">
+      {voit('edition') && <EditionCard />}
+      {voit('compteurs') && <div className="stats">
         {/* Chaque case ouvre la liste de mes tâches filtrée sur ce statut. */}
         {data.statuses.map((s) => (
           <Link key={s.id} to={`/taches?statut=${s.id}`} className="stat" style={{ borderTopColor: s.couleur }} title={`Voir ${my || 'les '}tâches « ${s.label} »`}>
@@ -56,79 +153,15 @@ export function Dashboard() {
           <b>{late.length}</b>
           <span>En retard</span>
         </Link>
-      </div>
+      </div>}
 
-      <div className="grid2">
-        <section>
-          <h2>⚠ {guest ? 'Tâches en retard' : 'Mes tâches en retard'}</h2>
-          {late.length ? <div className="cards">{late.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Rien en retard, bravo !</Empty>}
-          <h2>📅 À faire dans les 7 jours</h2>
-          {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Aucune échéance cette semaine.</Empty>}
-        </section>
-        <aside>
-          {club && club.current.type !== 'central' && !guest && <OutgoingRequests />}
-          {club?.current.type === 'central' && <IncomingRequests onOpen={setEdit} />}
-          {toSend.length > 0 && (
-            <>
-              <h2>📧 Emails à envoyer</h2>
-              {toSend.map(({ e, t }) => (
-                <div key={e.id} className="panel email-due">
-                  <strong>{fillTemplate(data, t, e, e.objet)}</strong>
-                  <span className="muted">{whenLabel(t, e.quand)}</span>
-                  <button className="btn small primary" onClick={() => setSend({ task: t, email: e })}>✉ Envoyer</button>
-                </div>
-              ))}
-            </>
-          )}
-          {upcoming.length > 0 && (
-            <>
-              <h2>🕓 Prochains emails programmés</h2>
-              {upcoming.map(({ e, t }) => (
-                <button key={e.id} className="panel link-panel email-next" onClick={() => setEdit(t)}>
-                  <strong>{fillTemplate(data, t, e, e.objet)}</strong>
-                  <span className="muted">{whenLabel(t, e.quand)}</span>
-                </button>
-              ))}
-            </>
-          )}
-          {(() => {
-            const toVote = (data.polls ?? []).filter((p) => isOpen(p) && p.cleMoi && !p.votes[p.cleMoi]);
-            return toVote.length > 0 ? (
-              <>
-                <h2>📊 Sondages à voter</h2>
-                {toVote.map((p) => (
-                  <Link key={p.id} to={`/sondages?id=${p.id}`} className="panel link-panel">
-                    <strong>{p.question}</strong>
-                    <span className="muted">{p.dateLimite ? `Réponds avant le ${fmtDate(p.dateLimite)}` : 'En attente de ta réponse'}</span>
-                  </Link>
-                ))}
-              </>
-            ) : null;
-          })()}
-          {can('tab.meetings') && <h2>{club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}</h2>}
-          {!can('tab.meetings') ? null : nextMeeting ? (
-            <Link to="/comite" className="panel link-panel">
-              <strong>{nextMeeting.titre}</strong>
-              <span>{fmtDate(nextMeeting.date)} · {nextMeeting.lieu} <em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em></span>
-              <pre className="odj">{nextMeeting.ordreDuJour}</pre>
-            </Link>
-          ) : <Empty>Aucune séance planifiée.</Empty>}
-          {can('tab.events') && <h2>Prochains événements</h2>}
-          {can('tab.events') && nextEvents.map((e) => {
-            const tasks = data.tasks.filter((t) => t.eventId === e.id);
-            const done = tasks.filter((t) => isDone(data, t)).length;
-            return (
-              <Link key={e.id} to={`/taches?event=${e.id}`} className="panel link-panel">
-                <strong>{e.nom}</strong>
-                <span>{fmtRange(e.date, e.dateFin)} · {e.lieu}</span>
-                <Progress done={done} total={tasks.length} />
-              </Link>
-            );
-          })}
-        </aside>
-      </div>
+      {taches && cote ? <div className="grid2">{taches}{cote}</div> : taches || cote}
+      {!taches && !cote && !voit('compteurs') && !voit('edition') && (
+        <Empty>Ton accueil est vide sur {appareil === 'telephone' ? 'ce téléphone' : 'cet ordinateur'} : « ⚙ Personnaliser » pour choisir ce qui s’affiche.</Empty>
+      )}
       {edit && <TaskModal task={edit} isNew={false} onClose={() => setEdit(null)} />}
       {send && <EmailSend task={send.task} email={send.email} onClose={() => setSend(null)} />}
+      {reglage && <AccueilModal onClose={() => setReglage(false)} />}
     </div>
   );
 }

@@ -328,6 +328,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .link-btn:hover { text-decoration: underline; }
 .qui .chips { align-items: center; margin-bottom: 0; }
 .chip .chip-x { border: none; background: none; padding: 0 0 0 4px; margin: 0; color: inherit; cursor: pointer; font-size: 0.8rem; line-height: 1; }
+.accueil-blocs th:not(:first-child), .accueil-blocs td:not(:first-child) { text-align: center; width: 30%; }
+.accueil-blocs .ici { background: color-mix(in srgb, var(--primary) 8%, transparent); }
+.accueil-blocs input[type='checkbox'] { width: 20px; height: 20px; }
 .chip-add { width: auto; max-width: 100%; border-radius: 999px; padding: 5px 10px; font-size: 0.85rem; }
 .task-plus { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--border); }
 .task-plus > span { font-size: 0.85rem; color: var(--muted); margin-right: 2px; }
