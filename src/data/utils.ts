@@ -21,6 +21,12 @@ export const fmtDateTime = (s: string) =>
   new Date(s).toLocaleString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
 export const fullName = (p?: Pick<Person, 'prenom' | 'nom'>) => (p ? `${p.prenom} ${p.nom}`.trim() : 'Inconnu');
+/** Nom et poste pour une liste de choix ; « Moi (…) » pour la personne connectée. */
+export const nomPoste = (p: Pick<Person, 'id' | 'prenom' | 'nom' | 'poste'>, moi?: string) => {
+  const n = fullName(p);
+  const nom = p.id === moi ? `Moi (${n})` : n;
+  return p.poste && !n.includes(p.poste) ? `${nom} · ${p.poste}` : nom;
+};
 export const shortName = (p?: Pick<Person, 'prenom' | 'nom'>) => (p ? `${p.prenom}${p.nom ? ` ${p.nom[0]}.` : ''}` : '?');
 export function initials(p?: Pick<Person, 'prenom' | 'nom'>) {
   if (!p) return '?';

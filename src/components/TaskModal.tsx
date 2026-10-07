@@ -10,7 +10,7 @@ import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { libellePlace, partageDe } from '../data/partage';
 import type { DelaiUnite, Recurrence, Task } from '../data/types';
-import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
+import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
@@ -178,11 +178,6 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   ].filter((a) => a.si && (!t.source || a.partagee));
   // Personnes à ajouter : soi-même d'abord.
   const aAjouter = assignable.filter((p) => !t.responsables.includes(p.id)).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
-  const nomPoste = (p: (typeof data.people)[number]) => {
-    const n = fullName(p);
-    const nom = p.id === user.id ? `Moi (${n})` : n;
-    return p.poste && !n.includes(p.poste) ? `${nom} · ${p.poste}` : nom;
-  };
 
   return (
     <Modal title={isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'} onClose={cancel} wide>
@@ -252,7 +247,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             {!dis && aAjouter.length > 0 && (
               <select className="chip-add" value="" aria-label="Ajouter une personne" onChange={(e) => e.target.value && toggleResp(e.target.value)}>
                 <option value="">＋ Ajouter…</option>
-                {aAjouter.map((p) => <option key={p.id} value={p.id}>{nomPoste(p)}</option>)}
+                {aAjouter.map((p) => <option key={p.id} value={p.id}>{nomPoste(p, user.id)}</option>)}
               </select>
             )}
           </div>

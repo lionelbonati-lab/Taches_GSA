@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { Poll, PollType } from '../data/types';
 import { OUINON, POLL_TYPES, autreOption, committeeOf, electorat } from '../data/polls';
-import { shortName, today, uid } from '../data/utils';
+import { fullName, nomPoste, today, uid } from '../data/utils';
 import { Modal } from './ui';
 import { estPartagee } from '../data/partage';
 import { useClubOptional } from '../data/club';
@@ -43,6 +43,9 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
   // Autres entités du club dont tous les membres peuvent voter aussi (celles déjà choisies restent, même archivées).
   const entites = club && (sondagesEntites || p.entites?.length) ? club.units.filter((u) => u.id !== club.current.id && (!u.archive || p.entites?.includes(u.id))) : [];
   const total = club && p.entites?.length ? electorat(p, club.current.id, people, club.units).cles.length : p.votants.length;
+  // Votants à ajouter : soi-même d'abord.
+  const aAjouter = people.filter((x) => !p.votants.includes(x.id)).sort((a, b) => Number(b.id === user?.id) - Number(a.id === user?.id));
+  const basculeVotant = (id: string) => set({ votants: p.votants.includes(id) ? p.votants.filter((v) => v !== id) : [...p.votants, id] });
   const basculeEntite = (id: string) => {
     const l = p.entites?.includes(id) ? p.entites.filter((x) => x !== id) : [...(p.entites ?? []), id];
     set({ entites: l.length ? l : undefined });
@@ -111,7 +114,7 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
           {p.type === 'dates' ? 'Ajouter « Autre proposition » : chacun peut écrire une autre date' : 'Ajouter « Autre » : chacun peut écrire sa propre réponse'}
         </label>
 
-        <fieldset className="full">
+        <fieldset className="full qui">
           <legend>{entites.length ? `Votants de « ${club!.current.nom} »` : 'Votants'} ({p.votants.length})</legend>
           <div className="row">
             <button type="button" className="btn small" onClick={() => set({ votants: committeeOf(data).map((x) => x.id) })}>Comité</button>
@@ -119,12 +122,22 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
             <button type="button" className="btn small" onClick={() => set({ votants: [] })}>Personne</button>
           </div>
           <div className="chips">
-            {people.map((x) => (
-              <button type="button" key={x.id} className={`chip ${p.votants.includes(x.id) ? 'on' : ''}`}
-                onClick={() => set({ votants: p.votants.includes(x.id) ? p.votants.filter((v) => v !== x.id) : [...p.votants, x.id] })}>
-                {shortName(x)}
-              </button>
-            ))}
+            {p.votants.map((id) => {
+              const x = data.people.find((y) => y.id === id);
+              return (
+                <span key={id} className="chip on">
+                  {fullName(x)}
+                  <button type="button" className="chip-x" aria-label={`Retirer ${fullName(x)}`} onClick={() => basculeVotant(id)}>✕</button>
+                </span>
+              );
+            })}
+            {!p.votants.length && <span className="muted">Personne pour l’instant.</span>}
+            {aAjouter.length > 0 && (
+              <select className="chip-add" value="" aria-label="Ajouter un votant" onChange={(e) => e.target.value && basculeVotant(e.target.value)}>
+                <option value="">＋ Ajouter…</option>
+                {aAjouter.map((x) => <option key={x.id} value={x.id}>{nomPoste(x, user?.id)}</option>)}
+              </select>
+            )}
           </div>
           <label className="inline"><input type="checkbox" checked={p.anonyme} onChange={(e) => set({ anonyme: e.target.checked })} /> Réponses anonymes (on voit qui a répondu, pas ce qu’il a choisi)</label>
         </fieldset>
