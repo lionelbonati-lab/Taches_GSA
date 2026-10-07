@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { ClubMembre, MyRequest, OrgUnit, Person, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { ClubMembre, MyRequest, OrgUnit, Person, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
@@ -104,6 +104,10 @@ export interface Club {
   tachesPartagees: () => Promise<TachePartagee[]>;
   /** Enregistre, dans son entité, une tâche partagée modifiée depuis l'entité ouverte. */
   modifierTachePartagee: (uniteId: string, task: Task) => Promise<void>;
+  /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */
+  sondagesPartages: () => Promise<SondagePartage[] | null>;
+  /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */
+  voterSondagePartage: (uniteId: string, pollId: string, choix: string[], texte?: string) => Promise<void>;
   /** Registre « Membres du club » : accès (droit « club.membres » ou admin de l'une des entités du club). */
   membresAcces: boolean;
   membres: () => Promise<ClubMembre[]>;

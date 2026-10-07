@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
+import type { AppData, CentralAccess, ClubMembre, Guest, MyRequest, OrgMember, OrgUnit, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -515,7 +515,7 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       logo: isImage(info.logo) ? info.logo : undefined,
       couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
       dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
-      membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined })),
+      membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined, viaFiche: m.viaFiche ?? undefined })),
       moi: u.moi,
       moiAdmin: u.moiAdmin,
       sections: u.sections ?? undefined,
@@ -610,6 +610,23 @@ export async function fetchTachesPartagees(unite: string): Promise<TachePartagee
   const { data, error } = await sb().rpc('gsa_taches_partagees', { unite });
   if (error) throw new Error(error.message);
   return (data ?? []) as TachePartagee[];
+}
+
+/** Sondages d'autres entités ouverts à l'entité (migration 021) ; null si le serveur ne les gère pas encore. */
+export async function fetchSondagesPartages(unite: string): Promise<SondagePartage[] | null> {
+  const { data, error } = await sb().rpc('gsa_sondages_partages', { unite });
+  if (error) {
+    // Fonction absente : migration 021 pas encore appliquée.
+    if (error.code === 'PGRST202' || error.code === '42883') return null;
+    throw new Error(error.message);
+  }
+  return (data ?? []) as SondagePartage[];
+}
+
+/** Réponse à un sondage d'une autre entité, enregistrée dans son entité (le serveur retrouve la clé de vote). */
+export async function voterSondagePartage(unite: string, source: string, sondage: string, choix: string[], texte?: string) {
+  const { error } = await sb().rpc('gsa_voter_sondage_partage', { unite, source, sondage, choix, texte: texte?.trim() || null });
+  if (error) throw new Error(error.message);
 }
 
 /** Modification d'une tâche partagée, enregistrée dans son entité (le serveur ne garde que les champs modifiables). */

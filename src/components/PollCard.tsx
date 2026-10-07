@@ -2,29 +2,35 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Poll } from '../data/types';
-import { AUTRE_ID, POLL_TYPES, autreTextes, isOpen, optionLabel, results } from '../data/polls';
-import { fmtDate, fullName, initials } from '../data/utils';
+import { AUTRE_ID, POLL_TYPES, autreTextes, electeursDe, isOpen, nomVotant, optionLabel, results, texteVotant } from '../data/polls';
+import { fmtDate, initials } from '../data/utils';
+import { useClubOptional } from '../data/club';
 import { PollEditor } from './PollEditor';
 
 /** Sondage : vote, résultats (barres, tableau des disponibilités) et gestion. */
 export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: boolean; highlight?: boolean }) {
   const { data, user, votePoll, closePoll, deletePoll, canManagePoll } = useStore();
-  const mine = user ? poll.votes[user.id] : undefined;
+  const club = useClubOptional();
+  // Clé de vote de la personne connectée (sa fiche, ou `entité:fiche` pour un sondage ouvert à son entité).
+  const cle = poll.cleMoi;
+  const mine = cle ? poll.votes[cle] : undefined;
   const [sel, setSel] = useState<string[]>(mine ?? []);
-  const myText = user ? poll.textes?.[user.id] ?? '' : '';
+  const myText = cle ? poll.textes?.[cle] ?? '' : '';
   const [texte, setTexte] = useState(myText);
   const [changing, setChanging] = useState(false);
   const [edit, setEdit] = useState(false);
   if (!user) return null;
 
   const open = isOpen(poll);
-  const voter = poll.votants.includes(user.id);
+  const voter = !!cle;
   const showForm = open && voter && (!mine || changing);
   const r = results(poll);
-  const person = (id: string) => data.people.find((p) => p.id === id);
+  const electeurs = electeursDe(poll);
+  const qui = (id: string) => nomVotant(poll, id, data.people, club?.units, club?.current.id);
   const task = data.tasks.find((t) => t.id === poll.taskId);
-  const waiting = poll.votants.filter((id) => !poll.votes[id]);
+  const waiting = electeurs.filter((id) => !poll.votes[id]);
   const manage = canManagePoll(poll);
+  const aussi = poll.source ? [] : (poll.entites ?? []).map((id) => club?.units.find((u) => u.id === id)?.nom).filter((x): x is string => !!x);
 
   const toggle = (id: string) =>
     setSel((s) => (poll.multiple ? (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]) : [id]));
@@ -40,15 +46,17 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
           <span className={`pbadge ${open ? 'open' : 'closed'}`}>{open ? 'Ouvert' : 'Clôturé'}</span>
           {!compact && <span className="pbadge">{POLL_TYPES.find((t) => t.id === poll.type)?.label}</span>}
           {poll.anonyme && <span className="pbadge">Anonyme</span>}
+          {poll.source && <span className="pbadge" title={`Sondage de « ${poll.source.unite} », ouvert à ton entité`}>🤝 {poll.source.unite}</span>}
         </span>
       </header>
       {poll.description && <p className="poll-desc">{poll.description}</p>}
       <p className="poll-meta">
-        {r.voters.length}/{poll.votants.length} réponses
+        {r.voters.length}/{electeurs.length} réponses
         {poll.dateLimite && ` · jusqu’au ${fmtDate(poll.dateLimite)}`}
         {poll.clotureLe && ` · clôturé le ${fmtDate(poll.clotureLe)}`}
         {!compact && task && <> · tâche <Link to={`/taches?tache=${task.id}`}>« {task.titre} »</Link></>}
-        {!compact && ` · créé par ${fullName(person(poll.creePar))}`}
+        {!compact && ` · créé par ${texteVotant(qui(poll.creePar))}`}
+        {!compact && aussi.length > 0 && ` · ouvert aussi aux membres de ${aussi.map((n) => `« ${n} »`).join(', ')}`}
       </p>
 
       {showForm ? (
@@ -92,12 +100,12 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
                     <b>{ids.length}</b>
                   </div>
                   <div className="poll-bar"><div style={{ width: `${pct}%` }} /></div>
-                  {!option.autre && !poll.anonyme && ids.length > 0 && !compact && <small className="muted">{ids.map((id) => initials(person(id))).join(', ')}</small>}
+                  {!option.autre && !poll.anonyme && ids.length > 0 && !compact && <small className="muted">{ids.map((id) => initials(qui(id).personne)).join(', ')}</small>}
                   {textes.length > 0 && (
                     <ul className="poll-textes">
                       {textes.map((x) => (
                         <li key={x.id}>
-                          « {x.texte} »{!poll.anonyme && <small className="muted"> — {compact ? initials(person(x.id)) : fullName(person(x.id))}</small>}
+                          « {x.texte} »{!poll.anonyme && <small className="muted"> — {compact ? initials(qui(x.id).personne) : texteVotant(qui(x.id))}</small>}
                         </li>
                       ))}
                     </ul>
@@ -112,7 +120,7 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
                 <thead><tr><th>Membre</th>{poll.options.map((o) => <th key={o.id}>{optionLabel(o)}</th>)}</tr></thead>
                 <tbody>
                   {r.voters.map((id) => (
-                    <tr key={id}><td>{fullName(person(id))}</td>{poll.options.map((o) => <td key={o.id} className={poll.votes[id].includes(o.id) ? 'yes' : 'no'}>{poll.votes[id].includes(o.id) ? (o.autre && poll.textes?.[id]) || '✓' : '—'}</td>)}</tr>
+                    <tr key={id}><td>{texteVotant(qui(id))}</td>{poll.options.map((o) => <td key={o.id} className={poll.votes[id].includes(o.id) ? 'yes' : 'no'}>{poll.votes[id].includes(o.id) ? (o.autre && poll.textes?.[id]) || '✓' : '—'}</td>)}</tr>
                   ))}
                 </tbody>
               </table>
@@ -124,7 +132,10 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
       )}
 
       {!compact && open && waiting.length > 0 && (
-        <p className="poll-meta">En attente : {waiting.map((id) => fullName(person(id))).join(', ')}</p>
+        <p className="poll-meta">
+          En attente : {waiting.slice(0, 40).map((id) => texteVotant(qui(id))).join(', ')}
+          {waiting.length > 40 && ` et ${waiting.length - 40} autres`}
+        </p>
       )}
       {manage && !compact && (
         <div className="poll-actions">

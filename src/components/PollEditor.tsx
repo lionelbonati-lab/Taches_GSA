@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { Poll, PollType } from '../data/types';
-import { OUINON, POLL_TYPES, autreOption, committeeOf } from '../data/polls';
+import { OUINON, POLL_TYPES, autreOption, committeeOf, electorat } from '../data/polls';
 import { shortName, today, uid } from '../data/utils';
 import { Modal } from './ui';
 import { estPartagee } from '../data/partage';
+import { useClubOptional } from '../data/club';
+import { UNIT_TYPES } from '../data/units';
 
 const emptyOptions = (type: PollType): Poll['options'] =>
   type === 'ouinon' ? OUINON : type === 'dates'
@@ -13,7 +15,8 @@ const emptyOptions = (type: PollType): Poll['options'] =>
 
 /** Création / modification d'un sondage. */
 export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: string; onClose: () => void }) {
-  const { data, user, savePoll } = useStore();
+  const { data, user, savePoll, sondagesEntites } = useStore();
+  const club = useClubOptional();
   const [p, setP] = useState<Poll>(
     () =>
       poll ?? {
@@ -37,13 +40,20 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
   const setOpt = (id: string, patch: Partial<Poll['options'][number]>) => set({ options: p.options.map((o) => (o.id === id ? { ...o, ...patch } : o)) });
   const people = data.people.filter((x) => x.actif);
   const task = data.tasks.find((t) => t.id === p.taskId);
+  // Autres entités du club dont tous les membres peuvent voter aussi (celles déjà choisies restent, même archivées).
+  const entites = club && (sondagesEntites || p.entites?.length) ? club.units.filter((u) => u.id !== club.current.id && (!u.archive || p.entites?.includes(u.id))) : [];
+  const total = club && p.entites?.length ? electorat(p, club.current.id, people, club.units).cles.length : p.votants.length;
+  const basculeEntite = (id: string) => {
+    const l = p.entites?.includes(id) ? p.entites.filter((x) => x !== id) : [...(p.entites ?? []), id];
+    set({ entites: l.length ? l : undefined });
+  };
 
   const submit = () => {
     if (!p.question.trim()) return setErr('Écris la question.');
     const base = p.type === 'ouinon' ? OUINON : p.options.filter((o) => !o.autre && (p.type === 'dates' ? !!o.date : !!o.label.trim()));
     const options = autre ? [...base, autreOption(p.type)] : base;
     if (base.length < 2) return setErr(p.type === 'dates' ? 'Propose au moins deux dates.' : 'Propose au moins deux réponses.');
-    if (!p.votants.length) return setErr('Choisis au moins un votant.');
+    if (!p.votants.length && !p.entites?.length) return setErr('Choisis au moins un votant ou une entité.');
     savePoll({ ...p, question: p.question.trim(), options, multiple: p.type === 'dates' ? true : p.type === 'ouinon' ? false : p.multiple }, !poll);
     onClose();
   };
@@ -102,7 +112,7 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
         </label>
 
         <fieldset className="full">
-          <legend>Votants ({p.votants.length})</legend>
+          <legend>{entites.length ? `Votants de « ${club!.current.nom} »` : 'Votants'} ({p.votants.length})</legend>
           <div className="row">
             <button type="button" className="btn small" onClick={() => set({ votants: committeeOf(data).map((x) => x.id) })}>Comité</button>
             <button type="button" className="btn small" onClick={() => set({ votants: people.map((x) => x.id) })}>Tout le monde</button>
@@ -118,6 +128,21 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
           </div>
           <label className="inline"><input type="checkbox" checked={p.anonyme} onChange={(e) => set({ anonyme: e.target.checked })} /> Réponses anonymes (on voit qui a répondu, pas ce qu’il a choisi)</label>
         </fieldset>
+
+        {entites.length > 0 && (
+          <fieldset className="full poll-entites">
+            <legend>Ouvrir aussi à d’autres entités</legend>
+            <small className="muted">Tous leurs membres votent, depuis leur entité (le sondage y apparaît). Qui rejoint ou quitte l’entité vote ou ne vote plus ; une personne de plusieurs entités ne vote qu’une fois.</small>
+            <div className="chips">
+              {entites.map((u) => (
+                <button type="button" key={u.id} className={`chip ${p.entites?.includes(u.id) ? 'on' : ''}`} onClick={() => basculeEntite(u.id)}>
+                  {UNIT_TYPES[u.type].icon} {u.nom} <small>({u.membres.filter((m) => !m.viaEntite).length})</small>
+                </button>
+              ))}
+            </div>
+            {!!p.entites?.length && <small className="muted">{total} votant{total > 1 ? 's' : ''} en tout.</small>}
+          </fieldset>
+        )}
 
         {taskId || task ? (
           <p className="muted full" style={{ margin: 0 }}>📌 Lié à la tâche « {task?.titre} »</p>

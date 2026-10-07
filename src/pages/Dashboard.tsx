@@ -92,7 +92,7 @@ export function Dashboard() {
             </>
           )}
           {(() => {
-            const toVote = (data.polls ?? []).filter((p) => isOpen(p) && p.votants.includes(user.id) && !p.votes[user.id]);
+            const toVote = (data.polls ?? []).filter((p) => isOpen(p) && p.cleMoi && !p.votes[p.cleMoi]);
             return toVote.length > 0 ? (
               <>
                 <h2>📊 Sondages à voter</h2>

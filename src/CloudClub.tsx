@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, deleteMembre, fetchAgendaClub, fetchTachesPartagees, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, type Membership } from './data/cloud';
+import { accessAction, deleteMembre, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, myCentralTickets, myMemberships, myRequests, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -131,6 +131,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       // Visiteur du comité central : pas de tâches partagées (il n'est pas membre de l'entité).
       tachesPartagees: () => (m.guest ? Promise.resolve([]) : fetchTachesPartagees(m.committeeId)),
       modifierTachePartagee: (uniteId, task) => saveTachePartagee(m.committeeId, uniteId, task),
+      sondagesPartages: () => (m.guest ? Promise.resolve(null) : fetchSondagesPartages(m.committeeId)),
+      voterSondagePartage: (uniteId, pollId, choix, texte) => voterSondagePartage(m.committeeId, uniteId, pollId, choix, texte),
       membresAcces: acces,
       membres: () => fetchMembres(clubId),
       async saveMembres(l) {

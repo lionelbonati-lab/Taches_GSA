@@ -4,9 +4,9 @@ import { statuses as STATUSES } from './seedData';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, today, uid } from './utils';
 import { seancePourSuivante } from './seances';
-import type { ActivityNotif, AppData, ChecklistItem, Guest, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, TachePartagee, Task } from './types';
+import type { ActivityNotif, AppData, ChecklistItem, Guest, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task } from './types';
 import { clearFiles } from './files';
-import { AUTRE_ID } from './polls';
+import { avecSondages, avecVote, sondageEnregistre } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
 import { applyRows, GUEST_WRITABLE, type CloudSync, type Membership } from './cloud';
@@ -120,10 +120,11 @@ function linkSubtasks(d: AppData) {
   d.notifications = (d.notifications ?? []).filter((n) => (n.type as string) !== 'subtask');
 }
 
-/** Tâches partagées par d'autres entités et sections ajoutées pour elles : affichées, jamais enregistrées ici. */
+/** Tâches et sondages partagés par d'autres entités, sections ajoutées pour eux : affichés, jamais enregistrés ici. */
 function sansPartagees(d: AppData) {
   d.tasks = d.tasks.filter((t) => !estPartagee(t.id));
   d.sections = d.sections.filter((s) => !estPartagee(s.id));
+  if (d.polls) d.polls = d.polls.filter((p) => !estPartagee(p.id)).map(sondageEnregistre);
 }
 
 /** Droits d'un membre du comité central dans une entité qui lui est ouverte (jamais de suppression ni de gestion). */
@@ -212,6 +213,8 @@ interface Store {
   closePoll: (pollId: string, closed: boolean) => void;
   deletePoll: (pollId: string) => void;
   canManagePoll: (p: Poll) => boolean;
+  /** Sondages : on peut les ouvrir à d'autres entités du club (démo, ou serveur à jour : migration 021). */
+  sondagesEntites: boolean;
   /** Lie une tâche à une tâche principale (ou la délie avec undefined). */
   linkTask: (taskId: string, parentId: string | undefined) => void;
   saveEmail: (e: ScheduledEmail, isNew: boolean) => void;
@@ -279,12 +282,24 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const moi = club?.current.id;
   const [partagees, setPartagees] = useState<TachePartagee[]>([]);
   const lecture = useRef(0);
+  // Sondages des autres entités ouverts à celle-ci (null : le serveur ne les gère pas encore).
+  const [sondagesRecus, setSondagesRecus] = useState<SondagePartage[]>([]);
+  const [sondagesEntites, setSondagesEntites] = useState(false);
+  const lectureSondages = useRef(0);
   const chargerPartagees = useCallback(() => {
     const c = clubRef.current;
     if (!c || guest) return;
     const n = ++lecture.current;
     c.tachesPartagees()
       .then((l) => n === lecture.current && setPartagees(l))
+      .catch(() => {});
+    const s = ++lectureSondages.current;
+    c.sondagesPartages()
+      .then((l) => {
+        if (s !== lectureSondages.current) return;
+        setSondagesEntites(l !== null);
+        setSondagesRecus(l ?? []);
+      })
       .catch(() => {});
   }, [guest]);
   useEffect(() => {
@@ -308,8 +323,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const units = club?.units;
   const view = useMemo(() => {
     const base = guest ? { ...data, people: [...data.people, { ...guest.person, actif: false }] } : data;
-    return moi && units && partagees.length ? avecPartagees(base, partagees, moi, units) : base;
-  }, [data, guest, partagees, moi, units]);
+    const avec = moi && units && partagees.length ? avecPartagees(base, partagees, moi, units) : base;
+    return moi && units ? avecSondages(avec, sondagesRecus, moi, units, guest ? null : user?.id ?? null) : avec;
+  }, [data, guest, partagees, moi, units, sondagesRecus, user?.id]);
 
   const login = useCallback((id: string | null) => {
     if (cloud) {
@@ -527,27 +543,37 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   );
 
   const savePoll = useCallback(
-    (p: Poll, isNew: boolean) =>
+    (poll: Poll, isNew: boolean) => {
+      const p = sondageEnregistre(poll);
       update((d) => {
         d.polls = isNew ? [p, ...(d.polls ?? [])] : (d.polls ?? []).map((x) => (x.id === p.id ? p : x));
-      }, `${isNew ? 'Création' : 'Modification'} du sondage « ${p.question} »`),
+      }, `${isNew ? 'Création' : 'Modification'} du sondage « ${p.question} »`);
+    },
     [update],
   );
   const votePoll = useCallback(
     (pollId: string, optionIds: string[], texte?: string) => {
-      if (!userId) return;
-      const p = data.polls?.find((x) => x.id === pollId);
+      const p = view.polls?.find((x) => x.id === pollId);
+      const cle = p?.cleMoi;
+      if (!p || !cle) return;
+      const src = p.source;
+      if (src) {
+        // Sondage d'une autre entité : la réponse s'enregistre dans son entité ; ici, le journal.
+        const c = clubRef.current;
+        if (!c) return;
+        setSondagesRecus((l) => l.map((x) => (x.uniteId === src.uniteId && x.poll.id === src.id ? { ...x, poll: { ...x.poll, ...avecVote(x.poll, cle, optionIds, texte) } } : x)));
+        update(() => {}, `Réponse au sondage « ${p.question} » (de « ${src.unite} »)`);
+        c.voterSondagePartage(src.uniteId, src.id, optionIds, texte)
+          .catch((e: Error) => setToast(`⚠️ Réponse non enregistrée dans « ${src.unite} » : ${e.message}`))
+          .finally(chargerPartagees);
+        return;
+      }
       update((d) => {
         const x = d.polls?.find((y) => y.id === pollId);
-        if (!x) return;
-        x.votes = { ...x.votes, [userId]: optionIds };
-        const textes = { ...x.textes };
-        if (texte?.trim() && optionIds.includes(AUTRE_ID)) textes[userId] = texte.trim();
-        else delete textes[userId];
-        x.textes = textes;
-      }, `Réponse au sondage « ${p?.question ?? ''} »`);
+        if (x) Object.assign(x, avecVote(x, cle, optionIds, texte));
+      }, `Réponse au sondage « ${p.question} »`);
     },
-    [update, userId, data.polls],
+    [update, view.polls, chargerPartagees],
   );
   const closePoll = useCallback(
     (pollId: string, closed: boolean) => {
@@ -656,7 +682,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     votePoll,
     closePoll,
     deletePoll,
-    canManagePoll: (p) => !!user && (p.creePar === user.id || can('polls.manage')),
+    canManagePoll: (p) => !!user && !p.source && (p.creePar === user.id || can('polls.manage')),
+    sondagesEntites,
     linkTask,
     saveEmail,
     setEmailStatus,

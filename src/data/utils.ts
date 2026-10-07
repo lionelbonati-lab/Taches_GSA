@@ -20,9 +20,9 @@ export function fmtRange(date?: string, fin?: string) {
 export const fmtDateTime = (s: string) =>
   new Date(s).toLocaleString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-export const fullName = (p?: Person) => (p ? `${p.prenom} ${p.nom}`.trim() : 'Inconnu');
-export const shortName = (p?: Person) => (p ? `${p.prenom}${p.nom ? ` ${p.nom[0]}.` : ''}` : '?');
-export function initials(p?: Person) {
+export const fullName = (p?: Pick<Person, 'prenom' | 'nom'>) => (p ? `${p.prenom} ${p.nom}`.trim() : 'Inconnu');
+export const shortName = (p?: Pick<Person, 'prenom' | 'nom'>) => (p ? `${p.prenom}${p.nom ? ` ${p.nom[0]}.` : ''}` : '?');
+export function initials(p?: Pick<Person, 'prenom' | 'nom'>) {
   if (!p) return '?';
   const first = p.prenom.split('-').map((x) => x[0]).join('').slice(0, 2);
   if (!p.nom) {

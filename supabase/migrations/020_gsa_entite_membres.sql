@@ -10,7 +10,7 @@
 --   • accès à l'appli : le compte lié à la fiche de A ouvre aussi B (gsa_members) ; retiré dans A, il l'est aussi dans B.
 -- Même règle que la démo (src/data/liens.ts, synchroLiens).
 -- Ajout pur : nouvelles fonctions, nouveaux déclencheurs, un index ; l'organigramme (016) donne en plus le lien de chaque
--- fiche (viaEntite) et les entités liées (liens). Aucune donnée existante modifiée : aucune entité n'a encore de lien.
+-- fiche (viaEntite, viaFiche) et les entités liées (liens). Aucune donnée existante modifiée : aucune entité n'a encore de lien.
 
 create index if not exists gsa_items_liens_idx on public.gsa_items (committee_id) where kind = 'meta' and id = 'membresDe';
 
@@ -239,7 +239,7 @@ create trigger gsa_members_liens after insert or update of person_id or delete o
 revoke all on function public.gsa_liens_vers(uuid) from public, anon, authenticated;
 revoke all on function public.gsa_liens_synchro(uuid) from public, anon, authenticated;
 
--- Organigramme (016) : avec le lien de chaque fiche (viaEntite) et les entités dont tous les membres font partie (liens).
+-- Organigramme (016) : avec le lien de chaque fiche (viaEntite, viaFiche) et les entités dont tous les membres font partie (liens).
 create or replace function public.gsa_organigramme(club uuid) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 begin
@@ -266,6 +266,7 @@ begin
           'couleur', coalesce(p.data ->> 'couleur', '#999999'),
           'membreId', p.data ->> 'membreId',
           'viaEntite', p.data ->> 'viaEntite',
+          'viaFiche', p.data ->> 'viaFiche',
           'roles', (
             select coalesce(jsonb_agg(r.data ->> 'label' order by r.pos), '[]'::jsonb)
             from public.gsa_items r

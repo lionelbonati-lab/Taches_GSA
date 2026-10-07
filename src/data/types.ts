@@ -160,6 +160,24 @@ export interface Poll {
   votes: Record<string, string[]>;
   /** Texte écrit avec la réponse « Autre » : personne → texte. */
   textes?: Record<string, string>;
+  /**
+   * Autres entités du club dont tous les membres votent aussi (en plus des votants choisis ici). Leurs réponses sont
+   * rangées sous la clé `entité:fiche` (voir data/polls.ts, electorat).
+   */
+  entites?: string[];
+  /** Affichage seulement (jamais enregistré) : clés de vote de tous les votants, ceux des autres entités compris. */
+  electeurs?: string[];
+  /** Affichage seulement : clé de vote de la personne connectée, si elle vote. */
+  cleMoi?: string;
+  /** Affichage seulement : sondage d'une autre entité, ouvert à l'entité ouverte. */
+  source?: { uniteId: string; unite: string; id: string };
+}
+
+/** Sondage d'une autre entité ouvert à l'entité ouverte, tel que le lit le serveur (gsa_sondages_partages). */
+export interface SondagePartage {
+  uniteId: string;
+  unite: string;
+  poll: Poll;
 }
 
 /** Quand partir : date et heure fixes, ou N jours avant (négatif = après) le délai de la tâche. */
@@ -541,6 +559,8 @@ export interface OrgMember {
   membreId?: string;
   /** Membre par le lien d'une autre entité (son identifiant). */
   viaEntite?: string;
+  /** Membre par le lien : sa fiche dans l'autre entité. */
+  viaFiche?: string;
 }
 
 export interface OrgUnit extends Unit {

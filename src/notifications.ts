@@ -116,7 +116,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
 
   if (p.sondage)
     for (const poll of data.polls ?? []) {
-      if (!isOpen(poll) || !poll.votants.includes(user.id) || poll.votes[user.id]) continue;
+      if (!isOpen(poll) || !poll.cleMoi || poll.votes[poll.cleMoi]) continue;
       items.push({
         key: `sondage:${poll.id}`,
         icon: '📊',

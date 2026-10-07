@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { isOpen } from '../data/polls';
@@ -14,9 +14,22 @@ export function Polls() {
   const [params] = useSearchParams();
   const focus = params.get('id');
   const [creating, setCreating] = useState(false);
-  const visible = (data.polls ?? []).filter((p) => user && (p.votants.includes(user.id) || p.creePar === user.id || can('polls.manage')));
-  const toVote = visible.filter((p) => isOpen(p) && user && p.votants.includes(user.id) && !p.votes[user.id]);
+  // Sondages des autres entités ouverts à celle-ci : pour ses membres qui y votent.
+  const visible = (data.polls ?? []).filter((p) => user && (p.cleMoi || (!p.source && (p.creePar === user.id || can('polls.manage')))));
+  const toVote = visible.filter((p) => isOpen(p) && p.cleMoi && !p.votes[p.cleMoi]);
   const [filter, setFilter] = useState<Filter>(toVote.length ? 'avoter' : 'encours');
+  // Sondages des autres entités : lus après l'ouverture de la page ; « À voter » s'ils attendent une réponse (sauf autre choix).
+  const choisi = useRef(!!toVote.length);
+  const choisir = (f: Filter) => {
+    choisi.current = true;
+    setFilter(f);
+  };
+  useEffect(() => {
+    if (!choisi.current && toVote.length) {
+      choisi.current = true;
+      setFilter('avoter');
+    }
+  }, [toVote.length]);
 
   const focused = visible.find((p) => p.id === focus);
   const list = focused
@@ -38,9 +51,9 @@ export function Polls() {
         <p><a href="#/sondages">← Tous les sondages</a></p>
       ) : (
         <div className="seg wrap">
-          <button className={filter === 'avoter' ? 'on' : ''} onClick={() => setFilter('avoter')}>À voter ({toVote.length})</button>
-          <button className={filter === 'encours' ? 'on' : ''} onClick={() => setFilter('encours')}>En cours ({visible.filter(isOpen).length})</button>
-          <button className={filter === 'termines' ? 'on' : ''} onClick={() => setFilter('termines')}>Terminés ({visible.filter((p) => !isOpen(p)).length})</button>
+          <button className={filter === 'avoter' ? 'on' : ''} onClick={() => choisir('avoter')}>À voter ({toVote.length})</button>
+          <button className={filter === 'encours' ? 'on' : ''} onClick={() => choisir('encours')}>En cours ({visible.filter(isOpen).length})</button>
+          <button className={filter === 'termines' ? 'on' : ''} onClick={() => choisir('termines')}>Terminés ({visible.filter((p) => !isOpen(p)).length})</button>
         </div>
       )}
       <div className="poll-list">

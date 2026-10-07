@@ -8,7 +8,7 @@ import { useChemin, useNavigation } from '../components/Nav';
 
 /** « Comment ça marche ? » : où trouver quoi (selon les droits de chacun) et les gestes courants. */
 export function Aide() {
-  const { can, cloud, user } = useStore();
+  const { can, cloud, user, sondagesEntites } = useStore();
   const club = useClubOptional();
   const { rubriques, compte } = useNavigation();
   const chemin = useChemin();
@@ -30,6 +30,8 @@ export function Aide() {
   if (chemin('/ordre-du-jour')) geste('Préparer une séance', vers('/ordre-du-jour'), ' : choisis la séance, relis, puis imprime ou envoie par email.');
   if (chemin('/pv')) geste('Tenir le PV', vers('/pv'), ' : « Prise de notes » pendant la séance, puis « Valider et archiver » et l’envoyer.');
   geste('Voter ou poser une question au comité', vers('/sondages'), '. Un sondage qui attend ta réponse apparaît aussi à l’accueil.');
+  if (sondagesEntites && club && club.units.length > 1 && can('polls.create'))
+    geste('Poser une question à d’autres entités (École, groupe, CO…)', vers('/sondages'), ' : « + Nouveau sondage » › « Ouvrir aussi à d’autres entités ». Tous leurs membres votent depuis leur entité ; une personne de plusieurs entités ne vote qu’une fois.');
   if (club && club.units.length > 1)
     geste('Partager une tâche avec d’autres entités (comité central, CO, groupe…)', 'Dans la tâche, « Ajouter : » › « 🤝 Partager », puis choisis les entités : elles la voient dans leurs tâches et leur ordre du jour (sous l’événement, ou la section qui porte ton nom) et la modifient comme les leurs. Elle reste enregistrée chez toi, repérée 🤝.');
   if (club) geste('Passer à une autre entité (sous-comité, groupe, équipe)', 'Le nom de l’entité en haut à gauche ▾ (l’organigramme du club y est aussi). Chaque entité a ses propres tâches, séances et membres.');

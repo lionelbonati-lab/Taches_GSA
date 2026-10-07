@@ -6,7 +6,8 @@ import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData,
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey } from './data/membres';
 import { uid } from './data/utils';
-import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, partageDe } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
@@ -261,6 +262,26 @@ export function DemoApp() {
         if (guest || !u || u.archive || !old || old.paiement || !partageDe(old, u.parentId).includes(current.id))
           throw new Error('Cette tâche n’est plus partagée avec cette entité.');
         d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id) : t));
+        saveUnitData(uniteId, d);
+      },
+      // Sondages des autres entités ouverts à l'entité ouverte (version réelle : gsa_sondages_partages, 021).
+      async sondagesPartages(): Promise<SondagePartage[]> {
+        if (guest) return [];
+        return units
+          .filter((u) => u.id !== current.id && !u.archive)
+          .flatMap((u) => (loadUnitData(u.id).polls ?? []).filter((p) => p.entites?.includes(current.id)).map((poll) => ({ uniteId: u.id, unite: u.nom, poll })));
+      },
+      // Réponse enregistrée dans l'entité du sondage, sous la clé de vote de la personne (version réelle : gsa_voter_sondage_partage).
+      async voterSondagePartage(uniteId, pollId, choix, texte) {
+        const u = units.find((x) => x.id === uniteId);
+        const d = loadUnitData(uniteId);
+        const p = d.polls?.find((x) => x.id === pollId);
+        if (guest || !u || u.archive || !p || !p.entites?.includes(current.id)) throw new Error('Ce sondage n’est plus ouvert à cette entité.');
+        if (!isOpen(p)) throw new Error('Ce sondage est clôturé.');
+        const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
+        const cle = fiche && cleVote(electorat(p, uniteId, d.people.filter((x) => x.actif), org), current.id, fiche);
+        if (!cle) throw new Error('Tu ne fais pas partie des votants de ce sondage.');
+        d.polls = d.polls!.map((x) => (x.id === pollId ? { ...x, ...avecVote(x, cle, choix, texte) } : x));
         saveUnitData(uniteId, d);
       },
       async mesTicketsCentraux(): Promise<SuiviTicket[]> {
