@@ -185,7 +185,7 @@ begin
   end loop;
   -- Et l'entité elle-même si elle en compte d'autres : pas de fiche liée en double d'un membre propre.
   if exists (select 1 from public.gsa_items i where i.committee_id = new.committee_id and i.kind = 'meta' and i.id = 'membresDe' and not i.deleted
-             and jsonb_typeof(i.data) = 'array' and jsonb_array_length(i.data) > 0) then
+             and case when jsonb_typeof(i.data) = 'array' then jsonb_array_length(i.data) > 0 else false end) then
     begin
       perform public.gsa_liens_synchro(new.committee_id);
     exception when others then

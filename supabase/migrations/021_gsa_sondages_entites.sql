@@ -145,8 +145,10 @@ begin
     raise exception 'Ce sondage est clôturé' using errcode = '42501';
   end if;
   -- Réponses possibles du sondage ; une seule sans choix multiple ; aucune seulement pour un sondage de dates.
-  if jsonb_typeof(choix) is distinct from 'array'
-     or exists (
+  if jsonb_typeof(choix) is distinct from 'array' then
+    raise exception 'Réponse invalide' using errcode = '22023';
+  end if;
+  if exists (
        select 1 from jsonb_array_elements(choix) x
        where jsonb_typeof(x) <> 'string' or not exists (
          select 1 from jsonb_array_elements(case when jsonb_typeof(p -> 'options') = 'array' then p -> 'options' else '[]'::jsonb end) o
