@@ -229,7 +229,7 @@ export function DemoApp() {
         // Démo : on se connecte avec l'adresse de sa fiche.
         return { compte: !!emailKey(r.email) };
       },
-      // Organigramme à glisser-déposer (démo seulement pour l'instant ; voir data/organigramme.ts).
+      // Organigramme à glisser-déposer (voir data/organigramme.ts ; version réelle : par la fonction « gsa-acces »).
       organiser: classique ? undefined : async (op) => {
         const brut = new Map(units.map((u) => [u.id, lireBrut(u.id)]));
         // Personne pas encore au club : sa fiche du registre d'abord, pour la retrouver d'une entité à l'autre.

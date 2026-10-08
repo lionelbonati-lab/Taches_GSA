@@ -4,7 +4,9 @@
 // avec ses données de départ, et l'accès de son président / responsable.
 // Les comptes sont créés ici (clé secrète, jamais dans le navigateur), adresse confirmée d'office :
 // aucun email n'est envoyé, l'admin transmet lui-même le mot de passe provisoire, à changer à la 1re connexion.
+// L'organigramme à glisser-déposer passe aussi par ici (orga.ts : placer une personne, postes, postes liés).
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
+import { ACTIONS_ORGA, actionOrganigramme, Erreur } from './orga.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -138,6 +140,17 @@ Deno.serve(async (req) => {
   const action = String(body.action ?? '');
   const committeeId = String(body.committeeId ?? '');
   const personId = body.personId ? String(body.personId) : '';
+
+  // Organigramme : membre du club ; les droits dépendent des fiches touchées (orga.ts).
+  if (ACTIONS_ORGA.has(action)) {
+    if (!committeeId) return json({ error: 'Entité manquante.' }, 400);
+    try {
+      return json(await actionOrganigramme(db, secretKey(), me.user.id, action, committeeId, body));
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, e instanceof Erreur ? e.status : 400);
+    }
+  }
+
   if (!committeeId || !(await isAdmin(db, committeeId, me.user.id))) return json({ error: 'Réservé aux administrateurs du comité.' }, 403);
 
   // Liste des accès du comité (avec l'adresse du compte et la dernière connexion).
@@ -189,6 +202,10 @@ Deno.serve(async (req) => {
     }
     const { error: e } = await db.from('gsa_members').insert([...links].map(([user_id, person_id]) => ({ committee_id: unitId, user_id, person_id })));
     if (e) return json({ unitId, email: u.email, error: `Entité créée, mais pas les accès : ${e.message}` }, 200);
+    // Organigramme à glisser-déposer (l'appli envoie alors les postes de l'entité) : les postes qui portent son nom
+    // (« Camp de Pentecôte » au comité central) lui sont liés.
+    if (u.rows.some((r) => r.kind === 'meta' && r.id === 'postes'))
+      await actionOrganigramme(db, secretKey(), me.user.id, 'lierEntite', unitId, {}).catch(() => {});
     // Adresse de connexion du compte (peut différer de celle de la fiche).
     const login = password ? u.email : (await db.auth.admin.getUserById(chefUser)).data.user?.email ?? u.email;
     return json({ unitId, email: login, password, existant: !password, lies: links.size - 1 });

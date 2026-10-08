@@ -1,10 +1,11 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrgUnit, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { lireCarte, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
 import type { NouveauResponsable } from './cablage';
+import type { OpOrga } from './organigramme';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -443,14 +444,22 @@ export class CloudSync {
     const onOnline = () => void catchUp();
     document.addEventListener('visibilitychange', onVisible);
     window.addEventListener('online', onOnline);
+    window.addEventListener(RATTRAPER, onOnline);
     return () => {
       clearTimeout(tick);
       document.removeEventListener('visibilitychange', onVisible);
       window.removeEventListener('online', onOnline);
+      window.removeEventListener(RATTRAPER, onOnline);
       if (this.channel) void sb().removeChannel(this.channel);
       this.channel = null;
     };
   }
+}
+
+const RATTRAPER = 'gsa-rattraper';
+/** Relit ce qui a changé dans l'entité ouverte (après une modification faite par le serveur, sans attendre le direct). */
+export function rattraper() {
+  window.dispatchEvent(new Event(RATTRAPER));
 }
 
 /** Comités auxquels le compte connecté a accès. */
@@ -498,12 +507,16 @@ export function membershipUnit(m: Membership): OrgUnit {
   };
 }
 
-/** Organigramme du club : toutes ses entités et leurs membres. */
-export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
+/**
+ * Organigramme du club : toutes ses entités et leurs membres. `postes` : le serveur tient les postes des fiches
+ * (migration 023 : organigramme à glisser-déposer).
+ */
+export async function fetchOrg(clubId: string): Promise<{ units: OrgUnit[]; postes: boolean }> {
   const { data, error } = await sb().rpc('gsa_organigramme', { club: clubId });
   if (error) throw new Error(error.message);
-  type R = { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; moi: boolean; moiAdmin: boolean; membres: OrgMember[]; sections: { id: string; nom: string }[] | null; liens?: string[] | null };
-  return ((data ?? []) as R[]).map((u) => {
+  type R = { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; moi: boolean; moiAdmin: boolean; membres: OrgMember[]; sections: { id: string; nom: string }[] | null; liens?: string[] | null; postes?: Poste[] | null };
+  const rows = (data ?? []) as R[];
+  const units = rows.map((u) => {
     const info = u.info ?? {};
     return {
       id: u.id,
@@ -526,8 +539,10 @@ export async function fetchOrg(clubId: string): Promise<OrgUnit[]> {
       sections: u.sections ?? undefined,
       // Avant la migration 020 : pas de liens (undefined) ; ensuite, [] pour une entité sans lien.
       liens: Array.isArray(u.liens) ? u.liens : undefined,
+      postes: Array.isArray(u.postes) ? u.postes : undefined,
     };
   });
+  return { units, postes: rows.some((u) => 'postes' in u) };
 }
 
 /** Nom et fiche d'une entité (admins de l'entité ou du comité central ; l'accès du comité central, ceux de l'entité). */
@@ -687,7 +702,15 @@ export type AccessRequest =
   | { action: 'creer' | 'reinitialiser' | 'retirer'; committeeId: string; personId: string; email?: string }
   | { action: 'creerUnite'; committeeId: string; unite: { nom: string; type: UnitType; info: UnitInfo }; rows: Row[]; chefId: string }
   /** Organigramme câblé : `committeeId` est l'entité dont l'appelant est admin (comité central, ou l'entité elle-même). */
-  | { action: 'responsable'; committeeId: string; uniteId: string; responsable: NouveauResponsable };
+  | { action: 'responsable'; committeeId: string; uniteId: string; responsable: NouveauResponsable }
+  /**
+   * Organigramme à glisser-déposer (supabase/functions/gsa-acces/orga.ts) : `committeeId` est l'entité ouverte (son club
+   * est celui de la modification) ; pour « suivre » et « lierEntite », l'entité concernée.
+   */
+  | { action: 'organiser'; committeeId: string; op: OpOrga }
+  | { action: 'annulerOrga'; committeeId: string; jeton: string }
+  | { action: 'postes' | 'lierEntite'; committeeId: string }
+  | { action: 'suivre'; committeeId: string; avant: Person[] };
 
 export async function accessAction<T = Record<string, unknown>>(body: AccessRequest): Promise<T> {
   const { data, error } = await sb().functions.invoke('gsa-acces', { body });

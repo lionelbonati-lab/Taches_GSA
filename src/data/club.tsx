@@ -118,10 +118,15 @@ export interface Club {
    */
   definirResponsable: (uniteId: string, r: NouveauResponsable) => Promise<{ compte: boolean }>;
   /**
-   * Organigramme à glisser-déposer (fiches à trois zones, postes liés) : pour l'instant dans la démo seulement
-   * (absent : l'organigramme câblé). Renvoie ce qui a été fait et de quoi l'annuler.
+   * Organigramme à glisser-déposer (fiches à trois zones, postes liés) ; absent : l'organigramme câblé d'avant (démo
+   * « classique », serveur pas encore à jour). Renvoie ce qui a été fait et de quoi l'annuler.
    */
   organiser?: (op: OpOrga) => Promise<{ message: string; annuler: () => Promise<void> }>;
+  /**
+   * Version réelle : personnes de l'entité ouverte modifiées ailleurs que dans l'organigramme (fiche, console admin),
+   * déjà enregistrées ; `avant` : ses fiches d'avant. Le serveur fait suivre ses postes et les postes liés.
+   */
+  suivrePostes?: (avant: Person[]) => Promise<void>;
   /** Envoie une proposition d'amélioration de l'appli au comité central (tout membre du club). */
   proposerAmelioration: (p: NouvelleProposition) => Promise<void>;
   /** Propositions envoyées par la personne connectée, avec leur suivi ; null : le serveur ne les gère pas encore (migration 022). */

@@ -121,7 +121,7 @@ export function Org() {
     setCablage(false);
     setChoisi(null);
   };
-  // Organigramme à glisser-déposer (démo) : fiches à trois zones, recherche en haut à gauche, postes liés.
+  // Organigramme à glisser-déposer : fiches à trois zones, recherche en haut à gauche, postes liés.
   const orga = !!club.organiser;
   const [q, setQ] = useState('');
   const [deplies, setDeplies] = useState<Set<string>>(() => {

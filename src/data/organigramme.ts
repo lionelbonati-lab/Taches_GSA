@@ -5,7 +5,8 @@ import { emailKey } from './membres';
 import { ficheDe } from './cablage';
 import { uid } from './utils';
 
-// Organigramme « colonne vertébrale » (démo pour l'instant) : la fiche de chaque entité a trois zones.
+// Organigramme « colonne vertébrale » : la fiche de chaque entité a trois zones. Démo : appliqué dans le navigateur ;
+// version réelle : par le serveur (data/organigrammeServeur.ts, inclus dans la fonction « gsa-acces »).
 //  - Titre : ses ★ (rôle Admin, plusieurs possibles), leur fonction en premier (« Président »…).
 //  - Responsables : ses postes, dans l'ordre, chacun avec son titulaire, ou vacant (en rouge).
 //  - Bénévoles (« Membres » d'un groupe) : les autres membres, dépliés à la demande.
@@ -48,9 +49,16 @@ export const benevolesDe = (type: UnitType) =>
 const nonAdmin = (roles: Role[]) => roles.filter((r) => r.id !== ADMIN_ROLE_ID);
 const parDroits = (l: Role[]) => [...l].sort((a, b) => a.permissions.length - b.permissions.length);
 
-/** Rôle d'un simple bénévole : « Bénévole » s'il existe, sinon le rôle qui donne le moins de droits. */
+const BENEVOLE = /^b[ée]n[ée]vole/i;
+/** Rôle d'un simple bénévole : « Bénévole » s'il existe (par son nom aussi), sinon le rôle qui donne le moins de droits (hors caisse). */
 export function roleBenevole(roles: Role[]): string | undefined {
-  return roles.find((r) => r.id === 'benevole')?.id ?? parDroits(nonAdmin(roles))[0]?.id;
+  const l = nonAdmin(roles);
+  return (
+    l.find((r) => r.id === 'benevole')?.id ??
+    l.find((r) => BENEVOLE.test(r.label.trim()))?.id ??
+    parDroits(l.filter((r) => !r.locked && !r.permissions.includes('paiements.payer')))[0]?.id ??
+    parDroits(l)[0]?.id
+  );
 }
 
 /** Rôle de qui occupe un poste : le rôle par défaut (« Comité », « Membre »…), plus étendu que celui d'un bénévole si possible. */
@@ -130,15 +138,15 @@ export function postesDeduits(d: AppData, type: UnitType): Poste[] {
 const mots = (s: string) =>
   s
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .split(/[^a-z0-9]+/)
     .filter((w) => w.length >= 4);
 
-/** Le poste dont le nom ressemble le plus à celui de l'entité (à égalité, le premier). */
-function proche(postes: Poste[], nom: string) {
+/** Le poste dont le nom ressemble le plus à celui de l'entité (à égalité, le premier) ; `strict` : aucun mot en commun, aucun. */
+function proche(postes: Poste[], nom: string, strict = false) {
   const m = new Set(mots(nom));
-  let [meilleur, score] = [postes[0], -1];
+  let [meilleur, score] = strict ? [undefined as Poste | undefined, 0] : [postes[0], -1];
   for (const p of postes) {
     const s = mots(p.nom).filter((w) => m.has(w)).length;
     if (s > score) [meilleur, score] = [p, s];
@@ -160,9 +168,11 @@ export function entiteDuNom(units: Unit[], nom: string, sauf: string): Unit | un
 /**
  * Fiches qui n'ont pas encore de postes : postes déduits des fonctions ; les câbles d'avant (le ★ d'une entité, membre
  * de son entité mère) deviennent des postes liés, puis chaque poste qui porte le nom d'une entité lui est lié. Modifie
- * `data` ; renvoie les entités modifiées.
+ * `data` ; renvoie les entités modifiées. `prudent` (données réelles) : un poste n'est lié par son nom que si son
+ * titulaire est déjà ★ de l'entité (personne ne devient ★ sans qu'on l'ait décidé), et un câble ne reprend qu'un poste
+ * qui a un mot en commun avec l'entité (sinon : nouveau poste « Président … »).
  */
-export function convertirPostes(units: Unit[], data: Map<string, AppData>): string[] {
+export function convertirPostes(units: Unit[], data: Map<string, AppData>, prudent = false): string[] {
   const neufs = units.filter((u) => {
     const d = data.get(u.id);
     return !!d && !d.postes;
@@ -177,8 +187,7 @@ export function convertirPostes(units: Unit[], data: Map<string, AppData>): stri
     for (const s of du.people.filter(estEtoile)) {
       const pm = dm.people.find((x) => x.actif && memeQui(x, s));
       if (!pm) continue;
-      const libres = dm.postes.filter((x) => x.titulaire === pm.id && !x.lien);
-      let po = libres.length ? proche(libres, u.nom) : undefined;
+      let po = proche(dm.postes.filter((x) => x.titulaire === pm.id && !x.lien), u.nom, prudent);
       if (!po) {
         po = { id: uid('po'), nom: `${UNIT_TYPES[u.type].chef} ${u.nom}`, titulaire: pm.id };
         dm.postes.push(po);
@@ -187,7 +196,7 @@ export function convertirPostes(units: Unit[], data: Map<string, AppData>): stri
       po.lien = u.id;
     }
   }
-  const m: Monde = { units, data, notes: [] };
+  const m: Monde = { units, data, notes: [], prudent };
   for (const u of neufs) if (!u.archive) lierNoms(m, u.id, data.get(u.id)!.postes!.map((x) => x.id));
   return units.filter((u) => neufs.includes(u) || m.touchees?.has(u.id)).map((u) => u.id);
 }
@@ -236,6 +245,14 @@ export interface Monde {
   notes: string[];
   /** Entités modifiées par un lien fait par le nom (convertirPostes). */
   touchees?: Set<string>;
+  /**
+   * Version réelle : les entités que l'auteur peut modifier (admin, ou admin du comité central). Un poste n'est lié par
+   * son nom qu'à l'une d'elles, et seuls leurs postes se lient à une entité créée ou renommée : sinon l'admin d'un groupe
+   * se ferait ★ d'une autre entité en nommant un poste comme elle.
+   */
+  peut?: (uniteId: string) => boolean;
+  /** Lien par le nom seulement si le titulaire est déjà ★ de l'entité (première conversion des données réelles). */
+  prudent?: boolean;
 }
 
 function entite(m: Monde, id: string) {
@@ -561,7 +578,12 @@ function lierNoms(m: Monde, uniteId: string, ids: string[]) {
   for (const id of ids) {
     const po = A.postes.find((x) => x.id === id);
     const c = po && !po.lien ? entiteDuNom(m.units, po.nom, uniteId) : undefined;
-    if (!c || !m.data.get(c.id)) continue;
+    const dc = c && m.data.get(c.id);
+    if (!po || !c || !dc || (m.peut && !m.peut(c.id))) continue;
+    if (m.prudent) {
+      const h = po.titulaire ? A.d.people.find((x) => x.id === po.titulaire && x.actif) : undefined;
+      if (!h || !dc.people.some((x) => estEtoile(x) && memeQui(x, h))) continue;
+    }
     const avant = new Map(m.units.map((u) => [u.id, JSON.stringify(m.data.get(u.id))]));
     m.notes.push(lier(m, uniteId, id, c.id));
     m.touchees ??= new Set();
@@ -573,7 +595,7 @@ function lierNoms(m: Monde, uniteId: string, ids: string[]) {
 export function lierEntite(m: Monde, id: string) {
   for (const u of m.units) {
     const d = m.data.get(u.id);
-    if (u.archive || u.id === id || !d?.postes) continue;
+    if (u.archive || u.id === id || !d?.postes || (m.peut && !m.peut(u.id))) continue;
     lierNoms(m, u.id, d.postes.filter((x) => !x.lien && entiteDuNom(m.units, x.nom, u.id)?.id === id).map((x) => x.id));
   }
 }

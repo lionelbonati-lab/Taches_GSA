@@ -10,7 +10,7 @@ import { Initials, Modal, UnitMark } from './ui';
 import { nomCandidat, type Candidat, type Point } from './Cablage';
 import type { Deplacer } from './Disposition';
 
-// Organigramme « colonne vertébrale » (démo) : fiches à trois zones (titre ★, responsables, bénévoles) où l'on place
+// Organigramme « colonne vertébrale » : fiches à trois zones (titre ★, responsables, bénévoles) où l'on place
 // les personnes en les glissant (souris ; au doigt par la poignée ⠿), depuis une autre fiche ou depuis la recherche
 // en haut à gauche (pilules). Sans glisser : toucher la personne (elle est « en main »), puis la zone où la poser.
 // Les règles sont dans data/organigramme.ts.

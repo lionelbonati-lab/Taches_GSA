@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, deleteMembre, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, deleteMembre, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -10,6 +10,8 @@ import type { OrgUnit } from './data/types';
 // fonctions du serveur (gsa_organigramme, gsa_proposer_tache, gsa_mes_demandes, gsa-acces « creerUnite »).
 // Exception : une entité peut ouvrir ses données au comité central (consulter, ou aussi modifier / ajouter) ;
 // ses membres l'ouvrent alors en visiteur, avec leur fiche du comité central (règles du serveur : 006).
+// Organigramme à glisser-déposer : chaque modification est faite par le serveur (gsa-acces, orga.ts), qui touche
+// souvent plusieurs entités ; l'entité ouverte la reçoit en direct comme les modifications des autres membres.
 
 /** Enregistre le nom et la fiche (colonne info) d'une entité telle qu'elle doit être. */
 function ecrireEntite(u: OrgUnit) {
@@ -39,15 +41,32 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [acces, setAcces] = useState(false);
+  // Le serveur tient les postes des fiches (migration 023) : organigramme à glisser-déposer.
+  const [orga, setOrga] = useState(false);
+  const conversion = useRef(false);
+  const ouverte = useRef(m.committeeId);
+  ouverte.current = m.committeeId;
 
   const refresh = useCallback(() => {
     setLoading(true);
     Promise.all([fetchOrg(clubId), myMemberships(userId), membresAcces(clubId)])
       .then(([o, l, a]) => {
-        setOrg(o);
+        setOrg(o.units);
+        setOrga(o.postes);
         setList(l);
         setAcces(a);
         setError('');
+        // Première ouverture : les postes des fiches sont déduits de leurs fonctions, une fois pour tout le club.
+        if (o.postes && !conversion.current && o.units.some((u) => !u.postes)) {
+          conversion.current = true;
+          accessAction<{ converti?: boolean }>({ action: 'postes', committeeId: ouverte.current })
+            .then((r) => {
+              if (!r.converti) return;
+              rattraper();
+              return fetchOrg(clubId).then((x) => setOrg(x.units));
+            })
+            .catch(() => {});
+        }
       })
       .catch((e: Error) => setError(`Organigramme indisponible : ${e.message}`))
       .finally(() => setLoading(false));
@@ -101,6 +120,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         const d = unitData(n.type, [], chef.id, n.nom);
         const chefEmail = n.chef.email.trim().toLowerCase();
         d.people = [chef, ...n.membres.filter((x) => x.email.trim().toLowerCase() !== chefEmail).map((x) => toPerson(x, [defaultRoleId(d.roles)]))];
+        // Organigramme : pas encore de poste ; le serveur lie ensuite à la nouvelle entité les postes qui portent son nom.
+        if (orga) d.postes = [];
         const r = await accessAction<{ unitId: string; email?: string; password?: string; existant?: boolean; error?: string }>({
           action: 'creerUnite',
           committeeId: central.id,
@@ -118,6 +139,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         const u = units.find((x) => x.id === id);
         if (!u) throw new Error('Entité introuvable.');
         await ecrireEntite({ ...u, ...patch });
+        // Renommée : les postes qui portent son nouveau nom lui sont liés (organigramme).
+        if (orga && patch.nom && patch.nom !== u.nom) await accessAction({ action: 'lierEntite', committeeId: id }).catch(() => {});
         refresh();
       },
       async placerCartes(places) {
@@ -154,6 +177,37 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
           refresh();
         }
       },
+      // Organigramme à glisser-déposer : le serveur applique la modification (droits, postes liés) et donne de quoi l'annuler.
+      organiser: orga
+        ? async (op) => {
+            try {
+              const r = await accessAction<{ message: string; unites?: string[]; annuler?: string }>({ action: 'organiser', committeeId: m.committeeId, op });
+              if (r.unites?.includes(m.committeeId)) rattraper();
+              return {
+                message: r.message,
+                annuler: async () => {
+                  if (!r.annuler) return;
+                  try {
+                    await accessAction({ action: 'annulerOrga', committeeId: m.committeeId, jeton: r.annuler });
+                  } finally {
+                    rattraper();
+                    refresh();
+                  }
+                },
+              };
+            } finally {
+              refresh();
+            }
+          }
+        : undefined,
+      suivrePostes:
+        orga && !m.guest
+          ? async (avant) => {
+              const r = await accessAction<{ unites?: string[] }>({ action: 'suivre', committeeId: m.committeeId, avant });
+              if (r.unites?.includes(m.committeeId)) rattraper();
+              if (r.unites?.some((id) => id !== m.committeeId)) refresh();
+            }
+          : undefined,
       async proposerAmelioration(p) {
         await proposerAmelioration(clubId, m.committeeId, p);
       },
@@ -179,7 +233,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         refresh();
       },
     };
-  }, [org, list, m, loading, error, refresh, onSwitch, acces, clubId]);
+  }, [org, list, m, loading, error, refresh, onSwitch, acces, clubId, orga]);
 
   return <ClubCtx.Provider value={club}>{children}</ClubCtx.Provider>;
 }

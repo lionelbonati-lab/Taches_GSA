@@ -45,7 +45,7 @@ export function Aide() {
   if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « ✏️ Modifier l’organigramme », puis « + Ajouter une personne » en bas de la liste des postes de l’entité.');
   if (orga && club?.liens && club.units.length > 1 && user?.roles.includes(ADMIN_ROLE_ID))
     geste('Ajouter toute une entité aux membres de la tienne', orga, ' : « ✏️ Modifier l’organigramme » › « + Ajouter une personne » › « 👥 Tous les membres de … ». Qui rejoint ou quitte cette entité rejoint ou quitte aussi la tienne, automatiquement ; tu peux ajouter d’autres personnes en plus.');
-  // Organigramme à glisser-déposer (démo pour l'instant) : fiches à trois zones, postes liés.
+  // Organigramme à glisser-déposer : fiches à trois zones, postes liés.
   const fiches = !!club?.organiser && club.units.some((u) => !u.archive && (club?.canManage || u.moiAdmin));
   if (orga && fiches) {
     geste('Placer quelqu’un dans l’organigramme', orga, ' : « ✏️ Modifier l’organigramme », puis glisse la personne (depuis une fiche, ou cherchée en haut à gauche : ses propositions s’empilent en pilules) sur le titre d’une fiche : elle en devient ★ (président, responsable) ; sur un poste : elle l’occupe ; dans les bénévoles : simple bénévole. Glissée d’une fiche à l’autre, elle quitte la première ; avec Ctrl (ou Alt) enfoncé, elle y reste aussi (copie) ; sur 🗑 en bas : retirée. Au doigt : par sa poignée ⠿, ou touche-la puis touche la zone. « Annuler » en bas défait le dernier changement.');

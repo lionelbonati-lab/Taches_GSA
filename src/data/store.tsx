@@ -263,15 +263,21 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   }, [epoch]);
 
   // Version réelle : modifications des autres membres reçues en direct ; modification refusée → version du serveur.
+  // Fiches reçues du serveur : l'organigramme n'a pas à les faire suivre (voir plus bas).
+  const distant = useRef(false);
   useEffect(() => {
     if (!cloud) return;
     const { sync } = cloud;
     sync.onRejected = async (message, rows) => {
       setToast(`⚠️ Modification refusée par le serveur : ${message}`);
       const fresh = await sync.fetchRows(rows);
+      if (fresh.some((r) => r.kind === 'people')) distant.current = true;
       setData((prev) => applyRows(prev, fresh, sync.posOf));
     };
-    return sync.listen((rows) => setData((prev) => applyRows(prev, rows, sync.posOf)));
+    return sync.listen((rows) => {
+      if (rows.some((r) => r.kind === 'people')) distant.current = true;
+      setData((prev) => applyRows(prev, rows, sync.posOf));
+    });
   }, [cloud]);
 
   // Tâches que d'autres entités du club partagent avec celle-ci : relues à l'ouverture, au retour sur l'appli
@@ -279,6 +285,36 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const club = useClubOptional();
   const clubRef = useRef(club);
   clubRef.current = club;
+
+  // Version réelle, organigramme à glisser-déposer : personnes modifiées ici (fiche, console admin, import) → une fois
+  // enregistrées, le serveur fait suivre les postes de l'entité et les postes liés (comme la démo, data/organigramme).
+  const suivi = useRef<{ sig: string; people: Person[]; base: Person[] | null; timer?: ReturnType<typeof setTimeout>; file: Promise<void> }>({ sig: '', people: [], base: null, file: Promise.resolve() });
+  useEffect(() => {
+    if (!cloud || guest) return;
+    const s = suivi.current;
+    const sig = JSON.stringify(data.people.map((p) => [p.id, p.actif, p.roles, p.poste, p.autresPostes, p.viaEntite]));
+    const recu = distant.current;
+    distant.current = false;
+    const avant = s.people;
+    const change = !!s.sig && sig !== s.sig;
+    s.sig = sig;
+    s.people = data.people;
+    if (!change || recu || !data.postes) return;
+    s.base ??= avant;
+    clearTimeout(s.timer);
+    s.timer = setTimeout(() => {
+      const base = s.base;
+      s.base = null;
+      if (!base) return;
+      s.file = s.file
+        .then(async () => {
+          await cloud.sync.flushNow();
+          await clubRef.current?.suivrePostes?.(base);
+        })
+        .catch(() => {});
+    }, 800);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.people]);
   const moi = club?.current.id;
   const [partagees, setPartagees] = useState<TachePartagee[]>([]);
   const lecture = useRef(0);
