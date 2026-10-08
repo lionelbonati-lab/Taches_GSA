@@ -727,6 +727,8 @@ export interface SceauPose {
   fond?: number;
   encre?: number;
   docId?: string;
+  /** Page du PDF où le sceau est posé (justificatif en PDF). */
+  page?: number;
   x: number;
   y: number;
   largeur: number;

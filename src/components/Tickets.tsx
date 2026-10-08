@@ -9,9 +9,11 @@ import {
   type GenreTicket, type Ticket,
 } from '../data/paiements';
 import { SCEAU_RATIO, apposerSceau, renderSceau, type SceauContenu } from '../data/sceau';
-import { deleteFiles, docIcon, getFile, openFile, saveFile } from '../data/files';
+import { apercuPdf, apposerSceauPdf, estPdf } from '../data/pdf';
+import { deleteFiles, getFile, openFile, saveFile } from '../data/files';
 import { fmtDate, fmtDateTime, fullName, today, uid } from '../data/utils';
-import { DocsField, Thumb, type DocTracking } from './DocsField';
+import { DocThumb, DocsField, type DocTracking } from './DocsField';
+import { PdfApercu, PdfPage } from './PdfViewer';
 import { SignaturePad } from './SignaturePad';
 import { Modal } from './ui';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from './Entete';
@@ -212,7 +214,8 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
   const [msg, setMsg] = useState('');
   // Document fini (justificatif avec le sceau) : téléchargé par la caisse pour la comptabilité.
   const telecharger = async () => {
-    const nom = `${g.vise} - ${t.titre} - ${chf(p.montant)}.jpg`;
+    const vise = t.documents?.find((d) => d.id === p.validation!.docVise);
+    const nom = `${g.vise} - ${t.titre} - ${chf(p.montant)}.${vise && estPdf(vise) ? 'pdf' : 'jpg'}`;
     setMsg((await openFile(p.validation!.docVise!, nom, true)) ? '' : 'Fichier introuvable (vérifie la connexion).');
   };
   // Bon de paiement : seule la fenêtre du ticket est imprimée (le reste de l'appli est masqué le temps de l'impression).
@@ -259,7 +262,7 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
           <><dt>Visa</dt><dd>demandé à <strong>{nomDe(data, p.visa.a)}</strong> par {nomDe(data, p.visa.par)} · {fmtDateTime(p.visa.le)}{p.visa.message && <> — « {p.visa.message} »</>}</dd></>
         )}
       </dl>
-      <Justificatifs docs={t.documents ?? []} vise={p.validation?.docVise} label={g.vise} />
+      <Justificatifs docs={t.documents ?? []} vise={p.validation?.docVise} pageVise={p.validation?.sceau?.page} label={g.vise} />
       {sceau && (
         <div className="ticket-visa">
           <SceauImg c={sceau} />
@@ -384,24 +387,32 @@ function DemandeVisa({ t, onClose }: { t: Ticket; onClose: () => void }) {
   );
 }
 
-function Justificatifs({ docs, vise, label }: { docs: TaskDoc[]; vise?: string; label?: string }) {
+function Justificatifs({ docs, vise, pageVise, label }: { docs: TaskDoc[]; vise?: string; pageVise?: number; label?: string }) {
+  const [pdf, setPdf] = useState<TaskDoc | null>(null);
   if (!docs.length) return <p className="muted small">Aucun justificatif.</p>;
-  const open = (d: TaskDoc) => (d.kind === 'lien' ? window.open(d.url, '_blank', 'noopener') : openFile(d.id, d.nom));
+  // PDF : aperçu dans l'appli (sur téléphone, il ne s'ouvre pas toujours à part).
+  const open = (d: TaskDoc) => (d.kind === 'lien' ? window.open(d.url, '_blank', 'noopener') : estPdf(d) ? setPdf(d) : openFile(d.id, d.nom));
   const tri = vise ? [...docs].sort((a, b) => (a.id === vise ? -1 : b.id === vise ? 1 : 0)) : docs;
   return (
     <div className={`ticket-docs ${vise ? 'avec-vise' : ''}`}>
       {tri.map((d) => (
         <button key={d.id} type="button" className={`ticket-doc ${d.id === vise ? 'vise' : ''}`} onClick={() => open(d)} title={d.nom}>
-          {d.kind === 'fichier' && d.mime?.startsWith('image/') ? <Thumb id={d.id} /> : <span className="doc-icon">{docIcon(d)}</span>}
+          <DocThumb d={d} page={d.id === vise ? pageVise : undefined} />
           <small>{d.id === vise ? `✔ ${label ?? 'Visé'}` : d.nom}</small>
         </button>
       ))}
+      {pdf && <PdfApercu id={pdf.id} nom={pdf.nom} onClose={() => setPdf(null)} />}
     </div>
   );
 }
 
-/** Image d'un justificatif en grand (pour y poser le sceau). */
-function DocImage({ id, onLoad }: { id: string; onLoad: (img: HTMLImageElement) => void }) {
+/** Image d'un justificatif en grand (pour y poser le sceau) : la photo, ou une page du PDF. */
+function DocImage({ d, page, onLoad }: { d: TaskDoc; page: number; onLoad: (img: HTMLImageElement, pages: number) => void }) {
+  if (estPdf(d)) return <PdfPage id={d.id} page={page} className="sceau-doc" onLoad={(img, p) => onLoad(img, p.pages)} />;
+  return <PhotoImage id={d.id} onLoad={(img) => onLoad(img, 1)} />;
+}
+
+function PhotoImage({ id, onLoad }: { id: string; onLoad: (img: HTMLImageElement) => void }) {
   const [url, setUrl] = useState<string>();
   useEffect(() => {
     let u: string | undefined;
@@ -418,8 +429,12 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
   const save = useSaveTicket();
   const p = t.paiement;
   const g = genre(p);
-  const images = (t.documents ?? []).filter((d) => d.kind === 'fichier' && d.mime?.startsWith('image/'));
+  // Le sceau se pose sur une photo ou sur une page d'un PDF (la facture elle-même).
+  const images = (t.documents ?? []).filter((d) => d.kind === 'fichier' && (d.mime?.startsWith('image/') || estPdf(d)));
   const [docId, setDocId] = useState(images[0]?.id);
+  const doc = images.find((d) => d.id === docId);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
   const modele = timbreDe(data);
   const [texte, setTexte] = useState(modele.texte);
   const [fond, setFond] = useState(modele.fond ?? 85);
@@ -436,9 +451,10 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
     const h = (q.largeur * SCEAU_RATIO) / asp;
     return { largeur: q.largeur, x: Math.min(Math.max(0, q.x), 1 - q.largeur), y: Math.min(Math.max(0, q.y), Math.max(0, 1 - h)) };
   };
-  const loaded = (img: HTMLImageElement) => {
+  const loaded = (img: HTMLImageElement, n: number) => {
     const asp = img.naturalHeight / img.naturalWidth || 1.4;
     setAspect(asp);
+    setPages(n);
     setPose((q) => clamp({ ...q, x: 1, y: 1 }, asp)); // par défaut en bas à droite
   };
   const down = (e: React.PointerEvent) => {
@@ -460,16 +476,27 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
     setErr('');
     try {
       const le = new Date().toISOString();
-      const sceau: SceauPose = { entete: contenu.entete, texte: contenu.texte, couleur: contenu.couleur, fond, encre: contenu.encre, docId, ...pose };
+      const pdf = !!doc && estPdf(doc);
+      const sceau: SceauPose = { entete: contenu.entete, texte: contenu.texte, couleur: contenu.couleur, fond, encre: contenu.encre, docId, ...(pdf ? { page } : {}), ...pose };
       let documents = t.documents ?? [];
       let docVise: string | undefined;
-      if (docId) {
-        const blob = await getFile(docId);
+      if (doc) {
+        const blob = await getFile(doc.id);
         if (!blob) throw new Error('Justificatif introuvable : vérifie la connexion.');
-        const out = await apposerSceau(blob, await renderSceau(contenu), pose);
+        const image = await renderSceau(contenu, 3);
+        // PDF : le sceau est posé dans le PDF (qualité et autres pages gardées) ; s'il ne s'y prête pas (protégé…),
+        // sur l'image de la page, comme pour une photo.
+        let out = pdf ? await apposerSceauPdf(blob, image, page, pose).catch(() => null) : null;
+        if (!out) {
+          const page1 = pdf ? await apercuPdf(doc.id, page).then((x) => (x ? fetch(x.url).then((r) => r.blob()) : null)) : blob;
+          if (!page1) throw new Error('PDF illisible : télécharge-le, puis ajoute-le en photo.');
+          out = await apposerSceau(page1, image, pose);
+        }
+        const enPdf = out.type === 'application/pdf';
+        if (!enPdf) delete sceau.page;
         docVise = uid('d');
         await saveFile(docVise, out);
-        documents = [{ id: docVise, nom: `${g.vise} – ${t.titre}.jpg`, kind: 'fichier', mime: 'image/jpeg', taille: out.size, par: user.id, le }, ...documents];
+        documents = [{ id: docVise, nom: `${g.vise} – ${t.titre}.${enPdf ? 'pdf' : 'jpg'}`, kind: 'fichier', mime: out.type, taille: out.size, par: user.id, le }, ...documents];
       }
       const validation = { par: user.id, le, signature: png, sceau, docVise };
       if (direct) save(t, { etat: 'valide', validation, visa: undefined, refus: undefined }, `${g.vise} et envoyée à la caisse : « ${t.titre} » (${chf(p.montant)})`, { documents });
@@ -493,14 +520,22 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
       <div className="visa-grid">
         <div>
           {images.length > 1 && (
-            <select value={docId} onChange={(e) => setDocId(e.target.value)} aria-label="Justificatif">
+            <select value={docId} onChange={(e) => { setDocId(e.target.value); setPage(1); setPages(1); }} aria-label="Justificatif">
               {images.map((d) => <option key={d.id} value={d.id}>{d.nom}</option>)}
             </select>
           )}
-          {docId ? (
+          {pages > 1 && (
+            <label className="small sceau-page">
+              Page du sceau
+              <select value={page} onChange={(e) => setPage(+e.target.value)}>
+                {Array.from({ length: pages }, (_, i) => <option key={i} value={i + 1}>Page {i + 1} sur {pages}</option>)}
+              </select>
+            </label>
+          )}
+          {doc ? (
             <>
               <div className="sceau-zone" ref={zone}>
-                <DocImage key={docId} id={docId} onLoad={loaded} />
+                <DocImage key={`${doc.id}#${page}`} d={doc} page={page} onLoad={loaded} />
                 <div
                   className="sceau-drag"
                   style={{ left: `${pose.x * 100}%`, top: `${pose.y * 100}%`, width: `${pose.largeur * 100}%` }}
@@ -523,7 +558,7 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
           ) : (
             <>
               <Justificatifs docs={t.documents ?? []} />
-              <p className="muted small">Le justificatif n’est pas une photo : le sceau figurera sur le bon de paiement.</p>
+              <p className="muted small">Le justificatif n’est ni une photo ni un PDF : le sceau figurera sur le bon de paiement.</p>
               <SceauImg c={contenu} />
             </>
           )}

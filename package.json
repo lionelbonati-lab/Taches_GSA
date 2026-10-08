@@ -10,10 +10,12 @@
     "fonction": "esbuild src/data/organigrammeServeur.ts --bundle --format=esm --platform=neutral --target=es2022 --charset=utf8 --banner:js=\"// Généré par « npm run fonction » depuis src/data/organigrammeServeur.ts (règles de l'organigramme) : ne pas modifier à la main.\" --outfile=supabase/functions/gsa-acces/organigramme.js"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.57.4",
+    "pdf-lib": "1.17.1",
+    "pdfjs-dist": "4.10.38",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "react-router-dom": "^6.26.2",
-    "@supabase/supabase-js": "^2.57.4"
+    "react-router-dom": "^6.26.2"
   },
   "devDependencies": {
     "@types/react": "^18.3.5",

@@ -1281,3 +1281,13 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .admin-retour { margin: -6px 0 4px; }
 .admin-retour a { font-weight: 600; }
 @media (max-width: 767px) { .admin-cartes { grid-template-columns: 1fr; } }
+
+/* PDF joints : miniature (haut de la première page), aperçu des pages, page du sceau. */
+.doc-thumb.pdf { object-position: top; background: #fff; border: 1px solid var(--border); }
+.doc-icon.chargement { opacity: 0.4; }
+.pdf-pages { display: flex; flex-direction: column; gap: 12px; max-height: 70vh; overflow: auto; background: var(--bg); padding: 8px; border-radius: 8px; }
+.pdf-page { width: 100%; height: auto; display: block; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
+.sceau-page { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+@media print {
+  .doc-thumb.pdf { border: none; }
+}

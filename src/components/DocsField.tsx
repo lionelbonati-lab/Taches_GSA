@@ -3,6 +3,8 @@ import { useStore } from '../data/store';
 import type { TaskDoc } from '../data/types';
 import { compressImage, deleteFiles, docIcon, fmtSize, getFile, MAX_FILE_SIZE, openFile, saveFile } from '../data/files';
 import { fmtDate, fullName, uid } from '../data/utils';
+import { estPdf } from '../data/pdf';
+import { PdfApercu, PdfPage } from './PdfViewer';
 
 /** Suivi des fichiers ajoutés / retirés pendant l'édition, pour ranger le stockage à l'enregistrement ou à l'annulation. */
 export interface DocTracking {
@@ -24,6 +26,13 @@ export function Thumb({ id }: { id: string }) {
   return url ? <img className="doc-thumb" src={url} alt="" /> : null;
 }
 
+/** Miniature d'un fichier joint : la photo, la première page d'un PDF, sinon l'icône du type de fichier. */
+export function DocThumb({ d, page }: { d: TaskDoc; page?: number }) {
+  if (d.kind === 'fichier' && d.mime?.startsWith('image/')) return <Thumb id={d.id} />;
+  if (d.kind === 'fichier' && estPdf(d)) return <PdfPage id={d.id} page={page} />;
+  return <span className="doc-icon">{docIcon(d)}</span>;
+}
+
 export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, legende = 'Documents' }: {
   docs: TaskDoc[];
   setDocs: (fn: (d: TaskDoc[]) => TaskDoc[]) => void;
@@ -41,6 +50,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
   const [link, setLink] = useState<{ url: string; nom: string } | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  const [pdf, setPdf] = useState<TaskDoc | null>(null);
 
   const addFiles = async (files: FileList | null, photo = false) => {
     if (!files?.length || !user) return;
@@ -100,17 +110,19 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
 
   const open = async (doc: TaskDoc) => {
     if (doc.kind === 'lien') return window.open(doc.url, '_blank', 'noopener');
+    if (estPdf(doc)) return setPdf(doc);
     if (!(await openFile(doc.id, doc.nom))) setErr(cloud ? 'Fichier introuvable sur le serveur (ou pas de connexion).' : 'Fichier introuvable dans ce navigateur (données de démonstration).');
   };
 
   return (
     <fieldset className={`full docs ${compact ? 'compact' : ''}`}>
+      {pdf && <PdfApercu id={pdf.id} nom={pdf.nom} onClose={() => setPdf(null)} />}
       <legend>{legende} {docs.length > 0 && `(${docs.length})`}</legend>
       {docs.length > 0 && (
         <ul className="doc-list">
           {docs.map((d) => (
             <li key={d.id}>
-              {d.kind === 'fichier' && d.mime?.startsWith('image/') ? <Thumb id={d.id} /> : <span className="doc-icon">{docIcon(d)}</span>}
+              <DocThumb d={d} />
               <button type="button" className="doc-name" onClick={() => open(d)} title={d.kind === 'lien' ? d.url : 'Ouvrir'}>
                 {d.nom}
               </button>
