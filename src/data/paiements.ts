@@ -66,6 +66,18 @@ const expresses = (data: AppData, perm: 'paiements.valider' | 'paiements.payer')
 /** Caissiers de l'entité : sans eux, elle ne reçoit pas de tickets. */
 export const caissiers = (data: AppData) => expresses(data, 'paiements.payer');
 
+/** Visa direct : une facture visée par la personne qui l'envoie, si elle a le droit de signature (« peut viser »,
+ *  ou admin, ex. le président) sans être caissière, et qu'une autre personne tient la caisse (elle fait le virement).
+ *  Jamais pour un remboursement ni pour une facture à son propre nom : on ne vise pas ce qu'on se fait payer. */
+export const viseDirect = (data: AppData, p: Person | null | undefined, beneficiaire: string) => {
+  const caisse = caissiers(data);
+  const b = beneficiaire.trim().toLowerCase();
+  return (
+    !!p && p.actif && can(data, p, 'paiements.valider') && caisse.length > 0 && !caisse.some((x) => x.id === p.id) &&
+    b !== `${p.prenom} ${p.nom}`.trim().toLowerCase() && b !== `${p.nom} ${p.prenom}`.trim().toLowerCase()
+  );
+};
+
 /** Membres du comité de l'entité : ceux qui ont l'onglet Séances ou le droit de viser. */
 export const auComite = (data: AppData, p: Person) => {
   const roles = userRoles(data.roles, p);

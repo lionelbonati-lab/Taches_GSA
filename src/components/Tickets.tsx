@@ -5,7 +5,7 @@ import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
 import type { AppData, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre } from '../data/types';
 import {
-  COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, peutOuvrirTicket, responsablesPour, sectionFinances, signataires, statutPour, timbreDe,
+  COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, peutOuvrirTicket, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, viseDirect,
   type GenreTicket, type Ticket,
 } from '../data/paiements';
 import { SCEAU_RATIO, apposerSceau, renderSceau, type SceauContenu } from '../data/sceau';
@@ -70,7 +70,7 @@ export function CircuitPaiements({ total }: { total?: number }) {
     <div className="circuit-paiements no-print">
       <p className="muted small">
         🧾 <strong>Remboursement</strong> : une personne a avancé l’argent (photo de son ticket) · 💳 <strong>Paiement</strong> : facture payée directement à qui l’a envoyée.
-        Circuit : la caisse reçoit la demande et la fait viser par un membre du comité (jamais le demandeur), qui signe et pose le sceau « {timbreDe(data).texte} » → la caisse fait le virement et met « OK ». Le virement lui-même ne passe pas par l’appli.
+        Circuit : la caisse reçoit la demande et la fait viser par un membre du comité (jamais le demandeur), qui signe et pose le sceau « {timbreDe(data).texte} » → la caisse fait le virement et met « OK ». Une facture peut aussi être visée par la personne qui l’envoie, si elle a le droit de signature (ex. le président, pas la caisse) : elle arrive prête pour le virement. Le virement lui-même ne passe pas par l’appli.
       </p>
       {caisse && <TimbreReglage />}
       {caisse && <LienEntete className="btn small entete-bon" />}
@@ -202,6 +202,9 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
   const caisse = !!moi && holders(data, 'paiements.payer').includes(moi);
   const mien = p.demandePar === moi;
   const pourMoi = p.etat === 'visa' && p.visa?.a === moi && !mien;
+  // Facture envoyée sans visa par une personne qui a le droit de signature : elle peut encore la viser elle-même.
+  const [direct, setDirect] = useState(false);
+  const peutDirect = p.etat === 'recu' && mien && genreDe(p) === 'facture' && !p.externe && viseDirect(data, user, p.beneficiaire);
   const save = useSaveTicket();
   const now = () => new Date().toISOString();
   const sceau = sceauDe(data, t);
@@ -260,7 +263,10 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
       {sceau && (
         <div className="ticket-visa">
           <SceauImg c={sceau} />
-          <small>Visé par <strong>{nomDe(data, p.validation!.par)}</strong> · {fmtDateTime(p.validation!.le)}</small>
+          <small>
+            Visé par <strong>{nomDe(data, p.validation!.par)}</strong> · {fmtDateTime(p.validation!.le)}
+            {p.validation!.par === p.demandePar && ' · visa direct (droit de signature)'}
+          </small>
         </div>
       )}
       {p.refus && p.etat === 'refuse' && (
@@ -293,6 +299,7 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
         {/* La personne qui vise ne change pas de signataire (même si elle a aussi le droit Caisse, ex. un admin). */}
         {p.etat === 'visa' && caisse && !pourMoi && !demande && <button className="btn" onClick={() => setDemande(true)}>Changer de signataire</button>}
         {pourMoi && <button className="btn primary" onClick={() => setViser(true)}>✍️ Viser et signer</button>}
+        {peutDirect && <button className="btn primary" onClick={() => setDirect(true)}>✍️ Viser moi-même</button>}
         {((p.etat === 'recu' && caisse) || pourMoi) && refus === null && <button className="btn" onClick={() => setRefus('')}>Refuser</button>}
         {p.etat === 'valide' && caisse && ok === null && <button className="btn primary" onClick={() => setOk('')}>✅ Virement fait (OK)</button>}
         {(p.etat === 'recu' || p.etat === 'refuse') && (mien || caisse) && (
@@ -317,6 +324,17 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
           }}
         />
       )}
+      {direct && (
+        <VisaModal
+          t={t}
+          direct
+          onClose={() => setDirect(false)}
+          onVise={() => {
+            setToast(`✍️ ${g.vise} : « ${t.titre} » est chez la caisse pour le virement.`);
+            setDirect(false);
+          }}
+        />
+      )}
     </article>
   );
 }
@@ -330,7 +348,8 @@ function useSaveTicket() {
     const next: Ticket = { ...t, ...extra, paiement, statusId: statutPour(data, paiement.etat), updatedAt: new Date().toISOString() };
     next.responsables = responsablesPour(data, next);
     next.termineeLe = paiement.etat === 'paye' || paiement.etat === 'refuse' ? today() : undefined;
-    update((d) => { d.tasks = d.tasks.map((x) => (x.id === t.id ? next : x)); }, msg);
+    // Facture visée en même temps qu'envoyée : elle n'est pas encore dans les tâches.
+    update((d) => { d.tasks = d.tasks.some((x) => x.id === t.id) ? d.tasks.map((x) => (x.id === t.id ? next : x)) : [next, ...d.tasks]; }, msg);
   };
 }
 
@@ -392,8 +411,9 @@ function DocImage({ id, onLoad }: { id: string; onLoad: (img: HTMLImageElement) 
   return url ? <img className="sceau-doc" src={url} alt="Justificatif" onLoad={(e) => onLoad(e.currentTarget)} draggable={false} /> : <p className="muted small">Chargement du justificatif…</p>;
 }
 
-/** Visa : la personne désignée par la caisse place le sceau sur le ticket, l'ajuste et signe. */
-function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onVise: () => void }) {
+/** Visa : la personne désignée par la caisse place le sceau sur le ticket, l'ajuste et signe. `direct` : la personne qui
+ *  envoie la facture la vise elle-même (droit de signature) ; elle arrive à la caisse prête pour le virement. */
+function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean; onClose: () => void; onVise: () => void }) {
   const { data, user } = useStore();
   const save = useSaveTicket();
   const p = t.paiement;
@@ -451,7 +471,9 @@ function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onV
         await saveFile(docVise, out);
         documents = [{ id: docVise, nom: `${g.vise} – ${t.titre}.jpg`, kind: 'fichier', mime: 'image/jpeg', taille: out.size, par: user.id, le }, ...documents];
       }
-      save(t, { etat: 'valide', validation: { par: user.id, le, signature: png, sceau, docVise } }, `Visé et signé : « ${t.titre} » (${chf(p.montant)})`, { documents });
+      const validation = { par: user.id, le, signature: png, sceau, docVise };
+      if (direct) save(t, { etat: 'valide', validation, visa: undefined, refus: undefined }, `${g.vise} et envoyée à la caisse : « ${t.titre} » (${chf(p.montant)})`, { documents });
+      else save(t, { etat: 'valide', validation }, `Visé et signé : « ${t.titre} » (${chf(p.montant)})`, { documents });
       onVise();
     } catch (e) {
       setErr((e as Error).message);
@@ -463,7 +485,10 @@ function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onV
     <Modal title={`Viser ${g.ce}`} onClose={onClose} wide>
       <p>
         <strong>{t.titre}</strong> · {chf(p.montant)}<br />
-        <small className="muted">{g.a} {p.beneficiaire}{p.iban ? ` · ${p.iban}` : ''} · demandé par {demandeur(data, p)}{p.visa?.message ? ` · « ${p.visa.message} »` : ''}</small>
+        <small className="muted">
+          {g.a} {p.beneficiaire}{p.iban ? ` · ${p.iban}` : ''}
+          {direct ? ' · visée par toi (droit de signature), puis envoyée à la caisse pour le virement' : ` · demandé par ${demandeur(data, p)}${p.visa?.message ? ` · « ${p.visa.message} »` : ''}`}
+        </small>
       </p>
       <div className="visa-grid">
         <div>
@@ -516,7 +541,7 @@ function VisaModal({ t, onClose, onVise }: { t: Ticket; onClose: () => void; onV
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
-        <button className="btn primary" disabled={!png || busy} onClick={viser}>{busy ? 'Enregistrement…' : '✍️ Viser et signer'}</button>
+        <button className="btn primary" disabled={!png || busy} onClick={viser}>{busy ? 'Enregistrement…' : direct ? '✍️ Viser et envoyer à la caisse' : '✍️ Viser et signer'}</button>
       </div>
     </Modal>
   );
@@ -527,7 +552,7 @@ const AUTRE = '__autre__';
 
 /** Nouvelle demande (remboursement ou paiement de facture) ou modification, tant que la caisse ne l'a pas fait viser. */
 export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticket; type?: GenreTicket; onClose: () => void; onEnvoye?: () => void }) {
-  const { data, user, update, guest, cloud } = useStore();
+  const { data, user, update, guest, cloud, setToast } = useStore();
   const club = useClubOptional();
   const genreT: GenreTicket = ticket ? genreDe(ticket.paiement) : (type ?? 'remboursement');
   const facture = genreT === 'facture';
@@ -554,6 +579,10 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
   const track = useRef<DocTracking>({ added: [], removed: [] });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
+  // Facture envoyée par une personne qui a le droit de signature (ex. le président) : elle la vise avant l'envoi.
+  const direct = facture && !versCentrale && ici && !ticket?.paiement.externe && viseDirect(data, user, beneficiaire);
+  const [viserAvant, setViserAvant] = useState(true);
+  const [brouillon, setBrouillon] = useState<Ticket | null>(null);
   // « À rembourser à » : soi-même, une personne de l'entité, ou un autre nom saisi.
   const moiNom = fullName(user ?? undefined);
   const noms = [...new Set(data.people.filter((p) => p.actif).map((p) => fullName(p)))]
@@ -630,6 +659,8 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
       updatedAt: now,
     } as Ticket;
     t.responsables = responsablesPour(data, t);
+    // Visée avant l'envoi : la fenêtre du visa l'enregistre (déjà visée), rien n'est envoyé si on l'annule.
+    if (direct && viserAvant) return setBrouillon(t);
     const label = `« ${t.titre} » (${paiement.montant.toFixed(2)} CHF)`;
     update((d) => {
       if (ticket) d.tasks = d.tasks.map((x) => (x.id === t.id ? t : x));
@@ -728,15 +759,33 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
           Remarque (facultatif)
           <textarea rows={2} value={remarque} onChange={(e) => setRemarque(e.target.value)} />
         </label>
+        {direct && (
+          <label className="inline full">
+            <input type="checkbox" checked={viserAvant} onChange={(e) => setViserAvant(e.target.checked)} />
+            ✍️ Je la vise moi-même avant l’envoi (droit de signature) : la caisse n’aura plus qu’à faire le virement
+          </label>
+        )}
         {err && <p className="error full">{err}</p>}
       </div>
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={cancel}>Annuler</button>
         <button className="btn primary" disabled={bloque || busy} onClick={submit}>
-          {busy ? 'Envoi…' : ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}
+          {busy ? 'Envoi…' : direct && viserAvant ? '✍️ Viser…' : ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}
         </button>
       </div>
+      {brouillon && (
+        <VisaModal
+          t={brouillon}
+          direct
+          onClose={() => setBrouillon(null)}
+          onVise={() => {
+            setToast(`✍️ ${g.vise} et envoyée à la caisse : « ${brouillon.titre} ».`);
+            deleteFiles(track.current.removed);
+            onClose();
+          }}
+        />
+      )}
     </Modal>
   );
 }

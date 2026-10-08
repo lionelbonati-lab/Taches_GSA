@@ -93,6 +93,8 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/023_gsa_organigramme_postes.sql` (appliqué le 08.10.2026) : **organigramme « colonne vertébrale »** (fiches à trois zones, postes, postes liés). Les postes d'une entité sont dans ses données (`gsa_items`, kind `meta`, id `postes` : `[{id, nom, titulaire, lien}]`) ; `gsa_organigramme` les renvoie aussi (clé `postes`). `gsa_postes_garde` : un poste **lié** (`lien` : le ★ d'une autre entité) ne se crée ni ne change que par le serveur (fonction `gsa-acces`, qui vérifie les droits des deux entités) ; les postes sans lien restent modifiables comme avant (fiches des personnes).
 
+`supabase/migrations/024_gsa_visa_direct.sql` (appliqué le 08.10.2026) : **visa direct d'une facture** par la personne qui l'envoie. `gsa_paiement_check` (012) accepte qu'une facture passe à « visé » sans demande de visa, à la création ou depuis « reçu » / « refusé », si son demandeur est la personne connectée, a le droit de viser (rôle « peut viser », ou admin) et fait partie du comité, n'est pas caissier (rôle « Caisse »), si l'entité a un caissier, si la facture n'est pas à son propre nom (prénom nom ou nom prénom) et si le visa porte sa signature. Pas pour un remboursement ni pour un ticket externe (`gsa_ticket_central`). Le reste du circuit est inchangé.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`
