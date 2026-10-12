@@ -557,10 +557,15 @@ export interface Unit {
   logo?: string;
   /** Couleur de l'appli dans l'entité (#rrggbb). Sans choix : celle du comité central, sinon le bleu d'origine. */
   couleurAppli?: string;
-  /** Entité dont elle dépend dans l'organigramme (sinon le comité central). Affichage seulement : les accès suivent parentId. */
+  /**
+   * Entité dont elle dépend dans l'organigramme (sinon le comité central) ; « aucun » (AUCUN_COMITE) : d'aucun comité.
+   * Affichage seulement : les accès suivent parentId.
+   */
   dependDe?: string;
   /** Place de sa carte dans l'organigramme, posée à la main (sinon sa place dans l'arbre). */
   carte?: Carte;
+  /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (clés des cartes ; les autres à la suite). */
+  rangement?: string[];
 }
 
 /** Coin haut gauche d'une carte de l'organigramme, en pixels depuis le coin haut gauche de l'arbre. */

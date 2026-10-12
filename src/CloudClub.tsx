@@ -3,6 +3,7 @@ import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './
 import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
+import { uid } from './data/utils';
 import type { OrgUnit } from './data/types';
 
 // Version réelle : le club autour de l'entité ouverte (organigramme, changement d'entité, demandes au comité central).
@@ -30,6 +31,7 @@ function ecrireEntite(u: OrgUnit) {
       couleurAppli: u.couleurAppli || undefined,
       dependDe: u.dependDe || undefined,
       carte: u.carte,
+      rangement: u.rangement?.length ? u.rangement : undefined,
     },
   });
 }
@@ -143,7 +145,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         const chefEmail = n.chef.email.trim().toLowerCase();
         d.people = [chef, ...n.membres.filter((x) => x.email.trim().toLowerCase() !== chefEmail).map((x) => toPerson(x, [defaultRoleId(d.roles)]))];
         // Organigramme : pas encore de poste ; le serveur lie ensuite à la nouvelle entité les postes qui portent son nom.
-        if (orga) d.postes = [];
+        if (orga) d.postes = (n.postes ?? []).map((nom) => ({ id: uid('po'), nom }));
         const r = await accessAction<{ unitId: string; email?: string; password?: string; existant?: boolean; error?: string }>({
           action: 'creerUnite',
           committeeId: central.id,

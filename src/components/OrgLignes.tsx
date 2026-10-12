@@ -1,17 +1,35 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { OrgMember, OrgUnit } from '../data/types';
 import { UNIT_TYPES } from '../data/units';
 import { fmtDate, fmtRange } from '../data/utils';
 import { benevolesDe, fonctionsDe, nomDe } from '../data/organigramme';
-import { descendants, disposer, planOrganigramme, quiDe, responsablesDe, SANS_COMITE, type CarteEntite, type CartePersonne, type PlanOrganigramme } from '../data/organigrammeLignes';
+import {
+  actionDepot,
+  descendants,
+  destinations,
+  disposer,
+  planOrganigramme,
+  quiDe,
+  responsablesDe,
+  SANS,
+  SANS_COMITE,
+  type ActionOrga,
+  type CarteEntite,
+  type CarteLigne1,
+  type Colonne,
+  type PlanOrganigramme,
+} from '../data/organigrammeLignes';
 import { Initials, Modal, UnitMark } from './ui';
 
-// Organigramme par personnes, en lignes (calcul dans data/organigrammeLignes.ts) : comités dans des cadres, groupes
-// sous leurs responsables, événements en dessous, reliés par des traits (couleur du comité d'où part le trait).
+// Organigramme par postes, en lignes (calcul dans data/organigrammeLignes.ts) : comités dans des cadres reliés, une
+// carte par poste (le poste, le nom), les groupes sous leur carte, les événements en dessous, reliés par des traits.
 // Zoom (−, +, ajuster), déplacement à la souris (tirer le fond), branches repliables (sur cet appareil), impression
 // ou PDF sur une page A4 en paysage. Sur téléphone : une liste de haut en bas.
-// Un clic sur une personne ouvre son profil (ses fonctions dans tout le club, ses coordonnées).
+// Un clic sur un nom ouvre le profil de la personne (ses fonctions dans tout le club, ses coordonnées).
+// Modification (`edition`) : glisser une carte (un poste, un groupe, un événement) sur un comité, un groupe ou une autre
+// carte, ou « ⠿ » › « Déplacer… » ; « ＋ Poste », « ＋ Comité ». Une personne cherchée en haut se pose sur un poste
+// (zones data-cible, voir Organiser.tsx).
 
 const REPLIES = 'taches-gsa-orgl-replies';
 /** En-tête d'un cadre, marge intérieure, écart entre deux lignes (px). */
@@ -27,6 +45,22 @@ const PAGE = { l: 1060, h: 700 };
 
 type Ouvrir = (u: OrgUnit) => { label: string; aide: string; go: () => void } | undefined;
 
+/** Ce qu'on peut modifier depuis l'organigramme (mode « Modifier »). */
+export interface EditionLignes {
+  /** La personne connectée peut-elle le faire ? Sinon, ce n'est pas un endroit où lâcher la carte. */
+  peut: (a: ActionOrga) => boolean;
+  executer: (a: ActionOrga) => void;
+  /** Peut modifier la fiche de l'entité (ses postes). */
+  peutFiche: (uniteId: string) => boolean;
+  onPoste: (uniteId: string, posteId: string) => void;
+  onNouveauPoste: (uniteId: string) => void;
+  onNouveauComite?: () => void;
+  /** ⚙️ La fiche de l'entité (nom, couleur, date, « Dépend de »…), si la personne connectée peut la modifier. */
+  modifier?: (uniteId: string) => (() => void) | undefined;
+  /** Personne glissée depuis la recherche : la zone survolée (data-cible). */
+  survolPersonne?: string | null;
+}
+
 export interface OrgLignesProps {
   units: OrgUnit[];
   /** « Fiche complète » depuis le profil d'une personne (sa fiche dans l'entité de la carte). */
@@ -37,6 +71,7 @@ export interface OrgLignesProps {
   ouvrir?: Ouvrir;
   /** Titre imprimé au-dessus (ex. « Organigramme 2025 »). */
   titre?: string;
+  edition?: EditionLignes;
 }
 
 const lireReplies = () => {
@@ -47,8 +82,22 @@ const lireReplies = () => {
   }
 };
 
-export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme' }: OrgLignesProps) {
-  const plan = useMemo(() => planOrganigramme(units), [units]);
+/** Ce que les cartes savent faire, du plan à la liste. */
+interface Ctx {
+  onPersonne: (m: OrgMember, uniteId: string) => void;
+  ouvrir?: Ouvrir;
+  edition?: EditionLignes;
+  tirer?: Tirer;
+  /** « Déplacer… » : où peut aller cette carte. */
+  onDeplacer?: (source: string, titre: string) => void;
+  benevoles: Set<string>;
+  basculer: (id: string) => void;
+  /** Cartes que la personne connectée peut déplacer quelque part (les autres n'ont pas de poignée). */
+  mobiles?: Set<string>;
+}
+
+export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme', edition }: OrgLignesProps) {
+  const plan = useMemo(() => planOrganigramme(units, !!edition), [units, edition]);
   const [replies, setReplies] = useState(lireReplies);
   const replier = (k: string) =>
     setReplies((s) => {
@@ -59,6 +108,14 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
       } catch {
         /* navigation privée : dépliées à la prochaine visite */
       }
+      return n;
+    });
+  // Bénévoles d'un groupe ou d'un événement : repliés, sauf ceux qu'on ouvre.
+  const [benevoles, setBenevoles] = useState<Set<string>>(new Set());
+  const basculer = (id: string) =>
+    setBenevoles((s) => {
+      const n = new Set(s);
+      if (!n.delete(id)) n.add(id);
       return n;
     });
   const vue = useRef<HTMLDivElement>(null);
@@ -101,7 +158,7 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
       style.remove();
     };
   }, [impression]);
-  // Déplacer : tirer le fond à la souris (au doigt, le défilement suffit).
+  // Déplacer la vue : tirer le fond à la souris (au doigt, le défilement suffit).
   const tir = useRef<{ x: number; y: number; sl: number } | null>(null);
   const commencer = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== 'mouse' || e.button !== 0 || (e.target as Element).closest('button, a, input, select')) return;
@@ -121,38 +178,73 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
     e.currentTarget.classList.remove('tire');
   };
   const [profil, setProfil] = useState<{ m: OrgMember; uniteId: string } | null>(null);
-  const voir = (m: OrgMember, uniteId: string) => setProfil({ m, uniteId });
+  // Glisser une carte : ce qu'elle ferait lâchée sur cette zone (si la personne connectée le peut).
+  const editionRef = useRef(edition);
+  editionRef.current = edition;
+  const tirer = useTirer(
+    (source, cible) => {
+      const a = actionDepot(plan, units, source, cible);
+      return a && editionRef.current?.peut(a) ? a : null;
+    },
+    (a) => editionRef.current?.executer(a),
+  );
+  const [deplacer, setDeplacer] = useState<{ source: string; titre: string } | null>(null);
+  const mobiles = useMemo(() => {
+    if (!edition) return undefined;
+    const sources = [...plan.cartes.keys(), ...[...plan.entites.keys()].map((id) => `u:${id}`), ...[...plan.entites.values()].flatMap((e) => e.lignes.map((l) => l.cle))];
+    return new Set(sources.filter((k) => destinations(plan, units, k).some((d) => edition.peut(d.action))));
+  }, [plan, units, edition]);
+  const ctx: Ctx = {
+    onPersonne: (m, uniteId) => !tirer.juste() && setProfil({ m, uniteId }),
+    ouvrir,
+    edition,
+    tirer: edition ? tirer : undefined,
+    onDeplacer: edition ? (source, t) => !tirer.juste() && setDeplacer({ source, titre: t }) : undefined,
+    benevoles,
+    basculer,
+    mobiles,
+  };
 
   if (!plan.cadres.length) return <p className="muted">Aucun comité.</p>;
   return (
     <div className="orgl">
-      {!etroit && (
+      {(!etroit || edition?.onNouveauComite) && (
         <div className="orgl-outils no-print">
-          <div className="orgl-zoom" role="group" aria-label="Zoom">
-            <button type="button" className="btn small" aria-label="Réduire" title="Réduire" onClick={() => zoomer(1 / 1.2)}>−</button>
-            <span className="orgl-pourcent" aria-live="polite">{Math.round(z * 100)} %</span>
-            <button type="button" className="btn small" aria-label="Agrandir" title="Agrandir" onClick={() => zoomer(1.2)}>+</button>
-            <button type="button" className={`btn small ${zoom === null ? 'on' : ''}`} title="Tout l’organigramme sur la largeur de l’écran" onClick={() => setZoom(null)}>Ajuster</button>
-          </div>
-          {replies.size > 0 && (
-            <button type="button" className="btn small" title="Déplier toutes les branches" onClick={() => {
-              setReplies(new Set());
-              try {
-                localStorage.removeItem(REPLIES);
-              } catch {
-                /* rien */
-              }
-            }}>Tout déplier</button>
+          {!etroit && (
+            <>
+              <div className="orgl-zoom" role="group" aria-label="Zoom">
+                <button type="button" className="btn small" aria-label="Réduire" title="Réduire" onClick={() => zoomer(1 / 1.2)}>−</button>
+                <span className="orgl-pourcent" aria-live="polite">{Math.round(z * 100)} %</span>
+                <button type="button" className="btn small" aria-label="Agrandir" title="Agrandir" onClick={() => zoomer(1.2)}>+</button>
+                <button type="button" className={`btn small ${zoom === null ? 'on' : ''}`} title="Tout l’organigramme sur la largeur de l’écran" onClick={() => setZoom(null)}>Ajuster</button>
+              </div>
+              {replies.size > 0 && (
+                <button
+                  type="button"
+                  className="btn small"
+                  title="Déplier toutes les branches"
+                  onClick={() => {
+                    setReplies(new Set());
+                    try {
+                      localStorage.removeItem(REPLIES);
+                    } catch {
+                      /* rien */
+                    }
+                  }}
+                >
+                  Tout déplier
+                </button>
+              )}
+              <button type="button" className="btn small" title="Imprimer, ou enregistrer en PDF (choisir « Enregistrer au format PDF »)" onClick={() => setImpression(true)}>🖨️ Imprimer / PDF</button>
+            </>
           )}
-          <button type="button" className="btn small" title="Imprimer, ou enregistrer en PDF (choisir « Enregistrer au format PDF »)" onClick={() => setImpression(true)}>🖨️ Imprimer / PDF</button>
+          {edition?.onNouveauComite && (
+            <button type="button" className="btn small" title="Nouveau comité : président, secrétaire et caissier" onClick={edition.onNouveauComite}>＋ Comité</button>
+          )}
         </div>
       )}
-      <div ref={vue} className={`orgl-vue ${etroit ? 'etroite' : ''}`} onPointerDown={commencer} onPointerMove={bouger} onPointerUp={lacher} onPointerCancel={lacher}>
-        {etroit ? (
-          <Liste plan={plan} replies={replies} replier={replier} onPersonne={voir} ouvrir={ouvrir} />
-        ) : (
-          <Plan plan={plan} replies={replies} replier={replier} onPersonne={voir} ouvrir={ouvrir} zoom={z} onTaille={setTaille} />
-        )}
+      <div ref={vue} className={`orgl-vue ${etroit ? 'etroite' : ''} ${edition ? 'edition' : ''}`} onPointerDown={commencer} onPointerMove={bouger} onPointerUp={lacher} onPointerCancel={lacher}>
+        {etroit ? <Liste plan={plan} replies={replies} replier={replier} ctx={ctx} /> : <Plan plan={plan} replies={replies} replier={replier} ctx={ctx} zoom={z} onTaille={setTaille} />}
       </div>
       {impression &&
         createPortal(
@@ -160,10 +252,22 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
             <p className="orgl-impression-titre">
               <b>{titre}</b> · {fmtDate(new Date().toISOString().slice(0, 10))}
             </p>
-            <Plan plan={plan} replies={replies} onPersonne={() => {}} zoom="page" />
+            <Plan plan={plan} replies={replies} ctx={{ onPersonne: () => {}, benevoles, basculer: () => {} }} zoom="page" />
           </div>,
           document.body,
         )}
+      {tirer.volant}
+      {deplacer && edition && (
+        <DeplacerModal
+          titre={deplacer.titre}
+          choix={destinations(plan, units, deplacer.source).filter((d) => edition.peut(d.action))}
+          onChoisir={(a) => {
+            setDeplacer(null);
+            edition.executer(a);
+          }}
+          onClose={() => setDeplacer(null)}
+        />
+      )}
       {profil && (
         <ProfilOrga
           m={profil.m}
@@ -183,87 +287,308 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
   );
 }
 
+// ---------- Glisser une carte ----------
+
+interface Tirer {
+  /** Souris : n'importe où sur la carte ; doigt : par sa poignée (data-prise). */
+  commencer: (e: ReactPointerEvent<HTMLElement>, source: string, titre: string) => void;
+  /** Vrai juste après un glisser : le clic qui suit est ignoré. */
+  juste: () => boolean;
+  volant: ReactNode;
+}
+
+/** La carte suit le pointeur ; la zone (data-depot) où la lâcher s'allume, avec ce qui s'y fera. Échap annule. */
+function useTirer(action: (source: string, cible: string) => ActionOrga | null, deposer: (a: ActionOrga) => void): Tirer {
+  const [tire, setTire] = useState<{ titre: string; libelle: string; x: number; y: number } | null>(null);
+  const juste = useRef(false);
+  const fns = useRef({ action, deposer });
+  fns.current = { action, deposer };
+  const commencer: Tirer['commencer'] = (e, source, titre) => {
+    if (e.button !== 0 || (e.pointerType !== 'mouse' && !(e.target as Element).closest('[data-prise]'))) return;
+    e.stopPropagation();
+    const id = e.pointerId;
+    const [x0, y0] = [e.clientX, e.clientY];
+    let parti = false;
+    let a: ActionOrga | null = null;
+    let allume: Element | null = null;
+    const viser = (x: number, y: number) => {
+      const el = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-depot]') ?? null;
+      a = el ? fns.current.action(source, el.dataset.depot!) : null;
+      const n = a ? el : null;
+      if (n !== allume) {
+        allume?.classList.remove('orgl-survol');
+        n?.classList.add('orgl-survol');
+        allume = n;
+      }
+      setTire({ titre, libelle: a?.libelle ?? '', x, y });
+    };
+    const arreter = () => {
+      window.removeEventListener('pointermove', bouge);
+      window.removeEventListener('pointerup', fin);
+      window.removeEventListener('pointercancel', arreter);
+      window.removeEventListener('keydown', echap);
+      allume?.classList.remove('orgl-survol');
+      document.body.classList.remove('orgl-tire-en-cours');
+      setTire(null);
+    };
+    const bouge = (ev: PointerEvent) => {
+      if (ev.pointerId !== id) return;
+      if (!parti) {
+        if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 6) return;
+        parti = true;
+        document.body.classList.add('orgl-tire-en-cours');
+      }
+      viser(ev.clientX, ev.clientY);
+    };
+    const fin = (ev: PointerEvent) => {
+      if (ev.pointerId !== id) return;
+      const q = a;
+      arreter();
+      if (!parti) return;
+      juste.current = true;
+      setTimeout(() => (juste.current = false), 0);
+      if (q) fns.current.deposer(q);
+    };
+    const echap = (ev: KeyboardEvent) => ev.key === 'Escape' && ((a = null), arreter());
+    window.addEventListener('pointermove', bouge);
+    window.addEventListener('pointerup', fin);
+    window.addEventListener('pointercancel', arreter);
+    window.addEventListener('keydown', echap);
+  };
+  return {
+    commencer,
+    juste: () => juste.current,
+    volant:
+      tire &&
+      createPortal(
+        <div className="orgl-volant" style={{ left: tire.x + 14, top: tire.y + 14 }} aria-hidden="true">
+          <b>{tire.titre}</b>
+          <small className={tire.libelle ? '' : 'muted'}>{tire.libelle || 'Lâche-la sur un comité, un groupe, ou une autre carte de son cadre'}</small>
+        </div>,
+        document.body,
+      ),
+  };
+}
+
+/** « Déplacer… » : les endroits où la carte peut aller (sans glisser, au clavier ou au doigt). */
+function DeplacerModal({ titre, choix, onChoisir, onClose }: { titre: string; choix: { cible: string; action: ActionOrga }[]; onChoisir: (a: ActionOrga) => void; onClose: () => void }) {
+  return (
+    <Modal title={`Déplacer « ${titre} »`} onClose={onClose}>
+      {choix.length ? (
+        <ul className="orgl-destinations">
+          {choix.map((c) => (
+            <li key={c.cible}>
+              <button type="button" className="btn" onClick={() => onChoisir(c.action)}>
+                {c.action.libelle}
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="muted">Nulle part où tu puisses la déplacer.</p>
+      )}
+      <p className="muted small-note">Ou glisse la carte sur un comité, un groupe, ou une autre carte de son cadre.</p>
+      <div className="modal-foot">
+        <span className="grow" />
+        <button className="btn" onClick={onClose}>Fermer</button>
+      </div>
+    </Modal>
+  );
+}
+
 // ---------- Cartes ----------
 
-/** Cadre d'une carte de personne (« sans » : Sans comité). */
-const cadreDe = (p: CartePersonne) => (p.cle.startsWith('orph:') ? 'sans' : p.uniteId);
+/** Zone où poser une personne cherchée en haut (data-cible), en modification seulement ; allumée si survolée. */
+const zone = (ctx: Ctx, cible: string | undefined) =>
+  ctx.edition && cible ? { 'data-cible': cible, className: ctx.edition.survolPersonne === cible ? 'cible-survol' : '' } : { className: '' };
 
-function CartePers({ p, onPersonne, style, mesure }: { p: CartePersonne; onPersonne: (m: OrgMember, uniteId: string) => void; style?: CSSProperties; mesure?: (el: HTMLElement | null) => void }) {
-  const m = p.m;
-  if (!m)
-    return (
-      <div ref={mesure} className="orgl-carte orgl-personne vacant" style={style} data-cadre={cadreDe(p)}>
-        <span className="orgl-avatar-vide" aria-hidden="true">?</span>
-        <span className="orgl-texte">
-          <b className="error">À pourvoir</b>
-          <span className="orgl-fonctions">{p.fonctions.join(' · ')}</span>
-        </span>
-      </div>
-    );
+/** Poignée d'une carte qu'on peut déplacer : la tirer (aussi au doigt), ou un clic : « Déplacer… ». */
+function Prise({ ctx, source, titre }: { ctx: Ctx; source: string; titre: string }) {
+  if (!ctx.tirer || !ctx.onDeplacer) return null;
   return (
-    <button ref={mesure} type="button" className={`orgl-carte orgl-personne ${p.etoile ? 'etoile' : ''}`} style={style} data-cadre={cadreDe(p)} title="Voir son profil" onClick={() => onPersonne(m, p.uniteId)}>
-      <Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={40} />
-      <span className="orgl-texte">
-        <b>
-          {p.etoile && <span className="org-star">★ </span>}
-          {nomDe(m)}
-        </b>
-        {p.fonctions.length > 0 && <span className="orgl-fonctions">{p.fonctions.join(' · ')}</span>}
-        {m.email && <small className="orgl-coord">✉ {m.email}</small>}
-        {m.telephone && <small className="orgl-coord">☎ {m.telephone}</small>}
-      </span>
+    <button type="button" className="orgl-prise" data-prise title="Déplacer… (ou tirer la carte)" aria-label={`Déplacer « ${titre} »`} onClick={() => ctx.onDeplacer!(source, titre)}>
+      ⠿
     </button>
   );
 }
 
-function CarteEnt({ e, onPersonne, ouvrir, style, mesure }: { e: CarteEntite; onPersonne: (m: OrgMember, uniteId: string) => void; ouvrir?: Ouvrir; style?: CSSProperties; mesure?: (el: HTMLElement | null) => void }) {
-  const t = UNIT_TYPES[e.u.type];
-  const o = e.manifestation ? undefined : ouvrir?.(e.u);
-  const quand = e.u.date ? fmtRange(e.u.date, e.u.dateFin) : '';
+/** Peut-on déplacer cette carte (quelque part où la personne connectée a le droit de la mettre) ? */
+const deplacable = (ctx: Ctx, cle: string) => !!ctx.edition && !!ctx.mobiles?.has(cle);
+
+function Carte1({ c, ctx, style, mesure }: { c: CarteLigne1; ctx: Ctx; style?: CSSProperties; mesure?: (el: HTMLElement | null) => void }) {
+  const vacant = !c.gens.length;
+  const tirable = deplacable(ctx, c.cle);
+  const z = zone(ctx, c.sorte === 'titre' ? `${c.uniteId}|etoile|${c.gens[0]?.id}` : c.sorte === 'groupe' ? `${c.uniteId}|titre` : c.posteId ? `${c.uniteId}|poste|${c.posteId}` : undefined);
+  const g = c.sorte === 'groupe' ? c.groupe?.u : undefined;
+  const modifier = ctx.edition && c.sorte === 'poste' && c.posteId && ctx.edition.peutFiche(c.uniteId) ? () => !ctx.tirer?.juste() && ctx.edition!.onPoste(c.uniteId, c.posteId!) : undefined;
   return (
-    <div ref={mesure} className={`orgl-carte orgl-entite ${e.manifestation ? 'manif' : ''}`} style={{ ...style, '--c': e.u.couleur } as CSSProperties}>
+    <div
+      ref={mesure}
+      className={`orgl-carte orgl-c1 ${c.sorte} ${vacant ? 'vacant' : ''} ${tirable ? 'tirable' : ''} ${z.className}`}
+      style={{ ...style, '--c': g?.couleur } as CSSProperties}
+      data-depot={ctx.edition ? `carte:${c.cle}` : undefined}
+      data-cible={'data-cible' in z ? z['data-cible'] : undefined}
+      data-cadre={c.cadre}
+      data-cle={c.cle}
+      onPointerDown={tirable ? (e) => ctx.tirer!.commencer(e, c.cle, c.titre) : undefined}
+    >
+      <div className="orgl-c1-titre">
+        {g && <UnitMark className="org-icon" logo={g.logo} couleur={g.couleur} icon={UNIT_TYPES[g.type].icon} />}
+        {c.sorte === 'titre' && <span className="org-star" title="Titre de la fiche (★)">★</span>}
+        {modifier ? (
+          <button type="button" className="orgl-c1-nom-poste" title="Le poste : son nom, son lien, sa suppression" onClick={modifier}>
+            {c.titre}
+          </button>
+        ) : (
+          <span className="orgl-c1-nom-poste">{c.titre}</span>
+        )}
+        {tirable && <Prise ctx={ctx} source={c.cle} titre={c.titre} />}
+      </div>
+      {c.lien && <small className="orgl-lien" title={`Poste lié au ★ de « ${c.lien.nom} »`}>⛓ {c.lien.nom}</small>}
+      <div className="orgl-c1-gens">
+        {vacant ? (
+          <span className="error">{c.sorte === 'groupe' ? `${UNIT_TYPES[g?.type ?? 'groupe'].chef} : à désigner` : 'À pourvoir'}</span>
+        ) : (
+          // Le nom seul (place) : ses coordonnées et ses fonctions dans le club, dans son profil.
+          c.gens.map((m) => (
+            <button key={m.id} type="button" className="orgl-nom" title="Voir son profil (coordonnées, fonctions)" onClick={() => ctx.onPersonne(m, c.uniteId)}>
+              {nomDe(m)}
+            </button>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?: CSSProperties; mesure?: (el: HTMLElement | null) => void }) {
+  const t = UNIT_TYPES[e.u.type];
+  const o = e.manifestation ? undefined : ctx.ouvrir?.(e.u);
+  const quand = e.u.date ? fmtRange(e.u.date, e.u.dateFin) : '';
+  const ed = ctx.edition;
+  const regler = e.manifestation ? undefined : ed?.modifier?.(e.u.id);
+  const tirable = !e.manifestation && deplacable(ctx, `u:${e.u.id}`);
+  const fiche = !!ed && !e.manifestation && ed.peutFiche(e.u.id);
+  const ouverts = ctx.benevoles.has(e.u.id);
+  const z = e.manifestation ? zone(ctx, undefined) : zone(ctx, `${e.u.id}|titre`);
+  return (
+    <div
+      ref={mesure}
+      className={`orgl-carte orgl-entite ${e.manifestation ? 'manif' : ''} ${tirable ? 'tirable' : ''} ${z.className}`}
+      style={{ ...style, '--c': e.u.couleur } as CSSProperties}
+      data-depot={ed ? `entite:${e.u.id}` : undefined}
+      data-cible={'data-cible' in z ? z['data-cible'] : undefined}
+      data-cle={e.cle}
+      onPointerDown={tirable ? (ev) => ctx.tirer!.commencer(ev, `u:${e.u.id}`, e.u.nom) : undefined}
+    >
       <div className="orgl-entite-tete">
         <UnitMark className="org-icon" logo={e.manifestation ? undefined : e.u.logo} couleur={e.u.couleur} icon={e.manifestation ? '🏁' : t.icon} />
         <span className="orgl-texte">
           <b>{e.u.nom}</b>
           <small>{e.manifestation ? `Manifestation${quand ? ` · ${quand}` : ''}` : `${t.label}${quand ? ` · ${quand}` : ''}`}</small>
         </span>
+        {tirable && <Prise ctx={ctx} source={`u:${e.u.id}`} titre={e.u.nom} />}
       </div>
       {!e.manifestation && (
         <ul className="orgl-gens">
-          {e.chefs.length ? (
-            e.chefs.map((r) => (
-              <li key={r.m.id}>
-                <button type="button" onClick={() => onPersonne(r.m, e.u.id)} title="Voir son profil">
-                  <span className="org-star">★</span> {nomDe(r.m)}
-                  {r.fonctions.length > 0 && <small> · {r.fonctions.join(', ')}</small>}
-                </button>
+          {!e.lignes.some((l) => l.etoile) && <li className="error">★ {t.chef} : à désigner</li>}
+          {e.lignes.map((l) => {
+            const zl = zone(ctx, l.etoile && l.m ? `${e.u.id}|etoile|${l.m.id}` : l.posteId ? `${e.u.id}|poste|${l.posteId}` : undefined);
+            const source = deplacable(ctx, l.cle) ? l.cle : undefined;
+            return (
+              <li
+                key={l.cle}
+                className={`${l.m ? '' : 'error'} ${source && ed ? 'tirable' : ''} ${zl.className}`}
+                data-cible={'data-cible' in zl ? zl['data-cible'] : undefined}
+                onPointerDown={source && ed ? (ev) => ctx.tirer!.commencer(ev, source, l.titre) : undefined}
+              >
+                {fiche && l.posteId ? (
+                  <button type="button" className="orgl-poste" title="Le poste : son nom, son lien, sa suppression" onClick={() => !ctx.tirer?.juste() && ed!.onPoste(e.u.id, l.posteId!)}>
+                    {l.etoile && <span className="org-star">★ </span>}
+                    {l.titre}
+                  </button>
+                ) : (
+                  <span className="orgl-poste">
+                    {l.etoile && <span className="org-star">★ </span>}
+                    {l.titre}
+                  </span>
+                )}
+                {l.lien && <small title="Poste lié au ★ d’une autre entité"> ⛓</small>}
+                {' : '}
+                {l.m ? (
+                  <button type="button" onClick={() => ctx.onPersonne(l.m!, e.u.id)} title="Voir son profil">
+                    {nomDe(l.m)}
+                  </button>
+                ) : (
+                  'à pourvoir'
+                )}
+                {source && ed && <Prise ctx={ctx} source={source} titre={l.titre} />}
               </li>
-            ))
-          ) : (
-            <li className="error">★ {t.chef} : à désigner</li>
-          )}
-          {e.adjoints.map((r) => (
-            <li key={r.m.id}>
-              <button type="button" onClick={() => onPersonne(r.m, e.u.id)} title="Voir son profil">
-                {nomDe(r.m)}
-                {r.fonctions.length > 0 && <small> · {r.fonctions.join(', ')}</small>}
-              </button>
-            </li>
-          ))}
-          {e.vacants.map((v, i) => (
-            <li key={`v${i}`} className="error">
-              {v} : à pourvoir
-            </li>
-          ))}
+            );
+          })}
         </ul>
       )}
-      {o && (
-        <button type="button" className="orgl-ouvrir" title={o.aide} onClick={o.go}>
-          {o.label} ›
-        </button>
+      {!e.manifestation && e.benevoles.length > 0 && (
+        <div className={`orgl-benevoles ${zone(ctx, `${e.u.id}|benevoles`).className}`} data-cible={ed ? `${e.u.id}|benevoles` : undefined}>
+          <button type="button" className="orgl-benevoles-bouton" aria-expanded={ouverts} onClick={() => ctx.basculer(e.u.id)}>
+            {ouverts ? '▽' : '▷'} {benevolesDe(e.u.type).plusieurs} ({e.benevoles.length})
+          </button>
+          {ouverts && (
+            <ul className="orgl-gens">
+              {e.benevoles.map((m) => (
+                <li key={m.id}>
+                  <button type="button" onClick={() => ctx.onPersonne(m, e.u.id)} title="Voir son profil">
+                    {nomDe(m)}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+      {(fiche || o || regler) && (
+        <div className="orgl-entite-pied">
+          {regler && (
+            <button type="button" className="orgl-plus" title={`Modifier « ${e.u.nom} » (nom, couleur, date, « Dépend de »…)`} aria-label={`Modifier « ${e.u.nom} »`} onClick={regler}>
+              ⚙️
+            </button>
+          )}
+          {fiche && (
+            <button type="button" className="orgl-plus" onClick={() => ed!.onNouveauPoste(e.u.id)}>
+              ＋ Poste
+            </button>
+          )}
+          {o && (
+            <button type="button" className="orgl-ouvrir" title={o.aide} onClick={o.go}>
+              {o.label} ›
+            </button>
+          )}
+        </div>
       )}
     </div>
+  );
+}
+
+/** En-tête d'un cadre : le comité (ou « Sans comité »), sa date ; en modification : « ＋ Poste », ⚙️. */
+function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx }) {
+  const t = c.u ? UNIT_TYPES[c.u.type] : undefined;
+  const regler = c.u ? ctx.edition?.modifier?.(c.u.id) : undefined;
+  return (
+    <h3 className="orgl-cadre-tete">
+      {c.u ? <UnitMark className="org-icon" logo={c.u.logo} couleur={c.couleur} icon={t!.icon} /> : <span className="org-icon" style={{ background: SANS_COMITE }} aria-hidden="true">👤</span>}
+      <span className="orgl-cadre-nom">{c.titre}</span>
+      {c.u?.type === 'sous-comite' && c.u.date && <small>{fmtRange(c.u.date, c.u.dateFin)}</small>}
+      {c.u && ctx.edition?.peutFiche(c.u.id) && (
+        <button type="button" className="orgl-plus" title={`Nouveau poste dans « ${c.titre} »`} onClick={() => ctx.edition!.onNouveauPoste(c.u!.id)}>
+          ＋ Poste
+        </button>
+      )}
+      {regler && (
+        <button type="button" className="orgl-plus" title={`Modifier « ${c.titre} » (nom, couleur, date…)`} aria-label={`Modifier « ${c.titre} »`} onClick={regler}>
+          ⚙️
+        </button>
+      )}
+    </h3>
   );
 }
 
@@ -273,16 +598,14 @@ function Plan({
   plan,
   replies,
   replier,
-  onPersonne,
-  ouvrir,
+  ctx,
   zoom,
   onTaille,
 }: {
   plan: PlanOrganigramme;
   replies: Set<string>;
   replier?: (k: string) => void;
-  onPersonne: (m: OrgMember, uniteId: string) => void;
-  ouvrir?: Ouvrir;
+  ctx: Ctx;
   /** « page » : réduit pour tenir sur une page A4 en paysage. */
   zoom: number | 'page';
   onTaille?: (t: { l: number; h: number }) => void;
@@ -300,7 +623,7 @@ function Plan({
     if (el) elements.current.set(k, el);
     else elements.current.delete(k);
   };
-  const hauteur = (k: string) => hauteurs.get(k) ?? 90;
+  const hauteur = (k: string) => hauteurs.get(k) ?? 70;
   const y1 = TETE + MARGE;
   // Ligne 1 : une carte empilée se pose sous celle du dessus.
   const yCarte = (k: string): number => {
@@ -308,7 +631,7 @@ function Plan({
     return p?.dessus ? yCarte(p.dessus) + hauteur(p.dessus) + ECART_PILE : y1;
   };
   const hRang = (r: number) =>
-    Math.max(60, ...[...d.positions.values()].filter((p) => p.rang === r).map((p) => (r === 1 ? yCarte(p.cle) - y1 : 0) + hauteur(p.cle)));
+    Math.max(56, ...[...d.positions.values()].filter((p) => p.rang === r).map((p) => (r === 1 ? yCarte(p.cle) - y1 : 0) + hauteur(p.cle)));
   const basCadres = y1 + hRang(1) + MARGE;
   const yRang: Record<number, number> = { 1: y1 };
   let y = basCadres + ECART_V;
@@ -321,7 +644,8 @@ function Plan({
   useLayoutEffect(() => onTaille?.({ l: W, h: H }), [W, H, onTaille]);
   const z = zoom === 'page' ? Math.min(1, PAGE.l / Math.max(1, W), PAGE.h / Math.max(1, H)) : zoom;
 
-  // Entités affichées (les branches repliées n'y sont pas).
+  // Cartes affichées (les branches repliées n'y sont pas).
+  const cartes = useMemo(() => [...plan.cartes.values()].filter((c) => d.positions.has(c.cle)), [plan, d]);
   const entites = useMemo(() => {
     const l: CarteEntite[] = [];
     const parcourir = (e: CarteEntite) => {
@@ -329,37 +653,36 @@ function Plan({
       l.push(e);
       e.enfants.forEach(parcourir);
     };
-    plan.cadres.forEach((c) => c.grappes.forEach((g) => g.enfants.forEach(parcourir)));
+    plan.cadres.forEach((c) => c.colonnes.forEach((col) => col.enfants.forEach(parcourir)));
     return l;
   }, [plan, d]);
-  const cadreDeCle = (k: string) => {
-    const p = plan.personnes.get(k);
-    return p ? cadreDe(p) : k;
-  };
-  const traits: { cle: string; d: string; couleur: string; autre: boolean }[] = [];
+  const traits: { cle: string; d: string; couleur: string }[] = [];
   for (const e of entites) {
     const pe = d.positions.get(e.cle)!;
     const tx = pe.x + pe.largeur / 2;
     const ty = yRang[pe.rang];
-    e.ancres.forEach((a, i) => {
-      if (a.cle.startsWith('cadre:')) {
-        traits.push({ cle: `${e.cle}|${a.cle}`, d: `M ${tx} ${basCadres} V ${ty}`, couleur: a.couleur, autre: false });
-        return;
-      }
-      const pa = d.positions.get(a.cle);
-      if (!pa) return;
-      const ax = pa.x + pa.largeur / 2;
-      const ay = (pa.rang === 1 ? yCarte(a.cle) : yRang[pa.rang]) + hauteur(a.cle);
-      const bas = pa.rang === 1 ? basCadres : yRang[pa.rang] + hRang(pa.rang);
-      // Trait d'un autre cadre (co-responsable d'un autre comité) : décalé, pour qu'on le suive.
-      const autre = i > 0 && cadreDeCle(a.cle) !== cadreDeCle(e.ancres[0].cle);
-      const ym = bas + ECART_V / 2 + (autre ? 7 * i : 0);
-      traits.push({ cle: `${e.cle}|${a.cle}`, d: `M ${ax} ${ay} V ${ym} H ${tx} V ${ty}`, couleur: a.couleur, autre });
-    });
+    const a = e.ancre;
+    if (a.cle.startsWith('cadre:')) {
+      traits.push({ cle: e.cle, d: `M ${tx} ${basCadres} V ${ty}`, couleur: a.couleur });
+      continue;
+    }
+    const pa = d.positions.get(a.cle);
+    if (!pa) continue;
+    const ax = pa.x + pa.largeur / 2;
+    const ay = (pa.rang === 1 ? yCarte(a.cle) : yRang[pa.rang]) + hauteur(a.cle);
+    const ym = (pa.rang === 1 ? basCadres : yRang[pa.rang] + hRang(pa.rang)) + ECART_V / 2;
+    traits.push({ cle: e.cle, d: `M ${ax} ${ay} V ${ym} H ${tx} V ${ty}`, couleur: a.couleur });
+  }
+  // Les comités reliés entre eux, d'un cadre au suivant (« Sans comité » à part).
+  const comites = plan.cadres.filter((c) => c.u);
+  for (let i = 1; i < comites.length; i++) {
+    const g = d.cadres.get(comites[i - 1].cle)!;
+    const dr = d.cadres.get(comites[i].cle)!;
+    traits.push({ cle: `lien:${comites[i].cle}`, d: `M ${g.x + g.largeur} ${basCadres / 2} H ${dr.x}`, couleur: comites[i].couleur });
   }
   const sousDe = useMemo(() => {
     const m = new Map<string, CarteEntite[]>();
-    for (const c of plan.cadres) for (const g of c.grappes) m.set(g.cle, g.enfants);
+    for (const c of plan.cadres) for (const col of c.colonnes) m.set(col.cle, col.enfants);
     for (const e of entites) m.set(e.cle, e.enfants);
     return m;
   }, [plan, entites]);
@@ -369,29 +692,33 @@ function Plan({
       <div className="orgl-plan" style={{ width: W, height: H, transform: `scale(${z})` }}>
         <svg className="orgl-traits" width={W} height={H} aria-hidden="true">
           {traits.map((t) => (
-            <path key={t.cle} d={t.d} stroke={t.couleur} className={t.autre ? 'autre' : undefined} />
+            <path key={t.cle} d={t.d} stroke={t.couleur} />
           ))}
         </svg>
         {plan.cadres.map((c) => {
           const b = d.cadres.get(c.cle)!;
-          const t = c.u ? UNIT_TYPES[c.u.type] : undefined;
+          const zc = c.u ? zone(ctx, `${c.u.id}|nouveau`) : zone(ctx, undefined);
           return (
-            <section key={c.cle} className={`orgl-cadre ${c.u ? '' : 'sans'}`} style={{ left: b.x, width: b.largeur, height: basCadres, '--c': c.couleur } as CSSProperties} aria-label={c.titre}>
-              <h3 className="orgl-cadre-tete">
-                {c.u ? <UnitMark className="org-icon" logo={c.u.logo} couleur={c.couleur} icon={t!.icon} /> : <span className="org-icon" style={{ background: SANS_COMITE }} aria-hidden="true">👤</span>}
-                <span className="orgl-cadre-nom">{c.titre}</span>
-                {c.u?.type === 'sous-comite' && c.u.date && <small>{fmtRange(c.u.date, c.u.dateFin)}</small>}
-              </h3>
+            <section
+              key={c.cle}
+              className={`orgl-cadre ${c.u ? '' : 'sans'} ${zc.className}`}
+              style={{ left: b.x, width: b.largeur, height: basCadres, '--c': c.couleur } as CSSProperties}
+              aria-label={c.titre}
+              data-depot={ctx.edition ? `cadre:${c.cle}` : undefined}
+              data-cible={'data-cible' in zc ? zc['data-cible'] : undefined}
+            >
+              <TeteCadre c={c} ctx={ctx} />
+              {!c.colonnes.length && ctx.edition && <p className="orgl-cadre-vide muted">{c.cle === SANS ? 'Glisse ici un groupe qui ne dépend d’aucun comité.' : 'Aucun poste.'}</p>}
             </section>
           );
         })}
-        {[...plan.personnes.values()].map((p) => {
-          const pos = d.positions.get(p.cle);
-          return pos ? <CartePers key={p.cle} p={p} onPersonne={onPersonne} mesure={mesure(p.cle)} style={{ left: pos.x, top: yCarte(p.cle), width: pos.largeur }} /> : null;
+        {cartes.map((c) => {
+          const pos = d.positions.get(c.cle)!;
+          return <Carte1 key={c.cle} c={c} ctx={ctx} mesure={mesure(c.cle)} style={{ left: pos.x, top: yCarte(c.cle), width: pos.largeur }} />;
         })}
         {entites.map((e) => {
           const pos = d.positions.get(e.cle)!;
-          return <CarteEnt key={e.cle} e={e} onPersonne={onPersonne} ouvrir={ouvrir} mesure={mesure(e.cle)} style={{ left: pos.x, top: yRang[pos.rang], width: pos.largeur }} />;
+          return <CarteEnt key={e.cle} e={e} ctx={ctx} mesure={mesure(e.cle)} style={{ left: pos.x, top: yRang[pos.rang], width: pos.largeur }} />;
         })}
         {replier &&
           [...d.plis].map(([k, cx]) => {
@@ -420,7 +747,7 @@ function Plan({
 
 // ---------- Liste (téléphone) ----------
 
-function Liste({ plan, replies, replier, onPersonne, ouvrir }: { plan: PlanOrganigramme; replies: Set<string>; replier: (k: string) => void; onPersonne: (m: OrgMember, uniteId: string) => void; ouvrir?: Ouvrir }) {
+function Liste({ plan, replies, replier, ctx }: { plan: PlanOrganigramme; replies: Set<string>; replier: (k: string) => void; ctx: Ctx }) {
   const pli = (k: string, l: CarteEntite[]) => (
     <button type="button" className={`orgl-pli liste ${replies.has(k) ? 'ferme' : ''}`} aria-expanded={!replies.has(k)} onClick={() => replier(k)} title={replies.has(k) ? 'Déplier' : 'Replier'}>
       {replies.has(k) ? `+${descendants(l)}` : '−'}
@@ -429,31 +756,34 @@ function Liste({ plan, replies, replier, onPersonne, ouvrir }: { plan: PlanOrgan
   const branche = (l: CarteEntite[]) => (
     <ul className="orgl-l-sous">
       {l.map((e) => (
-        <li key={e.cle} style={{ '--c': e.ancres[0]?.couleur ?? e.u.couleur } as CSSProperties}>
-          <CarteEnt e={e} onPersonne={onPersonne} ouvrir={ouvrir} />
+        <li key={e.cle} style={{ '--c': e.ancre.couleur } as CSSProperties}>
+          <CarteEnt e={e} ctx={ctx} />
           {e.enfants.length > 0 && pli(e.cle, e.enfants)}
           {e.enfants.length > 0 && !replies.has(e.cle) && branche(e.enfants)}
         </li>
       ))}
     </ul>
   );
+  const colonne = (col: Colonne) => (
+    // Un poste seul (rien en dessous) : deux par ligne ; une carte qui porte une branche : toute la largeur.
+    <div key={col.cle} className={`orgl-l-colonne ${col.carte && !col.enfants.length ? 'seule' : ''}`}>
+      {col.carte && <Carte1 c={col.carte} ctx={ctx} />}
+      {col.enfants.length > 0 && col.carte && pli(col.cle, col.enfants)}
+      {col.enfants.length > 0 && !replies.has(col.cle) && branche(col.enfants)}
+    </div>
+  );
   return (
     <div className="orgl-liste">
       {plan.cadres.map((c) => (
-        <section key={c.cle} className={`orgl-l-cadre ${c.u ? '' : 'sans'}`} style={{ '--c': c.couleur } as CSSProperties}>
-          <h3 className="orgl-cadre-tete">
-            {c.u ? <UnitMark className="org-icon" logo={c.u.logo} couleur={c.couleur} icon={UNIT_TYPES[c.u.type].icon} /> : <span className="org-icon" style={{ background: SANS_COMITE }} aria-hidden="true">👤</span>}
-            <span className="orgl-cadre-nom">{c.titre}</span>
-          </h3>
-          {c.grappes.map((g) => (
-            <div key={g.cle} className="orgl-l-grappe">
-              {g.cartes.map((p) => (
-                <CartePers key={p.cle} p={p} onPersonne={onPersonne} />
-              ))}
-              {g.enfants.length > 0 && g.cartes.length > 0 && pli(g.cle, g.enfants)}
-              {g.enfants.length > 0 && !replies.has(g.cle) && branche(g.enfants)}
-            </div>
-          ))}
+        <section
+          key={c.cle}
+          className={`orgl-l-cadre ${c.u ? '' : 'sans'}`}
+          style={{ '--c': c.couleur } as CSSProperties}
+          data-depot={ctx.edition ? `cadre:${c.cle}` : undefined}
+        >
+          <TeteCadre c={c} ctx={ctx} />
+          {c.colonnes.map(colonne)}
+          {!c.colonnes.length && ctx.edition && <p className="orgl-cadre-vide muted">{c.cle === SANS ? 'Aucun groupe sans comité.' : 'Aucun poste.'}</p>}
         </section>
       ))}
     </div>

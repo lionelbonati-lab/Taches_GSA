@@ -8,7 +8,7 @@
 --   cours (heure de Zurich) : une année passée garde l'état de sa dernière photo, sans retour possible. Une photo
 --   identique à la précédente n'écrit rien, et sa date reste celle du dernier changement vu.
 -- • Pas d'adresses e-mail dans les photos, ni le contenu des fiches d'entités (seulement couleur, dates, archivage,
---   « dépend de » et place de la carte) : les logos restent ceux d'aujourd'hui.
+--   « dépend de », place de la carte et ordre des cartes d'un comité) : les logos restent ceux d'aujourd'hui.
 -- Ajout pur : une table, une fonction ; aucune donnée existante modifiée.
 
 create table if not exists public.gsa_organigrammes (
@@ -45,7 +45,7 @@ begin
         'moiAdmin', false,
         'info', coalesce((
           select jsonb_object_agg(i.k, i.v) from jsonb_each(case when jsonb_typeof(u -> 'info') = 'object' then u -> 'info' else '{}'::jsonb end) as i(k, v)
-          where i.k in ('couleur', 'date', 'dateFin', 'archive', 'dependDe', 'carte')
+          where i.k in ('couleur', 'date', 'dateFin', 'archive', 'dependDe', 'carte', 'rangement')
         ), '{}'::jsonb),
         'membres', coalesce((
           select jsonb_agg((m - 'email') || jsonb_build_object('email', '') order by j)

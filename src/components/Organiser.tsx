@@ -206,7 +206,7 @@ export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; d
       const t = e.target as Element;
       if (t.closest('[data-garder]')) return;
       const el = t.closest<HTMLElement>('[data-cible]');
-      if (!el && !t.closest('.arbre-cadre')) return;
+      if (!el && !t.closest('.arbre-cadre, .orgl-vue')) return;
       e.preventDefault();
       e.stopPropagation();
       const c = el?.dataset.cible;
@@ -748,6 +748,15 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
                 <small className="muted">Titulaire du poste</small>
               </span>
               <button type="button" className="btn small" onClick={() => onPersonne(m)}>Sa fiche</button>
+              <button
+                type="button"
+                className="btn small"
+                disabled={busy}
+                title="Le poste reste, à pourvoir"
+                onClick={() => void go([{ type: 'placer', qui: quiDeMembre(m), depuis: { uniteId: u.id, personId: m.id, zone: 'poste', posteId: poste.id }, vers: { zone: 'corbeille' } }])}
+              >
+                Libérer
+              </button>
             </>
           ) : (
             <span className="error">À pourvoir : glisse une personne sur la ligne du poste.</span>

@@ -1076,15 +1076,23 @@ body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-s
 .orgl-cadre-tete .org-icon { width: 24px; height: 24px; font-size: 0.85rem; border-radius: 7px; }
 .orgl-cadre-tete small { color: var(--muted); font-weight: 400; }
 .orgl-carte { position: absolute; box-sizing: border-box; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); text-align: left; color: var(--text); font: inherit; }
-.orgl-personne { display: flex; align-items: flex-start; gap: 8px; padding: 8px; cursor: pointer; }
-button.orgl-personne:hover, button.orgl-personne:focus-visible { border-color: var(--primary); }
-.orgl-personne.etoile { border-color: #d97706; }
-.orgl-personne.vacant { border: 1px dashed var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--surface)); cursor: default; }
-.orgl-avatar-vide { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1px dashed var(--danger); color: var(--danger); }
+/* Ligne 1 : une carte par poste (le poste, le nom dessous) ; un groupe : son nom, ses responsables. */
+.orgl-c1 { display: flex; flex-direction: column; gap: 2px; padding: 6px 8px 7px; }
+.orgl-c1.titre { border-color: #d97706; }
+.orgl-c1.groupe { border-top: 4px solid var(--c, var(--border)); }
+.orgl-c1.vacant { border-style: dashed; border-color: var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--surface)); }
+.orgl-c1-titre { display: flex; align-items: center; gap: 5px; min-height: 22px; padding-bottom: 3px; border-bottom: 1px solid var(--border); font-size: 0.78rem; font-weight: 600; color: var(--muted); }
+.orgl-c1-titre .org-icon { width: 20px; height: 20px; font-size: 0.72rem; border-radius: 6px; flex-shrink: 0; }
+.orgl-c1.groupe .orgl-c1-titre { color: var(--text); font-size: 0.82rem; }
+.orgl-c1-nom-poste { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.2; }
+button.orgl-c1-nom-poste { border: none; background: none; padding: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; text-decoration: underline dotted; text-underline-offset: 2px; }
+.orgl-c1-gens { display: flex; flex-direction: column; gap: 1px; font-size: 0.86rem; }
+.orgl-c1-gens .error { font-size: 0.8rem; }
+.orgl-nom { border: none; background: none; padding: 1px 4px; margin: 0 -4px; border-radius: 6px; font: inherit; font-weight: 600; color: var(--text); text-align: left; cursor: pointer; overflow-wrap: anywhere; line-height: 1.25; }
+.orgl-nom:hover, .orgl-nom:focus-visible { background: var(--surface2); }
+.orgl-lien { font-size: 0.7rem; color: var(--muted); }
 .orgl-texte { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .orgl-texte b { font-size: 0.88rem; line-height: 1.25; overflow-wrap: anywhere; }
-.orgl-fonctions { font-size: 0.8rem; line-height: 1.25; color: var(--text); opacity: 0.85; }
-.orgl-coord { font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .orgl-entite { border-top: 4px solid var(--c); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
 .orgl-entite.manif { border-style: dashed; border-top-style: solid; }
 .orgl-entite-tete { display: flex; align-items: center; gap: 8px; }
@@ -1094,17 +1102,43 @@ button.orgl-personne:hover, button.orgl-personne:focus-visible { border-color: v
 .orgl-gens button { border: none; background: none; padding: 2px 4px; margin: 0 -4px; border-radius: 6px; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
 .orgl-gens button:hover, .orgl-gens button:focus-visible { background: var(--surface2); }
 .orgl-gens small { color: var(--muted); }
+.orgl-gens li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 2px; }
+.orgl-gens li.error { color: var(--danger); }
+.orgl-poste { color: var(--muted); }
+.orgl-gens button.orgl-poste { color: var(--muted); text-decoration: underline dotted; text-underline-offset: 2px; margin: 0; padding: 0; }
+.orgl-benevoles { border-top: 1px dashed var(--border); padding-top: 4px; border-radius: 4px; }
+.orgl-benevoles-bouton { border: none; background: none; padding: 0; font: inherit; font-size: 0.78rem; color: var(--muted); cursor: pointer; }
+.orgl-benevoles .orgl-gens { margin-top: 3px; }
+.orgl-entite-pied { display: flex; align-items: center; gap: 8px; }
+.orgl-entite-pied .orgl-ouvrir { margin-left: auto; }
 .orgl-ouvrir { align-self: flex-end; border: none; background: none; padding: 0; font: inherit; font-size: 0.78rem; color: var(--primary); cursor: pointer; }
+/* Modification : poignée, « ＋ Poste », zone survolée, carte qui suit le pointeur. */
+.orgl-vue.edition .tirable { cursor: grab; }
+.orgl-prise { margin-left: auto; flex-shrink: 0; border: 1px solid var(--border); background: var(--surface); color: var(--muted); border-radius: 6px; padding: 0 4px; font-size: 0.8rem; line-height: 1.3; cursor: grab; touch-action: none; }
+.orgl-gens .orgl-prise { margin: 0 0 0 auto; padding: 0 4px; }
+.orgl-prise:hover, .orgl-prise:focus-visible { color: var(--primary); border-color: var(--primary); }
+.orgl-plus { border: 1px dashed var(--primary); background: var(--primary-soft); color: var(--primary); border-radius: 6px; padding: 1px 6px; font: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.orgl-cadre-tete .orgl-plus { margin-left: auto; }
+.orgl-cadre-tete .orgl-plus + .orgl-plus { margin-left: 0; }
+.orgl-cadre-vide { position: absolute; left: 12px; right: 12px; top: 44px; margin: 0; font-size: 0.8rem; white-space: normal; }
+.orgl-survol { outline: 3px solid var(--primary); outline-offset: 2px; }
+.orgl-cadre.orgl-survol { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }
+.orgl-c1.cible-survol, .orgl-entite.cible-survol, .orgl-gens li.cible-survol, .orgl-benevoles.cible-survol, .orgl-cadre.cible-survol { outline: 3px solid var(--primary); outline-offset: 1px; }
+body.glisse-en-cours .orgl-vue [data-cible] { outline: 1px dashed color-mix(in srgb, var(--primary) 55%, transparent); }
+body.orgl-tire-en-cours, body.orgl-tire-en-cours * { cursor: grabbing !important; user-select: none; }
+.orgl-volant { position: fixed; z-index: 1000; pointer-events: none; display: flex; flex-direction: column; gap: 2px; max-width: 280px; padding: 6px 10px; border-radius: 8px; background: var(--surface); border: 2px solid var(--primary); box-shadow: var(--shadow); font-size: 0.82rem; }
+.orgl-destinations { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.orgl-destinations .btn { width: 100%; justify-content: flex-start; text-align: left; }
 .orgl-pli { position: absolute; height: 20px; padding: 0 4px; min-width: 24px; width: auto; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 0.72rem; line-height: 1; cursor: pointer; z-index: 1; }
 .orgl-pli.ferme { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
 .orgl-pli.liste { position: static; margin: 4px 0 0 4px; }
 .orgl-profil-titre { margin: 14px 0 4px; font-size: 0.9rem; }
 .legende-trait { display: inline-block; width: 22px; height: 0; margin-right: 2px; vertical-align: middle; border-top: 2px solid var(--primary); }
-.legende-trait.autre { border-top-style: dashed; border-color: #db2777; }
 /* Téléphone : de haut en bas */
 .orgl-liste { display: flex; flex-direction: column; gap: 14px; }
-.orgl-l-cadre { border: 2px solid var(--c); border-radius: 12px; padding: 0 8px 8px; background: color-mix(in srgb, var(--c) 6%, var(--surface)); }
-.orgl-l-grappe { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.orgl-l-cadre { border: 2px solid var(--c); border-radius: 12px; padding: 0 8px 8px; background: color-mix(in srgb, var(--c) 6%, var(--surface)); display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 0 8px; align-items: start; }
+.orgl-l-cadre > :not(.orgl-l-colonne.seule) { grid-column: 1 / -1; }
+.orgl-l-colonne { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; min-width: 0; }
 .orgl-liste .orgl-carte { position: static; width: auto; }
 .orgl-l-sous { list-style: none; margin: 0 0 0 14px; padding: 0 0 0 10px; display: flex; flex-direction: column; gap: 6px; border-left: 2px solid var(--c, var(--border)); }
 .orgl-l-sous > li { display: flex; flex-direction: column; align-items: stretch; }

@@ -142,7 +142,7 @@ export function DemoApp() {
         const chef = toPerson(n.chef, [ADMIN_ROLE_ID]);
         base.people = [chef, ...n.membres.filter((m) => m.email.toLowerCase() !== n.chef.email.toLowerCase()).map((m) => toPerson(m, [defaultRoleId(base.roles)]))];
         base.log[0].userId = chef.id;
-        base.postes = [];
+        base.postes = (n.postes ?? []).map((nom) => ({ id: uid('po'), nom }));
         saveUnitData(id, lierFiches(id, base));
         const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, description: n.description, date: n.date, dateFin: n.dateFin, dependDe: n.dependDe }];
         saveUnits(next);

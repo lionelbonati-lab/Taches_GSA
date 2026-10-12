@@ -107,10 +107,16 @@ Ajout pur, sauf le drapeau recopié dans `app_metadata` ; les données des entit
 `supabase/migrations/026_gsa_organigrammes_annuels.sql` (à appliquer) : **historique de l'organigramme par année**, en lecture seule, visible de tout le club.
 
 - `gsa_organigrammes` (club, année, photo, date) : lue par tous les membres du club (`gsa_is_club_member`) ; aucune écriture possible depuis l'appli (ni droit, ni règle).
-- `gsa_photo_organigramme(club)` : appelée par l'appli après chaque lecture de l'organigramme. Le serveur prend la photo lui-même avec `gsa_organigramme` (rien ne vient de l'appli), sans adresses e-mail ni contenu des fiches d'entités (seulement couleur, dates, archivage, « Dépend de » et place de la carte), et n'écrit que l'**année en cours** (heure de Zurich), seulement si elle a changé. Une année passée garde sa dernière photo : rien ne la modifie plus.
+- `gsa_photo_organigramme(club)` : appelée par l'appli après chaque lecture de l'organigramme. Le serveur prend la photo lui-même avec `gsa_organigramme` (rien ne vient de l'appli), sans adresses e-mail ni contenu des fiches d'entités (seulement couleur, dates, archivage, « Dépend de », place de la carte et ordre des cartes d'un comité), et n'écrit que l'**année en cours** (heure de Zurich), seulement si elle a changé. Une année passée garde sa dernière photo : rien ne la modifie plus.
 - Retirer une personne d'une photo (demande d'effacement) : à faire dans l'éditeur SQL, par le propriétaire du projet.
 
 Ajout pur : une table, une fonction ; aucune donnée existante modifiée. Sans elle, l'appli n'affiche pas le choix de l'année.
+
+Organigramme par postes (sans migration : deux clés de plus dans `committees.info`, enregistrées comme la couleur) :
+
+- `info.dependDe` peut valoir `aucun` : le groupe ou l'événement ne dépend d'aucun comité (cadre « Sans comité ») ; absent : la dépendance se déduit des postes (voir le README).
+- `info.rangement` (liste de 300 clés au plus) : l'ordre des cartes dans le cadre d'un comité, choisi en les glissant.
+- Pour l'instant, la règle « seuls les admins du comité central changent une dépendance » est appliquée par l'appli ; le serveur la contrôlera à l'étape 3 (dépendances).
 
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
@@ -136,6 +142,8 @@ Les mots de passe provisoires ne partent pas par email : l'admin les transmet lu
 ## Emails du mot de passe oublié
 
 Le lien « 📧 Recevoir un lien par email » passe par le serveur d'emails de Supabase. Celui fourni d'office n'envoie qu'aux membres de l'équipe du projet (et 2 emails par heure) : il faut un serveur SMTP. Tant qu'il n'est pas réglé, l'appli propose de demander aux admins.
+
+**Fait le 12.10.2026** : SMTP réglé (la limite d'envoi est passée de 2 à 30 emails par heure). Reste l'essai du point 6.
 
 1. **Brevo** (gratuit, 300 emails par jour) : créer un compte sur brevo.com, puis :
    - *Senders, Domains & Dedicated IPs* › ajouter et valider l'adresse d'envoi (par ex. l'adresse du club) ;

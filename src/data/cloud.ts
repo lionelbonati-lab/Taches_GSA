@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
-import { lireCarte, UNIT_COLORS } from './units';
+import { lireCarte, lireRangement, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
 import type { NouveauResponsable } from './cablage';
@@ -48,6 +48,8 @@ export interface UnitInfo {
   dependDe?: string;
   /** Place de sa carte dans l'organigramme, posée à la main (affichage seulement). */
   carte?: Carte;
+  /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (affichage seulement). */
+  rangement?: string[];
 }
 
 /**
@@ -501,6 +503,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     couleurAppli: isCouleur(m.info.couleurAppli) ? m.info.couleurAppli : undefined,
     dependDe: typeof m.info.dependDe === 'string' ? m.info.dependDe : undefined,
     carte: lireCarte(m.info.carte),
+    rangement: lireRangement(m.info.rangement),
     membres: [],
     moi: !m.guest,
     moiAdmin: false,
@@ -539,6 +542,7 @@ function lireOrg(rows: LigneOrg[]): OrgUnit[] {
       couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
       dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
       carte: lireCarte(info.carte),
+      rangement: lireRangement(info.rangement),
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined, viaFiche: m.viaFiche ?? undefined })),
       moi: !!u.moi,
       moiAdmin: !!u.moiAdmin,
