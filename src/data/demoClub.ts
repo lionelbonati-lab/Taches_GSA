@@ -6,7 +6,7 @@ import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
 import { membresPropres, synchroLiens } from './liens';
 import { convertirPostes, lierEntite, suivre } from './organigramme';
-import type { AppData, ClubEvent, ClubMembre, Meeting, Person, Unit } from './types';
+import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUnit, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
 // Le site est public : aucun nom, chaque personne est désignée par son poste (adresses @gsajoie.example),
@@ -17,6 +17,7 @@ const CLUB_KEY = 'taches-gsa-demo-club';
 export const ME_KEY = 'taches-gsa-demo-moi';
 export const UNIT_KEY = 'taches-gsa-demo-unite';
 const MEMBRES_KEY = 'taches-gsa-demo-membres';
+const ORGAS_KEY = 'taches-gsa-demo-organigrammes';
 /** Ancienne connexion de la démo (fiche du comité central). */
 const OLD_USER_KEY = 'taches-gsa-user';
 
@@ -276,10 +277,37 @@ export function resetDemo() {
     const units = read<Unit[]>(CLUB_KEY) ?? SEED_UNITS;
     units.forEach((u) => localStorage.removeItem(unitStorageKey(u.id)));
     // Avec le dernier logo et la dernière couleur affichés (écran de connexion).
-    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
+    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, ORGAS_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }
+}
+
+// ---------- Organigramme : historique par année (version réelle : migration 026) ----------
+
+/** Photo de l'organigramme, comme celle du serveur : sans adresses, téléphones, logos ni descriptions. */
+export const photoOrganigramme = (units: OrgUnit[]): OrgUnit[] =>
+  units.map(({ logo: _l, description: _d, central: _c, couleurAppli: _a, sections: _s, ...u }) => ({
+    ...u,
+    moi: false,
+    moiAdmin: false,
+    membres: u.membres.map(({ telephone: _t, ...m }) => ({ ...m, email: '' })),
+  }));
+
+export const loadOrganigrammes = () => read<OrganigrammeAnnuel[]>(ORGAS_KEY) ?? [];
+
+/**
+ * Reprend la photo de l'année en cours (rien si l'organigramme n'a pas changé) ; une année passée ne change plus.
+ * Au premier passage : un exemple de l'année précédente (sans l'équipe de la soirée, créée cette année-là).
+ */
+export function photographierDemo(units: OrgUnit[], maintenant = new Date()) {
+  const annee = maintenant.getFullYear();
+  const photo = photoOrganigramme(units);
+  const avant = read<OrganigrammeAnnuel[]>(ORGAS_KEY);
+  const liste = avant ?? [{ annee: annee - 1, maj: new Date(annee - 1, 11, 31, 18).toISOString(), units: photo.filter((u) => u.id !== 'u-soiree') }];
+  const deja = liste.find((x) => x.annee === annee);
+  if (avant && deja && JSON.stringify(deja.units) === JSON.stringify(photo)) return;
+  write(ORGAS_KEY, [{ annee, maj: maintenant.toISOString(), units: photo }, ...liste.filter((x) => x.annee !== annee)].sort((a, b) => b.annee - a.annee));
 }
 
 // ---------- Membres du club (registre commun ; version réelle : migration 016) ----------

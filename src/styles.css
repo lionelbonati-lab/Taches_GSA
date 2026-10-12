@@ -1051,6 +1051,11 @@ body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-s
 /* Mode « Modifier » : ce qu'on peut faire, au-dessus de l'arbre. */
 .org-edition { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin: 0 0 14px; padding: 8px 12px; font-size: 0.88rem; color: var(--text); background: var(--primary-soft); border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent); border-radius: 8px; }
 .org-edition b { color: var(--primary); }
+.org-annee-choix { display: inline-flex; align-items: center; gap: 4px; }
+.org-annee-choix select { width: auto; min-width: 9em; }
+.org-annee { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 14px; padding: 8px 12px; font-size: 0.88rem; background: color-mix(in srgb, var(--muted) 12%, transparent); border: 1px solid var(--border); border-radius: 8px; }
+.annee-fonctions { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.annee-fonctions li { display: flex; align-items: center; gap: 8px; }
 .arbre-outils { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 10px; margin-top: 6px; }
 .cablage-depose { margin-top: 2px; padding: 4px 6px; font: inherit; font-size: 0.8rem; font-weight: 600; text-align: left; color: var(--primary); background: var(--primary-soft); border: 1px dashed var(--primary); border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
 .cablage-panel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; position: sticky; top: 64px; z-index: 5; }

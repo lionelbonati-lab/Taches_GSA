@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { Carte, ClubMembre, MyRequest, NouvelleProposition, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { Carte, ClubMembre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 import type { NouveauResponsable } from './cablage';
 import type { OpOrga } from './organigramme';
@@ -128,6 +128,11 @@ export interface Club {
    * déjà enregistrées ; `avant` : ses fiches d'avant. Le serveur fait suivre ses postes et les postes liés.
    */
   suivrePostes?: (avant: Person[]) => Promise<void>;
+  /**
+   * Organigrammes des années enregistrées (une photo par année, la dernière prise pendant l'année), du plus récent au
+   * plus ancien ; null : le serveur ne les tient pas encore (migration 026). Lecture seule, pour tout le club.
+   */
+  organigrammesAnnuels: () => Promise<OrganigrammeAnnuel[] | null>;
   /** Envoie une proposition d'amélioration de l'appli au comité central (tout membre du club). */
   proposerAmelioration: (p: NouvelleProposition) => Promise<void>;
   /** Propositions envoyées par la personne connectée, avec leur suivi ; null : le serveur ne les gère pas encore (migration 022). */

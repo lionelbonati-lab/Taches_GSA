@@ -400,6 +400,8 @@ export interface OrgaVue {
   onNouveauPoste: (u: OrgUnit) => void;
   deplies: Set<string>;
   deplier: (id: string) => void;
+  /** Organigramme d'une année passée : ses entités au lieu de celles d'aujourd'hui (rien d'ouvert ni de modifiable). */
+  units?: OrgUnit[];
 }
 
 export interface ActionsFiche {
@@ -421,15 +423,16 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
   const t = UNIT_TYPES[u.type];
   const ben = benevolesDe(u.type);
   const z = zonesFiche(u);
-  const groupes = groupesLies(u, club.units);
+  const tous = o.units ?? club.units;
+  const groupes = groupesLies(u, tous);
   const g = o.glisser;
-  const peut = o.edition && o.peut(u);
+  const peut = !o.units && o.edition && o.peut(u);
   const pose = !!(g.glisse || g.enMain) && peut;
   const k = (s: string) => `${u.id}|${s}`;
   const cible = (s: string) => (pose ? k(s) : undefined);
   const sur = (s: string) => (pose && g.survol === k(s) ? 'survol' : '');
   const deplie = o.deplies.has(u.id);
-  const ouverte = u.id === club.current.id;
+  const ouverte = !o.units && u.id === club.current.id;
   const access = centralAccess(u);
   const acces = access !== 'aucun' && !(a.ouvrir && !u.moi);
   const prise = (m: OrgMember, depuis: Depuis, poste?: string): Prise => ({ qui: quiDeMembre(m), depuis, nom: nomDe(m), couleur: m.couleur, poste });
@@ -452,7 +455,7 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
         }
       : { onPointerDown: undefined, poignee: null };
   /** ⛓ d'un poste lié au ★ d'une autre entité (le câble part d'ici). */
-  const lieA = (poste: Poste) => (poste.lien ? club.units.find((x) => x.id === poste.lien && !x.archive) : undefined);
+  const lieA = (poste: Poste) => (poste.lien ? tous.find((x) => x.id === poste.lien && !x.archive) : undefined);
   const chaine = (poste: Poste) => {
     const c = lieA(poste);
     return c && <span className="ligne-lie" style={{ color: c.couleur }} title={`Lié au ★ de « ${c.nom} » : changer l’un change l’autre`} aria-label={`lié à ${c.nom}`}>⛓</span>;
@@ -583,7 +586,7 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
             const titre = m.poste || t.chef;
             const nom = nomDe(m);
             // ★ lié : il tient un poste d'une autre entité lié à celle-ci (co-responsables : un poste chacun).
-            const lie = club.units
+            const lie = tous
               .filter((v) => !v.archive && v.id !== u.id)
               .flatMap((v) => (v.postes ?? []).filter((x) => x.lien === u.id && v.membres.some((y) => y.id === x.titulaire && memeQui(y, m))).map((x) => ({ v, x })))[0];
             return (

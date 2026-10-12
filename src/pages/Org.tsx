@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
 import { arbreEntites, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
-import type { CentralAccess, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
-import { fmtRange } from '../data/utils';
+import type { CentralAccess, OrganigrammeAnnuel, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
+import { fmtDate, fmtRange } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { groupesLies, roleDuLien } from '../data/liens';
@@ -16,7 +16,8 @@ import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Pers
 import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensPostes, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
 import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
 import { coupure, EnMain, Fiche, lireCible, NomPosteModal, PosteModal, Postes, rangeesPostes, Recherche, useGlisser, type OrgaVue, type Prise } from '../components/Organiser';
-import { benevolesDe, nomDe, type OpOrga } from '../data/organigramme';
+import { benevolesDe, fonctionsDe, nomDe, type OpOrga } from '../data/organigramme';
+import { norm } from '../data/csv';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
 // Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
@@ -31,6 +32,7 @@ import { benevolesDe, nomDe, type OpOrga } from '../data/organigramme';
 // Câblage (admins du comité central, ou d'une entité) : un câble tiré d'une personne jusqu'à une entité en fait
 // le responsable ; « 🔌 Câbler » ajoute les poignées ● (doigt), les personnes du club qui ne sont dans aucune entité,
 // et le choix sans glisser.
+// Historique : « 📅 » choisit une année passée, telle qu'à sa dernière photo (prise par le serveur), en lecture seule.
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
 // chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité central
 // peut faire de ses données (rien voir, consulter, ou aussi modifier / ajouter des tâches).
@@ -105,6 +107,23 @@ export function Org() {
   useEffect(() => {
     club.refresh();
   }, []);
+  // Historique : organigrammes des années passées (l'année en cours est celle d'aujourd'hui).
+  const [annees, setAnnees] = useState<OrganigrammeAnnuel[]>([]);
+  const [annee, setAnnee] = useState<number | null>(null);
+  useEffect(() => {
+    let vivant = true;
+    club
+      .organigrammesAnnuels()
+      .then((l) => vivant && setAnnees((l ?? []).filter((x) => x.annee < new Date().getFullYear())))
+      .catch(() => {});
+    return () => {
+      vivant = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const photo = annees.find((x) => x.annee === annee);
+  // Les logos ne sont pas dans les photos : ceux d'aujourd'hui.
+  const photoUnits = useMemo(() => photo?.units.map((u) => ({ ...u, logo: club.units.find((x) => x.id === u.id)?.logo })), [photo, club.units]);
 
   // L'entité ouverte : ses membres tels qu'ils sont maintenant (modifications pas encore relues).
   const units = useMemo(
@@ -229,6 +248,29 @@ export function Org() {
         deplier,
       }
     : undefined;
+  const vueAnnee: OrgaVue | undefined = photoUnits && { edition: false, peut: () => false, glisser, onPoste: () => {}, onNouveauPoste: () => {}, deplies, deplier, units: photoUnits };
+  const choixAnnee = annees.length > 0 && !edition && (
+    <label className="org-annee-choix" title="Organigramme d’une année passée (lecture seule)">
+      <span aria-hidden="true">📅</span>
+      <select
+        aria-label="Année de l’organigramme"
+        value={annee ?? ''}
+        onChange={(e) => {
+          setAnnee(e.target.value ? Number(e.target.value) : null);
+          setFiche(null);
+          setLien(null);
+          setFait(null);
+        }}
+      >
+        <option value="">Aujourd’hui</option>
+        {annees.map((a) => (
+          <option key={a.annee} value={a.annee}>
+            {a.annee}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
   const candidats = useCandidats(units, cablage || !!depot || (orga && modeModifier));
   const cleChoisi = choisi && choisi !== 'nouvelle' ? choisi.key : undefined;
   const tirage = useTirage(
@@ -309,9 +351,18 @@ export function Org() {
             <button className="btn primary" onClick={terminer}>✓ Terminer</button>
           </div>
         ) : (
-          peutModifier && <button className="btn" onClick={() => setModeModifier(true)}>✏️ Modifier l’organigramme</button>
+          (choixAnnee || peutModifier) && (
+            <div className="row wrap">
+              {choixAnnee}
+              {peutModifier && !photo && <button className="btn" onClick={() => setModeModifier(true)}>✏️ Modifier l’organigramme</button>}
+            </div>
+          )
         )}
       </div>
+      {photo && photoUnits && vueAnnee ? (
+        <OrgAnnee photo={photo} units={photoUnits} vue={vueAnnee} onRetour={() => setAnnee(null)} />
+      ) : (
+        <>
       {edition && orga ? (
         <p className="org-edition">
           <b>✏️ Modification</b>
@@ -372,6 +423,8 @@ export function Org() {
             {archived.map((u) => (vue ? <Fiche key={u.id} u={u} o={{ ...vue, edition: false }} a={actions(u)} /> : <Noeud key={u.id} u={u} {...actions(u)} />))}
           </div>
         </details>
+      )}
+        </>
       )}
 
       {fiche && ficheUnit && ficheUnit.id === club.current.id && <FichePersonne id={fiche.personId} onClose={() => setFiche(null)} />}
@@ -455,6 +508,109 @@ export function Org() {
       {tirage.volant}
       {glisser.volant}
     </div>
+  );
+}
+
+/**
+ * Organigramme d'une année passée, tel qu'à sa dernière photo : en lecture seule, rien à ouvrir ni à modifier.
+ * Un clic sur une personne : ses fonctions cette année-là ; sur « 👥 » : les membres venus de l'autre entité.
+ */
+function OrgAnnee({ photo, units, vue, onRetour }: { photo: OrganigrammeAnnuel; units: OrgUnit[]; vue: OrgaVue; onRetour: () => void }) {
+  const [qui, setQui] = useState<OrgMember | null>(null);
+  const [groupe, setGroupe] = useState<{ u: OrgUnit; id: string } | null>(null);
+  const actives = units.filter((u) => !u.archive);
+  const archivees = units.filter((u) => u.archive);
+  const actions = (u: OrgUnit): Actions => ({ onPersonne: setQui, onLien: (id) => setGroupe({ u, id }) });
+  const g = groupe && groupesLies(groupe.u, units).find((x) => x.id === groupe.id);
+  return (
+    <>
+      <p className="org-annee">
+        <span>
+          <b>📅 Organigramme {photo.annee}</b> · tel qu’au {fmtDate(photo.maj)} · lecture seule
+        </span>
+        <button type="button" className="btn small" onClick={onRetour}>
+          Revenir à aujourd’hui
+        </button>
+      </p>
+      {actives.length ? <Arbre key={photo.annee} units={actives} actions={actions} edition={false} orga={vue} /> : <Empty>Aucune entité cette année-là.</Empty>}
+      <p className="arbre-legende muted small-note">
+        <span>★ titre de la fiche (président, responsable)</span>
+        <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité</span>
+        <span><span className="error">rouge</span> : poste à pourvoir</span>
+      </p>
+      {archivees.length > 0 && (
+        <details className="org-archives">
+          <summary>🗄️ Entités archivées ({archivees.length})</summary>
+          <div className="arbre-archives">
+            {archivees.map((u) => (
+              <Fiche key={u.id} u={u} o={vue} a={actions(u)} />
+            ))}
+          </div>
+        </details>
+      )}
+      {qui && <FonctionsAnnee annee={photo.annee} units={units} m={qui} onClose={() => setQui(null)} />}
+      {groupe && (
+        <Modal title={`👥 ${g?.unite?.nom ?? 'Entité supprimée'} dans « ${groupe.u.nom} » (${photo.annee})`} onClose={() => setGroupe(null)}>
+          <div className="login-list lien-membres">
+            {g?.membres.map((m) => (
+              <button
+                key={m.id}
+                type="button"
+                className="login-user"
+                onClick={() => {
+                  setGroupe(null);
+                  setQui(m);
+                }}
+              >
+                <Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={32} />
+                <span>
+                  <strong>{nomMembre(m) || m.poste}</strong>
+                  <small>{[m.poste, m.autresPostes].filter(Boolean).join(' · ')}</small>
+                </span>
+              </button>
+            ))}
+            {!g?.membres.length && <p className="muted">Aucun membre venu de cette entité cette année-là.</p>}
+          </div>
+          <div className="modal-foot">
+            <span className="grow" />
+            <button className="btn" onClick={() => setGroupe(null)}>Fermer</button>
+          </div>
+        </Modal>
+      )}
+    </>
+  );
+}
+
+/** Une personne dans l'organigramme d'une année passée : ses fonctions dans chaque entité (fiche du registre, sinon même nom). */
+function FonctionsAnnee({ annee, units, m, onClose }: { annee: number; units: OrgUnit[]; m: OrgMember; onClose: () => void }) {
+  const meme = (x: OrgMember) => (m.membreId && x.membreId ? x.membreId === m.membreId : norm(nomDe(x)) === norm(nomDe(m)));
+  const lignes = units.flatMap((u) => u.membres.filter(meme).map((x) => ({ u, x })));
+  return (
+    <Modal title={nomDe(m)} onClose={onClose}>
+      <p className="muted small-note">Organigramme {annee}, en lecture seule.</p>
+      <ul className="annee-fonctions">
+        {lignes.map(({ u, x }) => {
+          const t = UNIT_TYPES[u.type];
+          const postes = (u.postes ?? []).filter((p) => p.titulaire === x.id).map((p) => p.nom);
+          const titre = x.admin ? `★ ${x.poste || t.chef}` : '';
+          const autres = (postes.length ? postes : fonctionsDe(x)).filter((f) => !x.admin || norm(f) !== norm(x.poste || t.chef));
+          return (
+            <li key={`${u.id}|${x.id}`}>
+              <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
+              <span>
+                <b>{u.nom}</b>
+                {[titre, ...autres].filter(Boolean).length > 0 && <> · {[titre, ...autres].filter(Boolean).join(', ')}</>}
+                {u.archive && <small className="muted"> (archivée)</small>}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      <div className="modal-foot">
+        <span className="grow" />
+        <button className="btn" onClick={onClose}>Fermer</button>
+      </div>
+    </Modal>
   );
 }
 

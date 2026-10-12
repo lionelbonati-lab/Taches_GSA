@@ -616,6 +616,14 @@ export interface OrgUnit extends Unit {
   postes?: Poste[];
 }
 
+/** Organigramme d'une année, tel qu'il était à sa dernière photo (lecture seule ; sans adresses ni logos). */
+export interface OrganigrammeAnnuel {
+  annee: number;
+  /** Date de la dernière photo de l'année (ISO). */
+  maj: string;
+  units: OrgUnit[];
+}
+
 /** Ticket envoyé à la caisse centrale depuis une autre entité. */
 export interface TicketCentral {
   type?: 'facture';

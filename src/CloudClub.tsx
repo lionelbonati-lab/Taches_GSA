@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -47,6 +47,10 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
   const ouverte = useRef(m.committeeId);
   ouverte.current = m.committeeId;
 
+  // Historique de l'organigramme (026) : après chaque lecture, le serveur reprend la photo de l'année (rien s'il n'a pas changé).
+  const photo = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(photo.current), []);
+
   const refresh = useCallback(() => {
     setLoading(true);
     Promise.all([fetchOrg(clubId), myMemberships(userId), membresAcces(clubId)])
@@ -56,6 +60,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         setList(l);
         setAcces(a);
         setError('');
+        clearTimeout(photo.current);
+        photo.current = setTimeout(() => void photographierOrganigramme(clubId).catch(() => {}), 3000);
         // Première ouverture : les postes des fiches sont déduits de leurs fonctions, une fois pour tout le club.
         if (o.postes && !conversion.current && o.units.some((u) => !u.postes)) {
           conversion.current = true;
@@ -228,6 +234,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         await proposerAmelioration(clubId, m.committeeId, p);
       },
       mesPropositions: () => mesPropositions(clubId),
+      organigrammesAnnuels: () => fetchOrganigrammesAnnuels(clubId),
       async ticketCentral(t) {
         await sendCentralTicket(m.committeeId, t);
       },

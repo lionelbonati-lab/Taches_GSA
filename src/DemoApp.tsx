@@ -1,7 +1,7 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadUnitData, loadUnits, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
+import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, UNIT_TYPES, visitLevel } from './data/units';
 import { poserResponsable } from './data/cablage';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
@@ -67,6 +67,8 @@ export function DemoApp() {
   );
 
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  // Historique de l'organigramme : photo de l'année en cours, reprise à chaque changement.
+  useEffect(() => photographierDemo(org), [org]);
   const logout = useCallback(() => {
     saveMe(null);
     setMe(null);
@@ -292,6 +294,7 @@ export function DemoApp() {
         // Comité central ouvert : l'écran relit ses données.
         if (current.id === central.id) setEpoch((e) => e + 1);
       },
+      organigrammesAnnuels: async () => loadOrganigrammes(),
       async mesPropositions() {
         if (!central || !me) return [];
         return (loadUnitData(central.id).propositions ?? []).filter((p) => p.auteur === me).sort((a, b) => b.le.localeCompare(a.le));

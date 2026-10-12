@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
 import { lireCarte, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -514,9 +514,15 @@ export function membershipUnit(m: Membership): OrgUnit {
 export async function fetchOrg(clubId: string): Promise<{ units: OrgUnit[]; postes: boolean }> {
   const { data, error } = await sb().rpc('gsa_organigramme', { club: clubId });
   if (error) throw new Error(error.message);
-  type R = { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; moi: boolean; moiAdmin: boolean; membres: OrgMember[]; sections: { id: string; nom: string }[] | null; liens?: string[] | null; postes?: Poste[] | null };
-  const rows = (data ?? []) as R[];
-  const units = rows.map((u) => {
+  const rows = (data ?? []) as LigneOrg[];
+  return { units: lireOrg(rows), postes: rows.some((u) => 'postes' in u) };
+}
+
+/** Une entité telle que la donnent gsa_organigramme et les photos de l'organigramme (026). */
+type LigneOrg = { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; moi: boolean; moiAdmin: boolean; membres: OrgMember[]; sections?: { id: string; nom: string }[] | null; liens?: string[] | null; postes?: Poste[] | null };
+
+function lireOrg(rows: LigneOrg[]): OrgUnit[] {
+  return rows.map((u) => {
     const info = u.info ?? {};
     return {
       id: u.id,
@@ -534,15 +540,30 @@ export async function fetchOrg(clubId: string): Promise<{ units: OrgUnit[]; post
       dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
       carte: lireCarte(info.carte),
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined, viaFiche: m.viaFiche ?? undefined })),
-      moi: u.moi,
-      moiAdmin: u.moiAdmin,
+      moi: !!u.moi,
+      moiAdmin: !!u.moiAdmin,
       sections: u.sections ?? undefined,
       // Avant la migration 020 : pas de liens (undefined) ; ensuite, [] pour une entité sans lien.
       liens: Array.isArray(u.liens) ? u.liens : undefined,
       postes: Array.isArray(u.postes) ? u.postes : undefined,
     };
   });
-  return { units, postes: rows.some((u) => 'postes' in u) };
+}
+
+/**
+ * Photo de l'organigramme de l'année en cours, prise par le serveur (migration 026) ; rien n'est écrit s'il n'a pas
+ * changé. Une année passée ne change plus.
+ */
+export async function photographierOrganigramme(club: string) {
+  const { error } = await sb().rpc('gsa_photo_organigramme', { club });
+  if (error) throw new Error(error.message);
+}
+
+/** Organigrammes des années enregistrées, de la plus récente à la plus ancienne ; null : pas encore de migration 026. */
+export async function fetchOrganigrammesAnnuels(club: string): Promise<OrganigrammeAnnuel[] | null> {
+  const { data, error } = await sb().from('gsa_organigrammes').select('annee, maj, data').eq('club_id', club).order('annee', { ascending: false });
+  if (error) return null;
+  return (data ?? []).map((r) => ({ annee: r.annee as number, maj: r.maj as string, units: lireOrg(Array.isArray(r.data) ? (r.data as LigneOrg[]) : []) }));
 }
 
 /** Nom et fiche d'une entité (admins de l'entité ou du comité central ; l'accès du comité central, ceux de l'entité). */
