@@ -1056,6 +1056,68 @@ body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-s
 .org-annee { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; margin: 0 0 14px; padding: 8px 12px; font-size: 0.88rem; background: color-mix(in srgb, var(--muted) 12%, transparent); border: 1px solid var(--border); border-radius: 8px; }
 .annee-fonctions { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
 .annee-fonctions li { display: flex; align-items: center; gap: 8px; }
+
+/* Organigramme par personnes (OrgLignes) : cadres des comités, cartes en lignes, traits, zoom */
+.orgl { display: flex; flex-direction: column; gap: 8px; }
+.orgl-outils { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.orgl-zoom { display: inline-flex; align-items: center; gap: 4px; }
+.orgl-pourcent { min-width: 3.4em; text-align: center; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.orgl-vue { overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); padding: 12px; cursor: grab; touch-action: pan-x pan-y; }
+.orgl-vue.tire { cursor: grabbing; user-select: none; }
+.orgl-vue.etroite { padding: 8px; cursor: auto; background: none; border: none; }
+.orgl-zone { position: relative; }
+.orgl-plan { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.orgl-traits { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; }
+.orgl-traits path { fill: none; stroke-width: 2; stroke-linejoin: round; }
+.orgl-traits path.autre { stroke-dasharray: 6 4; }
+.orgl-cadre { position: absolute; top: 0; border: 2px solid var(--c); border-radius: 12px; background: color-mix(in srgb, var(--c) 6%, var(--surface)); }
+.orgl-cadre.sans, .orgl-l-cadre.sans { border-style: dashed; }
+.orgl-cadre-tete { display: flex; align-items: center; gap: 8px; height: 36px; margin: 0; padding: 0 10px; font-size: 0.95rem; color: var(--c); white-space: nowrap; overflow: hidden; }
+.orgl-cadre-tete .org-icon { width: 24px; height: 24px; font-size: 0.85rem; border-radius: 7px; }
+.orgl-cadre-tete small { color: var(--muted); font-weight: 400; }
+.orgl-carte { position: absolute; box-sizing: border-box; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; box-shadow: var(--shadow); text-align: left; color: var(--text); font: inherit; }
+.orgl-personne { display: flex; align-items: flex-start; gap: 8px; padding: 8px; cursor: pointer; }
+button.orgl-personne:hover, button.orgl-personne:focus-visible { border-color: var(--primary); }
+.orgl-personne.etoile { border-color: #d97706; }
+.orgl-personne.vacant { border: 1px dashed var(--danger); background: color-mix(in srgb, var(--danger) 5%, var(--surface)); cursor: default; }
+.orgl-avatar-vide { width: 40px; height: 40px; flex-shrink: 0; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; border: 1px dashed var(--danger); color: var(--danger); }
+.orgl-texte { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.orgl-texte b { font-size: 0.88rem; line-height: 1.25; overflow-wrap: anywhere; }
+.orgl-fonctions { font-size: 0.8rem; line-height: 1.25; color: var(--text); opacity: 0.85; }
+.orgl-coord { font-size: 0.72rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.orgl-entite { border-top: 4px solid var(--c); padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+.orgl-entite.manif { border-style: dashed; border-top-style: solid; }
+.orgl-entite-tete { display: flex; align-items: center; gap: 8px; }
+.orgl-entite-tete .org-icon { width: 30px; height: 30px; font-size: 1rem; border-radius: 8px; }
+.orgl-entite-tete small { font-size: 0.74rem; color: var(--muted); }
+.orgl-gens { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; font-size: 0.8rem; }
+.orgl-gens button { border: none; background: none; padding: 2px 4px; margin: 0 -4px; border-radius: 6px; font: inherit; color: var(--text); text-align: left; cursor: pointer; }
+.orgl-gens button:hover, .orgl-gens button:focus-visible { background: var(--surface2); }
+.orgl-gens small { color: var(--muted); }
+.orgl-ouvrir { align-self: flex-end; border: none; background: none; padding: 0; font: inherit; font-size: 0.78rem; color: var(--primary); cursor: pointer; }
+.orgl-pli { position: absolute; height: 20px; padding: 0 4px; min-width: 24px; width: auto; border-radius: 10px; border: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 0.72rem; line-height: 1; cursor: pointer; z-index: 1; }
+.orgl-pli.ferme { background: var(--primary); border-color: var(--primary); color: #fff; font-weight: 600; }
+.orgl-pli.liste { position: static; margin: 4px 0 0 4px; }
+.orgl-profil-titre { margin: 14px 0 4px; font-size: 0.9rem; }
+.legende-trait { display: inline-block; width: 22px; height: 0; margin-right: 2px; vertical-align: middle; border-top: 2px solid var(--primary); }
+.legende-trait.autre { border-top-style: dashed; border-color: #db2777; }
+/* Téléphone : de haut en bas */
+.orgl-liste { display: flex; flex-direction: column; gap: 14px; }
+.orgl-l-cadre { border: 2px solid var(--c); border-radius: 12px; padding: 0 8px 8px; background: color-mix(in srgb, var(--c) 6%, var(--surface)); }
+.orgl-l-grappe { display: flex; flex-direction: column; gap: 6px; margin-bottom: 8px; }
+.orgl-liste .orgl-carte { position: static; width: auto; }
+.orgl-l-sous { list-style: none; margin: 0 0 0 14px; padding: 0 0 0 10px; display: flex; flex-direction: column; gap: 6px; border-left: 2px solid var(--c, var(--border)); }
+.orgl-l-sous > li { display: flex; flex-direction: column; align-items: stretch; }
+.orgl-l-sous > li > .orgl-pli { align-self: flex-start; }
+/* Impression : le plan seul, sur une page A4 en paysage (rendu hors de #root). */
+.orgl-impression { position: fixed; left: -100000px; top: 0; visibility: hidden; }
+.orgl-impression-titre { margin: 0 0 6px; font-size: 0.9rem; }
+@media print {
+  body.printing-orga #root { display: none !important; }
+  body.printing-orga .orgl-impression { position: static; visibility: visible; }
+  body.printing-orga .orgl-carte, body.printing-orga .orgl-cadre { box-shadow: none; }
+  body.printing-orga .orgl-traits path, body.printing-orga .orgl-cadre, body.printing-orga .orgl-entite { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+}
 .arbre-outils { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 10px; margin-top: 6px; }
 .cablage-depose { margin-top: 2px; padding: 4px 6px; font: inherit; font-size: 0.8rem; font-weight: 600; text-align: left; color: var(--primary); background: var(--primary-soft); border: 1px dashed var(--primary); border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
 .cablage-panel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; position: sticky; top: 64px; z-index: 5; }

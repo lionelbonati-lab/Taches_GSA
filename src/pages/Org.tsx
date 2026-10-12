@@ -18,6 +18,8 @@ import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components
 import { coupure, EnMain, Fiche, lireCible, NomPosteModal, PosteModal, Postes, rangeesPostes, Recherche, useGlisser, type OrgaVue, type Prise } from '../components/Organiser';
 import { benevolesDe, fonctionsDe, nomDe, type OpOrga } from '../data/organigramme';
 import { norm } from '../data/csv';
+import { getMode } from '../data/mode';
+import { OrgLignes } from '../components/OrgLignes';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
 // Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
@@ -33,11 +35,22 @@ import { norm } from '../data/csv';
 // le responsable ; « 🔌 Câbler » ajoute les poignées ● (doigt), les personnes du club qui ne sont dans aucune entité,
 // et le choix sans glisser.
 // Historique : « 📅 » choisit une année passée, telle qu'à sa dernière photo (prise par le serveur), en lecture seule.
+// Démo : présentation « 👤 Par personnes » (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une
+// carte par responsable ; « 🏛️ Par entités » : l'arbre ci-dessous. En mode « Modifier » : l'arbre (outils actuels).
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
 // chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité central
 // peut faire de ses données (rien voir, consulter, ou aussi modifier / ajouter des tâches).
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PRESENTATION = 'taches-gsa-orga-presentation';
+type Presentation = 'personnes' | 'entites';
+const lirePresentation = (): Presentation => {
+  try {
+    return localStorage.getItem(PRESENTATION) === 'entites' ? 'entites' : 'personnes';
+  } catch {
+    return 'personnes';
+  }
+};
 const dated = (t: UnitType) => t === 'sous-comite' || t === 'equipe';
 
 /** Ce qu'on peut faire depuis la carte d'une entité. */
@@ -135,6 +148,28 @@ export function Org() {
   const peutCabler = active.some(cablable);
   const peutModifier = club.canManage || peutAjouter || peutCabler || units.some((u) => u.moiAdmin);
   const edition = modeModifier && peutModifier;
+  // Démo : organigramme par personnes (la version réelle garde l'arbre en attendant le masquage des coordonnées).
+  const demo = getMode() === 'demo';
+  const [presentation, setPresentation] = useState<Presentation>(lirePresentation);
+  const choisirPresentation = (p: Presentation) => {
+    setPresentation(p);
+    try {
+      localStorage.setItem(PRESENTATION, p);
+    } catch {
+      /* navigation privée */
+    }
+  };
+  const parPersonnes = demo && presentation === 'personnes' && !edition;
+  const choixPresentation = demo && !edition && (
+    <div className="seg" role="group" aria-label="Présentation de l’organigramme">
+      <button type="button" className={presentation === 'personnes' ? 'on' : ''} aria-pressed={presentation === 'personnes'} onClick={() => choisirPresentation('personnes')}>
+        👤 Par personnes
+      </button>
+      <button type="button" className={presentation === 'entites' ? 'on' : ''} aria-pressed={presentation === 'entites'} onClick={() => choisirPresentation('entites')}>
+        🏛️ Par entités
+      </button>
+    </div>
+  );
   const terminer = () => {
     setModeModifier(false);
     setCablage(false);
@@ -351,8 +386,9 @@ export function Org() {
             <button className="btn primary" onClick={terminer}>✓ Terminer</button>
           </div>
         ) : (
-          (choixAnnee || peutModifier) && (
+          (choixAnnee || peutModifier || choixPresentation) && (
             <div className="row wrap">
+              {choixPresentation}
               {choixAnnee}
               {peutModifier && !photo && <button className="btn" onClick={() => setModeModifier(true)}>✏️ Modifier l’organigramme</button>}
             </div>
@@ -360,7 +396,7 @@ export function Org() {
         )}
       </div>
       {photo && photoUnits && vueAnnee ? (
-        <OrgAnnee photo={photo} units={photoUnits} vue={vueAnnee} onRetour={() => setAnnee(null)} />
+        <OrgAnnee photo={photo} units={photoUnits} vue={vueAnnee} parPersonnes={parPersonnes} onRetour={() => setAnnee(null)} />
       ) : (
         <>
       {edition && orga ? (
@@ -378,6 +414,8 @@ export function Org() {
           {peutCabler && !cablage && <span>Tire une personne jusqu’à une entité pour en faire le responsable (★).</span>}
           {units.some((u) => club.canManage || u.moiAdmin) ? <span>⚙️ modifie l’entité.</span> : peutAjouter && <span>« + Ajouter une personne » sous l’entité.</span>}
         </p>
+      ) : parPersonnes ? (
+        <p className="muted small-note">Une carte par responsable : comités en haut, groupes en dessous, puis les événements. Clique sur une personne pour voir son profil.</p>
       ) : (
         <p className="muted small-note">Clique sur une personne pour voir sa fiche, sur le nom d’une entité pour l’ouvrir.</p>
       )}
@@ -401,8 +439,17 @@ export function Org() {
           }}
         />
       )}
-      {active.length ? <Arbre units={active} actions={actions} edition={edition} orga={vue} /> : <Empty>Aucune entité.</Empty>}
-      {vue ? (
+      {parPersonnes ? (
+        <>
+          <OrgLignes units={active} onFiche={(m, uniteId) => setFiche({ unitId: uniteId, personId: m.id })} ouvrir={(u) => actions(u).ouvrir} />
+          <LegendePersonnes />
+        </>
+      ) : active.length ? (
+        <Arbre units={active} actions={actions} edition={edition} orga={vue} />
+      ) : (
+        <Empty>Aucune entité.</Empty>
+      )}
+      {parPersonnes ? null : vue ? (
         <p className="arbre-legende muted small-note">
           <span>★ titre de la fiche (président, responsable)</span>
           <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité (même nom) : changer l’un change l’autre</span>
@@ -515,7 +562,7 @@ export function Org() {
  * Organigramme d'une année passée, tel qu'à sa dernière photo : en lecture seule, rien à ouvrir ni à modifier.
  * Un clic sur une personne : ses fonctions cette année-là ; sur « 👥 » : les membres venus de l'autre entité.
  */
-function OrgAnnee({ photo, units, vue, onRetour }: { photo: OrganigrammeAnnuel; units: OrgUnit[]; vue: OrgaVue; onRetour: () => void }) {
+function OrgAnnee({ photo, units, vue, parPersonnes, onRetour }: { photo: OrganigrammeAnnuel; units: OrgUnit[]; vue: OrgaVue; parPersonnes: boolean; onRetour: () => void }) {
   const [qui, setQui] = useState<OrgMember | null>(null);
   const [groupe, setGroupe] = useState<{ u: OrgUnit; id: string } | null>(null);
   const actives = units.filter((u) => !u.archive);
@@ -532,12 +579,21 @@ function OrgAnnee({ photo, units, vue, onRetour }: { photo: OrganigrammeAnnuel; 
           Revenir à aujourd’hui
         </button>
       </p>
-      {actives.length ? <Arbre key={photo.annee} units={actives} actions={actions} edition={false} orga={vue} /> : <Empty>Aucune entité cette année-là.</Empty>}
-      <p className="arbre-legende muted small-note">
-        <span>★ titre de la fiche (président, responsable)</span>
-        <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité</span>
-        <span><span className="error">rouge</span> : poste à pourvoir</span>
-      </p>
+      {parPersonnes ? (
+        <>
+          <OrgLignes key={photo.annee} units={actives} note={`Organigramme ${photo.annee}, en lecture seule.`} titre={`Organigramme ${photo.annee}`} />
+          <LegendePersonnes />
+        </>
+      ) : (
+        <>
+          {actives.length ? <Arbre key={photo.annee} units={actives} actions={actions} edition={false} orga={vue} /> : <Empty>Aucune entité cette année-là.</Empty>}
+          <p className="arbre-legende muted small-note">
+            <span>★ titre de la fiche (président, responsable)</span>
+            <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité</span>
+            <span><span className="error">rouge</span> : poste à pourvoir</span>
+          </p>
+        </>
+      )}
       {archivees.length > 0 && (
         <details className="org-archives">
           <summary>🗄️ Entités archivées ({archivees.length})</summary>
@@ -578,6 +634,19 @@ function OrgAnnee({ photo, units, vue, onRetour }: { photo: OrganigrammeAnnuel; 
         </Modal>
       )}
     </>
+  );
+}
+
+/** Légende de l'organigramme par personnes. */
+function LegendePersonnes() {
+  return (
+    <p className="arbre-legende muted small-note">
+      <span>★ président, responsable</span>
+      <span><span className="legende-trait" aria-hidden="true" /> trait de la couleur du comité d’où il part</span>
+      <span><span className="legende-trait autre" aria-hidden="true" /> co-responsable d’un autre comité</span>
+      <span><span className="error">rouge</span> : à pourvoir</span>
+      <span>− / + : replier, déplier une branche</span>
+    </p>
   );
 }
 
