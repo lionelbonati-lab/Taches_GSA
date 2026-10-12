@@ -15,6 +15,9 @@ import { Org } from './pages/Org';
 import { MembresClub } from './pages/MembresClub';
 import { Aide } from './pages/Aide';
 import { Propositions } from './pages/Propositions';
+import { MotsDePasse } from './pages/MotsDePasse';
+import { Comptes } from './pages/Comptes';
+import { PageIntro } from './components/Nav';
 import { useClubOptional } from './data/club';
 
 export function App() {
@@ -56,6 +59,8 @@ export function App() {
           {can('admin.access') && <Route path="admin" element={<Admin />} />}
           {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}
           {club && <Route path="propositions" element={<Propositions />} />}
+          {club && can('admin.access') && <Route path="mots-de-passe" element={<MotsDePasse />} />}
+          {club?.superAdmin && <Route path="comptes" element={<Comptes intro={<PageIntro />} />} />}
           <Route path="aide" element={<Aide />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

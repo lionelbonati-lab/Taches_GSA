@@ -93,8 +93,8 @@ export function CredentialsModal({ person, email, password, existant, intro, onC
           <small className="muted">Il ne sera plus affiché : transmets-le maintenant (de vive voix, par message ou par email).</small>
         </p>
       )}
-      <textarea className="full" readOnly rows={8} value={text} />
-      <div className="modal-foot">
+      <textarea className="cred-texte" readOnly rows={8} value={text} />
+      <div className="modal-foot wrap">
         <a className="btn" href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(`Ton accès à ${nomAppli()}`)}&body=${encodeURIComponent(text)}`}>📧 Préparer l’email</a>
         <button className="btn" onClick={copy}>{copied ? '✅ Copié' : '📋 Copier le message'}</button>
         <span className="grow" />

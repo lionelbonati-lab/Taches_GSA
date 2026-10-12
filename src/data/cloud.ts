@@ -710,7 +710,12 @@ export type AccessRequest =
   | { action: 'organiser'; committeeId: string; op: OpOrga }
   | { action: 'annulerOrga'; committeeId: string; jeton: string }
   | { action: 'postes' | 'lierEntite'; committeeId: string }
-  | { action: 'suivre'; committeeId: string; avant: Person[] };
+  | { action: 'suivre'; committeeId: string; avant: Person[] }
+  /** Comptes du club (supabase/functions/gsa-acces/comptes.ts, migration 025). */
+  | { action: 'approuverMdp' | 'refuserMdp'; demandeId: string }
+  | { action: 'comptes' }
+  | { action: 'reinitialiserCompte' | 'bloquer' | 'debloquer'; userId: string }
+  | { action: 'fusionner'; userId: string; absorber: string };
 
 export async function accessAction<T = Record<string, unknown>>(body: AccessRequest): Promise<T> {
   const { data, error } = await sb().functions.invoke('gsa-acces', { body });
@@ -725,4 +730,52 @@ export async function accessAction<T = Record<string, unknown>>(body: AccessRequ
     throw new Error(msg);
   }
   return data as T;
+}
+
+/** Mot de passe oublié, sans connexion : demande aux admins des entités du compte (même réponse s'il n'existe pas). */
+export async function demanderMdp(email: string) {
+  const { error } = await sb().functions.invoke('gsa-acces', { body: { action: 'demandeMdp', email } });
+  if (error) throw new Error(error.message);
+}
+
+/** Demande « mot de passe oublié » d'un membre de l'entité (pour ses admins). */
+export interface DemandeMdp {
+  id: string;
+  personId: string | null;
+  email: string;
+  le: string;
+  /** La personne connectée peut la valider (sinon : compte d'un admin d'une autre entité, d'un propriétaire…). */
+  peut: boolean;
+}
+
+/** Demandes en attente des membres de l'entité (admins) ; rien si le serveur ne les gère pas encore (migration 025). */
+export async function demandesMdp(c: string): Promise<DemandeMdp[]> {
+  const { data, error } = await sb().rpc('gsa_demandes_mdp_entite', { c });
+  if (error) return [];
+  return ((data ?? []) as { id: string; person_id: string | null; email: string; le: string; peut: boolean }[]).map((d) => ({
+    id: d.id,
+    personId: d.person_id,
+    email: d.email,
+    le: d.le,
+    peut: d.peut,
+  }));
+}
+
+export async function estSuperAdmin(): Promise<boolean> {
+  const { data, error } = await sb().rpc('gsa_est_super_admin');
+  return !error && data === true;
+}
+
+/** Compte du club, vu par un super-admin (page « Comptes du club »). */
+export interface CompteClub {
+  user_id: string;
+  email: string;
+  cree_le: string;
+  derniere_connexion: string | null;
+  bloque: boolean;
+  provisoire: boolean;
+  super_admin: boolean;
+  entites: { committeeId: string; nom: string; type: UnitType; archive: boolean; personId: string | null; owner: boolean; fiche: string | null; actif: boolean; admin: boolean }[];
+  demande: string | null;
+  demande_le: string | null;
 }

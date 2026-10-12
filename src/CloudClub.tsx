@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, deleteMembre, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, membresAcces, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import type { OrgUnit } from './data/types';
@@ -72,6 +72,22 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       .finally(() => setLoading(false));
   }, [clubId, userId]);
   useEffect(refresh, [refresh]);
+
+  // Mots de passe oubliés : demandes des membres de l'entité ouverte (le serveur ne répond qu'à ses admins), revues toutes les 5 minutes.
+  const [demandes, setDemandes] = useState<DemandeMdp[]>([]);
+  const chargerDemandes = useCallback(() => {
+    if (m.guest) return setDemandes([]);
+    void demandesMdp(m.committeeId).then(setDemandes);
+  }, [m.committeeId, m.guest]);
+  useEffect(() => {
+    chargerDemandes();
+    const id = setInterval(chargerDemandes, 5 * 60_000);
+    return () => clearInterval(id);
+  }, [chargerDemandes]);
+  const [superAdmin, setSuperAdmin] = useState(false);
+  useEffect(() => {
+    void estSuperAdmin().then(setSuperAdmin);
+  }, [userId]);
 
   const club = useMemo<Club>(() => {
     const units = org ?? [membershipUnit(m)];
@@ -232,8 +248,24 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         await deleteMembre(clubId, id);
         refresh();
       },
+      demandesMdp: demandes,
+      async approuverMdp(id) {
+        try {
+          return await accessAction<{ email: string; password: string }>({ action: 'approuverMdp', demandeId: id });
+        } finally {
+          chargerDemandes();
+        }
+      },
+      async refuserMdp(id) {
+        try {
+          await accessAction({ action: 'refuserMdp', demandeId: id });
+        } finally {
+          chargerDemandes();
+        }
+      },
+      superAdmin,
     };
-  }, [org, list, m, loading, error, refresh, onSwitch, acces, clubId, orga]);
+  }, [org, list, m, loading, error, refresh, onSwitch, acces, clubId, orga, demandes, chargerDemandes, superAdmin]);
 
   return <ClubCtx.Provider value={club}>{children}</ClubCtx.Provider>;
 }

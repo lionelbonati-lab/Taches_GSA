@@ -3,6 +3,7 @@ import type { Carte, ClubMembre, MyRequest, NouvelleProposition, OrgUnit, Person
 import { uid } from './utils';
 import type { NouveauResponsable } from './cablage';
 import type { OpOrga } from './organigramme';
+import type { DemandeMdp } from './cloud';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
 // L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
@@ -138,6 +139,13 @@ export interface Club {
   saveMembres: (list: ClubMembre[]) => Promise<void>;
   /** Supprime un membre du registre (refusé s'il a encore un poste actif dans une entité). */
   deleteMembre: (id: string) => Promise<void>;
+  /** Version réelle : demandes « mot de passe oublié » des membres de l'entité ouverte (pour ses admins). */
+  demandesMdp: DemandeMdp[];
+  /** Valide une demande : mot de passe provisoire à transmettre, à changer à la connexion. */
+  approuverMdp: (id: string) => Promise<{ email: string; password: string }>;
+  refuserMdp: (id: string) => Promise<void>;
+  /** Super-admin du club (hors des entités) : page « Comptes du club ». */
+  superAdmin: boolean;
 }
 
 export const ClubCtx = createContext<Club | null>(null);

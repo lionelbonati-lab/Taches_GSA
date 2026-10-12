@@ -309,6 +309,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: linear-gradient(135deg, var(--primary), #0f766e); }
 .login-card { background: var(--surface); border-radius: 16px; padding: 28px; max-width: 480px; width: 100%; text-align: center; box-shadow: 0 20px 50px rgba(0, 0, 0, 0.25); }
 .login-card h1 { margin: 8px 0 4px; }
+.login-card .btn { white-space: normal; }
 .login-list { display: flex; flex-direction: column; gap: 6px; margin: 18px 0 10px; text-align: left; }
 .login-user { display: flex; align-items: center; gap: 12px; padding: 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); cursor: pointer; }
 .login-user:hover:not(:disabled) { border-color: var(--primary); background: var(--primary-soft); }
@@ -418,6 +419,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .email-preview pre, .email-sheet pre { white-space: pre-wrap; font-family: inherit; background: var(--surface2); border-radius: 8px; padding: 10px 12px; margin: 6px 0; overflow-wrap: anywhere; }
 .email-sheet p { margin: 4px 0; overflow-wrap: anywhere; }
 .modal-foot.wrap { flex-wrap: wrap; }
+.cred-texte { width: 100%; box-sizing: border-box; }
 .email-due { display: flex; flex-direction: column; gap: 4px; align-items: flex-start; border-color: var(--primary); }
 .email-next { width: 100%; text-align: left; cursor: pointer; font: inherit; }
 
@@ -925,6 +927,12 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .login-form .two { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .login-foot { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; align-items: center; margin-top: 12px; }
 .small-note { font-size: 0.85rem; text-align: left; }
+/* Mot de passe oublié (écran de connexion) */
+.mdp-oublie { display: flex; flex-direction: column; gap: 10px; margin: 8px 0; text-align: left; }
+.mdp-oublie label { display: flex; flex-direction: column; gap: 4px; font-size: 0.9rem; }
+.mdp-oublie-actions { display: flex; flex-direction: column; gap: 8px; }
+.ok-note { color: var(--poll-fg); margin: 0; font-size: 0.9rem; }
+.mdp-oublie .error { margin: 0; font-size: 0.9rem; }
 .loading-screen { min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: var(--muted); background: var(--bg); }
 .sync-tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #dcfce7; color: #166534; white-space: nowrap; }
 .sync-tag.busy { background: #e0f2fe; color: #075985; }
@@ -1291,3 +1299,19 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 @media print {
   .doc-thumb.pdf { border: none; }
 }
+
+/* Comptes du club (super-admins) et mots de passe oubliés (admins) */
+.etiquette { display: inline-flex; align-items: center; gap: 3px; font-size: 0.78rem; padding: 2px 8px; border-radius: 999px; background: var(--surface2); border: 1px solid var(--border); white-space: nowrap; }
+.etiquette.danger { color: var(--danger); border-color: var(--danger); }
+.etiquette.alerte { background: var(--late-soft); color: var(--late); border-color: var(--late); }
+.etiquette.eteinte { opacity: 0.5; text-decoration: line-through; }
+.compte { display: flex; flex-direction: column; gap: 6px; }
+.compte.bloque { opacity: 0.75; }
+.compte-tete { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: flex-start; }
+.compte-etats, .compte-entites { display: flex; flex-wrap: wrap; gap: 4px; }
+.compte-actions { margin-top: 4px; }
+.comptes-outils input { flex: 1; min-width: 0; }
+.comptes-seuls { min-height: 100vh; background: var(--bg); padding: 12px 16px 40px; }
+.comptes-seuls > header { max-width: 720px; margin: 0 auto 12px; gap: 10px; align-items: center; }
+.comptes-seuls > .comptes { margin: 0 auto; }
+.demande-mdp { display: flex; flex-direction: column; gap: 6px; }

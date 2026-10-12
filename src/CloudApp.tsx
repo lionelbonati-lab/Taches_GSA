@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
-import { CloudSync, GUEST_WRITABLE, linkMyPerson, myMemberships, type Membership } from './data/cloud';
+import { CloudSync, estSuperAdmin, GUEST_WRITABLE, linkMyPerson, myMemberships, type Membership } from './data/cloud';
+import { doitChangerMdp, doitChoisirMdp, finRecuperation, verifierLienRecuperation } from './data/recuperation';
 import { migrate, SCHEMA, StoreProvider, type CloudMode } from './data/store';
 import { setServerFiles } from './data/files';
 import type { AppData, Person } from './data/types';
@@ -9,7 +10,8 @@ import { ADMIN_ROLE_ID } from './data/permissions';
 import { App } from './App';
 import { CloudClub } from './CloudClub';
 import { AppLogo } from './components/ui';
-import { ChooseCommittee, FirstPassword, Message, RealLogin, Setup, WhoAreYou } from './pages/Real';
+import { ChooseCommittee, FirstPassword, Message, NewPassword, RealLogin, Setup, WhoAreYou } from './pages/Real';
+import { ComptesSeuls } from './pages/Comptes';
 
 // Version réelle : connexion, choix du comité, mise en route, puis l'appli avec les données du serveur.
 
@@ -17,7 +19,8 @@ type Phase =
   | { k: 'chargement'; text: string }
   | { k: 'connexion' }
   | { k: 'motDePasse' }
-  | { k: 'aucunComite' }
+  | { k: 'nouveauMdp' }
+  | { k: 'aucunComite'; superAdmin: boolean }
   | { k: 'choixComite'; list: Membership[] }
   | { k: 'erreur'; text: string }
   | { k: 'miseEnRoute'; m: Membership; sync: CloudSync }
@@ -33,7 +36,8 @@ export function CloudApp() {
   const run = useRef(0);
 
   useEffect(() => {
-    supabase!.auth.getSession().then(({ data }) => setSession(data.session));
+    // Lien « mot de passe oublié » (?mdp=…) : vérifié d'abord, il ouvre la session.
+    void verifierLienRecuperation().finally(() => supabase!.auth.getSession().then(({ data }) => setSession(data.session)));
     const { data } = supabase!.auth.onAuthStateChange((event, s) => {
       // Le renouvellement du jeton ne doit pas recharger l'appli.
       if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') setSession(s);
@@ -42,6 +46,7 @@ export function CloudApp() {
   }, []);
 
   const signOut = useCallback(async () => {
+    finRecuperation();
     await supabase!.auth.signOut();
     window.location.reload();
   }, []);
@@ -84,12 +89,14 @@ export function CloudApp() {
     async (s: Session | null) => {
       const id = ++run.current;
       if (!s) return setPhase({ k: 'connexion' });
-      if (s.user.user_metadata?.doit_changer_mdp) return setPhase({ k: 'motDePasse' });
+      if (doitChoisirMdp()) return setPhase({ k: 'nouveauMdp' });
+      if (doitChangerMdp(s.user)) return setPhase({ k: 'motDePasse' });
       setPhase({ k: 'chargement', text: 'Recherche de ton comité…' });
       try {
         const list = await myMemberships(s.user.id);
         if (id !== run.current) return;
-        if (!list.length) return setPhase({ k: 'aucunComite' });
+        // Sans entité : le super-admin du club a la page des comptes.
+        if (!list.length) return setPhase({ k: 'aucunComite', superAdmin: await estSuperAdmin() });
         let saved: string | null = null;
         try {
           saved = localStorage.getItem(COMMITTEE_KEY);
@@ -111,7 +118,7 @@ export function CloudApp() {
   const lastUser = useRef<string | null | undefined>(undefined);
   useEffect(() => {
     if (session === undefined) return;
-    const key = session ? `${session.user.id}:${!!session.user.user_metadata?.doit_changer_mdp}` : null;
+    const key = session ? `${session.user.id}:${doitChangerMdp(session.user)}:${doitChoisirMdp()}` : null;
     if (key === lastUser.current) return;
     lastUser.current = key;
     void start(session);
@@ -135,7 +142,19 @@ export function CloudApp() {
       return <RealLogin />;
     case 'motDePasse':
       return <FirstPassword email={email} onSignOut={signOut} onDone={() => supabase!.auth.getSession().then(({ data }) => setSession(data.session))} />;
+    case 'nouveauMdp':
+      return (
+        <NewPassword
+          email={email}
+          onSignOut={signOut}
+          onDone={() => {
+            finRecuperation();
+            void supabase!.auth.getSession().then(({ data }) => setSession(data.session));
+          }}
+        />
+      );
     case 'aucunComite':
+      if (phase.superAdmin) return <ComptesSeuls email={email} onSignOut={signOut} />;
       return (
         <Message title="Pas encore d’accès" onSignOut={signOut}>
           <p>Le compte <b>{email}</b> n’est rattaché à aucun comité. Demande au président de te donner l’accès (organigramme : clic sur ton nom, « Créer l’accès »).</p>

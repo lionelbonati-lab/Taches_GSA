@@ -427,6 +427,11 @@ export function DemoApp() {
         deleteMembre(id);
         refresh();
       },
+      // Démo : pas de comptes ni de mots de passe.
+      demandesMdp: [],
+      approuverMdp: () => Promise.reject(new Error('Pas de mots de passe dans la démo.')),
+      refuserMdp: () => Promise.resolve(),
+      superAdmin: false,
     };
   }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units, me, membresAcces, guest]);
 

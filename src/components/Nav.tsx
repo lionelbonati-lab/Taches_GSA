@@ -9,7 +9,14 @@ export function useNavigation() {
   const { can } = useStore();
   const club = useClubOptional();
   const { pathname } = useLocation();
-  const nav = navigation({ can, club: !!club, registre: !!club?.membresAcces, type: club?.current.type ?? 'central' });
+  const nav = navigation({
+    can,
+    club: !!club,
+    registre: !!club?.membresAcces,
+    type: club?.current.type ?? 'central',
+    demandes: !!club?.demandesMdp.length,
+    superAdmin: !!club?.superAdmin,
+  });
   return { ...nav, ouverte: pageOuverte(nav.rubriques, nav.compte, pathname) };
 }
 

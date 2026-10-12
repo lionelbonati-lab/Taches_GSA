@@ -4,7 +4,7 @@ import { UNIT_TYPES } from './units';
 // Navigation : quelques rubriques, chacune avec ses pages (sous-onglets). Les adresses des pages ne changent pas
 // (liens déjà envoyés, raccourcis installés). Le texte « aide » s'affiche en haut de la page et dans « Comment ça marche ? ».
 
-export type NavPage = { to: string; label: string; icon: string; aide: string; perm?: Permission; club?: boolean; registre?: boolean };
+export type NavPage = { to: string; label: string; icon: string; aide: string; perm?: Permission; club?: boolean; registre?: boolean; demandes?: boolean; superAdmin?: boolean };
 export type NavRubrique = { id: string; label: string; icon: string; mobile?: boolean; pages: NavPage[] };
 
 const RUBRIQUES: NavRubrique[] = [
@@ -77,6 +77,21 @@ export const PAGES_COMPTE: NavPage[] = [
   { to: '/reglages', label: 'Réglages', icon: '⚙️', aide: 'Ton compte, l’affichage, les notifications et la sauvegarde.' },
   { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access', aide: 'Les réglages de l’entité, réservés à ses admins. Choisis ce que tu veux régler.' },
   {
+    to: '/mots-de-passe',
+    label: 'Mots de passe oubliés',
+    icon: '🔑',
+    perm: 'admin.access',
+    demandes: true,
+    aide: 'Des membres de l’entité ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
+  },
+  {
+    to: '/comptes',
+    label: 'Comptes du club',
+    icon: '🔐',
+    superAdmin: true,
+    aide: 'Super-admin : tous les comptes du club et leurs entités. Nouveau mot de passe provisoire, blocage, et fusion de deux comptes d’une même personne.',
+  },
+  {
     to: '/propositions',
     label: 'Proposer une amélioration',
     icon: '💡',
@@ -97,11 +112,12 @@ export function libellePage(to: string) {
   return p ? p.label : to;
 }
 
-type Acces = { can: (p: Permission) => boolean; club: boolean; registre: boolean; type: UnitType };
+type Acces = { can: (p: Permission) => boolean; club: boolean; registre: boolean; type: UnitType; demandes?: boolean; superAdmin?: boolean };
 
 /** Rubriques et pages visibles, avec les noms de l'entité ouverte (« Séances », « Réunions », « Membres »…). */
-export function navigation({ can, club, registre, type }: Acces) {
-  const visible = (p: NavPage) => (!p.perm || can(p.perm)) && (!p.club || club) && (!p.registre || registre);
+export function navigation({ can, club, registre, type, demandes = false, superAdmin = false }: Acces) {
+  const visible = (p: NavPage) =>
+    (!p.perm || can(p.perm)) && (!p.club || club) && (!p.registre || registre) && (!p.demandes || demandes) && (!p.superAdmin || superAdmin);
   const nom = (p: NavPage): NavPage =>
     p.to === '/comite' && type === 'equipe' ? { ...p, label: 'Réunions' } : p;
   const rubriques = RUBRIQUES.map((r) => {

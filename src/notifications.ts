@@ -6,6 +6,8 @@ import { isOpen } from './data/polls';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
 import { GENRES, chf, genre, holders, paiementTasks } from './data/paiements';
+import { useClubOptional } from './data/club';
+import type { DemandeMdp } from './data/cloud';
 
 // Notifications de la démo : calculées dans le navigateur à partir des données.
 // Dans la version réelle, un serveur enverrait les mêmes messages en « push », appli fermée.
@@ -45,7 +47,7 @@ export function ago(iso: string) {
   return d === 1 ? 'hier' : `il y a ${d} jours`;
 }
 
-export function computeNotifications(data: AppData, user: Person, p: NotifPrefs): NotifItem[] {
+export function computeNotifications(data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = []): NotifItem[] {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items: Omit<NotifItem, 'unread'>[] = [];
   const now = new Date().toISOString();
@@ -177,6 +179,21 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
       });
     }
 
+  // Mots de passe oubliés (version réelle) : pour les admins de l'entité, toujours affichés.
+  if (hasPermission(userRoles(data.roles, user), 'admin.access'))
+    for (const d of demandesMdp) {
+      const fiche = data.people.find((x) => x.id === d.personId);
+      items.push({
+        key: `mdp:${d.id}`,
+        icon: '🔑',
+        text: `${fiche ? fullName(fiche) : d.email} a oublié son mot de passe`,
+        sub: d.peut ? 'demande un mot de passe provisoire' : 'à valider par un admin de son entité, du comité central ou un super-admin',
+        link: '/mots-de-passe',
+        at: d.le,
+        kind: 'alerte',
+      });
+    }
+
   // Remboursements et paiements : à traiter et virement à faire (caisse), visa demandé (signataire), réponses au demandeur.
   if (p.assign) {
     const caisse = holders(data, 'paiements.payer').includes(user.id);
@@ -234,6 +251,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs)
 
 export function useNotifications() {
   const { data, user, prefs } = useStore();
+  const club = useClubOptional();
   // Recalcul chaque minute : un email programmé ou une échéance peut arriver pendant que l'appli est ouverte.
   const [, setTick] = useState(0);
   useEffect(() => {
@@ -241,7 +259,7 @@ export function useNotifications() {
     return () => clearInterval(id);
   }, []);
   const p = { ...DEFAULT_NOTIF, ...prefs.notif };
-  const items = user ? computeNotifications(data, user, p) : [];
+  const items = user ? computeNotifications(data, user, p, club?.demandesMdp) : [];
   return { items, unread: items.filter((x) => x.unread), prefs: p };
 }
 

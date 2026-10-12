@@ -4,9 +4,12 @@
 // avec ses données de départ, et l'accès de son président / responsable.
 // Les comptes sont créés ici (clé secrète, jamais dans le navigateur), adresse confirmée d'office :
 // aucun email n'est envoyé, l'admin transmet lui-même le mot de passe provisoire, à changer à la 1re connexion.
-// L'organigramme à glisser-déposer passe aussi par ici (orga.ts : placer une personne, postes, postes liés).
+// L'organigramme à glisser-déposer passe aussi par ici (orga.ts : placer une personne, postes, postes liés),
+// ainsi que les comptes du club (comptes.ts : mot de passe oublié, super-admins).
+// Mot de passe provisoire pas encore changé (app_metadata, migration 025) : aucune action, sauf la demande sans connexion.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { ACTIONS_ORGA, actionOrganigramme, Erreur } from './orga.ts';
+import { ACTIONS_COMPTES, actionComptes, demandeMdp, donnerMdpProvisoire, ErreurCompte, estSuperAdmin, peutApprouver, provisoire, tempPassword } from './comptes.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -24,12 +27,6 @@ function secretKey() {
     /* clé héritée ci-dessous */
   }
   return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-}
-
-const ALPHABET = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-function tempPassword() {
-  const s = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => ALPHABET[b % ALPHABET.length]).join('');
-  return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8)}`;
 }
 
 type Db = SupabaseClient;
@@ -127,10 +124,6 @@ Deno.serve(async (req) => {
   if (req.method !== 'POST') return json({ error: 'Méthode non autorisée' }, 405);
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, secretKey(), { auth: { persistSession: false, autoRefreshToken: false } });
-  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const { data: me } = await db.auth.getUser(token);
-  if (!me?.user) return json({ error: 'Connexion requise.' }, 401);
-
   let body: Record<string, unknown>;
   try {
     body = await req.json();
@@ -138,6 +131,23 @@ Deno.serve(async (req) => {
     return json({ error: 'Requête invalide.' }, 400);
   }
   const action = String(body.action ?? '');
+
+  // Mot de passe oublié : sans connexion.
+  if (action === 'demandeMdp') return json(await demandeMdp(db, body));
+
+  const token = (req.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const { data: me } = await db.auth.getUser(token);
+  if (!me?.user) return json({ error: 'Connexion requise.' }, 401);
+  if (me.user.app_metadata?.doit_changer_mdp === true) return json({ error: 'Choisis d’abord ton propre mot de passe (mot de passe provisoire).' }, 403);
+
+  // Comptes du club : demandes de mot de passe, super-admins (comptes.ts).
+  if (ACTIONS_COMPTES.has(action)) {
+    try {
+      return json(await actionComptes(db, me.user.id, action, body));
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, e instanceof ErreurCompte ? e.status : 400);
+    }
+  }
   const committeeId = String(body.committeeId ?? '');
   const personId = body.personId ? String(body.personId) : '';
 
@@ -159,7 +169,7 @@ Deno.serve(async (req) => {
     const out = [];
     for (const r of rows ?? []) {
       const { data: u } = await db.auth.admin.getUserById(r.user_id);
-      out.push({ personId: r.person_id, owner: r.owner, email: u.user?.email, derniereConnexion: u.user?.last_sign_in_at, provisoire: !!u.user?.user_metadata?.doit_changer_mdp });
+      out.push({ personId: r.person_id, owner: r.owner, email: u.user?.email, derniereConnexion: u.user?.last_sign_in_at, provisoire: provisoire(u.user) });
     }
     return json({ acces: out });
   }
@@ -190,7 +200,7 @@ Deno.serve(async (req) => {
     if (!chefUser) {
       password = tempPassword();
       const fullName = `${u.chef.data.prenom ?? ''} ${u.chef.data.nom ?? ''}`.trim();
-      const { data, error: e } = await db.auth.admin.createUser({ email: u.email, password, email_confirm: true, user_metadata: { full_name: fullName, doit_changer_mdp: true } });
+      const { data, error: e } = await db.auth.admin.createUser({ email: u.email, password, email_confirm: true, app_metadata: { doit_changer_mdp: true }, user_metadata: { full_name: fullName, doit_changer_mdp: true } });
       if (e || !data.user) return json({ unitId, email: u.email, error: `Entité créée, mais pas l’accès : ${e?.message ?? 'erreur'}. Crée-le depuis sa console admin.` }, 200);
       chefUser = data.user.id;
     }
@@ -316,7 +326,7 @@ Deno.serve(async (req) => {
       if (other) return json({ error: 'Ce compte est déjà lié à une autre fiche de ce comité.' }, 409);
     } else {
       password = tempPassword();
-      const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { full_name: fullName, doit_changer_mdp: true } });
+      const { data, error } = await db.auth.admin.createUser({ email, password, email_confirm: true, app_metadata: { doit_changer_mdp: true }, user_metadata: { full_name: fullName, doit_changer_mdp: true } });
       if (error || !data.user) return json({ error: error?.message ?? 'Création du compte impossible.' }, 400);
       user = data.user;
     }
@@ -327,21 +337,21 @@ Deno.serve(async (req) => {
 
   if (action === 'reinitialiser') {
     if (!link) return json({ error: 'Ce responsable n’a pas d’accès.' }, 404);
-    if (link.owner && link.user_id !== me.user.id) return json({ error: 'Seul le propriétaire peut réinitialiser son propre mot de passe.' }, 403);
-    // Un même compte peut servir dans plusieurs entités du club : il faut être admin de chacune
-    // (sinon le responsable d'un groupe pourrait prendre le compte du président du club).
-    if (link.user_id !== me.user.id) {
-      const { data: all } = await db.from('gsa_members').select('committee_id, owner').eq('user_id', link.user_id);
-      for (const o of all ?? []) {
-        if (o.owner || !(await isAdmin(db, o.committee_id, me.user.id)))
-          return json({ error: 'Ce compte sert aussi dans une autre entité du club : seul un admin de chacune de ses entités peut lui donner un nouveau mot de passe.' }, 403);
-      }
+    // Un même compte sert dans plusieurs entités du club : un admin de l'une d'elles suffit, sauf pour le compte d'un
+    // admin d'une autre entité, d'un propriétaire ou d'un super-admin (gsa_peut_approuver_mdp, migration 025).
+    if (link.user_id !== me.user.id && !(await peutApprouver(db, me.user.id, link.user_id))) {
+      const proprio = link.owner || (await estSuperAdmin(db, link.user_id));
+      return json({
+        error: proprio
+          ? 'Compte du propriétaire ou d’un super-admin : seul un super-admin peut lui donner un nouveau mot de passe.'
+          : 'Ce compte est aussi celui d’un admin d’une autre entité : un admin de cette entité, du comité central ou un super-admin doit le faire.',
+      }, 403);
     }
-    const { data: u } = await db.auth.admin.getUserById(link.user_id);
-    const password = tempPassword();
-    const { error } = await db.auth.admin.updateUserById(link.user_id, { password, user_metadata: { ...(u.user?.user_metadata ?? {}), doit_changer_mdp: true } });
-    if (error) return json({ error: error.message }, 400);
-    return json({ email: u.user?.email, password });
+    try {
+      return json(await donnerMdpProvisoire(db, link.user_id));
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, e instanceof ErreurCompte ? e.status : 400);
+    }
   }
 
   if (action === 'retirer') {

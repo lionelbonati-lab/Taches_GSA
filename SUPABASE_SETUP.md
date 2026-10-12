@@ -95,6 +95,15 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/024_gsa_visa_direct.sql` (appliqué le 08.10.2026) : **visa direct d'une facture** par la personne qui l'envoie. `gsa_paiement_check` (012) accepte qu'une facture passe à « visé » sans demande de visa, à la création ou depuis « reçu » / « refusé », si son demandeur est la personne connectée, a le droit de viser (rôle « peut viser », ou admin) et fait partie du comité, n'est pas caissier (rôle « Caisse »), si l'entité a un caissier, si la facture n'est pas à son propre nom (prénom nom ou nom prénom) et si le visa porte sa signature. Pas pour un remboursement ni pour un ticket externe (`gsa_ticket_central`). Le reste du circuit est inchangé.
 
+`supabase/migrations/025_gsa_comptes.sql` (à appliquer) : **comptes, mot de passe oublié, super-admin**.
+
+- **Mot de passe provisoire appliqué par le serveur** : le drapeau `doit_changer_mdp` est maintenant dans `app_metadata` (que l'utilisateur ne peut pas modifier) ; les comptes qui l'avaient dans `user_metadata` le reçoivent aussi. `gsa_compte_ok()` lit le jeton : tant que le drapeau est posé, `gsa_is_member`, `gsa_is_admin`, `gsa_a_droit` et `gsa_ma_fiche` répondent non, donc aucune règle d'accès ne laisse lire ni écrire (mêmes corps qu'avant sinon). Le déclencheur `gsa_mdp_change` (sur `auth.users`) retire le drapeau quand l'utilisateur change lui-même son mot de passe ; un mot de passe provisoire donné par la fonction `gsa-acces` le repose.
+- **Super-admins** (`gsa_super_admins`, `gsa_est_super_admin()`) : au-dessus des entités ; au départ, le ou les propriétaires du comité central. En ajouter un : `insert into public.gsa_super_admins (user_id) select id from auth.users where email = '<adresse>';`
+- **Demandes de mot de passe** (`gsa_demandes_mdp`, lue seulement par le serveur) : `gsa_demandes_mdp_entite(entité)` donne à ses admins les demandes en attente (7 jours) de ses membres, avec `peut` = l'appelant peut la valider (`gsa_peut_approuver_mdp` : super-admin ; sinon admin d'une entité où la personne est membre active, jamais pour soi, un propriétaire ou un super-admin, et pour chaque entité où la personne est admin, admin de cette entité ou du comité central).
+- Pour la fonction `gsa-acces` seulement : `gsa_comptes_club()` (comptes, entités, état), `gsa_compte_par_email`, `gsa_fusionner_comptes(garder, absorber)` (rattachements, super-admin, tickets envoyés à la caisse centrale, propositions, entités créées).
+
+Ajout pur, sauf le drapeau recopié dans `app_metadata` ; les données des entités ne changent pas.
+
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
 ## Fonction serveur `gsa-acces`
@@ -107,9 +116,39 @@ Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people
 - `retirer` : supprime le lien (le compte n'a plus accès au comité).
 - `creerUnite` (admins du comité central) : crée une entité avec ses données de départ, crée le compte de son responsable s'il n'existe pas (mot de passe provisoire) et rattache les membres de départ qui ont déjà un compte (même adresse email).
 - `responsable` (admins du comité central, ou de l'entité ; déployée le 07.10.2026) : organigramme câblé, désigne le responsable d'un sous-comité, groupe ou équipe. Reprend sa fiche dans l'entité (fiche du registre ou même adresse) ou la crée, lui donne le rôle Admin et sa fonction, et, sauf « garder aussi », retire le rôle Admin aux responsables actuels (ils restent membres). S'il a déjà un compte dans le club (même adresse), il est rattaché à l'entité ; sinon on crée son accès depuis sa fiche.
+- **Mot de passe oublié et comptes** (`comptes.ts`, avec la migration 025) :
+  - `demandeMdp` (sans connexion) : enregistre une demande aux admins ; même réponse que l'adresse existe ou non ; 3 par compte et par jour, 30 par heure en tout ;
+  - `approuverMdp` / `refuserMdp` : un admin qui peut la valider (règle `gsa_peut_approuver_mdp`) donne un mot de passe provisoire (renvoyé une seule fois) ou refuse ; les autres demandes de la personne sont closes ;
+  - super-admins : `comptes` (liste du club), `reinitialiserCompte`, `bloquer` / `debloquer` (pas soi-même), `fusionner` (puis suppression du compte fondu, ou blocage si la suppression échoue).
+  - Un compte au mot de passe provisoire ne peut appeler aucune action (sauf `demandeMdp`). `reinitialiser` suit aussi la règle `gsa_peut_approuver_mdp`.
 - **Organigramme** (déployé le 08.10.2026 ; tout membre du club, droits vérifiés par le serveur) : `organiser` applique un changement de l'organigramme (placer une personne, créer, renommer, lier ou supprimer un poste) avec le moteur de `src/data/organigramme.ts`, rassemblé dans `organigramme.js` par `npm run fonction` (à relancer, puis redéployer, quand ce moteur change). Seuls les admins d'une entité ou du comité central modifient ses fiches ; ce qui suit par un poste lié suit. Il renvoie un **jeton d'annulation** (chiffré, 30 minutes, pour son auteur) : `annulerOrga` remet les fiches touchées comme avant, sauf si quelqu'un les a changées entre-temps. `postes` : à la première ouverture, déduit les postes des fonctions de chacun (sans changer aucun rôle) ; `suivre` : après une modification de fiches (fonction renommée, personne retirée…), met à jour les postes et les postes liés ; `lierEntite` : à la création ou au renommage d'une entité, lie les postes qui portent son nom. Une personne nouvelle est inscrite au registre « Membres du club » ; ses coordonnées viennent toujours du registre.
 
-Aucun email n'est envoyé par Supabase (le serveur d'email par défaut est très limité) : l'admin transmet lui-même le mot de passe provisoire.
+Les mots de passe provisoires ne partent pas par email : l'admin les transmet lui-même.
+
+## Emails du mot de passe oublié
+
+Le lien « 📧 Recevoir un lien par email » passe par le serveur d'emails de Supabase. Celui fourni d'office n'envoie qu'aux membres de l'équipe du projet (et 2 emails par heure) : il faut un serveur SMTP. Tant qu'il n'est pas réglé, l'appli propose de demander aux admins.
+
+1. **Brevo** (gratuit, 300 emails par jour) : créer un compte sur brevo.com, puis :
+   - *Senders, Domains & Dedicated IPs* › ajouter et valider l'adresse d'envoi (par ex. l'adresse du club) ;
+   - *SMTP & API* › onglet *SMTP* › **Generate a new SMTP key**. Noter le serveur (`smtp-relay.brevo.com`, port `587`), l'identifiant (`…@smtp-brevo.com`) et la clé.
+2. **Supabase** › *Authentication* › *Emails* › *SMTP Settings* : activer **Enable custom SMTP** ; adresse d'envoi = l'adresse validée chez Brevo, nom = « Tâches GSA » ; serveur, port, identifiant, mot de passe = la clé SMTP.
+3. *Authentication* › *URL Configuration* :
+   - **Site URL** : `https://lionelbonati-lab.github.io/Taches_GSA/`
+   - **Redirect URLs** : ajouter `https://lionelbonati-lab.github.io/Taches_GSA/**`
+4. *Authentication* › *Emails* › *Templates* › **Reset password** :
+   - Sujet : `Tâches GSA – choisir un nouveau mot de passe`
+   - Corps :
+     ```html
+     <h2>Nouveau mot de passe</h2>
+     <p>Bonjour,</p>
+     <p>Tu as demandé à changer ton mot de passe de Tâches GSA. Clique sur le lien ci-dessous pour en choisir un nouveau :</p>
+     <p><a href="https://lionelbonati-lab.github.io/Taches_GSA/?reel&mdp={{ .TokenHash }}">Choisir mon nouveau mot de passe</a></p>
+     <p>Ce lien est valable 1 heure et ne fonctionne qu'une seule fois. Si tu n'as rien demandé, ignore ce message : ton mot de passe ne change pas.</p>
+     ```
+   Le lien ouvre l'appli, qui vérifie le jeton (`verifyOtp`) : il marche aussi sur un autre appareil que celui de la demande. (Avec le modèle d'origine de Supabase, le lien marche aussi, sur le même navigateur.)
+5. *Authentication* › *Sign In / Providers* › *Email* : **Email OTP Expiration** = `3600` (1 heure, valeur par défaut).
+6. Essai : page de connexion › « Mot de passe oublié » › « 📧 Recevoir un lien par email » avec sa propre adresse.
 
 ## Mise en route
 
