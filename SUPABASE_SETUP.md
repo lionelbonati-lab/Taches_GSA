@@ -95,7 +95,7 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 
 `supabase/migrations/024_gsa_visa_direct.sql` (appliqué le 08.10.2026) : **visa direct d'une facture** par la personne qui l'envoie. `gsa_paiement_check` (012) accepte qu'une facture passe à « visé » sans demande de visa, à la création ou depuis « reçu » / « refusé », si son demandeur est la personne connectée, a le droit de viser (rôle « peut viser », ou admin) et fait partie du comité, n'est pas caissier (rôle « Caisse »), si l'entité a un caissier, si la facture n'est pas à son propre nom (prénom nom ou nom prénom) et si le visa porte sa signature. Pas pour un remboursement ni pour un ticket externe (`gsa_ticket_central`). Le reste du circuit est inchangé.
 
-`supabase/migrations/025_gsa_comptes.sql` (à appliquer) : **comptes, mot de passe oublié, super-admin**.
+`supabase/migrations/025_gsa_comptes.sql` (appliqué le 12.10.2026) : **comptes, mot de passe oublié, super-admin**.
 
 - **Mot de passe provisoire appliqué par le serveur** : le drapeau `doit_changer_mdp` est maintenant dans `app_metadata` (que l'utilisateur ne peut pas modifier) ; les comptes qui l'avaient dans `user_metadata` le reçoivent aussi. `gsa_compte_ok()` lit le jeton : tant que le drapeau est posé, `gsa_is_member`, `gsa_is_admin`, `gsa_a_droit` et `gsa_ma_fiche` répondent non, donc aucune règle d'accès ne laisse lire ni écrire (mêmes corps qu'avant sinon). Le déclencheur `gsa_mdp_change` (sur `auth.users`) retire le drapeau quand l'utilisateur change lui-même son mot de passe ; un mot de passe provisoire donné par la fonction `gsa-acces` le repose.
 - **Super-admins** (`gsa_super_admins`, `gsa_est_super_admin()`) : au-dessus des entités ; au départ, le ou les propriétaires du comité central. En ajouter un : `insert into public.gsa_super_admins (user_id) select id from auth.users where email = '<adresse>';`
@@ -116,7 +116,7 @@ Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people
 - `retirer` : supprime le lien (le compte n'a plus accès au comité).
 - `creerUnite` (admins du comité central) : crée une entité avec ses données de départ, crée le compte de son responsable s'il n'existe pas (mot de passe provisoire) et rattache les membres de départ qui ont déjà un compte (même adresse email).
 - `responsable` (admins du comité central, ou de l'entité ; déployée le 07.10.2026) : organigramme câblé, désigne le responsable d'un sous-comité, groupe ou équipe. Reprend sa fiche dans l'entité (fiche du registre ou même adresse) ou la crée, lui donne le rôle Admin et sa fonction, et, sauf « garder aussi », retire le rôle Admin aux responsables actuels (ils restent membres). S'il a déjà un compte dans le club (même adresse), il est rattaché à l'entité ; sinon on crée son accès depuis sa fiche.
-- **Mot de passe oublié et comptes** (`comptes.ts`, avec la migration 025) :
+- **Mot de passe oublié et comptes** (`comptes.ts`, avec la migration 025 ; déployé le 12.10.2026) :
   - `demandeMdp` (sans connexion) : enregistre une demande aux admins ; même réponse que l'adresse existe ou non ; 3 par compte et par jour, 30 par heure en tout ;
   - `approuverMdp` / `refuserMdp` : un admin qui peut la valider (règle `gsa_peut_approuver_mdp`) donne un mot de passe provisoire (renvoyé une seule fois) ou refuse ; les autres demandes de la personne sont closes ;
   - super-admins : `comptes` (liste du club), `reinitialiserCompte`, `bloquer` / `debloquer` (pas soi-même), `fusionner` (puis suppression du compte fondu, ou blocage si la suppression échoue).
