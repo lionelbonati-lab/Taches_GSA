@@ -297,6 +297,9 @@ export interface SeancesDuComite {
   seances: { id: string; titre: string; date: string; heure?: string }[];
 }
 
+/** Sections des entités qui dépendent de l'entité ouverte, par entité (gsa_sections_dependantes, 033) : nom seulement. */
+export type SectionsDependantes = Record<string, { id: string; nom: string }[]>;
+
 /** Origine d'une tâche proposée au comité central. */
 export interface Proposal {
   uniteId: string;

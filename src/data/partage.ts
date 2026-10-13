@@ -31,11 +31,42 @@ const contientTout = (texte: string, nom: string) => {
 
 export const estEvenement = (type: UnitType) => type === 'sous-comite' || type === 'equipe';
 
+/** Section des événements (« Événements », « Manifestations ») : les tâches partagées par un événement y sont rangées. */
+export const estSectionEvenements = (nom: string) => /evenement|manifestation/.test(norm(nom));
+/** Sous-section de l'événement `u` dans la section des événements (« Bruntrutaine 27.02.27 » pour « CO Bruntrutaine »), sinon son nom. */
+export const sousSectionDe = (sousSections: string[], u: { nom: string }) => sousSections.find((x) => contientTout(x, u.nom)) ?? u.nom;
+/** Entité dont la section `nom` porte le nom (même règle que placeAuto) : même nom, sinon tous les mots de son nom. */
+export const entiteDeSection = <U extends { nom: string }>(nom: string, units: U[]): U | undefined =>
+  units.find((u) => norm(u.nom) === norm(nom)) ?? units.find((u) => contientTout(nom, u.nom));
+
 /** Entités avec qui la tâche est partagée (l'ancienne case « Transmettre au comité central » compte pour le comité central). */
 export function partageDe(t: Pick<Task, 'partage' | 'auCentral'>, centralId?: string | null): string[] {
   const l = [...(t.partage ?? [])];
   if (t.auCentral && centralId && !l.includes(centralId)) l.push(centralId);
   return l;
+}
+
+/**
+ * Tâche partagée (oui) ou plus partagée (non) avec l'entité `id`. Plus partagée : ses responsables et sa place dans cette
+ * entité, et la séance de cette entité, sont retirés (le délai lié est à recalculer : applyDelaiRef).
+ */
+export function avecPartage<T extends Pick<Task, 'partage' | 'auCentral' | 'respPartage' | 'placePartage' | 'seanceComite'>>(x: T, id: string, oui: boolean, centralId?: string | null): T {
+  const l = partageDe(x, centralId);
+  const next = oui ? (l.includes(id) ? l : [...l, id]) : l.filter((y) => y !== id);
+  const respPartage = { ...x.respPartage };
+  const placePartage = { ...x.placePartage };
+  if (!oui) {
+    delete respPartage[id];
+    delete placePartage[id];
+  }
+  return {
+    ...x,
+    seanceComite: !oui && x.seanceComite?.uniteId === id ? undefined : x.seanceComite,
+    partage: next.length ? next : undefined,
+    auCentral: undefined,
+    respPartage: Object.keys(respPartage).length ? respPartage : undefined,
+    placePartage: Object.keys(placePartage).length ? placePartage : undefined,
+  };
 }
 
 /** Les trois choix de tachesDependance (sans choix : « partagees »). */
@@ -113,8 +144,8 @@ type SectionLue = Pick<Section, 'id' | 'nom'> & { sousSections?: string[] };
 /** Place automatique d'une tâche partagée dans les sections de l'entité qui la reçoit. */
 export function placeAuto<S extends SectionLue>(sections: S[], u: { nom: string; type: UnitType }): { section?: S; nomSection: string; sousSection: string } {
   if (estEvenement(u.type)) {
-    const ev = sections.find((s) => /evenement|manifestation/.test(norm(s.nom)));
-    if (ev) return { section: ev, nomSection: ev.nom, sousSection: ev.sousSections?.find((x) => contientTout(x, u.nom)) ?? u.nom };
+    const ev = sections.find((s) => estSectionEvenements(s.nom));
+    if (ev) return { section: ev, nomSection: ev.nom, sousSection: sousSectionDe(ev.sousSections ?? [], u) };
   }
   const section = sections.find((s) => norm(s.nom) === norm(u.nom)) ?? sections.find((s) => contientTout(s.nom, u.nom));
   return { section, nomSection: section?.nom ?? u.nom, sousSection: '' };

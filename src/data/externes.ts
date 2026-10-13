@@ -1,5 +1,5 @@
-import type { AgendaClubEvent, EvenementEntite, OrgUnit, SeanceComite, SeancesDuComite, Task } from './types';
-import { estEvenement } from './partage';
+import type { AgendaClubEvent, EvenementEntite, OrgUnit, SeanceComite, SeancesDuComite, Section, SectionsDependantes, Task } from './types';
+import { entiteDeSection, estEvenement, estSectionEvenements, sousSectionDe } from './partage';
 import { parentDans } from './units';
 import { endOf } from './utils';
 
@@ -10,16 +10,63 @@ import { endOf } from './utils';
 // La tâche garde une copie du nom et de la date (délai lié : utils.delaiTarget) ; suivreExternes la met à jour quand la
 // séance ou l'événement change.
 
-/** Événements du club (sous-comités, équipes d'événement) qui dépendent de `moi` (« Dépend de »), hors archivés. */
-export function evenementsDependants(units: OrgUnit[], moi: OrgUnit): OrgUnit[] {
+/** Entités du club (groupes, sous-comités, équipes d'événement) qui dépendent de `moi` (« Dépend de »), hors archivées. */
+export function entitesDependantes(units: OrgUnit[], moi: OrgUnit): OrgUnit[] {
   const actives = units.filter((u) => !u.archive);
   return actives
-    .filter((u) => u.id !== moi.id && estEvenement(u.type) && parentDans(actives, u)?.id === moi.id)
+    .filter((u) => u.id !== moi.id && parentDans(actives, u)?.id === moi.id)
     .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.nom.localeCompare(b.nom, 'fr'));
 }
 
-/** Tâche qui concerne l'événement `uniteId` (qui dépend du comité ouvert) : partagée par lui, ou liée à lui. */
-export const tacheDeLEvenement = (t: Task, uniteId: string) => t.source?.uniteId === uniteId || (!t.source && t.evenementEntite?.uniteId === uniteId);
+/** Événements du club (sous-comités, équipes d'événement) qui dépendent de `moi` (« Dépend de »), hors archivés. */
+export const evenementsDependants = (units: OrgUnit[], moi: OrgUnit) => entitesDependantes(units, moi).filter((u) => estEvenement(u.type));
+
+/**
+ * Tâche qui concerne l'événement `uniteId` (qui dépend du comité ouvert) : partagée par lui, ou du comité liée à lui ou
+ * partagée avec lui (attribuée à lui : section des événements › l'événement).
+ */
+export const tacheDeLEvenement = (t: Task, uniteId: string) =>
+  t.source?.uniteId === uniteId || (!t.source && (t.evenementEntite?.uniteId === uniteId || !!t.partage?.includes(uniteId)));
+
+/**
+ * Tâche du comité attribuée à une entité qui dépend de lui, depuis sa sous-section : la tâche lui est partagée et
+ * apparaît dans ses tâches.
+ *   - sous la section des événements (« Événements ») : l'un des événements qui dépendent du comité ; chez lui, la tâche
+ *     est rangée comme toute tâche partagée (placeAuto) ;
+ *   - sous la section au nom d'une entité qui dépend du comité (« École de cyclisme ») : l'une des sections de cette
+ *     entité, où la tâche est rangée chez elle (placePartage).
+ */
+export interface Attribution {
+  /** Valeur du choix : `u:<entité>` (événement), `g:<entité>:<section>` (section de l'entité). */
+  cle: string;
+  unite: OrgUnit;
+  /** Section de l'entité où ranger la tâche ; sans : rangement automatique chez elle. */
+  sectionId?: string;
+  /** Sous-section de la tâche dans le comité. */
+  sousSection: string;
+}
+
+/**
+ * Choix d'attribution sous la section `section` du comité. `unite` : l'entité dont la section porte le nom ; `lues` :
+ * ses sections sont connues (sinon : pas encore lues, ou serveur sans la migration 033).
+ */
+export function attributions(
+  section: Pick<Section, 'nom' | 'sousSections'> | undefined,
+  dependantes: OrgUnit[],
+  sections: SectionsDependantes | null | undefined,
+): { choix: Attribution[]; unite?: OrgUnit; lues: boolean } {
+  if (!section) return { choix: [], lues: true };
+  if (estSectionEvenements(section.nom))
+    return { choix: dependantes.filter((u) => estEvenement(u.type)).map((u) => ({ cle: `u:${u.id}`, unite: u, sousSection: sousSectionDe(section.sousSections, u) })), lues: true };
+  const unite = entiteDeSection(section.nom, dependantes);
+  if (!unite) return { choix: [], lues: true };
+  const l = sections?.[unite.id];
+  return { unite, lues: !!l, choix: (l || []).map((s) => ({ cle: `g:${unite.id}:${s.id}`, unite, sectionId: s.id, sousSection: s.nom })) };
+}
+
+/** Choix d'attribution de la tâche : partagée avec l'entité, à la sous-section du choix (et, chez elle, dans sa section). */
+export const attributionDe = (t: Pick<Task, 'sousSection' | 'placePartage'>, choix: Attribution[], partage: string[]) =>
+  choix.find((c) => partage.includes(c.unite.id) && t.sousSection === c.sousSection && (!c.sectionId || t.placePartage?.[c.unite.id]?.sectionId === c.sectionId));
 
 export const memeSeance = (a?: SeanceComite, b?: SeanceComite) => !!a && !!b && a.uniteId === b.uniteId && a.id === b.id;
 /** Même événement ; une édition : de la même date (l'édition passée n'est pas la suivante). */
@@ -63,6 +110,8 @@ export interface Externes {
   seances?: SeancesDuComite | null;
   /** undefined : pas encore lu (ou aucune entité ne dépend de l'entité ouverte). */
   agenda?: AgendaClubEvent[];
+  /** Sections des entités qui dépendent de l'entité ouverte ; undefined : pas encore lues ; null : serveur sans la migration 033. */
+  sections?: SectionsDependantes | null;
 }
 
 /**

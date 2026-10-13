@@ -2,7 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { evenementsDependants } from '../data/externes';
+import { entitesDependantes, evenementsDependants } from '../data/externes';
 import { nomAppli } from '../data/nomAppli';
 import { useChemin, useNavigation } from '../components/Nav';
 
@@ -38,6 +38,8 @@ export function Aide() {
     geste('Mettre une tâche à l’ordre du jour du comité dont dépend l’entité', 'Dans la tâche, « Ajouter : » › « 🔗 Lier à… » › « Séance de comité liée » : choisis une séance du comité (groupe « Séances de … »). La tâche lui est partagée et figure à l’ordre du jour et au PV de cette séance ; repère 🏛️. Pour un délai calé sur elle (« 1 semaine avant le comité d’octobre ») : « Pour quand ? » › « 📌 ou selon un événement / une séance », groupe « Selon une séance de … » ; il suit la date de la séance.');
   if (club && chemin('/evenements'))
     geste('Voir les événements qui dépendent du comité', vers('/evenements'), ' : les sous-comités et équipes d’événement qui en dépendent y sont à la date de leur prochaine édition, marqués « dépend de ce comité », avec l’avancement de leurs tâches partagées et des tâches du comité liées à eux (« Voir les tâches → »).');
+  if (club && entitesDependantes(club.units, club.current).length)
+    geste('Attribuer une tâche du comité à un événement ou à un groupe qui dépend de lui', 'Dans la tâche, choisis la section « Événements », puis dans « Sous-section » l’un des « Événements qui dépendent de … » ; ou la section au nom du groupe (« École de cyclisme »), puis l’une de ses sections (« Sections de … »). La tâche lui est partagée : elle apparaît dans ses tâches (dans la section choisie pour un groupe).');
   if (club && evenementsDependants(club.units, club.current).length)
     geste('Lier une tâche du comité à un événement qui dépend de lui', 'Dans la tâche, « 🔗 Lier à… » › « Événement lié », groupe « Événements qui dépendent de … » : sa prochaine édition ou l’un de ses événements. Pour un délai calé sur lui (« 1 semaine avant la soirée ») : « Pour quand ? » › « 📌 ou selon un événement / une séance ». Le nom et la date suivent les changements de l’événement.');
   if (club) geste('Passer à une autre entité (sous-comité, groupe, équipe)', 'Le nom de l’entité en haut à gauche ▾ (l’organigramme du club y est aussi). Chaque entité a ses propres tâches, séances et membres.');

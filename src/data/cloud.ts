@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, SeancesDuComite, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
 import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -664,6 +664,23 @@ export async function fetchSeancesComite(unite: string): Promise<SeancesDuComite
   }
   const r = (data ?? {}) as Partial<SeancesDuComite>;
   return { comite: typeof r.comite === 'string' ? r.comite : '', seances: Array.isArray(r.seances) ? r.seances : [] };
+}
+
+/** Sections des entités qui dépendent de l'entité (033) ; null si le serveur ne les donne pas encore. */
+export async function fetchSectionsDependantes(unite: string): Promise<SectionsDependantes | null> {
+  const { data, error } = await sb().rpc('gsa_sections_dependantes', { unite });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') return null;
+    throw new Error(error.message);
+  }
+  const out: SectionsDependantes = {};
+  for (const r of Array.isArray(data) ? (data as { uniteId?: unknown; sections?: unknown }[]) : []) {
+    if (typeof r?.uniteId !== 'string' || !Array.isArray(r.sections)) continue;
+    out[r.uniteId] = (r.sections as { id?: unknown; nom?: unknown }[])
+      .filter((x) => typeof x?.id === 'string' && typeof x.nom === 'string')
+      .map((x) => ({ id: x.id as string, nom: x.nom as string }));
+  }
+  return out;
 }
 
 /** Anciennes tâches des entités qui dépendent de l'entité (lecture et copie, 030) ; null si le serveur ne les gère pas encore. */

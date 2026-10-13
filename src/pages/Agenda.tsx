@@ -428,8 +428,8 @@ export function Events() {
 
 /**
  * Événement du club qui dépend du comité ouvert : sa prochaine édition, sa description, ses propres événements à venir
- * et l'avancement des tâches qui le concernent ici (partagées par lui, ou du comité liées à lui). Il s'ouvre d'ici pour
- * qui en fait partie.
+ * et l'avancement des tâches qui le concernent ici (partagées par lui, ou du comité liées à lui ou partagées avec lui).
+ * Il s'ouvre d'ici pour qui en fait partie.
  */
 function EvenementDependant({ u }: { u: OrgUnit }) {
   const { data, externes } = useStore();
@@ -458,7 +458,7 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
         )}
         {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
         <Link to={`/taches?event=${encodeURIComponent(`u:${u.id}`)}`}>Voir les tâches →</Link>
-        {!taches.length && <small className="muted"> Aucune pour l’instant : lie une tâche à « {u.nom} » (« Événement lié » ou « Pour quand ? »), ou elle partage les siennes.</small>}
+        {!taches.length && <small className="muted"> Aucune pour l’instant : range une tâche sous « Événements » › « {u.nom} », ou lie-la à lui (« Événement lié » ou « Pour quand ? ») ; ou il partage les siennes.</small>}
       </div>
       {membre && <button className="btn small" onClick={() => club.switchUnit(u.id, '#/evenements')} title={`Ouvrir « ${u.nom} »`}>Ouvrir</button>}
     </article>

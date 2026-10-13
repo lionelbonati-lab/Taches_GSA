@@ -115,6 +115,9 @@ export function Tasks() {
 
   if (!user) return null;
   const sec = data.sections.find((s) => s.id === f.section);
+  // Sous-sections de la section, et celles de ses tâches hors de la liste (ex. section d'une entité à qui elles sont attribuées).
+  const sousDe = (x?: typeof sec) =>
+    x ? [...new Set([...x.sousSections, ...data.tasks.filter((t) => t.sectionId === x.id && t.sousSection).map((t) => t.sousSection)])] : [];
   const activeFilters = Object.entries(f).filter(([, v]) => v).length;
 
   const setStatus = (t: Task, statusId: string) => {
@@ -174,7 +177,7 @@ export function Tasks() {
         </select>
         <select value={f.sous} disabled={!sec} onChange={(e) => setF({ ...f, sous: e.target.value })}>
           <option value="">Toutes sous-sections</option>
-          {sec?.sousSections.map((s) => <option key={s}>{s}</option>)}
+          {sousDe(sec).map((s) => <option key={s}>{s}</option>)}
         </select>
         {effScope === 'toutes' && (
           <select value={f.resp} onChange={(e) => setF({ ...f, resp: e.target.value })}>

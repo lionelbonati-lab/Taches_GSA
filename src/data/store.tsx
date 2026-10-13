@@ -13,7 +13,7 @@ import { applyRows, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, texteAutres, versOrigine } from './partage';
-import { evenementsDependants, suivreExternes, type Externes } from './externes';
+import { entitesDependantes, evenementsDependants, suivreExternes, type Externes } from './externes';
 import { parentDans } from './units';
 
 // Couche de données. Démo : tout vit en mémoire et dans le localStorage du navigateur.
@@ -309,7 +309,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const [sondagesRecus, setSondagesRecus] = useState<SondagePartage[]>([]);
   const [sondagesEntites, setSondagesEntites] = useState(false);
   const lectureSondages = useRef(0);
-  // Séances du comité dont l'entité dépend ; agenda du club, si des événements dépendent d'elle (tâches liées : externes.ts).
+  // Séances du comité dont l'entité dépend ; agenda du club, si des événements dépendent d'elle (tâches liées : externes.ts) ;
+  // sections des entités qui dépendent d'elle (tâche attribuée à l'une d'elles).
   const [externes, setExternes] = useState<Externes>({});
   const lectureExternes = useRef(0);
   const chargerPartagees = useCallback(() => {
@@ -338,6 +339,11 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     if (evenementsDependants(c.units, c.current).length) {
       c.agendaClub()
         .then((agenda) => x === lectureExternes.current && setExternes((e) => ({ ...e, agenda })))
+        .catch(() => {});
+    }
+    if (entitesDependantes(c.units, c.current).length) {
+      c.sectionsDependantes()
+        .then((sections) => x === lectureExternes.current && setExternes((e) => ({ ...e, sections })))
         .catch(() => {});
     }
   }, []);

@@ -8,9 +8,9 @@ import { deleteFiles } from '../data/files';
 import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { libellePlace, partageDe, TACHES_DEPENDANCE } from '../data/partage';
+import { avecPartage, libellePlace, partageDe, TACHES_DEPENDANCE } from '../data/partage';
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
-import { choixEvenements, choixSeances, evenementsDependants, memeEvenement, memeSeance } from '../data/externes';
+import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance } from '../data/externes';
 import type { DelaiUnite, EvenementEntite, OrgUnit, Recurrence, SeanceComite, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
@@ -44,7 +44,7 @@ export function TaskModal(props: TaskModalProps) {
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage';
 
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask, autresResp } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask, autresResp, externes } = useStore();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   const [t, setT] = useState<Task>(() => (isNew ? { ...task, responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)) } : task));
   const [newItem, setNewItem] = useState('');
@@ -72,27 +72,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const reglage = club ? reglageTaches(club.units, club.current) : undefined;
   const comiteEntier = !!club && auComiteEntier(club.units, club.current);
   const parentIci = club && reglage && reglage !== 'partagees' && !t.source ? parentDans(club.units.filter((u) => !u.archive), club.current) : undefined;
-  const togglePartage = (id: string) =>
-    setT((x) => {
-      const l = partageDe(x, club?.central?.id);
-      const retire = l.includes(id);
-      const next = retire ? l.filter((y) => y !== id) : [...l, id];
-      const respPartage = { ...x.respPartage };
-      const placePartage = { ...x.placePartage };
-      if (retire) {
-        delete respPartage[id];
-        delete placePartage[id];
-      }
-      // Plus partagée avec le comité : plus à l'ordre du jour de sa séance (ni de délai selon elle).
-      return applyDelaiRef(data, {
-        ...x,
-        seanceComite: retire && x.seanceComite?.uniteId === id ? undefined : x.seanceComite,
-        partage: next.length ? next : undefined,
-        auCentral: undefined,
-        respPartage: Object.keys(respPartage).length ? respPartage : undefined,
-        placePartage: Object.keys(placePartage).length ? placePartage : undefined,
-      });
-    });
+  // Plus partagée avec le comité : plus à l'ordre du jour de sa séance (ni de délai selon elle).
+  const togglePartage = (id: string) => setT((x) => applyDelaiRef(data, avecPartage(x, id, !partageDe(x, club?.central?.id).includes(id), club?.central?.id)));
   const autres = autresResp(t);
 
   const editable = isNew ? true : canEditTask(task);
@@ -101,6 +82,28 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   // Sections proposées : celles où le rôle permet de créer (+ la section actuelle en modification).
   const sectionChoices = data.sections.filter((s) => creatableSections().some((c) => c.id === s.id) || s.id === task.sectionId);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
+  // Sous-section : aussi les événements qui dépendent du comité (section des événements), ou les sections de l'entité qui
+  // dépend de lui et dont la section porte le nom ; la tâche lui est alors attribuée (partagée, rangée chez elle).
+  const centralId = club?.central?.id;
+  const att = attributions(section, club && !t.source && !t.paiement ? entitesDependantes(club.units, club.current) : [], externes.sections);
+  const attribuee = attributionDe(t, att.choix, partage);
+  const attendSections = !!att.unite && !att.lues && externes.sections === null;
+  const sousSections = [...(section?.sousSections ?? [])];
+  if (t.sousSection && !attribuee && !sousSections.includes(t.sousSection)) sousSections.push(t.sousSection);
+  /** Autre section ou sous-section : l'entité à qui la tâche était attribuée ne la partage plus. */
+  const sansAttribution = (x: Task, garde?: string) => {
+    const avant = attributionDe(x, att.choix, partageDe(x, centralId));
+    return avant && avant.unite.id !== garde ? avecPartage(x, avant.unite.id, false, centralId) : x;
+  };
+  const changerSection = (sectionId: string) => setT((x) => applyDelaiRef(data, { ...sansAttribution(x), sectionId, sousSection: '' }));
+  const changerSous = (v: string) =>
+    setT((x) => {
+      const c = att.choix.find((y) => y.cle === v);
+      if (!c) return applyDelaiRef(data, { ...sansAttribution(x), sousSection: v.replace(/^s:/, '') });
+      const y = avecPartage(sansAttribution(x, c.unite.id), c.unite.id, true, centralId);
+      const placePartage = c.sectionId ? { ...y.placePartage, [c.unite.id]: { sectionId: c.sectionId, sousSection: '' } } : y.placePartage;
+      return applyDelaiRef(data, { ...y, sousSection: c.sousSection, placePartage });
+    });
   const assignable = data.people.filter((p) => p.actif && (canAssignOthers || p.id === user.id));
 
   const addItem = () => {
@@ -228,19 +231,30 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         </label>
         <label>
           Section
-          <select value={t.sectionId} disabled={dis} onChange={(e) => setT((x) => ({ ...x, sectionId: e.target.value, sousSection: '' }))}>
+          <select value={t.sectionId} disabled={dis} onChange={(e) => changerSection(e.target.value)}>
             <option value="">— Choisir —</option>
             {sectionChoices.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
           </select>
         </label>
         <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />
-        {(!!section?.sousSections.length || !!t.sousSection) && (
+        {(sousSections.length > 0 || att.choix.length > 0 || attendSections) && (
           <label>
             Sous-section
-            <select value={t.sousSection} disabled={dis || !section} onChange={(e) => set('sousSection', e.target.value)}>
+            <select value={attribuee?.cle ?? (t.sousSection && `s:${t.sousSection}`)} disabled={dis || !section} onChange={(e) => changerSous(e.target.value)}>
               <option value="">—</option>
-              {section?.sousSections.map((s) => <option key={s}>{s}</option>)}
+              {sousSections.map((s) => <option key={s} value={`s:${s}`}>{s}</option>)}
+              {att.choix.length > 0 && (
+                <optgroup label={att.unite ? `🤝 Sections de « ${att.unite.nom} »` : `🤝 Événements qui dépendent de « ${club?.current.nom ?? ''} »`}>
+                  {att.choix.map((c) => <option key={c.cle} value={c.cle}>{c.sectionId ? c.sousSection : `${UNIT_TYPES[c.unite.type].icon} ${c.unite.nom}`}</option>)}
+                </optgroup>
+              )}
             </select>
+            {attribuee && (
+              <small className="muted">
+                🤝 Partagée avec « {attribuee.unite.nom} » : elle apparaît dans ses tâches{attribuee.sectionId ? `, sous « ${attribuee.sousSection} »` : ''}.
+              </small>
+            )}
+            {attendSections && <small className="muted">Les sections de « {att.unite?.nom} » seront proposées ici après la mise à jour du serveur (migration 033).</small>}
           </label>
         )}
         {!isNew && (

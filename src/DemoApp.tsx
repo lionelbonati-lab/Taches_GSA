@@ -11,7 +11,7 @@ import { uid } from './data/utils';
 import { deleteFiles } from './data/files';
 import { fileIds } from './data/backup';
 import { demoClassique } from './data/mode';
-import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
@@ -413,6 +413,15 @@ export function DemoApp() {
           .map(({ id, titre, date, heure }) => ({ id, titre, date, heure }))
           .sort((a, b) => a.date.localeCompare(b.date));
         return { comite: comite.id, seances };
+      },
+      // Sections des entités qui dépendent de l'entité ouverte (version réelle : gsa_sections_dependantes, 033).
+      async sectionsDependantes(): Promise<SectionsDependantes> {
+        const actives = units.filter((u) => !u.archive);
+        return Object.fromEntries(
+          actives
+            .filter((u) => u.id !== current.id && parentDans(actives, u)?.id === current.id)
+            .map((u) => [u.id, loadUnitData(u.id).sections.map(({ id, nom }) => ({ id, nom }))]),
+        );
       },
       // Anciennes tâches des entités qui dépendent maintenant de l'entité ouverte : lecture et copie (version réelle :
       // gsa_anciennes_taches, 030). Sans pièces jointes (leur nombre seulement).
