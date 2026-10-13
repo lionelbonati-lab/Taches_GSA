@@ -8,11 +8,11 @@ import { fonctionsDe, nomDe, zonesFiche } from './organigramme';
 //     en titre, le nom dessous) et une carte par groupe dont le responsable siège au comité (un poste du comité lié ⛓
 //     au groupe) ; à droite, « Sans comité » : les groupes dont le responsable ne siège dans aucun comité ;
 //  2. les groupes, chacun sous sa carte : ses postes et ses bénévoles (repliés) ;
-//  3. les événements, sous le groupe qui les organise, sinon sous le cadre du comité dont ils dépendent ; et la
-//     manifestation de chaque sous-comité qui a une date.
-// Deux choses différentes : la liaison (un poste d'un comité lié ⛓ au groupe : où est sa carte de la ligne 1) et la
-// dépendance (« Dépend de » de sa fiche, toujours un comité, le comité central sans choix : là où vont ses tâches
-// partagées, son ordre du jour, sa caisse). Un groupe affiché ailleurs que dans le comité dont il dépend le dit sur sa carte.
+//  3. les événements, sous le groupe qui les organise (un poste du groupe lié ⛓ à l'événement), sinon sous le cadre
+//     du comité dont ils dépendent ; et la manifestation de chaque sous-comité qui a une date.
+// Deux choses différentes : la liaison (un poste lié ⛓ : où est la carte du groupe, sous quel groupe est l'événement) et
+// la dépendance (« Dépend de » de sa fiche, toujours un comité, le comité central sans choix : là où peuvent s'afficher
+// ses tâches). Un groupe ou un événement affiché ailleurs que dans le comité dont il dépend le dit sur sa carte.
 
 export const SANS = 'sans';
 export const SANS_COMITE = '#64748b';
@@ -67,7 +67,7 @@ export interface CarteEntite {
   ancre: Ancre;
   /** Événements qu'organise ce groupe. */
   enfants: CarteEntite[];
-  /** Groupe affiché ailleurs que dans le comité dont il dépend : ce comité. */
+  /** Groupe ou événement affiché ailleurs que dans le cadre du comité dont il dépend : ce comité. */
   depend?: OrgUnit;
 }
 
@@ -158,24 +158,21 @@ export function responsablesDe(u: OrgUnit): { m?: OrgMember; fonctions: string[]
 const trierComites = (units: OrgUnit[]) =>
   units.filter(estComite).sort((a, b) => (a.type === 'central' ? -1 : b.type === 'central' ? 1 : a.nom.localeCompare(b.nom, 'fr')));
 
-/** Le comité dont dépend l'entité, en remontant « Dépend de » (un événement peut dépendre d'un groupe) ; sinon le comité central. */
+/** Le comité dont dépend l'entité (« Dépend de ») ; sinon le comité central. */
 export function comiteDe(units: OrgUnit[], u: OrgUnit): OrgUnit | undefined {
-  const vus = new Set([u.id]);
-  for (let p = parentDans(units, u); p; p = parentDans(units, p)) {
-    if (estComite(p)) return p;
-    if (vus.has(p.id)) break;
-    vus.add(p.id);
-  }
-  return units.find((x) => x.type === 'central');
+  return parentDans(units, u) ?? units.find((x) => x.type === 'central');
 }
 
 /** Comités (non archivés) qui ont un poste lié ⛓ à l'entité `id`, dans l'ordre de l'organigramme. */
 const comitesLies = (units: OrgUnit[], id: string) => trierComites(units).filter((c) => !c.archive && c.postes?.some((p) => p.lien === id));
+/** Groupes (non archivés) qui ont un poste lié ⛓ à l'événement `id` (ils l'organisent), par nom. */
+const groupesLies = (units: OrgUnit[], id: string) =>
+  units.filter((g) => g.type === 'groupe' && !g.archive && g.postes?.some((p) => p.lien === id)).sort((a, b) => a.nom.localeCompare(b.nom, 'fr'));
 
 /**
  * Cadre de chaque groupe et événement (entités archivées exclues par l'appelant). Un groupe : le comité où l'un de ses
- * responsables a un poste lié (celui dont il dépend d'abord), sinon « Sans comité ». Un événement : sous le groupe dont
- * il dépend, sinon sous le cadre de son comité.
+ * responsables a un poste lié (celui dont il dépend d'abord), sinon « Sans comité ». Un événement : sous le groupe qui
+ * a un poste lié à lui (il l'organise), sinon sous le cadre du comité dont il dépend.
  */
 export function placesEntites(units: OrgUnit[]): Map<string, Place> {
   const comites = trierComites(units);
@@ -187,15 +184,8 @@ export function placesEntites(units: OrgUnit[]): Map<string, Place> {
   }
   for (const ev of units.filter((u) => u.type === 'equipe')) {
     const depend = comiteDe(units, ev)?.id;
-    // Ce qui l'organise : un groupe (en remontant d'événement en événement), sinon son comité.
-    const vus = new Set([ev.id]);
-    let p = parentDans(units, ev);
-    while (p?.type === 'equipe' && !vus.has(p.id)) {
-      vus.add(p.id);
-      p = parentDans(units, p);
-    }
-    const g = p?.type === 'groupe' ? places.get(p.id) : undefined;
-    places.set(ev.id, g ? { cadre: g.cadre, groupe: p!.id, depend } : { cadre: depend ?? comites[0]?.id ?? SANS, depend });
+    const g = groupesLies(units, ev.id).find((x) => places.has(x.id));
+    places.set(ev.id, g ? { cadre: places.get(g.id)!.cadre, groupe: g.id, depend } : { cadre: depend ?? comites[0]?.id ?? SANS, depend });
   }
   return places;
 }
@@ -231,8 +221,11 @@ export function planOrganigramme(units: OrgUnit[], sansVide = false): PlanOrgani
   for (const ev of units.filter((u) => u.type === 'equipe').sort((a, b) => (a.date ?? '9').localeCompare(b.date ?? '9') || a.nom.localeCompare(b.nom, 'fr'))) {
     const p = places.get(ev.id)!;
     const g = p.groupe ? entites.get(p.groupe) : undefined;
-    if (g) g.enfants.push(carteEntite(ev, 3, { cle: g.cle, couleur: g.u.couleur }));
-    else sousCadre.set(p.cadre, [...(sousCadre.get(p.cadre) ?? []), carteEntite(ev, 3, { cle: `cadre:${p.cadre}`, couleur: couleurCadre(p.cadre) })]);
+    if (g) {
+      const e = carteEntite(ev, 3, { cle: g.cle, couleur: g.u.couleur });
+      if (p.depend && p.depend !== p.cadre) e.depend = parId.get(p.depend);
+      g.enfants.push(e);
+    } else sousCadre.set(p.cadre, [...(sousCadre.get(p.cadre) ?? []), carteEntite(ev, 3, { cle: `cadre:${p.cadre}`, couleur: couleurCadre(p.cadre) })]);
   }
 
   const cadres: Cadre[] = [];
@@ -274,10 +267,13 @@ function colonnes(cartes: CarteLigne1[], cadre: string, bas: CarteEntite[]): Col
 export type ActionOrga =
   | { type: 'ranger'; comite: string; ordre: string[]; libelle: string }
   | {
-      /** Où siège le responsable d'un groupe : ses postes liés ⛓ changent de comité (sa dépendance ne change pas). */
+      /**
+       * Où siège le responsable d'un groupe : ses postes liés ⛓ changent de comité ; le groupe qui organise un
+       * événement : un de ses postes lui est lié. La dépendance ne change pas.
+       */
       type: 'liaison';
       u: OrgUnit;
-      /** Le comité où il siégera, ou « sans ». */
+      /** Le comité où il siégera (ou « sans »), le groupe qui organise l'événement. */
       vers: string;
       /** Postes liés à créer dans `vers` (leurs noms). */
       creer: string[];
@@ -286,22 +282,34 @@ export type ActionOrga =
       libelle: string;
       ordre?: { comite: string; ordre: string[] };
     }
-  /** Un événement change de groupe ou de comité (« Dépend de »). */
-  | { type: 'dependance'; u: OrgUnit; vers: string; libelle: string }
+  /**
+   * Un événement sous le cadre d'un comité : il en dépend (`vers` ; absent : il en dépend déjà) et quitte le groupe qui
+   * l'organisait (ses postes liés ⛓ dans les groupes sont retirés).
+   */
+  | { type: 'dependance'; u: OrgUnit; vers?: string; retirer: PosteLie[]; libelle: string }
   | { type: 'poste'; de: OrgUnit; posteId: string; nom: string; titulaire?: OrgMember; vers: OrgUnit; libelle: string }
   | { type: 'etoile'; de: OrgUnit; m: OrgMember; vers: OrgUnit; libelle: string };
 
 export interface PosteLie {
-  comite: string;
+  /** L'entité du poste : un comité, ou le groupe qui organise un événement. */
+  entite: string;
   posteId: string;
   nom: string;
 }
 
+/** Postes de ces entités liés ⛓ à l'entité `id`. */
+const lies = (entites: OrgUnit[], id: string): PosteLie[] =>
+  entites.flatMap((c) => (c.postes ?? []).filter((p) => p.lien === id).map((p) => ({ entite: c.id, posteId: p.id, nom: p.nom })));
+
 /** Postes des comités (`dans` : de ce comité seulement) liés ⛓ à l'entité `id`. */
-function postesLies(units: OrgUnit[], id: string, dans?: string): PosteLie[] {
-  return comitesLies(units, id)
-    .filter((c) => !dans || c.id === dans)
-    .flatMap((c) => (c.postes ?? []).filter((p) => p.lien === id).map((p) => ({ comite: c.id, posteId: p.id, nom: p.nom })));
+const postesLies = (units: OrgUnit[], id: string, dans?: string) => lies(comitesLies(units, id).filter((c) => !dans || c.id === dans), id);
+
+// « les 2 postes ⛓ « Compétition » quittent « Comité central » » : un nom répété n'est écrit qu'une fois.
+const noms = (l: PosteLie[]) => [...new Set(l.map((p) => `« ${p.nom} »`))].join(', ');
+const postes = (l: PosteLie[], art = '') => (l.length > 1 ? `${art ? 'les ' : ''}${l.length} postes ⛓` : `${art}poste ⛓`);
+function quittent(units: OrgUnit[], l: PosteLie[]): string {
+  const ou = [...new Set(l.map((p) => `« ${units.find((x) => x.id === p.entite)?.nom ?? '?'} »`))].join(', ');
+  return `${postes(l, 'le ')} ${noms(l)} ${l.length > 1 ? 'quittent' : 'quitte'} ${ou}`;
 }
 
 /**
@@ -310,20 +318,9 @@ function postesLies(units: OrgUnit[], id: string, dans?: string): PosteLie[] {
  */
 function liaison(units: OrgUnit[], u: OrgUnit, de: string, vers: string, ordre?: { comite: string; ordre: string[] }): ActionOrga {
   const nomU = (id: string) => units.find((x) => x.id === id)?.nom ?? '?';
-  // « les 2 postes ⛓ « Compétition » » : un nom répété n'est écrit qu'une fois.
-  const noms = (l: PosteLie[]) => [...new Set(l.map((p) => `« ${p.nom} »`))].join(', ');
-  const postes = (l: PosteLie[], art = '') => (l.length > 1 ? `${art ? 'les ' : ''}${l.length} postes ⛓` : `${art}poste ⛓`);
   if (vers === SANS) {
     const retirer = postesLies(units, u.id);
-    const ou = [...new Set(retirer.map((p) => `« ${nomU(p.comite)} »`))].join(', ');
-    return {
-      type: 'liaison',
-      u,
-      vers,
-      creer: [],
-      retirer,
-      libelle: `« ${u.nom} » : sans comité (${postes(retirer, 'le ')} ${noms(retirer)} ${retirer.length > 1 ? 'quittent' : 'quitte'} ${ou})`,
-    };
+    return { type: 'liaison', u, vers, creer: [], retirer, libelle: `« ${u.nom} » : sans comité (${quittent(units, retirer)})` };
   }
   const retirer = de === SANS ? [] : postesLies(units, u.id, de);
   // Déjà lié dans `vers` (sa carte était ailleurs) : il n'y a qu'à retirer ceux de `de`.
@@ -332,6 +329,18 @@ function liaison(units: OrgUnit[], u: OrgUnit, de: string, vers: string, ordre?:
     ? `« ${u.nom} » : ${creer.length ? `nouveau poste ⛓ « ${creer[0]} » dans` : 'siège à'} « ${nomU(vers)} »`
     : `« ${u.nom} » : ${postes(retirer)} ${noms(retirer)} de « ${nomU(de)} » à « ${nomU(vers)} »`;
   return { type: 'liaison', u, vers, creer, retirer, libelle, ordre };
+}
+
+/**
+ * L'événement `u` glissé sur le groupe `g` : un poste de `g` lui est lié ⛓ (créé à son nom s'il n'y en a pas), ceux
+ * des autres groupes s'en vont. Sa dépendance ne change pas. null : il est déjà sous ce groupe.
+ */
+function organisePar(units: OrgUnit[], u: OrgUnit, g: OrgUnit): ActionOrga | null {
+  const retirer = lies(groupesLies(units, u.id).filter((x) => x.id !== g.id), u.id);
+  const deja = !!g.postes?.some((p) => p.lien === u.id);
+  if (deja && !retirer.length) return null;
+  const quoi = [...(deja ? [] : [`nouveau poste ⛓ « ${u.nom} » dans « ${g.nom} »`]), ...(retirer.length ? [quittent(units, retirer)] : [])];
+  return { type: 'liaison', u, vers: g.id, creer: deja ? [] : [u.nom], retirer, libelle: `« ${u.nom} » organisé par « ${g.nom} » (${quoi.join(' ; ')})` };
 }
 
 /** Clés des cartes d'un cadre, dans l'ordre affiché. */
@@ -356,7 +365,8 @@ function ordreAvec(plan: PlanOrganigramme, cadre: string, k: string, avant?: str
  *  - cible : « carte:clé » (une carte de la ligne 1 : se placer avant elle), « cadre:comité » ou « cadre:sans »,
  *    « entite:id » (carte d'un groupe ou d'un événement ; manifestation d'un sous-comité : son cadre).
  * Un groupe change de comité où siège son responsable (ses postes liés ⛓ ; « Sans comité » : nulle part), sans changer
- * de dépendance ; un événement change de groupe ou de comité (dont il dépend) ; un poste change d'entité avec son
+ * de dépendance ; un événement passe sous un groupe (un poste du groupe lui est lié ⛓, sans changer de dépendance) ou
+ * sous un comité (il en dépend, et quitte son groupe) ; un poste change d'entité avec son
  * titulaire (un poste lié ⛓ reste où il est) ; un ★ devient ★ de l'autre entité ; dans son cadre, une carte se range.
  */
 export function actionDepot(plan: PlanOrganigramme, units: OrgUnit[], source: string, cible: string): ActionOrga | null {
@@ -395,13 +405,15 @@ export function actionDepot(plan: PlanOrganigramme, units: OrgUnit[], source: st
       const ordre = comite && avant ? ordreAvec(plan, cadre, k, avant, true) : null;
       return liaison(units, u, ici.cadre, cadre, ordre ? { comite: cadre, ordre } : undefined);
     }
-    // Un événement : sous un groupe, ou sous le cadre d'un comité (il en dépend).
-    if (entite) {
-      if (entite.type !== 'groupe' || ici.groupe === entite.id) return null;
-      return { type: 'dependance', u, vers: entite.id, libelle: `« ${u.nom} » organisé par « ${entite.nom} »` };
-    }
-    if (!comite || (!ici.groupe && ici.cadre === comite.id)) return null;
-    return { type: 'dependance', u, vers: comite.id, libelle: `« ${u.nom} » dépend de « ${comite.nom} »` };
+    // Un événement : sous un groupe (un poste du groupe lui est lié), ou sous le cadre d'un comité (il en dépend).
+    if (entite) return entite.type === 'groupe' ? organisePar(units, u, entite) : null;
+    if (!comite) return null;
+    const vers = ici.depend === comite.id ? undefined : comite.id;
+    const retirer = ici.groupe ? lies(groupesLies(units, u.id), u.id) : [];
+    if (!vers && !retirer.length) return null;
+    const quitte = retirer.length ? ` (${quittent(units, retirer)})` : '';
+    const libelle = vers ? `« ${u.nom} » dépend de « ${comite.nom} »${quitte}` : `« ${u.nom} » : plus organisé par un groupe${quitte}`;
+    return { type: 'dependance', u, vers, retirer, libelle };
   }
   if (sorte !== 'p' && sorte !== 't') return null;
   const de = parId.get(a);

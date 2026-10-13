@@ -39,19 +39,23 @@ export const SUB_TYPES: UnitType[] = ['sous-comite', 'groupe', 'equipe'];
 // ---------- Organigramme en arbre ----------
 
 /**
- * Entité dont dépend `u` dans l'organigramme : celle choisie (« Dépend de ») si elle est dans la liste,
- * sinon le comité central. Une boucle (A dépend de B qui dépend de A) remonte au comité central.
+ * Comité dont dépend `u` (« Dépend de » : toujours un comité) : celui choisi s'il est dans la liste, sinon le comité
+ * central. Une ancienne valeur qui désigne un groupe ou un événement : le comité dont celui-ci dépend. Une boucle
+ * (A dépend de B qui dépend de A) remonte au comité central.
  */
 export function parentDans<T extends Unit>(units: T[], u: T): T | undefined {
   if (u.type === 'central') return undefined;
   const central = units.find((x) => x.type === 'central');
   const parId = new Map(units.map((x) => [x.id, x]));
-  const choisi = u.dependDe ? parId.get(u.dependDe) : undefined;
-  if (!choisi || choisi.type === 'central') return central;
-  for (let p: T | undefined = choisi, n = 0; p && n <= units.length; p = p.dependDe ? parId.get(p.dependDe) : undefined, n++) {
+  let choisi: T | undefined;
+  const vus = new Set<string>();
+  for (let p = u.dependDe ? parId.get(u.dependDe) : undefined; p && p.type !== 'central'; p = p.dependDe ? parId.get(p.dependDe) : undefined) {
     if (p.id === u.id) return central;
+    if (vus.has(p.id)) break;
+    vus.add(p.id);
+    if (!choisi && p.type === 'sous-comite') choisi = p;
   }
-  return choisi;
+  return choisi ?? central;
 }
 
 /** Ordre des cartes d'un cadre de l'organigramme lu des données (clés courtes, en nombre raisonnable), sinon undefined. */

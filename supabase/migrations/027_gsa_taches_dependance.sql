@@ -1,8 +1,8 @@
 -- Tâches GSA — 027 : les tâches d'une entité dans l'entité dont elle dépend.
 --
--- • « Dépend de » (committees.info.dependDe) : un comité (un événement : aussi le groupe qui l'organise) ; sans choix,
---   ou une valeur inconnue (ancien « aucun »), ou une boucle : le comité central (comme parentDans dans l'appli).
---   gsa_dependance(entité) donne cette entité.
+-- • « Dépend de » (committees.info.dependDe) : toujours un comité ; sans choix, une valeur inconnue (ancien « aucun »)
+--   ou une boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont il dépend
+--   (comme parentDans dans l'appli). gsa_dependance(entité) donne ce comité.
 -- • committees.info.tachesDependance, réglé par les admins de l'entité (ou du comité central) : ce que l'entité dont
 --   elle dépend affiche de ses tâches (liste des tâches, ordre du jour, PV) :
 --     « toutes »    : toutes ses tâches (elle peut les modifier, comme une tâche partagée) ;
@@ -14,40 +14,41 @@
 --   central (sinon l'ancienne valeur reste, comme pour l'accès du comité central).
 -- Aucune donnée existante modifiée ; sans réglage, rien ne change.
 
--- L'entité dont dépend `entite` (null pour le comité central).
+-- Le comité dont dépend `entite` (null pour le comité central) : celui choisi ; sans choix, un choix inconnu ou archivé,
+-- ou une boucle : le comité central. Une ancienne valeur qui désigne un groupe ou un événement : le comité dont celui-ci
+-- dépend (comme parentDans dans l'appli).
 create or replace function public.gsa_dependance(entite uuid) returns uuid
 language plpgsql stable security definer set search_path = '' as $$
 declare
   e public.committees;
+  x public.committees;
   club uuid;
   choisi uuid;
-  p uuid;
-  n int := 0;
+  suivant text;
+  vus uuid[] := '{}';
 begin
-  select * into e from public.committees x where x.id = entite;
+  select * into e from public.committees c where c.id = entite;
   if e.id is null or e.parent_id is null then
     return null;
   end if;
   club := e.parent_id;
-  select x.id into choisi from public.committees x
-  where x.id::text = e.info ->> 'dependDe' and x.parent_id = club and x.id <> entite
-    and not coalesce((x.info ->> 'archive')::boolean, false);
-  if choisi is null then
-    return club;
-  end if;
-  -- Boucle (A dépend de B qui dépend de A) : le comité central.
-  p := choisi;
-  while p is not null and n < 500 loop
-    if p = entite then
+  suivant := e.info ->> 'dependDe';
+  loop
+    -- Le comité central (sans parent), une entité inconnue ou archivée : fin.
+    select * into x from public.committees c
+    where c.id::text = suivant and c.parent_id = club and not coalesce((c.info ->> 'archive')::boolean, false);
+    exit when x.id is null;
+    if x.id = entite then
       return club;
     end if;
-    select x.id into p from public.committees y
-    join public.committees x on x.id::text = y.info ->> 'dependDe'
-    where y.id = p and (x.parent_id = club or x.id = club)
-      and not coalesce((x.info ->> 'archive')::boolean, false);
-    n := n + 1;
+    exit when x.id = any(vus);
+    vus := vus || x.id;
+    if choisi is null and x.type = 'sous-comite' then
+      choisi := x.id;
+    end if;
+    suivant := x.info ->> 'dependDe';
   end loop;
-  return choisi;
+  return coalesce(choisi, club);
 end $$;
 
 -- La tâche `data` d'une entité s'affiche-t-elle dans l'entité `unite` ? `club` : le comité central ; `depend` :

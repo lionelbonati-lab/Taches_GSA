@@ -61,12 +61,15 @@ function parentDans(units, u) {
   if (u.type === "central") return void 0;
   const central = units.find((x) => x.type === "central");
   const parId = new Map(units.map((x) => [x.id, x]));
-  const choisi = u.dependDe ? parId.get(u.dependDe) : void 0;
-  if (!choisi || choisi.type === "central") return central;
-  for (let p = choisi, n = 0; p && n <= units.length; p = p.dependDe ? parId.get(p.dependDe) : void 0, n++) {
+  let choisi;
+  const vus = /* @__PURE__ */ new Set();
+  for (let p = u.dependDe ? parId.get(u.dependDe) : void 0; p && p.type !== "central"; p = p.dependDe ? parId.get(p.dependDe) : void 0) {
     if (p.id === u.id) return central;
+    if (vus.has(p.id)) break;
+    vus.add(p.id);
+    if (!choisi && p.type === "sous-comite") choisi = p;
   }
-  return choisi;
+  return choisi ?? central;
 }
 var MEMBER_PERMS = ["tasks.viewAll", "tasks.editOwn", "tab.meetings", "tab.events", "tab.people", "polls.create"];
 var CAISSE_PERMS = [...MEMBER_PERMS, "paiements.payer"];
