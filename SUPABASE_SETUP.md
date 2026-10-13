@@ -22,7 +22,7 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - `gsa_proposer_tache(entité, tâche)` : une entité envoie une tâche au comité central (titre, remarque et délai contrôlés, sans responsable, premier statut ouvert, marquée `proposee`) ; `gsa_mes_demandes(entité)` : leur suivi (statut, délai, responsables).
 - Nom, couleur, description et date d'une entité : modifiables par ses admins et ceux du comité central ; type et archivage réservés au comité central (déclencheur `gsa_committees_guard`).
 
-`supabase/migrations/006_gsa_acces_central.sql` (appliqué le 05.10.2026) : accès du comité central aux données d'une entité. Ajout pur : aucune donnée modifiée. **L'appli ne le propose plus** (plus de réglage ni de visite) : le comité dont une entité dépend voit ses tâches par la migration 027. Les règles et les valeurs `info.central` déjà enregistrées sont gardées telles quelles (l'appli ne les touche pas) ; les neutraliser demanderait une nouvelle migration.
+`supabase/migrations/006_gsa_acces_central.sql` (appliqué le 05.10.2026) : accès du comité central aux données d'une entité. Ajout pur : aucune donnée modifiée. **L'appli ne le propose plus** (plus de réglage ni de visite) : le comité dont une entité dépend voit ses tâches par la migration 027. Les valeurs `info.central` déjà enregistrées sont gardées telles quelles (l'appli ne les touche pas) ; la migration 028 ferme cet accès.
 
 - Réglage `info.central` d'une entité : `aucun` (ou absent, par défaut), `lecture` ou `ecriture`. Seuls les admins de l'entité le changent : si un admin du comité central modifie l'entité, le déclencheur `gsa_committees_guard` garde l'ancienne valeur ; une valeur inconnue est refusée.
 - `gsa_acces_central(entité)` : le niveau ouvert au compte connecté (`lecture`, `ecriture` ou rien), s'il est membre actif du comité central de l'entité.
@@ -112,7 +112,7 @@ Ajout pur, sauf le drapeau recopié dans `app_metadata` ; les données des entit
 
 Ajout pur : une table, une fonction ; aucune donnée existante modifiée. Sans elle, l'appli n'affiche pas le choix de l'année.
 
-`supabase/migrations/027_gsa_taches_dependance.sql` (**à appliquer**) : **les tâches d'une entité dans le comité dont elle dépend**.
+`supabase/migrations/027_gsa_taches_dependance.sql` (appliquée le 13.10.2026 dans sa première version ; **à relancer** pour `gsa_reglage_taches`, sans risque : tout y est remplacé, aucune donnée touchée) : **les tâches d'une entité dans le comité dont elle dépend**.
 
 - `gsa_dependance(entité)` : le comité dont elle dépend, comme l'appli (`info.dependDe` ; sans valeur, inconnue, archivée ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : son comité).
 - `info.tachesDependance` (réglé dans sa fiche ⚙️) : ce que cette entité-là affiche de ses tâches — `toutes`, sans valeur : seulement celles partagées avec elle (comme avant), `rien` : aucune, même partagées. Les autres entités : les tâches partagées avec elles. Jamais les tickets.
@@ -121,6 +121,8 @@ Ajout pur : une table, une fonction ; aucune donnée existante modifiée. Sans e
 - `gsa_committees_guard` (007) : `tachesDependance` contrôlé ; « Dépend de » ne change que par les admins du comité central (sinon l'ancienne valeur reste).
 
 Aucune donnée existante modifiée ; sans réglage, rien ne change, sauf pour un événement sans poste lié (toutes ses tâches dans son comité). Sans elle, le réglage s'enregistre mais la version réelle continue d'afficher seulement les tâches partagées.
+
+`supabase/migrations/028_gsa_fermer_acces_central.sql` (**à appliquer**) : **accès du comité central fermé**. `gsa_acces_central` (006) ne donne plus aucun accès : seuls les membres d'une entité lisent et modifient ses données et ses fichiers ; le comité dont elle dépend voit ses tâches par la migration 027. Aucune donnée modifiée (les valeurs `info.central` restent, sans effet). Retour en arrière : relancer la définition de `gsa_acces_central` de la migration 006.
 
 Organigramme par postes (sans migration : deux clés de plus dans `committees.info`, enregistrées comme la couleur) :
 
