@@ -134,7 +134,7 @@ Aucune donnée existante modifiée ; sans réglage, rien ne change, sauf pour un
 
 Aucune donnée modifiée. Retour en arrière : relancer les règles et fonctions de 003, 006, 018 et 027.
 
-`supabase/migrations/030_gsa_dependances.sql` (à appliquer) : **dépendances** (changement de comité, caisse du comité, fin des membres liés).
+`supabase/migrations/030_gsa_dependances.sql` (appliquée le 13.10.2026) : **dépendances** (changement de comité, caisse du comité, fin des membres liés).
 
 - **Changement de « Dépend de »** : rien n'est déplacé ni copié. `gsa_committees_guard` note la période qui se termine dans `info.historiqueDependance` (tenu par le serveur seulement, 20 périodes au plus) : le comité d'alors, la date, le réglage des tâches d'alors et la liste des tâches de l'entité à ce moment (hors tickets). Revenir au comité d'avant dans l'heure efface le changement au lieu d'ajouter une période. De l'extérieur, seul le champ `copie` de la dernière période se change (retirer ou rendre le droit de copie), par les admins de l'entité ou du comité central.
 - **Ancien comité** : il garde les tâches de sa période, selon le réglage d'alors, comme avant ; rien de nouveau ne lui arrive.
