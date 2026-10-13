@@ -157,7 +157,7 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .aide-gestes dt { font-weight: 600; }
 .aide-gestes dd { margin: 2px 0 0; color: var(--muted); }
 .bienvenue { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; border-left: 4px solid var(--primary); }
-.content { padding: 24px; max-width: 1400px; margin: 0 auto; }
+.content { padding: 24px; max-width: 1920px; margin: 0 auto; }
 .narrow { max-width: 720px; }
 
 .avatar {
