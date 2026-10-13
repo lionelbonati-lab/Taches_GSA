@@ -155,7 +155,7 @@ Les mots de passe provisoires ne partent pas par email : l'admin les transmet lu
 
 Le lien « 📧 Recevoir un lien par email » passe par le serveur d'emails de Supabase. Celui fourni d'office n'envoie qu'aux membres de l'équipe du projet (et 2 emails par heure) : il faut un serveur SMTP. Tant qu'il n'est pas réglé, l'appli propose de demander aux admins.
 
-**Fait le 12.10.2026** : SMTP réglé (la limite d'envoi est passée de 2 à 30 emails par heure). Reste l'essai du point 6.
+**Fait le 12.10.2026** : SMTP réglé (la limite d'envoi est passée de 2 à 30 emails par heure). Essai du point 6 réussi le 13.10.2026 (email reçu, nouveau mot de passe choisi depuis le lien, connexion).
 
 1. **Brevo** (gratuit, 300 emails par jour) : créer un compte sur brevo.com, puis :
    - *Senders, Domains & Dedicated IPs* › ajouter et valider l'adresse d'envoi (par ex. l'adresse du club) ;
