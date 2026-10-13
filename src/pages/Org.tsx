@@ -2,8 +2,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
-import { arbreEntites, AUCUN_COMITE, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
-import type { CentralAccess, OrganigrammeAnnuel, OrgMember, OrgUnit, Unit, UnitType } from '../data/types';
+import { arbreEntites, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
+import type { CentralAccess, OrganigrammeAnnuel, OrgMember, OrgUnit, TachesDependance, Unit, UnitType } from '../data/types';
+import { TACHES_DEPENDANCE } from '../data/partage';
 import { fmtDate, fmtRange } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
 import { ADMIN_ROLE_ID } from '../data/permissions';
@@ -20,7 +21,7 @@ import { benevolesDe, fonctionsDe, nomDe, type OpOrga } from '../data/organigram
 import { norm } from '../data/csv';
 import { getMode } from '../data/mode';
 import { OrgLignes, type EditionLignes } from '../components/OrgLignes';
-import { placesEntites, SANS, type ActionOrga } from '../data/organigrammeLignes';
+import type { ActionOrga } from '../data/organigrammeLignes';
 import { quiDeMembre } from '../components/Organiser';
 
 // Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
@@ -276,9 +277,16 @@ export function Org() {
       void faire({ type: 'placer', qui: p.qui, depuis: p.depuis, vers: v });
     },
   });
-  // Organigramme par postes : ce que la personne connectée peut déplacer, et comment c'est fait.
+  // Organigramme par postes : ce que la personne connectée peut déplacer, et comment c'est fait. Les postes liés d'un
+  // groupe : admins des comités touchés ; la dépendance d'un événement : comité central.
   const peutAction = (a: ActionOrga) =>
-    a.type === 'ranger' ? club.canManage || !!uniteDe(a.comite)?.moiAdmin : a.type === 'dependance' ? club.canManage : peutFiche(a.de) && peutFiche(a.vers);
+    a.type === 'ranger'
+      ? club.canManage || !!uniteDe(a.comite)?.moiAdmin
+      : a.type === 'liaison'
+        ? (!a.creer.length || peutFiche(uniteDe(a.vers))) && a.retirer.every((p) => peutFiche(uniteDe(p.comite))) && (!a.ordre || club.canManage || !!uniteDe(a.ordre.comite)?.moiAdmin)
+        : a.type === 'dependance'
+          ? club.canManage
+          : peutFiche(a.de) && peutFiche(a.vers);
   /**
    * Fiches d'entités modifiées (dépendance, ordre des cartes), puis les modifications de l'organigramme qui vont avec
    * (`ops` : postes liés retirés) ; un seul « Annuler » remet tout comme avant.
@@ -313,13 +321,13 @@ export function Org() {
   };
   const executer = (a: ActionOrga) => {
     if (a.type === 'ranger') return void changerEntites([[a.comite, { rangement: a.ordre }]], `Cartes de « ${uniteDe(a.comite)?.nom ?? '?'} » rangées`);
-    if (a.type === 'dependance')
-      return void changerEntites(
-        [[a.u.id, { dependDe: a.vers }], ...(a.ordre ? [[a.ordre.comite, { rangement: a.ordre.ordre }] as [string, Partial<Unit>]] : [])],
-        a.libelle,
-        // Ses postes liés dans le comité qu'elle quitte : ses responsables n'y siègent plus (« sans comité »).
-        (a.postesLies ?? []).filter((p) => peutFiche(uniteDe(p.comite))).map((p): OpOrga => ({ type: 'supprimerPoste', uniteId: p.comite, posteId: p.posteId })),
-      );
+    if (a.type === 'dependance') return void changerEntites([[a.u.id, { dependDe: a.vers }]], a.libelle);
+    // Où siège le responsable d'un groupe : ses nouveaux postes liés, puis les anciens s'en vont (sa dépendance reste).
+    if (a.type === 'liaison')
+      return void changerEntites(a.ordre ? [[a.ordre.comite, { rangement: a.ordre.ordre }]] : [], a.libelle, [
+        ...a.creer.map((nom): OpOrga => ({ type: 'nouveauPoste', uniteId: a.vers, nom, lien: a.u.id })),
+        ...a.retirer.map((p): OpOrga => ({ type: 'supprimerPoste', uniteId: p.comite, posteId: p.posteId })),
+      ]);
     if (a.type === 'etoile')
       return void faire({ type: 'placer', qui: quiDeMembre(a.m), depuis: { uniteId: a.de.id, personId: a.m.id, zone: 'titre' }, vers: { zone: 'titre', uniteId: a.vers.id } });
     // Un poste change d'entité : le même dans l'autre (avec son titulaire), puis il quitte la sienne.
@@ -343,7 +351,7 @@ export function Org() {
             const u = uniteDe(id);
             return u && !u.archive && (club.canManage || u.moiAdmin) ? () => setEdit({ unit: u }) : undefined;
           },
-          survolPersonne: glisser.survol,
+          glisser,
         }
       : undefined;
   const vue: OrgaVue | undefined = orga
@@ -478,8 +486,8 @@ export function Org() {
         <p className="org-edition">
           <b>✏️ Modification</b>
           <span>Glisse une carte (un poste, un groupe, un événement) sur un comité, un groupe ou une autre carte : ce qui se passera s’affiche avant de la lâcher. Au doigt, ou sans glisser : sa poignée ⠿ › « Déplacer… ».</span>
-          <span>Un groupe glissé dans « Sans comité » ne dépend plus d’aucun comité ; dans son cadre, une carte se range.</span>
-          <span>Pour placer quelqu’un sur un poste : cherche-le en haut à gauche, puis glisse-le sur le poste (sur un cadre : un nouveau poste).</span>
+          <span>Un groupe glissé dans un autre comité : son responsable y siège (poste lié ⛓) ; dans « Sans comité » : il ne siège dans aucun. Le comité dont il dépend (ses tâches, son ordre du jour) ne change pas : ⚙️ « Dépend de ». Dans son cadre, une carte se range.</span>
+          <span>Pour changer quelqu’un de poste : glisse son nom sur l’autre poste, un ★ ou des bénévoles (Ctrl : il garde aussi le sien ; sur un cadre : un nouveau poste). Au doigt : touche son nom › « ✋ Déplacer ». Quelqu’un d’autre : cherche-le en haut à gauche.</span>
           <span>« ＋ Poste » dans un comité, un groupe ou un événement ; un clic sur le nom d’un poste : le renommer, le libérer, le supprimer.</span>
         </p>
       ) : edition && orga ? (
@@ -498,7 +506,7 @@ export function Org() {
           {units.some((u) => club.canManage || u.moiAdmin) ? <span>⚙️ modifie l’entité.</span> : peutAjouter && <span>« + Ajouter une personne » sous l’entité.</span>}
         </p>
       ) : parPostes ? (
-        <p className="muted small-note">Une carte par poste : les comités en haut (avec les groupes qui en dépendent), les groupes en dessous, puis les événements. Clique sur un nom pour voir le profil de la personne.</p>
+        <p className="muted small-note">Une carte par poste : les comités en haut (avec les groupes dont le responsable y siège), les groupes en dessous, puis les événements. Clique sur un nom pour voir le profil de la personne.</p>
       ) : (
         <p className="muted small-note">Clique sur une personne pour voir sa fiche, sur le nom d’une entité pour l’ouvrir.</p>
       )}
@@ -570,7 +578,6 @@ export function Org() {
         <UnitModal
           unit={edit.unit}
           typeDepart={edit.type}
-          parPostes={parPostes}
           onClose={() => setEdit(null)}
           onCreated={(c, n) => {
             setEdit(null);
@@ -1030,14 +1037,11 @@ const POSTES_COMITE = ['Secrétaire', 'Caissier'];
 function UnitModal({
   unit,
   typeDepart,
-  parPostes,
   onClose,
   onCreated,
 }: {
   unit?: OrgUnit;
   typeDepart?: UnitType;
-  /** Organigramme par postes : sans choix, « Dépend de » montre la place calculée (comité, groupe, sans comité). */
-  parPostes?: boolean;
   onClose: () => void;
   onCreated: (c: CreatedUnit, n: NewUnit) => void;
 }) {
@@ -1054,20 +1058,20 @@ function UnitModal({
   const [description, setDescription] = useState(unit?.description ?? '');
   const [archive, setArchive] = useState(!!unit?.archive);
   const [logo, setLogo] = useState(unit?.logo);
-  // Dans l'organigramme : l'entité dont elle dépend (pas elle-même, ni une entité qui dépend d'elle).
+  // « Dépend de » : un comité (un événement : aussi un groupe, qui l'organise) ; pas elle-même, ni une entité qui
+  // dépend d'elle. C'est là que vont ses tâches (selon son réglage), et le trait de l'organigramme.
   const actives = club.units.filter((u) => !u.archive);
   const centralUnit = actives.find((u) => u.type === 'central');
   const exclus = unit ? [unit.id, ...sousEntites(actives, unit.id)] : [];
-  const possibles = actives.filter((u) => !exclus.includes(u.id));
-  // « Aucun comité » : un groupe ou un événement à part (organigramme : « Sans comité »).
-  const [dependInitial] = useState(() => {
-    if (unit?.dependDe === AUCUN_COMITE) return AUCUN_COMITE;
-    const p = parPostes && unit && !unit.dependDe && (unit.type === 'groupe' || unit.type === 'equipe') ? placesEntites(actives).get(unit.id) : undefined;
-    if (p) return p.groupe ?? (p.cadre === SANS ? AUCUN_COMITE : p.cadre);
-    return (unit ? parentDans(actives, unit)?.id : undefined) ?? centralUnit?.id ?? '';
-  });
+  const possibles = actives.filter((u) => !exclus.includes(u.id) && (u.type === 'central' || u.type === 'sous-comite' || (type === 'equipe' && u.type === 'groupe')));
+  const [dependInitial] = useState(() => (unit ? parentDans(actives, unit)?.id : undefined) ?? centralUnit?.id ?? '');
   const [dependDe, setDependDe] = useState(dependInitial);
-  const sansComite = type === 'groupe' || type === 'equipe';
+  // Plus proposé (ex. un groupe qui dépendait d'un groupe, ou le type a changé) : le comité central.
+  const dependChoisi = possibles.some((u) => u.id === dependDe) ? dependDe : (centralUnit?.id ?? '');
+  // Ses tâches dans l'entité dont elle dépend : réglé par ses admins (ou ceux du comité central).
+  const reglerTaches = !!unit && !isCentral && (club.canManage || unit.moiAdmin);
+  const [taches, setTaches] = useState<TachesDependance>(unit?.tachesDependance ?? 'partagees');
+  const nomParent = actives.find((u) => u.id === dependChoisi)?.nom ?? 'Comité central';
   // Accès du comité central : réglé par les admins de l'entité seulement.
   const [central, setCentral] = useState<CentralAccess>(unit ? centralAccess(unit) : 'aucun');
   const ownsAccess = !!unit && !isCentral && unit.moiAdmin;
@@ -1087,11 +1091,10 @@ function UnitModal({
     if (dated(type) && dateFin && (!date || dateFin < date)) return setErr('Le dernier jour de l’événement ne peut pas précéder le premier.');
     const jour = dated(type) && date ? date : undefined;
     const base: Partial<Unit> = { nom: nom.trim(), couleur, description: description.trim() || undefined, date: jour, dateFin: jour && dateFin > jour ? dateFin : undefined };
-    // Pas changé : tel quel ; changé : le choix tel quel (le comité central aussi, pour l'organigramme par postes).
-    // Nouveau groupe ou événement : le choix, comité central compris (sinon l'organigramme par postes le placerait
-    // d'après ses responsables).
-    const choix = dependDe === AUCUN_COMITE && !sansComite ? centralUnit?.id : dependDe;
-    const lien = isNew ? (choix && (sansComite || choix !== centralUnit?.id) ? choix : undefined) : choix === dependInitial ? unit.dependDe : choix || undefined;
+    // Nouveau : le choix (rien pour le comité central) ; pas changé : tel quel (une valeur d'avant qui ne vaut plus : le choix).
+    const choix = dependChoisi;
+    const garder = !isNew && choix === dependInitial && (!unit.dependDe || possibles.some((u) => u.id === unit.dependDe));
+    const lien = isNew ? (choix && choix !== centralUnit?.id ? choix : undefined) : garder ? unit.dependDe : choix || undefined;
     setBusy(true);
     try {
       if (isNew) {
@@ -1113,7 +1116,8 @@ function UnitModal({
       } else {
         const access = ownsAccess ? { central } : {};
         const image = logo !== unit.logo ? { logo } : {};
-        await club.updateUnit(unit.id, manage ? { ...base, type, archive, dependDe: lien, ...access, ...image } : { ...base, ...access, ...image });
+        const reglage = reglerTaches ? { tachesDependance: taches === 'partagees' ? undefined : taches } : {};
+        await club.updateUnit(unit.id, manage ? { ...base, type, archive, dependDe: lien, ...access, ...image, ...reglage } : { ...base, ...access, ...image, ...reglage });
         if (ownsAccess && central !== centralAccess(unit) && unit.id === club.current.id) update(() => {}, `Accès du comité central : ${CENTRAL_ACCESS[central].label}`);
         onClose();
       }
@@ -1142,11 +1146,23 @@ function UnitModal({
         )}
         {!isCentral && (isNew || manage) && possibles.length > 1 && (
           <label>
-            Dépend de <small className="muted">(trait dans l’organigramme)</small>
-            <select value={dependDe} onChange={(e) => setDependDe(e.target.value)}>
+            Dépend de <small className="muted">{type === 'equipe' ? '(le comité, ou le groupe qui l’organise)' : '(un comité)'}</small>
+            <select value={dependChoisi} onChange={(e) => setDependDe(e.target.value)}>
               {possibles.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
-              {sansComite && <option value={AUCUN_COMITE}>— Aucun comité (sans comité) —</option>}
             </select>
+          </label>
+        )}
+        {reglerTaches && (
+          <label className="full">
+            Ses tâches dans « {nomParent} » <small className="muted">(liste des tâches, ordre du jour, PV)</small>
+            <select value={taches} onChange={(e) => setTaches(e.target.value as TachesDependance)}>
+              {(Object.keys(TACHES_DEPENDANCE) as TachesDependance[]).map((k) => (
+                <option key={k} value={k}>
+                  {TACHES_DEPENDANCE[k].label}
+                </option>
+              ))}
+            </select>
+            <small className="muted">{TACHES_DEPENDANCE[taches].aide(nomParent)}</small>
           </label>
         )}
         {dated(type) && (

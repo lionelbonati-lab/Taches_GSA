@@ -1,4 +1,4 @@
-import type { AppData, OrgMember, OrgUnit, Person, Section, Status, TachePartagee, Task, UnitType } from './types';
+import type { AppData, OrgMember, OrgUnit, Person, Section, Status, TachePartagee, TachesDependance, Task, Unit, UnitType } from './types';
 
 // Tâches partagées entre les entités du club. Une tâche reste dans son entité ; celle-ci peut la partager
 // avec d'autres entités (comité central, sous-comités, groupes, équipes) : chacune la voit dans ses tâches et
@@ -9,6 +9,9 @@ import type { AppData, OrgMember, OrgUnit, Person, Section, Status, TachePartage
 //   - sinon : sous la section qui porte le nom de l'entité (« École de cyclisme »…) ;
 //   - à défaut : sous une section au nom de l'entité, ajoutée à l'affichage (rien n'est enregistré) ;
 // sauf si l'entité lui choisit une autre section.
+// L'entité dont une autre dépend (« Dépend de » : un comité, ou le groupe qui organise un événement) affiche de ses
+// tâches ce que celle-ci a choisi (tachesDependance) : toutes, seulement celles partagées avec elle, ou aucune (même
+// partagées). Les autres entités : celles partagées avec elles.
 
 /** Identifiants affichés des tâches partagées et des sections ajoutées pour elles (jamais enregistrés). */
 export const estPartagee = (id: string) => id.startsWith('x:');
@@ -32,6 +35,25 @@ export function partageDe(t: Pick<Task, 'partage' | 'auCentral'>, centralId?: st
   const l = [...(t.partage ?? [])];
   if (t.auCentral && centralId && !l.includes(centralId)) l.push(centralId);
   return l;
+}
+
+/** Les trois choix de tachesDependance (sans choix : « partagees »). */
+export const TACHES_DEPENDANCE: Record<TachesDependance, { label: string; aide: (parent: string) => string }> = {
+  toutes: { label: 'Afficher les tâches', aide: (p) => `Toutes ses tâches s’affichent aussi dans « ${p} » (liste des tâches, ordre du jour, PV), qui peut les modifier.` },
+  partagees: { label: 'Afficher uniquement les tâches partagées', aide: (p) => `Seules les tâches partagées avec « ${p} » s’y affichent.` },
+  rien: { label: 'Ne rien afficher', aide: (p) => `Aucune de ses tâches ne s’affiche dans « ${p} », même partagée avec lui.` },
+};
+
+/**
+ * La tâche `t` de l'entité `u` s'affiche-t-elle dans l'entité `moi` (sa liste des tâches, son ordre du jour, son PV) ?
+ * `parent` : l'entité dont `u` dépend (parentDans). Jamais les tickets (remboursements, factures).
+ */
+export function visibleDans(t: Pick<Task, 'partage' | 'auCentral' | 'paiement'>, u: Pick<Unit, 'parentId' | 'tachesDependance'>, parent: string | undefined, moi: string): boolean {
+  if (t.paiement) return false;
+  const partagee = partageDe(t, u.parentId).includes(moi);
+  if (parent !== moi) return partagee;
+  const r = u.tachesDependance ?? 'partagees';
+  return r === 'toutes' || (r === 'partagees' && partagee);
 }
 
 type SectionLue = Pick<Section, 'id' | 'nom'> & { sousSections?: string[] };

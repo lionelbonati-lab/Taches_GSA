@@ -472,6 +472,7 @@ function appliquer(m, op) {
       if (!n) throw new Error("Donne un nom au poste.");
       const po2 = { id: uid("po"), nom: n };
       A.postes.push(po2);
+      if (op.lien) return `Nouveau poste « ${n} » dans « ${A.u.nom} » · ${lier(m, A.u.id, po2.id, op.lien)}`;
       lierNoms(m, A.u.id, [po2.id]);
       return `Nouveau poste « ${n} » dans « ${A.u.nom} »${po2.titulaire ? "" : " : à pourvoir"}`;
     }
@@ -652,7 +653,7 @@ function lireOp(x) {
   };
   switch (o.type) {
     case "nouveauPoste":
-      return { type: "nouveauPoste", uniteId: s(o.uniteId), nom: s(o.nom) };
+      return { type: "nouveauPoste", uniteId: s(o.uniteId), nom: s(o.nom), ...o.lien ? { lien: s(o.lien) } : {} };
     case "renommer":
       return { type: "renommer", uniteId: s(o.uniteId), posteId: s(o.posteId), nom: s(o.nom) };
     case "supprimerPoste":
@@ -702,7 +703,7 @@ function organiser(c, op, droits) {
   const message = appliquer({ units: c.units, data: c.data, notes: [], peut }, op);
   const ecr = ecritures(c, avant);
   const directes = new Set(
-    op.type === "placer" ? [op.depuis?.uniteId, op.vers.zone === "corbeille" ? void 0 : op.vers.uniteId] : op.type === "lier" ? [op.uniteId, op.lien] : [op.uniteId]
+    op.type === "placer" ? [op.depuis?.uniteId, op.vers.zone === "corbeille" ? void 0 : op.vers.uniteId] : op.type === "lier" || op.type === "nouveauPoste" ? [op.uniteId, op.lien] : [op.uniteId]
   );
   for (const u of new Set(ecr.map((e) => e.ligne.committee_id)))
     if (directes.has(u) && !peut(u)) throw new Error(u === c.centralId ? "Réservé aux admins du comité central." : `Réservé aux admins de « ${nomDe2(c, u)} » ou du comité central.`);

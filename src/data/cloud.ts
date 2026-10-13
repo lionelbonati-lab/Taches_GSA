@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent } from './types';
-import { lireCarte, lireRangement, UNIT_COLORS } from './units';
+import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance } from './types';
+import { lireCarte, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
 import type { NouveauResponsable } from './cablage';
@@ -44,8 +44,10 @@ export interface UnitInfo {
   logo?: string;
   /** Couleur de l'appli (#rrggbb). */
   couleurAppli?: string;
-  /** Entité dont elle dépend dans l'organigramme (affichage seulement). */
+  /** Entité dont elle dépend dans l'organigramme (et ses tâches, selon tachesDependance : 027). */
   dependDe?: string;
+  /** Ses tâches dans l'entité dont elle dépend : « toutes », « rien » ; sans valeur : celles partagées avec elle (027). */
+  tachesDependance?: TachesDependance;
   /** Place de sa carte dans l'organigramme, posée à la main (affichage seulement). */
   carte?: Carte;
   /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (affichage seulement). */
@@ -502,6 +504,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     logo: isImage(m.info.logo) ? m.info.logo : undefined,
     couleurAppli: isCouleur(m.info.couleurAppli) ? m.info.couleurAppli : undefined,
     dependDe: typeof m.info.dependDe === 'string' ? m.info.dependDe : undefined,
+    tachesDependance: lireTachesDependance(m.info.tachesDependance),
     carte: lireCarte(m.info.carte),
     rangement: lireRangement(m.info.rangement),
     membres: [],
@@ -541,6 +544,7 @@ function lireOrg(rows: LigneOrg[]): OrgUnit[] {
       logo: isImage(info.logo) ? info.logo : undefined,
       couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
       dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
+      tachesDependance: lireTachesDependance(info.tachesDependance),
       carte: lireCarte(info.carte),
       rangement: lireRangement(info.rangement),
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined, viaFiche: m.viaFiche ?? undefined })),

@@ -30,6 +30,7 @@ function ecrireEntite(u: OrgUnit) {
       logo: u.logo || undefined,
       couleurAppli: u.couleurAppli || undefined,
       dependDe: u.dependDe || undefined,
+      tachesDependance: u.tachesDependance && u.tachesDependance !== 'partagees' ? u.tachesDependance : undefined,
       carte: u.carte,
       rangement: u.rangement?.length ? u.rangement : undefined,
     },

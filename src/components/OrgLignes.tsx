@@ -21,15 +21,18 @@ import {
   type PlanOrganigramme,
 } from '../data/organigrammeLignes';
 import { Initials, Modal, UnitMark } from './ui';
+import { quiDeMembre, type Glisser, type Prise as PrisePersonne } from './Organiser';
+import type { Depuis } from '../data/organigramme';
 
 // Organigramme par postes, en lignes (calcul dans data/organigrammeLignes.ts) : comités dans des cadres reliés, une
-// carte par poste (le poste, le nom), les groupes sous leur carte, les événements en dessous, reliés par des traits.
+// carte par poste (le poste, le nom), les groupes sous leur carte (dans le comité où siège leur responsable ; « Dépend
+// de » s'ils dépendent d'un autre), les événements en dessous, reliés par des traits.
 // Zoom (−, +, ajuster), déplacement à la souris (tirer le fond), branches repliables (sur cet appareil), impression
 // ou PDF sur une page A4 en paysage. Sur téléphone : une liste de haut en bas.
 // Un clic sur un nom ouvre le profil de la personne (ses fonctions dans tout le club, ses coordonnées).
 // Modification (`edition`) : glisser une carte (un poste, un groupe, un événement) sur un comité, un groupe ou une autre
-// carte, ou « ⠿ » › « Déplacer… » ; « ＋ Poste », « ＋ Comité ». Une personne cherchée en haut se pose sur un poste
-// (zones data-cible, voir Organiser.tsx).
+// carte, ou « ⠿ » › « Déplacer… » ; « ＋ Poste », « ＋ Comité ». Une personne (son nom, ou cherchée en haut) se pose
+// sur un poste, un ★ ou des bénévoles (zones data-cible, voir Organiser.tsx) ; au doigt : « ✋ Déplacer » dans son profil.
 
 const REPLIES = 'taches-gsa-orgl-replies';
 /** En-tête d'un cadre, marge intérieure, écart entre deux lignes (px). */
@@ -57,8 +60,8 @@ export interface EditionLignes {
   onNouveauComite?: () => void;
   /** ⚙️ La fiche de l'entité (nom, couleur, date, « Dépend de »…), si la personne connectée peut la modifier. */
   modifier?: (uniteId: string) => (() => void) | undefined;
-  /** Personne glissée depuis la recherche : la zone survolée (data-cible). */
-  survolPersonne?: string | null;
+  /** Glisser une personne (son nom, ou cherchée en haut) sur un poste, un ★, des bénévoles (zones data-cible). */
+  glisser?: Glisser;
 }
 
 export interface OrgLignesProps {
@@ -84,7 +87,8 @@ const lireReplies = () => {
 
 /** Ce que les cartes savent faire, du plan à la liste. */
 interface Ctx {
-  onPersonne: (m: OrgMember, uniteId: string) => void;
+  /** Son profil ; `depuis` : sa place sur la carte (en modification, « ✋ Déplacer » la prend en main). */
+  onPersonne: (m: OrgMember, uniteId: string, depuis?: Depuis, poste?: string) => void;
   ouvrir?: Ouvrir;
   edition?: EditionLignes;
   tirer?: Tirer;
@@ -177,7 +181,7 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
     tir.current = null;
     e.currentTarget.classList.remove('tire');
   };
-  const [profil, setProfil] = useState<{ m: OrgMember; uniteId: string } | null>(null);
+  const [profil, setProfil] = useState<{ m: OrgMember; uniteId: string; deplacer?: () => void } | null>(null);
   // Glisser une carte : ce qu'elle ferait lâchée sur cette zone (si la personne connectée le peut).
   const editionRef = useRef(edition);
   editionRef.current = edition;
@@ -195,7 +199,11 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
     return new Set(sources.filter((k) => destinations(plan, units, k).some((d) => edition.peut(d.action))));
   }, [plan, units, edition]);
   const ctx: Ctx = {
-    onPersonne: (m, uniteId) => !tirer.juste() && setProfil({ m, uniteId }),
+    onPersonne: (m, uniteId, depuis, poste) => {
+      const g = edition?.glisser;
+      if (tirer.juste() || g?.justeGlisse()) return;
+      setProfil({ m, uniteId, deplacer: g && depuis && edition.peutFiche(depuis.uniteId) ? () => g.prendre(prisePersonne(m, depuis, poste)) : undefined });
+    },
     ouvrir,
     edition,
     tirer: edition ? tirer : undefined,
@@ -274,6 +282,13 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
           units={units}
           note={note}
           onClose={() => setProfil(null)}
+          onDeplacer={
+            profil.deplacer &&
+            (() => {
+              setProfil(null);
+              profil.deplacer!();
+            })
+          }
           onFiche={
             onFiche &&
             (() => {
@@ -400,7 +415,31 @@ function DeplacerModal({ titre, choix, onChoisir, onClose }: { titre: string; ch
 
 /** Zone où poser une personne cherchée en haut (data-cible), en modification seulement ; allumée si survolée. */
 const zone = (ctx: Ctx, cible: string | undefined) =>
-  ctx.edition && cible ? { 'data-cible': cible, className: ctx.edition.survolPersonne === cible ? 'cible-survol' : '' } : { className: '' };
+  ctx.edition && cible ? { 'data-cible': cible, className: ctx.edition.glisser?.survol === cible ? 'cible-survol' : '' } : { className: '' };
+
+/** La personne qu'on prend (son nom) : d'où elle vient, le poste qu'elle occupait (nom proposé pour un nouveau poste). */
+const prisePersonne = (m: OrgMember, depuis: Depuis, poste?: string): PrisePersonne => ({ qui: quiDeMembre(m), depuis, nom: nomDe(m), couleur: m.couleur, poste });
+
+/**
+ * Le nom d'une personne : un clic, son profil. En modification (fiche que la personne connectée peut changer) : à la
+ * souris, le glisser sur un autre poste, un ★, des bénévoles (Ctrl / Alt : elle garde aussi sa place) ; au doigt :
+ * « ✋ Déplacer » dans son profil, puis toucher la zone. Le reste de la carte déplace le poste.
+ */
+function Nom({ ctx, m, uniteId, depuis, poste, className }: { ctx: Ctx; m: OrgMember; uniteId: string; depuis?: Depuis; poste?: string; className?: string }) {
+  const g = ctx.edition?.glisser;
+  const mobile = !!g && !!depuis && ctx.edition!.peutFiche(depuis.uniteId);
+  return (
+    <button
+      type="button"
+      className={`${className ?? ''} ${mobile ? 'personne-mobile' : ''}`}
+      title={mobile ? 'Glisser sur un autre poste (Ctrl : sans quitter celui-ci), ou voir son profil' : 'Voir son profil (coordonnées, fonctions)'}
+      onPointerDown={mobile ? (e) => g!.commencer(e, () => prisePersonne(m, depuis!, poste)) : undefined}
+      onClick={() => ctx.onPersonne(m, uniteId, depuis, poste)}
+    >
+      {nomDe(m)}
+    </button>
+  );
+}
 
 /** Poignée d'une carte qu'on peut déplacer : la tirer (aussi au doigt), ou un clic : « Déplacer… ». */
 function Prise({ ctx, source, titre }: { ctx: Ctx; source: string; titre: string }) {
@@ -451,9 +490,15 @@ function Carte1({ c, ctx, style, mesure }: { c: CarteLigne1; ctx: Ctx; style?: C
         ) : (
           // Le nom seul (place) : ses coordonnées et ses fonctions dans le club, dans son profil.
           c.gens.map((m) => (
-            <button key={m.id} type="button" className="orgl-nom" title="Voir son profil (coordonnées, fonctions)" onClick={() => ctx.onPersonne(m, c.uniteId)}>
-              {nomDe(m)}
-            </button>
+            <Nom
+              key={m.id}
+              ctx={ctx}
+              m={m}
+              uniteId={c.uniteId}
+              className="orgl-nom"
+              depuis={c.sorte === 'poste' ? (c.posteId ? { uniteId: c.uniteId, personId: m.id, zone: 'poste', posteId: c.posteId } : undefined) : { uniteId: c.uniteId, personId: m.id, zone: 'titre' }}
+              poste={c.sorte === 'groupe' ? m.poste?.trim() || UNIT_TYPES[g?.type ?? 'groupe'].chef : c.titre}
+            />
           ))
         )}
       </div>
@@ -489,6 +534,14 @@ function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?:
         </span>
         {tirable && <Prise ctx={ctx} source={`u:${e.u.id}`} titre={e.u.nom} />}
       </div>
+      {e.depend &&
+        (regler ? (
+          <button type="button" className="orgl-depend" title="Le comité dont il dépend (ses tâches, son ordre du jour) : le changer" onClick={regler}>
+            Dépend de « {e.depend.nom} »
+          </button>
+        ) : (
+          <small className="orgl-depend" title="Le comité dont il dépend (ses tâches, son ordre du jour)">Dépend de « {e.depend.nom} »</small>
+        ))}
       {!e.manifestation && (
         <ul className="orgl-gens">
           {!e.lignes.some((l) => l.etoile) && <li className="error">★ {t.chef} : à désigner</li>}
@@ -516,9 +569,13 @@ function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?:
                 {l.lien && <small title="Poste lié au ★ d’une autre entité"> ⛓</small>}
                 {' : '}
                 {l.m ? (
-                  <button type="button" onClick={() => ctx.onPersonne(l.m!, e.u.id)} title="Voir son profil">
-                    {nomDe(l.m)}
-                  </button>
+                  <Nom
+                    ctx={ctx}
+                    m={l.m}
+                    uniteId={e.u.id}
+                    depuis={l.etoile ? { uniteId: e.u.id, personId: l.m.id, zone: 'titre' } : l.posteId ? { uniteId: e.u.id, personId: l.m.id, zone: 'poste', posteId: l.posteId } : undefined}
+                    poste={l.titre}
+                  />
                 ) : (
                   'à pourvoir'
                 )}
@@ -528,7 +585,7 @@ function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?:
           })}
         </ul>
       )}
-      {!e.manifestation && e.benevoles.length > 0 && (
+      {!e.manifestation && (e.benevoles.length > 0 || fiche) && (
         <div className={`orgl-benevoles ${zone(ctx, `${e.u.id}|benevoles`).className}`} data-cible={ed ? `${e.u.id}|benevoles` : undefined}>
           <button type="button" className="orgl-benevoles-bouton" aria-expanded={ouverts} onClick={() => ctx.basculer(e.u.id)}>
             {ouverts ? '▽' : '▷'} {benevolesDe(e.u.type).plusieurs} ({e.benevoles.length})
@@ -537,9 +594,7 @@ function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?:
             <ul className="orgl-gens">
               {e.benevoles.map((m) => (
                 <li key={m.id}>
-                  <button type="button" onClick={() => ctx.onPersonne(m, e.u.id)} title="Voir son profil">
-                    {nomDe(m)}
-                  </button>
+                  <Nom ctx={ctx} m={m} uniteId={e.u.id} depuis={{ uniteId: e.u.id, personId: m.id, zone: 'benevoles' }} />
                 </li>
               ))}
             </ul>
@@ -708,7 +763,7 @@ function Plan({
               data-cible={'data-cible' in zc ? zc['data-cible'] : undefined}
             >
               <TeteCadre c={c} ctx={ctx} />
-              {!c.colonnes.length && ctx.edition && <p className="orgl-cadre-vide muted">{c.cle === SANS ? 'Glisse ici un groupe qui ne dépend d’aucun comité.' : 'Aucun poste.'}</p>}
+              {!c.colonnes.length && ctx.edition && <p className="orgl-cadre-vide muted">{c.cle === SANS ? 'Glisse ici un groupe dont le responsable ne siège dans aucun comité.' : 'Aucun poste.'}</p>}
             </section>
           );
         })}
@@ -783,7 +838,7 @@ function Liste({ plan, replies, replier, ctx }: { plan: PlanOrganigramme; replie
         >
           <TeteCadre c={c} ctx={ctx} />
           {c.colonnes.map(colonne)}
-          {!c.colonnes.length && ctx.edition && <p className="orgl-cadre-vide muted">{c.cle === SANS ? 'Aucun groupe sans comité.' : 'Aucun poste.'}</p>}
+          {!c.colonnes.length && ctx.edition && <p className="orgl-cadre-vide muted">{c.cle === SANS ? 'Aucun groupe dont le responsable ne siège dans aucun comité.' : 'Aucun poste.'}</p>}
         </section>
       ))}
     </div>
@@ -793,7 +848,22 @@ function Liste({ plan, replies, replier, ctx }: { plan: PlanOrganigramme; replie
 // ---------- Profil ----------
 
 /** Profil d'une personne : coordonnées, et ses fonctions dans chaque entité du club (même personne : voir quiDe). */
-export function ProfilOrga({ m, units, onClose, onFiche, note }: { m: OrgMember; units: OrgUnit[]; onClose: () => void; onFiche?: () => void; note?: string }) {
+export function ProfilOrga({
+  m,
+  units,
+  onClose,
+  onFiche,
+  onDeplacer,
+  note,
+}: {
+  m: OrgMember;
+  units: OrgUnit[];
+  onClose: () => void;
+  onFiche?: () => void;
+  /** En modification : la prendre en main, puis toucher le poste, le ★ ou les bénévoles où la poser (au doigt). */
+  onDeplacer?: () => void;
+  note?: string;
+}) {
   const q = quiDe(m);
   const lignes = units.flatMap((u) => u.membres.filter((x) => quiDe(x) === q).map((x) => ({ u, x })));
   const email = lignes.map((l) => l.x.email).find(Boolean) ?? m.email;
@@ -831,6 +901,11 @@ export function ProfilOrga({ m, units, onClose, onFiche, note }: { m: OrgMember;
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={onClose}>Fermer</button>
+        {onDeplacer && (
+          <button className="btn" title="Puis touche le poste, le ★ ou les bénévoles où la poser" onClick={onDeplacer}>
+            ✋ Déplacer
+          </button>
+        )}
         {onFiche && <button className="btn primary" onClick={onFiche}>Fiche complète</button>}
       </div>
     </Modal>

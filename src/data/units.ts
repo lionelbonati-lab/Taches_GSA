@@ -1,6 +1,6 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
-import type { AppData, Carte, CentralAccess, Guest, OrgMember, OrgUnit, Permission, Person, Role, Section, Unit, UnitType } from './types';
+import type { AppData, Carte, CentralAccess, Guest, OrgMember, OrgUnit, Permission, Person, Role, Section, TachesDependance, Unit, UnitType } from './types';
 import { posteBesideName, uid } from './utils';
 
 // Entités du club : comité central, sous-comités, groupes, équipes d'événement.
@@ -54,14 +54,16 @@ export function parentDans<T extends Unit>(units: T[], u: T): T | undefined {
   return choisi;
 }
 
-/** Valeur de « Dépend de » : un groupe ou un événement qui ne dépend d'aucun comité (« Sans comité »). */
-export const AUCUN_COMITE = 'aucun';
-
 /** Ordre des cartes d'un cadre de l'organigramme lu des données (clés courtes, en nombre raisonnable), sinon undefined. */
 export function lireRangement(r: unknown): string[] | undefined {
   if (!Array.isArray(r)) return undefined;
   const l = r.filter((x): x is string => typeof x === 'string' && x.length > 0 && x.length <= 200).slice(0, 300);
   return l.length ? l : undefined;
+}
+
+/** Ce que l'entité dont elle dépend affiche de ses tâches, lu des données ; sans valeur (ou inconnue) : les partagées. */
+export function lireTachesDependance(x: unknown): TachesDependance | undefined {
+  return x === 'toutes' || x === 'rien' ? x : undefined;
 }
 
 /** Place d'une carte de l'organigramme lue des données (entiers, dans des limites raisonnables), sinon undefined. */

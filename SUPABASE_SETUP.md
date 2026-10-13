@@ -112,11 +112,20 @@ Ajout pur, sauf le drapeau recopié dans `app_metadata` ; les données des entit
 
 Ajout pur : une table, une fonction ; aucune donnée existante modifiée. Sans elle, l'appli n'affiche pas le choix de l'année.
 
+`supabase/migrations/027_gsa_taches_dependance.sql` (**à appliquer**) : **les tâches d'une entité dans le comité dont elle dépend**.
+
+- `gsa_dependance(entité)` : le comité (ou groupe) dont elle dépend, comme l'appli (`info.dependDe` ; sans valeur, inconnue ou en boucle : le comité central).
+- `info.tachesDependance` (réglé dans sa fiche ⚙️) : ce que cette entité-là affiche de ses tâches — `toutes`, sans valeur : seulement celles partagées avec elle (comme avant), `rien` : aucune, même partagées. Les autres entités : les tâches partagées avec elles. Jamais les tickets.
+- `gsa_taches_partagees` et `gsa_modifier_tache_partagee` (019) suivent cette règle (`gsa_tache_visible`) ; le reste de leur corps est inchangé.
+- `gsa_committees_guard` (007) : `tachesDependance` contrôlé ; « Dépend de » ne change que par les admins du comité central (sinon l'ancienne valeur reste).
+
+Aucune donnée existante modifiée ; sans réglage, rien ne change. Sans elle, le réglage s'enregistre mais la version réelle continue d'afficher seulement les tâches partagées.
+
 Organigramme par postes (sans migration : deux clés de plus dans `committees.info`, enregistrées comme la couleur) :
 
-- `info.dependDe` peut valoir `aucun` : le groupe ou l'événement ne dépend d'aucun comité (cadre « Sans comité ») ; absent : la dépendance se déduit des postes (voir le README).
+- `info.dependDe` : le comité dont dépend l'entité (un événement : aussi un groupe) ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central. La carte d'un groupe se place par ses postes liés ⛓, pas par cette clé (voir le README).
 - `info.rangement` (liste de 300 clés au plus) : l'ordre des cartes dans le cadre d'un comité, choisi en les glissant.
-- Pour l'instant, la règle « seuls les admins du comité central changent une dépendance » est appliquée par l'appli ; le serveur la contrôlera à l'étape 3 (dépendances).
+- `info.tachesDependance` : `toutes` ou `rien` (absent : seulement les tâches partagées) ; voir la migration 027.
 
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
@@ -135,7 +144,7 @@ Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people
   - `approuverMdp` / `refuserMdp` : un admin qui peut la valider (règle `gsa_peut_approuver_mdp`) donne un mot de passe provisoire (renvoyé une seule fois) ou refuse ; les autres demandes de la personne sont closes ;
   - super-admins : `comptes` (liste du club), `reinitialiserCompte`, `bloquer` / `debloquer` (pas soi-même), `fusionner` (puis suppression du compte fondu, ou blocage si la suppression échoue).
   - Un compte au mot de passe provisoire ne peut appeler aucune action (sauf `demandeMdp`). `reinitialiser` suit aussi la règle `gsa_peut_approuver_mdp`.
-- **Organigramme** (déployé le 08.10.2026 ; tout membre du club, droits vérifiés par le serveur) : `organiser` applique un changement de l'organigramme (placer une personne, créer, renommer, lier ou supprimer un poste) avec le moteur de `src/data/organigramme.ts`, rassemblé dans `organigramme.js` par `npm run fonction` (à relancer, puis redéployer, quand ce moteur change). Seuls les admins d'une entité ou du comité central modifient ses fiches ; ce qui suit par un poste lié suit. Il renvoie un **jeton d'annulation** (chiffré, 30 minutes, pour son auteur) : `annulerOrga` remet les fiches touchées comme avant, sauf si quelqu'un les a changées entre-temps. `postes` : à la première ouverture, déduit les postes des fonctions de chacun (sans changer aucun rôle) ; `suivre` : après une modification de fiches (fonction renommée, personne retirée…), met à jour les postes et les postes liés ; `lierEntite` : à la création ou au renommage d'une entité, lie les postes qui portent son nom. Une personne nouvelle est inscrite au registre « Membres du club » ; ses coordonnées viennent toujours du registre.
+- **Organigramme** (déployé le 08.10.2026 ; tout membre du club, droits vérifiés par le serveur) : `organiser` applique un changement de l'organigramme (placer une personne, créer, renommer, lier ou supprimer un poste) avec le moteur de `src/data/organigramme.ts`, rassemblé dans `organigramme.js` par `npm run fonction` (à relancer, puis redéployer, quand ce moteur change ; **à redéployer** : `nouveauPoste` accepte maintenant `lien`, pour lier un groupe glissé dans un comité — sans cela, le nouveau poste n'est lié que si son nom désigne le groupe). Seuls les admins d'une entité ou du comité central modifient ses fiches ; ce qui suit par un poste lié suit. Il renvoie un **jeton d'annulation** (chiffré, 30 minutes, pour son auteur) : `annulerOrga` remet les fiches touchées comme avant, sauf si quelqu'un les a changées entre-temps. `postes` : à la première ouverture, déduit les postes des fonctions de chacun (sans changer aucun rôle) ; `suivre` : après une modification de fiches (fonction renommée, personne retirée…), met à jour les postes et les postes liés ; `lierEntite` : à la création ou au renommage d'une entité, lie les postes qui portent son nom. Une personne nouvelle est inscrite au registre « Membres du club » ; ses coordonnées viennent toujours du registre.
 
 Les mots de passe provisoires ne partent pas par email : l'admin les transmet lui-même.
 

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
-import { defaultRoleId, guestPerson, orgMembers, personKey, sortUnits, unitData, UNIT_TYPES, visitLevel } from './data/units';
+import { defaultRoleId, guestPerson, orgMembers, parentDans, personKey, sortUnits, unitData, UNIT_TYPES, visitLevel } from './data/units';
 import { poserResponsable } from './data/cablage';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey, nouveauMembre } from './data/membres';
@@ -11,7 +11,7 @@ import { uid } from './data/utils';
 import { demoClassique } from './data/mode';
 import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
-import { fusionPartagee, partageDe } from './data/partage';
+import { fusionPartagee, visibleDans } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
@@ -347,13 +347,14 @@ export function DemoApp() {
       // Tâches que les autres entités partagent avec l'entité ouverte (version réelle : gsa_taches_partagees, 019).
       async tachesPartagees(): Promise<TachePartagee[]> {
         if (guest) return [];
-        return units
-          .filter((u) => u.id !== current.id && !u.archive)
+        const actives = units.filter((u) => !u.archive);
+        return actives
+          .filter((u) => u.id !== current.id)
           .flatMap((u) => {
             const d = loadUnitData(u.id);
             const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
             return d.tasks
-              .filter((t) => !t.paiement && partageDe(t, u.parentId).includes(current.id))
+              .filter((t) => visibleDans(t, u, parentDans(actives, u)?.id, current.id))
               .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts }));
           });
       },
@@ -362,7 +363,7 @@ export function DemoApp() {
         const u = units.find((x) => x.id === uniteId);
         const d = loadUnitData(uniteId);
         const old = d.tasks.find((t) => t.id === task.id);
-        if (guest || !u || u.archive || !old || old.paiement || !partageDe(old, u.parentId).includes(current.id))
+        if (guest || !u || u.archive || !old || !visibleDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id))
           throw new Error('Cette tâche n’est plus partagée avec cette entité.');
         d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id) : t));
         saveUnitData(uniteId, d);

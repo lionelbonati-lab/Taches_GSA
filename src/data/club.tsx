@@ -92,7 +92,7 @@ export interface Club {
   switchUnit: (id: string, hash?: string) => void;
   refresh: () => void;
   createUnit: (u: NewUnit) => Promise<CreatedUnit>;
-  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'dependDe' | 'carte' | 'rangement'>>) => Promise<void>;
+  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'dependDe' | 'tachesDependance' | 'carte' | 'rangement'>>) => Promise<void>;
   /** Place des cartes dans l'organigramme (null : leur place dans l'arbre). Admins de l'entité ou du comité central. */
   placerCartes: (places: Record<string, Carte | null>) => Promise<void>;
   /** Change la date de la prochaine édition de l'entité ouverte (ses admins, son droit « Gérer les événements », le comité central). */

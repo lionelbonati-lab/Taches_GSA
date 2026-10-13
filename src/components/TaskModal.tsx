@@ -8,7 +8,8 @@ import { deleteFiles } from '../data/files';
 import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { libellePlace, partageDe } from '../data/partage';
+import { libellePlace, partageDe, TACHES_DEPENDANCE } from '../data/partage';
+import { parentDans } from '../data/units';
 import type { DelaiUnite, Recurrence, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
@@ -61,6 +62,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const partageables = club && !t.paiement && !t.source ? club.units.filter((u) => u.id !== club.current.id && (!u.archive || partage.includes(u.id))) : [];
   const nomUnite = (id: string) => club?.units.find((u) => u.id === id)?.nom ?? '';
   const versCentral = club?.central && club.current.type !== 'central' && partage.includes(club.central.id) ? libellePlace(club.central.sections ?? [], club.current) : '';
+  // Réglage de l'entité : ses tâches toutes affichées (ou aucune) dans l'entité dont elle dépend.
+  const reglage = club?.current.tachesDependance;
+  const parentIci = club && reglage && reglage !== 'partagees' && !t.source ? parentDans(club.units.filter((u) => !u.archive), club.current) : undefined;
   const togglePartage = (id: string) =>
     setT((x) => {
       const l = partageDe(x, club?.central?.id);
@@ -277,6 +281,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 ? `Elles la voient dans leurs tâches et leur ordre du jour, et la modifient comme les leurs${versCentral ? ` (comité central : ${versCentral})` : ''}.`
                 : 'La tâche reste ici ; les entités choisies la voient dans leurs tâches et leur ordre du jour, et peuvent la modifier.'}
             </small>
+            {parentIci && reglage && <small className="muted">{TACHES_DEPENDANCE[reglage].aide(parentIci.nom)} (réglage de l’entité)</small>}
           </div>
         )}
 

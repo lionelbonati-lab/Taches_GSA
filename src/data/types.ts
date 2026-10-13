@@ -537,6 +537,9 @@ export interface Entete {
  */
 export type UnitType = 'central' | 'sous-comite' | 'groupe' | 'equipe';
 
+/** Ce que l'entité dont elle dépend affiche de ses tâches (voir Unit.tachesDependance). */
+export type TachesDependance = 'toutes' | 'partagees' | 'rien';
+
 export interface Unit {
   id: string;
   nom: string;
@@ -558,10 +561,15 @@ export interface Unit {
   /** Couleur de l'appli dans l'entité (#rrggbb). Sans choix : celle du comité central, sinon le bleu d'origine. */
   couleurAppli?: string;
   /**
-   * Entité dont elle dépend dans l'organigramme (sinon le comité central) ; « aucun » (AUCUN_COMITE) : d'aucun comité.
-   * Affichage seulement : les accès suivent parentId.
+   * Entité dont elle dépend : un comité (un événement : aussi le groupe qui l'organise) ; sans choix (ou une valeur
+   * inconnue, comme l'ancien « aucun ») : le comité central. Les accès suivent parentId.
    */
   dependDe?: string;
+  /**
+   * Ses tâches dans l'entité dont elle dépend (liste des tâches, ordre du jour, PV) : toutes, seulement celles partagées
+   * avec elle (sans choix), ou aucune (même partagées).
+   */
+  tachesDependance?: TachesDependance;
   /** Place de sa carte dans l'organigramme, posée à la main (sinon sa place dans l'arbre). */
   carte?: Carte;
   /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (clés des cartes ; les autres à la suite). */

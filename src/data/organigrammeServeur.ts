@@ -171,7 +171,7 @@ export function lireOp(x: unknown): OpOrga {
   };
   switch (o.type) {
     case 'nouveauPoste':
-      return { type: 'nouveauPoste', uniteId: s(o.uniteId), nom: s(o.nom) };
+      return { type: 'nouveauPoste', uniteId: s(o.uniteId), nom: s(o.nom), ...(o.lien ? { lien: s(o.lien) } : {}) };
     case 'renommer':
       return { type: 'renommer', uniteId: s(o.uniteId), posteId: s(o.posteId), nom: s(o.nom) };
     case 'supprimerPoste':
@@ -229,7 +229,7 @@ export function organiser(c: ClubOrga, op: OpOrga, droits: Droits): { message: s
   const ecr = ecritures(c, avant);
   // Fiches touchées directement (lier un poste : aussi l'entité liée) ; celles qui suivent par un poste lié suivent.
   const directes = new Set(
-    op.type === 'placer' ? [op.depuis?.uniteId, op.vers.zone === 'corbeille' ? undefined : op.vers.uniteId] : op.type === 'lier' ? [op.uniteId, op.lien] : [op.uniteId],
+    op.type === 'placer' ? [op.depuis?.uniteId, op.vers.zone === 'corbeille' ? undefined : op.vers.uniteId] : op.type === 'lier' || op.type === 'nouveauPoste' ? [op.uniteId, op.lien] : [op.uniteId],
   );
   for (const u of new Set(ecr.map((e) => e.ligne.committee_id)))
     if (directes.has(u) && !peut(u)) throw new Error(u === c.centralId ? 'Réservé aux admins du comité central.' : `Réservé aux admins de « ${nomDe(c, u)} » ou du comité central.`);

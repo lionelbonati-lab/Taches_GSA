@@ -233,7 +233,8 @@ export type Vers =
 
 export type OpOrga =
   | { type: 'placer'; qui: Qui; depuis?: Depuis; vers: Vers }
-  | { type: 'nouveauPoste'; uniteId: string; nom: string }
+  /** `lien` : lié d'emblée au ★ de cette entité (sinon, à celle qui porte son nom). */
+  | { type: 'nouveauPoste'; uniteId: string; nom: string; lien?: string }
   | { type: 'renommer'; uniteId: string; posteId: string; nom: string }
   | { type: 'supprimerPoste'; uniteId: string; posteId: string }
   | { type: 'lier'; uniteId: string; posteId: string; lien: string | null };
@@ -611,6 +612,7 @@ export function appliquer(m: Monde, op: OpOrga): string {
       if (!n) throw new Error('Donne un nom au poste.');
       const po: Poste = { id: uid('po'), nom: n };
       A.postes.push(po);
+      if (op.lien) return `Nouveau poste « ${n} » dans « ${A.u.nom} » · ${lier(m, A.u.id, po.id, op.lien)}`;
       lierNoms(m, A.u.id, [po.id]);
       return `Nouveau poste « ${n} » dans « ${A.u.nom} »${po.titulaire ? '' : ' : à pourvoir'}`;
     }
