@@ -112,7 +112,7 @@ Ajout pur, sauf le drapeau recopié dans `app_metadata` ; les données des entit
 
 Ajout pur : une table, une fonction ; aucune donnée existante modifiée. Sans elle, l'appli n'affiche pas le choix de l'année.
 
-`supabase/migrations/027_gsa_taches_dependance.sql` (appliquée le 13.10.2026 dans sa première version ; **à relancer** pour `gsa_reglage_taches`, sans risque : tout y est remplacé, aucune donnée touchée) : **les tâches d'une entité dans le comité dont elle dépend**.
+`supabase/migrations/027_gsa_taches_dependance.sql` (appliquée le 13.10.2026) : **les tâches d'une entité dans le comité dont elle dépend**.
 
 - `gsa_dependance(entité)` : le comité dont elle dépend, comme l'appli (`info.dependDe` ; sans valeur, inconnue, archivée ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : son comité).
 - `info.tachesDependance` (réglé dans sa fiche ⚙️) : ce que cette entité-là affiche de ses tâches — `toutes`, sans valeur : seulement celles partagées avec elle (comme avant), `rien` : aucune, même partagées. Les autres entités : les tâches partagées avec elles. Jamais les tickets.
@@ -122,7 +122,7 @@ Ajout pur : une table, une fonction ; aucune donnée existante modifiée. Sans e
 
 Aucune donnée existante modifiée ; sans réglage, rien ne change, sauf pour un événement sans poste lié (toutes ses tâches dans son comité). Sans elle, le réglage s'enregistre mais la version réelle continue d'afficher seulement les tâches partagées.
 
-`supabase/migrations/028_gsa_fermer_acces_central.sql` (**à appliquer**) : **accès du comité central fermé**. `gsa_acces_central` (006) ne donne plus aucun accès : seuls les membres d'une entité lisent et modifient ses données et ses fichiers ; le comité dont elle dépend voit ses tâches par la migration 027. Aucune donnée modifiée (les valeurs `info.central` restent, sans effet). Retour en arrière : relancer la définition de `gsa_acces_central` de la migration 006.
+`supabase/migrations/028_gsa_fermer_acces_central.sql` (appliquée le 13.10.2026) : **accès du comité central fermé**. `gsa_acces_central` (006) ne donne plus aucun accès : seuls les membres d'une entité lisent et modifient ses données et ses fichiers ; le comité dont elle dépend voit ses tâches par la migration 027. Aucune donnée modifiée (les valeurs `info.central` restent, sans effet). Retour en arrière : relancer la définition de `gsa_acces_central` de la migration 006.
 
 Organigramme par postes (sans migration : deux clés de plus dans `committees.info`, enregistrées comme la couleur) :
 
