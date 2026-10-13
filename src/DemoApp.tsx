@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
-import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
+import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData, UNIT_TYPES } from './data/units';
 import { poserResponsable } from './data/cablage';
@@ -8,6 +8,8 @@ import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey, nouveauMembre } from './data/membres';
 import { appliquer, estEtoile } from './data/organigramme';
 import { uid } from './data/utils';
+import { deleteFiles } from './data/files';
+import { fileIds } from './data/backup';
 import { demoClassique } from './data/mode';
 import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
@@ -148,6 +150,58 @@ export function DemoApp() {
         saveUnits(next);
         setUnits(next);
         if (!classique && patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
+      },
+      // Entité archivée supprimée définitivement (version réelle : action « supprimerUnite » de gsa-acces).
+      async apercuSuppression(id): Promise<ApercuSuppression> {
+        const u = units.find((x) => x.id === id);
+        if (!u || u.type === 'central') throw new Error('Entité introuvable.');
+        const d = loadUnitData(id);
+        return {
+          nom: u.nom,
+          taches: d.tasks.filter((t) => !t.paiement).length,
+          tickets: d.tasks.filter((t) => t.paiement).length,
+          seances: d.meetings.length,
+          evenements: d.events.length,
+          sondages: (d.polls ?? []).length,
+          personnes: d.people.length,
+          fichiers: fileIds(d).length,
+          dependantes: units.filter((x) => !x.archive && x.id !== id && x.dependDe === id).map((x) => x.nom),
+          postesLies: units.filter((x) => x.id !== id).reduce((n, x) => n + (loadUnitData(x.id).postes ?? []).filter((p) => p.lien === id).length, 0),
+        };
+      },
+      async supprimerUnite(id, nom) {
+        const u = units.find((x) => x.id === id);
+        if (!u || u.type === 'central') throw new Error('Entité introuvable.');
+        if (!central?.moiAdmin) throw new Error('Réservé aux administrateurs du comité central.');
+        if (!u.archive) throw new Error('Seule une entité archivée se supprime : archive-la d’abord.');
+        if (nom.trim() !== u.nom.trim()) throw new Error('Le nom tapé n’est pas celui de l’entité : rien n’a été supprimé.');
+        if (id === current.id) throw new Error('Ouvre une autre entité pour supprimer celle-ci.');
+        const d = loadUnitData(id);
+        const fichiers = fileIds(d);
+        await deleteFiles(fichiers);
+        ecrireBrut(id, null);
+        // Postes liés ⛓ à elle : déliés (le poste et son titulaire restent).
+        for (const x of units) {
+          if (x.id === id) continue;
+          const dx = loadUnitData(x.id);
+          if (!dx.postes?.some((p) => p.lien === id)) continue;
+          dx.postes = dx.postes.map(({ lien, ...p }) => (lien === id ? p : { ...p, lien }));
+          saveUnitData(x.id, dx);
+        }
+        // Registre « Membres du club » : plus dans ce groupe.
+        const membres = loadMembres().filter((m) => m.groupes.includes(id));
+        if (membres.length) saveMembres(membres.map((m) => ({ ...m, groupes: m.groupes.filter((g) => g !== id) })));
+        if (central) {
+          const dc = loadUnitData(central.id);
+          const fiche = dc.people.find((p) => personKey(p, central.id) === me);
+          dc.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: fiche?.id ?? '', action: `Entité « ${u.nom} » supprimée définitivement (archivée ; ses données, ses accès et ${fichiers.length} fichier(s))` });
+          saveUnitData(central.id, dc);
+        }
+        const next = units.filter((x) => x.id !== id);
+        saveUnits(next);
+        setUnits(next);
+        setEpoch((e) => e + 1);
+        return undefined;
       },
       async placerCartes(places) {
         const next = units.map((u) => (u.id in places ? { ...u, carte: places[u.id] ?? undefined } : u));

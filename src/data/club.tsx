@@ -60,6 +60,24 @@ export interface CreatedUnit {
   avertissement?: string;
 }
 
+/** Ce que la suppression définitive d'une entité archivée effacerait. */
+export interface ApercuSuppression {
+  nom: string;
+  taches: number;
+  tickets: number;
+  seances: number;
+  evenements: number;
+  sondages: number;
+  personnes: number;
+  /** Comptes qui y ont accès (version réelle). */
+  acces?: number;
+  fichiers: number;
+  /** Entités actives dont « Dépend de » la désigne (elles dépendront du comité central). */
+  dependantes: string[];
+  /** Postes liés ⛓ à elle dans les autres entités (déliés, ils restent). */
+  postesLies: number;
+}
+
 export interface NewRequest {
   titre: string;
   remarque: string;
@@ -88,6 +106,13 @@ export interface Club {
   refresh: () => void;
   createUnit: (u: NewUnit) => Promise<CreatedUnit>;
   updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'dependDe' | 'tachesDependance' | 'historiqueDependance' | 'carte' | 'rangement'>>) => Promise<void>;
+  /** Entité archivée : ce que sa suppression définitive effacerait (admins du comité central). */
+  apercuSuppression: (id: string) => Promise<ApercuSuppression>;
+  /**
+   * Supprime définitivement une entité archivée et toutes ses données (`nom` : son nom, retapé pour confirmer).
+   * Renvoie un avertissement si une étape secondaire a échoué (fichiers, postes liés).
+   */
+  supprimerUnite: (id: string, nom: string) => Promise<string | undefined>;
   /** Place des cartes dans l'organigramme (null : leur place dans l'arbre). Admins de l'entité ou du comité central. */
   placerCartes: (places: Record<string, Carte | null>) => Promise<void>;
   /** Change la date de la prochaine édition de l'entité ouverte (ses admins, son droit « Gérer les événements », le comité central). */

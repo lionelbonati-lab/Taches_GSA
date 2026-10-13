@@ -5,11 +5,13 @@
 // Les comptes sont créés ici (clé secrète, jamais dans le navigateur), adresse confirmée d'office :
 // aucun email n'est envoyé, l'admin transmet lui-même le mot de passe provisoire, à changer à la 1re connexion.
 // L'organigramme à glisser-déposer passe aussi par ici (orga.ts : placer une personne, postes, postes liés),
-// ainsi que les comptes du club (comptes.ts : mot de passe oublié, super-admins).
+// ainsi que les comptes du club (comptes.ts : mot de passe oublié, super-admins) et la suppression définitive d'une
+// entité archivée (suppression.ts).
 // Mot de passe provisoire pas encore changé (app_metadata, migration 025) : aucune action, sauf la demande sans connexion.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { ACTIONS_ORGA, actionOrganigramme, Erreur } from './orga.ts';
 import { ACTIONS_COMPTES, actionComptes, demandeMdp, donnerMdpProvisoire, ErreurCompte, estSuperAdmin, peutApprouver, provisoire, tempPassword } from './comptes.ts';
+import { ErreurSuppression, supprimerUnite } from './suppression.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -158,6 +160,16 @@ Deno.serve(async (req) => {
       return json(await actionOrganigramme(db, secretKey(), me.user.id, action, committeeId, body));
     } catch (e) {
       return json({ error: e instanceof Error ? e.message : String(e) }, e instanceof Erreur ? e.status : 400);
+    }
+  }
+
+  // Entité archivée supprimée définitivement (committeeId : comité central) : ses admins, ou un super-admin.
+  if (action === 'supprimerUnite') {
+    try {
+      const droit = async () => (await isAdmin(db, committeeId, me.user.id)) || (await estSuperAdmin(db, me.user.id));
+      return json(await supprimerUnite(db, me.user.id, committeeId, body, droit));
+    } catch (e) {
+      return json({ error: e instanceof Error ? e.message : String(e) }, e instanceof ErreurSuppression ? e.status : 400);
     }
   }
 

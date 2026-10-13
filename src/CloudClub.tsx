@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
+import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
@@ -150,6 +150,18 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         // Renommée : les postes qui portent son nouveau nom lui sont liés (organigramme).
         if (orga && patch.nom && patch.nom !== u.nom) await accessAction({ action: 'lierEntite', committeeId: id }).catch(() => {});
         refresh();
+      },
+      async apercuSuppression(id) {
+        if (!central) throw new Error('Comité central introuvable.');
+        return accessAction<ApercuSuppression>({ action: 'supprimerUnite', committeeId: central.id, uniteId: id, apercu: true }).catch((e) => {
+          throw e instanceof Error && e.message === 'Action inconnue.' ? new Error('Le serveur ne sait pas encore supprimer une entité (fonction gsa-acces à mettre à jour).') : e;
+        });
+      },
+      async supprimerUnite(id, nom) {
+        if (!central) throw new Error('Comité central introuvable.');
+        const r = await accessAction<{ avertissement?: string }>({ action: 'supprimerUnite', committeeId: central.id, uniteId: id, nom });
+        refresh();
+        return r.avertissement;
       },
       async placerCartes(places) {
         const faits = await Promise.allSettled(

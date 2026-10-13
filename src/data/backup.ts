@@ -27,7 +27,8 @@ const toBase64 = (blob: Blob) =>
     r.readAsDataURL(blob);
   });
 
-const fileIds = (data: AppData) => data.tasks.flatMap((t) => (t.documents ?? []).filter((d) => d.kind === 'fichier').map((d) => d.id));
+/** Fichiers joints aux tâches de l'entité (visas signés compris). */
+export const fileIds = (data: AppData) => data.tasks.flatMap((t) => (t.documents ?? []).filter((d) => d.kind === 'fichier').map((d) => d.id));
 
 export async function makeBackup(data: AppData, by?: string): Promise<Backup> {
   const files: Backup['files'] = {};

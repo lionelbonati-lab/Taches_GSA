@@ -734,6 +734,8 @@ export type AccessRequest =
   | { action: 'liste'; committeeId: string }
   | { action: 'creer' | 'reinitialiser' | 'retirer'; committeeId: string; personId: string; email?: string }
   | { action: 'creerUnite'; committeeId: string; unite: { nom: string; type: UnitType; info: UnitInfo }; rows: Row[]; chefId: string }
+  /** Entité archivée supprimée définitivement (`committeeId` : comité central) ; `apercu` : ce qui serait supprimé. */
+  | { action: 'supprimerUnite'; committeeId: string; uniteId: string; apercu?: boolean; nom?: string }
   /** Organigramme câblé : `committeeId` est l'entité dont l'appelant est admin (comité central, ou l'entité elle-même). */
   | { action: 'responsable'; committeeId: string; uniteId: string; responsable: NouveauResponsable }
   /**

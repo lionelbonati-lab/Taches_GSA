@@ -12,13 +12,13 @@ import { groupesLies } from '../data/liens';
 import { nomMembre } from '../data/membres';
 import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
+import { SupprimerEntite } from '../components/SupprimerEntite';
 import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
 import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensPostes, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
 import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
 import { coupure, EnMain, Fiche, lireCible, NomPosteModal, PosteModal, Postes, rangeesPostes, Recherche, useGlisser, type OrgaVue, type Prise } from '../components/Organiser';
 import { benevolesDe, fonctionsDe, nomDe, type OpOrga } from '../data/organigramme';
 import { norm } from '../data/csv';
-import { getMode } from '../data/mode';
 import { OrgLignes, type EditionLignes } from '../components/OrgLignes';
 import type { ActionOrga, PosteLie } from '../data/organigrammeLignes';
 import { quiDeMembre } from '../components/Organiser';
@@ -37,7 +37,7 @@ import { quiDeMembre } from '../components/Organiser';
 // le responsable ; « 🔌 Câbler » ajoute les poignées ● (doigt), les personnes du club qui ne sont dans aucune entité,
 // et le choix sans glisser.
 // Historique : « 📅 » choisit une année passée, telle qu'à sa dernière photo (prise par le serveur), en lecture seule.
-// Démo : présentation « 📋 Par postes » (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une
+// Présentation « 📋 Par postes » (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une
 // carte par poste ; en mode « Modifier », on y glisse les postes, les groupes et les événements, on y crée un poste ou
 // un comité. « 🏛️ Par entités » : l'arbre ci-dessous (et ses outils en mode « Modifier »).
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
@@ -151,9 +151,8 @@ export function Org() {
   const peutCabler = active.some(cablable);
   const peutModifier = club.canManage || peutAjouter || peutCabler || units.some((u) => u.moiAdmin);
   const edition = modeModifier && peutModifier;
-  // Démo : organigramme par postes (la version réelle garde l'arbre en attendant le masquage des coordonnées) ; il se
-  // modifie sur place avec le moteur de l'organigramme (sinon, version « classique » : l'arbre).
-  const demo = getMode() === 'demo';
+  // Organigramme par postes (démo et version réelle) : il se modifie sur place avec le moteur de l'organigramme (sinon,
+  // démo « classique » ou serveur sans postes : l'arbre). Le profil n'en montre pas plus que la fiche de l'arbre.
   const [presentation, setPresentation] = useState<Presentation>(lirePresentation);
   const choisirPresentation = (p: Presentation) => {
     setPresentation(p);
@@ -163,8 +162,8 @@ export function Org() {
       /* navigation privée */
     }
   };
-  const parPostes = demo && presentation === 'postes' && (!edition || !!club.organiser);
-  const choixPresentation = demo && (!edition || !!club.organiser) && (
+  const parPostes = presentation === 'postes' && (!edition || !!club.organiser);
+  const choixPresentation = (!edition || !!club.organiser) && (
     <div className="seg" role="group" aria-label="Présentation de l’organigramme">
       <button type="button" className={presentation === 'postes' ? 'on' : ''} aria-pressed={presentation === 'postes'} onClick={() => choisirPresentation('postes')}>
         📋 Par postes
@@ -1054,6 +1053,7 @@ function UnitModal({
   const [dateFin, setDateFin] = useState(unit?.dateFin ?? '');
   const [description, setDescription] = useState(unit?.description ?? '');
   const [archive, setArchive] = useState(!!unit?.archive);
+  const [supprimer, setSupprimer] = useState(false);
   const [logo, setLogo] = useState(unit?.logo);
   // « Dépend de » : un comité (le groupe qui organise un événement : un de ses postes lui est lié ⛓, dans l'organigramme) ;
   // pas elle-même, ni un comité qui dépend d'elle. C'est là que vont ses tâches (selon son réglage), et le trait de l'organigramme.
@@ -1290,6 +1290,14 @@ function UnitModal({
             Archiver (événement passé) : l’entité disparaît des menus, ses données sont gardées.
           </label>
         )}
+        {!isNew && manage && unit?.archive && (
+          <div className="full zone-suppression">
+            <button type="button" className="btn danger small" onClick={() => setSupprimer(true)}>
+              🗑 Supprimer définitivement…
+            </button>
+            <small className="muted"> Efface l’entité archivée et toutes ses données, sans retour possible.</small>
+          </div>
+        )}
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
@@ -1297,6 +1305,7 @@ function UnitModal({
         <button className="btn" onClick={onClose}>Annuler</button>
         <button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Enregistrement…' : isNew ? 'Créer l’entité' : 'Enregistrer'}</button>
       </div>
+      {supprimer && unit && <SupprimerEntite id={unit.id} nom={unit.nom} onClose={() => setSupprimer(false)} onFait={onClose} />}
     </Modal>
   );
 }
