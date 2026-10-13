@@ -232,6 +232,8 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     // L'événement de cette année ne concerne pas l'occurrence suivante ; la séance, seulement celle du même mois l'an prochain.
     eventId: undefined,
     meetingId: seance?.id,
+    // La séance du comité dont l'entité dépend concernait cette occurrence-ci.
+    seanceComite: undefined,
     delaiRef: suit,
     suivanteId: undefined,
     // La demande d'une autre entité concernait cette occurrence-ci.

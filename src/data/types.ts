@@ -258,6 +258,25 @@ export interface Task {
   copieDe?: { comite: string; entite: string; le: string; uniteId?: string; tache?: string };
   /** Ancienne tâche lue du serveur : nombre de pièces jointes (non transmises). Affichage seulement. */
   pieces?: number;
+  /**
+   * Séance du comité dont l'entité dépend, à laquelle la tâche est liée : la tâche est partagée avec ce comité et figure à
+   * l'ordre du jour et au PV de cette séance. Titre et date : ceux du moment du choix (affichage).
+   */
+  seanceComite?: SeanceComite;
+}
+
+/** Séance d'un autre comité (celui dont l'entité dépend), liée à une tâche. */
+export interface SeanceComite {
+  uniteId: string;
+  id: string;
+  titre: string;
+  date: string;
+}
+
+/** Séances du comité dont dépend l'entité ouverte (gsa_seances_comite, 032) ; `comite` : '' pour le comité central. */
+export interface SeancesDuComite {
+  comite: string;
+  seances: { id: string; titre: string; date: string; heure?: string }[];
 }
 
 /** Origine d'une tâche proposée au comité central. */

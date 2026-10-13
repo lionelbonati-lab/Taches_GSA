@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, SeancesDuComite, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
 import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -653,6 +653,17 @@ export async function fetchTachesPartagees(unite: string): Promise<TachePartagee
   const { data, error } = await sb().rpc('gsa_taches_partagees', { unite });
   if (error) throw new Error(error.message);
   return (data ?? []) as TachePartagee[];
+}
+
+/** Séances du comité dont dépend l'entité, pour y lier une tâche (032) ; null si le serveur ne les donne pas encore. */
+export async function fetchSeancesComite(unite: string): Promise<SeancesDuComite | null> {
+  const { data, error } = await sb().rpc('gsa_seances_comite', { unite });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') return null;
+    throw new Error(error.message);
+  }
+  const r = (data ?? {}) as Partial<SeancesDuComite>;
+  return { comite: typeof r.comite === 'string' ? r.comite : '', seances: Array.isArray(r.seances) ? r.seances : [] };
 }
 
 /** Anciennes tâches des entités qui dépendent de l'entité (lecture et copie, 030) ; null si le serveur ne les gère pas encore. */

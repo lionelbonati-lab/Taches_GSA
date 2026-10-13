@@ -183,6 +183,8 @@ export function avecPartagees(data: AppData, list: TachePartagee[], moi: string,
       remarque: t.remarque ?? '',
       checklist: Array.isArray(t.checklist) ? t.checklist : [],
       termineeLe: t.termineeLe,
+      // Liée à une séance de l'entité ouverte (comité dont son entité dépend) : à l'ordre du jour et au PV de celle-ci.
+      meetingId: t.seanceComite?.uniteId === moi ? t.seanceComite.id : undefined,
       createdBy: '',
       updatedAt: t.updatedAt ?? '',
       partage: t.partage,

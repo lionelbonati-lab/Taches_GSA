@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { Carte, ClubMembre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { Carte, ClubMembre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 import type { NouveauResponsable } from './cablage';
 import type { OpOrga } from './organigramme';
@@ -137,6 +137,11 @@ export interface Club {
    * (lecture et copie) ; null : le serveur ne les gère pas encore (migration 030).
    */
   anciennesTaches: () => Promise<TachePartagee[] | null>;
+  /**
+   * Séances du comité dont dépend l'entité ouverte, pour y lier une tâche (son ordre du jour et son PV) ; null : le
+   * serveur ne les donne pas encore (migration 032).
+   */
+  seancesComite: () => Promise<SeancesDuComite | null>;
   /** Enregistre, dans son entité, une tâche partagée modifiée depuis l'entité ouverte. */
   modifierTachePartagee: (uniteId: string, task: Task) => Promise<void>;
   /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */

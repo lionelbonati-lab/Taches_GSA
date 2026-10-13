@@ -11,7 +11,7 @@ import { uid } from './data/utils';
 import { deleteFiles } from './data/files';
 import { fileIds } from './data/backup';
 import { demoClassique } from './data/mode';
-import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
@@ -403,6 +403,16 @@ export function DemoApp() {
               .filter((t) => tacheDans(t, u, parentDans(actives, u)?.id, current.id, reglageTaches(org, u)) === 'modifiable')
               .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts }));
           });
+      },
+      // Séances du comité dont dépend l'entité ouverte, pour y lier une tâche (version réelle : gsa_seances_comite, 032).
+      async seancesComite(): Promise<SeancesDuComite> {
+        const comite = parentDans(units.filter((u) => !u.archive), current);
+        if (!comite) return { comite: '', seances: [] };
+        const seances = loadUnitData(comite.id)
+          .meetings.filter((m) => /^\d{4}-\d{2}-\d{2}$/.test(m.date))
+          .map(({ id, titre, date, heure }) => ({ id, titre, date, heure }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+        return { comite: comite.id, seances };
       },
       // Anciennes tâches des entités qui dépendent maintenant de l'entité ouverte : lecture et copie (version réelle :
       // gsa_anciennes_taches, 030). Sans pièces jointes (leur nombre seulement).

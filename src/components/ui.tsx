@@ -87,7 +87,10 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
 
-/** Petits repères : 🔁 tâche récurrente, 🤝 tâche partagée entre entités, 🔗 délai lié à un événement / une séance. */
+/**
+ * Petits repères : 🔁 tâche récurrente, 🤝 tâche partagée entre entités, 🏛️ à l'ordre du jour d'une séance du comité dont
+ * l'entité dépend, 🔗 délai lié à un événement / une séance.
+ */
 export function RecurIcon({ task }: { task: Task }) {
   const club = useClubOptional();
   const avec = partageDe(task, club?.central?.id).map((id) => club?.units.find((u) => u.id === id)?.nom).filter(Boolean);
@@ -98,6 +101,9 @@ export function RecurIcon({ task }: { task: Task }) {
     <>
       {task.recurrence && <span className="ticon" title={`Tâche récurrente : ${recurrenceLabel(task.recurrence).toLowerCase()}`}>🔁</span>}
       {partage && <span className="ticon" title={partage}>🤝</span>}
+      {task.seanceComite && (
+        <span className="ticon" title={`À l’ordre du jour de « ${task.seanceComite.titre} » (${club?.units.find((u) => u.id === task.seanceComite!.uniteId)?.nom ?? 'comité'})`}>🏛️</span>
+      )}
       {task.source && <span className="tsource">{task.source.unite}</span>}
     </>
   );
