@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, PvArchive, Task } from '../data/types';
+import type { ClubEvent, Meeting, OrgUnit, PvArchive, Task } from '../data/types';
 import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
 import { EditionCard } from '../components/Edition';
 import { Empty, Modal } from '../components/ui';
@@ -14,8 +14,8 @@ import { hasPermission, userRoles } from '../data/permissions';
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
 import { aPlanifier, aRenommer, annuelle, duMois, finDeSerie, motSeance, nomSeance, serieDuMois, seuleDuMois, titreSelonDate } from '../data/seances';
-import { estEvenement } from '../data/partage';
-import { parentDans, UNIT_TYPES } from '../data/units';
+import { UNIT_TYPES } from '../data/units';
+import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
 
@@ -370,8 +370,8 @@ export function Events() {
   const manage = can('events.manage');
   const sorted = [...data.events].sort((a, b) => a.date.localeCompare(b.date));
   // Avec les événements du club qui dépendent de ce comité, à leur date (sans date : à la fin).
-  const dependants = useEvenementsDependants();
-  const agenda = useAgendaDe(dependants);
+  const club = useClubOptional();
+  const dependants = club ? evenementsDependants(club.units, club.current) : [];
   const liste = [
     ...sorted.map((e) => ({ date: e.date, e, u: undefined })),
     ...dependants.map((u) => ({ date: u.date || '9999', e: undefined, u })),
@@ -387,7 +387,7 @@ export function Events() {
       <EditionCard />
       <div className="agenda">
         {liste.map(({ e, u }) => {
-          if (u) return <EvenementDependant key={u.id} u={u} agenda={agenda} />;
+          if (u) return <EvenementDependant key={u.id} u={u} />;
           if (!e) return null;
           const tasks = data.tasks.filter((t) => t.eventId === e.id);
           const fin = endOf(e);
@@ -426,37 +426,14 @@ export function Events() {
   );
 }
 
-/** Événements du club (sous-comités, équipes d'événement) qui dépendent de l'entité ouverte (« Dépend de »), hors archivés. */
-function useEvenementsDependants(): OrgUnit[] {
-  const club = useClubOptional();
-  if (!club) return [];
-  const actives = club.units.filter((u) => !u.archive);
-  return actives
-    .filter((u) => u.id !== club.current.id && estEvenement(u.type) && parentDans(actives, u)?.id === club.current.id)
-    .sort((a, b) => (a.date || '9999').localeCompare(b.date || '9999') || a.nom.localeCompare(b.nom, 'fr'));
-}
-
-/** Événements de l'agenda du club (sans description) des entités de la liste. */
-function useAgendaDe(liste: OrgUnit[]) {
-  const club = useClubOptional();
-  const [agenda, setAgenda] = useState<AgendaClubEvent[]>([]);
-  const cle = liste.map((u) => u.id).join();
-  useEffect(() => {
-    if (!club || !cle) return;
-    let on = true;
-    club.agendaClub().then((r) => on && setAgenda(r), () => on && setAgenda([]));
-    return () => { on = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [club?.current.id, cle]);
-  return agenda;
-}
-
 /**
  * Événement du club qui dépend du comité ouvert : sa prochaine édition, sa description, ses propres événements à venir
- * et l'avancement de ses tâches partagées avec le comité. Il s'ouvre d'ici pour qui en fait partie.
+ * et l'avancement des tâches qui le concernent ici (partagées par lui, ou du comité liées à lui). Il s'ouvre d'ici pour
+ * qui en fait partie.
  */
-function EvenementDependant({ u, agenda }: { u: OrgUnit; agenda: AgendaClubEvent[] }) {
-  const { data } = useStore();
+function EvenementDependant({ u }: { u: OrgUnit }) {
+  const { data, externes } = useStore();
+  const agenda = externes.agenda ?? [];
   const club = useClubOptional();
   if (!club) return null;
   const jour = today();
@@ -465,7 +442,7 @@ function EvenementDependant({ u, agenda }: { u: OrgUnit; agenda: AgendaClubEvent
   const jours = u.date ? diffDays(u.date, fin) + 1 : 0;
   const quand = !u.date ? 'date de la prochaine édition à fixer' : past ? '' : u.date <= jour ? 'en cours' : `dans ${daysUntil(u.date)} j`;
   const siens = agenda.filter((e) => e.uniteId === u.id && endOf(e) >= jour && !(e.date === u.date && (e.dateFin ?? '') === (u.dateFin ?? '')));
-  const taches = data.tasks.filter((t) => t.source?.uniteId === u.id);
+  const taches = data.tasks.filter((t) => tacheDeLEvenement(t, u.id));
   const membre = club.mine.some((x) => x.id === u.id);
   return (
     <article className={`panel agenda-item dependant ${past ? 'past' : ''}`} style={{ '--c': u.couleur } as React.CSSProperties}>
@@ -479,12 +456,9 @@ function EvenementDependant({ u, agenda }: { u: OrgUnit; agenda: AgendaClubEvent
             {siens.map((e) => <li key={e.id}>🎉 {e.nom} · {fmtRange(e.date, e.dateFin)}{e.lieu && ` · ${e.lieu}`}</li>)}
           </ul>
         )}
-        {taches.length > 0 && (
-          <>
-            <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />
-            <small className="muted">Ses tâches partagées avec {club.current.nom} (dans Tâches et à l’ordre du jour).</small>
-          </>
-        )}
+        {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
+        <Link to={`/taches?event=${encodeURIComponent(`u:${u.id}`)}`}>Voir les tâches →</Link>
+        {!taches.length && <small className="muted"> Aucune pour l’instant : lie une tâche à « {u.nom} » (« Événement lié » ou « Pour quand ? »), ou elle partage les siennes.</small>}
       </div>
       {membre && <button className="btn small" onClick={() => club.switchUnit(u.id, '#/evenements')} title={`Ouvrir « ${u.nom} »`}>Ouvrir</button>}
     </article>

@@ -105,7 +105,10 @@ export interface ChecklistItem {
 
 export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle';
 
-/** Délai calculé à partir de la date de l'événement (eventId) ou de la séance (meetingId) liés. */
+/**
+ * Délai calculé à partir de la date de l'événement (eventId, sinon evenementEntite) ou de la séance (meetingId, sinon
+ * seanceComite) liés.
+ */
 export interface DelaiRef {
   type: 'event' | 'meeting';
   /** Nombre de jours avant la date de référence (négatif = après). En mois : 30 jours par mois, valeur approchée. */
@@ -263,6 +266,21 @@ export interface Task {
    * l'ordre du jour et au PV de cette séance. Titre et date : ceux du moment du choix (affichage).
    */
   seanceComite?: SeanceComite;
+  /**
+   * Événement d'une entité qui dépend du comité (sa prochaine édition, ou l'un de ses événements) auquel la tâche est
+   * liée. Nom et date : copiés au choix, puis mis à jour quand l'événement change (le délai lié suit).
+   */
+  evenementEntite?: EvenementEntite;
+}
+
+/** Événement d'une entité qui dépend du comité ; sans `id` : la prochaine édition de l'entité (sa date dans l'organigramme). */
+export interface EvenementEntite {
+  uniteId: string;
+  id?: string;
+  nom: string;
+  /** '' : date de l'édition pas encore fixée. */
+  date: string;
+  dateFin?: string;
 }
 
 /** Séance d'un autre comité (celui dont l'entité dépend), liée à une tâche. */

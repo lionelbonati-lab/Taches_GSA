@@ -129,10 +129,12 @@ export function offsetLabel(r: Decalage) {
 /** Événement ou séance servant de référence au délai de la tâche. */
 export function delaiTarget(data: AppData, t: Task): { nom: string; date: string } | null {
   if (!t.delaiRef) return null;
+  // Sans événement / séance de l'entité : celui d'une entité qui dépend du comité, ou la séance du comité dont elle dépend.
   if (t.delaiRef.type === 'event') {
-    const e = data.events.find((x) => x.id === t.eventId);
-    return e ? { nom: e.nom, date: e.date } : null;
+    const e = t.eventId ? data.events.find((x) => x.id === t.eventId) : t.evenementEntite;
+    return e?.date ? { nom: e.nom, date: e.date } : null;
   }
+  if (!t.meetingId) return t.seanceComite?.date ? { nom: t.seanceComite.titre, date: t.seanceComite.date } : null;
   const m = data.meetings.find((x) => x.id === t.meetingId);
   return m ? { nom: m.titre, date: m.date } : null;
 }
@@ -234,6 +236,7 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     meetingId: seance?.id,
     // La séance du comité dont l'entité dépend concernait cette occurrence-ci.
     seanceComite: undefined,
+    evenementEntite: undefined,
     delaiRef: suit,
     suivanteId: undefined,
     // La demande d'une autre entité concernait cette occurrence-ci.

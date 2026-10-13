@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
@@ -9,8 +9,9 @@ import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { libellePlace, partageDe, TACHES_DEPENDANCE } from '../data/partage';
-import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
-import type { DelaiUnite, Recurrence, SeancesDuComite, Task } from '../data/types';
+import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
+import { choixEvenements, choixSeances, evenementsDependants, memeEvenement, memeSeance } from '../data/externes';
+import type { DelaiUnite, EvenementEntite, OrgUnit, Recurrence, SeanceComite, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
 
@@ -55,7 +56,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const [newPoll, setNewPoll] = useState(false);
   // Liens et partage déjà remplis : ils restent affichés si on les vide (ex. partage retiré : plus de séance du comité).
   const [ouverts, setOuverts] = useState<Extra[]>(() => [
-    ...(task.eventId || (task.meetingId && !task.source) || task.seanceComite || task.parentId ? ['liens' as const] : []),
+    ...(task.eventId || task.evenementEntite || (task.meetingId && !task.source) || task.seanceComite || task.parentId ? ['liens' as const] : []),
     ...(task.partage?.length || task.auCentral ? ['partage' as const] : []),
   ]);
   const [nouvelEmail, setNouvelEmail] = useState(false);
@@ -82,15 +83,15 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         delete respPartage[id];
         delete placePartage[id];
       }
-      return {
+      // Plus partagée avec le comité : plus à l'ordre du jour de sa séance (ni de délai selon elle).
+      return applyDelaiRef(data, {
         ...x,
-        // Plus partagée avec le comité : plus à l'ordre du jour de sa séance.
         seanceComite: retire && x.seanceComite?.uniteId === id ? undefined : x.seanceComite,
         partage: next.length ? next : undefined,
         auCentral: undefined,
         respPartage: Object.keys(respPartage).length ? respPartage : undefined,
         placePartage: Object.keys(placePartage).length ? placePartage : undefined,
-      };
+      });
     });
   const autres = autresResp(t);
 
@@ -166,7 +167,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     docs: (t.documents ?? []).length > 0,
     repetition: !!t.recurrence,
     // Tâche partagée par une autre entité : sa séance ici s'affiche dans le bandeau.
-    liens: !!(t.eventId || (t.meetingId && !t.source) || t.seanceComite || t.parentId || kids.length),
+    liens: !!(t.eventId || t.evenementEntite || (t.meetingId && !t.source) || t.seanceComite || t.parentId || kids.length),
     emails: !isNew && emailsOf(data, task.id).length > 0,
     partage: partage.length > 0,
   };
@@ -358,13 +359,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           <fieldset className="full liens">
             <legend>🔗 Liens</legend>
             <div className="form">
-              <label>
-                Événement lié
-                <select value={t.eventId ?? ''} disabled={dis} onChange={(e) => setT((x) => applyDelaiRef(data, { ...x, eventId: e.target.value || undefined }))}>
-                  <option value="">—</option>
-                  {data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
-                </select>
-              </label>
+              <EvenementLie t={t} setT={setT} disabled={dis} />
               <SeanceLiee t={t} setT={setT} disabled={dis} />
               {!kids.length && (
                 <label className="full">
@@ -471,50 +466,103 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   );
 }
 
+type SetT = (fn: (x: Task) => Task) => void;
+
+/** Tâche liée à une séance du comité dont l'entité dépend : partagée avec ce comité (ses tâches, son ordre du jour, son PV). */
+function avecSeance(x: Task, s: SeanceComite, centralId?: string): Task {
+  const l = partageDe(x, centralId);
+  return {
+    ...x,
+    meetingId: undefined,
+    seanceComite: { uniteId: s.uniteId, id: s.id, titre: s.titre, date: s.date },
+    partage: l.includes(s.uniteId) ? l : [...l, s.uniteId],
+    auCentral: undefined,
+  };
+}
+
+/**
+ * « Soirée (28.11.2026) · prochaine édition » : édition d'un événement du club (distincte d'un événement du comité du même
+ * nom), ou l'un de ses événements (avec le nom de l'entité).
+ */
+function libelleEvenement(x: EvenementEntite, u?: OrgUnit) {
+  if (x.id) return `🎉 ${x.nom} (${fmtRange(x.date, x.dateFin)})${u ? ` · ${u.nom}` : ''}`;
+  return `${u ? UNIT_TYPES[u.type].icon : '🎉'} ${x.nom} (${x.date ? fmtRange(x.date, x.dateFin) : 'date à fixer'}) · prochaine édition`;
+}
+
+/**
+ * Ce que la tâche peut lier hors de l'entité (lu par le store, externes.ts) : les séances du comité dont elle dépend, et
+ * les événements du club qui dépendent d'elle (prochaine édition, événements de leur agenda).
+ */
+function useExternes(t: Task) {
+  const { externes } = useStore();
+  const club = useClubOptional();
+  const jour = today();
+  const parent = club && club.current.type !== 'central' && !t.source ? parentDans(club.units.filter((u) => !u.archive), club.current) : undefined;
+  const comite = externes.seances?.comite || parent?.id || '';
+  const seances = parent || t.seanceComite ? choixSeances(externes.seances, comite, t.seanceComite, jour) : [];
+  const dependants = club && !t.source ? evenementsDependants(club.units, club.current) : [];
+  const evenements = dependants.length || t.evenementEntite ? choixEvenements(dependants, externes.agenda ?? [], t.evenementEntite, jour) : [];
+  const unite = (id: string) => club?.units.find((u) => u.id === id);
+  return { club, parent, comite, lu: externes.seances, seances, evenements, unite, ici: club?.current.nom ?? '' };
+}
+
+/**
+ * « Événement lié » : un événement de l'entité ; pour un comité, aussi un événement qui dépend de lui (sa prochaine
+ * édition ou l'un de ses événements), dont le nom et la date suivent les changements.
+ */
+function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
+  const { data } = useStore();
+  const { club, evenements, unite, ici } = useExternes(t);
+  const lie = t.evenementEntite;
+  const value = lie ? `x:${evenements.findIndex((x) => memeEvenement(x, lie))}` : (t.eventId ?? '');
+  const choisir = (v: string) =>
+    setT((x) =>
+      applyDelaiRef(data, v.startsWith('x:') ? { ...x, eventId: undefined, evenementEntite: evenements[Number(v.slice(2))] } : { ...x, eventId: v || undefined, evenementEntite: undefined }),
+    );
+  const locales = data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>);
+  const u = lie && unite(lie.uniteId);
+  const partagee = !!lie && partageDe(t, club?.central?.id).includes(lie.uniteId);
+  return (
+    <label className={evenements.length ? 'full' : undefined}>
+      Événement lié
+      <select value={value} disabled={disabled} onChange={(e) => choisir(e.target.value)}>
+        <option value="">—</option>
+        {evenements.length > 0 ? (
+          <>
+            {locales.length > 0 && <optgroup label={`Événements de « ${ici} »`}>{locales}</optgroup>}
+            <optgroup label={`Événements qui dépendent de « ${ici} »`}>
+              {evenements.map((x, i) => <option key={`${x.uniteId}:${x.id ?? ''}:${x.date}`} value={`x:${i}`}>{libelleEvenement(x, unite(x.uniteId))}</option>)}
+            </optgroup>
+          </>
+        ) : locales}
+      </select>
+      {lie && (
+        <small className="muted">
+          {u ? UNIT_TYPES[u.type].icon : '🎉'} {lie.id ? `Événement de « ${u?.nom ?? '?'} »` : 'Prochaine édition'}, qui dépend de « {ici} » : son nom et sa date sont suivis (délai lié compris).
+          {!partagee && !disabled && u && ` Pour que « ${u.nom} » voie aussi la tâche : 🤝 Partager.`}
+        </small>
+      )}
+    </label>
+  );
+}
+
 /**
  * « Séance de comité liée » : une séance de l'entité, ou une séance du comité dont elle dépend. Dans ce cas, la tâche
  * est partagée avec ce comité et figure à l'ordre du jour et au PV de cette séance (partage.ts : avecPartagees).
  */
-function SeanceLiee({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Task) => void; disabled: boolean }) {
+function SeanceLiee({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
   const { data } = useStore();
-  const club = useClubOptional();
-  const parent = club && club.current.type !== 'central' && !t.source ? parentDans(club.units.filter((u) => !u.archive), club.current) : undefined;
-  // undefined : en lecture ; null : le serveur ne les donne pas encore (migration 032).
-  const [lu, setLu] = useState<SeancesDuComite | null>();
-  useEffect(() => {
-    if (!club || !parent) return;
-    let on = true;
-    club.seancesComite().then((r) => on && setLu(r), () => on && setLu(null));
-    return () => { on = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [club?.current.id, parent?.id]);
-  const nomComite = (id: string) => club?.units.find((u) => u.id === id)?.nom ?? 'comité';
-  const comite = lu?.comite || parent?.id || '';
+  const { club, parent, comite, lu, seances: choix, unite, ici } = useExternes(t);
+  const nomComite = (id: string) => unite(id)?.nom ?? 'comité';
   const lie = t.seanceComite;
-  // Séances à venir du comité (et celle déjà choisie) ; une séance choisie ailleurs (ancien comité, séance retirée) reste proposée.
-  const choix = (lu?.seances ?? [])
-    .filter((s) => s.date >= today() || (lie?.uniteId === comite && s.id === lie.id))
-    .map((s) => ({ uniteId: comite, id: s.id, titre: s.titre, date: s.date }));
-  if (lie && !choix.some((s) => s.uniteId === lie.uniteId && s.id === lie.id)) choix.push(lie);
-  const value = lie ? `c:${choix.findIndex((s) => s.uniteId === lie.uniteId && s.id === lie.id)}` : (t.meetingId ?? '');
+  const value = lie ? `c:${choix.findIndex((s) => memeSeance(s, lie))}` : (t.meetingId ?? '');
   const reglage = club ? reglageTaches(club.units, club.current) : undefined;
 
   const choisir = (v: string) =>
-    setT((x) => {
-      if (!v.startsWith('c:')) return applyDelaiRef(data, { ...x, meetingId: v || undefined, seanceComite: undefined });
-      const s = choix[Number(v.slice(2))];
-      const l = partageDe(x, club?.central?.id);
-      // Partagée avec le comité : il la voit dans ses tâches, son ordre du jour et son PV.
-      return applyDelaiRef(data, {
-        ...x,
-        meetingId: undefined,
-        seanceComite: { uniteId: s.uniteId, id: s.id, titre: s.titre, date: s.date },
-        partage: l.includes(s.uniteId) ? l : [...l, s.uniteId],
-        auCentral: undefined,
-      });
-    });
+    setT((x) =>
+      applyDelaiRef(data, v.startsWith('c:') ? avecSeance(x, choix[Number(v.slice(2))], club?.central?.id) : { ...x, meetingId: v || undefined, seanceComite: undefined }),
+    );
 
-  const ici = club?.current.nom ?? '';
   const locales = data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>);
   return (
     <label className={parent ? 'full' : undefined}>
@@ -543,32 +591,44 @@ function SeanceLiee({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
 }
 
 /**
- * Pour quand ? Une date, ou une date calculée à partir d'un événement / d'une séance
- * (« 1 semaine avant le Tournoi d'automne ») qui suit ensuite ses changements de date.
+ * Pour quand ? Une date, ou une date calculée à partir d'un événement / d'une séance (« 1 semaine avant le Tournoi
+ * d'automne ») qui suit ensuite ses changements de date. Aussi : une séance du comité dont l'entité dépend, un événement
+ * qui dépend du comité ouvert.
  */
-function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: (fn: (x: Task) => Task) => void; disabled: boolean; dateSeule?: boolean }) {
+function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; disabled: boolean; dateSeule?: boolean }) {
   const { data } = useStore();
+  const { club, comite, seances: xm, evenements, unite, ici } = useExternes(t);
   const [choisir, setChoisir] = useState(false);
-  const refId = t.delaiRef ? (t.delaiRef.type === 'event' ? t.eventId : t.meetingId) : undefined;
-  const mode = t.delaiRef && refId ? `${t.delaiRef.type}:${refId}` : 'fixe';
   const upcoming = <T extends { id: string; date: string; dateFin?: string }>(list: T[], current?: string) =>
     list.filter((x) => endOf(x) >= today() || x.id === current).sort((a, b) => a.date.localeCompare(b.date));
   const events = upcoming(data.events, t.eventId);
   const meetings = upcoming(data.meetings, t.meetingId);
+  // Édition pas encore datée : pas de repère pour un délai.
+  const xe = evenements.filter((x) => x.date);
+  const ref = t.delaiRef;
+  const mode = !ref
+    ? 'fixe'
+    : ref.type === 'event'
+      ? t.eventId ? `event:${t.eventId}` : t.evenementEntite ? `xe:${xe.findIndex((x) => memeEvenement(x, t.evenementEntite))}` : 'fixe'
+      : t.meetingId ? `meeting:${t.meetingId}` : t.seanceComite ? `xm:${xm.findIndex((s) => memeSeance(s, t.seanceComite))}` : 'fixe';
 
   const onMode = (v: string) => {
     if (v === 'fixe') {
       setChoisir(false);
       return setT((x) => ({ ...x, delaiRef: undefined }));
     }
-    const [type, id] = v.split(':') as ['event' | 'meeting', string];
-    setT((x) =>
-      applyDelaiRef(data, {
-        ...x,
-        ...(type === 'event' ? { eventId: id } : { meetingId: id }),
-        delaiRef: { ...(x.delaiRef ?? makeDelai(1, 'semaines', false)), type },
-      }),
-    );
+    const i = v.indexOf(':');
+    const cle = v.slice(0, i);
+    const id = v.slice(i + 1);
+    setT((x) => {
+      const y =
+        cle === 'event' ? { ...x, eventId: id, evenementEntite: undefined }
+        : cle === 'xe' ? { ...x, eventId: undefined, evenementEntite: xe[Number(id)] }
+        : cle === 'meeting' ? { ...x, meetingId: id, seanceComite: undefined }
+        : avecSeance(x, xm[Number(id)], club?.central?.id);
+      const type = cle === 'event' || cle === 'xe' ? 'event' : 'meeting';
+      return applyDelaiRef(data, { ...y, delaiRef: { ...(x.delaiRef ?? makeDelai(1, 'semaines', false)), type } });
+    });
   };
 
   const choix = (
@@ -579,9 +639,19 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: (fn: (x: 
           {events.map((e) => <option key={e.id} value={`event:${e.id}`}>🎉 {e.nom} ({fmtRange(e.date, e.dateFin)})</option>)}
         </optgroup>
       )}
+      {xe.length > 0 && (
+        <optgroup label={`Selon un événement qui dépend de « ${ici} »`}>
+          {xe.map((x, i) => <option key={`${x.uniteId}:${x.id ?? ''}:${x.date}`} value={`xe:${i}`}>{libelleEvenement(x, unite(x.uniteId))}</option>)}
+        </optgroup>
+      )}
       {meetings.length > 0 && (
-        <optgroup label="Selon une séance de comité">
+        <optgroup label={xm.length ? `Selon une séance de « ${ici} »` : 'Selon une séance de comité'}>
           {meetings.map((m) => <option key={m.id} value={`meeting:${m.id}`}>🗓️ {m.titre} ({fmtDate(m.date)})</option>)}
+        </optgroup>
+      )}
+      {xm.length > 0 && (
+        <optgroup label={`Selon une séance de « ${unite(comite)?.nom ?? 'comité'} » (comité dont dépend « ${ici} »)`}>
+          {xm.map((s, i) => <option key={`${s.uniteId}:${s.id}`} value={`xm:${i}`}>🏛️ {s.titre} ({fmtDate(s.date)})</option>)}
         </optgroup>
       )}
     </select>
@@ -595,7 +665,7 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: (fn: (x: 
           <input type="date" aria-label="Pour quand ?" value={t.delai} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, delai: e.target.value }))} />
           {choisir
             ? choix
-            : !disabled && !dateSeule && events.length + meetings.length > 0 && (
+            : !disabled && !dateSeule && events.length + meetings.length + xe.length + xm.length > 0 && (
                 <button type="button" className="link-btn" onClick={() => setChoisir(true)}>📌 ou selon un événement / une séance</button>
               )}
         </>

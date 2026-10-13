@@ -10,6 +10,9 @@ import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { Avatar, DocPollIcons, Empty, LinkIcon, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 import { PageIntro } from '../components/Nav';
+import { useClubOptional } from '../data/club';
+import { editionDe, evenementsDependants, tacheDeLEvenement } from '../data/externes';
+import { UNIT_TYPES } from '../data/units';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
@@ -49,6 +52,14 @@ export function Tasks() {
   const view = prefs.affichage;
   // Anciennes tâches des entités qui dépendent depuis peu de l'entité ouverte (lecture et copie).
   const anciennes = useAnciennesTaches();
+  // Événements qui dépendent de l'entité ouverte (filtre « Tous événements », nouvelle tâche liée à l'un d'eux).
+  const club = useClubOptional();
+  const dependants = club ? evenementsDependants(club.units, club.current) : [];
+  const lienEvenement = (v: string): Partial<Task> => {
+    if (!v.startsWith('u:')) return { eventId: v || undefined };
+    const u = dependants.find((x) => x.id === v.slice(2));
+    return u ? { evenementEntite: editionDe(u) } : {};
+  };
   const [voirAnciennes, setVoirAnciennes] = useState(false);
 
   const viewAll = can('tasks.viewAll');
@@ -70,7 +81,8 @@ export function Tasks() {
       if (f.resp && !t.responsables.includes(f.resp)) return false;
       if (f.parent && t.id !== f.parent && t.parentId !== f.parent) return false;
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
-      if (f.event && t.eventId !== f.event) return false;
+      // « u:<entité> » : un événement qui dépend du comité (tâches partagées par lui, ou liées à lui).
+      if (f.event && (f.event.startsWith('u:') ? !tacheDeLEvenement(t, f.event.slice(2)) : t.eventId !== f.event)) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
       if (f.delai && ['passe', '7', '30'].includes(f.delai) && !t.delai) return false;
       if (f.delai) {
@@ -115,7 +127,7 @@ export function Tasks() {
     const subs = (t: Task) => t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join(' | ');
     const rows = list.map((t) => [
       sectionName(t.sectionId), t.sousSection, t.titre, parentOf(data, t)?.titre ?? '', respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
-      data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', t.seanceComite?.titre ?? '', recurrenceLabel(t.recurrence), t.remarque, subs(t),
+      data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', t.seanceComite?.titre ?? '', t.evenementEntite?.nom ?? '', recurrenceLabel(t.recurrence), t.remarque, subs(t),
     ]);
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const a = document.createElement('a');
@@ -149,7 +161,7 @@ export function Tasks() {
           {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}>📜 Anciennes tâches ({anciennes.length})</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
-          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { eventId: f.event || undefined, meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>}
+          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { ...lienEvenement(f.event), meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>}
         </div>
       </div>
       <PageIntro />
@@ -177,7 +189,12 @@ export function Tasks() {
         </select>
         <select value={f.event} onChange={(e) => setF({ ...f, event: e.target.value })}>
           <option value="">Tous événements</option>
-          {data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+          {dependants.length > 0 ? (
+            <>
+              <optgroup label={`Événements de « ${club?.current.nom ?? ''} »`}>{data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</optgroup>
+              <optgroup label="Qui dépendent de ce comité">{dependants.map((u) => <option key={u.id} value={`u:${u.id}`}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}</optgroup>
+            </>
+          ) : data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
         </select>
         <select value={f.meeting} onChange={(e) => setF({ ...f, meeting: e.target.value })}>
           <option value="">Toutes séances</option>

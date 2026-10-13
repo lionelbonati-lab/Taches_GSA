@@ -13,6 +13,8 @@ import { applyRows, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, texteAutres, versOrigine } from './partage';
+import { evenementsDependants, suivreExternes, type Externes } from './externes';
+import { parentDans } from './units';
 
 // Couche de données. Démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Version réelle : mêmes données, synchronisées avec le serveur par CloudSync (voir cloud.ts).
@@ -199,6 +201,8 @@ interface Store {
   canManagePoll: (p: Poll) => boolean;
   /** Sondages : on peut les ouvrir à d'autres entités du club (démo, ou serveur à jour : migration 021). */
   sondagesEntites: boolean;
+  /** Séances du comité dont l'entité dépend, agenda du club (entités qui dépendent d'elle) : pour y lier des tâches. */
+  externes: Externes;
   /** Lie une tâche à une tâche principale (ou la délie avec undefined). */
   linkTask: (taskId: string, parentId: string | undefined) => void;
   saveEmail: (e: ScheduledEmail, isNew: boolean) => void;
@@ -305,6 +309,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const [sondagesRecus, setSondagesRecus] = useState<SondagePartage[]>([]);
   const [sondagesEntites, setSondagesEntites] = useState(false);
   const lectureSondages = useRef(0);
+  // Séances du comité dont l'entité dépend ; agenda du club, si des événements dépendent d'elle (tâches liées : externes.ts).
+  const [externes, setExternes] = useState<Externes>({});
+  const lectureExternes = useRef(0);
   const chargerPartagees = useCallback(() => {
     const c = clubRef.current;
     if (!c) return;
@@ -320,6 +327,19 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         setSondagesRecus(l ?? []);
       })
       .catch(() => {});
+    const x = ++lectureExternes.current;
+    const actives = c.units.filter((u) => !u.archive);
+    const parent = c.current.type !== 'central' && parentDans(actives, c.current);
+    if (parent) {
+      c.seancesComite()
+        .then((seances) => x === lectureExternes.current && setExternes((e) => ({ ...e, seances })))
+        .catch(() => {});
+    }
+    if (evenementsDependants(c.units, c.current).length) {
+      c.agendaClub()
+        .then((agenda) => x === lectureExternes.current && setExternes((e) => ({ ...e, agenda })))
+        .catch(() => {});
+    }
   }, []);
   useEffect(() => {
     chargerPartagees();
@@ -640,6 +660,28 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
 
   const can = (p: Permission, sectionId?: string) => hasPermission(myRoles, p, sectionId);
   const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
+  const canEditTask = (t: Task) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t));
+
+  // Séance du comité dont l'entité dépend, événement d'une entité qui dépend d'elle : changé de nom ou de date → la copie
+  // dans la tâche suit, et son délai lié aussi (update). Tâches en cours que l'on peut modifier ; une mise à jour refusée
+  // par le serveur n'est pas retentée.
+  const tentes = useRef(new Set<string>());
+  useEffect(() => {
+    if (!units || !user) return;
+    const suivies = data.tasks.filter((t) => (t.seanceComite || t.evenementEntite) && !t.source && !isDone(data, t) && canEditTask(t));
+    const suivis = suivreExternes(suivies, externes, units, today());
+    for (const [id, patch] of suivis) {
+      const cle = `${id}:${JSON.stringify(patch)}`;
+      if (tentes.current.has(cle)) suivis.delete(id);
+      else tentes.current.add(cle);
+    }
+    if (!suivis.size) return;
+    const cibles = [...new Set([...suivis.values()].flatMap((p) => [p.seanceComite && `« ${p.seanceComite.titre} » (${fmtDate(p.seanceComite.date)})`, p.evenementEntite && `« ${p.evenementEntite.nom} »${p.evenementEntite.date ? ` (${fmtDate(p.evenementEntite.date)})` : ''}`]).filter(Boolean))];
+    update((d) => {
+      d.tasks = d.tasks.map((t) => (suivis.has(t.id) ? { ...t, ...suivis.get(t.id) } : t));
+    }, `Changement suivi : ${cibles.join(', ')} → ${suivis.size} tâche${suivis.size > 1 ? 's' : ''} à jour`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.tasks, externes, units, myRoles, user?.id]);
 
   const value: Store = {
     mode: cloud ? 'reel' : 'demo',
@@ -657,7 +699,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (!p) return can('tasks.viewAll', t.sectionId);
       return (!!user && [p.demandePar, p.visa?.a, p.validation?.par].includes(user.id)) || can('paiements.payer');
     },
-    canEditTask: (t) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t)),
+    canEditTask,
     canDeleteTask: (t) => !t.source && can('tasks.delete', t.sectionId),
     autresResp: (t) => (moi && units ? texteAutres(autresResponsables(t, moi, data.people, units)) : ''),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
@@ -677,6 +719,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     deletePoll,
     canManagePoll: (p) => !!user && !p.source && (p.creePar === user.id || can('polls.manage')),
     sondagesEntites,
+    externes,
     linkTask,
     saveEmail,
     setEmailStatus,

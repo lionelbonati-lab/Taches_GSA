@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
+import { evenementsDependants } from '../data/externes';
 import { nomAppli } from '../data/nomAppli';
 import { useChemin, useNavigation } from '../components/Nav';
 
@@ -34,9 +35,11 @@ export function Aide() {
   if (club && club.units.length > 1)
     geste('Partager une tâche avec d’autres entités (comité central, CO, groupe…)', 'Dans la tâche, « Ajouter : » › « 🤝 Partager », puis choisis les entités : elles la voient dans leurs tâches et leur ordre du jour (sous l’événement, ou la section qui porte ton nom) et la modifient comme les leurs. Elle reste enregistrée chez toi, repérée 🤝.');
   if (club && club.current.type !== 'central')
-    geste('Mettre une tâche à l’ordre du jour du comité dont dépend l’entité', 'Dans la tâche, « Ajouter : » › « 🔗 Lier à… » › « Séance de comité liée » : choisis une séance du comité (groupe « Séances de … »). La tâche lui est partagée et figure à l’ordre du jour et au PV de cette séance ; repère 🏛️.');
+    geste('Mettre une tâche à l’ordre du jour du comité dont dépend l’entité', 'Dans la tâche, « Ajouter : » › « 🔗 Lier à… » › « Séance de comité liée » : choisis une séance du comité (groupe « Séances de … »). La tâche lui est partagée et figure à l’ordre du jour et au PV de cette séance ; repère 🏛️. Pour un délai calé sur elle (« 1 semaine avant le comité d’octobre ») : « Pour quand ? » › « 📌 ou selon un événement / une séance », groupe « Selon une séance de … » ; il suit la date de la séance.');
   if (club && chemin('/evenements'))
-    geste('Voir les événements qui dépendent du comité', vers('/evenements'), ' : les sous-comités et équipes d’événement qui en dépendent y sont à la date de leur prochaine édition, marqués « dépend de ce comité », avec l’avancement de leurs tâches partagées.');
+    geste('Voir les événements qui dépendent du comité', vers('/evenements'), ' : les sous-comités et équipes d’événement qui en dépendent y sont à la date de leur prochaine édition, marqués « dépend de ce comité », avec l’avancement de leurs tâches partagées et des tâches du comité liées à eux (« Voir les tâches → »).');
+  if (club && evenementsDependants(club.units, club.current).length)
+    geste('Lier une tâche du comité à un événement qui dépend de lui', 'Dans la tâche, « 🔗 Lier à… » › « Événement lié », groupe « Événements qui dépendent de … » : sa prochaine édition ou l’un de ses événements. Pour un délai calé sur lui (« 1 semaine avant la soirée ») : « Pour quand ? » › « 📌 ou selon un événement / une séance ». Le nom et la date suivent les changements de l’événement.');
   if (club) geste('Passer à une autre entité (sous-comité, groupe, équipe)', 'Le nom de l’entité en haut à gauche ▾ (l’organigramme du club y est aussi). Chaque entité a ses propres tâches, séances et membres.');
   geste('Installer l’appli sur le téléphone ou l’ordinateur', '« 📲 Installer l’application » dans le menu du compte (« ☰ Plus » sur téléphone).');
   geste('Choisir ce qui s’affiche sur mon accueil, et dans quel ordre', vers('/'), ' : le bouton « ⚙ Personnaliser » à côté de « Bonjour » (⚙ seul sur téléphone). Coche les blocs et les compteurs à voir, séparément sur téléphone et sur ordinateur ; ↑ ↓ change leur ordre. Le bloc « À faire » se règle aussi : nombre de jours (directement dans son titre) et, si tu vois toutes les tâches, les tiennes ou toutes.');

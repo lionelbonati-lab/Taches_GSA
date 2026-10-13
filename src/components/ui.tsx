@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { partageDe } from '../data/partage';
+import { UNIT_TYPES } from '../data/units';
 import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
@@ -89,7 +90,7 @@ export function Empty({ children }: { children: ReactNode }) {
 
 /**
  * Petits repères : 🔁 tâche récurrente, 🤝 tâche partagée entre entités, 🏛️ à l'ordre du jour d'une séance du comité dont
- * l'entité dépend, 🔗 délai lié à un événement / une séance.
+ * l'entité dépend, 🎪 / 🎉 liée à un événement qui dépend du comité, 🔗 délai lié à un événement / une séance.
  */
 export function RecurIcon({ task }: { task: Task }) {
   const club = useClubOptional();
@@ -103,6 +104,11 @@ export function RecurIcon({ task }: { task: Task }) {
       {partage && <span className="ticon" title={partage}>🤝</span>}
       {task.seanceComite && (
         <span className="ticon" title={`À l’ordre du jour de « ${task.seanceComite.titre} » (${club?.units.find((u) => u.id === task.seanceComite!.uniteId)?.nom ?? 'comité'})`}>🏛️</span>
+      )}
+      {task.evenementEntite && !task.source && (
+        <span className="ticon" title={`Liée à « ${task.evenementEntite.nom} »${task.evenementEntite.date ? ` (${fmtDate(task.evenementEntite.date)})` : ''}, qui dépend de ce comité`}>
+          {UNIT_TYPES[club?.units.find((u) => u.id === task.evenementEntite!.uniteId)?.type ?? 'equipe'].icon}
+        </span>
       )}
       {task.source && <span className="tsource">{task.source.unite}</span>}
     </>
