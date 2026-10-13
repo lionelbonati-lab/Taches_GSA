@@ -360,8 +360,9 @@ export interface Meeting {
   /** Heure de début (ex. 19:30). */
   heure?: string;
   lieu: string;
-  ordreDuJour: string;
-  notes: string;
+  /** Anciens champs de la séance (points particuliers à l'ordre du jour, notes) : plus saisis ni affichés. */
+  ordreDuJour?: string;
+  notes?: string;
   /** Ordres du jour archivés pour cette séance (copie figée du document généré). */
   pvArchives?: PvArchive[];
   /** Prise de notes du PV pendant la séance. */
@@ -464,7 +465,6 @@ export interface PvSettings {
   club: string;
   afficherClub: boolean;
   parts: {
-    ordreDuJour: boolean;
     presences: boolean;
     retards: boolean;
     avantProchaine: boolean;

@@ -152,7 +152,6 @@ export function Dashboard() {
               <Link to="/comite" className="panel link-panel">
                 <strong>{nextMeeting.titre}</strong>
                 <span>{fmtDate(nextMeeting.date)} · {nextMeeting.lieu} <em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em></span>
-                <pre className="odj">{nextMeeting.ordreDuJour}</pre>
               </Link>
             ) : <Empty>Aucune séance planifiée.</Empty>}
           </>

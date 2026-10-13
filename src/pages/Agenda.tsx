@@ -63,7 +63,7 @@ export const useMotSeance = () => motSeance(useClubOptional()?.current.type);
 export function newMeeting(meetings: Meeting[], date = today(), mot = 'Comité'): Meeting {
   const extra = meetings.some((m) => annuelle(m) && m.date.slice(0, 7) === date.slice(0, 7));
   return {
-    id: uid('m'), titre: nomSeance(date, extra ? 'Séance extraordinaire' : mot), date, heure: '19:30', lieu: 'À définir', ordreDuJour: '', notes: '',
+    id: uid('m'), titre: nomSeance(date, extra ? 'Séance extraordinaire' : mot), date, heure: '19:30', lieu: 'À définir',
     ...(extra ? { unique: true } : {}),
   };
 }
@@ -146,11 +146,6 @@ export function Meetings() {
                   {m.heure && `${m.heure.replace(':', 'h')} · `}{m.lieu}{!past && ` · dans ${daysUntil(m.date)} j`}
                   {annuelle(m) ? ' · 🔁 chaque année' : ' · une seule fois'}
                 </div>
-                <details>
-                  <summary>Ordre du jour {m.notes && '& notes'}</summary>
-                  <pre className="odj">{m.ordreDuJour}</pre>
-                  {m.notes && <p><em>Notes / PV :</em> {m.notes}</p>}
-                </details>
                 <Excuses m={m} past={past} />
                 <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
                 {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
@@ -343,14 +338,6 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
             : 'Proposée de nouveau l’année prochaine, le même mois. Les tâches annuelles liées à cette séance passeront à celle de l’année suivante.'}
           {autre && ` ⚠️ « ${autre.titre} » revient déjà ce mois-là : décoche si celle-ci est exceptionnelle.`}
         </p>
-        <label className="full">
-          Points particuliers à l’ordre du jour
-          <textarea rows={4} value={v.ordreDuJour} onChange={(e) => set({ ordreDuJour: e.target.value })} />
-        </label>
-        <label className="full">
-          Notes / PV
-          <textarea rows={4} value={v.notes} onChange={(e) => set({ notes: e.target.value })} />
-        </label>
       </div>
       {note && <p className="muted">{note}</p>}
       {err && <p className="error">{err}</p>}

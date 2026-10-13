@@ -24,7 +24,7 @@ export const DEFAULT_PV: PvSettings = {
   detail: 'complet',
   club: 'G.S. Ajoie – Comité',
   afficherClub: true,
-  parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true, partagees: true },
+  parts: { presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true, partagees: true },
   tri: 'delai',
   sectionsVides: true,
   colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, documents: true },
@@ -309,13 +309,8 @@ export function Pv() {
       pollsOf(g.key).filter((p) => !g.tasks.some((t) => t.id === p.taskId)).forEach((p) => items.push(pollItem(p)));
       return { key: g.key, label: g.label, items };
     });
-  // Sondages sans section, puis points particuliers saisis dans la séance.
-  const extraSections = (): OSec[] => [
-    ...(pollsWithoutSection.length ? [{ key: 'polls', label: 'Sondages', items: pollsWithoutSection.map(pollItem) }] : []),
-    ...(s.parts.ordreDuJour && s1?.ordreDuJour?.trim()
-      ? [{ key: 'points', label: 'Points particuliers', items: s1.ordreDuJour.split('\n').map((l) => l.trim()).filter(Boolean).map((l, i) => textItem(`pt${i}`, l)) }]
-      : []),
-  ];
+  // Sondages sans section.
+  const extraSections = (): OSec[] => (pollsWithoutSection.length ? [{ key: 'polls', label: 'Sondages', items: pollsWithoutSection.map(pollItem) }] : []);
 
   const letter = (i: number) => {
     let r = '';
@@ -460,7 +455,6 @@ export function Pv() {
             <summary>Contenu</summary>
             {([
               ['presences', 'En-tête : convoqués et présences'],
-              ['ordreDuJour', 'Points particuliers saisis dans la séance'],
               ['retards', 'Tâches en retard'],
               ['avantProchaine', 'Tâches à faire d’ici la séance'],
               ['avantSuivante', 'Tâches à faire d’ici la séance suivante'],

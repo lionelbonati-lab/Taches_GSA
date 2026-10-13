@@ -106,10 +106,10 @@ const EVENTS: Record<string, ClubEvent[]> = {
 
 const MEETINGS: Record<string, Meeting[]> = {
   'u-bruntrutaine': [
-    { id: 'm1', titre: 'Séance du CO 1', date: '2026-10-20', heure: '19:30', lieu: 'Buvette du club', ordreDuJour: '', notes: '' },
-    { id: 'm2', titre: 'Séance du CO 2', date: '2026-12-08', heure: '19:30', lieu: 'Buvette du club', ordreDuJour: '', notes: '' },
+    { id: 'm1', titre: 'Séance du CO 1', date: '2026-10-20', heure: '19:30', lieu: 'Buvette du club' },
+    { id: 'm2', titre: 'Séance du CO 2', date: '2026-12-08', heure: '19:30', lieu: 'Buvette du club' },
   ],
-  'u-ecole': [{ id: 'm1', titre: 'Réunion des moniteurs', date: '2026-11-04', heure: '19:00', lieu: 'Salle du club', ordreDuJour: '', notes: '' }],
+  'u-ecole': [{ id: 'm1', titre: 'Réunion des moniteurs', date: '2026-11-04', heure: '19:00', lieu: 'Salle du club' }],
 };
 
 function seedUnit(u: Unit): AppData {
