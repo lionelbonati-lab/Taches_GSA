@@ -145,7 +145,7 @@ Aucune donnée modifiée. Retour en arrière : relancer les règles et fonctions
 
 Données modifiées : les entités qui avaient des membres liés (meta `membresDe` vidée, `info.tachesDependance` à `toutes` si le lien venait du comité dont elles dépendent). Retour en arrière : relancer les définitions de 027 (`gsa_dependance`, `gsa_committees_guard`), 029 (`gsa_taches_partagees`, `gsa_modifier_tache_partagee`), 020 (`gsa_items_liens_garde`), 015 (`gsa_ticket_central`) et 012 (`gsa_depot_ticket`) ; les liens retirés se remettent à la main.
 
-`supabase/migrations/031_gsa_droits_serveur.sql` (**à appliquer**) : **droits de la fonction `gsa-acces`** (clé secrète). Elle lit et écrit le registre « Membres du club » (`gsa_club_membres` : personne placée dans l'organigramme, entité supprimée retirée des groupes) et supprime une entité archivée (`delete` sur `committees`, données en cascade). Sans elle : « Registre des membres : permission denied for table gsa_club_membres » en déplaçant quelqu'un dans l'organigramme, et la suppression d'une entité est refusée. Aucune donnée modifiée.
+`supabase/migrations/031_gsa_droits_serveur.sql` (appliquée le 13.10.2026) : **droits de la fonction `gsa-acces`** (clé secrète). Elle lit et écrit le registre « Membres du club » (`gsa_club_membres` : personne placée dans l'organigramme, entité supprimée retirée des groupes) et supprime une entité archivée (`delete` sur `committees`, données en cascade). Sans elle : « Registre des membres : permission denied for table gsa_club_membres » en déplaçant quelqu'un dans l'organigramme, et la suppression d'une entité est refusée. Aucune donnée modifiée.
 
 Organigramme par postes (sans migration : deux clés de plus dans `committees.info`, enregistrées comme la couleur) :
 
