@@ -1,101 +1,63 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
-import { arbreEntites, auComiteEntier, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, type Branche, type DirectoryEntry } from '../data/units';
+import { auComiteEntier, directory, orgMembers, parentDans, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, type DirectoryEntry } from '../data/units';
 import type { OrganigrammeAnnuel, OrgMember, OrgUnit, TachesDependance, Unit, UnitType } from '../data/types';
 import { dateCourte, TACHES_DEPENDANCE } from '../data/partage';
-import { fmtDate, fmtRange } from '../data/utils';
-import { Empty, Initials, Modal, UnitMark } from '../components/ui';
+import { fmtDate } from '../data/utils';
+import { Initials, Modal, UnitMark } from '../components/ui';
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { groupesLies } from '../data/liens';
 import { nomMembre } from '../data/membres';
 import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
 import { SupprimerEntite } from '../components/SupprimerEntite';
-import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
-import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensPostes, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
-import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
-import { AvecModal, coupure, EnMain, Fiche, lireCible, NomPosteModal, PosteModal, Postes, rangeesPostes, Recherche, titulairesDu, useGlisser, type OrgaVue, type Prise } from '../components/Organiser';
+import { FicheMembre, FichePersonne } from '../components/Personnes';
+import {
+  AvecModal,
+  EnMain,
+  Fiche,
+  lireCible,
+  NomPosteModal,
+  PosteModal,
+  quiDeMembre,
+  Recherche,
+  titulairesDu,
+  useCandidats,
+  useGlisser,
+  type ActionsFiche,
+  type OrgaVue,
+  type Prise,
+} from '../components/Organiser';
 import { benevolesDe, et, fonctionsDe, memeQui, nomDe, type OpOrga } from '../data/organigramme';
 import { norm } from '../data/csv';
 import { OrgLignes, type EditionLignes } from '../components/OrgLignes';
 import type { ActionOrga, PosteLie } from '../data/organigrammeLignes';
-import { quiDeMembre } from '../components/Organiser';
 
-// Organigramme du club : un arbre (comité central en haut), chaque entité reliée par un trait à celle dont elle dépend.
-// Sous chaque entité, une ligne par personne (nom, puis ses fonctions) : un clic ouvre sa fiche.
-// Par défaut une vue d'ensemble épurée ; « ✏️ Modifier l'organigramme » montre les outils ci-dessous (poignées,
-// câblage, ⚙️, « + Ajouter une personne », disposition automatique).
-// Une entité entière peut faire partie des membres d'une autre (ligne « 👥 », fenêtre LienModal) : ses membres suivent.
-// « + Ajouter une personne » en bas de la liste (entité ouverte, ou entité dont on est admin : on l'ouvre d'abord).
-// Un clic sur le nom d'une entité l'ouvre ; ⚙️ modifie sa fiche.
-// Câbles : de la ligne du responsable (★) d'une entité dans son entité mère jusqu'à l'entité, toujours affichés.
-// Disposition libre : les admins posent les cartes où ils veulent (en-tête à la souris, poignée au doigt) ;
-// la place est enregistrée avec l'entité, la même pour tous (Disposition.tsx).
-// Câblage (admins du comité central, ou d'une entité) : un câble tiré d'une personne jusqu'à une entité en fait
-// le responsable ; « 🔌 Câbler » ajoute les poignées ● (doigt), les personnes du club qui ne sont dans aucune entité,
-// et le choix sans glisser.
+// Organigramme du club, par postes (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une carte
+// par poste ; un clic sur un nom ouvre le profil de la personne, sur une entité l'ouvre. Par défaut une vue d'ensemble ;
+// « ✏️ Modifier l'organigramme » : on y glisse les postes, les groupes, les événements et les personnes, on y crée un
+// poste ou un comité, ⚙️ modifie la fiche d'une entité (moteur de l'organigramme : club.organiser).
 // Historique : « 📅 » choisit une année passée, telle qu'à sa dernière photo (prise par le serveur), en lecture seule.
-// Présentation « 📋 Par postes » (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une
-// carte par poste ; en mode « Modifier », on y glisse les postes, les groupes et les événements, on y crée un poste ou
-// un comité. « 🏛️ Par entités » : l'arbre ci-dessous (et ses outils en mode « Modifier »).
+// Entités archivées : leurs fiches en bas (⚙️ pour les ressortir ou les supprimer).
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
 // chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité dont elle dépend
 // affiche de ses tâches (« Ses tâches dans … »).
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PRESENTATION = 'taches-gsa-orga-presentation';
-type Presentation = 'postes' | 'entites';
-const lirePresentation = (): Presentation => {
-  try {
-    return localStorage.getItem(PRESENTATION) === 'entites' ? 'entites' : 'postes';
-  } catch {
-    return 'postes';
-  }
-};
 const dated = (t: UnitType) => t === 'sous-comite' || t === 'equipe';
-
-/** Ce qu'on peut faire depuis la carte d'une entité. */
-interface Actions {
-  onPersonne: (m: OrgMember) => void;
-  /** Membres d'une autre entité qui en font tous partie (lien). */
-  onLien: (id: string) => void;
-  onAjouter?: () => void;
-  ouvrir?: { label: string; aide: string; go: () => void };
-  onModifier?: () => void;
-  /** Organigramme câblé : lignes de personnes d'où tirer un câble, entité où le brancher. */
-  cablage?: {
-    onTirer: (e: ReactPointerEvent<HTMLElement>, m: OrgMember) => void;
-    tireJuste: () => boolean;
-    /** Mode « Câbler » : poignées ●, et un toucher choisit la personne au lieu d'ouvrir sa fiche. */
-    mode: boolean;
-    /** Clé de la personne choisie (personKey). */
-    choisi?: string;
-    onChoisir: (m: OrgMember) => void;
-    cible?: { actif: boolean; survol: boolean; onDeposer: () => void; label: string };
-  };
-  /** Carte qu'on peut poser ailleurs sur l'organigramme (disposition libre). */
-  deplacer?: Deplacer;
-}
 
 export function Org() {
   const club = useClub();
-  const { data, can } = useStore();
+  const { data } = useStore();
   const [edit, setEdit] = useState<{ unit?: OrgUnit; type?: UnitType } | null>(null);
   const [created, setCreated] = useState<{ c: CreatedUnit; n: NewUnit } | null>(null);
   const [fiche, setFiche] = useState<{ unitId: string; personId: string } | null>(null);
   const [lien, setLien] = useState<{ unitId: string; id: string } | null>(null);
-  const [ajout, setAjout] = useState(false);
-  const peutAjouter = can('people.manage');
-  // Mode « Modifier » : poignées, câblage, ⚙️ et « + Ajouter » ; sinon une vue d'ensemble épurée.
+  // Mode « Modifier » : glisser les cartes et les personnes, ＋ Poste, ⚙️ ; sinon une vue d'ensemble.
   const [modeModifier, setModeModifier] = useState(false);
-  // Câblage : câble tiré (souris, doigt) ou personne choisie (sans glisser), fenêtre de confirmation.
-  const cablable = useCablable();
-  const [cablage, setCablage] = useState(false);
-  const [choisi, setChoisi] = useState<Source | null>(null);
-  const [depot, setDepot] = useState<{ u: OrgUnit; source: Source | null } | null>(null);
-  // Arrivée depuis une autre entité (?entite=<entité>&ajouter=1 ou &personne=<fiche>, &modifier si on était en mode
+  // Arrivée depuis une autre entité (?entite=<entité>&personne=<fiche> ou &lien=…, &modifier si on était en mode
   // « Modifier ») : ouvert une fois l'entité chargée.
   const [params, setParams] = useSearchParams();
   const entite = params.get('entite');
@@ -103,13 +65,11 @@ export function Org() {
     if (!entite || entite !== club.current.id) return;
     const personne = params.get('personne');
     const lie = params.get('lien');
-    const ajouter = params.has('ajouter');
     setParams({}, { replace: true });
-    if (params.has('modifier') || (ajouter && peutAjouter)) setModeModifier(true);
-    if (ajouter && peutAjouter) setAjout(true);
+    if (params.has('modifier')) setModeModifier(true);
     if (personne) setFiche({ unitId: entite, personId: personne });
     if (lie) setLien({ unitId: entite, id: lie });
-  }, [entite, club.current.id, params, peutAjouter, setParams]);
+  }, [entite, club.current.id, params, setParams]);
   // ?modifier (console admin › Personnes et accès) : directement en mode « Modifier ».
   useEffect(() => {
     if (!params.has('modifier') || params.has('entite')) return;
@@ -148,38 +108,10 @@ export function Org() {
   );
   const active = units.filter((u) => !u.archive);
   const archived = units.filter((u) => u.archive);
-  const peutCabler = active.some(cablable);
-  const peutModifier = club.canManage || peutAjouter || peutCabler || units.some((u) => u.moiAdmin);
-  const edition = modeModifier && peutModifier;
-  // Organigramme par postes (démo et version réelle) : il se modifie sur place avec le moteur de l'organigramme (sinon,
-  // démo « classique » ou serveur sans postes : l'arbre). Le profil n'en montre pas plus que la fiche de l'arbre.
-  const [presentation, setPresentation] = useState<Presentation>(lirePresentation);
-  const choisirPresentation = (p: Presentation) => {
-    setPresentation(p);
-    try {
-      localStorage.setItem(PRESENTATION, p);
-    } catch {
-      /* navigation privée */
-    }
-  };
-  const parPostes = presentation === 'postes' && (!edition || !!club.organiser);
-  const choixPresentation = (!edition || !!club.organiser) && (
-    <div className="seg" role="group" aria-label="Présentation de l’organigramme">
-      <button type="button" className={presentation === 'postes' ? 'on' : ''} aria-pressed={presentation === 'postes'} onClick={() => choisirPresentation('postes')}>
-        📋 Par postes
-      </button>
-      <button type="button" className={presentation === 'entites' ? 'on' : ''} aria-pressed={presentation === 'entites'} onClick={() => choisirPresentation('entites')}>
-        🏛️ Par entités
-      </button>
-    </div>
-  );
-  const terminer = () => {
-    setModeModifier(false);
-    setCablage(false);
-    setChoisi(null);
-  };
-  // Organigramme à glisser-déposer : fiches à trois zones, recherche en haut à gauche, postes liés.
+  // Il se modifie sur place avec le moteur de l'organigramme (démo et version réelle).
   const orga = !!club.organiser;
+  const peutModifier = orga && (club.canManage || units.some((u) => u.moiAdmin && !u.archive));
+  const edition = modeModifier && peutModifier;
   const [q, setQ] = useState('');
   const [deplies, setDeplies] = useState<Set<string>>(() => {
     try {
@@ -377,17 +309,8 @@ export function Org() {
           glisser,
         }
       : undefined;
-  const vue: OrgaVue | undefined = orga
-    ? {
-        edition,
-        peut: peutFiche,
-        glisser,
-        onPoste: (u, p) => setPosteOuvert({ uniteId: u.id, posteId: p.id }),
-        onNouveauPoste: (u) => setNommer({ uniteId: u.id }),
-        deplies,
-        deplier,
-      }
-    : undefined;
+  // Fiches des entités archivées (lecture seule ; ⚙️ en mode « Modifier »).
+  const vue: OrgaVue = { edition: false, peut: peutFiche, glisser, onPoste: () => {}, onNouveauPoste: () => {}, deplies, deplier };
   const vueAnnee: OrgaVue | undefined = photoUnits && { edition: false, peut: () => false, glisser, onPoste: () => {}, onNouveauPoste: () => {}, deplies, deplier, units: photoUnits };
   const choixAnnee = annees.length > 0 && !edition && (
     <label className="org-annee-choix" title="Organigramme d’une année passée (lecture seule)">
@@ -411,51 +334,23 @@ export function Org() {
       </select>
     </label>
   );
-  const candidats = useCandidats(units, cablage || !!depot || (orga && modeModifier));
-  const cleChoisi = choisi && choisi !== 'nouvelle' ? choisi.key : undefined;
-  const tirage = useTirage(
-    (id, source) => {
-      const u = units.find((x) => x.id === id);
-      if (!u) return;
-      setDepot({ u, source });
-      setChoisi(null);
-    },
-    (id) => units.some((x) => x.id === id && cablable(x)),
+  const candidats = useCandidats(units, edition);
+  // Chercher une personne à placer, celle qu'on a en main (dans l'organigramme par postes : aussi en plein écran).
+  const barre = edition && orga && (
+    <div className="orga-barre">
+      <Recherche q={q} setQ={setQ} candidats={candidats} glisser={glisser} />
+      <EnMain glisser={glisser} onRetirer={(p) => p.depuis && void faire({ type: 'placer', qui: p.qui, depuis: p.depuis, vers: { zone: 'corbeille' } })} />
+    </div>
   );
   // Entité dont on est admin (autre que l'ouverte) : on l'ouvre pour y ajouter ou modifier quelqu'un.
   const admin = (u: OrgUnit) => u.id !== club.current.id && u.moiAdmin && club.mine.some((x) => x.id === u.id);
-  const actions = (u: OrgUnit): Actions => {
+  const actions = (u: OrgUnit): ActionsFiche => {
     const ouverte = u.id === club.current.id;
     return {
       onPersonne: (m) => setFiche({ unitId: u.id, personId: m.id }),
       onLien: (id) => setLien({ unitId: u.id, id }),
-      onAjouter:
-        !edition || u.archive ? undefined : ouverte ? (peutAjouter ? () => setAjout(true) : undefined) : admin(u) ? () => club.switchUnit(u.id, `#/organigramme?entite=${u.id}&ajouter=1`) : undefined,
       ouvrir: ouverte || !u.moi ? undefined : { label: 'Ouvrir', aide: `Ouvrir « ${u.nom} »`, go: () => club.switchUnit(u.id) },
       onModifier: edition && (club.canManage || u.moiAdmin) ? () => setEdit({ unit: u }) : undefined,
-      cablage: edition && peutCabler && !orga
-        ? {
-            onTirer: (e, m) => tirage.commencer(e, () => candidatDe(candidats, u, m)),
-            tireJuste: tirage.tireJuste,
-            mode: cablage,
-            choisi: cleChoisi,
-            onChoisir: (m) => {
-              const c = candidatDe(candidats, u, m);
-              setChoisi(cleChoisi === c.key ? null : c);
-            },
-            cible: cablable(u)
-              ? {
-                  actif: tirage.tir,
-                  survol: tirage.survol === u.id,
-                  onDeposer: () => {
-                    setDepot({ u, source: choisi });
-                    setChoisi(null);
-                  },
-                  label: choisi ? `★ ${choisi === 'nouvelle' ? 'Nouvelle personne' : nomCandidat(choisi)} : ${UNIT_TYPES[u.type].chef.toLowerCase()}` : `★ ${UNIT_TYPES[u.type].chef}…`,
-                }
-              : undefined,
-          }
-        : undefined,
     };
   };
   const ficheUnit = fiche && units.find((u) => u.id === fiche.unitId);
@@ -468,27 +363,12 @@ export function Org() {
         <h1>🏛️ Organigramme du club</h1>
         {edition ? (
           <div className="row wrap">
-            {peutCabler && !orga && (
-              <button
-                className={`btn ${cablage ? 'on' : ''}`}
-                aria-pressed={cablage}
-                title="Désigner le responsable d’une entité en y tirant un câble depuis une personne"
-                onClick={() => {
-                  setCablage(!cablage);
-                  setChoisi(null);
-                }}
-              >
-                🔌 Câbler
-              </button>
-            )}
-            {choixPresentation}
             {club.canManage && <button className="btn" onClick={() => setEdit({})}>+ Nouvelle entité</button>}
-            <button className="btn primary" onClick={terminer}>✓ Terminer</button>
+            <button className="btn primary" onClick={() => setModeModifier(false)}>✓ Terminer</button>
           </div>
         ) : (
-          (choixAnnee || peutModifier || choixPresentation) && (
+          (choixAnnee || peutModifier) && (
             <div className="row wrap">
-              {choixPresentation}
               {choixAnnee}
               {peutModifier && !photo && <button className="btn" onClick={() => setModeModifier(true)}>✏️ Modifier l’organigramme</button>}
             </div>
@@ -496,10 +376,10 @@ export function Org() {
         )}
       </div>
       {photo && photoUnits && vueAnnee ? (
-        <OrgAnnee photo={photo} units={photoUnits} vue={vueAnnee} parPostes={parPostes} onRetour={() => setAnnee(null)} />
+        <OrgAnnee photo={photo} units={photoUnits} vue={vueAnnee} onRetour={() => setAnnee(null)} />
       ) : (
         <>
-      {edition && orga && parPostes ? (
+      {edition ? (
         <p className="org-edition">
           <b>✏️ Modification</b>
           <span>Glisse une carte (un poste, un groupe, un événement) sur un comité, un groupe ou une autre carte : ce qui se passera s’affiche avant de la lâcher. Au doigt, ou sans glisser : sa poignée ⠿ › « Déplacer… ».</span>
@@ -507,73 +387,19 @@ export function Org() {
           <span>Pour changer quelqu’un de poste : glisse son nom sur l’autre poste, un ★ ou des bénévoles (Ctrl : il garde aussi le sien ; sur un cadre : un nouveau poste). Sur un poste déjà occupé : « ＋ Avec … » (plusieurs personnes au même poste) ou « À la place de … ». Au doigt : touche son nom › « ✋ Déplacer ». Quelqu’un d’autre : cherche-le en haut à gauche.</span>
           <span>« ＋ Poste » dans un comité, un groupe ou un événement ; un clic sur le nom d’un poste : le renommer, le libérer, le supprimer.</span>
         </p>
-      ) : edition && orga ? (
-        <p className="org-edition">
-          <b>✏️ Modification</b>
-          <span>Glisse une personne sur le titre d’une fiche (★), sur un poste ou dans ses bénévoles (au doigt : par sa poignée ⠿, ou touche-la puis touche la zone). Elle quitte sa fiche ; avec Ctrl (ou Alt) enfoncé, elle y reste aussi.</span>
-          <span>Pour placer quelqu’un d’autre : cherche-le en haut à gauche.</span>
-          <span>Un poste qui porte le nom d’une entité y est lié tout seul ; un clic sur un poste : son nom, son lien, sa suppression.</span>
-          {active.some((u) => club.canManage || u.moiAdmin) && <span>Déplace une carte en la tirant par son nom.</span>}
-        </p>
-      ) : edition ? (
-        <p className="org-edition">
-          <b>✏️ Modification</b>
-          {active.some((u) => club.canManage || u.moiAdmin) && <span>Déplace une carte en la tirant par son nom (au doigt : par sa poignée en haut).</span>}
-          {peutCabler && !cablage && <span>Tire une personne jusqu’à une entité pour en faire le responsable (★).</span>}
-          {units.some((u) => club.canManage || u.moiAdmin) ? <span>⚙️ modifie l’entité.</span> : peutAjouter && <span>« + Ajouter une personne » sous l’entité.</span>}
-        </p>
-      ) : parPostes ? (
-        <p className="muted small-note">Une carte par poste : les comités en haut (avec les groupes dont le responsable y siège), les groupes en dessous, puis les événements. Clique sur un nom pour voir le profil de la personne.</p>
       ) : (
-        <p className="muted small-note">Clique sur une personne pour voir sa fiche, sur le nom d’une entité pour l’ouvrir.</p>
+        <p className="muted small-note">Une carte par poste : les comités en haut (avec les groupes dont le responsable y siège), les groupes en dessous, puis les événements. Clique sur un nom pour voir le profil de la personne.</p>
       )}
       {club.error && <p className="error small-note">{club.error}</p>}
-      {edition && orga && (
-        <div className="orga-barre">
-          <Recherche q={q} setQ={setQ} candidats={candidats} glisser={glisser} />
-          <EnMain glisser={glisser} onRetirer={(p) => p.depuis && void faire({ type: 'placer', qui: p.qui, depuis: p.depuis, vers: { zone: 'corbeille' } })} />
-        </div>
-      )}
-      {cablage && (
-        <CablagePanel
-          candidats={candidats}
-          choisi={choisi}
-          onChoisir={setChoisi}
-          onTirer={(e, s) => tirage.commencer(e, () => s)}
-          tireJuste={tirage.tireJuste}
-          onFin={() => {
-            setCablage(false);
-            setChoisi(null);
-          }}
-        />
-      )}
-      {parPostes ? (
-        <>
-          <OrgLignes units={active} onFiche={(m, uniteId) => setFiche({ unitId: uniteId, personId: m.id })} ouvrir={(u) => actions(u).ouvrir} edition={editionLignes} />
-          <LegendePostes />
-        </>
-      ) : active.length ? (
-        <Arbre units={active} actions={actions} edition={edition} orga={vue} />
-      ) : (
-        <Empty>Aucune entité.</Empty>
-      )}
-      {parPostes ? null : vue ? (
-        <p className="arbre-legende muted small-note">
-          <span>★ titre de la fiche (président, responsable)</span>
-          <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité (même nom) : changer l’un change l’autre</span>
-          <span><span className="error">rouge</span> : poste à pourvoir</span>
-        </p>
-      ) : (
-        <p className="arbre-legende muted small-note">
-          <span>★ responsable</span>
-          <span><span className="legende-cable" aria-hidden="true" /> câble : du responsable, dans l’entité mère</span>
-        </p>
-      )}
+      <OrgLignes units={active} onFiche={(m, uniteId) => setFiche({ unitId: uniteId, personId: m.id })} ouvrir={(u) => actions(u).ouvrir} edition={editionLignes} barre={barre} />
+      <LegendePostes />
       {archived.length > 0 && (
         <details className="org-archives">
           <summary>🗄️ Entités archivées ({archived.length})</summary>
           <div className="arbre-archives">
-            {archived.map((u) => (vue ? <Fiche key={u.id} u={u} o={{ ...vue, edition: false }} a={actions(u)} /> : <Noeud key={u.id} u={u} {...actions(u)} />))}
+            {archived.map((u) => (
+              <Fiche key={u.id} u={u} o={vue} a={actions(u)} />
+            ))}
           </div>
         </details>
       )}
@@ -614,8 +440,6 @@ export function Org() {
           onClose={() => setLien(null)}
         />
       )}
-      {ajout && <NouvellePersonne onClose={() => setAjout(false)} />}
-      {depot && <ResponsableModal u={depot.u} source={depot.source} candidats={candidats} onClose={() => setDepot(null)} />}
       {nommer && uniteDe(nommer.uniteId) && (
         <NomPosteModal
           u={uniteDe(nommer.uniteId)!}
@@ -680,7 +504,6 @@ export function Org() {
           <button type="button" className="orga-fait-x" aria-label="Fermer" onClick={() => setFait(null)}>×</button>
         </div>
       )}
-      {tirage.volant}
       {glisser.volant}
     </div>
   );
@@ -690,12 +513,12 @@ export function Org() {
  * Organigramme d'une année passée, tel qu'à sa dernière photo : en lecture seule, rien à ouvrir ni à modifier.
  * Un clic sur une personne : ses fonctions cette année-là ; sur « 👥 » : les membres venus de l'autre entité.
  */
-function OrgAnnee({ photo, units, vue, parPostes, onRetour }: { photo: OrganigrammeAnnuel; units: OrgUnit[]; vue: OrgaVue; parPostes: boolean; onRetour: () => void }) {
+function OrgAnnee({ photo, units, vue, onRetour }: { photo: OrganigrammeAnnuel; units: OrgUnit[]; vue: OrgaVue; onRetour: () => void }) {
   const [qui, setQui] = useState<OrgMember | null>(null);
   const [groupe, setGroupe] = useState<{ u: OrgUnit; id: string } | null>(null);
   const actives = units.filter((u) => !u.archive);
   const archivees = units.filter((u) => u.archive);
-  const actions = (u: OrgUnit): Actions => ({ onPersonne: setQui, onLien: (id) => setGroupe({ u, id }) });
+  const actions = (u: OrgUnit): ActionsFiche => ({ onPersonne: setQui, onLien: (id) => setGroupe({ u, id }) });
   const g = groupe && groupesLies(groupe.u, units).find((x) => x.id === groupe.id);
   return (
     <>
@@ -707,21 +530,8 @@ function OrgAnnee({ photo, units, vue, parPostes, onRetour }: { photo: Organigra
           Revenir à aujourd’hui
         </button>
       </p>
-      {parPostes ? (
-        <>
-          <OrgLignes key={photo.annee} units={actives} note={`Organigramme ${photo.annee}, en lecture seule.`} titre={`Organigramme ${photo.annee}`} />
-          <LegendePostes />
-        </>
-      ) : (
-        <>
-          {actives.length ? <Arbre key={photo.annee} units={actives} actions={actions} edition={false} orga={vue} /> : <Empty>Aucune entité cette année-là.</Empty>}
-          <p className="arbre-legende muted small-note">
-            <span>★ titre de la fiche (président, responsable)</span>
-            <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité</span>
-            <span><span className="error">rouge</span> : poste à pourvoir</span>
-          </p>
-        </>
-      )}
+      <OrgLignes key={photo.annee} units={actives} note={`Organigramme ${photo.annee}, en lecture seule.`} titre={`Organigramme ${photo.annee}`} />
+      <LegendePostes />
       {archivees.length > 0 && (
         <details className="org-archives">
           <summary>🗄️ Entités archivées ({archivees.length})</summary>
@@ -813,253 +623,6 @@ function FonctionsAnnee({ annee, units, m, onClose }: { annee: number; units: Or
 
 // Organigramme à glisser-déposer : fiches dont les bénévoles sont dépliés (sur cet appareil).
 const DEPLIES = 'taches-gsa-orga-deplies';
-
-// Largeur d'une colonne de l'arbre (carte + marges) : en dessous, l'arbre se présente de haut en bas, décalé à droite.
-const COLONNE = 240;
-// Une carte d'au moins tant de lignes s'élargit sur deux colonnes (de haut en bas).
-const GRANDE = 10;
-
-/** Lignes de la carte d'une entité : une par personne (fonctions groupées), une par entité membre. */
-function lignesDe(u: OrgUnit, units: OrgUnit[]) {
-  const t = UNIT_TYPES[u.type];
-  // Membres venus d'une autre entité : regroupés sur sa ligne « 👥 », sauf s'ils ont une fonction dans celle-ci.
-  const lignes = postesEntite(u.membres.filter((m) => !m.viaEntite || m.admin || m.poste || m.autresPostes), t.chef);
-  const groupes = groupesLies(u, units);
-  // Les rangées affichées, dans l'ordre : clé (celle de data-ligne) et texte (pour partager une grande carte en deux).
-  const rangees = [
-    ...(lignes.some((l) => l.chef) ? [] : [{ cle: '', texte: `★ ${t.chef} : à désigner` }]),
-    ...lignes.map((l) => ({ cle: l.m.id, texte: `${l.chef ? '★ ' : ''}${l.nom}${l.postes ? ` · ${l.postes}` : ''}` })),
-    ...groupes.map((g) => ({ cle: `lien:${g.id}`, texte: `👥 ${g.unite?.nom ?? 'Entité supprimée'} · ${g.membres.length} membres` })),
-  ];
-  return { lignes, groupes, rangees };
-}
-
-/** Rang, dans l'entité mère, de la ligne d'où part un câble (sinon -1). Fiches : une ligne porte tous les postes d'une personne. */
-const rangDuLien = (l: LienResponsable, rangees: { cle: string; cles?: string[] }[]) => {
-  const i = rangees.findIndex((r) => r.cle === l.ligne || r.cles?.includes(l.ligne));
-  return i >= 0 ? i : rangees.findIndex((r) => r.cle === `lien:${l.lien}`);
-};
-
-/**
- * L'arbre : de haut en bas comme un arbre généalogique, ou en liste décalée (téléphone, ou trop d'entités côte à côte).
- * De haut en bas, les cartes posées à la main sont à leur place (disposition libre) ; en mode « Modifier », on les déplace.
- */
-function Arbre({ units, actions, edition, orga }: { units: OrgUnit[]; actions: (u: OrgUnit) => Actions; edition: boolean; orga?: OrgaVue }) {
-  const club = useClub();
-  const racines = useMemo(() => arbreEntites(units), [units]);
-  const cadre = useRef<HTMLDivElement>(null);
-  const [largeur, setLargeur] = useState(0);
-  useLayoutEffect(() => {
-    const el = cadre.current;
-    if (!el) return;
-    setLargeur(el.clientWidth);
-    if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setLargeur(el.clientWidth));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  // Fiches à trois zones (orga) : les rangées sont les postes ; sinon une par personne.
-  const rangees = useMemo(() => new Map(units.map((u) => [u.id, orga ? rangeesPostes(u) : lignesDe(u, units).rangees])), [units, orga]);
-  const grandes = useMemo(() => new Set(units.filter((u) => (rangees.get(u.id)?.length ?? 0) >= GRANDE).map((u) => u.id)), [units, rangees]);
-  // Colonnes qu'il faut côte à côte : une par carte du bas (deux pour une grande carte).
-  const colonnes = (b: Branche<OrgUnit>): number => Math.max(grandes.has(b.u.id) ? 2 : 1, b.enfants.reduce((n, x) => n + colonnes(x), 0));
-  const vertical = largeur < racines.reduce((n, b) => n + colonnes(b), 0) * COLONNE;
-  // Câbles : du responsable dans l'entité mère jusqu'à l'entité, dessinés sur le plan de l'arbre.
-  const plan = useRef<HTMLDivElement>(null);
-  const arbre = useRef<HTMLUListElement>(null);
-  // Fiches à trois zones : du poste lié jusqu'à l'entité dont son titulaire est le ★.
-  const liens = useMemo(() => (orga ? liensPostes(units) : liensResponsables(units)), [units, orga]);
-  // Sous chaque entité mère : une bande pour ses câbles vers les entités en dessous (un niveau chacun) avant la barre de l'arbre.
-  const bandes = useMemo(() => {
-    const n = new Map<string, number>();
-    const dessous = new Map<string, Set<string>>();
-    for (const l of liens) {
-      if (!dessous.has(l.de)) dessous.set(l.de, new Set(sousEntites(units, l.de)));
-      if (dessous.get(l.de)!.has(l.vers)) n.set(l.de, (n.get(l.de) ?? 0) + 1);
-    }
-    return new Map([...n].map(([de, k]) => [de, bandeCables(k)]));
-  }, [liens, units]);
-  // Ordre des entités sous leur mère : celles reliées par un câble suivent les lignes de leur responsable, pour que
-  // les câbles ne se croisent pas. De haut en bas : la ligne la plus haute vers l'entité la plus à l'extérieur
-  // (grande carte : colonne de gauche à gauche, de droite à droite) ; en liste : la plus haute vers la plus éloignée.
-  const ordonnees = useMemo(() => {
-    const ordonner = (b: Branche<OrgUnit>): Branche<OrgUnit> => {
-      const enfants = b.enfants.map(ordonner);
-      const r = rangees.get(b.u.id) ?? [];
-      const k = grandes.has(b.u.id) && !vertical ? coupure(r) : 0;
-      const depart = new Map<string, Depart[]>();
-      for (const l of liens) {
-        // Fiches : un poste d'un ★ est sur sa ligne du titre, au-dessus des responsables.
-        const rang = l.de !== b.u.id ? -1 : orga ? Math.max(0, rangDuLien(l, r)) : rangDuLien(l, r);
-        if (rang >= 0) depart.set(l.vers, [...(depart.get(l.vers) ?? []), { rang, gauche: k ? rang < k : null }]);
-      }
-      const relies = enfants.filter((e) => depart.has(e.u.id));
-      if (!relies.length) return { u: b.u, enfants };
-      // Départ : les entités dans l'ordre des lignes de leur responsable (la plus haute à l'extérieur).
-      const haut = (e: Branche<OrgUnit>) => Math.min(...depart.get(e.u.id)!.map((d) => d.rang));
-      const tri = [...relies].sort((x, y) => haut(x) - haut(y));
-      const debut = vertical
-        ? tri.reverse()
-        : k
-          ? [...tri.filter((e) => haut(e) < k), ...tri.filter((e) => haut(e) >= k).reverse()]
-          : [...tri.filter((_, i) => i % 2 === 0), ...tri.filter((_, i) => i % 2 === 1).reverse()];
-      const { ordre, milieu } = ordreDesEntites(debut.map((e) => e.u.id), depart, vertical);
-      const parId = new Map(enfants.map((e) => [e.u.id, e]));
-      const o = ordre.map((id) => parId.get(id)!);
-      return { u: b.u, enfants: [...o.slice(0, milieu), ...enfants.filter((e) => !depart.has(e.u.id)), ...o.slice(milieu)] };
-    };
-    return racines.map(ordonner);
-  }, [racines, rangees, liens, grandes, vertical, orga]);
-  const disposition = useDisposition({
-    plan,
-    arbre,
-    cadre,
-    units,
-    actif: !vertical,
-    peut: (u) => edition && !u.archive && (club.canManage || u.moiAdmin),
-    placer: club.placerCartes,
-  });
-  const branche = (b: Branche<OrgUnit>) => (
-    <li key={b.u.id}>
-      {orga ? (
-        <Fiche u={b.u} o={orga} a={actions(b.u)} deplacer={disposition.deplacer(b.u)} grande={!vertical && grandes.has(b.u.id)} />
-      ) : (
-        <Noeud u={b.u} {...actions(b.u)} deplacer={disposition.deplacer(b.u)} grande={!vertical && grandes.has(b.u.id)} />
-      )}
-      {b.enfants.length > 0 && <ul style={vertical ? undefined : ({ '--bande': `${bandes.get(b.u.id) ?? bandeCables(0)}px` } as CSSProperties)}>{b.enfants.map(branche)}</ul>}
-    </li>
-  );
-  const n = disposition.remettables.length;
-  const ignorees = edition && disposition.ignorees;
-  return (
-    <>
-      <div ref={cadre} className="arbre-cadre">
-        <div
-          ref={plan}
-          className={`arbre-plan ${vertical ? 'vertical' : 'haut'} ${liens.length ? 'avec-cables' : ''} ${disposition.libre ? 'libre' : ''}`}
-          style={vertical ? ({ '--voies': `${margeCables(liens.length)}px` } as CSSProperties) : undefined}
-        >
-          {disposition.libre && <TraitsOrganigramme plan={plan} units={units} bandes={bandes} />}
-          <ul ref={arbre} className={`arbre ${vertical ? 'vertical' : 'haut'}`}>{ordonnees.map(branche)}</ul>
-          <CablesOrganigramme plan={plan} liens={liens} vertical={vertical} units={units} />
-        </div>
-      </div>
-      {/* Sous l'arbre : s'il apparaît, l'arbre ne bouge pas sous la carte qu'on vient de poser. */}
-      {(disposition.erreur || ignorees || n > 0) && (
-        <div className="arbre-outils">
-          {disposition.erreur && <span className="error small-note">{disposition.erreur}</span>}
-          {ignorees && <span className="muted small-note">Des cartes sont placées à la main : leur disposition s’affiche sur un écran plus large.</span>}
-          {n > 0 && (
-            <button
-              type="button"
-              className="btn small"
-              title="Remettre les cartes déplacées à leur place dans l’arbre"
-              onClick={() => confirm(`Remettre ${n > 1 ? `les ${n} cartes déplacées à leur place` : 'la carte déplacée à sa place'} dans l’arbre ? Pour tout le monde.`) && disposition.toutRemettre()}
-            >
-              ↺ Disposition automatique
-            </button>
-          )}
-        </div>
-      )}
-    </>
-  );
-}
-
-/**
- * Une entité dans l'arbre : nom et type, une ligne « N membres · Ouvrir › », puis une ligne par personne
- * (son nom et ses fonctions) qui ouvre sa fiche. En mode « Modifier » : poignée, ⚙️ et « + Ajouter une personne ».
- * Une grande carte (comité central) range ses lignes sur deux colonnes.
- */
-function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, deplacer, grande }: { u: OrgUnit; grande?: boolean } & Actions) {
-  const club = useClub();
-  const t = UNIT_TYPES[u.type];
-  const { lignes, groupes, rangees } = lignesDe(u, club.units);
-  const ouverte = u.id === club.current.id;
-  const cible = cablage?.cible;
-  const texte = (
-    <>
-      <span className="arbre-titre">
-        <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
-        <span className="arbre-texte">
-          <strong>{u.nom}</strong>
-          <small>{t.label}{u.date && ` · ${fmtRange(u.date, u.dateFin)}`}</small>
-        </span>
-      </span>
-      <span className="arbre-meta">
-        <span>{u.membres.length} membre{u.membres.length > 1 ? 's' : ''}</span>
-        {ouverte && <span className="arbre-ouverte">ouverte</span>}
-        {ouvrir && <span className="arbre-lien">{ouvrir.label} ›</span>}
-      </span>
-    </>
-  );
-  return (
-    <div
-      className={`arbre-noeud ${grande ? 'grande' : ''} ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${cible?.actif || (cible && cablage?.mode) ? 'cablage-cible' : ''} ${cible?.survol ? 'cablage-survol' : ''} ${deplacer ? 'deplacable' : ''}`}
-      style={{ borderTopColor: u.couleur }}
-      data-noeud={u.id}
-      onPointerDown={deplacer?.onPointerDown}
-    >
-      {deplacer && (
-        <span
-          className="poignee"
-          data-poignee
-          title={`Déplacer la carte${deplacer.remettre ? ' (double-clic : la remettre à sa place dans l’arbre)' : ''}`}
-          aria-hidden="true"
-          onDoubleClick={deplacer.remettre}
-        />
-      )}
-      {ouvrir ? (
-        <button type="button" className="arbre-tete" title={ouvrir.aide} onClick={() => !deplacer?.bougeJuste() && ouvrir.go()}>{texte}</button>
-      ) : (
-        <div className="arbre-tete">{texte}</div>
-      )}
-      {/* Pas de <ul> ici : les traits de l'arbre sont dessinés sur les listes. */}
-      <Postes deux={grande ? coupure(rangees) : 0}>
-        {!lignes.some((l) => l.chef) && <span className="poste muted">★ {t.chef} : à désigner</span>}
-        {lignes.map((l) => (
-          <button
-            key={l.m.id}
-            type="button"
-            data-ligne={`${u.id}|${l.m.id}`}
-            className={`poste ${l.chef ? 'chef' : ''} ${cablage ? 'tirable' : ''} ${cablage?.choisi === personKey(l.m, u.id) ? 'choisi' : ''}`}
-            onPointerDown={cablage ? (e) => cablage.onTirer(e, l.m) : undefined}
-            onClick={() => {
-              if (cablage?.tireJuste()) return;
-              if (cablage?.mode) cablage.onChoisir(l.m);
-              else onPersonne(l.m);
-            }}
-          >
-            {cablage?.mode && <span className="prise" data-prise title="Tirer le câble jusqu’à une entité" aria-hidden="true" />}
-            {l.chef && <span className="org-star">★ </span>}
-            {l.nom}
-            {l.postes && <span className="autres"> · {l.postes}</span>}
-          </button>
-        ))}
-        {groupes.map((g) => (
-          <button key={g.id} type="button" data-ligne={`${u.id}|lien:${g.id}`} className="poste lien" title={`Tous les membres de « ${g.unite?.nom ?? '?'} » font partie de « ${u.nom} »`} onClick={() => onLien(g.id)}>
-            👥 {g.unite?.nom ?? 'Entité supprimée'}
-            <span className="autres"> · {g.membres.length} membre{g.membres.length > 1 ? 's' : ''}</span>
-          </button>
-        ))}
-      </Postes>
-      {cible && cablage?.mode && (
-        <button type="button" className="cablage-depose" onClick={() => cible.onDeposer()}>
-          {cible.label}
-        </button>
-      )}
-      {(onAjouter || onModifier) && (
-        <div className="arbre-pied">
-          {onAjouter && (
-            <button type="button" className="arbre-ajout" title={ouverte ? `Ajouter une personne à « ${u.nom} »` : `Ouvrir « ${u.nom} » et y ajouter une personne`} onClick={onAjouter}>
-              + Ajouter une personne
-            </button>
-          )}
-          {onModifier && <button type="button" className="arbre-regler" title={`Modifier l’entité « ${u.nom} »`} aria-label={`Modifier l’entité ${u.nom}`} onClick={onModifier}>⚙️</button>}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const fromDirectory = (e: DirectoryEntry, poste: string): NewMember => ({ prenom: e.prenom, nom: e.nom, email: e.email, telephone: e.telephone, couleur: e.couleur, poste });
 
@@ -1314,7 +877,7 @@ function UnitModal({
                 {addable.map((e) => <option key={e.key} value={e.key}>{e.prenom} {e.nom}</option>)}
               </select>
               <p className="muted small-note">
-                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis l’organigramme (« ✏️ Modifier l’organigramme » › « + Ajouter une personne », clic sur une personne).
+                Facultatif : le {info.chef.toLowerCase()} pourra ajouter ensuite les autres membres, régler leurs rôles et créer leurs accès depuis l’organigramme (« ✏️ Modifier l’organigramme » : chercher la personne en haut à gauche ou « ＋ Nouvelle personne », puis la glisser sur un poste ; clic sur une personne : sa fiche).
               </p>
             </div>
           </>

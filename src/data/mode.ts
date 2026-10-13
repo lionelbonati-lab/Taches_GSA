@@ -5,16 +5,6 @@
 export type Mode = 'demo' | 'reel';
 
 const KEY = 'taches-gsa-mode';
-// Démo avec l'organigramme câblé d'avant (celui de la version réelle pour l'instant) : …/?demo&classique.
-const CLASSIQUE = 'taches-gsa-demo-classique';
-
-export function demoClassique() {
-  try {
-    return localStorage.getItem(CLASSIQUE) === '1';
-  } catch {
-    return false;
-  }
-}
 
 export function getMode(): Mode | null {
   try {
@@ -44,8 +34,8 @@ export function modeFromUrl() {
   if (!m) return;
   try {
     localStorage.setItem(KEY, m);
-    if (m === 'demo' && params.has('classique')) localStorage.setItem(CLASSIQUE, '1');
-    else localStorage.removeItem(CLASSIQUE);
+    // Ancienne démo « classique » (organigramme câblé, retiré) : oubliée.
+    localStorage.removeItem('taches-gsa-demo-classique');
   } catch {
     /* ignore */
   }

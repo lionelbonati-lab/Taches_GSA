@@ -10,7 +10,9 @@ import { fonctionsDe, nomDe, placesDu, zonesFiche } from './organigramme';
 //  2. les groupes, chacun sous sa carte : ses postes et ses bénévoles (repliés) ;
 //  3. les événements, sous le groupe qui les organise (un poste du groupe lié ⛓ à l'événement), sinon sous le poste
 //     d'un comité qui en est responsable (lié ⛓ à l'événement), sinon sous le cadre du comité dont ils dépendent (tout
-//     le comité en est responsable) ; et la manifestation de chaque sous-comité qui a une date.
+//     le comité en est responsable) ; et la manifestation de chaque sous-comité qui a une date. Pour gagner de la
+//     place, un événement indépendant (sous un poste, sous le cadre) se pose sous un groupe du cadre qui n'organise
+//     aucun événement : son trait passe sous la carte du groupe (voir disposer).
 // Deux choses différentes : la liaison (un poste lié ⛓ : où est la carte du groupe, sous quel groupe est l'événement) et
 // la dépendance (« Dépend de » de sa fiche, toujours un comité, le comité central sans choix : là où peuvent s'afficher
 // ses tâches). Un groupe ou un événement affiché ailleurs que dans le comité dont il dépend le dit sur sa carte.
@@ -631,6 +633,11 @@ export interface Disposition {
   largeur: number;
   /** Lignes utilisées (2 : aucun groupe, les événements montent d'une ligne). */
   rangs: (1 | 2 | 3)[];
+  /**
+   * Événements indépendants (sous un poste d'un comité, sous le cadre) posés sous un groupe du cadre pour gagner de la
+   * place : l'événement → la carte du groupe (son trait passe sous elle).
+   */
+  heberges: Map<string, string>;
 }
 
 /**
@@ -641,17 +648,20 @@ export const pileDe = (n: number) => (n <= 3 ? 1 : Math.ceil(Math.sqrt(n / 2)));
 
 /**
  * Place les cartes de gauche à droite : chaque colonne prend la largeur de ce qu'elle porte en dessous (son groupe,
- * ses événements), la carte du dessus centrée. Les cartes qui n'ont rien en dessous s'empilent (voir pileDe), dans
- * l'ordre du cadre. `replies` : colonnes et groupes repliés. Un cadre vide garde la place d'une carte.
+ * ses événements), la carte du dessus centrée. Pour gagner de la place, un événement indépendant (sous un poste du
+ * comité, sous le cadre) se pose sous le groupe le plus proche du cadre qui n'a pas d'événement à lui (la place est
+ * libre) ; son trait passe sous la carte du groupe. Les cartes qui n'ont (plus) rien en dessous s'empilent (voir
+ * pileDe ; `pileImposee` : autant de cartes empilées au plus, pour remplir un écran ou une page), dans l'ordre du cadre.
+ * `replies` : colonnes et groupes repliés. Un cadre vide garde la place d'une carte.
  */
-export function disposer(plan: PlanOrganigramme, replies: Set<string>, me: Mesures = MESURES): Disposition {
+export function disposer(plan: PlanOrganigramme, replies: Set<string>, me: Mesures = MESURES, pileImposee?: number): Disposition {
   const positions = new Map<string, Position>();
   const cadres = new Map<string, { x: number; largeur: number }>();
   const plis = new Map<string, number>();
+  const heberges = new Map<string, string>();
   const enfantsDe = (k: string, l: CarteEntite[]) => (replies.has(k) ? [] : l);
   const rangees = (l: CarteEntite[]) => l.reduce((n, e) => n + largeurEntite(e), 0) + Math.max(0, l.length - 1) * me.ecart;
   const largeurEntite = (e: CarteEntite): number => Math.max(me.entite, rangees(enfantsDe(e.cle, e.enfants)));
-  const largeurColonne = (c: Colonne) => Math.max(c.carte ? me.carte : 0, rangees(enfantsDe(c.cle, c.enfants)));
 
   const placerEntites = (l: CarteEntite[], x: number, largeur: number) => {
     let cx = x + (largeur - rangees(l)) / 2;
@@ -664,16 +674,40 @@ export function disposer(plan: PlanOrganigramme, replies: Set<string>, me: Mesur
     }
   };
 
-  // Une carte sans rien en dessous : empilable.
-  const seule = (c: Colonne) => !!c.carte && !c.enfants.length;
   let x = 0;
   for (const c of plan.cadres) {
+    // Groupes du cadre (affichés) qui n'organisent aucun événement : la place sous eux est libre.
+    const libres = c.colonnes.flatMap((col, j) => {
+      const g = col.carte?.sorte === 'groupe' && !replies.has(col.cle) ? col.enfants[0] : undefined;
+      return g && !g.enfants.length ? [{ col, j }] : [];
+    });
+    // Les événements indépendants, de gauche à droite, chacun sous le groupe libre le plus proche (repliés : à leur place).
+    const hotes = new Map<string, CarteEntite[]>();
+    const reste = new Map<string, CarteEntite[]>();
+    c.colonnes.forEach((col, i) => {
+      if (col.carte?.sorte === 'groupe' || replies.has(col.cle) || !libres.length) return;
+      const garde = col.enfants.filter((e) => {
+        if (!libres.length) return true;
+        const n = libres.reduce((m, h, k) => (Math.abs(h.j - i) < Math.abs(libres[m].j - i) ? k : m), 0);
+        const h = libres.splice(n, 1)[0];
+        hotes.set(h.col.cle, [e]);
+        heberges.set(e.cle, h.col.enfants[0].cle);
+        return false;
+      });
+      if (garde.length < col.enfants.length) reste.set(col.cle, garde);
+    });
+    const sous = (col: Colonne) => reste.get(col.cle) ?? col.enfants;
+    const largeurColonne = (col: Colonne) =>
+      Math.max(col.carte ? me.carte : 0, rangees(enfantsDe(col.cle, sous(col))), rangees(hotes.get(col.cle) ?? []));
+    // Une carte sans rien (plus rien) en dessous : empilable ; le bas du cadre sans plus rien : pas de colonne.
+    const seule = (col: Colonne) => !!col.carte && !sous(col).length;
     const debut = x;
     x += me.marge;
-    const pile = pileDe(c.colonnes.filter(seule).length);
+    const pile = pileImposee ?? pileDe(c.colonnes.filter(seule).length);
     // Colonnes du cadre : une pile de cartes seules, ou une carte avec ce qu'elle porte.
     const piles: Colonne[][] = [];
     for (const col of c.colonnes) {
+      if (!col.carte && !sous(col).length) continue;
       const der = piles[piles.length - 1];
       if (seule(col) && der && seule(der[0]) && der.length < pile) der.push(col);
       else piles.push([col]);
@@ -689,9 +723,10 @@ export function disposer(plan: PlanOrganigramme, replies: Set<string>, me: Mesur
       const w = largeurColonne(col);
       if (col.carte) {
         positions.set(col.carte.cle, { cle: col.carte.cle, rang: 1, x: x + (w - me.carte) / 2, largeur: me.carte });
-        if (col.enfants.length) plis.set(col.cle, x + w / 2);
+        if (sous(col).length) plis.set(col.cle, x + w / 2);
       }
-      placerEntites(enfantsDe(col.cle, col.enfants), x, w);
+      placerEntites(enfantsDe(col.cle, sous(col)), x, w);
+      placerEntites(hotes.get(col.cle) ?? [], x, w);
       x += w;
     });
     if (!piles.length) x += me.carte;
@@ -701,7 +736,7 @@ export function disposer(plan: PlanOrganigramme, replies: Set<string>, me: Mesur
   }
   const rangsVus = new Set([...positions.values()].map((p) => p.rang));
   const rangs = ([1, 2, 3] as const).filter((r) => r === 1 || rangsVus.has(r));
-  return { positions, cadres, plis, largeur: Math.max(0, x - me.ecartCadres), rangs };
+  return { positions, cadres, plis, largeur: Math.max(0, x - me.ecartCadres), rangs, heberges };
 }
 
 /** Toutes les entités sous une colonne ou un groupe (repliées : leur nombre sur le bouton). */

@@ -1,61 +1,81 @@
-import { Children, useEffect, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
+import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { useClub } from '../data/club';
 import { norm } from '../data/csv';
+import { emailKey } from '../data/membres';
 import { groupesLies } from '../data/liens';
 import { benevolesDe, et, fonctionsLibres, memeQui, nomDe, placesDu, zonesFiche, type Depuis, type LigneFiche, type OpOrga, type Qui, type Vers } from '../data/organigramme';
-import { UNIT_COLORS, UNIT_TYPES } from '../data/units';
+import { directory, UNIT_COLORS, UNIT_TYPES } from '../data/units';
 import { fmtRange, posteBesideName } from '../data/utils';
-import type { OrgMember, OrgUnit, Poste } from '../data/types';
+import type { ClubMembre, OrgMember, OrgUnit, Poste } from '../data/types';
 import { Initials, Modal, UnitMark } from './ui';
-import { nomCandidat, type Candidat, type Point } from './Cablage';
-import type { Deplacer } from './Disposition';
 
-// Organigramme « colonne vertébrale » : fiches à trois zones (titre ★, responsables, bénévoles) où l'on place
-// les personnes en les glissant (souris ; au doigt par la poignée ⠿), depuis une autre fiche ou depuis la recherche
-// en haut à gauche (pilules). Sans glisser : toucher la personne (elle est « en main »), puis la zone où la poser.
-// Les règles sont dans data/organigramme.ts.
+// Ce que l'organigramme par postes (OrgLignes.tsx) partage : glisser une personne (souris ; au doigt : la toucher,
+// elle est « en main », puis toucher où la poser), la recherche en haut à gauche (pilules), les fiches de poste et la
+// fiche à trois zones (titre ★, responsables, bénévoles) des entités archivées. Les règles sont dans data/organigramme.ts.
 
-/** Les rangées d'une carte ; `deux` > 0 : sur deux colonnes, les `deux` premières à gauche (grande carte). */
-export function Postes({ deux, children }: { deux: number; children: ReactNode }) {
-  if (!deux) return <div className="arbre-postes">{children}</div>;
-  const r = Children.toArray(children);
-  return (
-    <div className="arbre-postes deux">
-      <div className="arbre-colonne">{r.slice(0, deux)}</div>
-      <div className="arbre-colonne">{r.slice(deux)}</div>
-    </div>
-  );
+type Point = [number, number];
+
+/** Une personne du club qu'on peut placer : présente dans une entité, ou seulement au registre « Membres du club ». */
+export interface Candidat {
+  key: string;
+  prenom: string;
+  nom: string;
+  email: string;
+  telephone?: string;
+  couleur: string;
+  membreId?: string;
+  /** Où elle est déjà : « École de cyclisme (Moniteur), … » ; vide : dans aucune entité. */
+  ou: string;
 }
 
-/** Grande carte : nombre de rangées de la colonne de gauche, pour deux colonnes de même hauteur (≈ 29 caractères par ligne). */
-export function coupure(rangees: { texte: string }[]) {
-  const poids = rangees.map((r) => Math.max(1, Math.ceil(r.texte.length / 29)));
-  const total = poids.reduce((a, b) => a + b, 0);
-  let [k, gauche, meilleur] = [0, 0, Infinity];
-  poids.forEach((p, i) => {
-    gauche += p;
-    // À égalité, la colonne de gauche est la plus longue.
-    const haut = Math.max(gauche, total - gauche);
-    if (haut < meilleur || (haut === meilleur && gauche > total - gauche)) [k, meilleur] = [i + 1, haut];
-  });
-  return k;
+export const nomCandidat = (c: Pick<Candidat, 'prenom' | 'nom' | 'email'>) => `${c.prenom} ${c.nom}`.trim() || c.email || '?';
+
+/** Toutes les personnes du club : celles des entités (organigramme), puis celles du registre qui ne sont dans aucune. */
+export function useCandidats(units: OrgUnit[], actif: boolean) {
+  const club = useClub();
+  const [registre, setRegistre] = useState<ClubMembre[]>([]);
+  useEffect(() => {
+    if (!actif || !club.membresAcces) return;
+    let vivant = true;
+    club
+      .membres()
+      .then((l) => vivant && setRegistre(l))
+      .catch(() => {});
+    return () => {
+      vivant = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [actif, club.membresAcces]);
+  return useMemo(() => {
+    const dir = directory(units.filter((u) => !u.archive));
+    const liste: Candidat[] = dir.map((e) => {
+      const membreId = e.postes.find((x) => x.member.membreId)?.member.membreId ?? registre.find((m) => emailKey(m.email) && emailKey(m.email) === emailKey(e.email))?.id;
+      return {
+        key: e.key,
+        prenom: e.prenom,
+        nom: e.nom,
+        email: e.email,
+        telephone: e.telephone,
+        couleur: e.couleur,
+        membreId,
+        ou: e.postes.map((x) => `${x.unit.nom}${x.member.poste ? ` (${x.member.poste})` : ''}`).join(', '),
+      };
+    });
+    const pris = new Set(liste.flatMap((c) => [c.membreId, emailKey(c.email)].filter(Boolean)));
+    for (const m of registre) {
+      if (pris.has(m.id) || (emailKey(m.email) && pris.has(emailKey(m.email)))) continue;
+      liste.push({ key: `m:${m.id}`, prenom: m.prenom, nom: m.nom, email: m.email, telephone: m.telephone, couleur: m.couleur, membreId: m.id, ou: '' });
+    }
+    return liste.sort((a, b) => nomCandidat(a).localeCompare(nomCandidat(b), 'fr'));
+  }, [units, registre]);
 }
 
 /** Les postes d'une ligne : celui que son nom dit déjà (« Vice-président » au poste de vice-président), et les autres, à la suite. */
-export function partsLigne(m: OrgMember, postes: Poste[]) {
+function partsLigne(m: OrgMember, postes: Poste[]) {
   const nom = nomDe(m);
   const cache = postes.find((x) => !posteBesideName(nom, x.nom));
   return { nom, cache, autres: postes.filter((x) => x !== cache) };
 }
-
-/** Rangées de la zone « Responsables » : une par personne (clé, et celles de ses postes : départs des câbles), ou poste à pourvoir. */
-export const rangeesPostes = (u: OrgUnit) =>
-  zonesFiche(u).lignes.map(({ m, postes }) => {
-    const cles = postes.map((x) => `poste:${x.id}`);
-    if (!m) return { cle: cles[0], cles, texte: `${postes[0].nom} · à pourvoir` };
-    const { nom, autres } = partsLigne(m, postes);
-    return { cle: `resp:${m.id}`, cles, texte: [nom, ...autres.map((x) => x.nom)].join(' · ') };
-  });
 
 // ---------- Glisser-déposer ----------
 
@@ -206,7 +226,7 @@ export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; d
       const t = e.target as Element;
       if (t.closest('[data-garder]')) return;
       const el = t.closest<HTMLElement>('[data-cible]');
-      if (!el && !t.closest('.arbre-cadre, .orgl-vue')) return;
+      if (!el && !t.closest('.orgl-vue')) return;
       e.preventDefault();
       e.stopPropagation();
       const c = el?.dataset.cible;
@@ -418,7 +438,7 @@ export interface ActionsFiche {
  * pourvoir, en rouge, sur sa ligne ; ⛓ lié au ★ d'une autre entité), bénévoles (repliés). Chaque personne n'y figure
  * qu'une fois. En mode « Modifier » : poignées ⠿, zones où poser (chaque poste en est une), « ＋ Poste », ⚙️.
  */
-export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a: ActionsFiche; deplacer?: Deplacer; grande?: boolean }) {
+export function Fiche({ u, o, a }: { u: OrgUnit; o: OrgaVue; a: ActionsFiche }) {
   const club = useClub();
   const t = UNIT_TYPES[u.type];
   const ben = benevolesDe(u.type);
@@ -556,24 +576,14 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
   );
   return (
     <div
-      className={`arbre-noeud fiche ${grande ? 'grande' : ''} ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${deplacer ? 'deplacable' : ''} ${pose ? 'fiche-pose' : ''}`}
+      className={`arbre-noeud fiche ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${pose ? 'fiche-pose' : ''}`}
       style={{ borderTopColor: u.couleur }}
       data-noeud={u.id}
-      onPointerDown={deplacer?.onPointerDown}
     >
-      {deplacer && (
-        <span
-          className="poignee"
-          data-poignee
-          title={`Déplacer la carte${deplacer.remettre ? ' (double-clic : la remettre à sa place dans l’arbre)' : ''}`}
-          aria-hidden="true"
-          onDoubleClick={deplacer.remettre}
-        />
-      )}
       {/* Titre : poser une personne ici en fait un ★ (en plus des autres) ; sur un ★, à sa place. */}
       <div className={`fiche-titre ${sur('titre')}`} data-cible={cible('titre')}>
         {a.ouvrir ? (
-          <button type="button" className="arbre-tete" title={a.ouvrir.aide} onClick={() => !deplacer?.bougeJuste() && a.ouvrir!.go()}>{texte}</button>
+          <button type="button" className="arbre-tete" title={a.ouvrir.aide} onClick={a.ouvrir.go}>{texte}</button>
         ) : (
           <div className="arbre-tete">{texte}</div>
         )}
@@ -613,9 +623,7 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
       {(z.lignes.length > 0 || peut) && (
         <div className={`fiche-zone fiche-resp ${sur('nouveau')}`} data-cible={cible('nouveau')}>
           {peut && <span className="fiche-zone-titre">Responsables</span>}
-          <Postes deux={grande ? coupure(rangeesPostes(u)) : 0}>
-            {z.lignes.map((l) => ligne(l))}
-          </Postes>
+          <div className="arbre-postes">{z.lignes.map((l) => ligne(l))}</div>
           {peut && (
             <button type="button" className="fiche-ajout" title="Ajouter un poste, à pourvoir" onClick={() => o.onNouveauPoste(u)}>
               ＋ Poste

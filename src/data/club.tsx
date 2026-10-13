@@ -1,7 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { Carte, ClubMembre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
-import type { NouveauResponsable } from './cablage';
 import type { OpOrga } from './organigramme';
 import type { DemandeMdp } from './cloud';
 
@@ -154,13 +153,8 @@ export interface Club {
   /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */
   voterSondagePartage: (uniteId: string, pollId: string, choix: string[], texte?: string) => Promise<void>;
   /**
-   * Organigramme câblé : fait d'une personne le responsable (★) d'une entité du club (pas le comité central) ;
-   * sa fiche y est reprise ou créée. Admins du comité central, ou de l'entité. `compte` : son compte au club lui ouvre l'entité.
-   */
-  definirResponsable: (uniteId: string, r: NouveauResponsable) => Promise<{ compte: boolean }>;
-  /**
-   * Organigramme à glisser-déposer (fiches à trois zones, postes liés) ; absent : l'organigramme câblé d'avant (démo
-   * « classique », serveur pas encore à jour). Renvoie ce qui a été fait et de quoi l'annuler.
+   * Moteur de l'organigramme (postes, postes liés, personnes glissées) ; absent : le serveur n'est pas encore à jour
+   * (migration 023), l'organigramme est en lecture seule. Renvoie ce qui a été fait et de quoi l'annuler.
    */
   organiser?: (op: OpOrga) => Promise<{ message: string; annuler: () => Promise<void> }>;
   /**

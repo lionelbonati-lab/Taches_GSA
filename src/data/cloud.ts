@@ -4,7 +4,6 @@ import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProp
 import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
-import type { NouveauResponsable } from './cablage';
 import type { OpOrga } from './organigramme';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
@@ -765,7 +764,6 @@ export type AccessRequest =
   /** Entité archivée supprimée définitivement (`committeeId` : comité central) ; `apercu` : ce qui serait supprimé. */
   | { action: 'supprimerUnite'; committeeId: string; uniteId: string; apercu?: boolean; nom?: string }
   /** Organigramme câblé : `committeeId` est l'entité dont l'appelant est admin (comité central, ou l'entité elle-même). */
-  | { action: 'responsable'; committeeId: string; uniteId: string; responsable: NouveauResponsable }
   /**
    * Organigramme à glisser-déposer (supabase/functions/gsa-acces/orga.ts) : `committeeId` est l'entité ouverte (son club
    * est celui de la modification) ; pour « suivre » et « lierEntite », l'entité concernée.

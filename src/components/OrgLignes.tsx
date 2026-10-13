@@ -18,7 +18,9 @@ import {
   type CarteEntite,
   type CarteLigne1,
   type Colonne,
+  type Disposition,
   type PlanOrganigramme,
+  MESURES,
 } from '../data/organigrammeLignes';
 import { Initials, Modal, UnitMark } from './ui';
 import { quiDeMembre, type Glisser, type Prise as PrisePersonne } from './Organiser';
@@ -26,9 +28,10 @@ import type { Depuis } from '../data/organigramme';
 
 // Organigramme par postes, en lignes (calcul dans data/organigrammeLignes.ts) : comités dans des cadres reliés, une
 // carte par poste (le poste, le nom ; un poste à plusieurs : tous les noms), les groupes sous leur carte (dans le comité où siège leur responsable ; « Dépend
-// de » s'ils dépendent d'un autre), les événements en dessous, reliés par des traits.
-// Zoom (−, +, ajuster), déplacement à la souris (tirer le fond), branches repliables (sur cet appareil), impression
-// ou PDF sur une page A4 en paysage. Sur téléphone : une liste de haut en bas.
+// de » s'ils dépendent d'un autre), les événements en dessous, reliés par des traits ; un événement indépendant peut se
+// poser sous un groupe qui a la place (son trait passe sous la carte du groupe).
+// Zoom (−, +, ajuster), plein écran (tout l'organigramme sur l'écran), déplacement à la souris (tirer le fond), branches
+// repliables (sur cet appareil), impression ou PDF sur une page A4 en paysage. Sur téléphone : une liste de haut en bas.
 // Un clic sur un nom ouvre le profil de la personne (ses fonctions dans tout le club, ses coordonnées).
 // Modification (`edition`) : glisser une carte (un poste, un groupe, un événement) sur un comité, un groupe ou une autre
 // carte, ou « ⠿ » › « Déplacer… » ; « ＋ Poste », « ＋ Comité ». Une personne (son nom, ou cherchée en haut) se pose
@@ -41,6 +44,8 @@ const MARGE = 12;
 const ECART_V = 60;
 /** Entre deux cartes empilées. */
 const ECART_PILE = 8;
+/** Trait d'un événement posé sous un groupe : à cette distance du bord gauche (celui du groupe est au milieu). */
+const DECALE = 26;
 /** En dessous de cette largeur : la liste de haut en bas. */
 const ETROIT = 640;
 /** Page A4 en paysage, marges de 8 mm (px à 96 ppp). */
@@ -72,9 +77,11 @@ export interface OrgLignesProps {
   note?: string;
   /** Ouvrir l'entité d'une carte de groupe ou d'événement, si on peut. */
   ouvrir?: Ouvrir;
-  /** Titre imprimé au-dessus (ex. « Organigramme 2025 »). */
+  /** Titre imprimé au-dessus (ex. « Organigramme 2025 »), et en plein écran. */
   titre?: string;
   edition?: EditionLignes;
+  /** En plein écran, au-dessus de l'organigramme (en modification : chercher une personne, celle qu'on a en main). */
+  barre?: ReactNode;
 }
 
 const lireReplies = () => {
@@ -100,7 +107,7 @@ interface Ctx {
   mobiles?: Set<string>;
 }
 
-export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme', edition }: OrgLignesProps) {
+export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme', edition, barre }: OrgLignesProps) {
   const plan = useMemo(() => planOrganigramme(units, !!edition), [units, edition]);
   const [replies, setReplies] = useState(lireReplies);
   const replier = (k: string) =>
@@ -123,23 +130,56 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
       return n;
     });
   const vue = useRef<HTMLDivElement>(null);
-  const [largeurVue, setLargeurVue] = useState(0);
+  const [vueT, setVueT] = useState({ l: 0, h: 0 });
   useLayoutEffect(() => {
     const el = vue.current;
     if (!el) return;
-    setLargeurVue(el.clientWidth);
+    const lire = () => setVueT((t) => (t.l === el.clientWidth && t.h === el.clientHeight ? t : { l: el.clientWidth, h: el.clientHeight }));
+    lire();
     if (typeof ResizeObserver === 'undefined') return;
-    const ro = new ResizeObserver(() => setLargeurVue(el.clientWidth));
+    const ro = new ResizeObserver(lire);
     ro.observe(el);
     return () => ro.disconnect();
   }, []);
+  const largeurVue = vueT.l;
   const etroit = largeurVue > 0 && largeurVue < ETROIT;
-  // Zoom : null = toute la largeur (sans grossir).
+  // Plein écran : l'organigramme couvre toute la fenêtre (tout l'écran si le navigateur le permet).
+  const [plein, setPlein] = useState(false);
+  // Zoom : null = ajusté, toute la largeur (sans grossir) ; en plein écran, tout l'organigramme sur l'écran.
   const [zoom, setZoom] = useState<number | null>(null);
   const [taille, setTaille] = useState({ l: 0, h: 0 });
-  const ajuste = taille.l && largeurVue ? Math.max(0.5, Math.min(1, (largeurVue - 26) / taille.l)) : 1;
+  const ajuste = !taille.l || !largeurVue ? 1 : plein
+    ? Math.max(0.2, Math.min(1.6, (largeurVue - 26) / taille.l, (vueT.h - 26) / Math.max(1, taille.h)))
+    : Math.max(0.5, Math.min(1, (largeurVue - 26) / taille.l));
   const z = zoom ?? ajuste;
-  const zoomer = (f: number) => setZoom(Math.max(0.3, Math.min(2, Math.round(z * f * 100) / 100)));
+  const ecran = useMemo(() => ({ l: vueT.l - 26, h: vueT.h - 26 }), [vueT]);
+  const zoomer = (f: number) => setZoom(Math.max(0.2, Math.min(2, Math.round(z * f * 100) / 100)));
+  const basculerPlein = () => {
+    setZoom(null);
+    if (plein) return setPlein(false);
+    setPlein(true);
+    // L'écran entier (sans la barre du navigateur) ; sinon (téléphone, refus) : toute la fenêtre.
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  };
+  useEffect(() => {
+    if (!plein) return;
+    document.body.classList.add('orgl-plein-ecran');
+    // Échap : le navigateur quitte l'écran entier, l'organigramme le suit ; sans écran entier, Échap le quitte (sauf
+    // dans une fenêtre ouverte par-dessus, ou en glissant une carte ou une personne).
+    const change = () => !document.fullscreenElement && setPlein(false);
+    const echap = (e: KeyboardEvent) => {
+      const b = document.body.classList;
+      if (e.key === 'Escape' && !document.fullscreenElement && !document.querySelector('.modal-back') && !b.contains('orgl-tire-en-cours') && !b.contains('glisse-en-cours')) setPlein(false);
+    };
+    document.addEventListener('fullscreenchange', change);
+    window.addEventListener('keydown', echap);
+    return () => {
+      document.body.classList.remove('orgl-plein-ecran');
+      document.removeEventListener('fullscreenchange', change);
+      window.removeEventListener('keydown', echap);
+      if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
+    };
+  }, [plein]);
   const [impression, setImpression] = useState(false);
   useEffect(() => {
     if (!impression) return;
@@ -172,9 +212,12 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
   };
   const bouger = (e: ReactPointerEvent<HTMLDivElement>) => {
     const t = tir.current;
-    if (!t || !vue.current) return;
-    vue.current.scrollLeft = t.sl - (e.clientX - t.x);
-    window.scrollBy(0, t.y - e.clientY);
+    const v = vue.current;
+    if (!t || !v) return;
+    v.scrollLeft = t.sl - (e.clientX - t.x);
+    // En hauteur : la vue (plein écran), sinon la page.
+    if (v.scrollHeight > v.clientHeight) v.scrollTop += t.y - e.clientY;
+    else window.scrollBy(0, t.y - e.clientY);
     t.y = e.clientY;
   };
   const lacher = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -215,16 +258,18 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
 
   if (!plan.cadres.length) return <p className="muted">Aucun comité.</p>;
   return (
-    <div className="orgl">
-      {(!etroit || edition?.onNouveauComite) && (
+    <div className={`orgl ${plein ? 'plein' : ''}`}>
+      {!plein && barre}
+      {(!etroit || edition?.onNouveauComite || plein) && (
         <div className="orgl-outils no-print">
+          {plein && <b className="orgl-plein-titre">{titre}</b>}
           {!etroit && (
             <>
               <div className="orgl-zoom" role="group" aria-label="Zoom">
                 <button type="button" className="btn small" aria-label="Réduire" title="Réduire" onClick={() => zoomer(1 / 1.2)}>−</button>
                 <span className="orgl-pourcent" aria-live="polite">{Math.round(z * 100)} %</span>
                 <button type="button" className="btn small" aria-label="Agrandir" title="Agrandir" onClick={() => zoomer(1.2)}>+</button>
-                <button type="button" className={`btn small ${zoom === null ? 'on' : ''}`} title="Tout l’organigramme sur la largeur de l’écran" onClick={() => setZoom(null)}>Ajuster</button>
+                <button type="button" className={`btn small ${zoom === null ? 'on' : ''}`} title={plein ? 'Tout l’organigramme sur l’écran' : 'Tout l’organigramme sur la largeur de l’écran'} onClick={() => setZoom(null)}>Ajuster</button>
               </div>
               {replies.size > 0 && (
                 <button
@@ -249,10 +294,26 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
           {edition?.onNouveauComite && (
             <button type="button" className="btn small" title="Nouveau comité : président, secrétaire et caissier" onClick={edition.onNouveauComite}>＋ Comité</button>
           )}
+          {(plein || !etroit) && (
+            <button
+              type="button"
+              className={`btn small orgl-bouton-plein ${plein ? 'primary' : ''}`}
+              title={plein ? 'Revenir à la page (Échap)' : 'L’organigramme sur tout l’écran'}
+              aria-pressed={plein}
+              onClick={basculerPlein}
+            >
+              {plein ? '✕ Quitter le plein écran' : '⛶ Plein écran'}
+            </button>
+          )}
         </div>
       )}
+      {plein && barre}
       <div ref={vue} className={`orgl-vue ${etroit ? 'etroite' : ''} ${edition ? 'edition' : ''}`} onPointerDown={commencer} onPointerMove={bouger} onPointerUp={lacher} onPointerCancel={lacher}>
-        {etroit ? <Liste plan={plan} replies={replies} replier={replier} ctx={ctx} /> : <Plan plan={plan} replies={replies} replier={replier} ctx={ctx} zoom={z} onTaille={setTaille} />}
+        {etroit ? (
+          <Liste plan={plan} replies={replies} replier={replier} ctx={ctx} />
+        ) : (
+          <Plan plan={plan} replies={replies} replier={replier} ctx={ctx} zoom={z} onTaille={setTaille} ecran={plein ? ecran : undefined} />
+        )}
       </div>
       {impression &&
         createPortal(
@@ -454,7 +515,20 @@ function Prise({ ctx, source, titre }: { ctx: Ctx; source: string; titre: string
 /** Peut-on déplacer cette carte (quelque part où la personne connectée a le droit de la mettre) ? */
 const deplacable = (ctx: Ctx, cle: string) => !!ctx.edition && !!ctx.mobiles?.has(cle);
 
-function Carte1({ c, ctx, style, mesure }: { c: CarteLigne1; ctx: Ctx; style?: CSSProperties; mesure?: (el: HTMLElement | null) => void }) {
+function Carte1({
+  c,
+  ctx,
+  ailleurs,
+  style,
+  mesure,
+}: {
+  c: CarteLigne1;
+  ctx: Ctx;
+  /** Ses événements, posés sous un groupe pour gagner de la place. */
+  ailleurs?: OrgUnit[];
+  style?: CSSProperties;
+  mesure?: (el: HTMLElement | null) => void;
+}) {
   const vacant = !c.gens.length;
   const tirable = deplacable(ctx, c.cle);
   const z = zone(ctx, c.sorte === 'titre' ? `${c.uniteId}|etoile|${c.gens[0]?.m.id}` : c.sorte === 'groupe' ? `${c.uniteId}|titre` : c.posteId ? `${c.uniteId}|poste|${c.posteId}` : undefined);
@@ -484,6 +558,11 @@ function Carte1({ c, ctx, style, mesure }: { c: CarteLigne1; ctx: Ctx; style?: C
         {tirable && <Prise ctx={ctx} source={c.cle} titre={c.titre} />}
       </div>
       {c.lien && <small className="orgl-lien" title={`Poste lié au ★ de « ${c.lien.nom} »`}>⛓ {c.lien.nom}</small>}
+      {ailleurs?.map((u) => (
+        <small key={u.id} className="orgl-lien" title={`Responsable de « ${u.nom} », placé plus bas sous un groupe pour gagner de la place : suivre le trait`}>
+          ⛓ {u.nom} ↓
+        </small>
+      ))}
       <div className="orgl-c1-gens">
         {vacant ? (
           <span className="error">{c.sorte === 'groupe' ? `${UNIT_TYPES[g?.type ?? 'groupe'].chef} : à désigner` : 'À pourvoir'}</span>
@@ -508,7 +587,27 @@ function Carte1({ c, ctx, style, mesure }: { c: CarteLigne1; ctx: Ctx; style?: C
   );
 }
 
-function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?: CSSProperties; mesure?: (el: HTMLElement | null) => void }) {
+/** Un événement posé sous un groupe dont il est indépendant : d'où part son trait (un poste, ou tout le comité). */
+interface Heberge {
+  de: string;
+  poste: boolean;
+  comite: string;
+  sous: string;
+}
+
+function CarteEnt({
+  e,
+  ctx,
+  heberge,
+  style,
+  mesure,
+}: {
+  e: CarteEntite;
+  ctx: Ctx;
+  heberge?: Heberge;
+  style?: CSSProperties;
+  mesure?: (el: HTMLElement | null) => void;
+}) {
   const t = UNIT_TYPES[e.u.type];
   const o = e.manifestation ? undefined : ctx.ouvrir?.(e.u);
   const quand = e.u.date ? fmtRange(e.u.date, e.u.dateFin) : '';
@@ -536,6 +635,14 @@ function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?:
         </span>
         {tirable && <Prise ctx={ctx} source={`u:${e.u.id}`} titre={e.u.nom} />}
       </div>
+      {heberge && (
+        <small
+          className="orgl-depend"
+          title={`${heberge.poste ? `Le poste « ${heberge.de} » de « ${heberge.comite} » en est responsable` : `Tout le comité « ${heberge.comite} » en est responsable`}. Placé sous « ${heberge.sous} » pour gagner de la place, sans en dépendre : son trait passe sous sa carte.`}
+        >
+          ⛓ {heberge.poste ? heberge.de : e.manifestation ? `« ${heberge.comite} »` : `Tout « ${heberge.comite} »`}
+        </small>
+      )}
       {e.depend &&
         (regler ? (
           <button type="button" className="orgl-depend" title="Le comité dont il dépend (ses tâches, son ordre du jour) : le changer" onClick={regler}>
@@ -656,36 +763,13 @@ function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx
 
 // ---------- Plan (écran large, impression) ----------
 
-function Plan({
-  plan,
-  replies,
-  replier,
-  ctx,
-  zoom,
-  onTaille,
-}: {
-  plan: PlanOrganigramme;
-  replies: Set<string>;
-  replier?: (k: string) => void;
-  ctx: Ctx;
-  /** « page » : réduit pour tenir sur une page A4 en paysage. */
-  zoom: number | 'page';
-  onTaille?: (t: { l: number; h: number }) => void;
-}) {
-  const d = useMemo(() => disposer(plan, replies), [plan, replies]);
-  // Hauteur de chaque carte, mesurée après l'affichage (les lignes suivent la plus haute de chaque ligne).
-  const elements = useRef(new Map<string, HTMLElement>());
-  const [hauteurs, setHauteurs] = useState<Map<string, number>>(new Map());
-  useLayoutEffect(() => {
-    const n = new Map<string, number>();
-    for (const [k, el] of elements.current) if (d.positions.has(k)) n.set(k, el.offsetHeight);
-    if (n.size !== hauteurs.size || [...n].some(([k, h]) => hauteurs.get(k) !== h)) setHauteurs(n);
-  });
-  const mesure = (k: string) => (el: HTMLElement | null) => {
-    if (el) elements.current.set(k, el);
-    else elements.current.delete(k);
-  };
-  const hauteur = (k: string) => hauteurs.get(k) ?? 70;
+/** Hauteur d'une carte pas encore mesurée ; cartes empilées au plus (plein écran, page imprimée). */
+const HAUTEUR = 70;
+const PILE_MAX = 12;
+
+/** Où tombent les lignes : chaque ligne suit la plus haute de ses cartes (mesurées) ; ligne 1 : les piles de cartes. */
+function geometrie(d: Disposition, hauteurs: Map<string, number>) {
+  const hauteur = (k: string) => hauteurs.get(k) ?? HAUTEUR;
   const y1 = TETE + MARGE;
   // Ligne 1 : une carte empilée se pose sous celle du dessus.
   const yCarte = (k: string): number => {
@@ -701,8 +785,59 @@ function Plan({
     yRang[r] = y;
     y += hRang(r) + ECART_V;
   }
-  const H = (d.rangs.length > 1 ? y - ECART_V : basCadres) + 30;
-  const W = d.largeur;
+  return { yCarte, hRang, basCadres, yRang, W: d.largeur, H: (d.rangs.length > 1 ? y - ECART_V : basCadres) + 30 };
+}
+
+function Plan({
+  plan,
+  replies,
+  replier,
+  ctx,
+  zoom,
+  onTaille,
+  ecran,
+}: {
+  plan: PlanOrganigramme;
+  replies: Set<string>;
+  replier?: (k: string) => void;
+  ctx: Ctx;
+  /** « page » : réduit pour tenir sur une page A4 en paysage. */
+  zoom: number | 'page';
+  onTaille?: (t: { l: number; h: number }) => void;
+  /** Plein écran : la place disponible ; les cartes s'empilent pour que tout l'organigramme y tienne au mieux. */
+  ecran?: { l: number; h: number };
+}) {
+  // Hauteur de chaque carte, mesurée après l'affichage (les lignes suivent la plus haute de chaque ligne).
+  const elements = useRef(new Map<string, HTMLElement>());
+  const [hauteurs, setHauteurs] = useState<Map<string, number>>(new Map());
+  // Plein écran, page imprimée : la hauteur des piles qui fait le mieux tenir l'organigramme dans le cadre de l'écran
+  // (de la page) ; sinon, voir pileDe.
+  const cible = zoom === 'page' ? PAGE : ecran;
+  const { d, g } = useMemo(() => {
+    const essai = (pile?: number) => {
+      const d = disposer(plan, replies, MESURES, pile);
+      return { d, g: geometrie(d, hauteurs) };
+    };
+    if (!cible || cible.l <= 0 || cible.h <= 0) return essai();
+    let mieux = essai(1);
+    const ajuste = (x: ReturnType<typeof essai>) => Math.min(cible.l / Math.max(1, x.g.W), cible.h / Math.max(1, x.g.H));
+    for (let pile = 2; pile <= PILE_MAX; pile++) {
+      const x = essai(pile);
+      if (ajuste(x) > ajuste(mieux) + 0.001) mieux = x;
+    }
+    return mieux;
+  }, [plan, replies, hauteurs, cible?.l, cible?.h]);
+  useLayoutEffect(() => {
+    const n = new Map<string, number>();
+    for (const [k, el] of elements.current) if (d.positions.has(k)) n.set(k, el.offsetHeight);
+    if (n.size !== hauteurs.size || [...n].some(([k, h]) => hauteurs.get(k) !== h)) setHauteurs(n);
+  });
+  const mesure = (k: string) => (el: HTMLElement | null) => {
+    if (el) elements.current.set(k, el);
+    else elements.current.delete(k);
+  };
+  const hauteur = (k: string) => hauteurs.get(k) ?? HAUTEUR;
+  const { yCarte, hRang, basCadres, yRang, W, H } = g;
   useLayoutEffect(() => onTaille?.({ l: W, h: H }), [W, H, onTaille]);
   const z = zoom === 'page' ? Math.min(1, PAGE.l / Math.max(1, W), PAGE.h / Math.max(1, H)) : zoom;
 
@@ -721,7 +856,8 @@ function Plan({
   const traits: { cle: string; d: string; couleur: string }[] = [];
   for (const e of entites) {
     const pe = d.positions.get(e.cle)!;
-    const tx = pe.x + pe.largeur / 2;
+    // Un événement posé sous un groupe (indépendant de lui) : son trait passe sous la carte du groupe, à gauche du sien.
+    const tx = pe.x + (d.heberges.has(e.cle) ? DECALE : pe.largeur / 2);
     const ty = yRang[pe.rang];
     const a = e.ancre;
     if (a.cle.startsWith('cadre:')) {
@@ -748,6 +884,17 @@ function Plan({
     for (const e of entites) m.set(e.cle, e.enfants);
     return m;
   }, [plan, entites]);
+  // Événements posés sous un groupe : la carte d'où part leur trait le dit (⛓), eux disent d'où il part.
+  const ailleurs = new Map<string, OrgUnit[]>();
+  const heberge = new Map<string, Heberge>();
+  for (const e of entites) {
+    const g = d.heberges.get(e.cle);
+    if (!g) continue;
+    const carte = plan.cartes.get(e.ancre.cle);
+    if (carte) ailleurs.set(carte.cle, [...(ailleurs.get(carte.cle) ?? []), e.u]);
+    const cadre = plan.cadres.find((c) => c.cle === (carte?.cadre ?? e.ancre.cle.slice(6)));
+    heberge.set(e.cle, { de: carte?.titre ?? cadre?.titre ?? '?', poste: !!carte, comite: cadre?.titre ?? '?', sous: plan.entites.get(g.slice(2))?.u.nom ?? '?' });
+  }
 
   return (
     <div className="orgl-zone" style={{ width: W * z, height: H * z }}>
@@ -776,11 +923,11 @@ function Plan({
         })}
         {cartes.map((c) => {
           const pos = d.positions.get(c.cle)!;
-          return <Carte1 key={c.cle} c={c} ctx={ctx} mesure={mesure(c.cle)} style={{ left: pos.x, top: yCarte(c.cle), width: pos.largeur }} />;
+          return <Carte1 key={c.cle} c={c} ctx={ctx} ailleurs={ailleurs.get(c.cle)} mesure={mesure(c.cle)} style={{ left: pos.x, top: yCarte(c.cle), width: pos.largeur }} />;
         })}
         {entites.map((e) => {
           const pos = d.positions.get(e.cle)!;
-          return <CarteEnt key={e.cle} e={e} ctx={ctx} mesure={mesure(e.cle)} style={{ left: pos.x, top: yRang[pos.rang], width: pos.largeur }} />;
+          return <CarteEnt key={e.cle} e={e} ctx={ctx} heberge={heberge.get(e.cle)} mesure={mesure(e.cle)} style={{ left: pos.x, top: yRang[pos.rang], width: pos.largeur }} />;
         })}
         {replier &&
           [...d.plis].map(([k, cx]) => {

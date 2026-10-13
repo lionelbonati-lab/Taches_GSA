@@ -2,15 +2,13 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
-import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData, UNIT_TYPES } from './data/units';
-import { poserResponsable } from './data/cablage';
+import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData } from './data/units';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey, nouveauMembre } from './data/membres';
 import { appliquer, estEtoile } from './data/organigramme';
 import { uid } from './data/utils';
 import { deleteFiles } from './data/files';
 import { fileIds } from './data/backup';
-import { demoClassique } from './data/mode';
 import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
@@ -42,8 +40,6 @@ export function DemoApp() {
   const [version, setVersion] = useState(0);
   // Fiches de l'entité ouverte modifiées depuis le registre des membres du club : l'écran les relit.
   const [epoch, setEpoch] = useState(0);
-  // ?demo&classique : l'organigramme câblé d'avant (sans glisser-déposer ni postes).
-  const [classique] = useState(demoClassique);
 
   // Organigramme : membres de chaque entité, lus dans ses données.
   const org: OrgUnit[] = useMemo(
@@ -135,7 +131,7 @@ export function DemoApp() {
         saveUnits(next);
         setUnits(next);
         // Organigramme : les postes qui portent son nom (« Camp de Pentecôte » au comité central) lui sont liés.
-        if (!classique && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
+        if (lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
         return { unitId: id };
       },
       async updateUnit(id, patch) {
@@ -149,7 +145,7 @@ export function DemoApp() {
         }
         saveUnits(next);
         setUnits(next);
-        if (!classique && patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
+        if (patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
       },
       // Entité archivée supprimée définitivement (version réelle : action « supprimerUnite » de gsa-acces).
       async apercuSuppression(id): Promise<ApercuSuppression> {
@@ -258,25 +254,8 @@ export function DemoApp() {
           })
           .sort((a, b) => b.le.localeCompare(a.le));
       },
-      // Organigramme câblé (version réelle : gsa-acces, action « responsable »).
-      async definirResponsable(uniteId, r) {
-        const u = org.find((x) => x.id === uniteId);
-        if (!u || u.type === 'central') throw new Error('Le responsable se désigne pour une entité du club (pas le comité central).');
-        if (!central?.moiAdmin && !u.moiAdmin) throw new Error('Réservé aux admins du comité central ou de l’entité.');
-        if (u.archive) throw new Error('Cette entité est archivée.');
-        const d = loadUnitData(uniteId);
-        poserResponsable(d, r, UNIT_TYPES[u.type].chef);
-        const n = synchroDemo(uniteId, d);
-        saveUnitData(uniteId, lierFiches(uniteId, n ?? d));
-        propagerLiens(uniteId);
-        // Entité ouverte : l'écran relit ses données.
-        if (uniteId === current.id) setEpoch((e) => e + 1);
-        refresh();
-        // Démo : on se connecte avec l'adresse de sa fiche.
-        return { compte: !!emailKey(r.email) };
-      },
       // Organigramme à glisser-déposer (voir data/organigramme.ts ; version réelle : par la fonction « gsa-acces »).
-      organiser: classique ? undefined : async (op) => {
+      organiser: async (op) => {
         const brut = new Map(units.map((u) => [u.id, lireBrut(u.id)]));
         // Personne pas encore au club : sa fiche du registre d'abord, pour la retrouver d'une entité à l'autre.
         if (op.type === 'placer' && !op.qui.membreId && !emailKey(op.qui.email)) {
@@ -542,7 +521,7 @@ export function DemoApp() {
               const ancien = loadUnitData(current.id);
               const avant = signatureMembres(ancien.people);
               const n = synchroDemo(current.id, d);
-              const postes = !classique ? suivrePostes(current.id, ancien, lierFiches(current.id, n ?? d)) : null;
+              const postes = suivrePostes(current.id, ancien, lierFiches(current.id, n ?? d));
               const next = postes?.d ?? lierFiches(current.id, n ?? d);
               saveUnitData(current.id, next);
               const autres = signatureMembres(next.people) !== avant && propagerLiens(current.id);

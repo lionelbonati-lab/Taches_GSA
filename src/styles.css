@@ -973,16 +973,8 @@ code.password { font-size: 1.1rem; padding: 2px 8px; border-radius: 6px; backgro
   .unit-btn { max-width: 100%; }
 }
 
-/* Organigramme en arbre : chaque entité reliée par un trait (« câble ») à celle dont elle dépend. */
-.arbre-cadre { overflow-x: auto; padding: 6px 5px 4px; }
-.arbre { --cable: color-mix(in srgb, var(--muted) 60%, transparent); list-style: none; margin: 0; padding: 0; }
-.arbre ul { list-style: none; margin: 0; padding: 0; }
-.arbre li { position: relative; }
+/* Fiche d'une entité (entités archivées, sous l'organigramme). */
 .arbre-noeud { position: relative; display: flex; flex-direction: column; gap: 8px; width: 224px; min-height: 64px; padding: 10px 12px; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-top: 4px solid; border-radius: 10px; box-shadow: var(--shadow); }
-/* Grande carte (comité central) : deux colonnes de lignes, la largeur de deux cartes. */
-.arbre-noeud.grande { width: 464px; }
-.arbre-noeud.grande .arbre-postes.deux { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; align-items: start; }
-.arbre-colonne { display: flex; flex-direction: column; min-width: 0; }
 .arbre-noeud.ouverte { outline: 2px solid var(--primary); outline-offset: 2px; }
 .arbre-noeud.archived { opacity: 0.75; }
 .arbre-noeud .org-icon { width: 36px; height: 36px; font-size: 1.1rem; border-radius: 9px; }
@@ -1009,50 +1001,10 @@ button.arbre-tete:hover strong, button.arbre-tete:hover .arbre-lien { text-decor
 .arbre-postes .poste .autres { color: var(--muted); font-weight: 400; }
 /* Entité entière parmi les membres (lien « Membres de ») */
 .arbre-postes .poste.lien { font-weight: 600; color: var(--primary); }
-/* Organigramme câblé : un câble tiré d'une personne jusqu'à une entité = son responsable ; il reste dessiné. */
 .btn.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
-.arbre-plan { position: relative; }
-/* De haut en bas, le plan épouse l'arbre (les places posées à la main se comptent depuis son coin) ; centré. */
-.arbre-plan.haut { width: max-content; margin: 0 auto; }
-.arbre-plan.vertical.avec-cables { padding-right: var(--voies, 18px); }
-.cables { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; z-index: 2; }
-.cables .halo, .cable-volant .halo { fill: none; stroke: var(--bg); stroke-width: 6; stroke-linecap: round; stroke-linejoin: round; }
-.cables .fil, .cable-volant .fil { fill: none; stroke: currentColor; stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
-.cables .fil { pointer-events: visibleStroke; }
-.cables g:hover .fil { stroke-width: 4; }
-.cables .bout, .cable-volant .bout { fill: currentColor; stroke: var(--surface); stroke-width: 1.5; }
-.cable-volant { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; overflow: visible; pointer-events: none; z-index: 60; color: var(--primary); }
-.cable-volant .fiche { fill: var(--surface); stroke: currentColor; stroke-width: 3; }
-body.cable-en-cours, body.cable-en-cours * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
 .arbre-postes .poste.tirable { cursor: grab; user-select: none; -webkit-user-select: none; }
-/* Poignée ● au bout de la ligne (mode « Câbler ») : on la tire au doigt sans faire défiler la page. */
-.prise { float: right; position: relative; width: 24px; height: 18px; margin: -1px -4px -1px 4px; touch-action: none; cursor: grab; }
-.prise::after { content: ''; position: absolute; right: 5px; top: 4px; width: 7px; height: 7px; border-radius: 50%; background: var(--surface); border: 2px solid var(--primary); }
-.poste:hover .prise::after, .poste.choisi .prise::after { background: var(--primary); }
-.poste.choisi .prise::after { border-color: #fff; }
 [data-prise] { touch-action: none; }
-.prise-exemple { display: inline-block; width: 10px; height: 10px; border-radius: 50%; background: var(--primary); vertical-align: -1px; }
-.legende-cable { display: inline-block; position: relative; width: 22px; height: 3px; margin-right: 2px; vertical-align: middle; border-radius: 2px; background: var(--primary); }
-.legende-cable::before { content: ''; position: absolute; left: -2px; top: -2.5px; width: 8px; height: 8px; border-radius: 50%; background: var(--primary); }
-.arbre-postes .poste.choisi { background: var(--primary); color: #fff; }
-.arbre-postes .poste.choisi .autres { color: inherit; opacity: 0.85; }
-.arbre-noeud.cablage-cible { outline: 2px dashed color-mix(in srgb, var(--primary) 55%, transparent); outline-offset: 3px; }
-.arbre-noeud.cablage-survol { outline: 3px solid var(--primary); outline-offset: 3px; background: var(--primary-soft); }
-/* Disposition libre : cartes posées à la main, traits d'une carte à l'autre (les traits des listes sont masqués). */
-.arbre-plan.libre .arbre.haut ul::before, .arbre-plan.libre .arbre.haut ul > li::before, .arbre-plan.libre .arbre.haut ul > li::after { display: none; }
-.traits { position: absolute; left: 0; top: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
-.traits path { fill: none; stroke: color-mix(in srgb, var(--muted) 60%, transparent); stroke-width: 2; stroke-linejoin: round; }
-.arbre-noeud.deplacable { user-select: none; -webkit-user-select: none; }
-.arbre-noeud.deplacable img { -webkit-user-drag: none; }
-.arbre-noeud.deplacable > div.arbre-tete { cursor: grab; }
-.arbre-noeud.posee { z-index: 1; }
-.arbre-noeud.en-mouvement { z-index: 3; box-shadow: 0 12px 30px rgb(0 0 0 / 0.22); }
-.poignee { position: absolute; top: -10px; left: 50%; display: grid; place-items: center; width: 34px; height: 16px; margin-left: -17px; color: var(--muted); background: var(--surface); border: 1px solid var(--border); border-radius: 8px; cursor: grab; touch-action: none; }
-.poignee::before { content: ''; position: absolute; inset: -9px -6px; }
-.poignee::after { content: ''; width: 16px; height: 6px; background: radial-gradient(circle, currentColor 1.1px, transparent 1.6px) 0 0 / 4px 3px; }
-.poignee:hover, .en-mouvement .poignee { color: var(--primary); border-color: var(--primary); }
-body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-select: none; -webkit-user-select: none; }
-/* Mode « Modifier » : ce qu'on peut faire, au-dessus de l'arbre. */
+/* Mode « Modifier » : ce qu'on peut faire, au-dessus de l'organigramme. */
 .org-edition { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin: 0 0 14px; padding: 8px 12px; font-size: 0.88rem; color: var(--text); background: var(--primary-soft); border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent); border-radius: 8px; }
 .org-edition b { color: var(--primary); }
 .org-annee-choix { display: inline-flex; align-items: center; gap: 4px; }
@@ -1067,6 +1019,13 @@ body.carte-en-cours, body.carte-en-cours * { cursor: grabbing !important; user-s
 .orgl-zoom { display: inline-flex; align-items: center; gap: 4px; }
 .orgl-pourcent { min-width: 3.4em; text-align: center; font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .orgl-vue { overflow: auto; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); padding: 12px; cursor: grab; touch-action: pan-x pan-y; }
+/* Plein écran : toute la fenêtre, sous les fenêtres ouvertes par-dessus (.modal-back) et les messages. */
+.orgl.plein { position: fixed; inset: 0; z-index: 45; background: var(--bg); padding: 10px 12px 12px; }
+.orgl.plein .orgl-vue { flex: 1; min-height: 0; }
+.orgl.plein .orga-barre { position: static; margin: 0; }
+.orgl-plein-titre { font-size: 1rem; margin-right: 6px; }
+.orgl-bouton-plein { margin-left: auto; }
+body.orgl-plein-ecran { overflow: hidden; }
 .orgl-vue.tire { cursor: grabbing; user-select: none; }
 .orgl-vue.etroite { padding: 8px; cursor: auto; background: none; border: none; }
 .orgl-zone { position: relative; }
@@ -1162,47 +1121,11 @@ body.orgl-tire-en-cours, body.orgl-tire-en-cours * { cursor: grabbing !important
   body.printing-orga .orgl-carte, body.printing-orga .orgl-cadre { box-shadow: none; }
   body.printing-orga .orgl-traits path, body.printing-orga .orgl-cadre, body.printing-orga .orgl-entite { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
 }
-.arbre-outils { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 6px 10px; margin-top: 6px; }
-.cablage-depose { margin-top: 2px; padding: 4px 6px; font: inherit; font-size: 0.8rem; font-weight: 600; text-align: left; color: var(--primary); background: var(--primary-soft); border: 1px dashed var(--primary); border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
-.cablage-panel { display: flex; flex-direction: column; gap: 8px; margin-bottom: 12px; position: sticky; top: 64px; z-index: 5; }
-.cablage-tete { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; }
-.cablage-tete p { margin: 0; }
-.cablage-cherche { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
-.cablage-personnes { display: flex; flex-wrap: wrap; gap: 6px; max-height: 120px; overflow-y: auto; }
-.cablage-puce { cursor: grab; }
-.cablage-choisi { margin: 0; font-size: 0.9rem; }
-.cablage-qui { display: flex; gap: 10px; align-items: center; margin: 0; }
-.cablage-qui span { display: flex; flex-direction: column; }
-.cablage-actuels { border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px; }
-.cablage-actuels legend { font-size: 0.85rem; color: var(--muted); font-weight: 500; padding: 0 4px; }
-@media (max-width: 767px) { .cablage-panel { position: static; } .cablage-personnes { max-height: 90px; } }
 .lien-note { background: var(--primary-soft); color: var(--text); border-radius: 8px; padding: 8px 10px; margin: 0 0 10px; font-size: 0.88rem; }
-.lien-role { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 4px; }
-.lien-apercu { margin: 6px 0 4px; }
 .lien-membres { max-height: 45vh; overflow-y: auto; margin: 12px 0 6px; }
 .lien-membres .login-user { text-align: left; padding: 6px 10px; }
-.login-user.entite-choix strong { color: var(--primary); }
 .arbre-ajout { align-self: flex-start; padding: 2px 5px; font: inherit; font-size: 0.72rem; white-space: nowrap; color: var(--primary); background: none; border: 1px dashed var(--border); border-radius: 6px; cursor: pointer; }
 .arbre-ajout:hover { border-color: var(--primary); background: var(--primary-soft); }
-/* De haut en bas, comme un arbre généalogique. */
-.arbre.haut { display: flex; justify-content: center; min-width: max-content; }
-.arbre.haut ul { display: flex; justify-content: center; position: relative; padding-top: var(--bande, 18px); }
-.arbre.haut li { display: flex; flex-direction: column; align-items: center; padding: 18px 8px 0; }
-.arbre.haut > li { padding-top: 0; }
-.arbre.haut ul::before { content: ''; position: absolute; top: 0; left: 50%; margin-left: -1px; height: var(--bande, 18px); border-left: 2px solid var(--cable); }
-.arbre.haut ul > li::before { content: ''; position: absolute; top: 0; left: 0; right: 0; border-top: 2px solid var(--cable); }
-.arbre.haut ul > li:first-child::before { left: 50%; margin-left: -1px; border-top-left-radius: 8px; }
-.arbre.haut ul > li:last-child::before { right: 50%; margin-right: -1px; }
-.arbre.haut ul > li:only-child::before { display: none; }
-.arbre.haut ul > li::after { content: ''; position: absolute; top: 0; left: 50%; margin-left: -1px; height: 18px; border-left: 2px solid var(--cable); }
-/* Téléphone, ou trop d'entités côte à côte : de haut en bas, décalé à droite. */
-.arbre.vertical ul { padding-left: 18px; }
-.arbre.vertical li { padding: 10px 0 0 24px; }
-.arbre.vertical > li { padding: 0; }
-.arbre.vertical .arbre-noeud { width: 100%; max-width: 420px; }
-.arbre.vertical ul > li::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; border-left: 2px solid var(--cable); }
-.arbre.vertical ul > li:last-child::before { bottom: auto; height: 42px; }
-.arbre.vertical ul > li::after { content: ''; position: absolute; left: 0; top: 42px; width: 22px; border-top: 2px solid var(--cable); }
 .arbre-legende { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 14px; margin-top: 12px; }
 .arbre-archives { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .org-icon { width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }

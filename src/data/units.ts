@@ -1,7 +1,7 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
 import type { AppData, Carte, OrgMember, OrgUnit, PeriodeDependance, Permission, Person, Role, Section, TachesDependance, Unit, UnitType } from './types';
-import { posteBesideName, uid } from './utils';
+import { uid } from './utils';
 
 // Entités du club : comité central, sous-comités, groupes, équipes d'événement.
 // Chaque entité a ses propres données (responsables, rôles, sections, statuts, tâches, séances…).
@@ -149,23 +149,6 @@ export function lireCarte(c: unknown): Carte | undefined {
 }
 
 export type Branche<T> = { u: T; enfants: Branche<T>[] };
-
-/**
- * Une ligne par personne pour l'organigramme : son nom, puis ses fonctions (poste et autres postes).
- * Sans poste : le rôle (ou « Président » / « Responsable » pour un admin). Sans nom : le poste à la place.
- * Les présidents / responsables en premier.
- */
-export function postesEntite(membres: OrgMember[], chef: string): { m: OrgMember; nom: string; postes?: string; chef: boolean }[] {
-  return [...membres.filter((m) => m.admin), ...membres.filter((m) => !m.admin)].map((m) => {
-    const fonctions = [m.poste ?? '', ...(m.autresPostes ?? '').split(',')].map((x) => x.trim()).filter(Boolean);
-    if (!fonctions.length) fonctions.push(m.admin ? chef : (m.roles.find((r) => !r.startsWith('Admin')) ?? 'Membre'));
-    const complet = `${m.prenom ?? ''} ${m.nom ?? ''}`.trim();
-    // Une fonction qui répète le nom (ex. fiches nommées d'après leur poste) n'est pas répétée.
-    const postes = complet ? fonctions.filter((x) => posteBesideName(complet, x)) : fonctions;
-    const nom = complet || postes.shift() || '';
-    return { m, nom, postes: postes.length ? postes.join(', ') : undefined, chef: m.admin };
-  });
-}
 
 /** Arbre des entités : le comité central en haut, chaque entité sous celle dont elle dépend. */
 export function arbreEntites<T extends Unit>(units: T[]): Branche<T>[] {
