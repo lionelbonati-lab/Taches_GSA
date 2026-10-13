@@ -30,7 +30,6 @@ export const nouveauMembre = (m: Partial<ClubMembre>): ClubMembre => ({
   nom: m.nom?.trim() ?? '',
   email: m.email?.trim() ?? '',
   telephone: m.telephone?.trim() ?? '',
-  iban: compactIban(m.iban ?? ''),
   couleur: m.couleur ?? '#0f766e',
   groupes: m.groupes ?? [],
 });
@@ -67,6 +66,29 @@ export function appliquerMembres(d: AppData, list: ClubMembre[]): boolean {
     }
   });
   return changed;
+}
+
+/**
+ * Un membre tel que la liste le donne (démo ; serveur : gsa_membres_liste, 034) : données masquées par la personne
+ * vides (sauf pour elle), IBAN aux caissiers et à elle seulement.
+ */
+export function vueMembre(m: ClubMembre, moi: boolean, caisse: boolean): ClubMembre {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { iban, masque, ...v } = m;
+  const out: ClubMembre = { ...v, prive: !!m.prive, moi };
+  if (m.prive && !moi) return { ...out, email: '', telephone: '', masque: true };
+  return caisse || moi ? { ...out, iban: iban ?? '' } : out;
+}
+
+/**
+ * Membre enregistré depuis le registre (démo ; serveur : gsa_club_membres_guard, 034) : l'IBAN et la confidentialité ne
+ * changent pas (la personne elle-même les règle), ni les coordonnées masquées, sauf par elle.
+ */
+export function fusionMembre(avant: ClubMembre | undefined, m: ClubMembre, mien: boolean): ClubMembre {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { masque, moi, iban, prive, ...v } = m;
+  const out: ClubMembre = { ...v, iban: avant?.iban || undefined, prive: !!avant?.prive };
+  return avant?.prive && !mien ? { ...out, email: avant.email, telephone: avant.telephone } : out;
 }
 
 /** IBAN sans espaces, en majuscules. */

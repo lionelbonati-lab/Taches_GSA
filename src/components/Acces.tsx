@@ -15,7 +15,11 @@ export interface Shown {
   existant?: boolean;
 }
 
-export function AccessCell({ person, access, onChange, onShow }: { person: Person; access: AccessInfo[] | null; onChange: () => void; onShow: (s: Shown) => void }) {
+/**
+ * Accès d'une fiche. `committeeId` : son entité, si ce n'est pas l'entité ouverte (page « Membres du club ») ; `soi` : la
+ * fiche de la personne connectée (son accès ne se retire pas).
+ */
+export function AccessCell({ person, access, onChange, onShow, committeeId, soi }: { person: Person; access: AccessInfo[] | null; onChange: () => void; onShow: (s: Shown) => void; committeeId?: string; soi?: boolean }) {
   const { cloud } = useStore();
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
@@ -26,9 +30,10 @@ export function AccessCell({ person, access, onChange, onShow }: { person: Perso
     setBusy(true);
     setErr('');
     try {
+      const comite = committeeId ?? cloud.membership.committeeId;
       // La fiche doit être enregistrée sur le serveur avant de créer l'accès.
-      if (action === 'creer') await cloud.sync.flushNow();
-      const r = await accessAction<{ email?: string; password?: string; existant?: boolean }>({ action, committeeId: cloud.membership.committeeId, personId: person.id });
+      if (action === 'creer' && comite === cloud.membership.committeeId) await cloud.sync.flushNow();
+      const r = await accessAction<{ email?: string; password?: string; existant?: boolean }>({ action, committeeId: comite, personId: person.id });
       if (action !== 'retirer') onShow({ person, email: r.email ?? person.email, password: r.password, existant: r.existant });
       onChange();
     } catch (e) {
@@ -48,7 +53,7 @@ export function AccessCell({ person, access, onChange, onShow }: { person: Perso
         </small>
         <span className="row wrap">
           <button className="btn small" disabled={busy} onClick={() => confirm(`Donner un nouveau mot de passe provisoire à ${fullName(person)} ? L’actuel ne fonctionnera plus.`) && act('reinitialiser')}>Nouveau mot de passe</button>
-          {person.id !== cloud.personId && (
+          {!(soi ?? person.id === cloud.personId) && (
             <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${fullName(person)} à la version réelle ?`) && act('retirer')}>Retirer l’accès</button>
           )}
         </span>

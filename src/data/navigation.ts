@@ -68,13 +68,13 @@ const RUBRIQUES: NavRubrique[] = [
     id: 'personnes',
     label: 'Membres du club',
     icon: '📇',
-    pages: [{ to: '/membres-club', label: 'Membres du club', icon: '📇', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli.' }],
+    pages: [{ to: '/membres-club', label: 'Membres du club', icon: '📇', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli ; on y gère aussi les accès de chacun aux entités.' }],
   },
 ];
 
 /** Menu du compte (en haut à droite ; « Plus » sur téléphone). */
 export const PAGES_COMPTE: NavPage[] = [
-  { to: '/reglages', label: 'Réglages', icon: '⚙️', aide: 'Ton compte, l’affichage, les notifications et la sauvegarde.' },
+  { to: '/reglages', label: 'Réglages', icon: '⚙️', aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage, les notifications et la sauvegarde.' },
   { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access', aide: 'Les réglages de l’entité, réservés à ses admins. Choisis ce que tu veux régler.' },
   {
     to: '/mots-de-passe',

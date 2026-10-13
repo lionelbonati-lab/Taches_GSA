@@ -355,9 +355,19 @@ export function lierFiches(unitId: string, d: AppData): AppData {
   const changes: ClubMembre[] = [];
   let modifie = false;
   for (const p of d.people) {
-    const mid = p.membreId || avant.find((x) => x.id === p.id)?.membreId;
+    const lien = avant.find((x) => x.id === p.id)?.membreId;
+    const mid = p.membreId || lien;
     let m = mid ? list.find((x) => x.id === mid) : undefined;
     if (!m && emailKey(p.email)) m = list.find((x) => emailKey(x.email) === emailKey(p.email));
+    // Fiche nouvelle (ou liée pour la première fois) à une personne déjà au club : ses champs vides prennent les valeurs
+    // du registre (ses données peuvent être masquées dans la liste des membres).
+    if (m && lien !== m.id) {
+      const c = coordonnees(m);
+      if (!p.prenom.trim()) p.prenom = c.prenom;
+      if (!p.nom.trim()) p.nom = c.nom;
+      if (!p.email.trim()) p.email = c.email;
+      if (!(p.telephone ?? '').trim()) p.telephone = c.telephone;
+    }
     if (!m) {
       if (!nomMembre(p)) continue;
       m = nouveauMembre({ ...coordonnees(p), id: mid, couleur: p.couleur });

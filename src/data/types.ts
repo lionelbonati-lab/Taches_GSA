@@ -66,10 +66,35 @@ export interface ClubMembre {
   nom: string;
   email: string;
   telephone: string;
-  iban: string;
+  /**
+   * IBAN : enregistré seulement par la personne elle-même (Réglages, ou en demandant un remboursement) ; la liste ne le
+   * donne qu'aux caissiers et à elle (serveur : migration 034). Absent : pas lu.
+   */
+  iban?: string;
   couleur: string;
   /** Groupes de l'organigramme (identifiants des entités de type « groupe »). */
   groupes: string[];
+  /** Données personnelles (email, téléphone, IBAN) masquées dans la liste des membres : son choix, dans ses réglages. */
+  prive?: boolean;
+  /** Liste : données masquées par la personne (vides ici). */
+  masque?: boolean;
+  /** Liste : la personne connectée. */
+  moi?: boolean;
+}
+
+/** Ma fiche du registre « Membres du club » (Réglages) : mon IBAN et ma confidentialité. */
+export interface MonRegistre {
+  id: string;
+  prenom: string;
+  nom: string;
+  iban: string;
+  prive: boolean;
+}
+
+/** Fiches et rôles d'une entité, pour gérer les accès depuis la page « Membres du club ». */
+export interface FichesEntite {
+  roles: Role[];
+  people: Person[];
 }
 
 export interface Role {
@@ -506,6 +531,15 @@ export interface Prefs {
   aFaireJours?: number;
   /** Accueil, bloc « À faire » : toutes les tâches de l'entité, pas seulement les miennes (droit « Voir toutes les tâches »). */
   aFaireToutes?: boolean;
+  /** Page « Membres du club » : colonnes (ordre, masquées) et tri, propres à chacun. */
+  membresColonnes?: ColonnesMembres;
+}
+
+/** Colonnes de la page « Membres du club » : ordre, colonnes masquées, tri. */
+export interface ColonnesMembres {
+  ordre: string[];
+  masquees: string[];
+  tri?: { col: string; desc?: boolean };
 }
 
 /** Notification d'activité enregistrée (les rappels d'échéance sont calculés à la volée). */

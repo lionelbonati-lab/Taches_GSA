@@ -3,7 +3,8 @@ import { createPortal } from 'react-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { caisseDe, UNIT_TYPES } from '../data/units';
-import type { AppData, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre } from '../data/types';
+import type { AppData, MonRegistre, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre } from '../data/types';
+import { compactIban, formatIban, ibanValide } from '../data/membres';
 import {
   COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, peutOuvrirTicket, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, viseDirect,
   type GenreTicket, type Ticket,
@@ -626,6 +627,29 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
     .filter((n) => n && n !== moiNom)
     .sort((a, b) => a.localeCompare(b, 'fr'));
   const [autreNom, setAutreNom] = useState(() => !facture && !!beneficiaire && beneficiaire !== moiNom && !noms.includes(beneficiaire));
+  // Remboursement à soi-même : l'IBAN enregistré est proposé ; sans IBAN enregistré, la case « Enregistrer mon IBAN ».
+  const [mien, setMien] = useState<MonRegistre | null>(null);
+  const [garderIban, setGarderIban] = useState(false);
+  const pourMoi = !facture && !autreNom && !!moiNom && beneficiaire === moiNom;
+  useEffect(() => {
+    if (ticket || facture || !club) return;
+    club
+      .monRegistre()
+      .then((m) => {
+        setMien(m);
+        if (m?.iban) setIban((x) => x || formatIban(m.iban));
+      })
+      .catch(() => setMien(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const proposerGarder = pourMoi && !!mien && !mien.iban && !!compactIban(iban);
+  const choisirBeneficiaire = (v: string) => {
+    setAutreNom(v === AUTRE);
+    setBeneficiaire(v === AUTRE ? '' : v);
+    // Mon IBAN enregistré : seulement pour un remboursement à moi.
+    if (mien?.iban && v !== moiNom && compactIban(iban) === mien.iban) setIban('');
+    if (mien?.iban && v === moiNom && !iban.trim()) setIban(formatIban(mien.iban));
+  };
   // Organigramme chargé après l'ouverture du formulaire : la caisse du comité reste le choix d'office d'une entité sans caissier.
   useEffect(() => {
     if (!ici && centrale && vers === 'ici' && !docs.length) setVers('centrale');
@@ -650,7 +674,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
     deleteFiles(track.current.added);
     club.switchUnit(id, `#/taches?nouveau=${facture ? 'paiement' : 'remboursement'}`);
   };
-  const submit = () => {
+  const submit = async () => {
     if (bloque) return setErr('Choisis la caisse à laquelle envoyer la demande.');
     const m = parseMontant(montant);
     if (!titre.trim()) return setErr(facture ? 'Indique l’objet de la facture.' : 'Indique l’objet de la dépense.');
@@ -658,6 +682,21 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
     if (!beneficiaire.trim()) return setErr(facture ? 'Indique à qui payer la facture (qui l’a envoyée).' : 'Indique à qui rembourser.');
     if (!docs.length) return setErr(facture ? 'Ajoute la facture (photo ou PDF).' : 'Ajoute la photo du ticket (ou le fichier).');
     if (!user || busy) return;
+    // « Enregistrer mon IBAN » : par la personne elle-même, avant l'envoi (confirmation affichée).
+    if (proposerGarder && garderIban && club) {
+      if (!ibanValide(iban)) return setErr('IBAN invalide : vérifie-le (longueur et chiffres de contrôle).');
+      setBusy(true);
+      try {
+        const v = await club.enregistrerMonIban(compactIban(iban));
+        setMien((m) => m && { ...m, iban: v });
+        setToast('✅ Ton IBAN est enregistré : il sera proposé pour tes prochains remboursements.');
+      } catch (e) {
+        setErr((e as Error).message);
+        return;
+      } finally {
+        setBusy(false);
+      }
+    }
     if (versCentrale && club) {
       setBusy(true);
       club
@@ -768,11 +807,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
             À rembourser à
             <select
               value={autreNom ? AUTRE : beneficiaire}
-              onChange={(e) => {
-                const v = e.target.value;
-                setAutreNom(v === AUTRE);
-                setBeneficiaire(v === AUTRE ? '' : v);
-              }}
+              onChange={(e) => choisirBeneficiaire(e.target.value)}
             >
               {moiNom && <option value={moiNom}>Moi ({moiNom})</option>}
               {noms.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -785,6 +820,13 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
         <label className={facture ? '' : 'full'}>
           {facture ? 'IBAN (s’il n’est pas sur la facture)' : 'IBAN (facultatif)'}
           <input value={iban} onChange={(e) => setIban(e.target.value)} placeholder="CH.." autoCapitalize="characters" />
+          {proposerGarder && (
+            <span className="inline">
+              <input type="checkbox" checked={garderIban} onChange={(e) => setGarderIban(e.target.checked)} />
+              Enregistrer mon IBAN
+            </span>
+          )}
+          {pourMoi && !!mien?.iban && compactIban(iban) === mien.iban && <small className="muted">Ton IBAN enregistré (Réglages).</small>}
         </label>
         {facture && (
           <label>
@@ -807,7 +849,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={cancel}>Annuler</button>
-        <button className="btn primary" disabled={bloque || busy} onClick={submit}>
+        <button className="btn primary" disabled={bloque || busy} onClick={() => void submit()}>
           {busy ? 'Envoi…' : direct && viserAvant ? '✍️ Viser…' : ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}
         </button>
       </div>

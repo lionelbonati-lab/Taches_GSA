@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
 import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -623,7 +623,17 @@ export async function membresAcces(club: string): Promise<boolean> {
   return !error && data === true;
 }
 
+/** Fonction du serveur absente : migration pas encore appliquée. */
+const absente = (e: { code?: string }) => e.code === 'PGRST202' || e.code === '42883';
+
+/**
+ * Liste des membres du club (gsa_membres_liste, 034) : données masquées par une personne vides, IBAN aux caissiers et
+ * à la personne elle-même. Avant la migration 034 : la table, telle quelle.
+ */
 export async function fetchMembres(club: string): Promise<ClubMembre[]> {
+  const { data, error } = await sb().rpc('gsa_membres_liste', { club });
+  if (!error) return ((data ?? []) as ClubMembre[]).map((m) => ({ ...m, groupes: m.groupes ?? [] }));
+  if (!absente(error)) throw registreErreur(error);
   const out: ClubMembre[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await sb().from('gsa_club_membres').select('id,data').eq('club_id', club).range(from, from + 999);
@@ -633,13 +643,62 @@ export async function fetchMembres(club: string): Promise<ClubMembre[]> {
   }
 }
 
-/** Enregistre des membres (nouveaux ou modifiés) ; le serveur recopie leurs coordonnées dans les fiches liées. */
+/**
+ * Enregistre des membres (nouveaux ou modifiés) ; le serveur recopie leurs coordonnées dans les fiches liées. L'IBAN lu
+ * (avant 034) est renvoyé tel quel ; ensuite le serveur l'ignore, comme les coordonnées masquées et la confidentialité.
+ */
 export async function saveMembres(club: string, list: ClubMembre[]) {
   for (let i = 0; i < list.length; i += 200) {
-    const rows = list.slice(i, i + 200).map(({ id, ...data }) => ({ club_id: club, id, data }));
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const rows = list.slice(i, i + 200).map(({ id, masque, moi, prive, ...data }) => ({ club_id: club, id, data }));
     const { error } = await sb().from('gsa_club_membres').upsert(rows, { onConflict: 'club_id,id' });
     if (error) throw registreErreur(error);
   }
+}
+
+const PAS_034 = 'Le serveur ne gère pas encore l’IBAN ni la confidentialité des membres (mise à jour 034 à appliquer).';
+
+/** Ma fiche du registre (nom, IBAN, confidentialité) ; null : pas dans le registre du club. */
+export async function monRegistre(club: string): Promise<MonRegistre | null> {
+  const { data, error } = await sb().rpc('gsa_mon_registre', { club });
+  if (error) throw new Error(absente(error) ? PAS_034 : error.message);
+  return (data as MonRegistre | null) ?? null;
+}
+
+/** Enregistre (ou efface, vide) mon IBAN : la personne elle-même seulement. Renvoie l'IBAN enregistré. */
+export async function monIban(club: string, valeur: string): Promise<string> {
+  const { data, error } = await sb().rpc('gsa_mon_iban', { club, valeur });
+  if (error) throw new Error(absente(error) ? PAS_034 : error.message);
+  return (data as string | null) ?? '';
+}
+
+/** Masque (ou non) mes données personnelles dans la liste des membres. */
+export async function maConfidentialite(club: string, masquer: boolean) {
+  const { error } = await sb().rpc('gsa_ma_confidentialite', { club, masquer });
+  if (error) throw new Error(absente(error) ? PAS_034 : error.message);
+}
+
+/** Caissier du club (rôle qui donne « paiements.payer » dans l'une de ses entités) ; faux avant la migration 034. */
+export async function caissierClub(club: string): Promise<boolean> {
+  const { data, error } = await sb().rpc('gsa_caissier_club', { club });
+  return !error && data === true;
+}
+
+/** Fiches et rôles d'une entité dont on est membre (gestion des accès depuis la page « Membres du club »). */
+export async function fichesEntite(unite: string): Promise<FichesEntite> {
+  const { data, error } = await sb().from('gsa_items').select('kind, id, pos, data').eq('committee_id', unite).in('kind', ['roles', 'people']).eq('deleted', false).order('pos');
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as { kind: string; data: unknown }[];
+  return {
+    roles: rows.filter((r) => r.kind === 'roles').map((r) => r.data as Role),
+    people: rows.filter((r) => r.kind === 'people').map((r) => r.data as Person),
+  };
+}
+
+/** Enregistre une fiche dans une entité (ses admins) ; le serveur la lie au registre et vérifie les rôles. */
+export async function enregistrerFiche(unite: string, p: Person, pos: number) {
+  const { error } = await sb().from('gsa_items').upsert({ committee_id: unite, kind: 'people', id: p.id, pos, data: p, deleted: false }, { onConflict: 'committee_id,kind,id' });
+  if (error) throw new Error(error.message);
 }
 
 export async function deleteMembre(club: string, id: string) {

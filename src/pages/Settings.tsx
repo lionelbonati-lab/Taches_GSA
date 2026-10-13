@@ -11,6 +11,7 @@ import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
 import { PageIntro } from '../components/Nav';
 import { AccueilModal, accueilPerso } from '../components/Accueil';
+import { MesDonnees } from '../components/MesDonnees';
 
 export function Settings() {
   const { dataLocale: data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
@@ -82,6 +83,7 @@ export function Settings() {
           {pwd === 'ok' && <p className="backup-ok">✅ Mot de passe changé.</p>}
         </section>
       )}
+      {club && <MesDonnees />}
       <section className="panel form">
         <h2 className="full">Préférences personnelles</h2>
         <label>

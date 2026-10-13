@@ -54,7 +54,7 @@ export function App() {
           <Route path="sondages" element={<Polls />} />
           <Route path="paiements" element={<PaiementsRedirect />} />
           {club && <Route path="organigramme" element={<Org />} />}
-          {club?.membresAcces && <Route path="membres-club" element={<MembresClub />} />}
+          {(club?.membresAcces || club?.caissier) && <Route path="membres-club" element={<MembresClub />} />}
           <Route path="reglages" element={<Settings />} />
           {can('admin.access') && <Route path="admin" element={<Admin />} />}
           {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}

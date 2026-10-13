@@ -1,6 +1,6 @@
 import type { LigneImport } from '../components/ImportCsv';
 import { lireDate, liste, norm, type Colonne } from './csv';
-import { compactIban, emailKey, groupesClub, ibanValide, nomMembre, nouveauMembre, trouverMembre } from './membres';
+import { emailKey, groupesClub, nomMembre, nouveauMembre, trouverMembre } from './membres';
 import { ADMIN_ROLE_ID } from './permissions';
 import { defaultRoleId, UNIT_COLORS } from './units';
 import type { AppData, ClubEvent, ClubMembre, OrgUnit, Person, Task } from './types';
@@ -25,18 +25,18 @@ function changer<T extends object>(avant: T, champs: Partial<T>): { apres: T; ch
   return { apres, changes };
 }
 
-const LIBELLES: Record<string, string> = { prenom: 'prénom', nom: 'nom', email: 'email', telephone: 'téléphone', iban: 'IBAN', groupes: 'groupes', poste: 'poste', roles: 'rôles', actif: 'réactivé' };
+const LIBELLES: Record<string, string> = { prenom: 'prénom', nom: 'nom', email: 'email', telephone: 'téléphone', groupes: 'groupes', poste: 'poste', roles: 'rôles', actif: 'réactivé' };
 const libelles = (c: string[]) => c.map((k) => LIBELLES[k] ?? k).join(', ');
 
 // ---------- Registre des membres du club ----------
+// Pas d'IBAN : seule la personne elle-même enregistre le sien (Réglages).
 
-export type ColRegistre = 'prenom' | 'nom' | 'email' | 'telephone' | 'iban' | 'groupes';
+export type ColRegistre = 'prenom' | 'nom' | 'email' | 'telephone' | 'groupes';
 export const COLS_REGISTRE: Colonne<ColRegistre>[] = [
   { key: 'prenom', label: 'Prénom', required: true, exemple: 'Prénom' },
   { key: 'nom', label: 'Nom', aliases: ['Nom de famille'], required: true, exemple: 'Nom' },
   { key: 'email', label: 'Email', aliases: ['E-mail', 'Adresse email', 'Courriel', 'Mail'], exemple: 'prenom.nom@exemple.ch', aide: 'reconnaît une personne déjà inscrite' },
   { key: 'telephone', label: 'Téléphone', aliases: ['Tél', 'Tel', 'Portable', 'Natel', 'Mobile'], exemple: '079 000 00 00' },
-  { key: 'iban', label: 'IBAN', aliases: ['Compte', 'IBAN / compte'], exemple: 'CH93 0076 2011 6238 5295 7' },
   { key: 'groupes', label: 'Groupes', aliases: ['Groupe'], exemple: 'École de cyclisme', aide: 'noms des groupes de l’organigramme, séparés par des virgules' },
 ];
 
@@ -49,11 +49,6 @@ export function analyserRegistre(lignes: Record<ColRegistre, string>[], existant
     if (!nomMembre(l)) return { statut: 'erreur', texte: l.email || '—', detail: 'Prénom ou nom manquant' };
     if (l.email && !emailOk(l.email)) return { statut: 'erreur', texte, detail: `Adresse email invalide : « ${l.email} »` };
     const avertissements: string[] = [];
-    let iban: string | undefined = l.iban ? compactIban(l.iban) : undefined;
-    if (iban && !ibanValide(iban)) {
-      avertissements.push(`IBAN invalide (${l.iban}) : pas importé`);
-      iban = undefined;
-    }
     let ids: string[] | undefined;
     if (l.groupes) {
       ids = [];
@@ -64,7 +59,7 @@ export function analyserRegistre(lignes: Record<ColRegistre, string>[], existant
       }
       if (!ids.length) ids = undefined;
     }
-    const champs: Partial<ClubMembre> = { prenom: l.prenom, nom: l.nom, email: l.email, telephone: l.telephone, iban, groupes: ids };
+    const champs: Partial<ClubMembre> = { prenom: l.prenom, nom: l.nom, email: l.email, telephone: l.telephone, groupes: ids };
     const m = trouverMembre(travail, l);
     if (!m) {
       const n = nouveauMembre({ ...champs, couleur: UNIT_COLORS[travail.length % UNIT_COLORS.length] });

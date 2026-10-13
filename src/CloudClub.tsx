@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, caissierClub, deleteMembre, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
@@ -46,6 +46,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [acces, setAcces] = useState(false);
+  const [caissier, setCaissier] = useState(false);
   // Le serveur tient les postes des fiches (migration 023) : organigramme à glisser-déposer.
   const [orga, setOrga] = useState(false);
   const conversion = useRef(false);
@@ -58,12 +59,13 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
 
   const refresh = useCallback(() => {
     setLoading(true);
-    Promise.all([fetchOrg(clubId), myMemberships(userId), membresAcces(clubId)])
-      .then(([o, l, a]) => {
+    Promise.all([fetchOrg(clubId), myMemberships(userId), membresAcces(clubId), caissierClub(clubId)])
+      .then(([o, l, a, c]) => {
         setOrg(o.units);
         setOrga(o.postes);
         setList(l);
         setAcces(a);
+        setCaissier(c);
         setError('');
         clearTimeout(photo.current);
         photo.current = setTimeout(() => void photographierOrganigramme(clubId).catch(() => {}), 3000);
@@ -244,6 +246,25 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         await deleteMembre(clubId, id);
         refresh();
       },
+      caissier,
+      monRegistre: () => monRegistre(clubId),
+      enregistrerMonIban: (iban) => monIban(clubId, iban),
+      setConfidentialite: (masquer) => maConfidentialite(clubId, masquer),
+      async fichesEntite(uniteId) {
+        if (!units.find((u) => u.id === uniteId)?.moiAdmin) throw new Error('Réservé aux admins de l’entité.');
+        return fichesEntite(uniteId);
+      },
+      async enregistrerFiche(uniteId, p) {
+        const u = units.find((x) => x.id === uniteId);
+        if (!u?.moiAdmin) throw new Error(`Réservé aux admins de « ${u?.nom ?? 'l’entité'} ».`);
+        const { people } = await fichesEntite(uniteId);
+        const i = people.findIndex((x) => x.id === p.id);
+        await enregistrerFiche(uniteId, p, i >= 0 ? i : people.length);
+        // Comme après une fiche modifiée dans l'entité : ses postes et les postes liés suivent (serveur).
+        if (orga) await accessAction({ action: 'suivre', committeeId: uniteId, avant: people });
+        if (uniteId === m.committeeId) rattraper();
+        refresh();
+      },
       demandesMdp: demandes,
       async approuverMdp(id) {
         try {
@@ -261,7 +282,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       },
       superAdmin,
     };
-  }, [org, list, m, loading, error, refresh, onSwitch, acces, clubId, orga, demandes, chargerDemandes, superAdmin]);
+  }, [org, list, m, loading, error, refresh, onSwitch, acces, caissier, clubId, orga, demandes, chargerDemandes, superAdmin]);
 
   return <ClubCtx.Provider value={club}>{children}</ClubCtx.Provider>;
 }

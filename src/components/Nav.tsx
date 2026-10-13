@@ -12,7 +12,7 @@ export function useNavigation() {
   const nav = navigation({
     can,
     club: !!club,
-    registre: !!club?.membresAcces,
+    registre: !!club && (club.membresAcces || club.caissier),
     type: club?.current.type ?? 'central',
     demandes: !!club?.demandesMdp.length,
     superAdmin: !!club?.superAdmin,

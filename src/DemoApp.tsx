@@ -4,12 +4,12 @@ import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit,
 import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData } from './data/units';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
-import { emailKey, nouveauMembre } from './data/membres';
+import { compactIban, emailKey, fusionMembre, ibanValide, nouveauMembre, vueMembre } from './data/membres';
 import { appliquer, estEtoile } from './data/organigramme';
 import { uid } from './data/utils';
 import { deleteFiles } from './data/files';
 import { fileIds } from './data/backup';
-import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
@@ -83,6 +83,20 @@ export function DemoApp() {
     [units, me, version],
   );
 
+  // Caissier du club : un rôle qui donne expressément « paiements.payer » (hors Admin) dans l'une de ses entités.
+  const caissier = useMemo(
+    () =>
+      !!me &&
+      units.some((u) => {
+        if (u.archive) return false;
+        const d = loadUnitData(u.id);
+        const p = d.people.find((x) => x.actif && personKey(x, u.id) === me);
+        return !!p && d.roles.some((r) => p.roles.includes(r.id) && !r.locked && r.permissions.includes('paiements.payer'));
+      }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [units, me, version],
+  );
+
   const mineAll = org.filter((u) => u.moi);
   const central = org.find((u) => u.type === 'central') ?? null;
   const current =
@@ -104,6 +118,17 @@ export function DemoApp() {
     },
     [org],
   );
+
+  // Ma fiche du registre (comme le serveur, gsa_mon_membre) : celle de l'une de mes fiches d'entité, sinon même email.
+  const monMembre = () => {
+    const list = loadMembres();
+    for (const u of sortUnits(units)) {
+      const p = loadUnitData(u.id).people.find((x) => x.membreId && personKey(x, u.id) === me);
+      const m = p && list.find((x) => x.id === p.membreId);
+      if (m) return m;
+    }
+    return list.find((x) => !!me && emailKey(x.email) === me);
+  };
 
   const club: Club | null = useMemo(() => {
     if (!current) return null;
@@ -468,14 +493,20 @@ export function DemoApp() {
           .sort((a, b) => b.le.localeCompare(a.le));
       },
       membresAcces,
+      caissier,
+      // Comme le serveur (034) : données masquées vides, IBAN aux caissiers et à la personne elle-même.
       async membres() {
-        if (!membresAcces) throw new Error('Réservé aux personnes qui ont le droit « Membres du club ».');
-        return loadMembres();
+        if (!membresAcces && !caissier) throw new Error('Réservé aux personnes qui ont le droit « Membres du club » et aux caissiers.');
+        const mid = monMembre()?.id;
+        return loadMembres().map((m) => vueMembre(m, m.id === mid, caissier));
       },
-      async saveMembres(list) {
+      async saveMembres(l) {
         if (!membresAcces) throw new Error('Réservé aux personnes qui ont le droit « Membres du club ».');
-        // Adresse de la personne connectée changée : elle reste connectée.
+        // IBAN et confidentialité gardés, comme les coordonnées masquées (sauf par la personne elle-même).
         const avant = loadMembres();
+        const mid = monMembre()?.id;
+        const list = l.map((m) => fusionMembre(avant.find((x) => x.id === m.id), m, m.id === mid));
+        // Adresse de la personne connectée changée : elle reste connectée.
         const moi = list.find((m) => emailKey(avant.find((x) => x.id === m.id)?.email) === me && emailKey(m.email) && emailKey(m.email) !== me);
         saveMembres(list);
         if (moi) {
@@ -490,13 +521,54 @@ export function DemoApp() {
         deleteMembre(id);
         refresh();
       },
+      async monRegistre() {
+        const m = monMembre();
+        return m ? { id: m.id, prenom: m.prenom, nom: m.nom, iban: m.iban ?? '', prive: !!m.prive } : null;
+      },
+      // Mon IBAN, ma confidentialité : moi seul (comme le serveur).
+      async enregistrerMonIban(iban) {
+        const m = monMembre();
+        if (!m) throw new Error('Ta fiche n’est pas dans le registre « Membres du club » : demande à un admin de t’y inscrire.');
+        const v = compactIban(iban);
+        if (!ibanValide(v)) throw new Error('IBAN invalide : vérifie-le (longueur et chiffres de contrôle).');
+        saveMembres([{ ...m, iban: v || undefined }]);
+        return v;
+      },
+      async setConfidentialite(masquer) {
+        const m = monMembre();
+        if (!m) throw new Error('Ta fiche n’est pas dans le registre « Membres du club » : demande à un admin de t’y inscrire.');
+        saveMembres([{ ...m, prive: masquer }]);
+      },
+      async fichesEntite(uniteId) {
+        if (!org.find((u) => u.id === uniteId)?.moiAdmin) throw new Error('Réservé aux admins de l’entité.');
+        const d = loadUnitData(uniteId);
+        return { roles: d.roles, people: d.people };
+      },
+      // Comme une fiche modifiée dans l'entité : liée au registre, ses postes et les postes liés suivent.
+      async enregistrerFiche(uniteId, p) {
+        const u = org.find((x) => x.id === uniteId);
+        if (!u?.moiAdmin) throw new Error(`Réservé aux admins de « ${u?.nom ?? 'l’entité'} ».`);
+        const ancien = loadUnitData(uniteId);
+        const d: AppData = loadUnitData(uniteId);
+        const i = d.people.findIndex((x) => x.id === p.id);
+        if (i >= 0) d.people[i] = p;
+        else d.people.push(p);
+        const n = synchroDemo(uniteId, d);
+        const lie = lierFiches(uniteId, n ?? d);
+        const postes = suivrePostes(uniteId, ancien, lie);
+        saveUnitData(uniteId, postes?.d ?? lie);
+        propagerLiens(uniteId);
+        for (const k of postes?.autres ?? []) propagerLiens(k);
+        if (uniteId === current.id) setEpoch((e) => e + 1);
+        refresh();
+      },
       // Démo : pas de comptes ni de mots de passe.
       demandesMdp: [],
       approuverMdp: () => Promise.reject(new Error('Pas de mots de passe dans la démo.')),
       refuserMdp: () => Promise.resolve(),
       superAdmin: false,
     };
-  }, [org, current, central, mineAll, switchUnit, refresh, units, me, membresAcces]);
+  }, [org, current, central, mineAll, switchUnit, refresh, units, me, membresAcces, caissier]);
 
   const personId = useMemo(() => {
     if (!current || !me) return null;

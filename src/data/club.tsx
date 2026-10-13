@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { Carte, ClubMembre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { Carte, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 import type { OpOrga } from './organigramme';
 import type { DemandeMdp } from './cloud';
@@ -173,11 +173,27 @@ export interface Club {
   mesPropositions: () => Promise<Proposition[] | null>;
   /** Registre « Membres du club » : accès (droit « club.membres » ou admin de l'une des entités du club). */
   membresAcces: boolean;
+  /**
+   * Caissier du club (rôle qui donne expressément « paiements.payer » dans l'une de ses entités) : lit la liste des
+   * membres, avec leurs IBAN (eux seuls).
+   */
+  caissier: boolean;
+  /** Liste des membres : données masquées par une personne vides, IBAN aux caissiers (et à la personne elle-même). */
   membres: () => Promise<ClubMembre[]>;
   /** Enregistre des membres (nouveaux ou modifiés) ; leurs coordonnées passent dans les fiches liées des entités. */
   saveMembres: (list: ClubMembre[]) => Promise<void>;
   /** Supprime un membre du registre (refusé s'il a encore un poste actif dans une entité). */
   deleteMembre: (id: string) => Promise<void>;
+  /** Ma fiche du registre (mon IBAN, ma confidentialité) ; null : je n'y suis pas. */
+  monRegistre: () => Promise<MonRegistre | null>;
+  /** Enregistre (vide : efface) mon IBAN : personne d'autre, pas même un admin, ne peut le faire. Renvoie l'IBAN enregistré. */
+  enregistrerMonIban: (iban: string) => Promise<string>;
+  /** Masque (ou non) mes données personnelles (email, téléphone, IBAN) dans la liste des membres. */
+  setConfidentialite: (masquer: boolean) => Promise<void>;
+  /** Fiches et rôles d'une entité dont on est admin (accès gérés depuis la page « Membres du club »). */
+  fichesEntite: (uniteId: string) => Promise<FichesEntite>;
+  /** Enregistre une fiche (rôles, retrait, réactivation, ajout) dans une entité dont on est admin ; ses postes suivent. */
+  enregistrerFiche: (uniteId: string, p: Person) => Promise<void>;
   /** Version réelle : demandes « mot de passe oublié » des membres de l'entité ouverte (pour ses admins). */
   demandesMdp: DemandeMdp[];
   /** Valide une demande : mot de passe provisoire à transmettre, à changer à la connexion. */
