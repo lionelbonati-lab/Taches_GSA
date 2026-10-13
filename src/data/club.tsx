@@ -77,11 +77,6 @@ export interface Club {
   central: OrgUnit | null;
   /** Entités dont l'utilisateur fait partie (hors archivées, sauf l'entité ouverte). */
   mine: OrgUnit[];
-  /**
-   * Entités ouvertes au comité central (réglage « Accès du comité central ») que l'utilisateur, membre du
-   * comité central, peut consulter ou compléter sans en faire partie (hors archivées, sauf l'entité ouverte).
-   */
-  visitable: OrgUnit[];
   /** Admin du comité central : crée et modifie les entités du club. */
   canManage: boolean;
   /** Toute une entité parmi les membres d'une autre : tenu à jour par le serveur (migration 020) ou par la démo. */

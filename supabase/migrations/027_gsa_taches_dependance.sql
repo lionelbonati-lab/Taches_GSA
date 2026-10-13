@@ -8,6 +8,8 @@
 --     « toutes »    : toutes ses tâches (elle peut les modifier, comme une tâche partagée) ;
 --     sans valeur   : seulement celles partagées avec elle (comme avant) ;
 --     « rien »      : aucune, même partagées avec elle.
+--   Un événement dont tout le comité est responsable (aucun poste d'un comité ou d'un groupe du club ne lui est lié ⛓,
+--   gsa_items meta « postes », 023) : toutes ses tâches, quel que soit son réglage (gsa_reglage_taches).
 --   Les autres entités du club : celles partagées avec elles, comme avant. Jamais les tickets.
 -- • gsa_taches_partagees et gsa_modifier_tache_partagee (019) suivent cette règle (gsa_tache_visible).
 -- • gsa_committees_guard (007) : tachesDependance contrôlé ; « Dépend de » ne change que par les admins du comité
@@ -51,8 +53,30 @@ begin
   return coalesce(choisi, club);
 end $$;
 
+-- Ce que le comité dont elle dépend affiche des tâches de `entite` : son réglage (sans réglage : « partagees ») ; un
+-- événement auquel aucun poste d'un comité ou d'un groupe (non archivé) du club n'est lié : « toutes » (comme
+-- reglageTaches dans l'appli).
+create or replace function public.gsa_reglage_taches(entite uuid) returns text
+language sql stable security definer set search_path = '' as $$
+  select case
+    when e.type = 'equipe' and not exists (
+      select 1
+      from public.committees o
+      join public.gsa_items l on l.committee_id = o.id and l.kind = 'meta' and l.id = 'postes' and not l.deleted
+        and jsonb_typeof(l.data) = 'array'
+      cross join lateral jsonb_array_elements(l.data) p
+      where (o.id = e.parent_id or o.parent_id = e.parent_id) and o.type <> 'equipe'
+        and not coalesce((o.info ->> 'archive')::boolean, false)
+        and p ->> 'lien' = e.id::text)
+    then 'toutes'
+    else coalesce(e.info ->> 'tachesDependance', 'partagees')
+  end
+  from public.committees e
+  where e.id = entite
+$$;
+
 -- La tâche `data` d'une entité s'affiche-t-elle dans l'entité `unite` ? `club` : le comité central ; `depend` :
--- l'entité de la tâche dépend de `unite` ; `reglage` : son tachesDependance.
+-- l'entité de la tâche dépend de `unite` ; `reglage` : gsa_reglage_taches.
 create or replace function public.gsa_tache_visible(data jsonb, club uuid, depend boolean, reglage text, unite uuid) returns boolean
 language sql immutable set search_path = '' as $$
   select not (data ? 'paiement') and case
@@ -79,7 +103,7 @@ begin
     with sources as (
       select c.id, c.name, c.type, c.parent_id,
              coalesce(public.gsa_dependance(c.id) = unite, false) as depend,
-             coalesce(c.info ->> 'tachesDependance', 'partagees') as reglage
+             public.gsa_reglage_taches(c.id) as reglage
       from public.committees c
       where (c.id = club or c.parent_id = club) and c.id <> unite
         and not coalesce((c.info ->> 'archive')::boolean, false)
@@ -129,7 +153,7 @@ begin
   where i.committee_id = source and i.kind = 'tasks' and i.id = tache and not i.deleted
   for update;
   if old is null or not public.gsa_tache_visible(old, src.parent_id, coalesce(public.gsa_dependance(src.id) = unite, false),
-       coalesce(src.info ->> 'tachesDependance', 'partagees'), unite) then
+       public.gsa_reglage_taches(src.id), unite) then
     raise exception 'Cette tâche n’est plus partagée avec cette entité' using errcode = '42501';
   end if;
 
@@ -222,6 +246,7 @@ begin
 end $$;
 
 revoke all on function public.gsa_dependance(uuid) from public, anon, authenticated;
+revoke all on function public.gsa_reglage_taches(uuid) from public, anon, authenticated;
 revoke all on function public.gsa_tache_visible(jsonb, uuid, boolean, text, uuid) from public, anon, authenticated;
 grant execute on function public.gsa_taches_partagees(uuid) to authenticated;
 grant execute on function public.gsa_modifier_tache_partagee(uuid, uuid, text, jsonb) to authenticated;

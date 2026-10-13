@@ -30,16 +30,16 @@ type Element = { id: string; label: string; couleur?: string };
 
 /** Blocs de l'accueil que la personne peut afficher ou masquer, dans l'ordre d'origine. */
 export function useBlocsAccueil(): Element[] {
-  const { can, guest, prefs } = useStore();
+  const { can, prefs } = useStore();
   const club = useClubOptional();
   const central = club?.current.type === 'central';
   const jours = joursAFaire(prefs.aFaireJours);
   return [
     { id: 'edition', label: '📅 Date de l’édition', si: hasEdition(club?.current) },
     { id: 'compteurs', label: '🔢 Compteurs de mes tâches', si: true },
-    { id: 'retard', label: guest ? '⚠ Tâches en retard' : '⚠ Mes tâches en retard', si: true },
+    { id: 'retard', label: '⚠ Mes tâches en retard', si: true },
     { id: 'semaine', label: `📅 À faire dans les ${jours} jours`, si: true },
-    { id: 'demandes', label: central ? '📨 Demandes reçues' : '📨 Demandes au comité central', si: !!club && (central || !guest) },
+    { id: 'demandes', label: central ? '📨 Demandes reçues' : '📨 Demandes au comité central', si: !!club },
     { id: 'emails', label: '📧 Mes emails à envoyer et programmés', si: true },
     { id: 'sondages', label: '📊 Sondages à voter', si: true },
     { id: 'seance', label: club?.current.type === 'equipe' ? '🗓️ Prochaine réunion' : '🗓️ Prochaine séance', si: can('tab.meetings') },
@@ -155,7 +155,7 @@ function Rangement({ titre, elements, masque, ordre, appareil, setMasque, setOrd
 
 /** Choix et ordre des blocs et des compteurs de l'accueil ; affichage séparé sur téléphone et sur ordinateur. */
 export function AccueilModal({ onClose }: { onClose: () => void }) {
-  const { prefs, setPrefs, data, can, guest } = useStore();
+  const { prefs, setPrefs, data, can } = useStore();
   const blocs = useBlocsAccueil();
   const { appareil } = useAccueil();
   const jours = joursAFaire(prefs.aFaireJours);
@@ -191,7 +191,7 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
             {JOURS_A_FAIRE.map((n) => <option key={n} value={n}>{n} prochains jours</option>)}
           </select>
         </label>
-        {can('tasks.viewAll') && !guest && (
+        {can('tasks.viewAll') && (
           <label>
             Tâches
             <select value={prefs.aFaireToutes ? 'toutes' : 'mes'} onChange={(e) => setPrefs({ aFaireToutes: e.target.value === 'toutes' || undefined })}>

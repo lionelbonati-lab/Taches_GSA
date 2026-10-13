@@ -2,14 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
-import { defaultRoleId, guestPerson, orgMembers, parentDans, personKey, sortUnits, unitData, UNIT_TYPES, visitLevel } from './data/units';
+import { defaultRoleId, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData, UNIT_TYPES } from './data/units';
 import { poserResponsable } from './data/cablage';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey, nouveauMembre } from './data/membres';
 import { appliquer, estEtoile } from './data/organigramme';
 import { uid } from './data/utils';
 import { demoClassique } from './data/mode';
-import type { AgendaClubEvent, Guest, MyRequest, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, visibleDans } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
@@ -37,8 +37,6 @@ export function DemoApp() {
   });
   const [me, setMe] = useState<string | null>(() => loadMe());
   const [unitId, setUnitId] = useState<string | null>(readUnit);
-  // Entité ouverte en visiteur (comité central) : pas reprise au prochain lancement ni par la personne suivante.
-  const [visitId, setVisitId] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
   // Fiches de l'entité ouverte modifiées depuis le registre des membres du club : l'écran les relit.
   const [epoch, setEpoch] = useState(0);
@@ -72,7 +70,6 @@ export function DemoApp() {
   const logout = useCallback(() => {
     saveMe(null);
     setMe(null);
-    setVisitId(null);
   }, []);
 
   // Registre des membres du club : droit « club.membres » (ou admin) dans l'une des entités.
@@ -90,32 +87,20 @@ export function DemoApp() {
 
   const mineAll = org.filter((u) => u.moi);
   const central = org.find((u) => u.type === 'central') ?? null;
-  const visitAll = org.filter((u) => visitLevel(u, central));
   const current =
-    visitAll.find((u) => u.id === visitId) ??
     mineAll.find((u) => u.id === unitId) ??
     mineAll.find((u) => u.type === 'central' && !u.archive) ??
     mineAll.find((u) => !u.archive) ??
     mineAll[0];
-  // Entité ouverte en visiteur : fiche de la personne au comité central, droits selon le réglage de l'entité.
-  const guest: Guest | null = useMemo(() => {
-    const niveau = current && visitLevel(current, central);
-    const me2 = niveau && central?.membres.find((m) => personKey(m, central.id) === me);
-    return niveau && me2 ? { person: guestPerson(me2), niveau } : null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id, current?.central, central, me]);
-
   const switchUnit = useCallback(
     (id: string, hash = '#/') => {
-      if (org.find((u) => u.id === id)?.moi) {
-        try {
-          localStorage.setItem(UNIT_KEY, id);
-        } catch {
-          /* ignore */
-        }
-        setUnitId(id);
-        setVisitId(null);
-      } else setVisitId(id);
+      if (!org.find((u) => u.id === id)?.moi) return;
+      try {
+        localStorage.setItem(UNIT_KEY, id);
+      } catch {
+        /* ignore */
+      }
+      setUnitId(id);
       window.location.hash = hash;
       setVersion((v) => v + 1);
     },
@@ -129,7 +114,6 @@ export function DemoApp() {
       current,
       central,
       mine: mineAll.filter((u) => !u.archive || u.id === current.id),
-      visitable: visitAll.filter((u) => !u.archive || u.id === current.id),
       canManage: !!central?.moiAdmin,
       liens: true,
       loading: false,
@@ -152,9 +136,7 @@ export function DemoApp() {
         return { unitId: id };
       },
       async updateUnit(id, patch) {
-        // Comme le serveur : l'accès du comité central ne change que par les admins de l'entité.
-        const admin = org.find((u) => u.id === id)?.moiAdmin;
-        const next = units.map((u) => (u.id === id ? { ...u, ...patch, central: admin && patch.central ? patch.central : u.central } : u));
+        const next = units.map((u) => (u.id === id ? { ...u, ...patch } : u));
         saveUnits(next);
         setUnits(next);
         if (!classique && patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
@@ -276,7 +258,7 @@ export function DemoApp() {
         if (!texte) throw new Error('La proposition est vide');
         // Nom : sa fiche dans l'entité ouverte, sinon au comité central, sinon dans une autre entité.
         const ids = [current.id, central.id, ...units.map((u) => u.id)];
-        const fiche = ids.map((id) => loadUnitData(id).people.find((p) => p.actif && personKey(p, id) === me)).find((p) => !!p) ?? (guest ? guest.person : undefined);
+        const fiche = ids.map((id) => loadUnitData(id).people.find((p) => p.actif && personKey(p, id) === me)).find((p) => !!p);
         const p: Proposition = {
           id: uid('am'),
           genre: r.genre,
@@ -346,7 +328,6 @@ export function DemoApp() {
       },
       // Tâches que les autres entités partagent avec l'entité ouverte (version réelle : gsa_taches_partagees, 019).
       async tachesPartagees(): Promise<TachePartagee[]> {
-        if (guest) return [];
         const actives = units.filter((u) => !u.archive);
         return actives
           .filter((u) => u.id !== current.id)
@@ -354,7 +335,7 @@ export function DemoApp() {
             const d = loadUnitData(u.id);
             const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
             return d.tasks
-              .filter((t) => visibleDans(t, u, parentDans(actives, u)?.id, current.id))
+              .filter((t) => visibleDans(t, u, parentDans(actives, u)?.id, current.id, reglageTaches(org, u)))
               .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts }));
           });
       },
@@ -363,14 +344,13 @@ export function DemoApp() {
         const u = units.find((x) => x.id === uniteId);
         const d = loadUnitData(uniteId);
         const old = d.tasks.find((t) => t.id === task.id);
-        if (guest || !u || u.archive || !old || !visibleDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id))
+        if (!u || u.archive || !old || !visibleDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)))
           throw new Error('Cette tâche n’est plus partagée avec cette entité.');
         d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id) : t));
         saveUnitData(uniteId, d);
       },
       // Sondages des autres entités ouverts à l'entité ouverte (version réelle : gsa_sondages_partages, 021).
       async sondagesPartages(): Promise<SondagePartage[]> {
-        if (guest) return [];
         return units
           .filter((u) => u.id !== current.id && !u.archive)
           .flatMap((u) => (loadUnitData(u.id).polls ?? []).filter((p) => p.entites?.includes(current.id)).map((poll) => ({ uniteId: u.id, unite: u.nom, poll })));
@@ -380,7 +360,7 @@ export function DemoApp() {
         const u = units.find((x) => x.id === uniteId);
         const d = loadUnitData(uniteId);
         const p = d.polls?.find((x) => x.id === pollId);
-        if (guest || !u || u.archive || !p || !p.entites?.includes(current.id)) throw new Error('Ce sondage n’est plus ouvert à cette entité.');
+        if (!u || u.archive || !p || !p.entites?.includes(current.id)) throw new Error('Ce sondage n’est plus ouvert à cette entité.');
         if (!isOpen(p)) throw new Error('Ce sondage est clôturé.');
         const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
         const cle = fiche && cleVote(electorat(p, uniteId, d.people.filter((x) => x.actif), org), current.id, fiche);
@@ -437,14 +417,13 @@ export function DemoApp() {
       refuserMdp: () => Promise.resolve(),
       superAdmin: false,
     };
-  }, [org, current, central, mineAll, visitAll, switchUnit, refresh, units, me, membresAcces, guest]);
+  }, [org, current, central, mineAll, switchUnit, refresh, units, me, membresAcces]);
 
   const personId = useMemo(() => {
     if (!current || !me) return null;
-    if (guest) return guest.person.id;
     return loadUnitData(current.id).people.find((p) => p.actif && personKey(p, current.id) === me)?.id ?? null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id, me, guest]);
+  }, [current?.id, me]);
 
   const demo: DemoMode | null = useMemo(
     () =>
@@ -473,7 +452,6 @@ export function DemoApp() {
             },
             epoch,
             personId,
-            guest,
             logout,
             reset: () => {
               resetDemo();
@@ -483,7 +461,7 @@ export function DemoApp() {
           }
         : null,
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [current?.id, personId, guest, logout, epoch, refresh],
+    [current?.id, personId, logout, epoch, refresh],
   );
 
   if (!me || !club || !demo) {

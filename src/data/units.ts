@@ -1,6 +1,6 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
-import type { AppData, Carte, CentralAccess, Guest, OrgMember, OrgUnit, Permission, Person, Role, Section, TachesDependance, Unit, UnitType } from './types';
+import type { AppData, Carte, OrgMember, OrgUnit, Permission, Person, Role, Section, TachesDependance, Unit, UnitType } from './types';
 import { posteBesideName, uid } from './utils';
 
 // Entités du club : comité central, sous-comités, groupes, équipes d'événement.
@@ -70,6 +70,21 @@ export function lireTachesDependance(x: unknown): TachesDependance | undefined {
   return x === 'toutes' || x === 'rien' ? x : undefined;
 }
 
+type AvecPostes = Pick<Unit, 'id' | 'type' | 'archive'> & { postes?: { lien?: string }[] };
+/**
+ * Un événement auquel aucun poste n'est lié ⛓ (ni d'un comité, ni d'un groupe) : tout le comité dont il dépend en est
+ * responsable (organigramme : sous son cadre).
+ */
+export const auComiteEntier = (units: AvecPostes[], u: Pick<Unit, 'id' | 'type'>) =>
+  u.type === 'equipe' && !units.some((x) => !x.archive && x.type !== 'equipe' && x.postes?.some((p) => p.lien === u.id));
+
+/**
+ * Ce que le comité dont elle dépend affiche des tâches de l'entité : son réglage (tachesDependance) ; un événement dont
+ * tout le comité est responsable : toutes (serveur : gsa_reglage_taches, 027).
+ */
+export const reglageTaches = (units: AvecPostes[], u: Pick<Unit, 'id' | 'type' | 'tachesDependance'>): TachesDependance =>
+  auComiteEntier(units, u) ? 'toutes' : (u.tachesDependance ?? 'partagees');
+
 /** Place d'une carte de l'organigramme lue des données (entiers, dans des limites raisonnables), sinon undefined. */
 export function lireCarte(c: unknown): Carte | undefined {
   if (!c || typeof c !== 'object') return undefined;
@@ -118,35 +133,6 @@ export function sousEntites<T extends Unit>(units: T[], id: string): string[] {
   const tous = (b: Branche<T>): string[] => b.enfants.flatMap((x) => [x.u.id, ...tous(x)]);
   const b = trouver(arbreEntites(units));
   return b ? tous(b) : [];
-}
-
-/** Réglage d'une entité : ce que le comité central peut faire de ses données. */
-export const CENTRAL_ACCESS: Record<CentralAccess, { label: string; icon: string; aide: string }> = {
-  aucun: { label: 'Rien voir', icon: '🔒', aide: 'Les données de l’entité restent réservées à ses membres.' },
-  lecture: { label: 'Consulter', icon: '👁', aide: 'Les membres du comité central voient les tâches, séances, membres et fichiers, sans rien changer.' },
-  ecriture: {
-    label: 'Consulter et modifier / ajouter',
-    icon: '✏️',
-    aide: 'Ils peuvent aussi ajouter des tâches, les modifier et y joindre des fichiers. Ils ne suppriment rien et ne touchent ni aux membres, ni aux rôles, ni aux séances.',
-  },
-};
-
-/** Niveau d'accès du comité central réglé par une entité (absent ou inconnu = aucun). */
-export const centralAccess = (u: { type: UnitType; central?: string }): CentralAccess =>
-  u.type !== 'central' && (u.central === 'lecture' || u.central === 'ecriture') ? u.central : 'aucun';
-
-/**
- * Entité que l'utilisateur peut ouvrir comme membre du comité central sans en faire partie, et avec quel accès.
- * Null s'il en est membre, s'il n'est pas membre du comité central ou si l'entité ne l'a pas ouverte.
- */
-export function visitLevel(u: OrgUnit, central: OrgUnit | null): Guest['niveau'] | null {
-  const level = centralAccess(u);
-  return !u.moi && !!central?.moi && u.parentId === central.id && level !== 'aucun' ? level : null;
-}
-
-/** Fiche du membre du comité central qui ouvre une entité en visiteur (absente des membres de l'entité). */
-export function guestPerson(m: Pick<OrgMember, 'id' | 'prenom' | 'nom' | 'email' | 'couleur' | 'poste'>): Person {
-  return { id: `central-${m.id}`, prenom: m.prenom, nom: m.nom, email: m.email, telephone: '', couleur: m.couleur, poste: m.poste, roles: [], actif: true };
 }
 
 const MEMBER_PERMS: Permission[] = ['tasks.viewAll', 'tasks.editOwn', 'tab.meetings', 'tab.events', 'tab.people', 'polls.create'];

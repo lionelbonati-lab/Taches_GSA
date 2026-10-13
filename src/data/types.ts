@@ -247,7 +247,7 @@ export interface Task {
   modifiePar?: string;
   /** Affichage seulement (jamais enregistré) : tâche d'une autre entité, partagée avec l'entité ouverte. */
   source?: { uniteId: string; unite: string; id: string; responsables: string[] };
-  /** Tâche ajoutée par un membre du comité central (entité ouverte en « modifier / ajouter ») : son nom. */
+  /** Tâche ajoutée par un membre du comité central (ancien accès « modifier / ajouter ») : son nom. */
   parCentral?: string;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
   paiement?: Paiement;
@@ -554,20 +554,24 @@ export interface Unit {
   dateFin?: string;
   /** Événement passé, entité plus utilisée : masquée des menus. */
   archive?: boolean;
-  /** Ce que le comité central peut faire des données de l'entité (réglage de ses admins ; absent = rien). */
+  /**
+   * Ancien réglage « Accès du comité central » (plus proposé : le comité dont elle dépend voit ses tâches selon
+   * tachesDependance) ; gardé tel quel sur le serveur (006).
+   */
   central?: CentralAccess;
   /** Logo (image réduite, data URL) : en-tête de l'appli, documents, icône de l'onglet. Sans logo, celui du club. */
   logo?: string;
   /** Couleur de l'appli dans l'entité (#rrggbb). Sans choix : celle du comité central, sinon le bleu d'origine. */
   couleurAppli?: string;
   /**
-   * Entité dont elle dépend : un comité (un événement : aussi le groupe qui l'organise) ; sans choix (ou une valeur
-   * inconnue, comme l'ancien « aucun ») : le comité central. Les accès suivent parentId.
+   * Comité dont elle dépend ; sans choix (ou une valeur inconnue, comme l'ancien « aucun ») : le comité central. Une
+   * ancienne valeur vers un groupe ou un événement : le comité dont il dépend (parentDans). Les accès suivent parentId.
    */
   dependDe?: string;
   /**
-   * Ses tâches dans l'entité dont elle dépend (liste des tâches, ordre du jour, PV) : toutes, seulement celles partagées
-   * avec elle (sans choix), ou aucune (même partagées).
+   * Ses tâches dans le comité dont elle dépend (liste des tâches, ordre du jour, PV) : toutes, seulement celles
+   * partagées avec lui (sans choix), ou aucune (même partagées). Un événement dont tout le comité est responsable
+   * (aucun poste ne lui est lié ⛓) : toutes, quel que soit ce réglage (reglageTaches).
    */
   tachesDependance?: TachesDependance;
   /** Place de sa carte dans l'organigramme, posée à la main (sinon sa place dans l'arbre). */
@@ -582,15 +586,8 @@ export interface Carte {
   y: number;
 }
 
-/** Accès du comité central aux données d'une entité : rien voir, consulter, ou aussi ajouter et modifier des tâches. */
+/** Ancien réglage : accès du comité central aux données d'une entité (rien voir, consulter, ou aussi modifier). */
 export type CentralAccess = 'aucun' | 'lecture' | 'ecriture';
-
-/** Membre du comité central qui ouvre une entité sans en faire partie (selon le réglage de l'entité). */
-export interface Guest {
-  /** Sa fiche au comité central (identifiant préfixé, absente des membres de l'entité). */
-  person: Person;
-  niveau: Exclude<CentralAccess, 'aucun'>;
-}
 
 /** Membre d'une entité, tel qu'affiché dans l'organigramme. */
 export interface OrgMember {

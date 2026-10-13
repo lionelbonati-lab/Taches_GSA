@@ -991,7 +991,6 @@ button.arbre-tete:hover strong, button.arbre-tete:hover .arbre-lien { text-decor
 /* « 18 membres · ouverte · 👁 ……… Ouvrir › » */
 .arbre-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 0.78rem; line-height: 1.4; color: var(--muted); }
 .arbre-ouverte { padding: 0 7px; font-size: 0.72rem; font-weight: 600; color: var(--primary); background: var(--primary-soft); border-radius: 999px; }
-.arbre-acces { font-size: 0.8rem; }
 .arbre-lien { margin-left: auto; font-weight: 600; color: var(--primary); white-space: nowrap; }
 .arbre-pied { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
 .arbre-regler { margin-left: auto; padding: 1px; font-size: 0.85rem; line-height: 1; background: none; border: 0; border-radius: 6px; cursor: pointer; opacity: 0.75; }
@@ -1306,18 +1305,6 @@ body.glisse-en-cours, body.glisse-en-cours * { cursor: grabbing !important; user
 @media (max-width: 600px) { .icone-fleche { display: none; } }
 
 .badge.proposal { background: #0e7490; font-size: 0.7rem; padding: 2px 7px; vertical-align: middle; }
-.guest-banner { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 0; padding: 7px 16px; font-size: 0.9rem; border-bottom: 1px solid #475569; background: color-mix(in srgb, #475569 12%, var(--surface)); }
-.guest-banner.ecriture { border-bottom-color: #b45309; background: color-mix(in srgb, #b45309 12%, var(--surface)); }
-.badge.central-access { font-size: 0.7rem; padding: 2px 7px; vertical-align: middle; background: #475569; }
-.badge.central-access.ecriture { background: #b45309; }
-.access-choice { display: flex; flex-direction: column; gap: 6px; }
-.access-choice .access-option, .form .access-option { display: flex; flex-direction: row; align-items: flex-start; gap: 10px; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; color: var(--text); font-weight: 400; font-size: 0.92rem; }
-.access-option input { margin-top: 3px; flex-shrink: 0; }
-.access-option > span { display: flex; flex-direction: column; gap: 2px; }
-.access-option small { color: var(--muted); font-size: 0.82rem; }
-.access-option.on { border-color: var(--primary); background: var(--primary-soft); }
-.access-option.off { cursor: default; opacity: 0.8; }
-.access-panel { max-width: 720px; margin-top: 12px; }
 .partage-banner { margin: 0; border: 1px solid #0e7490; background: color-mix(in srgb, #0e7490 10%, var(--surface)); border-radius: 8px; padding: 7px 10px; font-size: 0.9rem; }
 .partage .chips { margin-top: 4px; }
 .autres-resp { display: block; margin-top: 4px; }

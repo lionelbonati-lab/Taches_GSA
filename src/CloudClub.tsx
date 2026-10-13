@@ -1,16 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
 import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
-import { defaultRoleId, guestPerson, unitData, visitLevel } from './data/units';
+import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
 import type { OrgUnit } from './data/types';
 
 // Version réelle : le club autour de l'entité ouverte (organigramme, changement d'entité, demandes au comité central).
 // Les données de chaque entité restent dans la sienne ; ce qui passe de l'une à l'autre passe par les
-// fonctions du serveur (gsa_organigramme, gsa_proposer_tache, gsa_mes_demandes, gsa-acces « creerUnite »).
-// Exception : une entité peut ouvrir ses données au comité central (consulter, ou aussi modifier / ajouter) ;
-// ses membres l'ouvrent alors en visiteur, avec leur fiche du comité central (règles du serveur : 006).
+// fonctions du serveur (gsa_organigramme, gsa_proposer_tache, gsa_mes_demandes, gsa_taches_partagees, gsa-acces
+// « creerUnite »). On n'ouvre que les entités dont on est membre : le comité dont une entité dépend voit ses tâches
+// selon son réglage (« Ses tâches dans … », 027).
 // Organigramme à glisser-déposer : chaque modification est faite par le serveur (gsa-acces, orga.ts), qui touche
 // souvent plusieurs entités ; l'entité ouverte la reçoit en direct comme les modifications des autres membres.
 
@@ -25,7 +25,7 @@ function ecrireEntite(u: OrgUnit) {
       date: u.date || undefined,
       dateFin: u.date && u.dateFin && u.dateFin > u.date ? u.dateFin : undefined,
       archive: u.archive || undefined,
-      // Réglage de l'entité : le serveur garde l'ancienne valeur si l'auteur n'en est pas admin.
+      // Ancien réglage « Accès du comité central » (006), plus proposé : gardé tel quel.
       central: u.central && u.central !== 'aucun' ? u.central : undefined,
       logo: u.logo || undefined,
       couleurAppli: u.couleurAppli || undefined,
@@ -85,9 +85,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
   // Mots de passe oubliés : demandes des membres de l'entité ouverte (le serveur ne répond qu'à ses admins), revues toutes les 5 minutes.
   const [demandes, setDemandes] = useState<DemandeMdp[]>([]);
   const chargerDemandes = useCallback(() => {
-    if (m.guest) return setDemandes([]);
     void demandesMdp(m.committeeId).then(setDemandes);
-  }, [m.committeeId, m.guest]);
+  }, [m.committeeId]);
   useEffect(() => {
     chargerDemandes();
     const id = setInterval(chargerDemandes, 5 * 60_000);
@@ -108,7 +107,6 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       current,
       central,
       mine: units.filter((u) => u.moi && reachable.has(u.id) && (!u.archive || u.id === current.id)),
-      visitable: units.filter((u) => visitLevel(u, central) && (!u.archive || u.id === current.id)),
       canManage: !!central?.moiAdmin,
       // Avant la migration 020, l'organigramme ne donne pas les liens : rien ne tiendrait les membres à jour.
       liens: !!org?.some((u) => u.liens),
@@ -117,25 +115,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       refresh,
       switchUnit(id, hash = '#/') {
         if (id === m.committeeId) return;
-        let target = list.find((x) => x.committeeId === id);
-        if (!target) {
-          // Entité ouverte au comité central : visite avec la fiche de l'utilisateur au comité central.
-          const u = units.find((x) => x.id === id);
-          const niveau = u && visitLevel(u, central);
-          const myCentral = list.find((x) => x.committeeId === central?.id);
-          const me = central?.membres.find((x) => x.id === myCentral?.personId);
-          if (!u || !niveau || !me) return;
-          target = {
-            committeeId: u.id,
-            committeeName: u.nom,
-            personId: null,
-            owner: false,
-            type: u.type,
-            parentId: u.parentId ?? null,
-            info: { couleur: u.couleur, description: u.description, date: u.date, archive: u.archive, central: u.central, logo: u.logo, couleurAppli: u.couleurAppli },
-            guest: { person: guestPerson(me), niveau },
-          };
-        }
+        const target = list.find((x) => x.committeeId === id);
+        if (!target) return;
         window.location.hash = hash;
         onSwitch(target);
       },
@@ -226,7 +207,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
           }
         : undefined,
       suivrePostes:
-        orga && !m.guest
+        orga
           ? async (avant) => {
               const r = await accessAction<{ unites?: string[] }>({ action: 'suivre', committeeId: m.committeeId, avant });
               if (r.unites?.includes(m.committeeId)) rattraper();
@@ -243,10 +224,9 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       },
       mesTicketsCentraux: () => myCentralTickets(),
       agendaClub: () => fetchAgendaClub(clubId),
-      // Visiteur du comité central : pas de tâches partagées (il n'est pas membre de l'entité).
-      tachesPartagees: () => (m.guest ? Promise.resolve([]) : fetchTachesPartagees(m.committeeId)),
+      tachesPartagees: () => fetchTachesPartagees(m.committeeId),
       modifierTachePartagee: (uniteId, task) => saveTachePartagee(m.committeeId, uniteId, task),
-      sondagesPartages: () => (m.guest ? Promise.resolve(null) : fetchSondagesPartages(m.committeeId)),
+      sondagesPartages: () => fetchSondagesPartages(m.committeeId),
       voterSondagePartage: (uniteId, pollId, choix, texte) => voterSondagePartage(m.committeeId, uniteId, pollId, choix, texte),
       membresAcces: acces,
       membres: () => fetchMembres(clubId),

@@ -4,12 +4,12 @@ import { statuses as STATUSES } from './seedData';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, today, uid } from './utils';
 import { seancePourSuivante } from './seances';
-import type { ActivityNotif, AppData, ChecklistItem, Guest, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task } from './types';
+import type { ActivityNotif, AppData, ChecklistItem, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task } from './types';
 import { clearFiles } from './files';
 import { avecSondages, avecVote, sondageEnregistre } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
-import { applyRows, GUEST_WRITABLE, type CloudSync, type Membership } from './cloud';
+import { applyRows, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, texteAutres, versOrigine } from './partage';
@@ -127,18 +127,6 @@ function sansPartagees(d: AppData) {
   if (d.polls) d.polls = d.polls.filter((p) => !estPartagee(p.id)).map(sondageEnregistre);
 }
 
-/** Droits d'un membre du comité central dans une entité qui lui est ouverte (jamais de suppression ni de gestion). */
-function guestRole(g: Guest): Role {
-  const write: Permission[] = g.niveau === 'ecriture' ? ['tasks.createAny', 'tasks.editAny'] : [];
-  return {
-    id: 'comite-central',
-    label: g.niveau === 'ecriture' ? 'Comité central · modifier / ajouter' : 'Comité central · consultation',
-    couleur: '#475569',
-    permissions: ['tasks.viewAll', 'tab.meetings', 'tab.events', 'tab.people', ...write],
-    sections: [],
-  };
-}
-
 function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
@@ -156,8 +144,6 @@ export interface DemoMode {
   personId: string | null;
   logout: () => void;
   reset: () => void;
-  /** Entité ouverte par un membre du comité central qui n'en fait pas partie. */
-  guest?: Guest | null;
   /** Change quand les données de l'entité ont été modifiées hors de l'écran (registre des membres du club) : relues. */
   epoch?: number;
 }
@@ -176,8 +162,6 @@ interface Store {
   mode: Mode;
   /** Version réelle (null en démo). */
   cloud: CloudMode | null;
-  /** Membre du comité central qui consulte (ou complète) l'entité sans en faire partie ; null pour ses membres. */
-  guest: Guest | null;
   data: AppData;
   /** Données de l'entité seules, sans les tâches partagées par d'autres entités (réglages, console admin). */
   dataLocale: AppData;
@@ -230,9 +214,6 @@ const Ctx = createContext<Store | null>(null);
 export function StoreProvider({ children, cloud = null, demo = null }: { children: ReactNode; cloud?: CloudMode | null; demo?: DemoMode | null }) {
   const [data, setData] = useState<AppData>(() => (cloud ? cloud.initial : demo ? demo.load() : load()));
   const [toast, setToast] = useState<string | null>(null);
-  const guest = cloud?.membership.guest ?? demo?.guest ?? null;
-  // Visiteur : ses réglages d'affichage restent dans cet onglet (rien n'est écrit dans l'entité).
-  const [guestPrefs, setGuestPrefs] = useState<Partial<Prefs>>({});
   const [userId, setUserId] = useState<string | null>(() => {
     if (cloud) return cloud.personId;
     if (demo) return demo.personId;
@@ -290,7 +271,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   // enregistrées, le serveur fait suivre les postes de l'entité et les postes liés (comme la démo, data/organigramme).
   const suivi = useRef<{ sig: string; people: Person[]; base: Person[] | null; timer?: ReturnType<typeof setTimeout>; file: Promise<void> }>({ sig: '', people: [], base: null, file: Promise.resolve() });
   useEffect(() => {
-    if (!cloud || guest) return;
+    if (!cloud) return;
     const s = suivi.current;
     const sig = JSON.stringify(data.people.map((p) => [p.id, p.actif, p.roles, p.poste, p.autresPostes, p.viaEntite]));
     const recu = distant.current;
@@ -324,7 +305,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const lectureSondages = useRef(0);
   const chargerPartagees = useCallback(() => {
     const c = clubRef.current;
-    if (!c || guest) return;
+    if (!c) return;
     const n = ++lecture.current;
     c.tachesPartagees()
       .then((l) => n === lecture.current && setPartagees(l))
@@ -337,7 +318,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         setSondagesRecus(l ?? []);
       })
       .catch(() => {});
-  }, [guest]);
+  }, []);
   useEffect(() => {
     chargerPartagees();
     const vis = () => document.visibilityState === 'visible' && chargerPartagees();
@@ -351,17 +332,14 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     };
   }, [chargerPartagees, moi]);
 
-  const user = guest ? guest.person : data.people.find((p) => p.id === userId && p.actif) ?? null;
-  const myRoles = useMemo(() => (guest ? [guestRole(guest)] : userRoles(data.roles, user)), [guest, data.roles, user]);
-  // Visiteur : sa fiche s'ajoute aux données affichées (désactivée : ni assignable, ni dans la liste des membres)
-  // pour que son nom s'affiche dans le journal et les tâches ; elle n'est jamais enregistrée.
+  const user = data.people.find((p) => p.id === userId && p.actif) ?? null;
+  const myRoles = useMemo(() => userRoles(data.roles, user), [data.roles, user]);
   // Tâches partagées par d'autres entités : ajoutées aux données affichées (jamais enregistrées dans l'entité).
   const units = club?.units;
   const view = useMemo(() => {
-    const base = guest ? { ...data, people: [...data.people, { ...guest.person, actif: false }] } : data;
-    const avec = moi && units && partagees.length ? avecPartagees(base, partagees, moi, units) : base;
-    return moi && units ? avecSondages(avec, sondagesRecus, moi, units, guest ? null : user?.id ?? null) : avec;
-  }, [data, guest, partagees, moi, units, sondagesRecus, user?.id]);
+    const avec = moi && units && partagees.length ? avecPartagees(data, partagees, moi, units) : data;
+    return moi && units ? avecSondages(avec, sondagesRecus, moi, units, user?.id ?? null) : avec;
+  }, [data, partagees, moi, units, sondagesRecus, user?.id]);
 
   const login = useCallback((id: string | null) => {
     if (cloud) {
@@ -379,64 +357,42 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloud]);
 
-  /** Visiteur : consultation seule (modification refusée), ou seulement les tâches et ce qui les accompagne. */
-  const guestBlocked = useCallback(() => {
-    if (guest?.niveau !== 'lecture') return false;
-    setToast('👁 Consultation seule : cette entité ne permet pas au comité central de modifier ses données.');
-    return true;
-  }, [guest]);
-  const keepGuestWrites = useCallback(
-    (prev: AppData, next: AppData) => {
-      if (!guest) return;
-      const p = prev as unknown as Record<string, unknown>;
-      const n = next as unknown as Record<string, unknown>;
-      Object.keys(n).forEach((k) => !GUEST_WRITABLE.has(k) && (n[k] = p[k]));
-    },
-    [guest],
-  );
-
   const update = useCallback(
     (fn: (d: AppData) => void, action: string) => {
-      if (guestBlocked()) return;
       setData((prev) => {
         const next = structuredClone(prev);
         fn(next);
-        keepGuestWrites(prev, next);
         sansPartagees(next);
         // Les délais liés suivent automatiquement la date de leur événement / séance.
         next.tasks = next.tasks.map((t) => applyDelaiRef(next, t));
-        const by = guest ? ` — par ${fullName(guest.person)} (comité central)` : '';
-        next.log.unshift({ id: `l${Date.now()}${Math.random()}`, at: new Date().toISOString(), userId: userId ?? '?', action: action + by });
+        next.log.unshift({ id: `l${Date.now()}${Math.random()}`, at: new Date().toISOString(), userId: userId ?? '?', action });
         next.log = next.log.slice(0, 300);
         return next;
       });
     },
-    [userId, guest, guestBlocked, keepGuestWrites],
+    [userId],
   );
 
   const updateSilent = useCallback(
     (fn: (d: AppData) => void) => {
-      if (guestBlocked()) return;
       setData((prev) => {
         const next = structuredClone(prev);
         fn(next);
-        keepGuestWrites(prev, next);
         sansPartagees(next);
         return next;
       });
     },
-    [guestBlocked, keepGuestWrites],
+    [],
   );
 
-  const prefs = guest ? { ...DEFAULT_PREFS, vueDefaut: 'toutes' as const, ...guestPrefs } : { ...DEFAULT_PREFS, ...(userId ? data.prefs[userId] : {}) };
+  const prefs = { ...DEFAULT_PREFS, ...(userId ? data.prefs[userId] : {}) };
 
   const setPrefs = useCallback(
     (p: Partial<Prefs>) => {
-      if (guest) return setGuestPrefs((x) => ({ ...x, ...p }));
       if (!userId) return;
       setData((prev) => ({ ...prev, prefs: { ...prev.prefs, [userId]: { ...DEFAULT_PREFS, ...prev.prefs[userId], ...p } } }));
     },
-    [userId, guest],
+    [userId],
   );
 
   // Tâche partagée par une autre entité : enregistrée dans la sienne ; ici, le journal et les notifications.
@@ -469,7 +425,6 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (t.source) return savePartagee(t);
       // Modifiée ici : ce n'est plus une entité du partage qui l'a modifiée en dernier.
       const task: Task = { ...t, updatedAt: new Date().toISOString(), modifiePar: undefined };
-      if (guest && isNew) task.parCentral = fullName(guest.person);
       const before = data.tasks.find((x) => x.id === task.id);
       // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
       task.postesResp = postesFor(data, task, before);
@@ -482,10 +437,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       let next: Task | undefined;
       let seance: ReturnType<typeof seancePourSuivante>;
       if (task.recurrence && !task.suivanteId && isDone(data, task) && !(before && isDone(data, before))) {
-        // Tâche annuelle liée à une séance : elle passe à la séance du même mois l'an prochain (créée au besoin,
-        // sauf par un invité du comité central qui ne peut pas ajouter de séance).
+        // Tâche annuelle liée à une séance : elle passe à la séance du même mois l'an prochain (créée au besoin).
         seance = seancePourSuivante(data, task);
-        if (seance?.nouvelle && guest) seance = undefined;
         next = nextOccurrence(data, task, seance?.meeting);
         task.suivanteId = next.id;
       }
@@ -496,9 +449,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const actor = userId ?? '?';
       const now = new Date().toISOString();
       const notifs: ActivityNotif[] = [];
-      const byName = guest ? `${fullName(guest.person)} (comité central)` : undefined;
       const push = (uidTo: string, type: ActivityNotif['type'], taskId: string, detail?: string) =>
-        uidTo !== actor && notifs.push({ id: uid('n'), userId: uidTo, type, taskId, by: actor, byName, at: now, detail });
+        uidTo !== actor && notifs.push({ id: uid('n'), userId: uidTo, type, taskId, by: actor, at: now, detail });
       const added = task.responsables.filter((id) => !before?.responsables.includes(id));
       added.forEach((id) => push(id, 'assign', task.id));
       if (before) {
@@ -544,12 +496,12 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       );
       if (next) setToast(`🔁 Tâche récurrente reconduite au ${fmtDate(next.delai)} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
     },
-    [update, data, userId, guest, savePartagee],
+    [update, data, userId, savePartagee],
   );
 
   const markNotifsRead = useCallback(
     (keys: string[]) => {
-      if (!userId || !keys.length || guest) return;
+      if (!userId || !keys.length) return;
       setData((prev) => {
         const seen = new Set(prev.notifLues?.[userId] ?? []);
         if (keys.every((k) => seen.has(k))) return prev;
@@ -557,25 +509,24 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         return { ...prev, notifLues: { ...prev.notifLues, [userId]: [...seen].slice(-800) } };
       });
     },
-    [userId, guest],
+    [userId],
   );
 
   const reset = useCallback(() => {
-    if (cloud || guest) return;
+    if (cloud) return;
     clearFiles();
     if (demo) return demo.reset();
     setData(makeSeed());
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cloud, guest]);
+  }, [cloud]);
 
   const restore = useCallback(
     (d: AppData, label: string) => {
-      if (guest) return;
       const next = migrate(structuredClone(d));
       next.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `Données restaurées depuis ${label}` });
       setData(next);
     },
-    [userId, guest],
+    [userId],
   );
 
   const savePoll = useCallback(
@@ -691,7 +642,6 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const value: Store = {
     mode: cloud ? 'reel' : 'demo',
     cloud,
-    guest,
     data: view,
     dataLocale: data,
     user,

@@ -15,10 +15,10 @@ type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 
 const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
 
 export function Tasks() {
-  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, guest } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
-    params.get('statut') ? (guest ? 'toutes' : 'mes') : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
+    params.get('statut') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
   );
   const [f, setF] = useState({
     ...EMPTY_FILTERS,
@@ -131,7 +131,7 @@ export function Tasks() {
       <div className="page-head">
         <h1>Tâches <span className="count">{list.length}</span></h1>
         <div className="actions">
-          {viewAll && !guest && (
+          {viewAll && (
             <div className="seg">
               <button className={effScope === 'mes' ? 'on' : ''} onClick={() => setScope('mes')}>Mes tâches</button>
               <button className={effScope === 'toutes' ? 'on' : ''} onClick={() => setScope('toutes')}>Toutes</button>
@@ -270,7 +270,7 @@ export function Tasks() {
         </div>
       )}
 
-      {effScope === 'mes' && !guest && <SuiviCentral />}
+      {effScope === 'mes' && <SuiviCentral />}
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} onClose={closeEdit} />}
     </div>
   );

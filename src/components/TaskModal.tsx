@@ -9,7 +9,7 @@ import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { libellePlace, partageDe, TACHES_DEPENDANCE } from '../data/partage';
-import { parentDans } from '../data/units';
+import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
 import type { DelaiUnite, Recurrence, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
@@ -44,7 +44,7 @@ type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage
 
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask, autresResp } = useStore();
-  // Nouvelle tâche ouverte par un visiteur du comité central : il n'est pas responsable possible dans l'entité.
+  // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   const [t, setT] = useState<Task>(() => (isNew ? { ...task, responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)) } : task));
   const [newItem, setNewItem] = useState('');
   // Tâche liée (ou principale) ouverte par-dessus cette fenêtre.
@@ -62,8 +62,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const partageables = club && !t.paiement && !t.source ? club.units.filter((u) => u.id !== club.current.id && (!u.archive || partage.includes(u.id))) : [];
   const nomUnite = (id: string) => club?.units.find((u) => u.id === id)?.nom ?? '';
   const versCentral = club?.central && club.current.type !== 'central' && partage.includes(club.central.id) ? libellePlace(club.central.sections ?? [], club.current) : '';
-  // Réglage de l'entité : ses tâches toutes affichées (ou aucune) dans l'entité dont elle dépend.
-  const reglage = club?.current.tachesDependance;
+  // Réglage de l'entité : ses tâches toutes affichées (ou aucune) dans le comité dont elle dépend ; un événement dont tout
+  // le comité est responsable : toutes.
+  const reglage = club ? reglageTaches(club.units, club.current) : undefined;
+  const comiteEntier = !!club && auComiteEntier(club.units, club.current);
   const parentIci = club && reglage && reglage !== 'partagees' && !t.source ? parentDans(club.units.filter((u) => !u.archive), club.current) : undefined;
   const togglePartage = (id: string) =>
     setT((x) => {
@@ -281,7 +283,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 ? `Elles la voient dans leurs tâches et leur ordre du jour, et la modifient comme les leurs${versCentral ? ` (comité central : ${versCentral})` : ''}.`
                 : 'La tâche reste ici ; les entités choisies la voient dans leurs tâches et leur ordre du jour, et peuvent la modifier.'}
             </small>
-            {parentIci && reglage && <small className="muted">{TACHES_DEPENDANCE[reglage].aide(parentIci.nom)} (réglage de l’entité)</small>}
+            {parentIci && reglage && (
+              <small className="muted">
+                {TACHES_DEPENDANCE[reglage].aide(parentIci.nom)} ({comiteEntier ? 'tout le comité est responsable de l’événement' : 'réglage de l’entité'})
+              </small>
+            )}
           </div>
         )}
 

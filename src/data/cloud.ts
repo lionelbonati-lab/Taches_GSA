@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, Guest, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance } from './types';
 import { lireCarte, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -27,8 +27,6 @@ export interface Membership {
   /** Comité central dont dépend l'entité. */
   parentId: string | null;
   info: UnitInfo;
-  /** Entité ouverte par un membre du comité central qui n'en fait pas partie (selon son réglage). */
-  guest?: Guest;
 }
 
 /** Fiche d'une entité (colonne info de la table committees). */
@@ -38,7 +36,7 @@ export interface UnitInfo {
   date?: string;
   dateFin?: string;
   archive?: boolean;
-  /** Accès du comité central (réglé par les admins de l'entité, contrôlé par le serveur). */
+  /** Ancien réglage « Accès du comité central » (006), plus proposé : gardé tel quel. */
   central?: CentralAccess;
   /** Logo (data URL PNG, JPEG ou WebP, 200 Ko au plus : contrôlé par le serveur). */
   logo?: string;
@@ -53,12 +51,6 @@ export interface UnitInfo {
   /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (affichage seulement). */
   rangement?: string[];
 }
-
-/**
- * Ce qu'un membre du comité central peut écrire dans une entité ouverte en « modifier / ajouter » :
- * les tâches et ce qui les accompagne (emails programmés, notifications, journal). Même liste côté serveur (006).
- */
-export const GUEST_WRITABLE = new Set(['tasks', 'emails', 'notifications', 'log']);
 
 /** Collections de l'appli enregistrées élément par élément. */
 const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions'] as const;
@@ -186,8 +178,6 @@ export class CloudSync {
   status: SyncStatus = 'ok';
   /** Modifications refusées par le serveur (message à afficher, éléments à recharger). */
   onRejected: (message: string, rows: Row[]) => void = () => {};
-  /** Visiteur du comité central : collections qu'il peut écrire (rien en consultation) ; null = membre. */
-  allow: Set<string> | null = null;
 
   constructor(
     readonly committeeId: string,
@@ -299,7 +289,7 @@ export class CloudSync {
   private commit() {
     clearTimeout(this.timer);
     if (!this.latest) return;
-    const rows = this.diff(this.latest).filter((r) => !this.allow || this.allow.has(r.kind));
+    const rows = this.diff(this.latest);
     if (!rows.length) return;
     rows.forEach((r) => {
       this.remember(r);
@@ -508,7 +498,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     carte: lireCarte(m.info.carte),
     rangement: lireRangement(m.info.rangement),
     membres: [],
-    moi: !m.guest,
+    moi: true,
     moiAdmin: false,
   };
 }
@@ -574,7 +564,7 @@ export async function fetchOrganigrammesAnnuels(club: string): Promise<Organigra
   return (data ?? []).map((r) => ({ annee: r.annee as number, maj: r.maj as string, units: lireOrg(Array.isArray(r.data) ? (r.data as LigneOrg[]) : []) }));
 }
 
-/** Nom et fiche d'une entité (admins de l'entité ou du comité central ; l'accès du comité central, ceux de l'entité). */
+/** Nom et fiche d'une entité (admins de l'entité ou du comité central). */
 export async function updateCommittee(id: string, patch: { name: string; type: UnitType; info: UnitInfo }) {
   const { data, error } = await sb().from('committees').update(patch).eq('id', id).select('id');
   if (error) throw new Error(error.message);

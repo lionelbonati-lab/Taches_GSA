@@ -3,7 +3,7 @@ import { useClub } from '../data/club';
 import { norm } from '../data/csv';
 import { groupesLies } from '../data/liens';
 import { benevolesDe, fonctionsLibres, memeQui, nomDe, zonesFiche, type Depuis, type LigneFiche, type OpOrga, type Qui, type Vers } from '../data/organigramme';
-import { CENTRAL_ACCESS, centralAccess, UNIT_COLORS, UNIT_TYPES } from '../data/units';
+import { UNIT_COLORS, UNIT_TYPES } from '../data/units';
 import { fmtRange, posteBesideName } from '../data/utils';
 import type { OrgMember, OrgUnit, Poste } from '../data/types';
 import { Initials, Modal, UnitMark } from './ui';
@@ -433,8 +433,6 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
   const sur = (s: string) => (pose && g.survol === k(s) ? 'survol' : '');
   const deplie = o.deplies.has(u.id);
   const ouverte = !o.units && u.id === club.current.id;
-  const access = centralAccess(u);
-  const acces = access !== 'aucun' && !(a.ouvrir && !u.moi);
   const prise = (m: OrgMember, depuis: Depuis, poste?: string): Prise => ({ qui: quiDeMembre(m), depuis, nom: nomDe(m), couleur: m.couleur, poste });
   // Une ligne qu'on peut glisser : à la souris partout, au doigt par la poignée ⠿ (un toucher la met en main).
   const tirer = (m: OrgMember, depuis: Depuis, poste?: string) =>
@@ -552,7 +550,6 @@ export function Fiche({ u, o, a, deplacer, grande }: { u: OrgUnit; o: OrgaVue; a
       <span className="arbre-meta">
         <span>{u.membres.length} membre{u.membres.length > 1 ? 's' : ''}</span>
         {ouverte && <span className="arbre-ouverte">ouverte</span>}
-        {acces && <span className="arbre-acces" title={`Comité central : ${CENTRAL_ACCESS[access].label.toLowerCase()}`}>{CENTRAL_ACCESS[access].icon}</span>}
         {a.ouvrir && <span className="arbre-lien">{a.ouvrir.label} ›</span>}
       </span>
     </>

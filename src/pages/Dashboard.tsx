@@ -15,7 +15,7 @@ import { EditionCard } from '../components/Edition';
 import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../components/Accueil';
 
 export function Dashboard() {
-  const { data, user, saveTask, guest, prefs, setPrefs, can, canSeeTask } = useStore();
+  const { data, user, saveTask, prefs, setPrefs, can, canSeeTask } = useStore();
   const club = useClubOptional();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
@@ -24,14 +24,12 @@ export function Dashboard() {
   const { appareil, blocs, compteurs } = useAccueil();
   if (!user) return null;
 
-  // Membre du comité central qui ouvre l'entité : il n'y a pas de tâches à lui, l'accueil montre celles de l'entité.
-  const mine = guest ? data.tasks : data.tasks.filter((t) => t.responsables.includes(user.id));
-  const my = guest ? '' : 'mes ';
+  const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
   const open = mine.filter((t) => !isDone(data, t));
   const late = open.filter((t) => isLate(data, t)).sort((a, b) => a.delai.localeCompare(b.delai));
   // Bloc « À faire » : nombre de jours et tâches (les miennes, ou toutes celles que je vois) au choix de chacun.
   const jours = joursAFaire(prefs.aFaireJours);
-  const toutes = !guest && !!prefs.aFaireToutes && can('tasks.viewAll');
+  const toutes = !!prefs.aFaireToutes && can('tasks.viewAll');
   const soon = (toutes ? data.tasks.filter((t) => canSeeTask(t) && !isDone(data, t)) : open)
     .filter((t) => { const n = t.delai ? daysUntil(t.delai) : -1; return n >= 0 && n <= jours; })
     .sort((a, b) => a.delai.localeCompare(b.delai));
@@ -61,7 +59,7 @@ export function Dashboard() {
           <div className="stats">
             {/* Chaque case ouvre la liste de mes tâches filtrée sur ce statut. */}
             {compteurs.map((c) => (
-              <Link key={c.id} to={`/taches?statut=${c.id}`} className="stat" style={{ borderTopColor: c.couleur }} title={`Voir ${my || 'les '}tâches ${c.id === 'retard' ? 'en retard' : `« ${c.label} »`}`}>
+              <Link key={c.id} to={`/taches?statut=${c.id}`} className="stat" style={{ borderTopColor: c.couleur }} title={`Voir mes tâches ${c.id === 'retard' ? 'en retard' : `« ${c.label} »`}`}>
                 <b>{c.id === 'retard' ? late.length : mine.filter((t) => t.statusId === c.id).length}</b>
                 <span>{c.label}</span>
               </Link>
@@ -71,7 +69,7 @@ export function Dashboard() {
       case 'retard':
         return (
           <>
-            <h2>⚠ {guest ? 'Tâches en retard' : 'Mes tâches en retard'}</h2>
+            <h2>⚠ Mes tâches en retard</h2>
             {late.length ? <div className="cards">{late.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Rien en retard, bravo !</Empty>}
           </>
         );
@@ -90,7 +88,7 @@ export function Dashboard() {
           </>
         );
       case 'demandes':
-        return club?.current.type === 'central' ? <IncomingRequests onOpen={setEdit} /> : club && !guest ? <OutgoingRequests /> : null;
+        return club?.current.type === 'central' ? <IncomingRequests onOpen={setEdit} /> : club ? <OutgoingRequests /> : null;
       case 'emails':
         return (
           <>

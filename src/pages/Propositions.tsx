@@ -30,8 +30,8 @@ const EN_COURS: Proposition['statut'][] = ['nouvelle', 'etudiee', 'retenue'];
 /** Admin du comité central, dans le comité central : reçoit et traite les propositions. */
 export function useGereLesPropositions() {
   const club = useClub();
-  const { can, guest } = useStore();
-  return club.current.type === 'central' && !guest && can('admin.access');
+  const { can } = useStore();
+  return club.current.type === 'central' && can('admin.access');
 }
 
 export function Propositions() {

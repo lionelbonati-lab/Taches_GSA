@@ -2,8 +2,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
-import { arbreEntites, CENTRAL_ACCESS, centralAccess, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, visitLevel, type Branche, type DirectoryEntry } from '../data/units';
-import type { CentralAccess, OrganigrammeAnnuel, OrgMember, OrgUnit, TachesDependance, Unit, UnitType } from '../data/types';
+import { arbreEntites, auComiteEntier, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, type Branche, type DirectoryEntry } from '../data/units';
+import type { OrganigrammeAnnuel, OrgMember, OrgUnit, TachesDependance, Unit, UnitType } from '../data/types';
 import { TACHES_DEPENDANCE } from '../data/partage';
 import { fmtDate, fmtRange } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
@@ -12,7 +12,6 @@ import { groupesLies, roleDuLien } from '../data/liens';
 import { nomMembre } from '../data/membres';
 import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
-import { CentralAccessChoice } from '../components/CentralAccess';
 import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
 import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensPostes, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
 import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
@@ -42,8 +41,8 @@ import { quiDeMembre } from '../components/Organiser';
 // carte par poste ; en mode « Modifier », on y glisse les postes, les groupes et les événements, on y crée un poste ou
 // un comité. « 🏛️ Par entités » : l'arbre ci-dessous (et ses outils en mode « Modifier »).
 // Visible de tous les membres du club ; seul le comité central crée et modifie les entités,
-// chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité central
-// peut faire de ses données (rien voir, consulter, ou aussi modifier / ajouter des tâches).
+// chaque président / responsable peut modifier la fiche de la sienne et choisir ce que le comité dont elle dépend
+// affiche de ses tâches (« Ses tâches dans … »).
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const PRESENTATION = 'taches-gsa-orga-presentation';
@@ -283,9 +282,11 @@ export function Org() {
     a.type === 'ranger'
       ? club.canManage || !!uniteDe(a.comite)?.moiAdmin
       : a.type === 'liaison'
-        ? (!a.creer.length || peutFiche(uniteDe(a.vers))) && a.retirer.every((p) => peutFiche(uniteDe(p.entite))) && (!a.ordre || club.canManage || !!uniteDe(a.ordre.comite)?.moiAdmin)
+        ? (!(a.creer.length || a.lier) || peutFiche(uniteDe(a.vers))) &&
+          [...a.retirer, ...a.delier].every((p) => peutFiche(uniteDe(p.entite))) &&
+          (!a.ordre || club.canManage || !!uniteDe(a.ordre.comite)?.moiAdmin)
         : a.type === 'dependance'
-          ? (!a.vers || club.canManage) && a.retirer.every((p) => peutFiche(uniteDe(p.entite)))
+          ? (!a.vers || club.canManage) && [...a.retirer, ...a.delier].every((p) => peutFiche(uniteDe(p.entite)))
           : peutFiche(a.de) && peutFiche(a.vers);
   /**
    * Fiches d'entités modifiées (dépendance, ordre des cartes), puis les modifications de l'organigramme qui vont avec
@@ -321,15 +322,20 @@ export function Org() {
   };
   const executer = (a: ActionOrga) => {
     if (a.type === 'ranger') return void changerEntites([[a.comite, { rangement: a.ordre }]], `Cartes de « ${uniteDe(a.comite)?.nom ?? '?'} » rangées`);
-    // Un événement sous un comité : il en dépend, et ses postes liés dans les groupes s'en vont.
-    const retirer = (l: PosteLie[]) => l.map((p): OpOrga => ({ type: 'supprimerPoste', uniteId: p.entite, posteId: p.posteId }));
-    if (a.type === 'dependance') return void changerEntites(a.vers ? [[a.u.id, { dependDe: a.vers }]] : [], a.libelle, retirer(a.retirer));
-    // Où siège le responsable d'un groupe, quel groupe organise un événement : ses nouveaux postes liés, puis les anciens
-    // s'en vont (sa dépendance reste).
+    // Les liens d'avant d'un événement : ses postes liés dans les groupes s'en vont, ceux des comités restent, sans lien.
+    const anciens = (a: { retirer: PosteLie[]; delier: PosteLie[] }) => [
+      ...a.retirer.map((p): OpOrga => ({ type: 'supprimerPoste', uniteId: p.entite, posteId: p.posteId })),
+      ...a.delier.map((p): OpOrga => ({ type: 'lier', uniteId: p.entite, posteId: p.posteId, lien: null })),
+    ];
+    // Un événement sous un comité : il en dépend, tout le comité en est responsable.
+    if (a.type === 'dependance') return void changerEntites(a.vers ? [[a.u.id, { dependDe: a.vers }]] : [], a.libelle, anciens(a));
+    // Où siège le responsable d'un groupe, quel groupe organise un événement, quel poste d'un comité en est responsable :
+    // ses nouveaux postes liés, puis les anciens s'en vont (sa dépendance reste).
     if (a.type === 'liaison')
       return void changerEntites(a.ordre ? [[a.ordre.comite, { rangement: a.ordre.ordre }]] : [], a.libelle, [
         ...a.creer.map((nom): OpOrga => ({ type: 'nouveauPoste', uniteId: a.vers, nom, lien: a.u.id })),
-        ...retirer(a.retirer),
+        ...(a.lier ? [{ type: 'lier', uniteId: a.lier.entite, posteId: a.lier.posteId, lien: a.u.id } satisfies OpOrga] : []),
+        ...anciens(a),
       ]);
     if (a.type === 'etoile')
       return void faire({ type: 'placer', qui: quiDeMembre(a.m), depuis: { uniteId: a.de.id, personId: a.m.id, zone: 'titre' }, vers: { zone: 'titre', uniteId: a.vers.id } });
@@ -406,18 +412,12 @@ export function Org() {
   const admin = (u: OrgUnit) => u.id !== club.current.id && u.moiAdmin && club.mine.some((x) => x.id === u.id);
   const actions = (u: OrgUnit): Actions => {
     const ouverte = u.id === club.current.id;
-    const visit = !ouverte && visitLevel(u, club.central);
     return {
       onPersonne: (m) => setFiche({ unitId: u.id, personId: m.id }),
       onLien: (id) => setLien({ unitId: u.id, id }),
       onAjouter:
         !edition || u.archive ? undefined : ouverte ? (peutAjouter ? () => setAjout(true) : undefined) : admin(u) ? () => club.switchUnit(u.id, `#/organigramme?entite=${u.id}&ajouter=1`) : undefined,
-      ouvrir:
-        ouverte || (!u.moi && !visit)
-          ? undefined
-          : u.moi
-            ? { label: 'Ouvrir', aide: `Ouvrir « ${u.nom} »`, go: () => club.switchUnit(u.id) }
-            : { label: visit === 'lecture' ? '👁 Consulter' : '✏️ Ouvrir', aide: CENTRAL_ACCESS[visit as CentralAccess].aide, go: () => club.switchUnit(u.id) },
+      ouvrir: ouverte || !u.moi ? undefined : { label: 'Ouvrir', aide: `Ouvrir « ${u.nom} »`, go: () => club.switchUnit(u.id) },
       onModifier: edition && (club.canManage || u.moiAdmin) ? () => setEdit({ unit: u }) : undefined,
       cablage: edition && peutCabler && !orga
         ? {
@@ -548,13 +548,11 @@ export function Org() {
           <span>★ titre de la fiche (président, responsable)</span>
           <span><span className="legende-cable" aria-hidden="true" /> ⛓ poste lié au ★ d’une autre entité (même nom) : changer l’un change l’autre</span>
           <span><span className="error">rouge</span> : poste à pourvoir</span>
-          <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
         </p>
       ) : (
         <p className="arbre-legende muted small-note">
           <span>★ responsable</span>
           <span><span className="legende-cable" aria-hidden="true" /> câble : du responsable, dans l’entité mère</span>
-          <span title={CENTRAL_ACCESS.lecture.aide}>👁 / ✏️ le comité central peut consulter / modifier ses tâches</span>
         </p>
       )}
       {archived.length > 0 && (
@@ -941,11 +939,8 @@ function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, 
   const club = useClub();
   const t = UNIT_TYPES[u.type];
   const { lignes, groupes, rangees } = lignesDe(u, club.units);
-  const access = centralAccess(u);
   const ouverte = u.id === club.current.id;
   const cible = cablage?.cible;
-  // L'accès du comité central : déjà dit par « 👁 Consulter » / « ✏️ Ouvrir » quand on le visite à ce titre.
-  const acces = access !== 'aucun' && !(ouvrir && !u.moi);
   const texte = (
     <>
       <span className="arbre-titre">
@@ -958,7 +953,6 @@ function Noeud({ u, onPersonne, onLien, onAjouter, ouvrir, onModifier, cablage, 
       <span className="arbre-meta">
         <span>{u.membres.length} membre{u.membres.length > 1 ? 's' : ''}</span>
         {ouverte && <span className="arbre-ouverte">ouverte</span>}
-        {acces && <span className="arbre-acces" title={`Comité central : ${CENTRAL_ACCESS[access].label.toLowerCase()}`}>{CENTRAL_ACCESS[access].icon}</span>}
         {ouvrir && <span className="arbre-lien">{ouvrir.label} ›</span>}
       </span>
     </>
@@ -1075,10 +1069,8 @@ function UnitModal({
   const reglerTaches = !!unit && !isCentral && (club.canManage || unit.moiAdmin);
   const [taches, setTaches] = useState<TachesDependance>(unit?.tachesDependance ?? 'partagees');
   const nomParent = actives.find((u) => u.id === dependChoisi)?.nom ?? 'Comité central';
-  // Accès du comité central : réglé par les admins de l'entité seulement.
-  const [central, setCentral] = useState<CentralAccess>(unit ? centralAccess(unit) : 'aucun');
-  const ownsAccess = !!unit && !isCentral && unit.moiAdmin;
-  const { update } = useStore();
+  // Un événement auquel aucun poste n'est lié ⛓ : tout le comité en est responsable, toutes ses tâches y sont affichées.
+  const comiteEntier = !!unit && auComiteEntier(club.units, unit);
   const dir = useMemo(() => directory(club.units.filter((u) => !u.archive)), [club.units]);
   const [chefKey, setChefKey] = useState('');
   const [chefNew, setChefNew] = useState({ prenom: '', nom: '', email: '' });
@@ -1117,11 +1109,9 @@ function UnitModal({
         };
         onCreated(await club.createUnit(n), n);
       } else {
-        const access = ownsAccess ? { central } : {};
         const image = logo !== unit.logo ? { logo } : {};
-        const reglage = reglerTaches ? { tachesDependance: taches === 'partagees' ? undefined : taches } : {};
-        await club.updateUnit(unit.id, manage ? { ...base, type, archive, dependDe: lien, ...access, ...image, ...reglage } : { ...base, ...access, ...image, ...reglage });
-        if (ownsAccess && central !== centralAccess(unit) && unit.id === club.current.id) update(() => {}, `Accès du comité central : ${CENTRAL_ACCESS[central].label}`);
+        const reglage = reglerTaches && !comiteEntier ? { tachesDependance: taches === 'partagees' ? undefined : taches } : {};
+        await club.updateUnit(unit.id, manage ? { ...base, type, archive, dependDe: lien, ...image, ...reglage } : { ...base, ...image, ...reglage });
         onClose();
       }
     } catch (e) {
@@ -1155,7 +1145,13 @@ function UnitModal({
             </select>
           </label>
         )}
-        {reglerTaches && (
+        {reglerTaches && comiteEntier && (
+          <p className="full muted small-note">
+            Toutes ses tâches s’affichent dans « {nomParent} » (liste des tâches, ordre du jour, PV) : aucun poste ne lui est lié ⛓, tout le comité en est
+            responsable. Dans l’organigramme, glisse-le sous un poste ou un groupe pour régler ce qu’il y affiche.
+          </p>
+        )}
+        {reglerTaches && !comiteEntier && (
           <label className="full">
             Ses tâches dans « {nomParent} » <small className="muted">(liste des tâches, ordre du jour, PV)</small>
             <select value={taches} onChange={(e) => setTaches(e.target.value as TachesDependance)}>
@@ -1254,13 +1250,6 @@ function UnitModal({
           </>
         )}
 
-        {!isNew && !isCentral && (
-          <div className="full">
-            <span className="field-label">Accès du comité central</span>
-            <CentralAccessChoice name="central-unit" value={central} onChange={setCentral} disabled={!ownsAccess} />
-            {!ownsAccess && <p className="muted small-note">Réglé par les admins (★) de l’entité.</p>}
-          </div>
-        )}
         {!isNew && manage && (
           <label className="full inline">
             <input type="checkbox" checked={archive} onChange={(e) => setArchive(e.target.checked)} />

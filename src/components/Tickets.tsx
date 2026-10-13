@@ -587,7 +587,7 @@ const AUTRE = '__autre__';
 
 /** Nouvelle demande (remboursement ou paiement de facture) ou modification, tant que la caisse ne l'a pas fait viser. */
 export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticket; type?: GenreTicket; onClose: () => void; onEnvoye?: () => void }) {
-  const { data, user, update, guest, cloud, setToast } = useStore();
+  const { data, user, update, cloud, setToast } = useStore();
   const club = useClubOptional();
   const genreT: GenreTicket = ticket ? genreDe(ticket.paiement) : (type ?? 'remboursement');
   const facture = genreT === 'facture';
@@ -595,7 +595,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
   // Caisse destinataire : celle de l'entité ouverte, celle d'une autre entité dont on est membre (le ticket y est créé),
   // ou la caisse centrale pour qui n'est pas du comité central ; seulement là où un caissier est désigné.
   const nomsCaisse = caissiers(data).map((p) => fullName(p));
-  const ici = !guest && nomsCaisse.length > 0;
+  const ici = nomsCaisse.length > 0;
   const autres = club && !ticket ? club.mine.filter((u) => u.id !== club.current.id && u.membres.some((m) => m.caisse)) : [];
   const central = club?.central;
   const centrale = !ticket && !!central && !central.moi && central.id !== club?.current.id && central.membres.some((m) => m.caisse);
@@ -714,7 +714,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
       ? `Caisse centrale (${central!.nom}) : ${caisseCentrale.join(', ')}. Tu en suivras l’état dans « Mes tâches » (Envoyés à la caisse centrale).`
       : ici
         ? `${club ? `Caisse ${club.current.nom}` : 'Caisse'} : ${nomsCaisse.join(', ')}.`
-        : `${guest ? 'Tu consultes cette entité en visiteur.' : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans la fiche de la personne : organigramme, clic sur son nom).`} ${
+        : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans la fiche de la personne : organigramme, clic sur son nom). ${
             choix ? 'Envoie ta demande à l’une des caisses proposées.' : 'Aucune caisse ne peut recevoir ta demande pour l’instant.'
           }`;
 

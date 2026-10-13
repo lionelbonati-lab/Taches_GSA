@@ -9,9 +9,9 @@ import type { AppData, OrgMember, OrgUnit, Person, Section, Status, TachePartage
 //   - sinon : sous la section qui porte le nom de l'entité (« École de cyclisme »…) ;
 //   - à défaut : sous une section au nom de l'entité, ajoutée à l'affichage (rien n'est enregistré) ;
 // sauf si l'entité lui choisit une autre section.
-// L'entité dont une autre dépend (« Dépend de » : un comité, ou le groupe qui organise un événement) affiche de ses
-// tâches ce que celle-ci a choisi (tachesDependance) : toutes, seulement celles partagées avec elle, ou aucune (même
-// partagées). Les autres entités : celles partagées avec elles.
+// Le comité dont une autre entité dépend (« Dépend de ») affiche de ses tâches ce que celle-ci a choisi
+// (tachesDependance) : toutes, seulement celles partagées avec lui, ou aucune (même partagées) ; un événement dont tout
+// le comité est responsable (aucun poste ne lui est lié ⛓) : toutes. Les autres entités : celles partagées avec elles.
 
 /** Identifiants affichés des tâches partagées et des sections ajoutées pour elles (jamais enregistrés). */
 export const estPartagee = (id: string) => id.startsWith('x:');
@@ -46,14 +46,14 @@ export const TACHES_DEPENDANCE: Record<TachesDependance, { label: string; aide: 
 
 /**
  * La tâche `t` de l'entité `u` s'affiche-t-elle dans l'entité `moi` (sa liste des tâches, son ordre du jour, son PV) ?
- * `parent` : l'entité dont `u` dépend (parentDans). Jamais les tickets (remboursements, factures).
+ * `parent` : l'entité dont `u` dépend (parentDans) ; `reglage` : ce qu'elle y affiche (reglageTaches). Jamais les
+ * tickets (remboursements, factures).
  */
-export function visibleDans(t: Pick<Task, 'partage' | 'auCentral' | 'paiement'>, u: Pick<Unit, 'parentId' | 'tachesDependance'>, parent: string | undefined, moi: string): boolean {
+export function visibleDans(t: Pick<Task, 'partage' | 'auCentral' | 'paiement'>, u: Pick<Unit, 'parentId'>, parent: string | undefined, moi: string, reglage: TachesDependance): boolean {
   if (t.paiement) return false;
   const partagee = partageDe(t, u.parentId).includes(moi);
   if (parent !== moi) return partagee;
-  const r = u.tachesDependance ?? 'partagees';
-  return r === 'toutes' || (r === 'partagees' && partagee);
+  return reglage === 'toutes' || (reglage === 'partagees' && partagee);
 }
 
 type SectionLue = Pick<Section, 'id' | 'nom'> & { sousSections?: string[] };

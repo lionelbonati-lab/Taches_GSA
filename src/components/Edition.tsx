@@ -13,11 +13,11 @@ export const hasEdition = (u?: OrgUnit | null) => u?.type === 'sous-comite' || u
 
 export function EditionCard() {
   const club = useClubOptional();
-  const { can, guest } = useStore();
+  const { can } = useStore();
   const [open, setOpen] = useState(false);
   if (!club || !hasEdition(club.current)) return null;
   const u = club.current;
-  const allowed = club.canManage || (!guest && (u.moiAdmin || can('events.manage')));
+  const allowed = club.canManage || u.moiAdmin || can('events.manage');
   if (!u.date && !allowed) return null;
   const fin = u.date ? endOf({ date: u.date, dateFin: u.dateFin }) : '';
   const passee = !!u.date && fin < today();
@@ -42,12 +42,12 @@ export function EditionCard() {
 
 function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void }) {
   const club = useClubOptional()!;
-  const { data, can, update, guest } = useStore();
+  const { data, can, update } = useStore();
   const [debut, setDebut] = useState(unit.date ?? '');
   const [fin, setFin] = useState(unit.dateFin ?? '');
   // Événement de l'agenda à déplacer aussi : celui de l'édition actuelle si elle est encore à venir (report).
   const events = [...data.events].sort((a, b) => a.date.localeCompare(b.date));
-  const moveable = can('events.manage') && (!guest || guest.niveau === 'ecriture');
+  const moveable = can('events.manage');
   const auto = unit.date && endOf({ date: unit.date, dateFin: unit.dateFin }) >= today() ? events.find((e) => e.date === unit.date) : undefined;
   const [ev, setEv] = useState(auto?.id ?? '');
   const [busy, setBusy] = useState(false);
@@ -65,7 +65,7 @@ function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void })
       const e = data.events.find((x) => x.id === ev);
       const quand = fmtRange(debut, dateFin);
       if (e && moveable) update((d) => { d.events = d.events.map((x) => (x.id === e.id ? { ...x, date: debut, dateFin } : x)); }, `Prochaine édition le ${quand} (événement « ${e.nom} » déplacé)`);
-      else if (!guest) update(() => {}, `Prochaine édition le ${quand}`);
+      else update(() => {}, `Prochaine édition le ${quand}`);
       onClose();
     } catch (x) {
       setErr((x as Error).message);

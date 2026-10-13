@@ -43,9 +43,9 @@ const write = (key: string, v: unknown) => {
 
 const SEED_UNITS: Unit[] = [
   { id: CENTRAL_ID, nom: 'Comité central', type: 'central', couleur: '#1d4ed8', description: 'Direction du club.' },
-  { id: 'u-ecole', nom: 'École de cyclisme', type: 'groupe', parentId: CENTRAL_ID, couleur: '#059669', description: 'Entraînements et camps des jeunes, avec les moniteurs.', central: 'lecture' },
+  { id: 'u-ecole', nom: 'École de cyclisme', type: 'groupe', parentId: CENTRAL_ID, couleur: '#059669', description: 'Entraînements et camps des jeunes, avec les moniteurs.' },
   { id: 'u-competition', nom: 'Groupe compétition', type: 'groupe', parentId: CENTRAL_ID, couleur: '#ea580c', description: 'Coureurs licenciés, calendrier des courses et entraîneurs.' },
-  { id: 'u-bruntrutaine', nom: 'CO Bruntrutaine', type: 'sous-comite', parentId: CENTRAL_ID, couleur: '#7c3aed', date: '2027-02-27', description: 'Comité d’organisation de la Bruntrutaine.', central: 'ecriture' },
+  { id: 'u-bruntrutaine', nom: 'CO Bruntrutaine', type: 'sous-comite', parentId: CENTRAL_ID, couleur: '#7c3aed', date: '2027-02-27', description: 'Comité d’organisation de la Bruntrutaine.' },
   { id: 'u-soiree', nom: 'Soirée récréative', type: 'equipe', parentId: CENTRAL_ID, couleur: '#db2777', date: '2026-11-28', description: 'Équipe de la soirée du club (sans comité).' },
 ];
 
@@ -133,8 +133,6 @@ function seedUnit(u: Unit): AppData {
  */
 const DEMO_VERSION = '6';
 const VERSION_KEY = 'taches-gsa-demo-version';
-/** Démo v2 déjà enregistrée : accès du comité central des entités de départ ajouté une fois (sans remise à zéro). */
-const ACCESS_KEY = 'taches-gsa-demo-acces-central';
 
 function checkVersion() {
   try {
@@ -153,18 +151,7 @@ function checkVersion() {
 export function loadUnits(): Unit[] {
   checkVersion();
   const saved = read<Unit[]>(CLUB_KEY);
-  if (saved?.length) {
-    if (!read(ACCESS_KEY)) {
-      saved.forEach((u) => {
-        const seed = SEED_UNITS.find((x) => x.id === u.id);
-        if (seed?.central && !u.central) u.central = seed.central;
-      });
-      write(CLUB_KEY, saved);
-      write(ACCESS_KEY, 1);
-    }
-    return saved;
-  }
-  write(ACCESS_KEY, 1);
+  if (saved?.length) return saved;
   for (const u of SEED_UNITS) if (u.type !== 'central' && !read(unitStorageKey(u.id))) write(unitStorageKey(u.id), seedUnit(u));
   write(CLUB_KEY, SEED_UNITS);
   return structuredClone(SEED_UNITS);

@@ -7,10 +7,8 @@ import { fmtDateTime, fullName, uid } from '../data/utils';
 import { Modal } from '../components/ui';
 import { useClubOptional } from '../data/club';
 import { ImportsEntite } from '../components/ImportsEntite';
-import { CentralAccessPanel } from '../components/CentralAccess';
 import { LogoPanel } from '../components/LogoPanel';
 import { PageIntro } from '../components/Nav';
-import { CENTRAL_ACCESS, centralAccess } from '../data/units';
 import { COULEURS_APPLI } from '../data/couleur';
 import { EnteteReglage } from '../components/Entete';
 import { defaultTexte, enteteDe, enteteRegle } from '../data/entete';
@@ -24,7 +22,7 @@ export function Admin() {
   const club = useClubOptional();
   const u = club?.current;
   const central = !u || u.type === 'central';
-  // Sous-comité, groupe ou équipe : ce que le comité central peut faire de ses données.
+  // Sous-comité, groupe ou équipe : couleur héritée du comité central.
   const sub = !!u && !central;
   // Personnes de l'entité : dans l'organigramme du club (menu des entités, en haut à gauche).
   const personnes = !!club;
@@ -38,16 +36,10 @@ export function Admin() {
       id: 'droits',
       icon: '🔑',
       titre: 'Rôles et droits',
-      carte: `Ce que chaque rôle (Secrétaire, Caissier…) permet de voir et de faire${sub ? ', et l’accès du comité central' : ''}.`,
-      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ' (organigramme du club : clic sur son nom)' : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.${sub ? ' Et ce que le comité central peut faire des données de l’entité.' : ''}`,
-      resume: `${data.roles.length} rôles${u && sub ? ` · comité central : ${CENTRAL_ACCESS[centralAccess(u)].label.toLowerCase()}` : ''}`,
-      contenu: (
-        <>
-          {sub && <CentralAccessPanel />}
-          {sub && <h2>Rôles de l’entité</h2>}
-          <Roles />
-        </>
-      ),
+      carte: 'Ce que chaque rôle (Secrétaire, Caissier…) permet de voir et de faire.',
+      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ' (organigramme du club : clic sur son nom)' : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.`,
+      resume: `${data.roles.length} rôles`,
+      contenu: <Roles />,
     },
     {
       id: 'taches',
