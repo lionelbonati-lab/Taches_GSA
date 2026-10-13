@@ -489,7 +489,7 @@ export function Org() {
         <p className="org-edition">
           <b>✏️ Modification</b>
           <span>Glisse une carte (un poste, un groupe, un événement) sur un comité, un groupe ou une autre carte : ce qui se passera s’affiche avant de la lâcher. Au doigt, ou sans glisser : sa poignée ⠿ › « Déplacer… ».</span>
-          <span>Un groupe glissé dans un autre comité : son responsable y siège (poste lié ⛓) ; dans « Sans comité » : il ne siège dans aucun. Un événement glissé sur un groupe : un poste du groupe lui est lié (il l’organise) ; sous un comité : il en dépend. Le comité dont dépend un groupe ou un événement (ses tâches, son ordre du jour) se choisit dans ⚙️ « Dépend de ». Dans son cadre, une carte se range.</span>
+          <span>Un groupe glissé dans un autre comité : son responsable y siège (poste lié ⛓) ; dans « Sans comité » : il ne siège dans aucun. Un événement glissé sur un groupe : un poste du groupe lui est lié (il l’organise) ; sur un poste d’un comité : ce poste lui est lié ; dans le cadre d’un comité : il en dépend, tout le comité en est responsable. Le comité dont dépend un groupe ou un événement (ses tâches, son ordre du jour) se choisit dans ⚙️ « Dépend de ». Dans son cadre, une carte se range.</span>
           <span>Pour changer quelqu’un de poste : glisse son nom sur l’autre poste, un ★ ou des bénévoles (Ctrl : il garde aussi le sien ; sur un cadre : un nouveau poste). Au doigt : touche son nom › « ✋ Déplacer ». Quelqu’un d’autre : cherche-le en haut à gauche.</span>
           <span>« ＋ Poste » dans un comité, un groupe ou un événement ; un clic sur le nom d’un poste : le renommer, le libérer, le supprimer.</span>
         </p>
