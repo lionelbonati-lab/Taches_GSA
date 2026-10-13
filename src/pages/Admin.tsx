@@ -4,6 +4,7 @@ import { useStore } from '../data/store';
 import { PERMISSIONS, PERMISSION_GROUPS } from '../data/permissions';
 import type { Permission, Role } from '../data/types';
 import { fmtDateTime, fullName, uid } from '../data/utils';
+import { EXTERNE_COULEUR, EXTERNE_PERMS } from '../data/units';
 import { Modal } from '../components/ui';
 import { useClubOptional } from '../data/club';
 import { ImportsEntite } from '../components/ImportsEntite';
@@ -196,15 +197,18 @@ function Roles() {
           </tbody>
         </table>
       </div>
-      <p className="muted">¹ Ces droits ne s’appliquent qu’aux sections du rôle. Chacun voit et modifie toujours les tâches dont il est responsable (selon « ses propres tâches »). Les changements s’appliquent immédiatement : change d’utilisateur pour tester. Le rôle Admin est verrouillé.</p>
+      <p className="muted">¹ Ces droits ne s’appliquent qu’aux sections du rôle. Chacun voit et modifie toujours les tâches dont il est responsable ou qu’il a créées (selon « ses propres tâches »). Sans « Voir toutes les tâches » (bénévole, externe…), il ne reçoit que celles-là : le serveur ne lui envoie pas les autres. Les tickets (remboursements, factures) ne sont vus que de la caisse, de leur demandeur, de la personne qui vise et des admins, même avec « Voir toutes les tâches ». Les changements s’appliquent immédiatement : change d’utilisateur pour tester. Le rôle Admin est verrouillé.</p>
 
       {creating && (
         <NewRole
           onClose={() => setCreating(false)}
           onCreate={(label, base) => {
             const src = data.roles.find((r) => r.id === base);
-            const role: Role = { id: uid('r'), label, couleur: '#0f766e', permissions: src ? [...src.permissions].filter((p) => p !== 'admin.access') : [], sections: src ? [...src.sections] : [] };
-            update((d) => { d.roles.push(role); }, `Création du rôle « ${label} »${src ? ` (copie de ${src.label})` : ''}`);
+            const modele = base === MODELE_EXTERNE;
+            const role: Role = modele
+              ? { id: uid('r'), label, couleur: EXTERNE_COULEUR, permissions: [...EXTERNE_PERMS], sections: [] }
+              : { id: uid('r'), label, couleur: '#0f766e', permissions: src ? [...src.permissions].filter((p) => p !== 'admin.access') : [], sections: src ? [...src.sections] : [] };
+            update((d) => { d.roles.push(role); }, `Création du rôle « ${label} »${modele ? ' (modèle Externe)' : src ? ` (copie de ${src.label})` : ''}`);
             setCreating(false);
           }}
         />
@@ -213,6 +217,9 @@ function Roles() {
     </>
   );
 }
+
+/** « Droits de départ » d'un nouveau rôle : le modèle Externe (voir EXTERNE_PERMS). */
+const MODELE_EXTERNE = '@externe';
 
 function NewRole({ onClose, onCreate }: { onClose: () => void; onCreate: (label: string, base: string) => void }) {
   const { dataLocale: data } = useStore();
@@ -228,8 +235,15 @@ function NewRole({ onClose, onCreate }: { onClose: () => void; onCreate: (label:
         </label>
         <label className="full">
           Droits de départ
-          <select value={base} onChange={(e) => setBase(e.target.value)}>
+          <select
+            value={base}
+            onChange={(e) => {
+              setBase(e.target.value);
+              if (e.target.value === MODELE_EXTERNE && !label.trim()) setLabel('Externe');
+            }}
+          >
             <option value="">Aucun droit (à cocher ensuite)</option>
+            <option value={MODELE_EXTERNE}>Modèle « Externe » : seulement les tâches qui lui sont attribuées</option>
             {data.roles.map((r) => <option key={r.id} value={r.id}>Copie de « {r.label} »</option>)}
           </select>
         </label>

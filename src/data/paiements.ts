@@ -54,7 +54,8 @@ export const holders = (data: AppData, perm: 'paiements.valider' | 'paiements.pa
 
 /**
  * Personnes qui peuvent ouvrir une demande : la caisse, le demandeur et les responsables de l'étape en cours
- * (la personne qui doit viser, tant que le visa est demandé). Les autres la voient dans la liste sans l'ouvrir.
+ * (la personne qui doit viser, tant que le visa est demandé). La personne qui a visé et les admins la voient
+ * dans la liste sans l'ouvrir ; les autres ne la voient pas (canSeeTask, migration 029).
  */
 export const peutOuvrirTicket = (data: AppData, t: Task, userId?: string) =>
   !!userId && !!t.paiement && (holders(data, 'paiements.payer').includes(userId) || t.paiement.demandePar === userId || t.responsables.includes(userId));

@@ -250,7 +250,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     if (!cloud) return;
     const { sync } = cloud;
     sync.onRejected = async (message, rows) => {
-      setToast(`⚠️ Modification refusée par le serveur : ${message}`);
+      // Règle d'accès du serveur : élément d'un autre (ex. tâche confiée à quelqu'un d'autre entre-temps).
+      const motif = /row-level security/i.test(message) ? 'tu n’as pas (ou plus) accès à cet élément' : message;
+      setToast(`⚠️ Modification refusée par le serveur : ${motif}`);
       const fresh = await sync.fetchRows(rows);
       if (fresh.some((r) => r.kind === 'people')) distant.current = true;
       setData((prev) => applyRows(prev, fresh, sync.posOf));
@@ -647,9 +649,14 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     user,
     myRoles,
     can,
-    // Remboursements et paiements : vus aussi de leur demandeur et de la caisse.
-    canSeeTask: (t) =>
-      (!!user && (t.responsables.includes(user.id) || t.paiement?.demandePar === user.id)) || can('tasks.viewAll', t.sectionId) || (!!t.paiement && can('paiements.payer')),
+    // Comme le serveur (migration 029) : ses tâches (responsable, créées par soi) et celles des sections « Voir toutes » ;
+    // les tickets (remboursements, factures) à part : la caisse, le demandeur et la personne qui vise (ou a visé).
+    canSeeTask: (t) => {
+      if (isOwn(t)) return true;
+      const p = t.paiement;
+      if (!p) return can('tasks.viewAll', t.sectionId);
+      return (!!user && [p.demandePar, p.visa?.a, p.validation?.par].includes(user.id)) || can('paiements.payer');
+    },
     canEditTask: (t) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t)),
     canDeleteTask: (t) => !t.source && can('tasks.delete', t.sectionId),
     autresResp: (t) => (moi && units ? texteAutres(autresResponsables(t, moi, data.people, units)) : ''),

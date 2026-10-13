@@ -141,24 +141,30 @@ const HELPER_PERMS: Permission[] = ['tasks.editOwn', 'tab.events', 'tab.people']
 const CAISSE_PERMS: Permission[] = [...MEMBER_PERMS, 'paiements.payer'];
 /** Membre d'un comité d'organisation (sous-comité) : gère aussi les événements, dont la date de la prochaine édition. */
 const CO_PERMS: Permission[] = [...MEMBER_PERMS, 'events.manage'];
+/** Externe (prestataire, aide ponctuelle…) : seulement les tâches qui lui sont attribuées, sans les coordonnées des membres. */
+export const EXTERNE_PERMS: Permission[] = ['tasks.editOwn'];
+export const EXTERNE_COULEUR = '#64748b';
 
 /** Rôles de départ d'une nouvelle entité (modifiables ensuite dans sa console admin). */
 export function unitRoles(type: UnitType): Role[] {
   const admin = (label: string): Role => ({ id: ADMIN_ROLE_ID, label, couleur: '#b45309', permissions: ALL_PERMISSIONS, sections: [], locked: true });
   const role = (id: string, label: string, couleur: string, permissions: Permission[]): Role => ({ id, label, couleur, permissions, sections: [] });
+  const externe = role('externe', 'Externe', EXTERNE_COULEUR, EXTERNE_PERMS);
   if (type === 'groupe')
     return [
       admin('Admin (Responsable du groupe)'),
       role('moniteur', 'Moniteur', '#1d4ed8', MEMBER_PERMS),
       role('caissier', 'Caissier', '#047857', CAISSE_PERMS),
       role('membre', 'Membre du groupe', '#9333ea', HELPER_PERMS),
+      externe,
     ];
-  if (type === 'equipe') return [admin('Admin (Responsable)'), role('membre', 'Membre de l’équipe', '#1d4ed8', MEMBER_PERMS), role('caissier', 'Caissier', '#047857', CAISSE_PERMS)];
+  if (type === 'equipe') return [admin('Admin (Responsable)'), role('membre', 'Membre de l’équipe', '#1d4ed8', MEMBER_PERMS), role('caissier', 'Caissier', '#047857', CAISSE_PERMS), externe];
   return [
     admin('Admin (Président du comité)'),
     role('membre', 'Membre du comité', '#1d4ed8', CO_PERMS),
     role('caissier', 'Caissier', '#047857', [...CO_PERMS, 'paiements.payer']),
     role('benevole', 'Bénévole', '#9333ea', HELPER_PERMS),
+    externe,
   ];
 }
 

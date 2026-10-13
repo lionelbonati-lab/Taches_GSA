@@ -124,6 +124,16 @@ Aucune donnée existante modifiée ; sans réglage, rien ne change, sauf pour un
 
 `supabase/migrations/028_gsa_fermer_acces_central.sql` (appliquée le 13.10.2026) : **accès du comité central fermé**. `gsa_acces_central` (006) ne donne plus aucun accès : seuls les membres d'une entité lisent et modifient ses données et ses fichiers ; le comité dont elle dépend voit ses tâches par la migration 027. Aucune donnée modifiée (les valeurs `info.central` restent, sans effet). Retour en arrière : relancer la définition de `gsa_acces_central` de la migration 006.
 
+`supabase/migrations/029_gsa_externes_finances.sql` (à appliquer) : **le serveur n'envoie à chacun que les tâches qu'il peut voir** (externes, bénévoles, finances). Jusqu'ici, tout membre recevait toutes les données de l'entité et l'appli cachait le reste.
+
+- `gsa_items` (règles `gsa_items_select` et `gsa_items_update`, fonction `gsa_ligne_lisible`) : pour les membres de l'entité, les tâches lisibles (`gsa_tache_lisible`) : admins, responsables, la personne qui l'a créée, rôles « Voir toutes les tâches » qui couvrent sa section (`gsa_a_droit_section` : rôle sans section = toutes). Les **tickets** (tâche avec `paiement`), à part : la caisse (`paiements.payer`), le demandeur, la personne à qui le visa est demandé ou qui l'a visé, responsables, auteur, admins — « Voir toutes les tâches » ne suffit pas. Emails programmés : ceux des tâches lisibles et les siens ; notifications : reçues ou envoyées ; journal : `admin.access` et ses propres entrées. Le reste (séances, événements, personnes, sondages, réglages…) : tous les membres, comme avant.
+- Écriture : on ne modifie que ce qu'on peut lire ; une ligne qu'on vient d'écrire reste lisible pendant cette écriture (`updated_by`, `updated_at` posés par `gsa_items_guard`), sinon un upsert qui confie une tâche à quelqu'un d'autre serait refusé. Ajout : comme avant (membres).
+- Fichiers (`gsa_file_reader`, règles `gsa_fichiers_update` et `gsa_fichiers_delete`) : un fichier joint à des tâches (`documents`, visa signé compris) ne se lit, ne se remplace et ne se supprime que si l'une d'elles est lisible ; les autres fichiers : membres de l'entité.
+- Tâches des autres entités (`gsa_taches_partagees`, `gsa_modifier_tache_partagee`, ancienne `gsa_taches_transmises`) : admins et « Voir toutes les tâches » de l'entité qui les reçoit ; sinon celles dont on est responsable (`gsa_partagee_lisible` : même fiche du registre des membres du club ou même email, comme l'appli).
+- Coût : environ 0,4 ms par tâche, entrée du journal ou notification au chargement (≈ 0,2 s avec les volumes actuels).
+
+Aucune donnée modifiée. Retour en arrière : relancer les règles et fonctions de 003, 006, 018 et 027.
+
 Organigramme par postes (sans migration : deux clés de plus dans `committees.info`, enregistrées comme la couleur) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se place par les postes liés ⛓, pas par cette clé (voir le README).

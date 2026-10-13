@@ -1,6 +1,7 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import type { AppData, Role } from './types';
 import { COMPTA_SECTION, events, meetings, people, sections, statuses } from './seedData';
+import { EXTERNE_COULEUR, EXTERNE_PERMS } from './units';
 
 // Données de départ de la démo (voir seedData.ts) : postes, rôles, sections, séances et événements du club, sans tâches.
 
@@ -11,6 +12,7 @@ const roles: Role[] = [
   // Exemples de rôles ajoutés : droits limités à une section, ou à ses propres tâches.
   { id: 'caissier', label: 'Caissier', couleur: '#047857', permissions: ['tasks.viewAll', 'tasks.createAny', 'tasks.editAny', 'tasks.editOwn', 'paiements.payer'], sections: [COMPTA_SECTION] },
   { id: 'responsable', label: 'Responsable d’activité', couleur: '#9333ea', permissions: ['tasks.editOwn', 'tab.events', 'tab.people'], sections: [] },
+  { id: 'externe', label: 'Externe', couleur: EXTERNE_COULEUR, permissions: [...EXTERNE_PERMS], sections: [] },
 ];
 
 export function makeSeed(): AppData {
