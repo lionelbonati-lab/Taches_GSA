@@ -17,6 +17,9 @@ import { uid } from './utils';
 // son titulaire en est ★ ; changer l'un change l'autre (synchroniser). Le lien se fait tout seul par le nom (un poste
 // qui porte le nom d'une entité), et se corrige dans les réglages du poste. Plusieurs postes d'une entité liés à la
 // même (ex. deux « Compétition » au comité central) : autant de co-responsables, un poste lié chacun.
+// Un poste à plusieurs (ex. deux caissiers) : autant de postes du même nom et du même lien, un par titulaire (memePoste) ;
+// l'organigramme par postes les montre sur une seule carte. On y ajoute quelqu'un « avec » les autres (vers 'avec' : une
+// place à pourvoir du poste, sinon une nouvelle) ; qui le quitte emporte sa place, sauf le dernier (le poste reste).
 // Une personne n'a qu'une ligne par fiche : un ★ sur la sienne dans le titre (avec ses postes), un responsable sur une
 // ligne avec tous ses postes.
 // Les fonctions des fiches (poste, autres postes) restent à jour : le reste de l'appli les lit comme avant.
@@ -35,6 +38,12 @@ const sansUne = (l: string[], nom: string) => {
 };
 
 export const estEtoile = (p: Pick<Person, 'actif' | 'roles'>) => p.actif && p.roles.includes(ADMIN_ROLE_ID);
+/** Même poste (un poste à plusieurs) : même nom, même lien. */
+export const memePoste = (a: Pick<Poste, 'nom' | 'lien'>, b: Pick<Poste, 'nom' | 'lien'>) => cle(a.nom) === cle(b.nom) && (a.lien ?? '') === (b.lien ?? '');
+/** Les places du poste `po` (lui compris), dans l'ordre de la fiche. */
+export const placesDu = (postes: Poste[], po: Poste) => postes.filter((x) => memePoste(x, po));
+/** « Alice », « Alice et Bob », « Alice, Bob et Carla ». */
+export const et = (l: string[]) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} et ${l[l.length - 1]}` : (l[0] ?? ''));
 export const nomDe = (p: { prenom: string; nom: string; email?: string; poste?: string }) => `${p.prenom} ${p.nom}`.trim() || p.poste?.trim() || p.email || '?';
 /** Même personne d'une entité à l'autre : même fiche du registre, ou même adresse. */
 export const memeQui = (a: { membreId?: string; email?: string }, b: { membreId?: string; email?: string }) =>
@@ -222,11 +231,15 @@ export interface Depuis {
   zone: Zone;
   posteId?: string;
 }
-/** Où on la pose : titre (★ en plus), à la place d'un ★, sur un poste, dans un nouveau poste, dans les bénévoles, ou à la corbeille. */
+/**
+ * Où on la pose : titre (★ en plus), à la place d'un ★, sur un poste (à la place de son titulaire), avec les titulaires
+ * d'un poste (un poste à plusieurs), dans un nouveau poste, dans les bénévoles, ou à la corbeille.
+ */
 export type Vers =
   | { zone: 'titre'; uniteId: string }
   | { zone: 'etoile'; uniteId: string; personId: string }
   | { zone: 'poste'; uniteId: string; posteId: string }
+  | { zone: 'avec'; uniteId: string; posteId: string }
   | { zone: 'nouveau'; uniteId: string; nom: string }
   | { zone: 'benevoles'; uniteId: string }
   | { zone: 'corbeille' };
@@ -476,6 +489,11 @@ function placer(m: Monde, qui: Qui, depuis: Depuis | undefined, vers: Vers): str
     if (vers.zone === depuis.zone && (vers.zone !== 'poste' || vers.posteId === depuis.posteId)) return '';
     if (vers.zone === 'etoile' && depuis.zone === 'titre' && vers.personId === depuis.personId) return '';
     if (vers.zone === 'poste' && depuis.zone === 'titre' && entite(m, vers.uniteId).postes.find((x) => x.id === vers.posteId)?.titulaire === depuis.personId) return '';
+    if (vers.zone === 'avec') {
+      const l = entite(m, vers.uniteId).postes;
+      const po = l.find((x) => x.id === vers.posteId);
+      if (po && placesDu(l, po).some((x) => x.titulaire === depuis.personId)) return '';
+    }
   }
   let p: Person | undefined;
   let quitte = '';
@@ -494,6 +512,14 @@ function placer(m: Monde, qui: Qui, depuis: Depuis | undefined, vers: Vers): str
       quitte = A.u.nom;
     }
     synchroniser(m, avant);
+    // Un poste à plusieurs : sa place s'en va, les autres titulaires gardent le poste (la première place reste : le
+    // titulaire suivant y passe, la carte du poste garde son rang).
+    const suivante = po && !po.titulaire ? A.postes.find((y) => y !== po && y.titulaire && memePoste(y, po)) : undefined;
+    if (po && suivante) {
+      const premiere = A.postes.find((y) => memePoste(y, po)) === po;
+      if (premiere) po.titulaire = suivante.titulaire;
+      A.postes.splice(A.postes.indexOf(premiere ? suivante : po), 1);
+    }
     if (vers.zone === 'corbeille') return quitte ? `${nomDe(x)} retiré de « ${A.u.nom} »` : `${nomDe(x)} n’est plus ${quoi} de « ${A.u.nom} »`;
   }
   if (vers.zone === 'corbeille') return '';
@@ -521,6 +547,28 @@ function placer(m: Monde, qui: Qui, depuis: Depuis | undefined, vers: Vers): str
     const ancien = donnerPoste(B.d, po, p);
     if (ancien) liberer(B.d, ancien);
     msg = `${nom} : ${po.nom} de « ${B.u.nom} »${ancien ? ` à la place de ${nomDe(ancien)}` : ''}`;
+  } else if (vers.zone === 'avec') {
+    // Avec les titulaires du poste : une place à pourvoir du poste, sinon une nouvelle (même nom, même lien) à la suite.
+    const po = B.postes.find((y) => y.id === vers.posteId);
+    if (!po) throw new Error('Ce poste n’existe plus.');
+    const places = placesDu(B.postes, po);
+    const avec = places.flatMap((y) => {
+      const t = y.titulaire && y.titulaire !== p!.id ? B.d.people.find((z) => z.id === y.titulaire && z.actif) : undefined;
+      return t ? [nomDe(t)] : [];
+    });
+    if (places.some((y) => y.titulaire === p!.id)) msg = `${nom} est déjà ${po.nom} de « ${B.u.nom} »`;
+    else {
+      let x = places.find((y) => !y.titulaire);
+      if (!x) {
+        x = { id: uid('po'), nom: po.nom, ...(po.lien ? { lien: po.lien } : {}) };
+        B.postes.splice(B.postes.indexOf(places[places.length - 1]) + 1, 0, x);
+      }
+      // La nouvelle place liée ⛓ : son titulaire devient ★ (co-responsable) de l'entité liée.
+      const lies = etatLiens(m);
+      donnerPoste(B.d, x, p);
+      synchroniser(m, lies);
+      msg = `${nom} : ${po.nom} de « ${B.u.nom} »${avec.length ? `, avec ${et(avec)}` : ''}`;
+    }
   } else if (vers.zone === 'nouveau') {
     const n = vers.nom.trim();
     if (!n) throw new Error('Donne un nom au poste.');
@@ -617,6 +665,8 @@ export function appliquer(m: Monde, op: OpOrga): string {
       return `Nouveau poste « ${n} » dans « ${A.u.nom} »${po.titulaire ? '' : ' : à pourvoir'}`;
     }
     const po = A.postes.find((x) => x.id === op.posteId);
+    // Déjà supprimé (la place d'un poste à plusieurs s'en va avec son titulaire) : rien à faire.
+    if (!po && op.type === 'supprimerPoste') return '';
     if (!po) throw new Error('Ce poste n’existe plus.');
     if (op.type === 'renommer') {
       const n = op.nom.trim();

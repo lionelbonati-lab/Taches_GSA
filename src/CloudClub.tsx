@@ -215,6 +215,10 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
                   }
                 },
               };
+            } catch (e) {
+              if (op.type === 'placer' && op.vers.zone === 'avec' && (e as Error).message === 'Modification invalide.')
+                throw new Error('Le serveur ne sait pas encore mettre plusieurs personnes sur un poste : la fonction « gsa-acces » doit d’abord être mise à jour.');
+              throw e;
             } finally {
               refresh();
             }

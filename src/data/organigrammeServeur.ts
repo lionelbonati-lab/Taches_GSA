@@ -196,7 +196,7 @@ export function lireOp(x: unknown): OpOrga {
       if (v.zone === 'corbeille') vers = { zone: 'corbeille' };
       else if (v.zone === 'titre' || v.zone === 'benevoles') vers = { zone: v.zone, uniteId: s(v.uniteId) };
       else if (v.zone === 'etoile') vers = { zone: 'etoile', uniteId: s(v.uniteId), personId: s(v.personId) };
-      else if (v.zone === 'poste') vers = { zone: 'poste', uniteId: s(v.uniteId), posteId: s(v.posteId) };
+      else if (v.zone === 'poste' || v.zone === 'avec') vers = { zone: v.zone, uniteId: s(v.uniteId), posteId: s(v.posteId) };
       else if (v.zone === 'nouveau') vers = { zone: 'nouveau', uniteId: s(v.uniteId), nom: s(v.nom) };
       else throw new Error('Modification invalide.');
       return { type: 'placer', qui, depuis, vers };

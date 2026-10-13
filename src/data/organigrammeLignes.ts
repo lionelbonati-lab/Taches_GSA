@@ -1,11 +1,11 @@
 import type { OrgMember, OrgUnit, Poste } from './types';
 import { parentDans, UNIT_TYPES } from './units';
 import { emailKey } from './membres';
-import { fonctionsDe, nomDe, zonesFiche } from './organigramme';
+import { fonctionsDe, nomDe, placesDu, zonesFiche } from './organigramme';
 
 // Organigramme par postes, en trois lignes, construit tout seul à partir des fiches des entités :
 //  1. les comités (comité central, sous-comités), chacun dans un cadre relié aux autres : une carte par poste (le poste
-//     en titre, le nom dessous) et une carte par groupe dont le responsable siège au comité (un poste du comité lié ⛓
+//     en titre, le nom dessous ; un poste à plusieurs : tous ses titulaires) et une carte par groupe dont le responsable siège au comité (un poste du comité lié ⛓
 //     au groupe) ; à droite, « Sans comité » : les groupes dont le responsable ne siège dans aucun comité ;
 //  2. les groupes, chacun sous sa carte : ses postes et ses bénévoles (repliés) ;
 //  3. les événements, sous le groupe qui les organise (un poste du groupe lié ⛓ à l'événement), sinon sous le poste
@@ -20,6 +20,12 @@ export const SANS_COMITE = '#64748b';
 
 export type SorteCarte = 'titre' | 'poste' | 'groupe';
 
+/** Une personne d'une carte ou d'une ligne ; sur un poste : la place qu'elle y occupe (un poste à plusieurs : la sienne). */
+export interface Titulaire {
+  m: OrgMember;
+  posteId?: string;
+}
+
 /** Une carte de la ligne 1 : un poste d'un comité (★ : le titre de sa fiche), ou un groupe qui dépend du comité. */
 export interface CarteLigne1 {
   /** « t:entité:fiche » (★), « p:entité:poste » (poste), « g:groupe ». */
@@ -30,9 +36,14 @@ export interface CarteLigne1 {
   /** Le comité (★, poste) ; le groupe (groupe). */
   uniteId: string;
   titre: string;
-  /** Titulaire, ou les ★ du groupe ; vide : à pourvoir. */
-  gens: OrgMember[];
+  /** Titulaires (un poste à plusieurs : tous), ou les ★ du groupe ; vide : à pourvoir. */
+  gens: Titulaire[];
+  /** Places du poste encore à pourvoir, à côté de ses titulaires. */
+  vacants?: number;
+  /** Le poste (à plusieurs : sa première place). */
   posteId?: string;
+  /** Toutes les places du poste. */
+  postes?: string[];
   /** Poste lié (⛓) au ★ d'une entité affichée ailleurs. */
   lien?: OrgUnit;
   /** Groupe : sa carte de la ligne 2. */
@@ -41,13 +52,19 @@ export interface CarteLigne1 {
   evenements?: CarteEntite[];
 }
 
-/** Une ligne de la carte d'un groupe ou d'un événement : un ★, ou un poste (titulaire ou à pourvoir). */
+/** Une ligne de la carte d'un groupe ou d'un événement : un ★, ou un poste (ses titulaires, ou à pourvoir). */
 export interface LigneEntite {
   cle: string;
   titre: string;
-  m?: OrgMember;
+  /** Le ★ ; les titulaires du poste (un poste à plusieurs : tous) ; vide : à pourvoir. */
+  gens: Titulaire[];
+  /** Places du poste encore à pourvoir, à côté de ses titulaires. */
+  vacants?: number;
   etoile?: boolean;
+  /** Le poste (à plusieurs : sa première place). */
   posteId?: string;
+  /** Toutes les places du poste, dans l'ordre de la fiche. */
+  postes?: string[];
   lien?: string;
 }
 
@@ -121,27 +138,42 @@ const GENERIQUE = /^(b[ée]n[ée]vole|membre)s?\b/i;
 export const quiDe = (m: OrgMember) => (m.membreId ? `m:${m.membreId}` : emailKey(m.email) ? `e:${emailKey(m.email)}` : `n:${cle(nomDe(m))}`);
 
 /**
- * Les lignes d'une fiche : ses ★ (leur titre), puis ses postes dans l'ordre de la fiche (titulaire ou à pourvoir ; le
- * poste d'un ★ qui répète son titre n'est pas répété). Fiche sans postes (données d'avant) : les ★, puis les membres qui
- * ont une fonction autre que « Bénévole » ou « Membre ».
+ * Les lignes d'une fiche : ses ★ (leur titre), puis ses postes dans l'ordre de la fiche (titulaires ou à pourvoir ; le
+ * poste d'un ★ qui répète son titre n'est pas répété ; un poste à plusieurs, même nom et même lien : une ligne, à la
+ * place de sa première place). Fiche sans postes (données d'avant) : les ★, puis les membres qui ont une fonction autre
+ * que « Bénévole » ou « Membre ».
  */
 export function lignesFiche(u: OrgUnit): LigneEntite[] {
   const chef = UNIT_TYPES[u.type].chef;
   const titreDe = (m: OrgMember) => m.poste?.trim() || chef;
-  const l: LigneEntite[] = u.membres.filter((m) => m.admin).map((m) => ({ cle: `t:${u.id}:${m.id}`, titre: titreDe(m), m, etoile: true }));
+  const l: LigneEntite[] = u.membres.filter((m) => m.admin).map((m) => ({ cle: `t:${u.id}:${m.id}`, titre: titreDe(m), gens: [{ m }], etoile: true }));
   if (!u.postes) {
     for (const m of u.membres) {
       if (m.admin || m.viaEntite) continue;
       const f = fonctionsDe(m).filter((x) => !GENERIQUE.test(x));
-      if (f.length) l.push({ cle: `p:${u.id}:${m.id}`, titre: f.join(' · '), m });
+      if (f.length) l.push({ cle: `p:${u.id}:${m.id}`, titre: f.join(' · '), gens: [{ m }] });
     }
     return l;
   }
   const parId = new Map(u.membres.map((m) => [m.id, m]));
+  const vus = new Set<string>();
   for (const p of u.postes) {
-    const m = p.titulaire ? parId.get(p.titulaire) : undefined;
-    if (m?.admin && cle(p.nom) === cle(titreDe(m))) continue;
-    l.push({ cle: `p:${u.id}:${p.id}`, titre: p.nom, m, posteId: p.id, lien: p.lien });
+    if (vus.has(p.id)) continue;
+    const toutes = placesDu(u.postes, p);
+    toutes.forEach((x) => vus.add(x.id));
+    const de = (x: typeof p) => (x.titulaire ? parId.get(x.titulaire) : undefined);
+    const places = toutes.filter((x) => {
+      const m = de(x);
+      return !(m?.admin && cle(x.nom) === cle(titreDe(m)));
+    });
+    const gens = places.flatMap((x) => {
+      const m = de(x);
+      return m ? [{ m, posteId: x.id }] : [];
+    });
+    // Rien que des places à pourvoir à côté d'un ★ qui porte ce titre : il l'occupe déjà.
+    if (!places.length || (!gens.length && places.length < toutes.length)) continue;
+    const vacants = gens.length ? places.length - gens.length : 0;
+    l.push({ cle: `p:${u.id}:${places[0].id}`, titre: places[0].nom, gens, ...(vacants ? { vacants } : {}), posteId: places[0].id, postes: places.map((x) => x.id), lien: places[0].lien });
   }
   return l;
 }
@@ -156,9 +188,12 @@ export function benevolesFiche(u: OrgUnit): OrgMember[] {
 export function responsablesDe(u: OrgUnit): { m?: OrgMember; fonctions: string[]; etoile: boolean }[] {
   const out: { m?: OrgMember; fonctions: string[]; etoile: boolean }[] = [];
   for (const l of lignesFiche(u)) {
-    const r = l.m ? out.find((x) => x.m?.id === l.m!.id) : undefined;
-    if (r) r.fonctions.push(l.titre);
-    else out.push({ m: l.m, fonctions: [l.titre], etoile: !!l.etoile });
+    if (!l.gens.length) out.push({ fonctions: [l.titre], etoile: false });
+    for (const { m } of l.gens) {
+      const r = out.find((x) => x.m?.id === m.id);
+      if (r) r.fonctions.push(l.titre);
+      else out.push({ m, fonctions: [l.titre], etoile: !!l.etoile });
+    }
   }
   return out;
 }
@@ -227,7 +262,7 @@ export function planOrganigramme(units: OrgUnit[], sansVide = false): PlanOrgani
     const e = carteEntite(g, 2, { cle: k, couleur: couleurCadre(cadre) });
     const depend = places.get(g.id)!.depend;
     if (depend && depend !== cadre) e.depend = parId.get(depend);
-    const c: CarteLigne1 = { cle: k, sorte: 'groupe', cadre, uniteId: g.id, titre: g.nom, gens: g.membres.filter((m) => m.admin), groupe: e };
+    const c: CarteLigne1 = { cle: k, sorte: 'groupe', cadre, uniteId: g.id, titre: g.nom, gens: g.membres.filter((m) => m.admin).map((m) => ({ m })), groupe: e };
     cartes.set(k, c);
     parCadre.get(cadre)!.push(c);
   }
@@ -251,10 +286,23 @@ export function planOrganigramme(units: OrgUnit[], sansVide = false): PlanOrgani
     // Ses postes ; un poste lié à un groupe affiché dans ce cadre : c'est la carte du groupe.
     const ici = (id?: string) => !!id && parId.get(id)?.type === 'groupe' && places.get(id)?.cadre === c.id;
     // Un poste lié à un événement : l'événement est sous sa carte (le lien n'est pas répété).
-    const dessous = (l: LigneEntite) => !!l.lien && !!l.posteId && places.get(l.lien)?.poste === l.posteId;
+    const dessous = (l: LigneEntite) => !!l.lien && !!l.postes?.includes(places.get(l.lien)?.poste ?? '');
     const postes = lignesFiche(c)
       .filter((l) => !ici(l.lien))
-      .map((l): CarteLigne1 => ({ cle: l.cle, sorte: l.etoile ? 'titre' : 'poste', cadre: c.id, uniteId: c.id, titre: l.titre, gens: l.m ? [l.m] : [], posteId: l.posteId, lien: l.lien && !dessous(l) ? parId.get(l.lien) : undefined }));
+      .map(
+        (l): CarteLigne1 => ({
+          cle: l.cle,
+          sorte: l.etoile ? 'titre' : 'poste',
+          cadre: c.id,
+          uniteId: c.id,
+          titre: l.titre,
+          gens: l.gens,
+          ...(l.vacants ? { vacants: l.vacants } : {}),
+          posteId: l.posteId,
+          postes: l.postes,
+          lien: l.lien && !dessous(l) ? parId.get(l.lien) : undefined,
+        }),
+      );
     postes.forEach((p) => cartes.set(p.cle, p));
     const bas: CarteEntite[] = [];
     if (c.type === 'sous-comite' && c.date)
@@ -263,7 +311,7 @@ export function planOrganigramme(units: OrgUnit[], sansVide = false): PlanOrgani
     for (const ev of auPoste.get(c.id) ?? []) {
       const p = places.get(ev.id)!;
       const po = c.postes?.find((x) => x.id === p.poste);
-      const carte = postes.find((x) => x.posteId === p.poste) ?? postes.find((x) => x.sorte === 'titre' && !!po?.titulaire && x.gens[0]?.id === po.titulaire);
+      const carte = postes.find((x) => !!p.poste && !!x.postes?.includes(p.poste)) ?? postes.find((x) => x.sorte === 'titre' && !!po?.titulaire && x.gens[0]?.m.id === po.titulaire);
       const e = avecDepend(carteEntite(ev, 3, { cle: carte?.cle ?? `cadre:${c.id}`, couleur: c.couleur }), p);
       if (carte) (carte.evenements ??= []).push(e);
       else bas.push(e);
@@ -277,11 +325,15 @@ export function planOrganigramme(units: OrgUnit[], sansVide = false): PlanOrgani
   return { cadres, cartes, entites, places };
 }
 
-/** Cartes dans l'ordre choisi pour le cadre ; les autres (nouvelles) à la suite, dans leur ordre. */
+/**
+ * Cartes dans l'ordre choisi pour le cadre ; les autres (nouvelles) à la suite, dans leur ordre. Un poste à plusieurs :
+ * le meilleur rang de ses places (rangées chacune à part avant d'être réunies sur une carte).
+ */
 function ranger(l: CarteLigne1[], ordre?: string[]): CarteLigne1[] {
   if (!ordre?.length) return l;
   const rang = new Map(ordre.map((k, i) => [k, i]));
-  return l.map((c, i) => ({ c, i, r: rang.get(c.cle) ?? Infinity })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.c);
+  const rangDe = (c: CarteLigne1) => Math.min(rang.get(c.cle) ?? Infinity, ...(c.postes ?? []).map((id) => rang.get(`p:${c.uniteId}:${id}`) ?? Infinity));
+  return l.map((c, i) => ({ c, i, r: rangDe(c) })).sort((a, b) => a.r - b.r || a.i - b.i).map((x) => x.c);
 }
 
 function colonnes(cartes: CarteLigne1[], cadre: string, bas: CarteEntite[]): Colonne[] {
@@ -306,8 +358,8 @@ export type ActionOrga =
       vers: string;
       /** Postes liés à créer dans `vers` (leurs noms). */
       creer: string[];
-      /** Poste de `vers` (déjà là) à lier à l'événement. */
-      lier?: PosteLie;
+      /** Poste de `vers` (déjà là ; à plusieurs : toutes ses places) à lier à l'événement. */
+      lier?: PosteLie[];
       /** Postes liés retirés (ses responsables n'y siègent plus ; le groupe n'organise plus l'événement). */
       retirer: PosteLie[];
       /** Postes de comités qui ne sont plus liés à l'événement (ils restent, sans lien). */
@@ -321,7 +373,8 @@ export type ActionOrga =
    * étaient responsables n'y sont plus liés.
    */
   | { type: 'dependance'; u: OrgUnit; vers?: string; retirer: PosteLie[]; delier: PosteLie[]; libelle: string }
-  | { type: 'poste'; de: OrgUnit; posteId: string; nom: string; titulaire?: OrgMember; vers: OrgUnit; libelle: string }
+  /** Un poste (à plusieurs : toutes ses places, chacune avec son titulaire) change d'entité. */
+  | { type: 'poste'; de: OrgUnit; nom: string; places: { posteId: string; titulaire?: OrgMember }[]; vers: OrgUnit; libelle: string }
   | { type: 'etoile'; de: OrgUnit; m: OrgMember; vers: OrgUnit; libelle: string };
 
 export interface PosteLie {
@@ -390,7 +443,7 @@ function organisePar(units: OrgUnit[], u: OrgUnit, g: OrgUnit): ActionOrga | nul
 function posteDeCarte(units: OrgUnit[], c: CarteLigne1): Poste | undefined {
   const postes = units.find((x) => x.id === c.uniteId)?.postes;
   if (c.sorte === 'poste') return c.posteId ? postes?.find((p) => p.id === c.posteId) : undefined;
-  const m = c.sorte === 'titre' ? c.gens[0] : undefined;
+  const m = c.sorte === 'titre' ? c.gens[0]?.m : undefined;
   return m ? postes?.find((p) => p.titulaire === m.id && cle(p.nom) === cle(c.titre)) : undefined;
 }
 
@@ -400,8 +453,10 @@ function posteDeCarte(units: OrgUnit[], c: CarteLigne1): Poste | undefined {
  * déjà le cas.
  */
 function responsable(units: OrgUnit[], u: OrgUnit, c: OrgUnit, po: Poste): ActionOrga | null {
+  // Un poste à plusieurs : toutes ses places (ses titulaires en seront ★, co-responsables).
+  const places = placesDu(c.postes ?? [], po);
   const retirer = lies(groupesLies(units, u.id), u.id);
-  const delier = postesLies(units, u.id).filter((p) => p.posteId !== po.id || p.entite !== c.id);
+  const delier = postesLies(units, u.id).filter((p) => p.entite !== c.id || !places.some((x) => x.id === p.posteId));
   const deja = po.lien === u.id;
   if (deja && !retirer.length && !delier.length) return null;
   const quitte = anciens(units, retirer, delier);
@@ -410,7 +465,7 @@ function responsable(units: OrgUnit[], u: OrgUnit, c: OrgUnit, po: Poste): Actio
     u,
     vers: c.id,
     creer: [],
-    lier: deja ? undefined : { entite: c.id, posteId: po.id, nom: po.nom },
+    lier: deja ? undefined : places.map((x) => ({ entite: c.id, posteId: x.id, nom: x.nom })),
     retirer,
     delier,
     libelle: `« ${u.nom} » sous le poste « ${po.nom} » de « ${c.nom} »${quitte.length ? ` (${quitte.join(' ; ')})` : ''}`,
@@ -512,8 +567,9 @@ export function actionDepot(plan: PlanOrganigramme, units: OrgUnit[], source: st
   }
   if (m) return { type: 'etoile', de, m, vers, libelle: `★ ${nomDe(m)} : ${UNIT_TYPES[vers.type].chef.toLowerCase()} de « ${vers.nom} »` };
   if (!po) return null;
-  const titulaire = po.titulaire ? de.membres.find((x) => x.id === po.titulaire) : undefined;
-  return { type: 'poste', de, posteId: po.id, nom: po.nom, titulaire, vers, libelle: `Poste « ${po.nom} » dans « ${vers.nom} »` };
+  // Un poste à plusieurs : toutes ses places, avec leurs titulaires.
+  const places = placesDu(de.postes ?? [], po).map((x) => ({ posteId: x.id, titulaire: x.titulaire ? de.membres.find((y) => y.id === x.titulaire) : undefined }));
+  return { type: 'poste', de, nom: po.nom, places, vers, libelle: `Poste « ${po.nom} » dans « ${vers.nom} »` };
 }
 
 /** Les endroits où l'on peut déplacer une carte (« Déplacer… », sans glisser) : la cible et ce qui s'y fera. */

@@ -2,7 +2,7 @@ import { Children, useEffect, useRef, useState, type PointerEvent as ReactPointe
 import { useClub } from '../data/club';
 import { norm } from '../data/csv';
 import { groupesLies } from '../data/liens';
-import { benevolesDe, fonctionsLibres, memeQui, nomDe, zonesFiche, type Depuis, type LigneFiche, type OpOrga, type Qui, type Vers } from '../data/organigramme';
+import { benevolesDe, et, fonctionsLibres, memeQui, nomDe, placesDu, zonesFiche, type Depuis, type LigneFiche, type OpOrga, type Qui, type Vers } from '../data/organigramme';
 import { UNIT_COLORS, UNIT_TYPES } from '../data/units';
 import { fmtRange, posteBesideName } from '../data/utils';
 import type { OrgMember, OrgUnit, Poste } from '../data/types';
@@ -703,7 +703,56 @@ export function NomPosteModal({ u, qui, defaut, onOk, onClose }: { u: OrgUnit; q
   );
 }
 
-/** Un poste : son nom, son lien au ★ d'une autre entité, sa suppression ; la fiche de son titulaire. */
+/** Les titulaires d'un poste (à plusieurs : tous, chacun avec sa place), dans l'ordre de la fiche. */
+export function titulairesDu(u: OrgUnit, po: Poste): { m: OrgMember; posteId: string }[] {
+  return placesDu(u.postes ?? [], po).flatMap((x) => {
+    const m = x.titulaire ? u.membres.find((y) => y.id === x.titulaire) : undefined;
+    return m ? [{ m, posteId: x.id }] : [];
+  });
+}
+
+/** Une personne lâchée sur un poste déjà occupé : avec ses titulaires (un poste à plusieurs), ou à la place de l'un d'eux. */
+export function AvecModal({ u, poste, nom, onAvec, onPlace, onClose }: {
+  u: OrgUnit;
+  poste: Poste;
+  /** La personne qu'on place. */
+  nom: string;
+  onAvec: () => void;
+  onPlace: (posteId: string) => void;
+  onClose: () => void;
+}) {
+  const tit = titulairesDu(u, poste);
+  const noms = tit.map((t) => nomDe(t.m));
+  return (
+    <Modal title={`${nom} : « ${poste.nom} »`} onClose={onClose}>
+      <p>
+        « {poste.nom} » de « {u.nom} » est déjà occupé par <b>{et(noms)}</b>.
+      </p>
+      <div className="avec-choix">
+        <button type="button" className="btn primary" autoFocus onClick={onAvec}>
+          ＋ Avec {et(noms)}
+          <small>{nom} occupe aussi le poste ({tit.length + 1} personnes)</small>
+        </button>
+        {tit.map((t) => (
+          <button key={t.posteId} type="button" className="btn" onClick={() => onPlace(t.posteId)}>
+            ⇄ À la place de {nomDe(t.m)}
+            <small>{nomDe(t.m)} quitte le poste</small>
+          </button>
+        ))}
+      </div>
+      {poste.lien && <p className="muted small-note">⛓ Poste lié : chaque titulaire est ★ (co-responsable) de l’entité liée.</p>}
+      <div className="modal-foot">
+        <span className="grow" />
+        <button className="btn" onClick={onClose}>Annuler</button>
+      </div>
+    </Modal>
+  );
+}
+
+/**
+ * Un poste : son nom, son lien au ★ d'une autre entité, sa suppression ; ses titulaires (un poste à plusieurs : tous ;
+ * le nom, le lien et la suppression valent pour toutes ses places).
+ */
 export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
   u: OrgUnit;
   poste: Poste;
@@ -715,7 +764,9 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
   const [nom, setNom] = useState(poste.nom);
   const [lien, setLien] = useState(poste.lien ?? '');
   const [busy, setBusy] = useState(false);
-  const m = poste.titulaire ? u.membres.find((x) => x.id === poste.titulaire) : undefined;
+  const places = placesDu(u.postes ?? [], poste);
+  const tit = titulairesDu(u, poste);
+  const vacantes = tit.length ? places.filter((x) => !tit.some((t) => t.posteId === x.id)) : [];
   const autres = units.filter((x) => !x.archive && x.id !== u.id);
   const go = async (ops: OpOrga[]) => {
     setBusy(true);
@@ -724,8 +775,8 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
   };
   const enregistrer = () => {
     const ops: OpOrga[] = [];
-    if (nom.trim() && nom.trim() !== poste.nom) ops.push({ type: 'renommer', uniteId: u.id, posteId: poste.id, nom: nom.trim() });
-    if ((lien || null) !== (poste.lien ?? null)) ops.push({ type: 'lier', uniteId: u.id, posteId: poste.id, lien: lien || null });
+    for (const x of places) if (nom.trim() && nom.trim() !== x.nom) ops.push({ type: 'renommer', uniteId: u.id, posteId: x.id, nom: nom.trim() });
+    for (const x of places) if ((lien || null) !== (x.lien ?? null)) ops.push({ type: 'lier', uniteId: u.id, posteId: x.id, lien: lien || null });
     if (!ops.length) return onClose();
     void go(ops);
   };
@@ -736,25 +787,36 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
           Nom du poste
           <input value={nom} onChange={(e) => setNom(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && enregistrer()} />
         </label>
+        {tit.map(({ m, posteId }) => (
+          <div key={posteId} className="full poste-titulaire">
+            <Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={32} />
+            <span className="grow">
+              <b>{nomDe(m)}</b>
+              <small className="muted">{tit.length > 1 ? 'Titulaire, avec les autres' : 'Titulaire du poste'}</small>
+            </span>
+            <button type="button" className="btn small" onClick={() => onPersonne(m)}>Sa fiche</button>
+            <button
+              type="button"
+              className="btn small"
+              disabled={busy}
+              title={tit.length > 1 ? 'Il quitte le poste, les autres le gardent' : 'Le poste reste, à pourvoir'}
+              onClick={() => void go([{ type: 'placer', qui: quiDeMembre(m), depuis: { uniteId: u.id, personId: m.id, zone: 'poste', posteId }, vers: { zone: 'corbeille' } }])}
+            >
+              Libérer
+            </button>
+          </div>
+        ))}
+        {vacantes.map((x) => (
+          <div key={x.id} className="full poste-titulaire">
+            <span className="error grow">Une place à pourvoir</span>
+            <button type="button" className="btn small" disabled={busy} title="Le poste garde ses titulaires" onClick={() => void go([{ type: 'supprimerPoste', uniteId: u.id, posteId: x.id }])}>
+              Retirer cette place
+            </button>
+          </div>
+        ))}
         <div className="full poste-titulaire">
-          {m ? (
-            <>
-              <Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={32} />
-              <span className="grow">
-                <b>{nomDe(m)}</b>
-                <small className="muted">Titulaire du poste</small>
-              </span>
-              <button type="button" className="btn small" onClick={() => onPersonne(m)}>Sa fiche</button>
-              <button
-                type="button"
-                className="btn small"
-                disabled={busy}
-                title="Le poste reste, à pourvoir"
-                onClick={() => void go([{ type: 'placer', qui: quiDeMembre(m), depuis: { uniteId: u.id, personId: m.id, zone: 'poste', posteId: poste.id }, vers: { zone: 'corbeille' } }])}
-              >
-                Libérer
-              </button>
-            </>
+          {tit.length ? (
+            <small className="muted">Plusieurs personnes à ce poste : glisse quelqu’un d’autre dessus, puis « ＋ Avec … ».</small>
           ) : (
             <span className="error">À pourvoir : glisse une personne sur la ligne du poste.</span>
           )}
@@ -772,7 +834,10 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
         <button
           className="btn danger"
           disabled={busy}
-          onClick={() => confirm(`Supprimer le poste « ${poste.nom} » de « ${u.nom} » ?${m ? ` ${nomDe(m)} reste dans l’entité.` : ''}`) && void go([{ type: 'supprimerPoste', uniteId: u.id, posteId: poste.id }])}
+          onClick={() =>
+            confirm(`Supprimer le poste « ${poste.nom} » de « ${u.nom} » ?${tit.length ? ` ${et(tit.map((t) => nomDe(t.m)))} ${tit.length > 1 ? 'restent' : 'reste'} dans l’entité.` : ''}`) &&
+            void go(places.map((x): OpOrga => ({ type: 'supprimerPoste', uniteId: u.id, posteId: x.id })))
+          }
         >
           Supprimer le poste
         </button>

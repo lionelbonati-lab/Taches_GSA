@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import type { OrgMember, OrgUnit } from '../data/types';
 import { UNIT_TYPES } from '../data/units';
@@ -25,7 +25,7 @@ import { quiDeMembre, type Glisser, type Prise as PrisePersonne } from './Organi
 import type { Depuis } from '../data/organigramme';
 
 // Organigramme par postes, en lignes (calcul dans data/organigrammeLignes.ts) : comités dans des cadres reliés, une
-// carte par poste (le poste, le nom), les groupes sous leur carte (dans le comité où siège leur responsable ; « Dépend
+// carte par poste (le poste, le nom ; un poste à plusieurs : tous les noms), les groupes sous leur carte (dans le comité où siège leur responsable ; « Dépend
 // de » s'ils dépendent d'un autre), les événements en dessous, reliés par des traits.
 // Zoom (−, +, ajuster), déplacement à la souris (tirer le fond), branches repliables (sur cet appareil), impression
 // ou PDF sur une page A4 en paysage. Sur téléphone : une liste de haut en bas.
@@ -457,7 +457,7 @@ const deplacable = (ctx: Ctx, cle: string) => !!ctx.edition && !!ctx.mobiles?.ha
 function Carte1({ c, ctx, style, mesure }: { c: CarteLigne1; ctx: Ctx; style?: CSSProperties; mesure?: (el: HTMLElement | null) => void }) {
   const vacant = !c.gens.length;
   const tirable = deplacable(ctx, c.cle);
-  const z = zone(ctx, c.sorte === 'titre' ? `${c.uniteId}|etoile|${c.gens[0]?.id}` : c.sorte === 'groupe' ? `${c.uniteId}|titre` : c.posteId ? `${c.uniteId}|poste|${c.posteId}` : undefined);
+  const z = zone(ctx, c.sorte === 'titre' ? `${c.uniteId}|etoile|${c.gens[0]?.m.id}` : c.sorte === 'groupe' ? `${c.uniteId}|titre` : c.posteId ? `${c.uniteId}|poste|${c.posteId}` : undefined);
   const g = c.sorte === 'groupe' ? c.groupe?.u : undefined;
   const modifier = ctx.edition && c.sorte === 'poste' && c.posteId && ctx.edition.peutFiche(c.uniteId) ? () => !ctx.tirer?.juste() && ctx.edition!.onPoste(c.uniteId, c.posteId!) : undefined;
   return (
@@ -488,19 +488,21 @@ function Carte1({ c, ctx, style, mesure }: { c: CarteLigne1; ctx: Ctx; style?: C
         {vacant ? (
           <span className="error">{c.sorte === 'groupe' ? `${UNIT_TYPES[g?.type ?? 'groupe'].chef} : à désigner` : 'À pourvoir'}</span>
         ) : (
-          // Le nom seul (place) : ses coordonnées et ses fonctions dans le club, dans son profil.
-          c.gens.map((m) => (
+          // Le nom seul (place) : ses coordonnées et ses fonctions dans le club, dans son profil. Un poste à plusieurs :
+          // chacun sur sa place.
+          c.gens.map(({ m, posteId }) => (
             <Nom
               key={m.id}
               ctx={ctx}
               m={m}
               uniteId={c.uniteId}
               className="orgl-nom"
-              depuis={c.sorte === 'poste' ? (c.posteId ? { uniteId: c.uniteId, personId: m.id, zone: 'poste', posteId: c.posteId } : undefined) : { uniteId: c.uniteId, personId: m.id, zone: 'titre' }}
+              depuis={c.sorte === 'poste' ? (posteId ? { uniteId: c.uniteId, personId: m.id, zone: 'poste', posteId } : undefined) : { uniteId: c.uniteId, personId: m.id, zone: 'titre' }}
               poste={c.sorte === 'groupe' ? m.poste?.trim() || UNIT_TYPES[g?.type ?? 'groupe'].chef : c.titre}
             />
           ))
         )}
+        {!vacant && !!c.vacants && <span className="error">+ à pourvoir{c.vacants > 1 ? ` (${c.vacants})` : ''}</span>}
       </div>
     </div>
   );
@@ -546,12 +548,12 @@ function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?:
         <ul className="orgl-gens">
           {!e.lignes.some((l) => l.etoile) && <li className="error">★ {t.chef} : à désigner</li>}
           {e.lignes.map((l) => {
-            const zl = zone(ctx, l.etoile && l.m ? `${e.u.id}|etoile|${l.m.id}` : l.posteId ? `${e.u.id}|poste|${l.posteId}` : undefined);
+            const zl = zone(ctx, l.etoile && l.gens[0] ? `${e.u.id}|etoile|${l.gens[0].m.id}` : l.posteId ? `${e.u.id}|poste|${l.posteId}` : undefined);
             const source = deplacable(ctx, l.cle) ? l.cle : undefined;
             return (
               <li
                 key={l.cle}
-                className={`${l.m ? '' : 'error'} ${source && ed ? 'tirable' : ''} ${zl.className}`}
+                className={`${l.gens.length ? '' : 'error'} ${source && ed ? 'tirable' : ''} ${zl.className}`}
                 data-cible={'data-cible' in zl ? zl['data-cible'] : undefined}
                 onPointerDown={source && ed ? (ev) => ctx.tirer!.commencer(ev, source, l.titre) : undefined}
               >
@@ -568,17 +570,22 @@ function CarteEnt({ e, ctx, style, mesure }: { e: CarteEntite; ctx: Ctx; style?:
                 )}
                 {l.lien && <small title="Poste lié au ★ d’une autre entité"> ⛓</small>}
                 {' : '}
-                {l.m ? (
-                  <Nom
-                    ctx={ctx}
-                    m={l.m}
-                    uniteId={e.u.id}
-                    depuis={l.etoile ? { uniteId: e.u.id, personId: l.m.id, zone: 'titre' } : l.posteId ? { uniteId: e.u.id, personId: l.m.id, zone: 'poste', posteId: l.posteId } : undefined}
-                    poste={l.titre}
-                  />
-                ) : (
-                  'à pourvoir'
-                )}
+                {l.gens.length
+                  ? // Un poste à plusieurs : tous ses titulaires, chacun sur sa place.
+                    l.gens.map(({ m, posteId }, i) => (
+                      <Fragment key={m.id}>
+                        {i > 0 && ', '}
+                        <Nom
+                          ctx={ctx}
+                          m={m}
+                          uniteId={e.u.id}
+                          depuis={l.etoile ? { uniteId: e.u.id, personId: m.id, zone: 'titre' } : posteId ? { uniteId: e.u.id, personId: m.id, zone: 'poste', posteId } : undefined}
+                          poste={l.titre}
+                        />
+                      </Fragment>
+                    ))
+                  : 'à pourvoir'}
+                {l.gens.length > 0 && !!l.vacants && <span className="error"> + à pourvoir{l.vacants > 1 ? ` (${l.vacants})` : ''}</span>}
                 {source && ed && <Prise ctx={ctx} source={source} titre={l.titre} />}
               </li>
             );

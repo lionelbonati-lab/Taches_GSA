@@ -16,8 +16,8 @@ import { SupprimerEntite } from '../components/SupprimerEntite';
 import { FicheMembre, FichePersonne, NouvellePersonne } from '../components/Personnes';
 import { bandeCables, CablagePanel, CablesOrganigramme, candidatDe, liensPostes, liensResponsables, margeCables, nomCandidat, ordreDesEntites, ResponsableModal, useCablable, useCandidats, useTirage, type Depart, type LienResponsable, type Source } from '../components/Cablage';
 import { TraitsOrganigramme, useDisposition, type Deplacer } from '../components/Disposition';
-import { coupure, EnMain, Fiche, lireCible, NomPosteModal, PosteModal, Postes, rangeesPostes, Recherche, useGlisser, type OrgaVue, type Prise } from '../components/Organiser';
-import { benevolesDe, fonctionsDe, nomDe, type OpOrga } from '../data/organigramme';
+import { AvecModal, coupure, EnMain, Fiche, lireCible, NomPosteModal, PosteModal, Postes, rangeesPostes, Recherche, titulairesDu, useGlisser, type OrgaVue, type Prise } from '../components/Organiser';
+import { benevolesDe, et, fonctionsDe, memeQui, nomDe, type OpOrga } from '../data/organigramme';
 import { norm } from '../data/csv';
 import { OrgLignes, type EditionLignes } from '../components/OrgLignes';
 import type { ActionOrga, PosteLie } from '../data/organigrammeLignes';
@@ -201,6 +201,8 @@ export function Org() {
     });
   const [nommer, setNommer] = useState<{ uniteId: string; prise?: Prise } | null>(null);
   const [posteOuvert, setPosteOuvert] = useState<{ uniteId: string; posteId: string } | null>(null);
+  // Une personne lâchée sur un poste occupé : avec ses titulaires, ou à la place de l'un d'eux.
+  const [avec, setAvec] = useState<{ prise: Prise; uniteId: string; posteId: string } | null>(null);
   const [fait, setFait] = useState<{ message: string; annuler?: () => Promise<void>; erreur?: boolean } | null>(null);
   useEffect(() => {
     if (!fait) return;
@@ -235,17 +237,25 @@ export function Org() {
   };
   const peutFiche = (u?: OrgUnit) => !!u && !u.archive && (club.canManage || !!u.moiAdmin);
   const uniteDe = (id: string) => units.find((x) => x.id === id);
+  /** Les titulaires du poste (un poste à plusieurs : tous). */
+  const titulairesDe = (uniteId: string, posteId: string) => {
+    const u = uniteDe(uniteId);
+    const po = u?.postes?.find((x) => x.id === posteId);
+    return u && po ? titulairesDu(u, po) : [];
+  };
   const glisser = useGlisser({
     peut: (p, c) => {
       const v = lireCible(c);
       if (p.depuis && !peutFiche(uniteDe(p.depuis.uniteId))) return false;
       if (v.zone === 'corbeille') return !!p.depuis;
       if (!peutFiche(uniteDe(v.uniteId))) return false;
+      // Déjà à ce poste (l'une de ses places), même venue d'une autre entité : rien à faire.
+      if (v.zone === 'poste' && titulairesDe(v.uniteId, v.posteId).some((t) => memeQui(t.m, p.qui))) return false;
       // Là où elle est déjà : rien à faire.
       const d = p.depuis;
       if (!d || d.uniteId !== v.uniteId) return true;
       if (v.zone === 'etoile') return !(d.zone === 'titre' && v.personId === d.personId);
-      if (v.zone === 'poste') return !(d.zone === 'poste' && v.posteId === d.posteId) && !(d.zone === 'titre' && uniteDe(v.uniteId)?.postes?.find((x) => x.id === v.posteId)?.titulaire === d.personId);
+      if (v.zone === 'poste') return !titulairesDe(v.uniteId, v.posteId).some((t) => t.m.id === d.personId);
       return v.zone === 'nouveau' || v.zone !== d.zone;
     },
     libelle: (p, c) => {
@@ -261,8 +271,8 @@ export function Org() {
       }
       if (v.zone === 'poste') {
         const po = u.postes?.find((x) => x.id === v.posteId);
-        const m = po?.titulaire ? u.membres.find((x) => x.id === po.titulaire) : undefined;
-        return `${po?.nom ?? 'Poste'}${m ? ` à la place de ${nomDe(m)}` : ''}`;
+        const tit = titulairesDe(v.uniteId, v.posteId);
+        return tit.length ? `${po?.nom ?? 'Poste'} : avec ${et(tit.map((t) => nomDe(t.m)))}, ou à ${tit.length > 1 ? 'la place de l’un d’eux' : 'sa place'} ?` : (po?.nom ?? 'Poste');
       }
       if (v.zone === 'nouveau') return `＋ Nouveau poste dans « ${u.nom} »`;
       const b = benevolesDe(u.type).un;
@@ -272,6 +282,7 @@ export function Org() {
       const v = lireCible(c);
       if (p.cle) setQ('');
       if (v.zone === 'nouveau') return setNommer({ uniteId: v.uniteId, prise: p });
+      if (v.zone === 'poste' && titulairesDe(v.uniteId, v.posteId).length) return setAvec({ prise: p, uniteId: v.uniteId, posteId: v.posteId });
       void faire({ type: 'placer', qui: p.qui, depuis: p.depuis, vers: v });
     },
   });
@@ -281,7 +292,7 @@ export function Org() {
     a.type === 'ranger'
       ? club.canManage || !!uniteDe(a.comite)?.moiAdmin
       : a.type === 'liaison'
-        ? (!(a.creer.length || a.lier) || peutFiche(uniteDe(a.vers))) &&
+        ? (!(a.creer.length || a.lier?.length) || peutFiche(uniteDe(a.vers))) &&
           [...a.retirer, ...a.delier].every((p) => peutFiche(uniteDe(p.entite))) &&
           (!a.ordre || club.canManage || !!uniteDe(a.ordre.comite)?.moiAdmin)
         : a.type === 'dependance'
@@ -333,17 +344,21 @@ export function Org() {
     if (a.type === 'liaison')
       return void changerEntites(a.ordre ? [[a.ordre.comite, { rangement: a.ordre.ordre }]] : [], a.libelle, [
         ...a.creer.map((nom): OpOrga => ({ type: 'nouveauPoste', uniteId: a.vers, nom, lien: a.u.id })),
-        ...(a.lier ? [{ type: 'lier', uniteId: a.lier.entite, posteId: a.lier.posteId, lien: a.u.id } satisfies OpOrga] : []),
+        ...(a.lier ?? []).map((p): OpOrga => ({ type: 'lier', uniteId: p.entite, posteId: p.posteId, lien: a.u.id })),
         ...anciens(a),
       ]);
     if (a.type === 'etoile')
       return void faire({ type: 'placer', qui: quiDeMembre(a.m), depuis: { uniteId: a.de.id, personId: a.m.id, zone: 'titre' }, vers: { zone: 'titre', uniteId: a.vers.id } });
-    // Un poste change d'entité : le même dans l'autre (avec son titulaire), puis il quitte la sienne.
+    // Un poste change d'entité : le même dans l'autre (avec ses titulaires : un poste à plusieurs, toutes ses places), puis
+    // il quitte la sienne (une place déjà partie avec son titulaire : rien à supprimer).
     void faire([
-      a.titulaire
-        ? { type: 'placer', qui: quiDeMembre(a.titulaire), depuis: { uniteId: a.de.id, personId: a.titulaire.id, zone: 'poste', posteId: a.posteId }, vers: { zone: 'nouveau', uniteId: a.vers.id, nom: a.nom } }
-        : { type: 'nouveauPoste', uniteId: a.vers.id, nom: a.nom },
-      { type: 'supprimerPoste', uniteId: a.de.id, posteId: a.posteId },
+      ...a.places.map(
+        (x): OpOrga =>
+          x.titulaire
+            ? { type: 'placer', qui: quiDeMembre(x.titulaire), depuis: { uniteId: a.de.id, personId: x.titulaire.id, zone: 'poste', posteId: x.posteId }, vers: { zone: 'nouveau', uniteId: a.vers.id, nom: a.nom } }
+            : { type: 'nouveauPoste', uniteId: a.vers.id, nom: a.nom },
+      ),
+      ...a.places.map((x): OpOrga => ({ type: 'supprimerPoste', uniteId: a.de.id, posteId: x.posteId })),
     ]);
   };
   const editionLignes: EditionLignes | undefined =
@@ -489,7 +504,7 @@ export function Org() {
           <b>✏️ Modification</b>
           <span>Glisse une carte (un poste, un groupe, un événement) sur un comité, un groupe ou une autre carte : ce qui se passera s’affiche avant de la lâcher. Au doigt, ou sans glisser : sa poignée ⠿ › « Déplacer… ».</span>
           <span>Un groupe glissé dans un autre comité : son responsable y siège (poste lié ⛓) ; dans « Sans comité » : il ne siège dans aucun. Un événement glissé sur un groupe : un poste du groupe lui est lié (il l’organise) ; sur un poste d’un comité : ce poste lui est lié ; dans le cadre d’un comité : il en dépend, tout le comité en est responsable. Le comité dont dépend un groupe ou un événement (ses tâches, son ordre du jour) se choisit dans ⚙️ « Dépend de ». Dans son cadre, une carte se range.</span>
-          <span>Pour changer quelqu’un de poste : glisse son nom sur l’autre poste, un ★ ou des bénévoles (Ctrl : il garde aussi le sien ; sur un cadre : un nouveau poste). Au doigt : touche son nom › « ✋ Déplacer ». Quelqu’un d’autre : cherche-le en haut à gauche.</span>
+          <span>Pour changer quelqu’un de poste : glisse son nom sur l’autre poste, un ★ ou des bénévoles (Ctrl : il garde aussi le sien ; sur un cadre : un nouveau poste). Sur un poste déjà occupé : « ＋ Avec … » (plusieurs personnes au même poste) ou « À la place de … ». Au doigt : touche son nom › « ✋ Déplacer ». Quelqu’un d’autre : cherche-le en haut à gauche.</span>
           <span>« ＋ Poste » dans un comité, un groupe ou un événement ; un clic sur le nom d’un poste : le renommer, le libérer, le supprimer.</span>
         </p>
       ) : edition && orga ? (
@@ -616,6 +631,27 @@ export function Org() {
           onClose={() => setNommer(null)}
         />
       )}
+      {avec && (() => {
+        const u = uniteDe(avec.uniteId);
+        const poste = u?.postes?.find((x) => x.id === avec.posteId);
+        const { prise } = avec;
+        return u && poste ? (
+          <AvecModal
+            u={u}
+            poste={poste}
+            nom={prise.nom}
+            onAvec={() => {
+              setAvec(null);
+              void faire({ type: 'placer', qui: prise.qui, depuis: prise.depuis, vers: { zone: 'avec', uniteId: u.id, posteId: poste.id } });
+            }}
+            onPlace={(posteId) => {
+              setAvec(null);
+              void faire({ type: 'placer', qui: prise.qui, depuis: prise.depuis, vers: { zone: 'poste', uniteId: u.id, posteId } });
+            }}
+            onClose={() => setAvec(null)}
+          />
+        ) : null;
+      })()}
       {posteOuvert && (() => {
         const u = uniteDe(posteOuvert.uniteId);
         const poste = u?.postes?.find((x) => x.id === posteOuvert.posteId);

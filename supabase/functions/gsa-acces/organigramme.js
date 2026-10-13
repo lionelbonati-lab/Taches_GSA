@@ -105,6 +105,9 @@ var sansUne = (l, nom) => {
   return i < 0 ? l : [...l.slice(0, i), ...l.slice(i + 1)];
 };
 var estEtoile = (p) => p.actif && p.roles.includes(ADMIN_ROLE_ID);
+var memePoste = (a, b) => cle2(a.nom) === cle2(b.nom) && (a.lien ?? "") === (b.lien ?? "");
+var placesDu = (postes2, po) => postes2.filter((x) => memePoste(x, po));
+var et = (l) => l.length > 1 ? `${l.slice(0, -1).join(", ")} et ${l[l.length - 1]}` : l[0] ?? "";
 var nomDe = (p) => `${p.prenom} ${p.nom}`.trim() || p.poste?.trim() || p.email || "?";
 var memeQui = (a, b) => !!a.membreId && a.membreId === b.membreId || !!emailKey(a.email) && emailKey(a.email) === emailKey(b.email);
 var benevolesDe = (type) => type === "groupe" ? { un: "membre", plusieurs: "membres", titre: "Membres" } : { un: "bénévole", plusieurs: "bénévoles", titre: "Bénévoles" };
@@ -350,6 +353,11 @@ function placer(m, qui, depuis, vers) {
     if (vers.zone === depuis.zone && (vers.zone !== "poste" || vers.posteId === depuis.posteId)) return "";
     if (vers.zone === "etoile" && depuis.zone === "titre" && vers.personId === depuis.personId) return "";
     if (vers.zone === "poste" && depuis.zone === "titre" && entite(m, vers.uniteId).postes.find((x) => x.id === vers.posteId)?.titulaire === depuis.personId) return "";
+    if (vers.zone === "avec") {
+      const l = entite(m, vers.uniteId).postes;
+      const po = l.find((x) => x.id === vers.posteId);
+      if (po && placesDu(l, po).some((x) => x.titulaire === depuis.personId)) return "";
+    }
   }
   let p;
   let quitte = "";
@@ -368,6 +376,12 @@ function placer(m, qui, depuis, vers) {
       quitte = A.u.nom;
     }
     synchroniser(m, avant2);
+    const suivante = po && !po.titulaire ? A.postes.find((y) => y !== po && y.titulaire && memePoste(y, po)) : void 0;
+    if (po && suivante) {
+      const premiere = A.postes.find((y) => memePoste(y, po)) === po;
+      if (premiere) po.titulaire = suivante.titulaire;
+      A.postes.splice(A.postes.indexOf(premiere ? suivante : po), 1);
+    }
     if (vers.zone === "corbeille") return quitte ? `${nomDe(x)} retiré de « ${A.u.nom} »` : `${nomDe(x)} n’est plus ${quoi} de « ${A.u.nom} »`;
   }
   if (vers.zone === "corbeille") return "";
@@ -395,6 +409,26 @@ function placer(m, qui, depuis, vers) {
     const ancien = donnerPoste(B.d, po, p);
     if (ancien) liberer(B.d, ancien);
     msg = `${nom} : ${po.nom} de « ${B.u.nom} »${ancien ? ` à la place de ${nomDe(ancien)}` : ""}`;
+  } else if (vers.zone === "avec") {
+    const po = B.postes.find((y) => y.id === vers.posteId);
+    if (!po) throw new Error("Ce poste n’existe plus.");
+    const places = placesDu(B.postes, po);
+    const avec = places.flatMap((y) => {
+      const t = y.titulaire && y.titulaire !== p.id ? B.d.people.find((z) => z.id === y.titulaire && z.actif) : void 0;
+      return t ? [nomDe(t)] : [];
+    });
+    if (places.some((y) => y.titulaire === p.id)) msg = `${nom} est déjà ${po.nom} de « ${B.u.nom} »`;
+    else {
+      let x = places.find((y) => !y.titulaire);
+      if (!x) {
+        x = { id: uid("po"), nom: po.nom, ...po.lien ? { lien: po.lien } : {} };
+        B.postes.splice(B.postes.indexOf(places[places.length - 1]) + 1, 0, x);
+      }
+      const lies = etatLiens(m);
+      donnerPoste(B.d, x, p);
+      synchroniser(m, lies);
+      msg = `${nom} : ${po.nom} de « ${B.u.nom} »${avec.length ? `, avec ${et(avec)}` : ""}`;
+    }
   } else if (vers.zone === "nouveau") {
     const n = vers.nom.trim();
     if (!n) throw new Error("Donne un nom au poste.");
@@ -480,6 +514,7 @@ function appliquer(m, op) {
       return `Nouveau poste « ${n} » dans « ${A.u.nom} »${po2.titulaire ? "" : " : à pourvoir"}`;
     }
     const po = A.postes.find((x) => x.id === op.posteId);
+    if (!po && op.type === "supprimerPoste") return "";
     if (!po) throw new Error("Ce poste n’existe plus.");
     if (op.type === "renommer") {
       const n = op.nom.trim();
@@ -681,7 +716,7 @@ function lireOp(x) {
       if (v.zone === "corbeille") vers = { zone: "corbeille" };
       else if (v.zone === "titre" || v.zone === "benevoles") vers = { zone: v.zone, uniteId: s(v.uniteId) };
       else if (v.zone === "etoile") vers = { zone: "etoile", uniteId: s(v.uniteId), personId: s(v.personId) };
-      else if (v.zone === "poste") vers = { zone: "poste", uniteId: s(v.uniteId), posteId: s(v.posteId) };
+      else if (v.zone === "poste" || v.zone === "avec") vers = { zone: v.zone, uniteId: s(v.uniteId), posteId: s(v.posteId) };
       else if (v.zone === "nouveau") vers = { zone: "nouveau", uniteId: s(v.uniteId), nom: s(v.nom) };
       else throw new Error("Modification invalide.");
       return { type: "placer", qui, depuis, vers };
