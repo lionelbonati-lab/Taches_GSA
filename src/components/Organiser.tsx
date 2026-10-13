@@ -407,7 +407,7 @@ export interface OrgaVue {
 export interface ActionsFiche {
   onPersonne: (m: OrgMember) => void;
   onLien: (id: string) => void;
-  /** « + Ajouter une personne » : sa fiche complète, ou toute une entité (👥). */
+  /** « + Ajouter une personne » : sa fiche complète. */
   onAjouter?: () => void;
   ouvrir?: { label: string; aide: string; go: () => void };
   onModifier?: () => void;

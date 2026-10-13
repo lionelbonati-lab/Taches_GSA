@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, deleteMembre, demandesMdp, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, proposerAmelioration, proposeTask, rattraper, sendCentralTicket, setEditionDate, toRows, updateCommittee, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
@@ -31,6 +31,8 @@ function ecrireEntite(u: OrgUnit) {
       couleurAppli: u.couleurAppli || undefined,
       dependDe: u.dependDe || undefined,
       tachesDependance: u.tachesDependance && u.tachesDependance !== 'partagees' ? u.tachesDependance : undefined,
+      // Tenu par le serveur (030), qui n'en garde que le droit de copie de la dernière période.
+      historiqueDependance: u.historiqueDependance?.length ? u.historiqueDependance : undefined,
       carte: u.carte,
       rangement: u.rangement?.length ? u.rangement : undefined,
     },
@@ -108,8 +110,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       central,
       mine: units.filter((u) => u.moi && reachable.has(u.id) && (!u.archive || u.id === current.id)),
       canManage: !!central?.moiAdmin,
-      // Avant la migration 020, l'organigramme ne donne pas les liens : rien ne tiendrait les membres à jour.
-      liens: !!org?.some((u) => u.liens),
+      // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
+      liens: false,
       loading,
       error,
       refresh,
@@ -225,6 +227,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       mesTicketsCentraux: () => myCentralTickets(),
       agendaClub: () => fetchAgendaClub(clubId),
       tachesPartagees: () => fetchTachesPartagees(m.committeeId),
+      anciennesTaches: () => fetchAnciennesTaches(m.committeeId),
       modifierTachePartagee: (uniteId, task) => saveTachePartagee(m.committeeId, uniteId, task),
       sondagesPartages: () => fetchSondagesPartages(m.committeeId),
       voterSondagePartage: (uniteId, pollId, choix, texte) => voterSondagePartage(m.committeeId, uniteId, pollId, choix, texte),

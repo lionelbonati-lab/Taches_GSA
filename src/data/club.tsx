@@ -87,7 +87,7 @@ export interface Club {
   switchUnit: (id: string, hash?: string) => void;
   refresh: () => void;
   createUnit: (u: NewUnit) => Promise<CreatedUnit>;
-  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'dependDe' | 'tachesDependance' | 'carte' | 'rangement'>>) => Promise<void>;
+  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'dependDe' | 'tachesDependance' | 'historiqueDependance' | 'carte' | 'rangement'>>) => Promise<void>;
   /** Place des cartes dans l'organigramme (null : leur place dans l'arbre). Admins de l'entité ou du comité central. */
   placerCartes: (places: Record<string, Carte | null>) => Promise<void>;
   /** Change la date de la prochaine édition de l'entité ouverte (ses admins, son droit « Gérer les événements », le comité central). */
@@ -96,14 +96,22 @@ export interface Club {
   proposeTask: (r: NewRequest) => Promise<void>;
   /** Demandes envoyées au comité central par l'entité ouverte, avec leur suivi. */
   myRequests: () => Promise<MyRequest[]>;
-  /** Envoie un ticket à rembourser à la caisse centrale (membre d'une autre entité). */
+  /**
+   * Envoie un ticket à rembourser à la caisse qui reçoit ceux de l'entité ouverte : celle du comité dont elle dépend
+   * s'il a un caissier, sinon la caisse centrale (caisseDe ; membre d'une autre entité que celle de la caisse).
+   */
   ticketCentral: (t: TicketCentral) => Promise<void>;
-  /** Tickets envoyés à la caisse centrale par la personne connectée. */
+  /** Tickets envoyés à une autre caisse (comité dont l'entité dépend, caisse centrale) par la personne connectée. */
   mesTicketsCentraux: () => Promise<SuiviTicket[]>;
   /** Événements de toutes les entités du club (agenda ; sans description). */
   agendaClub: () => Promise<AgendaClubEvent[]>;
   /** Tâches que d'autres entités du club partagent avec l'entité ouverte. */
   tachesPartagees: () => Promise<TachePartagee[]>;
+  /**
+   * Anciennes tâches des entités qui dépendent de l'entité ouverte depuis leur dernier changement de dépendance
+   * (lecture et copie) ; null : le serveur ne les gère pas encore (migration 030).
+   */
+  anciennesTaches: () => Promise<TachePartagee[] | null>;
   /** Enregistre, dans son entité, une tâche partagée modifiée depuis l'entité ouverte. */
   modifierTachePartagee: (uniteId: string, task: Task) => Promise<void>;
   /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */

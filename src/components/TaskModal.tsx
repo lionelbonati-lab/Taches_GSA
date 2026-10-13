@@ -201,6 +201,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             )}
           </p>
         )}
+        {t.copieDe && (
+          <p className="full proposal-banner">
+            📋 Copiée depuis le comité <b>{t.copieDe.comite || '?'}</b>, le {fmtDate(t.copieDe.le)} (ancienne tâche de « {t.copieDe.entite} ») : une tâche à part entière de {club?.current.nom ?? 'cette entité'} ; l’original n’est pas modifié.
+          </p>
+        )}
         {t.proposee && (
           <p className="full proposal-banner">
             📨 Demande de <b>{t.proposee.unite}</b>, envoyée par {t.proposee.par} le {fmtDate(t.proposee.le.slice(0, 10))}.

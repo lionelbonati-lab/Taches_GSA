@@ -251,6 +251,13 @@ export interface Task {
   parCentral?: string;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
   paiement?: Paiement;
+  /**
+   * Copie d'une ancienne tâche d'une entité qui dépend maintenant de celle-ci, indépendante de l'original : le comité dont
+   * l'entité dépendait alors, l'entité, la date de la copie (AAAA-MM-JJ) ; l'original (repère « déjà copiée »).
+   */
+  copieDe?: { comite: string; entite: string; le: string; uniteId?: string; tache?: string };
+  /** Ancienne tâche lue du serveur : nombre de pièces jointes (non transmises). Affichage seulement. */
+  pieces?: number;
 }
 
 /** Origine d'une tâche proposée au comité central. */
@@ -269,6 +276,11 @@ export interface TachePartagee {
   task: Task;
   /** Statuts de l'entité de la tâche (correspondance avec ceux de l'entité ouverte). */
   statuts: { id: string; label: string; done: boolean }[];
+  /**
+   * Ancienne tâche (gsa_anciennes_taches, 030) : d'avant que l'entité dépende de l'entité ouverte. Elle se consulte et se
+   * copie, sans modification ; `comite` : le comité dont l'entité dépendait alors, `jusqua` : date du changement.
+   */
+  ancienne?: { comite: string; jusqua: string };
 }
 
 export interface Meeting {
@@ -540,6 +552,24 @@ export type UnitType = 'central' | 'sous-comite' | 'groupe' | 'equipe';
 /** Ce que l'entité dont elle dépend affiche de ses tâches (voir Unit.tachesDependance). */
 export type TachesDependance = 'toutes' | 'partagees' | 'rien';
 
+/**
+ * Période terminée de la dépendance d'une entité, notée à chaque changement du comité dont elle dépend (serveur : 030).
+ * L'ancien comité garde les tâches de sa période (selon le réglage d'alors) ; le nouveau peut lire et copier les
+ * anciennes tâches (`taches` de la dernière période) tant que `copie` n'est pas retiré.
+ */
+export interface PeriodeDependance {
+  /** Comité dont l'entité dépendait. */
+  comite: string;
+  nom: string;
+  /** Date et heure du changement (ISO). */
+  jusqua: string;
+  reglage: TachesDependance;
+  /** Tâches de l'entité à ce moment (hors tickets). */
+  taches: string[];
+  /** Le comité suivant peut lire et copier ces tâches (seul champ que les admins changent). */
+  copie: boolean;
+}
+
 export interface Unit {
   id: string;
   nom: string;
@@ -574,6 +604,8 @@ export interface Unit {
    * (aucun poste ne lui est lié ⛓) : toutes, quel que soit ce réglage (reglageTaches).
    */
   tachesDependance?: TachesDependance;
+  /** Périodes terminées de sa dépendance, de la plus ancienne à la plus récente (tenues par le serveur). */
+  historiqueDependance?: PeriodeDependance[];
   /** Place de sa carte dans l'organigramme, posée à la main (sinon sa place dans l'arbre). */
   carte?: Carte;
   /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (clés des cartes ; les autres à la suite). */
@@ -634,7 +666,7 @@ export interface OrganigrammeAnnuel {
   units: OrgUnit[];
 }
 
-/** Ticket envoyé à la caisse centrale depuis une autre entité. */
+/** Ticket envoyé depuis une entité à la caisse qui reçoit les siens (comité dont elle dépend, ou caisse centrale). */
 export interface TicketCentral {
   type?: 'facture';
   /** Échéance d'une facture (AAAA-MM-JJ). */
@@ -647,7 +679,7 @@ export interface TicketCentral {
   documents: TaskDoc[];
 }
 
-/** Suivi d'un ticket envoyé à la caisse centrale, tel que le voit son demandeur. */
+/** Suivi d'un ticket envoyé à une autre caisse, tel que le voit son demandeur. */
 export interface SuiviTicket {
   id: string;
   type?: 'facture' | null;
@@ -714,7 +746,7 @@ export interface Paiement {
   etat: 'recu' | 'visa' | 'valide' | 'paye' | 'refuse';
   demandePar: string;
   demandeLe: string;
-  /** Ticket envoyé à la caisse centrale par un membre d'une autre entité (pas de fiche ici : demandePar vide). */
+  /** Ticket envoyé à cette caisse par un membre d'une autre entité (pas de fiche ici : demandePar vide). */
   externe?: { uniteId: string; unite: string; par: string; email?: string; userId?: string };
   /** Visa demandé par la caisse (`par`) à la personne `a` (jamais le demandeur). */
   visa?: { a: string; par: string; le: string; message?: string };

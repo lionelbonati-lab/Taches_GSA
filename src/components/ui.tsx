@@ -141,6 +141,9 @@ export function TicketTag({ task }: { task: Task }) {
 /** Tâche proposée au comité central par une autre entité du club, ou ajoutée par le comité central dans une entité. */
 export function ProposalTag({ task }: { task: Task }) {
   const p = task.proposee;
+  const c = task.copieDe;
+  if (c && !p)
+    return <span className="badge proposal" title={`Copiée depuis le comité « ${c.comite} », le ${fmtDate(c.le)} (ancienne tâche de « ${c.entite} »)`}>📋 Copiée{c.comite ? ` · ${c.comite}` : ''}</span>;
   if (task.parCentral && !p) return <span className="badge proposal" title={`Tâche ajoutée par ${task.parCentral} (comité central)`}>🏛️ Comité central</span>;
   if (!p) return null;
   return <span className="badge proposal" title={`Demande de « ${p.unite} », envoyée par ${p.par} le ${fmtDate(p.le.slice(0, 10))}`}>📨 {p.unite}</span>;

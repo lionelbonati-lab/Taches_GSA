@@ -1,7 +1,7 @@
 import { makeSeed } from './seed';
 import { people as centralPeople } from './seedData';
 import { migrate } from './store';
-import { unitData } from './units';
+import { parentDans, unitData } from './units';
 import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
 import { membresPropres, synchroLiens } from './liens';
@@ -186,6 +186,28 @@ export const ecrireBrut = (id: string, s: string | null) => {
     /* stockage indisponible */
   }
 };
+
+/**
+ * Anciennes liaisons « tous les membres d'une entité » remplacées par les dépendances (comme le serveur, 030) : l'entité qui
+ * comptait tous les membres du comité dont elle dépend lui affiche toutes ses tâches ; le lien est retiré (fiches liées
+ * désactivées, leurs tâches restent). Renvoie les entités, modifiées s'il le faut (déjà enregistrées).
+ */
+export function migrerLiens(units: Unit[]): Unit[] {
+  let next = units;
+  for (const u of units) {
+    if (!read(unitStorageKey(u.id))) continue;
+    const d = loadUnitData(u.id);
+    if (!d.membresDe?.length) continue;
+    const dep = parentDans(units.filter((x) => !x.archive || x.id === u.id), u);
+    if (dep && d.membresDe.some((l) => l.uniteId === dep.id) && u.tachesDependance !== 'toutes')
+      next = next.map((x) => (x.id === u.id ? { ...x, tachesDependance: 'toutes' as const } : x));
+    d.membresDe = [];
+    const n = synchroDemo(u.id, d);
+    saveUnitData(u.id, lierFiches(u.id, n ?? d));
+  }
+  if (next !== units) saveUnits(next);
+  return next;
+}
 
 /** Organigramme à glisser-déposer : postes des fiches qui n'en ont pas (déduits des fonctions, liens des câbles d'avant). */
 export function initPostes(units: Unit[]) {

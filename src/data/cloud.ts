@@ -1,7 +1,7 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance } from './types';
-import { lireCarte, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
+import type { AppData, Carte, CentralAccess, ClubMembre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
+import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
 import type { NouveauResponsable } from './cablage';
@@ -46,6 +46,8 @@ export interface UnitInfo {
   dependDe?: string;
   /** Ses tâches dans l'entité dont elle dépend : « toutes », « rien » ; sans valeur : celles partagées avec elle (027). */
   tachesDependance?: TachesDependance;
+  /** Périodes terminées de sa dépendance (tenues par le serveur, 030 ; seul le droit de copie de la dernière change d'ici). */
+  historiqueDependance?: PeriodeDependance[];
   /** Place de sa carte dans l'organigramme, posée à la main (affichage seulement). */
   carte?: Carte;
   /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (affichage seulement). */
@@ -495,6 +497,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     couleurAppli: isCouleur(m.info.couleurAppli) ? m.info.couleurAppli : undefined,
     dependDe: typeof m.info.dependDe === 'string' ? m.info.dependDe : undefined,
     tachesDependance: lireTachesDependance(m.info.tachesDependance),
+    historiqueDependance: lireHistorique(m.info.historiqueDependance),
     carte: lireCarte(m.info.carte),
     rangement: lireRangement(m.info.rangement),
     membres: [],
@@ -535,6 +538,7 @@ function lireOrg(rows: LigneOrg[]): OrgUnit[] {
       couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
       dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
       tachesDependance: lireTachesDependance(info.tachesDependance),
+      historiqueDependance: lireHistorique(info.historiqueDependance),
       carte: lireCarte(info.carte),
       rangement: lireRangement(info.rangement),
       membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined, viaFiche: m.viaFiche ?? undefined })),
@@ -578,14 +582,14 @@ export async function proposeTask(source: string, tache: { titre: string; remarq
   return data as string;
 }
 
-/** Ticket envoyé à la caisse centrale depuis une entité (photo déjà déposée dans le dossier du comité central). */
+/** Ticket envoyé depuis une entité à la caisse qui reçoit les siens (photo déjà déposée dans le dossier de cette caisse ; 030). */
 export async function sendCentralTicket(source: string, ticket: TicketCentral) {
   const { data, error } = await sb().rpc('gsa_ticket_central', { source, ticket });
   if (error) throw new Error(error.message);
   return data as string;
 }
 
-/** Tickets que la personne connectée a envoyés à la caisse centrale, avec leur état. */
+/** Tickets que la personne connectée a envoyés à une autre caisse (comité dont l'entité dépend, caisse centrale), avec leur état. */
 export async function myCentralTickets(): Promise<SuiviTicket[]> {
   const { data, error } = await sb().rpc('gsa_mes_tickets_centraux');
   if (error) throw new Error(error.message);
@@ -648,6 +652,16 @@ export async function deleteMembre(club: string, id: string) {
 export async function fetchTachesPartagees(unite: string): Promise<TachePartagee[]> {
   const { data, error } = await sb().rpc('gsa_taches_partagees', { unite });
   if (error) throw new Error(error.message);
+  return (data ?? []) as TachePartagee[];
+}
+
+/** Anciennes tâches des entités qui dépendent de l'entité (lecture et copie, 030) ; null si le serveur ne les gère pas encore. */
+export async function fetchAnciennesTaches(unite: string): Promise<TachePartagee[] | null> {
+  const { data, error } = await sb().rpc('gsa_anciennes_taches', { unite });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') return null;
+    throw new Error(error.message);
+  }
   return (data ?? []) as TachePartagee[];
 }
 

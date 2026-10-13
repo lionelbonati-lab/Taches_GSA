@@ -5,6 +5,7 @@ import type { Task } from '../data/types';
 import { childrenOf, daysUntil, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
+import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { Avatar, DocPollIcons, Empty, LinkIcon, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
@@ -46,6 +47,9 @@ export function Tasks() {
   const [hideDone, setHideDone] = useState(true);
   const [dragId, setDragId] = useState<string | null>(null);
   const view = prefs.affichage;
+  // Anciennes tâches des entités qui dépendent depuis peu de l'entité ouverte (lecture et copie).
+  const anciennes = useAnciennesTaches();
+  const [voirAnciennes, setVoirAnciennes] = useState(false);
 
   const viewAll = can('tasks.viewAll');
   const effScope = viewAll ? scope : 'mes';
@@ -142,6 +146,7 @@ export function Tasks() {
             <button className={view === 'kanban' ? 'on' : ''} onClick={() => setPrefs({ affichage: 'kanban' })}>Kanban</button>
           </div>
           <button className="btn" onClick={() => setShowFilters(!showFilters)}>Filtres{activeFilters ? ` (${activeFilters})` : ''}</button>
+          {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}>📜 Anciennes tâches ({anciennes.length})</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
           {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { eventId: f.event || undefined, meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>}
@@ -272,6 +277,7 @@ export function Tasks() {
 
       {effScope === 'mes' && <SuiviCentral />}
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} onClose={closeEdit} />}
+      {voirAnciennes && anciennes && <AnciennesTaches list={anciennes} onClose={() => setVoirAnciennes(false)} />}
     </div>
   );
 }

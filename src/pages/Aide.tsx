@@ -2,14 +2,13 @@ import { Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { ADMIN_ROLE_ID } from '../data/permissions';
 import { nomAppli } from '../data/nomAppli';
 import { getMode } from '../data/mode';
 import { useChemin, useNavigation } from '../components/Nav';
 
 /** « Comment ça marche ? » : où trouver quoi (selon les droits de chacun) et les gestes courants. */
 export function Aide() {
-  const { can, cloud, user, sondagesEntites } = useStore();
+  const { can, cloud, sondagesEntites } = useStore();
   const club = useClubOptional();
   const { rubriques, compte } = useNavigation();
   const chemin = useChemin();
@@ -44,8 +43,12 @@ export function Aide() {
   const orga = club && <><Link to="/organigramme">Organigramme du club</Link> (menu des entités, en haut à gauche)</>;
   if (orga) geste('Voir qui fait quoi, et ses coordonnées', orga, ' : un clic sur une personne ouvre la fiche de la personne.');
   if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « ✏️ Modifier l’organigramme », puis « + Ajouter une personne » en bas de la liste des postes de l’entité.');
-  if (orga && club?.liens && club.units.length > 1 && user?.roles.includes(ADMIN_ROLE_ID))
-    geste('Ajouter toute une entité aux membres de la tienne', orga, ' : « ✏️ Modifier l’organigramme » › « + Ajouter une personne » › « 👥 Tous les membres de … ». Qui rejoint ou quitte cette entité rejoint ou quitte aussi la tienne, automatiquement ; tu peux ajouter d’autres personnes en plus.');
+  if (orga && club && club.units.length > 1)
+    geste('Changer le comité dont dépend un groupe ou un événement', orga, ' : sa fiche ⚙️ › « Dépend de » (comité central). Rien n’est déplacé ni copié : l’ancien comité garde les tâches d’avant (ses ordres du jour, PV et paiements aussi) ; le nouveau peut les consulter et en copier (« 📜 Anciennes tâches »). Les admins de l’entité peuvent lui retirer ce droit dans la même fiche (« Dépendances passées »). Revenir à l’ancien comité dans l’heure annule simplement le changement.');
+  if (club && club.units.length > 1)
+    geste('Reprendre les tâches d’une entité qui dépend désormais de ton comité', vers('/taches'), ' : « 📜 Anciennes tâches » (affiché quand il y en a) : consulte-les, coche celles à reprendre, puis « Copier la sélection » ou « Tout copier ». Chaque copie est une tâche de ton comité, indépendante, marquée « 📋 Copiée depuis le comité … » ; l’original ne change pas.');
+  if (club && club.units.length > 1)
+    geste('À quelle caisse va mon ticket ?', 'À celle de ton entité si elle a un caissier ; sinon à celle du comité dont elle dépend (s’il a un caissier), sinon à la caisse centrale. Tu en suis l’état dans « Mes tâches » › « Envoyés à une autre caisse ».');
   // Organigramme à glisser-déposer : fiches à trois zones, postes liés.
   const fiches = !!club?.organiser && club.units.some((u) => !u.archive && (club?.canManage || u.moiAdmin));
   if (orga && fiches) {

@@ -1,4 +1,5 @@
-import type { AppData, OrgMember, OrgUnit, Person, Section, Status, TachePartagee, TachesDependance, Task, Unit, UnitType } from './types';
+import { uid } from './utils';
+import type { AppData, OrgMember, OrgUnit, PeriodeDependance, Person, Section, Status, TachePartagee, TachesDependance, Task, Unit, UnitType } from './types';
 
 // Tâches partagées entre les entités du club. Une tâche reste dans son entité ; celle-ci peut la partager
 // avec d'autres entités (comité central, sous-comités, groupes, équipes) : chacune la voit dans ses tâches et
@@ -45,15 +46,67 @@ export const TACHES_DEPENDANCE: Record<TachesDependance, { label: string; aide: 
 };
 
 /**
- * La tâche `t` de l'entité `u` s'affiche-t-elle dans l'entité `moi` (sa liste des tâches, son ordre du jour, son PV) ?
- * `parent` : l'entité dont `u` dépend (parentDans) ; `reglage` : ce qu'elle y affiche (reglageTaches). Jamais les
- * tickets (remboursements, factures).
+ * Ce que l'entité `moi` voit de la tâche `t` de l'entité `u` (même règle que le serveur : gsa_tache_dans, 030) :
+ *   'modifiable' : dans sa liste des tâches, son ordre du jour et son PV, modifiable comme une tâche partagée ;
+ *   'ancienne'   : ancienne tâche (d'avant que `u` dépende de `moi`) : lecture et copie seulement ;
+ *   null         : rien.
+ * `parent` : l'entité dont `u` dépend (parentDans) ; `reglage` : ce qu'elle y affiche (reglageTaches). Une tâche de la
+ * période où `u` dépendait d'un autre comité reste à ce comité, selon le réglage d'alors (historiqueDependance).
+ * Jamais les tickets (remboursements, factures).
  */
-export function visibleDans(t: Pick<Task, 'partage' | 'auCentral' | 'paiement'>, u: Pick<Unit, 'parentId'>, parent: string | undefined, moi: string, reglage: TachesDependance): boolean {
-  if (t.paiement) return false;
+export function tacheDans(
+  t: Pick<Task, 'id' | 'partage' | 'auCentral' | 'paiement'>,
+  u: Pick<Unit, 'parentId' | 'historiqueDependance'>,
+  parent: string | undefined,
+  moi: string,
+  reglage: TachesDependance,
+): 'modifiable' | 'ancienne' | null {
+  if (t.paiement) return null;
   const partagee = partageDe(t, u.parentId).includes(moi);
-  if (parent !== moi) return partagee;
-  return reglage === 'toutes' || (reglage === 'partagees' && partagee);
+  const h: PeriodeDependance[] = u.historiqueDependance ?? [];
+  const selon = (r: TachesDependance) => (r === 'toutes' || (r === 'partagees' && partagee) ? 'modifiable' : null);
+  for (let k = h.length - 1; k >= 0; k--)
+    if (h[k].comite === moi && h[k].taches.includes(t.id) && !(k > 0 && h[k - 1].taches.includes(t.id))) return selon(h[k].reglage);
+  if (parent === moi) {
+    const derniere = h[h.length - 1];
+    if (derniere?.taches.includes(t.id)) {
+      if (partagee && reglage !== 'rien') return 'modifiable';
+      return derniere.copie ? 'ancienne' : null;
+    }
+    return selon(reglage);
+  }
+  return partagee ? 'modifiable' : null;
+}
+
+/** La tâche `t` de l'entité `u` s'affiche-t-elle (modifiable) dans l'entité `moi` ? Voir tacheDans. */
+export const visibleDans = (...a: Parameters<typeof tacheDans>) => tacheDans(...a) === 'modifiable';
+
+/** Ancienne période de dépendance : « jusqu'au jj.mm.aaaa ». */
+export const dateCourte = (iso: string) => (/^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : '');
+
+/**
+ * Copie d'une ancienne tâche dans l'entité ouverte : une tâche à elle, indépendante (titre, remarque, checklist, délai,
+ * statut et responsables retrouvés ici), sans pièces jointes ni liens, avec la mention de son origine.
+ */
+export function copieAncienne(x: TachePartagee, d: Pick<AppData, 'statuses' | 'people'>, ctx: { units: OrgUnit[]; moi: string; sectionId: string; sousSection: string; par: string; aujourdhui: string }): Task {
+  const t = x.task;
+  const st = statutCorrespondant(d.statuses, x.statuts.find((s) => s.id === t.statusId)) ?? d.statuses[0];
+  const responsables = [...new Set((t.responsables ?? []).map((id) => ici(d.people, membre(ctx.units, x.uniteId, id))?.id).filter((y): y is string => !!y))];
+  return {
+    id: uid('t'),
+    sectionId: ctx.sectionId,
+    sousSection: ctx.sousSection,
+    titre: t.titre ?? '',
+    responsables,
+    statusId: st?.id ?? '',
+    delai: t.delai ?? '',
+    remarque: t.remarque ?? '',
+    checklist: Array.isArray(t.checklist) ? t.checklist.map((c) => ({ ...c })) : [],
+    termineeLe: st?.done ? (t.termineeLe ?? ctx.aujourdhui) : undefined,
+    createdBy: ctx.par,
+    updatedAt: new Date().toISOString(),
+    copieDe: { comite: x.ancienne?.comite ?? '', entite: x.unite, le: ctx.aujourdhui, uniteId: x.uniteId, tache: t.id },
+  };
 }
 
 type SectionLue = Pick<Section, 'id' | 'nom'> & { sousSections?: string[] };

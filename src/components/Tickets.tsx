@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { UNIT_TYPES } from '../data/units';
+import { caisseDe, UNIT_TYPES } from '../data/units';
 import type { AppData, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre } from '../data/types';
 import {
   COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, peutOuvrirTicket, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, viseDirect,
@@ -81,7 +81,7 @@ export function CircuitPaiements({ total }: { total?: number }) {
   );
 }
 
-/** Demandes envoyées à la caisse centrale depuis une autre entité : elles n'y sont pas, on en suit l'état. */
+/** Demandes envoyées à une autre caisse (comité dont l'entité dépend, ou caisse centrale) : elles n'y sont pas, on en suit l'état. */
 export function SuiviCentral() {
   const club = useClubOptional();
   const [list, setList] = useState<SuiviTicket[]>([]);
@@ -93,7 +93,7 @@ export function SuiviCentral() {
     return () => window.removeEventListener(ENVOI_CENTRAL, k);
   }, []);
   useEffect(() => {
-    if (!club || club.central?.moi) return;
+    if (!club) return;
     let actif = true;
     club
       .mesTicketsCentraux()
@@ -106,13 +106,13 @@ export function SuiviCentral() {
   if (!list.length) return null;
   return (
     <section className="suivi-central">
-      <h2>Envoyés à la caisse centrale</h2>
+      <h2>Envoyés à une autre caisse</h2>
       <ul>
         {list.map((t) => (
           <li key={t.id}>
             <span className={`ticket-etat ${t.etat}`}>{ETATS[t.etat].icon} {ETATS[t.etat].label}</span>
             <strong>{GENRES[genreDe({ type: t.type ?? undefined })].icon} {t.titre}</strong>
-            <span>{chf(t.montant)} · {fmtDate(t.le.slice(0, 10))}{t.etat === 'paye' && t.payeLe ? ` · payé le ${fmtDate(t.payeLe.slice(0, 10))}` : ''}</span>
+            <span>{chf(t.montant)} · {fmtDate(t.le.slice(0, 10))}{t.caisse ? ` · caisse ${t.caisse}` : ''}{t.etat === 'paye' && t.payeLe ? ` · payé le ${fmtDate(t.payeLe.slice(0, 10))}` : ''}</span>
             {t.motif && <small className="muted">Motif : « {t.motif} »</small>}
           </li>
         ))}
@@ -593,12 +593,14 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
   const facture = genreT === 'facture';
   const g = GENRES[genreT];
   // Caisse destinataire : celle de l'entité ouverte, celle d'une autre entité dont on est membre (le ticket y est créé),
-  // ou la caisse centrale pour qui n'est pas du comité central ; seulement là où un caissier est désigné.
+  // ou celle qui reçoit les tickets de l'entité ouverte (le comité dont elle dépend s'il a un caissier, sinon la caisse
+  // centrale : caisseDe) pour qui n'en est pas membre ; seulement là où un caissier est désigné.
   const nomsCaisse = caissiers(data).map((p) => fullName(p));
   const ici = nomsCaisse.length > 0;
   const autres = club && !ticket ? club.mine.filter((u) => u.id !== club.current.id && u.membres.some((m) => m.caisse)) : [];
-  const central = club?.central;
+  const central = club ? caisseDe(club.units, club.current) : undefined;
   const centrale = !ticket && !!central && !central.moi && central.id !== club?.current.id && central.membres.some((m) => m.caisse);
+  const nomCentrale = central ? (central.type === 'central' ? `Caisse centrale (${central.nom})` : `Caisse de « ${central.nom} »`) : '';
   const [vers, setVers] = useState<'ici' | 'centrale'>(!ici && centrale ? 'centrale' : 'ici');
   const versCentrale = vers === 'centrale' && centrale;
   const bloque = !ticket && !(versCentrale || ici);
@@ -624,7 +626,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
     .filter((n) => n && n !== moiNom)
     .sort((a, b) => a.localeCompare(b, 'fr'));
   const [autreNom, setAutreNom] = useState(() => !facture && !!beneficiaire && beneficiaire !== moiNom && !noms.includes(beneficiaire));
-  // Organigramme chargé après l'ouverture du formulaire : la caisse centrale reste le choix d'office d'une entité sans caissier.
+  // Organigramme chargé après l'ouverture du formulaire : la caisse du comité reste le choix d'office d'une entité sans caissier.
   useEffect(() => {
     if (!ici && centrale && vers === 'ici' && !docs.length) setVers('centrale');
   }, [ici, centrale]);
@@ -711,7 +713,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
   const note = ticket
     ? ''
     : versCentrale
-      ? `Caisse centrale (${central!.nom}) : ${caisseCentrale.join(', ')}. Tu en suivras l’état dans « Mes tâches » (Envoyés à la caisse centrale).`
+      ? `${nomCentrale} : ${caisseCentrale.join(', ')}. Tu en suivras l’état dans « Mes tâches » (Envoyés à une autre caisse).`
       : ici
         ? `${club ? `Caisse ${club.current.nom}` : 'Caisse'} : ${nomsCaisse.join(', ')}.`
         : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans la fiche de la personne : organigramme, clic sur son nom). ${
@@ -735,7 +737,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
             <select value={versCentrale ? CENTRALE : ici ? club.current.id : ''} onChange={(e) => choisirCaisse(e.target.value)}>
               {bloque && <option value="" disabled>Choisir la caisse…</option>}
               {options.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
-              {centrale && <option value={CENTRALE}>🏛️ Caisse centrale ({central!.nom})</option>}
+              {centrale && <option value={CENTRALE}>{UNIT_TYPES[central!.type].icon} {nomCentrale}</option>}
             </select>
             {choix > 1 && <small className="muted">À choisir avant d’ajouter la photo.</small>}
           </label>

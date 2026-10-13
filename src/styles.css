@@ -1409,3 +1409,16 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .comptes-seuls > header { max-width: 720px; margin: 0 auto 12px; gap: 10px; align-items: center; }
 .comptes-seuls > .comptes { margin: 0 auto; }
 .demande-mdp { display: flex; flex-direction: column; gap: 6px; }
+
+/* Anciennes tâches (changement de dépendance) : consultation et copie. */
+.anciennes { margin-bottom: 12px; }
+.anciennes-liste { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.anciennes-liste > li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }
+.anciennes-liste label.check { display: flex; align-items: flex-start; gap: 8px; flex: 1; min-width: 0; margin: 0; font-weight: normal; }
+.anciennes-liste label.check input { width: auto; margin-top: 3px; }
+.ancienne-detail { flex-basis: 100%; padding: 4px 0 2px 26px; font-size: 0.9rem; }
+.ancienne-detail p { margin: 0 0 4px; white-space: pre-wrap; }
+.ancienne-detail ul { margin: 0; padding-left: 18px; }
+.historique-dep { margin: 4px 0 0; padding-left: 18px; font-size: 0.9rem; }
+.form label.check-inline { flex-direction: row; align-items: flex-start; gap: 8px; color: var(--text); font-weight: 400; font-size: 0.95rem; margin-top: 6px; }
+.form label.check-inline input { width: auto; margin-top: 3px; }

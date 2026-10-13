@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
-import { defaultRoleId, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData, UNIT_TYPES } from './data/units';
+import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
+import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData, UNIT_TYPES } from './data/units';
 import { poserResponsable } from './data/cablage';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { emailKey, nouveauMembre } from './data/membres';
@@ -11,7 +11,7 @@ import { uid } from './data/utils';
 import { demoClassique } from './data/mode';
 import type { AgendaClubEvent, MyRequest, OrgUnit, Person, Proposition, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
-import { fusionPartagee, visibleDans } from './data/partage';
+import { fusionPartagee, tacheDans } from './data/partage';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
@@ -33,7 +33,7 @@ export function DemoApp() {
     const u = loadUnits();
     initMembres(u);
     initPostes(u);
-    return u;
+    return migrerLiens(u);
   });
   const [me, setMe] = useState<string | null>(() => loadMe());
   const [unitId, setUnitId] = useState<string | null>(readUnit);
@@ -115,7 +115,8 @@ export function DemoApp() {
       central,
       mine: mineAll.filter((u) => !u.archive || u.id === current.id),
       canManage: !!central?.moiAdmin,
-      liens: true,
+      // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
+      liens: false,
       loading: false,
       error: '',
       switchUnit,
@@ -136,7 +137,14 @@ export function DemoApp() {
         return { unitId: id };
       },
       async updateUnit(id, patch) {
-        const next = units.map((u) => (u.id === id ? { ...u, ...patch } : u));
+        let next = units.map((u) => (u.id === id ? { ...u, ...patch } : u));
+        // Historique des dépendances, tenu comme par le serveur (030).
+        const u0 = org.find((u) => u.id === id);
+        if (u0) {
+          const taches = loadUnitData(id).tasks.filter((t) => !t.paiement).map((t) => t.id);
+          const h = nouvelHistorique(units, next, id, { reglage: reglageTaches(org, u0), taches });
+          next = next.map((u) => (u.id === id ? { ...u, historiqueDependance: h } : u));
+        }
         saveUnits(next);
         setUnits(next);
         if (!classique && patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
@@ -281,12 +289,15 @@ export function DemoApp() {
         if (!central || !me) return [];
         return (loadUnitData(central.id).propositions ?? []).filter((p) => p.auteur === me).sort((a, b) => b.le.localeCompare(a.le));
       },
-      // Remboursement / paiement demandé par un membre d'une autre entité à la caisse centrale (version réelle : gsa_ticket_central).
+      // Remboursement / paiement demandé par un membre d'une autre entité à la caisse qui reçoit ses tickets : celle du
+      // comité dont elle dépend s'il a un caissier, sinon la caisse centrale (version réelle : gsa_ticket_central, 030).
       async ticketCentral(r) {
-        if (!central || !me) throw new Error('Pas de comité central.');
-        const d = loadUnitData(central.id);
+        const cible = caisseDe(org, current);
+        if (!cible || !me) throw new Error('Pas de comité central.');
+        if (cible.moi) throw new Error(`Membre de « ${cible.nom} » : envoie le ticket depuis « ${cible.nom} »`);
+        const d = loadUnitData(cible.id);
         const caisse = caissiers(d).map((p) => p.id);
-        if (!caisse.length) throw new Error('La caisse centrale n’a pas encore de caissier');
+        if (!caisse.length) throw new Error(`La caisse de « ${cible.nom} » n’a pas encore de caissier`);
         const fiche = loadUnitData(current.id).people.find((p) => personKey(p, current.id) === me);
         const par = `${fiche?.prenom ?? ''} ${fiche?.nom ?? ''}`.trim() || 'Membre';
         const now = new Date().toISOString();
@@ -316,7 +327,7 @@ export function DemoApp() {
         };
         d.tasks.unshift(t);
         d.log.unshift({ id: uid('l'), at: now, userId: '', action: `${r.type === 'facture' ? 'Paiement de facture' : 'Remboursement'} demandé par « ${current.nom} » (${par}) : « ${t.titre} » (${r.montant.toFixed(2)} CHF)` });
-        saveUnitData(central.id, d);
+        saveUnitData(cible.id, d);
       },
       // Agenda du club : événements de toutes les entités (version réelle : gsa_agenda_club).
       async agendaClub(): Promise<AgendaClubEvent[]> {
@@ -335,8 +346,23 @@ export function DemoApp() {
             const d = loadUnitData(u.id);
             const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
             return d.tasks
-              .filter((t) => visibleDans(t, u, parentDans(actives, u)?.id, current.id, reglageTaches(org, u)))
+              .filter((t) => tacheDans(t, u, parentDans(actives, u)?.id, current.id, reglageTaches(org, u)) === 'modifiable')
               .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts }));
+          });
+      },
+      // Anciennes tâches des entités qui dépendent maintenant de l'entité ouverte : lecture et copie (version réelle :
+      // gsa_anciennes_taches, 030). Sans pièces jointes (leur nombre seulement).
+      async anciennesTaches(): Promise<TachePartagee[]> {
+        const actives = units.filter((u) => !u.archive);
+        return actives
+          .filter((u) => u.id !== current.id && u.historiqueDependance?.length && parentDans(actives, u)?.id === current.id)
+          .flatMap((u) => {
+            const d = loadUnitData(u.id);
+            const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
+            const fin = u.historiqueDependance![u.historiqueDependance!.length - 1];
+            return d.tasks
+              .filter((t) => tacheDans(t, u, current.id, current.id, reglageTaches(org, u)) === 'ancienne')
+              .map(({ documents, ...t }) => ({ uniteId: u.id, unite: u.nom, type: u.type, ancienne: { comite: fin.nom, jusqua: fin.jusqua }, task: { ...t, pieces: documents?.length ?? 0 }, statuts }));
           });
       },
       // Modification depuis l'entité ouverte, enregistrée dans l'entité de la tâche (version réelle : gsa_modifier_tache_partagee).
@@ -344,8 +370,9 @@ export function DemoApp() {
         const u = units.find((x) => x.id === uniteId);
         const d = loadUnitData(uniteId);
         const old = d.tasks.find((t) => t.id === task.id);
-        if (!u || u.archive || !old || !visibleDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)))
-          throw new Error('Cette tâche n’est plus partagée avec cette entité.');
+        const vue = u && old && !u.archive ? tacheDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)) : null;
+        if (vue === 'ancienne') throw new Error(`Ancienne tâche de « ${u!.nom} » : elle se consulte et se copie, sans modification`);
+        if (!u || !old || vue !== 'modifiable') throw new Error('Cette tâche n’est plus partagée avec cette entité.');
         d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id) : t));
         saveUnitData(uniteId, d);
       },
@@ -369,8 +396,8 @@ export function DemoApp() {
         saveUnitData(uniteId, d);
       },
       async mesTicketsCentraux(): Promise<SuiviTicket[]> {
-        if (!central || !me) return [];
-        return loadUnitData(central.id)
+        if (!me) return [];
+        return units.flatMap((c) => loadUnitData(c.id)
           .tasks.filter((t): t is Ticket => !!t.paiement && t.paiement.externe?.userId === me)
           .map((t) => ({
             id: t.id,
@@ -381,11 +408,11 @@ export function DemoApp() {
             etat: t.paiement.etat,
             le: t.paiement.demandeLe,
             unite: t.paiement.externe!.unite,
-            caisse: central.nom,
+            caisse: c.nom,
             viseLe: t.paiement.validation?.le,
             payeLe: t.paiement.paye?.le,
             motif: t.paiement.refus?.motif,
-          }))
+          })))
           .sort((a, b) => b.le.localeCompare(a.le));
       },
       membresAcces,

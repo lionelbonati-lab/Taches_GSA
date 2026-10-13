@@ -4,11 +4,11 @@ import { useStore } from '../data/store';
 import { useClub, type CreatedUnit, type NewMember, type NewUnit } from '../data/club';
 import { arbreEntites, auComiteEntier, directory, orgMembers, parentDans, personKey, postesEntite, sousEntites, SUB_TYPES, UNIT_COLORS, UNIT_TYPES, type Branche, type DirectoryEntry } from '../data/units';
 import type { OrganigrammeAnnuel, OrgMember, OrgUnit, TachesDependance, Unit, UnitType } from '../data/types';
-import { TACHES_DEPENDANCE } from '../data/partage';
+import { dateCourte, TACHES_DEPENDANCE } from '../data/partage';
 import { fmtDate, fmtRange } from '../data/utils';
 import { Empty, Initials, Modal, UnitMark } from '../components/ui';
 import { ADMIN_ROLE_ID } from '../data/permissions';
-import { groupesLies, roleDuLien } from '../data/liens';
+import { groupesLies } from '../data/liens';
 import { nomMembre } from '../data/membres';
 import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
@@ -1071,6 +1071,11 @@ function UnitModal({
   const nomParent = actives.find((u) => u.id === dependChoisi)?.nom ?? 'Comité central';
   // Un événement auquel aucun poste n'est lié ⛓ : tout le comité en est responsable, toutes ses tâches y sont affichées.
   const comiteEntier = !!unit && auComiteEntier(club.units, unit);
+  // Dépendances passées (tenues par le serveur) : le comité actuel lit et copie les anciennes tâches, sauf droit retiré.
+  const historique = unit?.historiqueDependance ?? [];
+  const derniere = historique[historique.length - 1];
+  const [copie, setCopie] = useState(derniere?.copie ?? true);
+  const nomActuel = actives.find((u) => u.id === dependInitial)?.nom ?? 'Comité central';
   const dir = useMemo(() => directory(club.units.filter((u) => !u.archive)), [club.units]);
   const [chefKey, setChefKey] = useState('');
   const [chefNew, setChefNew] = useState({ prenom: '', nom: '', email: '' });
@@ -1111,7 +1116,8 @@ function UnitModal({
       } else {
         const image = logo !== unit.logo ? { logo } : {};
         const reglage = reglerTaches && !comiteEntier ? { tachesDependance: taches === 'partagees' ? undefined : taches } : {};
-        await club.updateUnit(unit.id, manage ? { ...base, type, archive, dependDe: lien, ...image, ...reglage } : { ...base, ...image, ...reglage });
+        const droit = reglerTaches && derniere && copie !== derniere.copie ? { historiqueDependance: historique.map((p) => (p === derniere ? { ...p, copie } : p)) } : {};
+        await club.updateUnit(unit.id, manage ? { ...base, type, archive, dependDe: lien, ...image, ...reglage, ...droit } : { ...base, ...image, ...reglage, ...droit });
         onClose();
       }
     } catch (e) {
@@ -1145,6 +1151,13 @@ function UnitModal({
             </select>
           </label>
         )}
+        {!isNew && !isCentral && dependChoisi !== dependInitial && (
+          <p className="full muted small-note">
+            Changement de dépendance : rien n’est déplacé ni copié. Ses tâches restent chez elle ; « {nomActuel} » garde celles d’avant le
+            changement (ses ordres du jour, PV et paiements aussi) ; « {nomParent} » pourra les consulter et en copier (📜 Anciennes tâches), sans les modifier.
+            Ses tickets iront à la caisse de « {nomParent} » si elle a un caissier, sinon à la caisse centrale.
+          </p>
+        )}
         {reglerTaches && comiteEntier && (
           <p className="full muted small-note">
             Toutes ses tâches s’affichent dans « {nomParent} » (liste des tâches, ordre du jour, PV) : aucun poste ne lui est lié ⛓, tout le comité en est
@@ -1163,6 +1176,27 @@ function UnitModal({
             </select>
             <small className="muted">{TACHES_DEPENDANCE[taches].aide(nomParent)}</small>
           </label>
+        )}
+        {!isCentral && derniere && (
+          <div className="full">
+            <span className="field-label">Dépendances passées</span>
+            <ul className="historique-dep">
+              {[...historique].reverse().map((p) => (
+                <li key={p.jusqua}>
+                  « {p.nom || '?'} » jusqu’au {dateCourte(p.jusqua)} <small className="muted">· garde les tâches de cette période (réglage d’alors : {TACHES_DEPENDANCE[p.reglage].label.toLowerCase()})</small>
+                </li>
+              ))}
+            </ul>
+            {reglerTaches ? (
+              <label className="check-inline">
+                <input type="checkbox" checked={copie} onChange={(e) => setCopie(e.target.checked)} />
+                « {nomActuel} » peut consulter et copier ses {derniere.taches.length} ancienne(s) tâche(s) (d’avant le {dateCourte(derniere.jusqua)})
+              </label>
+            ) : (
+              <small className="muted">« {nomActuel} » {derniere.copie ? 'peut' : 'ne peut plus'} consulter et copier ses anciennes tâches (d’avant le {dateCourte(derniere.jusqua)}).</small>
+            )}
+            {reglerTaches && <small className="muted"> Les copies déjà faites restent. Le droit cesse de lui-même si l’entité change à nouveau de dépendance.</small>}
+          </div>
         )}
         {dated(type) && (
           <>
@@ -1299,8 +1333,8 @@ function Created({ c, n, onClose }: { c: CreatedUnit; n: NewUnit; onClose: () =>
 }
 
 /**
- * Une entité dont tous les membres font partie d'une autre : la liste de ceux qui en font partie par ce lien
- * (un clic ouvre leur fiche) ; ses admins choisissent leur rôle à l'arrivée ou retirent le lien.
+ * Ancien lien « tous les membres d'une entité » (remplacé par les dépendances, 030) : la liste de ceux qui en font
+ * partie par ce lien (un clic ouvre leur fiche) ; ses admins peuvent le retirer.
  */
 function LienModal({ u, id, onPersonne, onModifier, onClose }: { u: OrgUnit; id: string; onPersonne: (m: OrgMember) => void; onModifier?: () => void; onClose: () => void }) {
   const club = useClub();
@@ -1311,12 +1345,6 @@ function LienModal({ u, id, onPersonne, onModifier, onClose }: { u: OrgUnit; id:
   const ouverte = u.id === club.current.id;
   const lien = ouverte ? data.membresDe?.find((l) => l.uniteId === id) : undefined;
   const admin = ouverte && !!lien && !!user?.roles.includes(ADMIN_ROLE_ID);
-  const roles = data.roles.filter((r) => r.id !== ADMIN_ROLE_ID);
-  const role = lien ? roleDuLien(data, lien.role) : undefined;
-  const changerRole = (r: string) =>
-    update((d) => {
-      d.membresDe = (d.membresDe ?? []).map((l) => (l.uniteId === id ? { ...l, role: r } : l));
-    }, `Membres de « ${nomA} » : rôle « ${roles.find((x) => x.id === r)?.label ?? r} » à leur arrivée`);
   const retirer = () => {
     if (!confirm(`Retirer « ${nomA} » de « ${u.nom} » ? Ses membres qui ne font pas partie de « ${u.nom} » à titre personnel en sont retirés ; leurs tâches restent.`)) return;
     update((d) => {
@@ -1327,8 +1355,8 @@ function LienModal({ u, id, onPersonne, onModifier, onClose }: { u: OrgUnit; id:
   return (
     <Modal title={`👥 Membres de « ${nomA} »`} onClose={onClose}>
       <p className="muted">
-        Tous les membres de « {nomA} » font partie de « {u.nom} » : qui rejoint ou quitte « {nomA} » rejoint ou quitte aussi « {u.nom} », automatiquement.
-        {' '}« {u.nom} » peut aussi avoir d’autres personnes (« + Ajouter une personne »).
+        Ancien lien : tous les membres de « {nomA} » font partie de « {u.nom} ». Ces liens sont remplacés par les dépendances : le comité dont
+        « {u.nom} » dépend voit ses tâches selon son réglage (fiche de l’entité). Ajoute à « {u.nom} » ceux qui doivent en faire partie eux-mêmes.
       </p>
       <div className="login-list lien-membres">
         {membres.map((m) => (
@@ -1342,15 +1370,6 @@ function LienModal({ u, id, onPersonne, onModifier, onClose }: { u: OrgUnit; id:
         ))}
         {!membres.length && <p className="muted">Personne pour l’instant : ses membres font déjà partie de « {u.nom} » eux-mêmes, ou « {nomA} » n’a pas encore de membre.</p>}
       </div>
-      {admin && roles.length > 0 && (
-        <label className="lien-role">
-          Rôle de ses membres dans « {u.nom} » quand ils arrivent
-          <select value={role ?? ''} onChange={(e) => changerRole(e.target.value)}>
-            {roles.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-          </select>
-          <small className="muted">Chacun garde ensuite le sien (clic sur son nom pour le changer). Jamais Admin : un admin s’ajoute lui-même.</small>
-        </label>
-      )}
       <div className="modal-foot">
         {admin && <button className="btn danger" onClick={retirer}>Retirer « {nomA} »</button>}
         <span className="grow" />

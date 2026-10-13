@@ -1,6 +1,6 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
-import type { AppData, Carte, OrgMember, OrgUnit, Permission, Person, Role, Section, TachesDependance, Unit, UnitType } from './types';
+import type { AppData, Carte, OrgMember, OrgUnit, PeriodeDependance, Permission, Person, Role, Section, TachesDependance, Unit, UnitType } from './types';
 import { posteBesideName, uid } from './utils';
 
 // Entités du club : comité central, sous-comités, groupes, équipes d'événement.
@@ -68,6 +68,61 @@ export function lireRangement(r: unknown): string[] | undefined {
 /** Ce que l'entité dont elle dépend affiche de ses tâches, lu des données ; sans valeur (ou inconnue) : les partagées. */
 export function lireTachesDependance(x: unknown): TachesDependance | undefined {
   return x === 'toutes' || x === 'rien' ? x : undefined;
+}
+
+/** Historique des dépendances lu des données (tenu par le serveur, 030) ; sans période : undefined. */
+export function lireHistorique(x: unknown): PeriodeDependance[] | undefined {
+  if (!Array.isArray(x)) return undefined;
+  const l = x
+    .filter((e): e is Record<string, unknown> => !!e && typeof e === 'object' && typeof (e as Record<string, unknown>).comite === 'string')
+    .map((e) => ({
+      comite: e.comite as string,
+      nom: typeof e.nom === 'string' ? e.nom : '',
+      jusqua: typeof e.jusqua === 'string' ? e.jusqua : '',
+      reglage: lireTachesDependance(e.reglage) ?? 'partagees',
+      taches: Array.isArray(e.taches) ? e.taches.filter((t): t is string => typeof t === 'string') : [],
+      copie: e.copie !== false,
+    }));
+  return l.length ? l : undefined;
+}
+
+/**
+ * Caisse qui reçoit les tickets (remboursements, factures) envoyés depuis `u` : celle du comité dont elle dépend, s'il a
+ * un caissier ; sinon la caisse centrale (serveur : gsa_caisse_de, 030).
+ */
+export function caisseDe<T extends Unit & { membres: Pick<OrgMember, 'caisse'>[] }>(units: T[], u: T): T | undefined {
+  const central = units.find((x) => x.type === 'central');
+  const dep = parentDans(units.filter((x) => !x.archive || x.id === u.id), u);
+  return dep && dep.type !== 'central' && dep.membres.some((m) => m.caisse) ? dep : central;
+}
+
+/**
+ * Historique des dépendances de l'entité `id` après une modification (`avant` → `apres` : toutes les entités), comme le
+ * serveur le tient (gsa_committees_guard, 030) : une période de plus si le comité dont elle dépend change (`taches` : ses
+ * tâches hors tickets à ce moment ; `reglage` : son réglage d'alors) ; retour au comité d'avant dans l'heure (« Annuler ») :
+ * le changement est effacé. Seul le droit de copie de la dernière période vient de la modification elle-même.
+ */
+export function nouvelHistorique(avant: Unit[], apres: Unit[], id: string, ctx: { reglage: TachesDependance; taches: string[]; maintenant?: Date }): PeriodeDependance[] | undefined {
+  const u0 = avant.find((x) => x.id === id);
+  const u1 = apres.find((x) => x.id === id);
+  if (!u0 || !u1) return u1?.historiqueDependance;
+  let h = [...(u0.historiqueDependance ?? [])];
+  const dernier = h[h.length - 1];
+  const demande = u1.historiqueDependance;
+  if (dernier && demande?.length === h.length && demande[h.length - 1].jusqua === dernier.jusqua)
+    h[h.length - 1] = { ...dernier, copie: demande[h.length - 1].copie };
+  if (u0.type !== 'central') {
+    const actives = (l: Unit[]) => l.filter((x) => !x.archive || x.id === id);
+    const de = parentDans(actives(avant), u0);
+    const vers = parentDans(actives(apres), u1);
+    const maintenant = ctx.maintenant ?? new Date();
+    if (de && de.id !== vers?.id) {
+      const fin = h[h.length - 1];
+      if (fin && fin.comite === vers?.id && maintenant.getTime() - Date.parse(fin.jusqua) < 3600_000) h = h.slice(0, -1);
+      else h = [...h, { comite: de.id, nom: de.nom, jusqua: maintenant.toISOString(), reglage: ctx.reglage, taches: ctx.taches, copie: true }].slice(-20);
+    }
+  }
+  return h.length ? h : undefined;
 }
 
 type AvecPostes = Pick<Unit, 'id' | 'type' | 'archive'> & { postes?: { lien?: string }[] };
