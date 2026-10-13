@@ -10,7 +10,7 @@ import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { avecPartage, libellePlace, partageDe, TACHES_DEPENDANCE } from '../data/partage';
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
-import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance } from '../data/externes';
+import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
 import type { DelaiUnite, EvenementEntite, OrgUnit, Recurrence, SeanceComite, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { Avatar, Modal, StatusBadge } from './ui';
@@ -44,7 +44,7 @@ export function TaskModal(props: TaskModalProps) {
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage';
 
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, update, linkTask, autresResp, externes } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, update, linkTask, autresResp, externes, setToast } = useStore();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   const [t, setT] = useState<Task>(() => (isNew ? { ...task, responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)) } : task));
   const [newItem, setNewItem] = useState('');
@@ -52,6 +52,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const [other, setOther] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [linking, setLinking] = useState(false);
   const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
   const track = useRef<DocTracking>({ added: [], removed: [] });
   const [newPoll, setNewPoll] = useState(false);
   // Liens et partage déjà remplis : ils restent affichés si on les vide (ex. partage retiré : plus de séance du comité).
@@ -65,6 +66,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   // Partage avec d'autres entités du club (tâche de l'entité ouverte) ; tâche partagée par une autre entité : t.source.
   const partage = partageDe(t, club?.central?.id);
   const partageables = club && !t.paiement && !t.source ? club.units.filter((u) => u.id !== club.current.id && (!u.archive || partage.includes(u.id))) : [];
+  // (Sans l'entité à qui la tâche est attribuée : elle en devient l'entité ; voir plus bas.)
   const nomUnite = (id: string) => club?.units.find((u) => u.id === id)?.nom ?? '';
   const versCentral = club?.central && club.current.type !== 'central' && partage.includes(club.central.id) ? libellePlace(club.central.sections ?? [], club.current) : '';
   // Réglage de l'entité : ses tâches toutes affichées (ou aucune) dans le comité dont elle dépend ; un événement dont tout
@@ -88,6 +90,13 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const att = attributions(section, club && !t.source && !t.paiement ? entitesDependantes(club.units, club.current) : [], externes.sections);
   const attribuee = attributionDe(t, att.choix, partage);
   const attendSections = !!att.unite && !att.lues && externes.sections === null;
+  // Tâche attribuée : enregistrée dans l'entité choisie (à l'enregistrement), dans l'une de ses sections ; ici, partagée.
+  const sectionsChez = attribuee ? (externes.sections?.[attribuee.unite.id] ?? []) : [];
+  const secChez = attribuee && club ? sectionChez(attribuee, t, externes.sections, club.current) : '';
+  const choisirSectionChez = (sectionId: string) =>
+    attribuee && setT((x) => ({ ...x, placePartage: { ...x.placePartage, [attribuee.unite.id]: { sectionId, sousSection: '' } } }));
+  const cacheChez = !!attribuee && !!club && reglageTaches(club.units, attribuee.unite) === 'rien';
+  const partageVisible = attribuee ? partage.filter((id) => id !== attribuee.unite.id) : partage;
   const sousSections = [...(section?.sousSections ?? [])];
   if (t.sousSection && !attribuee && !sousSections.includes(t.sousSection)) sousSections.push(t.sousSection);
   /** Autre section ou sous-section : l'entité à qui la tâche était attribuée ne la partage plus. */
@@ -126,11 +135,33 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const toggleResp = (id: string) =>
     set('responsables', t.responsables.includes(id) ? t.responsables.filter((x) => x !== id) : [...t.responsables, id]);
 
-  const submit = () => {
+  const submit = async () => {
     if (!t.titre.trim()) return setErr('Le titre de la tâche est obligatoire.');
     if (!t.sectionId) return setErr('Choisis une section.');
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
       return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
+    if (attribuee) {
+      const u = attribuee.unite;
+      if (!secChez) return setErr(`Choisis la section de « ${u.nom} » où ranger la tâche.`);
+      if ((t.documents ?? []).some((d) => d.kind === 'fichier'))
+        return setErr(`Les fichiers joints sont rangés ici : retire-les avant d’enregistrer la tâche dans « ${u.nom} » (elle pourra les y ajouter). Les liens suivent la tâche.`);
+      if (!isNew && emailsOf(data, task.id).length)
+        return setErr(`Cette tâche a des emails programmés ici : supprime-les avant de l’enregistrer dans « ${u.nom} » (elle pourra les y programmer).`);
+      if (!isNew && !confirm(`Enregistrer la tâche dans « ${u.nom} » ?\n\nElle sera à « ${u.nom} », qui la gérera comme les siennes ; ici, elle restera visible et modifiable comme tâche partagée.${kids.length ? '\nSes tâches liées restent ici, sans tâche principale.' : ''}`))
+        return;
+      setBusy(true);
+      setErr('');
+      try {
+        await attribuerTache({ ...t, titre: t.titre.trim() }, u, secChez, isNew);
+      } catch (e) {
+        setBusy(false);
+        return setErr((e as Error).message);
+      }
+      setToast(`✅ Tâche enregistrée dans « ${u.nom} » : elle apparaît ici partagée.`);
+      deleteFiles(track.current.removed);
+      onClose();
+      return;
+    }
     saveTask({ ...t, titre: t.titre.trim() }, isNew);
     deleteFiles(track.current.removed); // fichiers retirés : effacés seulement une fois la tâche enregistrée
     onClose();
@@ -214,6 +245,12 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             {seanceIci && <span> 🗓️ À l’ordre du jour de « {seanceIci.titre} » ({fmtDate(seanceIci.date)}).</span>}
           </p>
         )}
+        {t.attribueePar && !t.source && (
+          <p className="full proposal-banner">
+            📥 Attribuée par <b>{t.attribueePar.unite}</b>{t.attribueePar.par ? ` (${t.attribueePar.par})` : ''}, le {fmtDate(t.attribueePar.le)} : une tâche de{' '}
+            {club?.current.nom ?? 'cette entité'}, partagée avec {t.attribueePar.unite}, qui la voit et peut la modifier.
+          </p>
+        )}
         {t.copieDe && (
           <p className="full proposal-banner">
             📋 Copiée depuis le comité <b>{t.copieDe.comite || '?'}</b>, le {fmtDate(t.copieDe.le)} (ancienne tâche de « {t.copieDe.entite} ») : une tâche à part entière de {club?.current.nom ?? 'cette entité'} ; l’original n’est pas modifié.
@@ -250,11 +287,30 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               )}
             </select>
             {attribuee && (
-              <small className="muted">
-                🤝 Partagée avec « {attribuee.unite.nom} » : elle apparaît dans ses tâches{attribuee.sectionId ? `, sous « ${attribuee.sousSection} »` : ''}.
+              <small className="muted attribuee-note">
+                📦 À l’enregistrement, la tâche {isNew ? 'sera créée' : 'passera'} dans « {attribuee.unite.nom} »
+                {secChez && `, section « ${sectionsChez.find((x) => x.id === secChez)?.nom ?? attribuee.sousSection} »`}, qui la gérera comme ses
+                tâches ; ici, elle apparaîtra partagée 🤝 et restera modifiable.
+                {cacheChez && <b> « {attribuee.unite.nom} » n’affiche aucune de ses tâches au comité (réglage « Ne rien afficher ») : elle n’apparaîtra pas ici.</b>}
               </small>
             )}
             {attendSections && <small className="muted">Les sections de « {att.unite?.nom} » seront proposées ici après la mise à jour du serveur (migration 033).</small>}
+          </label>
+        )}
+        {attribuee && !attribuee.sectionId && (
+          <label>
+            Section chez « {attribuee.unite.nom} »
+            <select value={secChez} disabled={dis} onChange={(e) => choisirSectionChez(e.target.value)}>
+              {!secChez && <option value="">—</option>}
+              {sectionsChez.map((x) => <option key={x.id} value={x.id}>{x.nom}</option>)}
+            </select>
+            {!sectionsChez.length && (
+              <small className="muted">
+                {externes.sections === null
+                  ? `Les sections de « ${attribuee.unite.nom} » seront lues après la mise à jour du serveur (migration 033).`
+                  : externes.sections ? `« ${attribuee.unite.nom} » n’a encore aucune section : demande-lui d’en créer une.` : 'Lecture de ses sections…'}
+              </small>
+            )}
           </label>
         )}
         {!isNew && (
@@ -300,7 +356,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             <span className="field-label">🤝 Partager avec d’autres entités</span>
             <div className="chips">
               {partageables
-                .filter((u) => !dis || partage.includes(u.id))
+                .filter((u) => u.id !== attribuee?.unite.id && (!dis || partage.includes(u.id)))
                 .map((u) => (
                   <button key={u.id} type="button" className={`chip ${partage.includes(u.id) ? 'on' : ''}`} disabled={dis} aria-pressed={partage.includes(u.id)} onClick={() => togglePartage(u.id)}>
                     {u.type === 'central' ? '🏛️ ' : ''}{u.nom}
@@ -308,7 +364,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 ))}
             </div>
             <small className="muted">
-              {partage.length
+              {partageVisible.length
                 ? `Elles la voient dans leurs tâches et leur ordre du jour, et la modifient comme les leurs${versCentral ? ` (comité central : ${versCentral})` : ''}.`
                 : 'La tâche reste ici ; les entités choisies la voient dans leurs tâches et leur ordre du jour, et peuvent la modifier.'}
             </small>
@@ -472,7 +528,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove}>Supprimer</button>}
         <span className="grow" />
         <button className="btn" onClick={cancel}>{editable ? 'Annuler' : 'Fermer'}</button>
-        {editable && <button className="btn primary" onClick={submit}>{isNew ? 'Créer' : 'Enregistrer'}</button>}
+        {editable && <button className="btn primary" disabled={busy} onClick={() => void submit()}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}
       </div>
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
       {other && <TaskModal task={other.task} isNew={other.isNew} onClose={() => setOther(null)} />}

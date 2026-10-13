@@ -12,6 +12,7 @@ import { fileIds } from './data/backup';
 import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
+import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
@@ -451,6 +452,16 @@ export function DemoApp() {
         if (vue === 'ancienne') throw new Error(`Ancienne tâche de « ${u!.nom} » : elle se consulte et se copie, sans modification`);
         if (!u || !old || vue !== 'modifiable') throw new Error('Cette tâche n’est plus partagée avec cette entité.');
         d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id) : t));
+        saveUnitData(uniteId, d);
+      },
+      // Tâche attribuée à une entité qui dépend de l'entité ouverte : enregistrée chez elle (version réelle :
+      // gsa_attribuer_tache, 035).
+      async attribuerTache(uniteId, task, statut) {
+        const actives = units.filter((x) => !x.archive);
+        const u = actives.find((x) => x.id === uniteId);
+        if (!u || u.id === current.id || parentDans(actives, u)?.id !== current.id) throw new Error(`Cette entité ne dépend pas de « ${current.nom} »`);
+        const d = loadUnitData(uniteId);
+        d.tasks.unshift(nettoyerAttribuee(task, d, statut, u));
         saveUnitData(uniteId, d);
       },
       // Sondages des autres entités ouverts à l'entité ouverte (version réelle : gsa_sondages_partages, 021).

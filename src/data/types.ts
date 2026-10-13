@@ -296,6 +296,11 @@ export interface Task {
    * liée. Nom et date : copiés au choix, puis mis à jour quand l'événement change (le délai lié suit).
    */
   evenementEntite?: EvenementEntite;
+  /**
+   * Tâche attribuée par le comité dont l'entité dépend (choisie dans sa sous-section) : enregistrée ici, partagée avec
+   * lui. Le comité, la personne, la date (AAAA-MM-JJ).
+   */
+  attribueePar?: { uniteId: string; unite: string; par: string; le: string };
 }
 
 /** Événement d'une entité qui dépend du comité ; sans `id` : la prochaine édition de l'entité (sa date dans l'organigramme). */

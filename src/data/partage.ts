@@ -164,7 +164,7 @@ export function statutCorrespondant<S extends Pick<Status, 'id' | 'label' | 'don
 }
 
 /** Même personne dans deux entités : même fiche du registre « Membres du club », ou même adresse email. */
-const memePersonne = (a: { membreId?: string; email: string }, b: { membreId?: string; email: string }) =>
+export const memePersonne = (a: { membreId?: string; email: string }, b: { membreId?: string; email: string }) =>
   (!!a.membreId && a.membreId === b.membreId) || (!!a.email.trim() && a.email.trim().toLowerCase() === b.email.trim().toLowerCase());
 const membre = (units: OrgUnit[], uniteId: string, id: string) => units.find((u) => u.id === uniteId)?.membres.find((m) => m.id === id);
 /** Fiche de l'entité ouverte d'une personne d'une autre entité. */

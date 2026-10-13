@@ -146,6 +146,11 @@ export interface Club {
    * serveur ne les donne pas encore (migration 033).
    */
   sectionsDependantes: () => Promise<SectionsDependantes | null>;
+  /**
+   * Enregistre une tâche de l'entité ouverte dans l'entité `uniteId` qui dépend d'elle (attribuée depuis sa sous-section),
+   * partagée avec l'entité ouverte. `statut` : son statut ici, pour retrouver le même chez elle.
+   */
+  attribuerTache: (uniteId: string, task: Task, statut: { label: string; done: boolean }) => Promise<void>;
   /** Enregistre, dans son entité, une tâche partagée modifiée depuis l'entité ouverte. */
   modifierTachePartagee: (uniteId: string, task: Task) => Promise<void>;
   /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */

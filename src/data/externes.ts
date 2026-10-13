@@ -1,5 +1,5 @@
-import type { AgendaClubEvent, EvenementEntite, OrgUnit, SeanceComite, SeancesDuComite, Section, SectionsDependantes, Task } from './types';
-import { entiteDeSection, estEvenement, estSectionEvenements, sousSectionDe } from './partage';
+import type { AgendaClubEvent, AppData, EvenementEntite, Meeting, OrgUnit, Person, SeanceComite, SeancesDuComite, Section, SectionsDependantes, Task } from './types';
+import { entiteDeSection, estEvenement, estSectionEvenements, memePersonne, partageDe, placeAuto, sousSectionDe, statutCorrespondant } from './partage';
 import { parentDans } from './units';
 import { endOf } from './utils';
 
@@ -67,6 +67,91 @@ export function attributions(
 /** Choix d'attribution de la tâche : partagée avec l'entité, à la sous-section du choix (et, chez elle, dans sa section). */
 export const attributionDe = (t: Pick<Task, 'sousSection' | 'placePartage'>, choix: Attribution[], partage: string[]) =>
   choix.find((c) => partage.includes(c.unite.id) && t.sousSection === c.sousSection && (!c.sectionId || t.placePartage?.[c.unite.id]?.sectionId === c.sectionId));
+
+/**
+ * Section de l'entité où ranger la tâche qui lui est attribuée : celle du choix (section d'un groupe), sinon celle
+ * choisie dans le formulaire, sinon la section au nom du comité (« Comité central »), sinon sa première section.
+ */
+export function sectionChez(a: Attribution, t: Pick<Task, 'placePartage'>, sections: SectionsDependantes | null | undefined, comite: { nom: string; type: OrgUnit['type'] }) {
+  if (a.sectionId) return a.sectionId;
+  const l = sections?.[a.unite.id] ?? [];
+  const choisie = t.placePartage?.[a.unite.id]?.sectionId;
+  if (choisie && l.some((s) => s.id === choisie)) return choisie;
+  return placeAuto(l, comite).section?.id ?? l[0]?.id ?? '';
+}
+
+/**
+ * La tâche `t` du comité, telle qu'enregistrée dans l'entité `cible` qui dépend de lui (attribuée depuis sa sous-section ;
+ * même règle côté serveur : gsa_attribuer_tache, 035) :
+ *   - dans la section `sectionId` de l'entité, partagée avec le comité, rangée chez lui là où elle était (placePartage) ;
+ *   - responsables : leur fiche de l'entité (même fiche du registre ou même email) ; sans fiche chez elle, ils restent ceux
+ *     du comité (respPartage) ;
+ *   - la séance du comité liée reste à son ordre du jour (seanceComite) ; les liens à ses événements et à ses autres
+ *     tâches, les fichiers (rangés chez lui) et ce qui concerne ses postes ne suivent pas ;
+ *   - le statut est retrouvé chez elle (serveur, ou nettoyerAttribuee en démo).
+ */
+export function versEntite(
+  t: Task,
+  ctx: { comite: Pick<OrgUnit, 'id' | 'nom'>; cible: OrgUnit; sectionId: string; people: Person[]; meetings: Meeting[]; moi: Person | null; par: string; aujourdhui: string; centralId?: string | null },
+): Task {
+  const { comite, cible } = ctx;
+  const responsables: string[] = [];
+  const restent: string[] = [];
+  for (const id of t.responsables) {
+    const p = ctx.people.find((x) => x.id === id);
+    const m = p && cible.membres.find((x) => memePersonne(p, x));
+    if (m) {
+      if (!responsables.includes(m.id)) responsables.push(m.id);
+    } else restent.push(id);
+  }
+  // Choisis par l'entité quand la tâche lui était seulement partagée : ses propres fiches.
+  for (const id of t.respPartage?.[cible.id] ?? []) if (!responsables.includes(id)) responsables.push(id);
+  const respPartage = { ...t.respPartage };
+  delete respPartage[cible.id];
+  delete respPartage[comite.id];
+  if (restent.length) respPartage[comite.id] = restent;
+  const placePartage = { ...t.placePartage };
+  delete placePartage[cible.id];
+  placePartage[comite.id] = { sectionId: t.sectionId, sousSection: t.sousSection };
+  const m = t.meetingId ? ctx.meetings.find((x) => x.id === t.meetingId) : undefined;
+  const seanceComite: SeanceComite | undefined = m && { uniteId: comite.id, id: m.id, titre: m.titre, date: m.date };
+  const createur = ctx.moi && cible.membres.find((x) => memePersonne(ctx.moi!, x));
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { meetingId, eventId, parentId, suivanteId, postesResp, proposee, parCentral, auCentral, evenementEntite, modifiePar, source, pieces, ...reste } = t;
+  return {
+    ...reste,
+    sectionId: ctx.sectionId,
+    sousSection: '',
+    responsables,
+    respPartage: Object.keys(respPartage).length ? respPartage : undefined,
+    partage: [...partageDe(t, ctx.centralId).filter((id) => id !== cible.id && id !== comite.id), comite.id],
+    placePartage,
+    seanceComite,
+    delaiRef: seanceComite && t.delaiRef?.type === 'meeting' ? t.delaiRef : undefined,
+    documents: t.documents?.filter((d) => d.kind !== 'fichier'),
+    createdBy: createur?.id ?? '',
+    attribueePar: { uniteId: comite.id, unite: comite.nom, par: ctx.par, le: ctx.aujourdhui },
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Démo : contrôles et nettoyage du serveur (gsa_attribuer_tache) sur la tâche préparée par versEntite, avec les données
+ * de l'entité qui la reçoit. Erreur si elle n'y entre pas (section inconnue, identifiant déjà pris, ticket).
+ */
+export function nettoyerAttribuee(t: Task, d: Pick<AppData, 'statuses' | 'people' | 'sections' | 'tasks'>, statut: { label: string; done: boolean }, cible: { nom: string }): Task {
+  if (t.paiement || !t.titre.trim()) throw new Error('Tâche invalide');
+  if (d.tasks.some((x) => x.id === t.id)) throw new Error(`Cette tâche est déjà enregistrée dans « ${cible.nom} »`);
+  if (!d.sections.some((s) => s.id === t.sectionId)) throw new Error(`Section introuvable dans « ${cible.nom} »`);
+  const st = statutCorrespondant(d.statuses, statut) ?? d.statuses[0];
+  return {
+    ...t,
+    titre: t.titre.trim().slice(0, 500),
+    statusId: st?.id ?? '',
+    responsables: t.responsables.filter((id) => d.people.some((p) => p.id === id)),
+    createdBy: d.people.some((p) => p.id === t.createdBy) ? t.createdBy : '',
+  };
+}
 
 export const memeSeance = (a?: SeanceComite, b?: SeanceComite) => !!a && !!b && a.uniteId === b.uniteId && a.id === b.id;
 /** Même événement ; une édition : de la même date (l'édition passée n'est pas la suivante). */

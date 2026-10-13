@@ -4,7 +4,7 @@ import { statuses as STATUSES } from './seedData';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, today, uid } from './utils';
 import { seancePourSuivante } from './seances';
-import type { ActivityNotif, AppData, ChecklistItem, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task } from './types';
+import type { ActivityNotif, AppData, ChecklistItem, OrgUnit, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task } from './types';
 import { clearFiles } from './files';
 import { avecSondages, avecVote, sondageEnregistre } from './polls';
 import { snapshotToJournal } from './minutes';
@@ -12,8 +12,8 @@ import { emailsForNext } from './emails';
 import { applyRows, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
-import { autresResponsables, avecPartagees, estPartagee, texteAutres, versOrigine } from './partage';
-import { entitesDependantes, evenementsDependants, suivreExternes, type Externes } from './externes';
+import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
+import { entitesDependantes, evenementsDependants, suivreExternes, versEntite, type Externes } from './externes';
 import { parentDans } from './units';
 
 // Couche de données. Démo : tout vit en mémoire et dans le localStorage du navigateur.
@@ -188,6 +188,12 @@ interface Store {
   updateSilent: (fn: (d: AppData) => void) => void;
   setPrefs: (p: Partial<Prefs>) => void;
   saveTask: (t: Task, isNew: boolean) => void;
+  /**
+   * Tâche attribuée à l'entité `cible` qui dépend de l'entité ouverte (sous-section du formulaire) : enregistrée chez elle,
+   * dans sa section `sectionId`, partagée avec l'entité ouverte ; une tâche existante est retirée d'ici (elle y revient
+   * partagée). Erreur : rien n'est changé.
+   */
+  attribuerTache: (t: Task, cible: OrgUnit, sectionId: string, isNew: boolean) => Promise<void>;
   /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
   toast: string | null;
   setToast: (msg: string | null) => void;
@@ -446,6 +452,42 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         .finally(chargerPartagees);
     },
     [partagees, moi, view.tasks, user, data.statuses, data.people, userId, update, chargerPartagees],
+  );
+
+  const attribuerTache = useCallback(
+    async (t: Task, cible: OrgUnit, sectionId: string, isNew: boolean) => {
+      const c = clubRef.current;
+      if (!c) throw new Error('Club introuvable');
+      const st = data.statuses.find((s) => s.id === t.statusId);
+      const x = versEntite(
+        { ...t, titre: t.titre.trim() },
+        { comite: c.current, cible, sectionId, people: data.people, meetings: data.meetings, moi: user, par: user ? fullName(user) : '', aujourdhui: today(), centralId: c.central?.id },
+      );
+      await c.attribuerTache(cible.id, x, { label: st?.label ?? '', done: !!st?.done });
+      // Responsables restés ceux d'ici (sans fiche chez elle) : prévenus comme pour une tâche partagée.
+      const actor = userId ?? '?';
+      const at = new Date().toISOString();
+      const avant = isNew ? [] : (data.tasks.find((y) => y.id === t.id)?.responsables ?? []);
+      const notifs: ActivityNotif[] = (x.respPartage?.[c.current.id] ?? [])
+        .filter((id) => id !== actor && !avant.includes(id))
+        .map((id) => ({ id: uid('n'), userId: id, type: 'assign', taskId: idPartagee(cible.id, x.id), by: actor, at }));
+      update((d) => {
+        if (!isNew) {
+          d.tasks = d.tasks.filter((y) => y.id !== t.id);
+          // Ses tâches liées restent ici, sans tâche principale ; les sondages liés restent, rattachés à sa section.
+          d.tasks.forEach((y) => { if (y.parentId === t.id) y.parentId = undefined; });
+          (d.polls ?? []).forEach((p) => {
+            if (p.taskId === t.id) {
+              p.taskId = undefined;
+              p.sectionId = p.sectionId ?? t.sectionId;
+            }
+          });
+        }
+        if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
+      }, `Tâche « ${x.titre} » ${isNew ? 'créée et ' : ''}enregistrée dans « ${cible.nom} » (partagée avec ${c.current.nom})`);
+      chargerPartagees();
+    },
+    [data.statuses, data.people, data.meetings, data.tasks, user, userId, update, chargerPartagees],
   );
 
   const saveTask = useCallback(
@@ -716,6 +758,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     updateSilent,
     setPrefs,
     saveTask,
+    attribuerTache,
     toast,
     setToast,
     markNotifsRead,

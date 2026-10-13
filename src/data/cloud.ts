@@ -774,6 +774,15 @@ export async function saveTachePartagee(unite: string, source: string, task: Tas
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Tâche du comité `unite` attribuée à l'entité `cible` qui dépend de lui : enregistrée chez elle, partagée avec le comité
+ * (gsa_attribuer_tache, 035). `statut` : celui du comité, pour retrouver le même chez elle.
+ */
+export async function attribuerTache(unite: string, cible: string, task: Task, statut: { label: string; done: boolean }) {
+  const { error } = await sb().rpc('gsa_attribuer_tache', { unite, cible, tache: task, statut });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne sait pas encore enregistrer une tâche dans l’entité qui dépend du comité (mise à jour 035 à appliquer).' : error.message);
+}
+
 /** Proposition d'amélioration de l'appli, enregistrée au comité central (le serveur y met le nom et l'entité de l'auteur). */
 export async function proposerAmelioration(club: string, source: string, p: NouvelleProposition) {
   const { data, error } = await sb().rpc('gsa_proposer_amelioration', { club, source, proposition: p });
