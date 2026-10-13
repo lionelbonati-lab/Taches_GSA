@@ -500,6 +500,22 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .note-field { width: 100%; resize: none; overflow: hidden; margin: 4px 0; font-size: 0.92rem; background: var(--surface2); border-style: dashed; min-height: 34px; }
 .note-field:focus { background: var(--surface); border-style: solid; }
 .min-pv-actions { margin-bottom: 12px; }
+.min-pv-options { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 18px; padding: 10px 14px; margin-bottom: 10px; }
+.min-pv-options select { margin-left: 6px; }
+/* Annexes (fichiers liés) à la fin du PV ou de l'ordre du jour : 1, 2 ou 4 photos ou pages de PDF par page imprimée. */
+.pv-annexes { margin: 4px 0 0; padding-left: 22px; }
+.pv-annexes a { color: inherit; }
+.pv-annexes-page { display: grid; grid-template-columns: 1fr; gap: 10px 12px; align-items: start; margin-top: 18px; padding-top: 10px; border-top: 1px dashed #cbd5e1; }
+.pv-annexes-page.par-2, .pv-annexes-page.par-4 { grid-template-columns: 1fr 1fr; }
+.pv-annexe { margin: 0; min-width: 0; break-inside: avoid; }
+.pv-annexe figcaption { font-weight: 700; font-size: 0.85em; margin-bottom: 4px; }
+.pv-annexe-img { display: block; max-width: 100%; max-height: 245mm; margin: 0 auto; object-fit: contain; border: 1px solid #e2e8f0; }
+.par-4 .pv-annexe-img { max-height: 112mm; }
+@media print {
+  .pv-annexes-page { break-before: page; border-top: none; padding-top: 0; margin-top: 0; }
+  .pv-annexe-img { border: none; }
+}
+
 .min-banner { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; padding: 10px 14px; border-radius: 10px; margin-bottom: 12px; }
 .min-banner.locked { background: #dcfce7; color: #14532d; }
 .min-banner.editing { background: #fef3c7; color: #78350f; }
@@ -634,6 +650,10 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .odj-rem { color: #334155; font-style: italic; font-size: 0.92em; }
 .odj-task.late .odj-meta { color: #be123c; }
 .odj-task.done { color: #64748b; }
+/* Ordre du jour généré (pas une archive ni la version modifiée à la main) : un clic sur une tâche l'ouvre. */
+.odj-live .odj-task { cursor: pointer; border-radius: 3px; }
+.odj-live .odj-task:hover { background: #fef9c3; }
+@media print { .odj-live .odj-task:hover { background: none; } }
 .odj-poll { color: #1d4ed8; }
 .pv-archives { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .pv-overlay { position: fixed; inset: 0; z-index: 70; background: var(--bg); overflow: auto; }

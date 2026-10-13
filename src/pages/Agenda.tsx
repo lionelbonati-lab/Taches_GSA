@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
@@ -16,6 +16,7 @@ import { useClubOptional } from '../data/club';
 import { aPlanifier, aRenommer, annuelle, duMois, finDeSerie, motSeance, nomSeance, serieDuMois, seuleDuMois, titreSelonDate } from '../data/seances';
 import { UNIT_TYPES } from '../data/units';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
+import { useAnnexesArchive } from '../components/Annexes';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
 
@@ -469,6 +470,10 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
 function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDelete: boolean; onDelete: () => void; onClose: () => void }) {
   const { data } = useStore();
   const logo = useUnitLogo();
+  // PV avec fichiers joints en annexe : photos et pages de PDF relues (non copiées dans l'archive).
+  const doc = useRef<HTMLDivElement>(null);
+  const html = cleanHtml(hydrateArchive(pv.html, data, logo));
+  useAnnexesArchive(doc, html);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
@@ -490,7 +495,7 @@ function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDele
         <button className="btn" onClick={onClose}>Fermer</button>
       </div>
       {/* Contenu généré par l'application elle-même (textes déjà échappés à la création) ; images de l'en-tête remises (data URL contrôlées). */}
-      <div className="pv-preview" dangerouslySetInnerHTML={{ __html: cleanHtml(hydrateArchive(pv.html, data, logo)) }} />
+      <div ref={doc} className="pv-preview" dangerouslySetInnerHTML={{ __html: html }} />
     </div>,
     document.body,
   );

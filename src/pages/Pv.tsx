@@ -7,15 +7,17 @@ import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
-import { archiveHtml, hydrateArchive } from '../data/entete';
+import { archiveHtml, hydrateArchive, sansAnnexes } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
+import { TaskModal } from '../components/TaskModal';
+import { ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe, useAnnexesArchive } from '../components/Annexes';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête (le nom du comité), convoqués, liste numérotée
-// des tâches par section.
+// des tâches par section ; en option, les fichiers liés aux tâches joints à la fin (annexes).
 // (Identifiants internes « pv » conservés pour les données déjà enregistrées.)
 
 export const DEFAULT_PV: PvSettings = {
@@ -30,6 +32,8 @@ export const DEFAULT_PV: PvSettings = {
   sectionsExclues: [],
   orientation: 'portrait',
   taille: 'normale',
+  annexes: false,
+  annexesParPage: 1,
 };
 
 export function withDefaults(p?: Partial<PvSettings>): PvSettings {
@@ -101,6 +105,8 @@ export function Pv() {
   // ---------- Texte modifié à la main ----------
   const edite = s1?.odjEdite;
   const [draft, setDraft] = useState<string | null>(null);
+  // Tâche ouverte d'un clic dans l'ordre du jour généré, pour la modifier.
+  const [ouverte, setOuverte] = useState<Task | null>(null);
   useEffect(() => setDraft(null), [s1Id]);
 
   // ---------- Sélection des tâches (partagée avec l'onglet PV) ----------
@@ -152,6 +158,8 @@ export function Pv() {
     .map((sec) => ({ key: sec.id, label: sec.nom, tasks: order(unified.filter((t) => t.sectionId === sec.id), sec) }))
     .filter((g) => g.tasks.length || s.sectionsVides || pollsOf(g.key).length);
 
+  // Annexes : fichiers et liens des tâches de l'ordre du jour, dans leur ordre.
+  const annexes = s.annexes ? annexesDe(unifiedGroups.flatMap((g) => g.tasks)) : [];
   // Titre : le nom du comité ; avec la date de la séance pour nommer le document (PDF, archive, email).
   const titre = club?.current.nom ?? 'Comité';
   const nomDoc = s1 ? `${titre} ${shortDate(s1.date)}` : titre;
@@ -170,7 +178,8 @@ export function Pv() {
 
   // ---------- Actions ----------
   const print = () => window.print();
-  const startEdit = () => sheetRef.current && setDraft(sheetRef.current.innerHTML);
+  // Les fichiers joints (adresses locales) sont remis par useAnnexesArchive.
+  const startEdit = () => sheetRef.current && setDraft(sansAnnexes(sheetRef.current.innerHTML));
   const saveEdit = () => {
     if (!s1 || !sheetRef.current || !user) return;
     const html = cleanHtml(archiveHtml(sheetRef.current.innerHTML));
@@ -205,6 +214,7 @@ export function Pv() {
     if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, `Excusés : ${excusesTxt}`);
     out.push('', 'Ordre du jour', ...outlineText(listSecs));
     if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
+    if (annexes.length) out.push('', 'Annexes', ...annexes.map((a) => `   ${a.n}. ${a.d.nom} (${annexeInfo(a)})`));
     return out.join('\n');
   };
 
@@ -243,13 +253,21 @@ export function Pv() {
   const firstOpen = data.statuses.find((x) => !x.done)?.id;
   const pollItem = (p: Poll): OItem => ({ key: p.id, poll: p, children: [] });
   const textItem = (key: string, text: string): OItem => ({ key, text, children: [] });
+  // Documents d'une tâche, avec leur numéro d'annexe.
+  const docsText = (t: Task) =>
+    (t.documents ?? [])
+      .map((d) => {
+        const n = annexes.find((a) => a.d.id === d.id)?.n;
+        return n ? `${d.nom} (annexe ${n})` : d.nom;
+      })
+      .join(', ');
   // Sous-points d'une tâche : checklist, documents, sondages liés.
   const taskItem = (t: Task): OItem => ({
     key: t.id,
     task: t,
     children: [
       ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, checkText(t, c))) : []),
-      ...(s.colonnes.documents && t.documents?.length ? [textItem(`${t.id}-docs`, `📎 ${t.documents.map((d) => d.nom).join(', ')}`)] : []),
+      ...(s.colonnes.documents && t.documents?.length ? [textItem(`${t.id}-docs`, `📎 ${docsText(t)}`)] : []),
       ...polls.filter((p) => p.taskId === t.id).map(pollItem),
     ],
   });
@@ -316,7 +334,7 @@ export function Pv() {
   };
   const itemText = (it: OItem) =>
     it.task
-      ? `${it.task.titre}${taskMeta(it.task).length ? ` (${taskMeta(it.task).join(' · ')})` : ''}${s.colonnes.remarque && it.task.remarque ? ` – ${it.task.remarque}` : ''}`
+      ? `${it.task.titre}${taskMeta(it.task).length ? ` (${taskMeta(it.task).join(' · ')})` : ''}${s.colonnes.remarque && it.task.remarque ? ` – ${it.task.remarque}` : ''}${!s.colonnes.documents && numerosDe(annexes, it.task).length ? ` 📎 annexe ${numerosDe(annexes, it.task).join(', ')}` : ''}`
       : it.poll
         ? `📊 Sondage : ${it.poll.question} — ${pollSummary(it.poll)}`
         : it.text ?? '';
@@ -326,10 +344,11 @@ export function Pv() {
     const b = bucketOf.get(t.id);
     const meta = taskMeta(t);
     return (
-      <span className={`odj-task ${b === 'late' ? 'late' : b === 'bilan' ? 'done' : ''}`}>
+      <span className={`odj-task ${b === 'late' ? 'late' : b === 'bilan' ? 'done' : ''}`} onClick={() => setOuverte(t)}>
         {t.titre}
         {meta.length > 0 && <span className="odj-meta"> ({meta.join(' · ')})</span>}
         {s.colonnes.remarque && t.remarque && <span className="odj-rem"> – {t.remarque}</span>}
+        {!s.colonnes.documents && numerosDe(annexes, t).length > 0 && <span className="odj-meta"> 📎 annexe {numerosDe(annexes, t).join(', ')}</span>}
       </span>
     );
   };
@@ -376,6 +395,10 @@ export function Pv() {
     return out;
   };
   const listSecs = [...buildOutline(unifiedGroups), ...extraSections()];
+
+  // Version modifiée à la main (ou en cours de modification) : photos et pages de PDF joints remis à l'affichage.
+  const htmlEdite = edite ? cleanHtml(hydrateArchive(edite.html, data, logo), { excuses: excusesTxt }) : '';
+  useAnnexesArchive(sheetRef, draft ?? htmlEdite, draft !== null || !!edite);
 
   const openStatuses = data.statuses.filter((x) => !x.done);
   const toggleIn = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -448,6 +471,18 @@ export function Pv() {
             ] as [keyof PvSettings['parts'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
             ))}
+            <label className="inline" title="Les fichiers et liens des tâches de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (1, 2 ou 4 par page)">
+              <input type="checkbox" checked={s.annexes} onChange={(e) => set({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin d’ordre du jour
+              {s.annexes && <span className="muted">{annexes.length ? ` (${annexes.length})` : ' (aucun pour l’instant)'}</span>}
+            </label>
+            {s.annexes && (
+              <label>
+                Fichiers par page
+                <select value={s.annexesParPage} onChange={(e) => set({ annexesParPage: Number(e.target.value) as PvSettings['annexesParPage'] })}>
+                  {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 fichier (pleine page)' : `${n} fichiers`}</option>)}
+                </select>
+              </label>
+            )}
           </details>
           <details open>
             <summary>Présentation</summary>
@@ -524,7 +559,7 @@ export function Pv() {
           <p className="muted small">Tes réglages sont mémorisés pour la prochaine fois.</p>
         </aside>
 
-        <div className="pv-preview">
+        <div className={`pv-preview ${draft === null && !edite ? 'odj-live' : ''}`}>
           {draft !== null ? (
             <div className="odj-edit-bar no-print">
               <span>✏️ Modifie directement le document : corriger, ajouter ou supprimer des lignes.</span>
@@ -544,7 +579,7 @@ export function Pv() {
           {draft !== null ? (
             <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille} editing`} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: draft }} />
           ) : edite ? (
-            <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`} dangerouslySetInnerHTML={{ __html: cleanHtml(hydrateArchive(edite.html, data, logo), { excuses: excusesTxt }) }} />
+            <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`} dangerouslySetInnerHTML={{ __html: htmlEdite }} />
           ) : (
           <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`}>
             <header className="pv-head">
@@ -581,11 +616,14 @@ export function Pv() {
                 <b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{heure(s2) && ` à ${heure(s2)}`} – Lieu : {s2.lieu || 'à définir'}
               </p>
             )}
+            <ListeAnnexes annexes={annexes} />
             <footer className="pv-foot">Document généré le {fmtDate(today())} par {fullName(user ?? undefined)} · {nomAppli()}</footer>
+            <PagesAnnexes annexes={annexes} parPage={s.annexesParPage} />
           </div>
           )}
         </div>
       </div>
+      {ouverte && <TaskModal task={data.tasks.find((x) => x.id === ouverte.id) ?? ouverte} isNew={false} onClose={() => setOuverte(null)} />}
     </div>
   );
 }

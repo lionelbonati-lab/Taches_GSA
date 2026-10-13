@@ -27,9 +27,13 @@ export function enteteImage(e: Entete, logo?: string): { key: string; src: strin
 
 /**
  * Archive d'un document : les images de l'en-tête n'y sont pas copiées (elles alourdiraient chaque archive,
- * renvoyée au serveur à chaque modification de la séance). Elles sont remises à l'affichage (`hydrateArchive`).
+ * renvoyée au serveur à chaque modification de la séance). Elles sont remises à l'affichage (`hydrateArchive`) ; les
+ * fichiers joints en annexe (PV, ordre du jour : adresses locales, valables le temps de la session) aussi (`useAnnexesArchive`).
  */
-export const archiveHtml = (html: string) => html.replace(/(<img[^>]*\sdata-img="[^"]*")\s+src="data:[^"]*"/g, '$1');
+export const archiveHtml = (html: string) => sansAnnexes(html.replace(/(<img[^>]*\sdata-img="[^"]*")\s+src="data:[^"]*"/g, '$1'));
+
+/** Retire les adresses locales (blob:) des images jointes en annexe : elles sont remises à l'affichage (`useAnnexesArchive`). */
+export const sansAnnexes = (html: string) => html.replace(/(<img[^>]*?)\s+src="blob:[^"]*"/g, '$1');
 
 /** Remet les images actuelles de l'en-tête dans une archive (« perso-odj », « perso-pv » : archives d'avant l'en-tête unique). */
 export function hydrateArchive(html: string, data: AppData, logo?: string) {

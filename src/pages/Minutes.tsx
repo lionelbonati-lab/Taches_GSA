@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import { FULL_AGENDA, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
-import type { MeetingMinutes, Poll, Task, TaskSnapshot } from '../data/types';
+import type { MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
 import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
@@ -12,6 +12,8 @@ import { nomAppli } from '../data/nomAppli';
 import { archiveHtml } from '../data/entete';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
+import { ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe } from '../components/Annexes';
+import { useClubOptional } from '../data/club';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -21,6 +23,9 @@ const longDate = (d: string) =>
   new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 const nowHM = () => new Date().toTimeString().slice(0, 5);
 const hm = (h?: string) => (h ? h.replace(':', 'h') : '');
+/** Options du PV par défaut. */
+const OPTIONS: Required<PvOptions> = { details: true, misesAJour: true, annexes: false, annexesParPage: 1, taille: 'normale' };
+
 const letter = (i: number) => {
   let r = '';
   for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) r = String.fromCharCode(97 + ((n - 1) % 26)) + r;
@@ -29,6 +34,7 @@ const letter = (i: number) => {
 
 export function Minutes() {
   const { data, user, can, canEditTask, saveTask, update, updateSilent } = useStore();
+  const club = useClubOptional();
   const [params] = useSearchParams();
   const meetings = useMemo(() => sortedMeetings(data), [data]);
   // Séance par défaut : celle du jour, sinon la prochaine, sinon la dernière.
@@ -59,12 +65,17 @@ export function Minutes() {
   const m: MeetingMinutes = withExcuses({ ...EMPTY_MINUTES, ...s1?.minutes }, s1?.excuses);
   const committee = committeeOf(data);
   const person = (id: string) => data.people.find((p) => p.id === id);
-  const titre = s1 ? `Comité ${shortDate(s1.date)}` : 'Comité';
+  // Titre : le nom du comité (comme l'ordre du jour) ; avec la date de la séance pour nommer le PDF, l'archive et l'email.
+  const nomComite = club?.current.nom ?? 'Comité';
+  const titre = s1 ? `${nomComite} ${shortDate(s1.date)}` : nomComite;
   const secretaire = data.people.find((p) => p.actif && p.roles.includes('secretaire'));
   const version = m.version ?? 0;
   const locked = !!m.valideLe && !m.enCorrection; // PV validé : lecture seule jusqu'à « Corriger »
   const editable = can('tab.minutes') && !locked;
   const draftVersion = m.enCorrection ? version + 1 : version || 1;
+  // Options du PV de la séance ; non réglées : celles du PV précédent.
+  const opts: Required<PvOptions> = { ...OPTIONS, ...s0?.minutes?.options, ...m.options };
+  const setOpt = (patch: PvOptions) => setMinutes((x) => { x.options = { ...opts, ...patch }; });
 
   useEffect(() => {
     if (view !== 'pv') return;
@@ -231,6 +242,10 @@ export function Minutes() {
     .map((g) => ({ ...g, subs: g.subs.map((s) => ({ ...s, tasks: s.tasks.filter(taskInPv) })).filter((s) => s.tasks.length), polls: g.polls.filter(pollInPv) }))
     .filter((g) => m.tousLesPoints || noteOf(`sec:${g.sec.id}`) || g.subs.length || g.polls.length);
   const others = orphanPolls.filter(pollInPv);
+  // Annexes : fichiers et liens des tâches du PV, dans l'ordre du PV (nouvelles tâches comprises).
+  const tachesPv = [...new Map([...pvSections.flatMap((g) => g.subs.flatMap((s) => s.tasks)), ...newTasks].map((t) => [t.id, t])).values()];
+  const annexes = annexesDe(tachesPv);
+  const numeros = (t: Task) => (opts.annexes ? numerosDe(annexes, t) : []);
   const presentsTxt = m.presents.map((id) => `${fullName(person(id))} (${initials(person(id))})`).join(', ') || '—';
   const excusesTxt = m.excuses.map((id) => fullName(person(id))).join(', ') || '—';
   const absents = committee.filter((p) => !m.presents.includes(p.id) && !m.excuses.includes(p.id));
@@ -241,7 +256,10 @@ export function Minutes() {
         : `Version ${version} – corrigée le ${fmtDate(m.valideLe!.slice(0, 10))}`
       : '';
 
-  const taskLine = (t: Task) => `${t.titre} (${meta(t).join(' · ')})`;
+  const nouvelleInfo = (t: Task) =>
+    [data.sections.find((x) => x.id === t.sectionId)?.nom, ...(opts.details ? meta(t).filter((x) => x !== '🆕 nouvelle') : [])].filter(Boolean).join(' · ');
+  const taskLine = (t: Task) =>
+    `${t.titre}${opts.details && meta(t).length ? ` (${meta(t).join(' · ')})` : ''}${numeros(t).length ? ` 📎 annexe ${numeros(t).join(', ')}` : ''}`;
   const plainText = () => {
     const out: string[] = [`PROCÈS-VERBAL – ${titre}`];
     if (versionLine) out.push(versionLine);
@@ -259,7 +277,7 @@ export function Minutes() {
         s.tasks.forEach((t) => {
           out.push(`${pad}${s.label ? '■' : `${letter(j++)}.`} ${taskLine(t)}`);
           noteOf(`task:${t.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}   → ${l}`));
-          changesOf(t).forEach((c) => out.push(`${pad}   ↻ ${c}`));
+          if (opts.misesAJour) changesOf(t).forEach((c) => out.push(`${pad}   ↻ ${c}`));
         });
       });
       g.polls.forEach((p) => {
@@ -272,7 +290,11 @@ export function Minutes() {
     if (noteOf('divers')) out.push(`${++n}. Divers`, ...noteOf('divers').split('\n').map((l) => `   ${l}`));
     if (newTasks.length) {
       out.push('', 'NOUVELLES TÂCHES DÉCIDÉES');
-      newTasks.forEach((t) => out.push(`   ■ ${t.titre} (${data.sections.find((x) => x.id === t.sectionId)?.nom ?? ''} · ${meta(t).filter((x) => x !== '🆕 nouvelle').join(' · ')})`));
+      newTasks.forEach((t) => out.push(`   ■ ${t.titre} (${nouvelleInfo(t)})`));
+    }
+    if (opts.annexes && annexes.length) {
+      out.push('', 'ANNEXES');
+      annexes.forEach((a) => out.push(`   ${a.n}. ${a.d.nom} (${annexeInfo(a)})`));
     }
     if (deleted.length) out.push('', `Tâches supprimées : ${deleted.join(', ')}`);
     if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${s2.heure ? ` à ${hm(s2.heure)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
@@ -390,19 +412,21 @@ export function Minutes() {
   function pvTask(t: Task) {
     return (
       <>
-        {t.titre} <span className="odj-meta">({meta(t).join(' · ')})</span>
+        {t.titre}
+        {opts.details && meta(t).length > 0 && <span className="odj-meta"> ({meta(t).join(' · ')})</span>}
+        {numeros(t).length > 0 && <span className="odj-meta"> 📎 annexe {numeros(t).join(', ')}</span>}
         {noteOf(`task:${t.id}`) && <p className="min-pv-note">→ {noteOf(`task:${t.id}`)}</p>}
-        {changesOf(t).length > 0 && <p className="min-pv-change">↻ {changesOf(t).join(' · ')}</p>}
+        {opts.misesAJour && changesOf(t).length > 0 && <p className="min-pv-change">↻ {changesOf(t).join(' · ')}</p>}
       </>
     );
   }
 
   const pvDoc: ReactNode = (
-    <div ref={sheetRef} className="pv-sheet portrait t-normale">
+    <div ref={sheetRef} className={`pv-sheet portrait t-${opts.taille}`}>
       <header className="pv-head">
         <DocEntete e={entete} logo={logo} />
         <p className="pv-kicker">Procès-verbal{draftVersion > 1 ? ` · version ${draftVersion}` : ''}</p>
-        <h1>{titre}</h1>
+        <h1>{nomComite}</h1>
         {s1 && <p className="pv-meta">{longDate(s1.date)}</p>}
         {versionLine && <p className="pv-version">{versionLine}</p>}
       </header>
@@ -460,7 +484,7 @@ export function Minutes() {
           <h2>Nouvelles tâches décidées</h2>
           <ul className="odj-l2">
             {newTasks.map((t) => (
-              <li key={t.id}>{t.titre} <span className="odj-meta">({[data.sections.find((x) => x.id === t.sectionId)?.nom, ...meta(t).filter((x) => x !== '🆕 nouvelle')].join(' · ')})</span></li>
+              <li key={t.id}>{t.titre} <span className="odj-meta">({nouvelleInfo(t)})</span></li>
             ))}
           </ul>
         </section>
@@ -469,10 +493,13 @@ export function Minutes() {
       {s2 && (
         <p className="pv-next"><b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{s2.heure && ` à ${hm(s2.heure)}`} – Lieu : {s2.lieu || 'à définir'}</p>
       )}
+      {opts.annexes && <ListeAnnexes annexes={annexes} />}
       <footer className="pv-foot">
         PV établi par {fullName(secretaire ?? user ?? undefined)} le {fmtDate(today())}
         {m.valideLe && !m.enCorrection && ` · version ${version} validée le ${fmtDate(m.valideLe.slice(0, 10))}`} · {nomAppli()}
       </footer>
+      {/* Fichiers joints : à la suite du PV, sur des pages à part à l'impression. */}
+      {opts.annexes && <PagesAnnexes annexes={annexes} parPage={opts.annexesParPage} />}
     </div>
   );
 
@@ -602,8 +629,34 @@ export function Minutes() {
         </div>
       ) : (
         <>
-          <div className="actions no-print min-pv-actions">
+          <div className="panel min-pv-options no-print">
+            <strong>Options du PV</strong>
             <label className="inline"><input type="checkbox" checked={!!m.tousLesPoints} disabled={!editable} onChange={(e) => setMinutes((x) => { x.tousLesPoints = e.target.checked; })} /> Inclure tous les points de l’ordre du jour</label>
+            <label className="inline"><input type="checkbox" checked={opts.details} disabled={!editable} onChange={(e) => setOpt({ details: e.target.checked })} /> Responsables, délais et échéances</label>
+            <label className="inline"><input type="checkbox" checked={opts.misesAJour} disabled={!editable} onChange={(e) => setOpt({ misesAJour: e.target.checked })} /> Mises à jour des tâches (↻)</label>
+            <label className="inline" title="Les fichiers et liens des tâches du PV : liste des annexes, puis les photos et les pages des PDF (1, 2 ou 4 par page)">
+              <input type="checkbox" checked={opts.annexes} disabled={!editable} onChange={(e) => setOpt({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin de PV
+              <span className="muted">{annexes.length ? ` (${annexes.length})` : ' (aucun pour l’instant)'}</span>
+            </label>
+            {opts.annexes && (
+              <label className="inline" title="Photos ou pages de PDF sur une même page imprimée">
+                Par page
+                <select value={opts.annexesParPage} disabled={!editable} onChange={(e) => setOpt({ annexesParPage: Number(e.target.value) as PvOptions['annexesParPage'] })}>
+                  {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 fichier (pleine page)' : `${n} fichiers`}</option>)}
+                </select>
+              </label>
+            )}
+            <label className="inline">
+              Taille du texte
+              <select value={opts.taille} disabled={!editable} onChange={(e) => setOpt({ taille: e.target.value as PvOptions['taille'] })}>
+                <option value="petite">Petite</option>
+                <option value="normale">Normale</option>
+                <option value="grande">Grande</option>
+              </select>
+            </label>
+            {!editable && can('tab.minutes') && <small className="muted">PV validé : « Corriger le PV » pour changer ses options.</small>}
+          </div>
+          <div className="actions no-print min-pv-actions">
             <span className="grow" />
             <LienEntete className="btn" />
             <button className="btn" onClick={() => window.print()}>🖨 Imprimer / PDF</button>

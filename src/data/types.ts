@@ -407,6 +407,8 @@ export interface MeetingMinutes {
   pointIds?: string[];
   /** Afficher dans le PV tous les points de l'ordre du jour (sinon seulement ceux avec notes ou changements). */
   tousLesPoints?: boolean;
+  /** Options du document ; non réglées : celles du PV de la séance précédente, sinon par défaut. */
+  options?: PvOptions;
   /** Changements de tâches faits depuis l'onglet PV (seuls ceux-ci figurent dans le PV). */
   journal?: MinutesChange[];
   /** Tâches créées pendant la séance (« nouvelle tâche décidée »). */
@@ -421,6 +423,22 @@ export interface MeetingMinutes {
   enCorrection?: boolean;
   /** Copie de la dernière version validée, pour pouvoir annuler une correction. */
   derniereValidee?: Omit<MeetingMinutes, 'derniereValidee'>;
+}
+
+/** Options du PV d'une séance. */
+export interface PvOptions {
+  /** Responsables, délai et échéance de chaque point (défaut : oui). */
+  details?: boolean;
+  /** Mises à jour des tâches faites pendant la séance, ↻ (défaut : oui). */
+  misesAJour?: boolean;
+  /**
+   * Fichiers liés aux points du PV joints en fin de PV (défaut : non) : liste des annexes, puis les photos et les pages
+   * des PDF reproduites (1, 2 ou 4 par page) ; les liens et les autres fichiers sont nommés.
+   */
+  annexes?: boolean;
+  /** Photos ou pages de PDF par page imprimée (défaut : 1). */
+  annexesParPage?: 1 | 2 | 4;
+  taille?: 'petite' | 'normale' | 'grande';
 }
 
 export interface MinutesChange {
@@ -465,6 +483,10 @@ export interface PvSettings {
   sectionsExclues: string[];
   orientation: 'portrait' | 'paysage';
   taille: 'petite' | 'normale' | 'grande';
+  /** Fichiers liés aux tâches joints en fin d'ordre du jour (liste, puis photos et pages des PDF). */
+  annexes: boolean;
+  /** Photos ou pages de PDF par page imprimée. */
+  annexesParPage: 1 | 2 | 4;
 }
 
 /** Événement d'une entité, partagé avec tout le club pour l'agenda (sans sa description). */

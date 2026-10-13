@@ -27,8 +27,10 @@ export function Aide() {
   if (chemin('/comite')) geste('M’excuser pour une séance', vers('/comite'), ' : « 🙋 Je serai absent(e) » sous la séance.');
   if (chemin('/comite') && can('meetings.manage'))
     geste('Prévoir les séances de l’année prochaine', vers('/comite'), ' : chaque séance revient le même mois ; coche celles à ajouter dans « 🔁 Séances de l’année prochaine ».');
-  if (chemin('/ordre-du-jour')) geste('Préparer une séance', vers('/ordre-du-jour'), ' : choisis la séance, relis, puis imprime ou envoie par email.');
+  if (chemin('/ordre-du-jour')) geste('Préparer une séance', vers('/ordre-du-jour'), ' : choisis la séance, relis (clic sur une tâche pour la modifier), puis imprime ou envoie par email.');
   if (chemin('/pv')) geste('Tenir le PV', vers('/pv'), ' : « Prise de notes » pendant la séance, puis « Valider et archiver » et l’envoyer.');
+  if (chemin('/pv') || chemin('/ordre-du-jour'))
+    geste('Joindre les fichiers des tâches au PV ou à l’ordre du jour', 'PV : « 📄 PV » › « Options du PV » ; ordre du jour : réglages « Contenu ». Coche « 📎 Joindre les fichiers liés » : liste des annexes, puis photos et pages des PDF à la fin, 1, 2 ou 4 par page.');
   geste('Voter ou poser une question au comité', vers('/sondages'), '. Un sondage qui attend ta réponse apparaît aussi à l’accueil.');
   if (sondagesEntites && club && club.units.length > 1 && can('polls.create'))
     geste('Poser une question à d’autres entités (École, groupe, CO…)', vers('/sondages'), ' : « + Nouveau sondage » › « Ouvrir aussi à d’autres entités ». Tous leurs membres votent depuis leur entité ; une personne de plusieurs entités ne vote qu’une fois.');
