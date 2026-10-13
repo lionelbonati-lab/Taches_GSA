@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '../data/types';
-import { fmtDate, fmtDateTime, fullName, initials, isLate, shortName, today, uid } from '../data/utils';
+import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { selectAgenda } from '../data/agenda';
@@ -11,23 +11,21 @@ import { archiveHtml, hydrateArchive } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
+import { useClubOptional } from '../data/club';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
-// (et la suivante), sur le modèle des ordres du jour du club : en-tête, convoqués, tâches par section.
+// (et la suivante), sur le modèle des ordres du jour du club : en-tête (le nom du comité), convoqués, liste numérotée
+// des tâches par section.
 // (Identifiants internes « pv » conservés pour les données déjà enregistrées.)
 
 export const DEFAULT_PV: PvSettings = {
-  presentation: 'liste',
   detail: 'complet',
-  titre: '',
   club: 'G.S. Ajoie – Comité',
   afficherClub: true,
   parts: { ordreDuJour: true, presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true, partagees: true },
-  groupBy: 'section',
   tri: 'delai',
-  separerParEcheance: false,
   sectionsVides: true,
-  colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, documents: true, suivi: true },
+  colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, documents: true },
   statutsExclus: [],
   sectionsExclues: [],
   orientation: 'portrait',
@@ -52,15 +50,9 @@ interface Group {
   tasks: Task[];
 }
 
-interface Part {
-  key: string;
-  titre: string;
-  tasks: Task[];
-  bilan?: boolean;
-}
-
 export function Pv() {
   const { data, user, prefs, setPrefs, update, can, autresResp } = useStore();
+  const club = useClubOptional();
   const s = withDefaults(prefs.pv);
   const set = (patch: Partial<PvSettings>) => setPrefs({ pv: { ...s, ...patch } });
   const setPart = (k: keyof PvSettings['parts'], v: boolean) => set({ parts: { ...s.parts, [k]: v } });
@@ -86,12 +78,11 @@ export function Pv() {
   const nbPartagees = data.tasks.filter((t) => t.source).length;
   const odj = useMemo(() => (s.parts.partagees ? data : { ...data, tasks: data.tasks.filter((t) => !t.source) }), [data, s.parts.partagees]);
 
-  const secName = (id: string) => odj.sections.find((x) => x.id === id)?.nom ?? '';
   const person = (id: string) => data.people.find((p) => p.id === id);
   const committee: Person[] = data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
   const canEdit = can('tab.pv');
 
-  // ---------- Excusés et points de la séance ----------
+  // ---------- Excusés ----------
   const excuses = s1?.excuses ?? [];
   const isExcused = (id: string) => excuses.some((e) => e.personId === id);
   const excusesTxt = excuses
@@ -106,10 +97,6 @@ export function Pv() {
       const has = (m.excuses ?? []).some((e) => e.personId === p.id);
       m.excuses = has ? (m.excuses ?? []).filter((e) => e.personId !== p.id) : [...(m.excuses ?? []), { personId: p.id, le: today() }];
     }, `${fullName(p)} ${isExcused(p.id) ? 'n’est plus excusé(e)' : 'excusé(e)'} pour ${s1.titre}`);
-  const [points, setPoints] = useState(s1?.ordreDuJour ?? '');
-  useEffect(() => setPoints(s1?.ordreDuJour ?? ''), [s1?.id, s1?.ordreDuJour]);
-  const savePoints = () =>
-    s1 && points !== s1.ordreDuJour && update((d) => { d.meetings.find((x) => x.id === s1.id)!.ordreDuJour = points; }, `Points particuliers de « ${s1.titre} » modifiés`);
 
   // ---------- Texte modifié à la main ----------
   const edite = s1?.odjEdite;
@@ -125,13 +112,6 @@ export function Pv() {
     statutsExclus: s.statutsExclus,
     sectionsExclues: s.sectionsExclues,
   });
-
-  const parts: Part[] = [
-    ...(late.length ? [{ key: 'late', titre: `⚠ Tâches en retard`, tasks: late }] : []),
-    ...(s1 && s.parts.avantProchaine ? [{ key: 'p1', titre: `À faire d’ici le ${s1.titre} (${fmtDate(s1.date)})`, tasks: avant1 }] : []),
-    ...(s2 && s.parts.avantSuivante ? [{ key: 'p2', titre: `À faire d’ici le ${s2.titre} (${fmtDate(s2.date)})`, tasks: avant2 }] : []),
-    ...(s.parts.bilan ? [{ key: 'bilan', titre: `✓ Terminées depuis ${s0 ? `le ${s0.titre} (${fmtDate(s0.date)})` : '60 jours'}`, tasks: bilan, bilan: true }] : []),
-  ];
 
   // Échéance de chaque tâche retenue (retard, séance, séance suivante, terminée).
   type Bucket = 'late' | 'p1' | 'p2' | 'bilan';
@@ -151,27 +131,11 @@ export function Pv() {
       if (s.tri === 'titre') return a.titre.localeCompare(b.titre, 'fr');
       return (a.delai || '9999').localeCompare(b.delai || '9999');
     });
-  // Ordre dans un groupe : sous-sections (comme l'ordre du jour), puis retards → séance → suivante → terminées, puis tri choisi.
-  const order = (list: Task[], sec?: Section) => {
-    let r = sortTasks(list);
-    if (!s.separerParEcheance) r = r.sort((a, b) => rank(a) - rank(b));
-    if (sec) r = r.sort((a, b) => sec.sousSections.indexOf(a.sousSection) - sec.sousSections.indexOf(b.sousSection));
-    return r;
-  };
-
-  const group = (list: Task[], keepEmpty = false): Group[] => {
-    if (s.groupBy === 'aucun') return [{ key: 'all', label: '', tasks: order(list) }];
-    if (s.groupBy === 'section')
-      return odj.sections
-        .filter((sec) => !s.sectionsExclues.includes(sec.id))
-        .map((sec) => ({ key: sec.id, label: sec.nom, tasks: order(list.filter((t) => t.sectionId === sec.id), sec) }))
-        .filter((g) => g.tasks.length || keepEmpty);
-    const groups: Group[] = data.people
-      .map((p) => ({ key: p.id, label: `${fullName(p)} – ${p.poste}`, tasks: order(list.filter((t) => t.responsables.includes(p.id))) }))
-      .filter((g) => g.tasks.length);
-    const none = list.filter((t) => t.responsables.length === 0);
-    return none.length ? [...groups, { key: 'none', label: 'Sans responsable', tasks: order(none) }] : groups;
-  };
+  // Ordre dans une section : sous-sections (comme l'ordre du jour), puis retards → séance → suivante → terminées, puis tri choisi.
+  const order = (list: Task[], sec: Section) =>
+    sortTasks(list)
+      .sort((a, b) => rank(a) - rank(b))
+      .sort((a, b) => sec.sousSections.indexOf(a.sousSection) - sec.sousSections.indexOf(b.sousSection));
   // Sondages : en cours, ou clôturés depuis la séance précédente ; placés sous leur section.
   const polls: Poll[] = s.parts.sondages
     ? (data.polls ?? []).filter((p) => {
@@ -182,40 +146,23 @@ export function Pv() {
     : [];
   const pollsOf = (secId?: string) => polls.filter((p) => pollSection(data, p) === secId);
   const pollsWithoutSection = polls.filter((p) => !pollSection(data, p) || !data.sections.some((x) => x.id === pollSection(data, p)));
-  const unifiedGroups = group(unified, true).filter(
-    (g) => g.tasks.length || s.sectionsVides || (s.groupBy === 'section' && polls.some((p) => pollSection(data, p) === g.key)),
-  );
+  // Sections de l'ordre du jour, chacune avec toutes ses tâches retenues.
+  const unifiedGroups: Group[] = odj.sections
+    .filter((sec) => !s.sectionsExclues.includes(sec.id))
+    .map((sec) => ({ key: sec.id, label: sec.nom, tasks: order(unified.filter((t) => t.sectionId === sec.id), sec) }))
+    .filter((g) => g.tasks.length || s.sectionsVides || pollsOf(g.key).length);
 
-  const pourLabel = (t: Task) => {
-    const b = bucketOf.get(t.id);
-    return b === 'late' ? '⚠ Retard' : b === 'bilan' ? '✓ Fait' : b === 'p2' ? s2?.titre ?? '' : s1?.titre ?? '';
-  };
-  const pollBlock = (list: Poll[]) =>
-    list.length > 0 && (
-      <div className="pv-polls">
-        {list.map((p) => (
-          <p key={p.id}><b>📊 {p.question}</b> — {pollSummary(p)}</p>
-        ))}
-      </div>
-    );
-
-  const summary = [
-    s.parts.retards && `${late.length} en retard`,
-    s1 && s.parts.avantProchaine && `${avant1.length} pour le ${s1.titre}`,
-    s2 && s.parts.avantSuivante && `${avant2.length} pour le ${s2.titre}`,
-    s.parts.bilan && `${bilan.length} terminée${bilan.length > 1 ? 's' : ''} depuis ${s0 ? `le ${s0.titre}` : '60 jours'}`,
-    s.parts.sondages && polls.length > 0 && `${polls.length} sondage${polls.length > 1 ? 's' : ''}`,
-  ].filter(Boolean).join(' · ');
-
-  const titre = s.titre.trim() || (s1 ? `Comité ${shortDate(s1.date)}` : 'Comité');
+  // Titre : le nom du comité ; avec la date de la séance pour nommer le document (PDF, archive, email).
+  const titre = club?.current.nom ?? 'Comité';
+  const nomDoc = s1 ? `${titre} ${shortDate(s1.date)}` : titre;
   // Nom proposé à l'enregistrement en PDF (le navigateur reprend le titre de la page).
   useEffect(() => {
     const before = document.title;
-    document.title = `Ordre du jour ${titre}`;
+    document.title = `Ordre du jour ${nomDoc}`;
     return () => {
       document.title = before;
     };
-  }, [titre]);
+  }, [nomDoc]);
   // Sous-tâche : case, intitulé et initiales de la personne chargée.
   const checkText = (_t: Task, c: ChecklistItem) => `${c.done ? '☑' : '☐'} ${c.label}`;
   // Tâche partagée : aussi les responsables des autres entités (noms complets).
@@ -229,7 +176,7 @@ export function Pv() {
     const html = cleanHtml(archiveHtml(sheetRef.current.innerHTML));
     update((d) => {
       d.meetings.find((x) => x.id === s1.id)!.odjEdite = { html, le: new Date().toISOString(), par: user.id };
-    }, `Ordre du jour « ${titre} » modifié à la main`);
+    }, `Ordre du jour « ${nomDoc} » modifié à la main`);
     setDraft(null);
     setMsg('✏️ Modifications enregistrées : tout le comité voit cette version.');
   };
@@ -237,7 +184,7 @@ export function Pv() {
     if (!s1 || !confirm('Revenir à l’ordre du jour généré ? Les modifications faites à la main seront perdues.')) return;
     update((d) => {
       delete d.meetings.find((x) => x.id === s1.id)!.odjEdite;
-    }, `Ordre du jour « ${titre} » : retour à la version générée`);
+    }, `Ordre du jour « ${nomDoc} » : retour à la version générée`);
     setMsg('');
   };
 
@@ -246,60 +193,19 @@ export function Pv() {
     const html = archiveHtml(sheetRef.current.outerHTML);
     update((d) => {
       const m = d.meetings.find((x) => x.id === s1.id)!;
-      m.pvArchives = [{ id: uid('pv'), at: new Date().toISOString(), by: user.id, titre, html, orientation: s.orientation }, ...(m.pvArchives ?? [])].slice(0, 10);
-    }, `Ordre du jour « ${titre} » archivé dans la séance ${s1.titre}`);
+      m.pvArchives = [{ id: uid('pv'), at: new Date().toISOString(), by: user.id, titre: nomDoc, html, orientation: s.orientation }, ...(m.pvArchives ?? [])].slice(0, 10);
+    }, `Ordre du jour « ${nomDoc} » archivé dans la séance ${s1.titre}`);
     setMsg(`📁 Archivé dans « ${s1.titre} » (liste des séances).`);
   };
 
   const plainText = () => {
-    if (s.presentation === 'liste') {
-      const out: string[] = [titre];
-      if (s1 && heure(s1)) out.push(`Début de séance : ${heure(s1)}`);
-      if (s1) out.push(`Lieu : ${s1.lieu || 'à définir'}`);
-      if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, `Excusés : ${excusesTxt}`);
-      out.push('', 'Ordre du jour');
-      if (!s.separerParEcheance) out.push(...outlineText(listSecs));
-      else {
-        for (const part of parts) out.push('', part.titre, ...outlineText(buildOutline(group(part.tasks), false)));
-        const extra = extraSections(true).map((x) => (x.key === 'polls' ? { ...x, items: polls.map(pollItem) } : x));
-        if (extra.length) out.push('', 'Autres points', ...outlineText(extra));
-      }
-      if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
-      return out.join('\n');
-    }
-    const lines: string[] = [`ORDRE DU JOUR – ${titre.toUpperCase()}`];
-    if (s1) lines.push(`${longDate(s1.date)}${heure(s1) ? `, ${heure(s1)}` : ''} – ${s1.lieu}`);
-    if (s1?.ordreDuJour && s.parts.ordreDuJour) lines.push('', 'POINTS PARTICULIERS', s1.ordreDuJour);
-    const line = (t: Task, pour = false) =>
-      `  - ${pour ? `[${pourLabel(t)}] ` : ''}${t.sousSection ? `${t.sousSection} : ` : ''}${t.titre} [${respText(t)}]${t.delai ? ` – ${fmtDate(t.delai)}` : ''}${t.remarque ? ` (${t.remarque})` : ''}`;
-    if (!s.separerParEcheance) {
-      lines.push('', 'SUIVI DES TÂCHES PAR SECTION', summary);
-      for (const g of unifiedGroups) {
-        lines.push('', g.label.toUpperCase());
-        const gp = s.groupBy === 'section' ? pollsOf(g.key) : [];
-        if (!g.tasks.length && !gp.length) lines.push('  (rien à signaler)');
-        g.tasks.forEach((t) => lines.push(line(t, true)));
-        gp.forEach((p) => lines.push(`  📊 ${p.question} — ${pollSummary(p)}`));
-      }
-      const rest = s.groupBy === 'section' ? pollsWithoutSection : polls;
-      if (rest.length) {
-        lines.push('', 'SONDAGES');
-        rest.forEach((p) => lines.push(`  📊 ${p.question} — ${pollSummary(p)}`));
-      }
-    } else
-      for (const part of parts) {
-        lines.push('', part.titre.toUpperCase() + ` (${part.tasks.length})`);
-        for (const g of group(part.tasks)) {
-          if (g.label) lines.push(`${g.label}`);
-          g.tasks.forEach((t) => lines.push(line(t)));
-        }
-      }
-    if (s.separerParEcheance && polls.length) {
-      lines.push('', 'SONDAGES');
-      polls.forEach((p) => lines.push(`  📊 ${p.question} — ${pollSummary(p)}`));
-    }
-    if (s2) lines.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu}`);
-    return lines.join('\n');
+    const out: string[] = [s1 ? `${titre} – ${longDate(s1.date)}` : titre];
+    if (s1 && heure(s1)) out.push(`Début de séance : ${heure(s1)}`);
+    if (s1) out.push(`Lieu : ${s1.lieu || 'à définir'}`);
+    if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, `Excusés : ${excusesTxt}`);
+    out.push('', 'Ordre du jour', ...outlineText(listSecs));
+    if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
+    return out.join('\n');
   };
 
   // Version modifiée à la main : le texte du document tel qu'il est affiché.
@@ -309,7 +215,7 @@ export function Pv() {
     const to = committee.map((p) => p.email).filter(Boolean).join(',');
     let body = docText();
     if (body.length > 1800) body = body.slice(0, 1800) + '\n…\n(liste complète dans l’ordre du jour imprimé)';
-    window.location.href = `mailto:${to}?subject=${encodeURIComponent(`${titre} – ordre du jour`)}&body=${encodeURIComponent(body)}`;
+    window.location.href = `mailto:${to}?subject=${encodeURIComponent(`${nomDoc} – ordre du jour`)}&body=${encodeURIComponent(body)}`;
   };
 
   const copy = async () => {
@@ -321,63 +227,7 @@ export function Pv() {
     }
   };
 
-  const cols = [
-    s.groupBy !== 'section' && { k: 'sec', label: 'Section' },
-    s.colonnes.sousSection && { k: 'sous', label: 'Sous-section' },
-    { k: 'titre', label: 'Tâche' },
-    s.groupBy !== 'responsable' && { k: 'resp', label: 'Resp.' },
-    { k: 'delai', label: 'Délai' },
-    !s.separerParEcheance && s.colonnes.echeance && { k: 'pour', label: 'Pour' },
-    s.colonnes.statut && { k: 'statut', label: 'Statut' },
-    s.colonnes.remarque && { k: 'rem', label: 'Remarque' },
-    s.colonnes.suivi && { k: 'suivi', label: 'Suivi / décision' },
-  ].filter(Boolean) as { k: string; label: string }[];
-
-  const cell = (t: Task, k: string) => {
-    const st = data.statuses.find((x) => x.id === t.statusId);
-    const bilanPart = bucketOf.get(t.id) === 'bilan';
-    switch (k) {
-      case 'sec': return secName(t.sectionId);
-      case 'sous': return t.sousSection;
-      case 'titre':
-        return (
-          <>
-            {t.parentId && <span className="pv-parent">↳ {data.tasks.find((x) => x.id === t.parentId)?.titre} · </span>}
-            {t.titre}
-            {s.colonnes.checklist && t.checklist.length > 0 && (
-              <span className="pv-checklist">{t.checklist.map((c) => checkText(t, c)).join('   ')}</span>
-            )}
-            {s.colonnes.documents && (t.documents?.length ?? 0) > 0 && (
-              <span className="pv-docs">📎 {t.documents!.map((d) => d.nom).join(', ')}</span>
-            )}
-          </>
-        );
-      case 'resp': return respText(t);
-      case 'pour': return pourLabel(t);
-      case 'delai': return bilanPart ? `✓ ${fmtDate(t.termineeLe)}` : t.delai ? fmtDate(t.delai) + (isLate(data, t) ? ' ⚠' : '') : 'libre';
-      case 'statut': return st?.label ?? '';
-      case 'rem': return t.remarque;
-      case 'suivi': return '';
-    }
-  };
-
-  const table = (tasks: Task[], bilanHeader = false) => (
-    <table className="pv-table">
-      <thead><tr>{cols.map((c) => <th key={c.k} className={`c-${c.k}`}>{c.k === 'delai' && bilanHeader ? 'Terminée' : c.label}</th>)}</tr></thead>
-      <tbody>
-        {tasks.map((t) => {
-          const b = bucketOf.get(t.id);
-          return (
-            <tr key={t.id} className={b === 'late' ? 'pv-late' : b === 'bilan' ? 'pv-done' : ''}>
-              {cols.map((c) => <td key={c.k} className={`c-${c.k}`}>{cell(t, c.k)}</td>)}
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  );
-
-  // ---------- Présentation en liste numérotée (1. section / a. sous-section / ■ point) ----------
+  // ---------- Liste numérotée (1. section / a. sous-section / ■ point) ----------
   interface OItem {
     key: string;
     task?: Task;
@@ -394,16 +244,16 @@ export function Pv() {
   const pollItem = (p: Poll): OItem => ({ key: p.id, poll: p, children: [] });
   const textItem = (key: string, text: string): OItem => ({ key, text, children: [] });
   // Sous-points d'une tâche : checklist, documents, sondages liés.
-  const taskItem = (t: Task, withPolls: boolean): OItem => ({
+  const taskItem = (t: Task): OItem => ({
     key: t.id,
     task: t,
     children: [
       ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, checkText(t, c))) : []),
       ...(s.colonnes.documents && t.documents?.length ? [textItem(`${t.id}-docs`, `📎 ${t.documents.map((d) => d.nom).join(', ')}`)] : []),
-      ...(withPolls ? polls.filter((p) => p.taskId === t.id).map(pollItem) : []),
+      ...polls.filter((p) => p.taskId === t.id).map(pollItem),
     ],
   });
-  const buildOutline = (groups: Group[], withPolls: boolean): OSec[] =>
+  const buildOutline = (groups: Group[]): OSec[] =>
     groups.map((g) => {
       const items: OItem[] = [];
       const bySub = new Map<string, OItem>();
@@ -413,9 +263,9 @@ export function Pv() {
       const itemOf = new Map<string, OItem>();
       for (const t of g.tasks) {
         if (underParent(t)) continue;
-        const sub = s.groupBy === 'section' ? (s.colonnes.sousSection ? t.sousSection : '') : secName(t.sectionId);
+        const sub = s.colonnes.sousSection ? t.sousSection : '';
         if (!sub) {
-          const it = taskItem(t, withPolls);
+          const it = taskItem(t);
           itemOf.set(t.id, it);
           items.push(it);
           continue;
@@ -429,23 +279,21 @@ export function Pv() {
         // Tâche qui porte le nom de sa sous-section (tâche principale d'un groupe) : elle devient la ligne de la sous-section.
         if (!head.task && t.titre.trim().toLowerCase() === sub.trim().toLowerCase()) {
           head.task = t;
-          head.children = [...taskItem(t, withPolls).children, ...head.children];
+          head.children = [...taskItem(t).children, ...head.children];
           itemOf.set(t.id, head);
         } else {
-          const it = taskItem(t, withPolls);
+          const it = taskItem(t);
           itemOf.set(t.id, it);
           head.children.push(it);
         }
       }
-      g.tasks.filter(underParent).forEach((t) => itemOf.get(t.parentId!)?.children.push(taskItem(t, withPolls)));
-      if (withPolls && s.groupBy === 'section')
-        pollsOf(g.key).filter((p) => !g.tasks.some((t) => t.id === p.taskId)).forEach((p) => items.push(pollItem(p)));
+      g.tasks.filter(underParent).forEach((t) => itemOf.get(t.parentId!)?.children.push(taskItem(t)));
+      pollsOf(g.key).filter((p) => !g.tasks.some((t) => t.id === p.taskId)).forEach((p) => items.push(pollItem(p)));
       return { key: g.key, label: g.label, items };
     });
-  const extraSections = (withPolls: boolean): OSec[] => [
-    ...(withPolls && (s.groupBy === 'section' ? pollsWithoutSection : polls).length
-      ? [{ key: 'polls', label: 'Sondages', items: (s.groupBy === 'section' ? pollsWithoutSection : polls).map(pollItem) }]
-      : []),
+  // Sondages sans section, puis points particuliers saisis dans la séance.
+  const extraSections = (): OSec[] => [
+    ...(pollsWithoutSection.length ? [{ key: 'polls', label: 'Sondages', items: pollsWithoutSection.map(pollItem) }] : []),
     ...(s.parts.ordreDuJour && s1?.ordreDuJour?.trim()
       ? [{ key: 'points', label: 'Points particuliers', items: s1.ordreDuJour.split('\n').map((l) => l.trim()).filter(Boolean).map((l, i) => textItem(`pt${i}`, l)) }]
       : []),
@@ -502,8 +350,6 @@ export function Pv() {
   const renderOutline = (secs: OSec[]) =>
     secs.length === 0 ? (
       <p className="pv-empty">Aucun point.</p>
-    ) : secs.every((x) => !x.label) ? (
-      <ol className="odj">{secs.flatMap((x) => x.items).map((it) => <li key={it.key}>{itemNode(it)}{maxDepth >= 1 && renderItems(it.children, 1)}</li>)}</ol>
     ) : (
       <ol className="odj">
         {secs.map((sec) => (
@@ -529,7 +375,7 @@ export function Pv() {
     });
     return out;
   };
-  const listSecs = !s.separerParEcheance ? [...buildOutline(unifiedGroups, true), ...extraSections(true)] : [];
+  const listSecs = [...buildOutline(unifiedGroups), ...extraSections()];
 
   const openStatuses = data.statuses.filter((x) => !x.done);
   const toggleIn = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
@@ -571,7 +417,7 @@ export function Pv() {
           </details>
           {s1 && (
             <details open>
-              <summary>Excusés et points de la séance</summary>
+              <summary>Excusés</summary>
               <span className="field-label">Excusés {excuses.length > 0 && `(${excuses.length})`}</span>
               {canEdit ? (
                 <div className="chips">
@@ -585,10 +431,6 @@ export function Pv() {
                 <p className="muted">{excusesTxt || 'Personne pour l’instant.'}</p>
               )}
               <small className="muted">Chacun peut aussi s’excuser lui-même dans la liste des séances.</small>
-              <label>
-                Points particuliers (un par ligne)
-                <textarea rows={4} value={points} disabled={!canEdit} onChange={(e) => setPoints(e.target.value)} onBlur={savePoints} placeholder={'Ex. Budget 2027\nBilan de la Bruntrutaine'} />
-              </label>
             </details>
           )}
           <details open>
@@ -610,43 +452,17 @@ export function Pv() {
           <details open>
             <summary>Présentation</summary>
             <label>
-              Mise en forme
-              <select value={s.presentation} onChange={(e) => set({ presentation: e.target.value as PvSettings['presentation'] })}>
-                <option value="liste">Liste numérotée (1. / a. / ■)</option>
-                <option value="tableaux">Tableaux</option>
-              </select>
-            </label>
-            {s.presentation === 'liste' && (
-              <label>
-                Niveau de détail
-                <select value={s.detail} onChange={(e) => set({ detail: e.target.value as PvSettings['detail'] })}>
-                  <option value="complet">Complet (sections, sous-sections, points)</option>
-                  <option value="sousSections">Sections et sous-sections</option>
-                  <option value="sections">Sections seulement</option>
-                </select>
-              </label>
-            )}
-          </details>
-          <details open>
-            <summary>Regroupement et tri</summary>
-            <label>
-              Regrouper par
-              <select value={s.groupBy} onChange={(e) => set({ groupBy: e.target.value as PvSettings['groupBy'] })}>
-                <option value="section">Section (comme l’ordre du jour)</option>
-                <option value="responsable">Responsable</option>
-                <option value="aucun">Pas de regroupement</option>
+              Niveau de détail
+              <select value={s.detail} onChange={(e) => set({ detail: e.target.value as PvSettings['detail'] })}>
+                <option value="complet">Complet (sections, sous-sections, points)</option>
+                <option value="sousSections">Sections et sous-sections</option>
+                <option value="sections">Sections seulement</option>
               </select>
             </label>
             <label className="inline">
-              <input type="checkbox" checked={s.separerParEcheance} onChange={(e) => set({ separerParEcheance: e.target.checked })} />
-              Séparer par échéance (retards, séance, suivante, terminées en parties distinctes)
+              <input type="checkbox" checked={s.sectionsVides} onChange={(e) => set({ sectionsVides: e.target.checked })} />
+              Afficher les sections sans tâche
             </label>
-            {!s.separerParEcheance && s.groupBy === 'section' && (
-              <label className="inline">
-                <input type="checkbox" checked={s.sectionsVides} onChange={(e) => set({ sectionsVides: e.target.checked })} />
-                Afficher les sections sans tâche
-              </label>
-            )}
             <label>
               Trier par
               <select value={s.tri} onChange={(e) => set({ tri: e.target.value as PvSettings['tri'] })}>
@@ -665,7 +481,6 @@ export function Pv() {
               ['remarque', 'Remarque'],
               ['checklist', 'Checklist sous la tâche'],
               ['documents', 'Documents joints sous la tâche'],
-              ...(s.presentation === 'tableaux' ? [['suivi', 'Colonne vide « Suivi / décision »']] : []),
             ] as [keyof PvSettings['colonnes'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
             ))}
@@ -687,10 +502,6 @@ export function Pv() {
           </details>
           <details>
             <summary>Mise en page</summary>
-            <label>
-              Titre
-              <input value={s.titre} placeholder={s1 ? `Comité ${shortDate(s1.date)}` : 'Comité'} onChange={(e) => set({ titre: e.target.value })} />
-            </label>
             <label className="inline"><input type="checkbox" checked={s.afficherClub} onChange={(e) => set({ afficherClub: e.target.checked })} /> Afficher l’en-tête (logo, nom du club…)</label>
             <LienEntete />
             <label>
@@ -738,125 +549,25 @@ export function Pv() {
           <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`}>
             <header className="pv-head">
               {s.afficherClub && <DocEntete e={entete} logo={logo} />}
-              {s.presentation === 'tableaux' && <p className="pv-kicker">Ordre du jour</p>}
               <h1>{titre}</h1>
-              {s1 && (
-                <p className="pv-meta">
-                  {longDate(s1.date)}
-                  {s.presentation === 'tableaux' && (
-                    <>
-                      {heure(s1) && <> · Début de séance : <b>{heure(s1)}</b></>}
-                      {' '}· Lieu : <b>{s1.lieu || 'à définir'}</b>
-                    </>
-                  )}
-                </p>
-              )}
+              {s1 && <p className="pv-meta">{longDate(s1.date)}</p>}
             </header>
 
-            {s.presentation === 'liste' && (
-              <section className="odj-head">
-                {s1 && heure(s1) && <p><b>Début de séance :</b> {heure(s1)}</p>}
-                {s1 && <p><b>Lieu :</b> {s1.lieu || 'à définir'}</p>}
-                {s.parts.presences && (
-                  <>
-                    <p><b>Convoqués :</b> {committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}</p>
-                    <p className="odj-fill-line"><b>Excusés :</b> <span className={excusesTxt ? '' : 'odj-fill'} data-champ="excuses">{excusesTxt}</span></p>
-                  </>
-                )}
-              </section>
-            )}
-
-            {s.presentation === 'tableaux' && s.parts.presences && (
-              <section>
-                <p className="pv-convoques"><b>Convoqués :</b> {committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}</p>
-                <table className="pv-table pv-presence">
-                  <thead><tr><th>Membre</th><th>Fonction</th><th>Présent</th><th>Excusé</th></tr></thead>
-                  <tbody>
-                    {committee.map((p) => (
-                      <tr key={p.id}><td>{shortName(p)} ({initials(p)})</td><td>{p.poste}</td><td className="pv-box">☐</td><td className="pv-box">{isExcused(p.id) ? '☒' : '☐'}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              </section>
-            )}
-
-            {s.presentation === 'tableaux' && s.parts.ordreDuJour && s1?.ordreDuJour && (
-              <section>
-                <h2>Points particuliers</h2>
-                <pre className="pv-odj">{s1.ordreDuJour}</pre>
-              </section>
-            )}
-
-            {s.presentation === 'liste' ? (
-              !s.separerParEcheance ? (
-                <section className="pv-part">
-                  <h2>Ordre du jour</h2>
-                  {renderOutline(listSecs)}
-                </section>
-              ) : (
+            <section className="odj-head">
+              {s1 && heure(s1) && <p><b>Début de séance :</b> {heure(s1)}</p>}
+              {s1 && <p><b>Lieu :</b> {s1.lieu || 'à définir'}</p>}
+              {s.parts.presences && (
                 <>
-                  {parts.map((part) => (
-                    <section key={part.key} className="pv-part">
-                      <h2>{part.titre} <span className="pv-count">{part.tasks.length}</span></h2>
-                      {part.tasks.length === 0 ? <p className="pv-empty">Aucune tâche.</p> : renderOutline(buildOutline(group(part.tasks), false))}
-                    </section>
-                  ))}
-                  {(polls.length > 0 || (s.parts.ordreDuJour && s1?.ordreDuJour?.trim())) && (
-                    <section className="pv-part">
-                      <h2>Autres points</h2>
-                      {renderOutline(extraSections(true).map((x) => (x.key === 'polls' ? { ...x, items: polls.map(pollItem) } : x)))}
-                    </section>
-                  )}
+                  <p><b>Convoqués :</b> {committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}</p>
+                  <p className="odj-fill-line"><b>Excusés :</b> <span className={excusesTxt ? '' : 'odj-fill'} data-champ="excuses">{excusesTxt}</span></p>
                 </>
-              )
-            ) : !s.separerParEcheance ? (
-              <section className="pv-part">
-                <h2>Suivi des tâches par {s.groupBy === 'responsable' ? 'responsable' : 'section'} <span className="pv-count">{unified.length}</span></h2>
-                {summary && <p className="pv-summary">{summary}</p>}
-                {unifiedGroups.length === 0 ? (
-                  <p className="pv-empty">Aucune tâche.</p>
-                ) : (
-                  unifiedGroups.map((g) => {
-                    const gp = s.groupBy === 'section' ? pollsOf(g.key) : [];
-                    return (
-                      <div key={g.key} className="pv-group">
-                        {g.label && <h3>{g.label}</h3>}
-                        {g.tasks.length ? table(g.tasks) : !gp.length && <p className="pv-empty">Rien à signaler.</p>}
-                        {pollBlock(gp)}
-                      </div>
-                    );
-                  })
-                )}
-                {(s.groupBy === 'section' ? pollsWithoutSection : polls).length > 0 && (
-                  <div className="pv-group">
-                    <h3>Sondages</h3>
-                    {pollBlock(s.groupBy === 'section' ? pollsWithoutSection : polls)}
-                  </div>
-                )}
-              </section>
-            ) : (
-              parts.map((part) => (
-                <section key={part.key} className="pv-part">
-                  <h2>{part.titre} <span className="pv-count">{part.tasks.length}</span></h2>
-                  {part.tasks.length === 0 ? (
-                    <p className="pv-empty">Aucune tâche.</p>
-                  ) : (
-                    group(part.tasks).map((g) => (
-                      <div key={g.key} className="pv-group">
-                        {g.label && <h3>{g.label}</h3>}
-                        {table(g.tasks, part.bilan)}
-                      </div>
-                    ))
-                  )}
-                </section>
-              ))
-            )}
-            {s.presentation === 'tableaux' && s.separerParEcheance && polls.length > 0 && (
-              <section className="pv-part">
-                <h2>📊 Sondages <span className="pv-count">{polls.length}</span></h2>
-                {pollBlock(polls)}
-              </section>
-            )}
+              )}
+            </section>
+
+            <section className="pv-part">
+              <h2>Ordre du jour</h2>
+              {renderOutline(listSecs)}
+            </section>
 
             {s.parts.notes && (
               <section className="pv-part">

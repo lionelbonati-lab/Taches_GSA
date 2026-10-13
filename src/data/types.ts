@@ -439,12 +439,10 @@ export interface PvArchive {
   orientation?: 'portrait' | 'paysage';
 }
 
+/** Réglages de l'ordre du jour (liste numérotée par section, titre : le nom du comité). */
 export interface PvSettings {
-  /** Liste numérotée (1. / a. / ■, comme les ordres du jour du club) ou tableaux. */
-  presentation: 'liste' | 'tableaux';
-  /** Liste : ordre du jour complet, sections + sous-sections, ou sections seulement. */
+  /** Ordre du jour complet, sections + sous-sections, ou sections seulement. */
   detail: 'complet' | 'sousSections' | 'sections';
-  titre: string;
   club: string;
   afficherClub: boolean;
   parts: {
@@ -459,13 +457,10 @@ export interface PvSettings {
     /** Tâches partagées par d'autres entités. */
     partagees: boolean;
   };
-  groupBy: 'section' | 'responsable' | 'aucun';
   tri: 'delai' | 'statut' | 'titre';
-  /** false : tout sous chaque section (retards, séance, suivante, terminées ensemble). */
-  separerParEcheance: boolean;
   /** Afficher aussi les sections sans tâche (« Rien à signaler »), comme l'ordre du jour. */
   sectionsVides: boolean;
-  colonnes: { sousSection: boolean; echeance: boolean; statut: boolean; remarque: boolean; checklist: boolean; documents: boolean; suivi: boolean };
+  colonnes: { sousSection: boolean; echeance: boolean; statut: boolean; remarque: boolean; checklist: boolean; documents: boolean };
   statutsExclus: string[];
   sectionsExclues: string[];
   orientation: 'portrait' | 'paysage';
