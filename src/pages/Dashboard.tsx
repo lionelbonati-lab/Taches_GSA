@@ -13,6 +13,8 @@ import { IncomingRequests, OutgoingRequests } from '../components/Requests';
 import { useClubOptional } from '../data/club';
 import { EditionCard } from '../components/Edition';
 import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../components/Accueil';
+import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
+import { UNIT_TYPES } from '../data/units';
 
 export function Dashboard() {
   const { data, user, saveTask, prefs, setPrefs, can, canSeeTask } = useStore();
@@ -34,7 +36,20 @@ export function Dashboard() {
     .filter((t) => { const n = t.delai ? daysUntil(t.delai) : -1; return n >= 0 && n <= jours; })
     .sort((a, b) => a.delai.localeCompare(b.delai));
   const nextMeeting = [...data.meetings].filter((m) => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
-  const nextEvents = [...data.events].filter((e) => endOf(e) >= today()).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 3);
+  // Prochains événements : ceux de l'agenda de l'entité et ceux du club qui dépendent d'elle (leur prochaine édition,
+  // comme dans Agenda › Événements) ; le même dans l'agenda (même date, nom pareil ou contenu dans l'autre, ex.
+  // « Bruntrutaine » et « CO Bruntrutaine ») ne compte qu'une fois.
+  const jour = today();
+  const simple = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const memeNom = (a: string, b: string) => { const [x, y] = [simple(a), simple(b)]; return !!x && !!y && (x.includes(y) || y.includes(x)); };
+  const editions = (club ? evenementsDependants(club.units, club.current) : []).filter((u) => u.date && endOf({ date: u.date, dateFin: u.dateFin }) >= jour);
+  const aVenir = data.events.filter((e) => endOf(e) >= jour);
+  const nextEvents = [
+    ...aVenir.filter((e) => !editions.some((u) => u.date === e.date && memeNom(u.nom, e.nom))).map((e) => ({ date: e.date, e, u: undefined })),
+    ...editions.map((u) => ({ date: u.date!, e: aVenir.find((e) => e.date === u.date && memeNom(u.nom, e.nom)), u })),
+  ]
+    .sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u))
+    .slice(0, 3);
   const onStatus = (t: Task, s: string) => saveTask({ ...t, statusId: s }, false);
   // Emails que j'ai programmés : à envoyer maintenant, puis les prochains.
   const myEmails = (data.emails ?? [])
@@ -146,17 +161,21 @@ export function Dashboard() {
         return (
           <>
             <h2>Prochains événements</h2>
-            {nextEvents.map((e) => {
-              const tasks = data.tasks.filter((t) => t.eventId === e.id);
+            {nextEvents.map(({ e, u }) => {
+              // Événement qui dépend de l'entité : les tâches qui le concernent ici (et celles de l'événement du même nom).
+              const tasks = data.tasks.filter((t) => (u && tacheDeLEvenement(t, u.id)) || (!!e && t.eventId === e.id));
               const done = tasks.filter((t) => isDone(data, t)).length;
+              const x = u ? { date: u.date!, dateFin: u.dateFin } : e!;
+              const quand = x.date <= jour ? 'en cours' : `dans ${daysUntil(x.date)} j`;
               return (
-                <Link key={e.id} to={`/taches?event=${e.id}`} className="panel link-panel">
-                  <strong>{e.nom}</strong>
-                  <span>{fmtRange(e.date, e.dateFin)} · {e.lieu}</span>
+                <Link key={u ? `u:${u.id}` : e!.id} to={`/taches?event=${encodeURIComponent(u ? `u:${u.id}` : e!.id)}`} className="panel link-panel">
+                  <strong>{u ? `${UNIT_TYPES[u.type].icon} ${u.nom}` : e!.nom}</strong>
+                  <span>{[fmtRange(x.date, x.dateFin), e?.lieu].filter(Boolean).join(' · ')} <em className="muted">({quand})</em></span>
                   <Progress done={done} total={tasks.length} />
                 </Link>
               );
             })}
+            {!nextEvents.length && <Empty>Aucun événement à venir.</Empty>}
           </>
         );
       default:
