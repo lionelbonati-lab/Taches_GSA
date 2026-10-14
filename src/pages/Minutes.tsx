@@ -14,6 +14,8 @@ import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Ent
 import { PageIntro } from '../components/Nav';
 import { ChoixAnnexes, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe } from '../components/Annexes';
 import { useClubOptional } from '../data/club';
+import { MiseEnForme } from '../components/MiseEnForme';
+import { margesMm, styleVars } from '../data/styleDocs';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -426,7 +428,7 @@ export function Minutes() {
   }
 
   const pvDoc: ReactNode = (
-    <div ref={sheetRef} className={`pv-sheet portrait t-${opts.taille}`}>
+    <div ref={sheetRef} className={`pv-sheet portrait t-${opts.taille}`} style={styleVars(data.reglagesOdj?.style)}>
       <header className="pv-head">
         <DocEntete e={entete} logo={logo} />
         <p className="pv-kicker">Procès-verbal{draftVersion > 1 ? ` · version ${draftVersion}` : ''}</p>
@@ -667,6 +669,12 @@ export function Minutes() {
                 <option value="grande">Grande</option>
               </select>
             </label>
+            {can('tab.minutes') && (
+              <details className="min-pv-mef">
+                <summary>🎨 Mise en forme</summary>
+                <MiseEnForme disabled={!editable} />
+              </details>
+            )}
             {!editable && can('tab.minutes') && <small className="muted">PV validé : « Corriger le PV » pour changer ses options.</small>}
           </div>
           <div className="actions no-print min-pv-actions">
@@ -681,6 +689,7 @@ export function Minutes() {
               <button className="btn primary" onClick={validate}>✅ {m.enCorrection ? `Valider la version ${version + 1}` : 'Valider et archiver'}</button>
             ))}
           </div>
+          <style>{`@page { size: A4 portrait; margin: ${margesMm(data.reglagesOdj?.style)}mm; }`}</style>
           <div className="pv-preview">{pvDoc}</div>
         </>
       )}

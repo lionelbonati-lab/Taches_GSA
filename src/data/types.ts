@@ -640,6 +640,32 @@ export interface ReglagesOdj {
    * la séance suivante serait trop tard pour en parler (défaut : 0).
    */
   joursApres?: number;
+  /** Mise en forme des documents (police, interligne, marges, et de chaque élément). */
+  style?: StyleDocs;
+}
+
+/** Éléments de l'ordre du jour et du PV dont la mise en forme se règle. */
+export type ElementDoc = 'titre' | 'date' | 'infos' | 'partie' | 'section' | 'niveau2' | 'niveau3' | 'niveau4' | 'meta' | 'remarque' | 'note' | 'prochaine' | 'pied';
+
+/** Mise en forme d'un élément des documents ; ce qui n'est pas réglé garde la mise en forme par défaut. */
+export interface StyleElement {
+  /** Taille, en % de sa taille par défaut. */
+  taille?: number;
+  gras?: boolean;
+  italique?: boolean;
+  majuscules?: boolean;
+  /** Centré (titres seulement). */
+  centre?: boolean;
+  /** Couleur (#rrggbb). */
+  couleur?: string;
+}
+
+/** Mise en forme de l'ordre du jour et du PV, commune à l'entité (et gardée dans leurs archives). */
+export interface StyleDocs {
+  police?: 'arial' | 'calibri' | 'verdana' | 'georgia' | 'times';
+  interligne?: 'serre' | 'aere';
+  marges?: 'etroites' | 'larges';
+  elements?: Partial<Record<ElementDoc, StyleElement>>;
 }
 
 /** En-tête des documents imprimés (ordre du jour, PV, bon de paiement), commun à toute l'entité. */

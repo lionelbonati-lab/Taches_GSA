@@ -524,7 +524,10 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 :root[data-theme='dark'] .min-banner.editing { background: #3b2a0a; color: #fde68a; }
 .pv-version { margin: 2px 0 0; font-weight: 600; color: #b45309; }
 .note-field[readonly] { background: transparent; border-style: solid; border-color: transparent; padding-left: 0; }
-.min-pv-note { margin: 2px 0 4px; white-space: pre-wrap; color: #111; }
+.min-pv-note {
+  margin: 2px 0 4px; white-space: pre-wrap; font-size: calc(var(--doc-base, 10.5pt) * var(--e-note-t, 1));
+  font-weight: var(--e-note-g, 400); font-style: var(--e-note-i, normal); text-transform: var(--e-note-m, none); color: var(--e-note-c, #111);
+}
 .min-pv-change { margin: 0 0 4px; color: #1d4ed8; font-size: 0.9em; }
 @media (max-width: 1000px) {
   .min-layout { grid-template-columns: 1fr; }
@@ -576,17 +579,31 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-settings .pv-sous-titre { margin: 14px 0 0; font-weight: 600; }
 .pv-settings summary + .pv-sous-titre { margin-top: 6px; }
 .pv-settings .pv-petit-titre { display: block; margin-top: 10px; }
+/* Mise en forme des documents (MiseEnForme.tsx) */
+.mef { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px 12px; margin-top: 6px; }
+.mef label, .pv-settings .mef label { display: flex; flex-direction: column; gap: 4px; margin: 0; font-size: 0.85rem; color: var(--muted); }
+.mef .full { grid-column: 1 / -1; }
+.mef .chips { margin: 0; }
+.mef .swatches { gap: 6px; align-items: center; }
+.mef .swatch { width: 24px; height: 24px; }
+.mef .swatch-perso input { height: 26px; }
+.min-pv-options details.min-pv-mef { flex-basis: 100%; }
+.min-pv-options details.min-pv-mef summary { cursor: pointer; font-weight: 600; }
+.min-pv-options .mef { max-width: 720px; }
+.min-pv-options .mef select { margin-left: 0; }
 .pv-msg { background: var(--primary-soft); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
 .pv-preview { overflow-x: auto; background: var(--surface2); border-radius: var(--radius); padding: 16px; }
 .pv-sheet {
   background: #fff; color: #111; margin: 0 auto; padding: 14mm; box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15);
-  width: 210mm; min-height: 297mm; font-family: system-ui, 'Segoe UI', Roboto, sans-serif; line-height: 1.35;
-  -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  width: 210mm; min-height: 297mm; -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  /* Mise en forme réglable (styleDocs.ts) : variables posées sur la feuille, valeurs par défaut ici. */
+  --doc-base: 10.5pt; font-size: var(--doc-base); padding: var(--doc-marge, 14mm);
+  font-family: var(--doc-police, system-ui, 'Segoe UI', Roboto, sans-serif); line-height: var(--doc-interligne, 1.35);
 }
 .pv-sheet.paysage { width: 297mm; min-height: 210mm; }
-.pv-sheet.t-petite { font-size: 9pt; }
-.pv-sheet.t-normale { font-size: 10.5pt; }
-.pv-sheet.t-grande { font-size: 12pt; }
+.pv-sheet.t-petite { --doc-base: 9pt; }
+.pv-sheet.t-normale { --doc-base: 10.5pt; }
+.pv-sheet.t-grande { --doc-base: 12pt; }
 .pv-head { border-bottom: 2px solid currentColor; padding-bottom: 8px; margin-bottom: 10px; }
 .pv-club { display: flex; align-items: center; gap: 8px; color: #1d4ed8; font-weight: 700; font-size: 0.9em; }
 /* En-tête des documents (réglage de l'entité) */
@@ -611,10 +628,20 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .entete-apercu { background: var(--surface2); border-radius: 10px; padding: 10px; margin: 6px 0 10px; overflow: hidden; }
 .entete-apercu .pv-sheet { width: auto; min-height: 0; padding: 12px 16px; margin: 0; }
 .pv-kicker { margin: 6px 0 0; text-transform: uppercase; letter-spacing: 0.08em; font-size: 0.8em; font-weight: 700; color: #64748b; }
-.pv-sheet h1 { font-size: 1.9em; margin: 0 0 2px; color: #111; }
-.pv-sheet h2 { font-size: 1.2em; margin: 16px 0 6px; color: inherit; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; }
+.pv-sheet h1 {
+  margin: 0 0 2px; font-size: calc(var(--doc-base) * 1.9 * var(--e-titre-t, 1)); font-weight: var(--e-titre-g, 700);
+  font-style: var(--e-titre-i, normal); text-transform: var(--e-titre-m, none); text-align: var(--e-titre-a, left); color: var(--e-titre-c, #111);
+}
+.pv-sheet h2 {
+  margin: 16px 0 6px; border-bottom: 1px solid #cbd5e1; padding-bottom: 3px; font-size: calc(var(--doc-base) * 1.2 * var(--e-partie-t, 1));
+  font-weight: var(--e-partie-g, 700); font-style: var(--e-partie-i, normal); text-transform: var(--e-partie-m, none);
+  text-align: var(--e-partie-a, left); color: var(--e-partie-c, #111);
+}
 .pv-sheet h3 { font-size: 1em; margin: 10px 0 4px; color: #111; text-transform: uppercase; letter-spacing: 0.03em; }
-.pv-meta { margin: 0; color: #333; }
+.pv-meta {
+  margin: 0; font-size: calc(var(--doc-base) * var(--e-date-t, 1)); font-weight: var(--e-date-g, 400); font-style: var(--e-date-i, normal);
+  text-transform: var(--e-date-m, none); text-align: var(--e-date-a, left); color: var(--e-date-c, #333);
+}
 .pv-convoques { margin: 8px 0; }
 .pv-count { font-size: 0.75em; background: #e2e8f0; color: #334155; border-radius: 999px; padding: 1px 8px; vertical-align: middle; }
 .pv-table { width: 100%; border-collapse: collapse; margin: 2px 0 6px; }
@@ -638,22 +665,49 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-odj { font-family: inherit; white-space: pre-wrap; margin: 0; }
 .pv-empty { color: #64748b; font-style: italic; margin: 4px 0; }
 .pv-lines { height: 60mm; background-image: repeating-linear-gradient(#fff 0, #fff 7.5mm, #cbd5e1 7.5mm, #cbd5e1 calc(7.5mm + 1px)); border: 1px solid #cbd5e1; }
-.pv-next { margin: 14px 0 4px; padding: 6px 10px; background: #eff6ff; border-left: 3px solid #1d4ed8; }
-.pv-foot { margin-top: 12px; color: #64748b; font-size: 0.8em; border-top: 1px solid #e2e8f0; padding-top: 4px; }
+.pv-next {
+  margin: 14px 0 4px; padding: 6px 10px; background: #eff6ff; border-left: 3px solid #1d4ed8; font-size: calc(var(--doc-base, 10.5pt) * var(--e-prochaine-t, 1));
+  font-weight: var(--e-prochaine-g, 400); font-style: var(--e-prochaine-i, normal); text-transform: var(--e-prochaine-m, none); color: var(--e-prochaine-c, #111);
+}
+.pv-foot {
+  margin-top: 12px; border-top: 1px solid #e2e8f0; padding-top: 4px; font-size: calc(var(--doc-base, 10.5pt) * 0.8 * var(--e-pied-t, 1));
+  font-weight: var(--e-pied-g, 400); font-style: var(--e-pied-i, normal); text-transform: var(--e-pied-m, none); color: var(--e-pied-c, #64748b);
+}
 /* Ordre du jour en liste numérotée (modèle Word du club : 1. / a. / ■) */
-.odj-head p { margin: 3px 0; }
+.odj-head p {
+  margin: 3px 0; font-size: calc(var(--doc-base, 10.5pt) * var(--e-infos-t, 1)); font-weight: var(--e-infos-g, 400);
+  font-style: var(--e-infos-i, normal); text-transform: var(--e-infos-m, none); color: var(--e-infos-c, #111);
+}
 .odj-fill-line { display: flex; align-items: baseline; gap: 6px; }
 .odj-fill { flex: 1; border-bottom: 1px dotted #94a3b8; min-height: 1em; }
 .pv-sheet ol.odj { margin: 6px 0 0; padding-left: 1.6em; list-style: decimal; }
-.pv-sheet ol.odj > li { margin: 8px 0 2px; break-inside: avoid-page; }
-.pv-sheet ol.odj > li::marker { font-weight: 700; }
-.odj-sec { font-weight: 700; }
+.pv-sheet ol.odj > li { margin: 8px 0 2px; break-inside: avoid-page; font-size: calc(var(--doc-base) * var(--e-section-t, 1)); }
+.pv-sheet ol.odj > li::marker { font-weight: var(--e-section-g, 700); font-style: var(--e-section-i, normal); color: var(--e-section-c, #111); }
+.odj-sec { font-weight: var(--e-section-g, 700); font-style: var(--e-section-i, normal); text-transform: var(--e-section-m, none); color: var(--e-section-c, #111); }
 .pv-sheet ol.odj-l1 { list-style: lower-alpha; padding-left: 1.7em; margin: 2px 0; }
 .pv-sheet ul.odj-l2 { list-style: square; padding-left: 1.6em; margin: 1px 0; }
-.pv-sheet ul.odj-l3 { list-style: circle; padding-left: 1.5em; margin: 0; color: #475569; font-size: 0.92em; }
+.pv-sheet ul.odj-l3 { list-style: circle; padding-left: 1.5em; margin: 0; }
 .pv-sheet .odj-l1 li, .pv-sheet .odj-l2 li { margin: 1px 0; }
-.odj-meta { color: #64748b; font-size: 0.9em; }
-.odj-rem { color: #334155; font-style: italic; font-size: 0.92em; }
+/* Tailles des niveaux depuis la base de la feuille (pas en em) : agrandir un niveau ne grossit pas ceux qu'il contient. */
+.pv-sheet ol.odj-l1 > li {
+  font-size: calc(var(--doc-base) * var(--e-niveau2-t, 1)); font-weight: var(--e-niveau2-g, 400); font-style: var(--e-niveau2-i, normal);
+  text-transform: var(--e-niveau2-m, none); color: var(--e-niveau2-c, #111);
+}
+.pv-sheet ul.odj-l2 > li {
+  font-size: calc(var(--doc-base) * var(--e-niveau3-t, 1)); font-weight: var(--e-niveau3-g, 400); font-style: var(--e-niveau3-i, normal);
+  text-transform: var(--e-niveau3-m, none); color: var(--e-niveau3-c, #111);
+}
+.pv-sheet ul.odj-l3 > li {
+  font-size: calc(var(--doc-base) * 0.92 * var(--e-niveau4-t, 1)); font-weight: var(--e-niveau4-g, 400); font-style: var(--e-niveau4-i, normal);
+  text-transform: var(--e-niveau4-m, none); color: var(--e-niveau4-c, #475569);
+}
+/* Responsables, délais, remarques : en em, à la taille du point qui les contient. */
+.odj-meta { font-size: calc(0.9em * var(--e-meta-t, 1)); color: var(--e-meta-c, #64748b); }
+.pv-sheet .odj-meta { font-weight: var(--e-meta-g, 400); font-style: var(--e-meta-i, normal); text-transform: var(--e-meta-m, none); }
+.odj-rem {
+  font-size: calc(0.92em * var(--e-remarque-t, 1)); font-weight: var(--e-remarque-g, 400); font-style: var(--e-remarque-i, italic);
+  text-transform: var(--e-remarque-m, none); color: var(--e-remarque-c, #334155);
+}
 .odj-task.late .odj-meta { color: #be123c; }
 .odj-task.done { color: #64748b; }
 /* Ordre du jour généré (pas une archive ni la version modifiée à la main) : un clic sur une tâche l'ouvre. */

@@ -13,6 +13,8 @@ import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Ent
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
 import { TaskModal } from '../components/TaskModal';
+import { MiseEnForme } from '../components/MiseEnForme';
+import { margesMm, styleVars } from '../data/styleDocs';
 import { ChoixAnnexes, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe, useAnnexesArchive } from '../components/Annexes';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
@@ -411,11 +413,12 @@ export function Pv() {
   useAnnexesArchive(sheetRef, draft ?? htmlEdite, draft !== null || !!edite);
 
   const openStatuses = data.statuses.filter((x) => !x.done);
+  const docStyle = styleVars(data.reglagesOdj?.style);
   const toggleIn = (list: string[], id: string) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]);
 
   return (
     <div className="pv-page">
-      <style>{`@page { size: A4 ${s.orientation === 'paysage' ? 'landscape' : 'portrait'}; margin: 12mm; @bottom-right { content: counter(page) " / " counter(pages); font-size: 9pt; color: #666; } }`}</style>
+      <style>{`@page { size: A4 ${s.orientation === 'paysage' ? 'landscape' : 'portrait'}; margin: ${margesMm(data.reglagesOdj?.style)}mm; @bottom-right { content: counter(page) " / " counter(pages); font-size: 9pt; color: #666; } }`}</style>
       <div className="page-head no-print">
         <h1>Ordre du jour</h1>
         <div className="actions">
@@ -579,6 +582,12 @@ export function Pv() {
                 <option value="grande">Grande</option>
               </select>
             </label>
+            {canEdit && (
+              <>
+                <p className="field-label pv-sous-titre">Mise en forme</p>
+                <MiseEnForme />
+              </>
+            )}
           </details>
           <button className="btn link" onClick={() => setPrefs({ pv: DEFAULT_PV })}>Rétablir les réglages par défaut</button>
           <p className="muted small">Tes réglages sont mémorisés pour la prochaine fois.</p>
@@ -602,11 +611,11 @@ export function Pv() {
             )
           )}
           {draft !== null ? (
-            <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille} editing`} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: draft }} />
+            <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille} editing`} style={docStyle} contentEditable suppressContentEditableWarning dangerouslySetInnerHTML={{ __html: draft }} />
           ) : edite ? (
-            <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`} dangerouslySetInnerHTML={{ __html: htmlEdite }} />
+            <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`} style={docStyle} dangerouslySetInnerHTML={{ __html: htmlEdite }} />
           ) : (
-          <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`}>
+          <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`} style={docStyle}>
             <header className="pv-head">
               {s.afficherClub && <DocEntete e={entete} logo={logo} />}
               <h1>{titre}</h1>

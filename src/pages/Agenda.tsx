@@ -17,6 +17,7 @@ import { aPlanifier, aRenommer, annuelle, duMois, finDeSerie, motSeance, nomSean
 import { UNIT_TYPES } from '../data/units';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { useAnnexesArchive } from '../components/Annexes';
+import { margesArchive } from '../data/styleDocs';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
 
@@ -472,7 +473,7 @@ function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDele
   }, [onClose]);
   return createPortal(
     <div className="pv-overlay">
-      <style>{`@page { size: A4 ${pv.orientation === 'paysage' ? 'landscape' : 'portrait'}; margin: 12mm; }`}</style>
+      <style>{`@page { size: A4 ${pv.orientation === 'paysage' ? 'landscape' : 'portrait'}; margin: ${margesArchive(pv.html)}mm; }`}</style>
       <div className="pv-overlay-bar no-print">
         <strong>📄 {pv.titre}</strong>
         <small>archivé le {fmtDateTime(pv.at)} par {fullName(data.people.find((p) => p.id === pv.by))}</small>
