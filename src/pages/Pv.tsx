@@ -13,7 +13,7 @@ import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Ent
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
 import { TaskModal } from '../components/TaskModal';
-import { ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe, useAnnexesArchive } from '../components/Annexes';
+import { ChoixAnnexes, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe, useAnnexesArchive } from '../components/Annexes';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête (le nom du comité), convoqués, liste numérotée
@@ -55,7 +55,7 @@ interface Group {
 }
 
 export function Pv() {
-  const { data, user, prefs, setPrefs, update, can, autresResp } = useStore();
+  const { data, user, prefs, setPrefs, update, updateSilent, can, autresResp } = useStore();
   const club = useClubOptional();
   const s = withDefaults(prefs.pv);
   const set = (patch: Partial<PvSettings>) => setPrefs({ pv: { ...s, ...patch } });
@@ -165,8 +165,16 @@ export function Pv() {
     .map((sec) => ({ key: sec.id, label: sec.nom, tasks: order(unified.filter((t) => t.sectionId === sec.id), sec) }))
     .filter((g) => g.tasks.length || s.sectionsVides || pollsOf(g.key).length);
 
-  // Annexes : fichiers et liens des tâches de l'ordre du jour, dans leur ordre.
-  const annexes = s.annexes ? annexesDe(unifiedGroups.flatMap((g) => g.tasks)) : [];
+  // Annexes : fichiers et liens des tâches de l'ordre du jour, dans leur ordre, sauf ceux retirés pour cette séance
+  // (choix commun au comité, enregistré dans la séance).
+  const tachesOdj = unifiedGroups.flatMap((g) => g.tasks);
+  const exclues = s1?.odjAnnexesExclues ?? [];
+  const annexes = s.annexes ? annexesDe(tachesOdj, exclues) : [];
+  const setExclues = (ids: string[]) =>
+    s1 &&
+    updateSilent((d) => {
+      d.meetings.find((x) => x.id === s1.id)!.odjAnnexesExclues = ids.length ? ids : undefined;
+    });
   // Titre : le nom du comité ; avec la date de la séance pour nommer le document (PDF, archive, email).
   const titre = club?.current.nom ?? 'Comité';
   const nomDoc = s1 ? `${titre} ${shortDate(s1.date)}` : titre;
@@ -485,7 +493,7 @@ export function Pv() {
             ))}
             <label className="inline" title="Les fichiers et liens des tâches de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (1, 2 ou 4 par page)">
               <input type="checkbox" checked={s.annexes} onChange={(e) => set({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin d’ordre du jour
-              {s.annexes && <span className="muted">{annexes.length ? ` (${annexes.length})` : ' (aucun pour l’instant)'}</span>}
+              {s.annexes && <span className="muted">{annexes.length ? ` (${annexes.length})` : annexesDe(tachesOdj).length ? ' (aucun choisi)' : ' (aucun pour l’instant)'}</span>}
             </label>
             {s.annexes && (
               <label>
@@ -494,6 +502,15 @@ export function Pv() {
                   {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 fichier (pleine page)' : `${n} fichiers`}</option>)}
                 </select>
               </label>
+            )}
+            {s.annexes && s1 && (
+              <ChoixAnnexes
+                tasks={tachesOdj}
+                exclues={exclues}
+                onChange={setExclues}
+                disabled={!canEdit}
+                note={edite ? 'Ordre du jour modifié à la main : le choix s’appliquera en revenant à la version générée.' : 'Choix commun au comité, pour cette séance.'}
+              />
             )}
           </details>
           <details open>

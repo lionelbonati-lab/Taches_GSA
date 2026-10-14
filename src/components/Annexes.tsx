@@ -2,6 +2,7 @@ import { useEffect, useState, type RefObject } from 'react';
 import { getFile } from '../data/files';
 import { apercuPdf, estPdf } from '../data/pdf';
 import type { Task, TaskDoc } from '../data/types';
+import { DocThumb } from './DocsField';
 
 // Fichiers liés aux tâches d'un document (PV, ordre du jour), joints à la fin (option « Joindre les fichiers liés ») :
 // la liste des annexes, puis les photos et chaque page des PDF en image, 1, 2 ou 4 par page imprimée. Les archives ne
@@ -26,11 +27,66 @@ export const annexeVisible = (d: TaskDoc) => d.kind === 'fichier' && (!!d.mime?.
 /** Reproduite à la fin : photo ou PDF, sauf d'une tâche partagée (ses fichiers sont rangés chez son entité). */
 export const annexeReproduite = (a: Annexe) => !a.t.source && annexeVisible(a.d);
 
-/** Annexes des tâches, dans leur ordre (un fichier lié à deux tâches ne compte qu'une fois). */
-export function annexesDe(tasks: Task[]): Annexe[] {
+/**
+ * Annexes des tâches, dans leur ordre (un fichier lié à deux tâches ne compte qu'une fois), sans celles retirées pour ce
+ * document (`exclues` : identifiants des fichiers et liens).
+ */
+export function annexesDe(tasks: Task[], exclues: string[] = []): Annexe[] {
   const out: Annexe[] = [];
-  tasks.forEach((t) => (t.documents ?? []).forEach((d) => !out.some((a) => a.d.id === d.id) && out.push({ d, t, n: out.length + 1 })));
+  tasks.forEach((t) =>
+    (t.documents ?? []).forEach((d) => !exclues.includes(d.id) && !out.some((a) => a.d.id === d.id) && out.push({ d, t, n: out.length + 1 })),
+  );
   return out;
+}
+
+/**
+ * Choix des fichiers liés joints au document (ordre du jour ou PV d'une séance) : une case par photo, PDF ou lien des
+ * tâches du document, cochée s'il est joint. `exclues` : ceux retirés ; `note` : précision sous la liste.
+ */
+export function ChoixAnnexes({ tasks, exclues, onChange, disabled, note }: {
+  tasks: Task[];
+  exclues: string[];
+  onChange: (exclues: string[]) => void;
+  disabled?: boolean;
+  note?: string;
+}) {
+  const tous = annexesDe(tasks);
+  if (!tous.length) return null;
+  const joints = tous.filter((a) => !exclues.includes(a.d.id)).length;
+  const ids = tous.map((a) => a.d.id);
+  return (
+    <details className="choix-annexes" open>
+      <summary>
+        Fichiers joints : {joints} sur {tous.length}
+      </summary>
+      <ul>
+        {tous.map((a) => (
+          <li key={a.d.id}>
+            <label title={annexeInfo(a)}>
+              <input
+                type="checkbox"
+                checked={!exclues.includes(a.d.id)}
+                disabled={disabled}
+                onChange={(e) => onChange(e.target.checked ? exclues.filter((x) => x !== a.d.id) : [...exclues, a.d.id])}
+              />
+              {annexeReproduite(a) ? <DocThumb d={a.d} /> : <span className="doc-icon">{a.d.kind === 'lien' ? '🔗' : '📄'}</span>}
+              <span className="choix-annexe-nom">
+                {a.d.nom}
+                <small className="muted">{a.t.titre}</small>
+              </span>
+            </label>
+          </li>
+        ))}
+      </ul>
+      {!disabled && (
+        <div className="row">
+          <button type="button" className="btn small" disabled={joints === tous.length} onClick={() => onChange(exclues.filter((x) => !ids.includes(x)))}>Tous</button>
+          <button type="button" className="btn small" disabled={joints === 0} onClick={() => onChange([...new Set([...exclues, ...ids])])}>Aucun</button>
+        </div>
+      )}
+      {note && <small className="muted">{note}</small>}
+    </details>
+  );
 }
 
 /** Précision de la liste des annexes : la tâche, l'adresse d'un lien, où trouver un fichier non reproduit. */

@@ -12,7 +12,7 @@ import { nomAppli } from '../data/nomAppli';
 import { archiveHtml } from '../data/entete';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
-import { ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe } from '../components/Annexes';
+import { ChoixAnnexes, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe } from '../components/Annexes';
 import { useClubOptional } from '../data/club';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
@@ -244,7 +244,9 @@ export function Minutes() {
   const others = orphanPolls.filter(pollInPv);
   // Annexes : fichiers et liens des tâches du PV, dans l'ordre du PV (nouvelles tâches comprises).
   const tachesPv = [...new Map([...pvSections.flatMap((g) => g.subs.flatMap((s) => s.tasks)), ...newTasks].map((t) => [t.id, t])).values()];
-  const annexes = annexesDe(tachesPv);
+  // Sauf ceux retirés pour ce PV ; tant que le PV n'a pas son choix, ceux retirés de l'ordre du jour de la séance.
+  const exclues = m.annexesExclues ?? s1?.odjAnnexesExclues ?? [];
+  const annexes = annexesDe(tachesPv, exclues);
   const numeros = (t: Task) => (opts.annexes ? numerosDe(annexes, t) : []);
   const presentsTxt = m.presents.map((id) => `${fullName(person(id))} (${initials(person(id))})`).join(', ') || '—';
   const excusesTxt = m.excuses.map((id) => fullName(person(id))).join(', ') || '—';
@@ -325,6 +327,8 @@ export function Minutes() {
     update((d) => {
       const x = d.meetings.find((y) => y.id === s1.id)!;
       const mm: MeetingMinutes = { ...EMPTY_MINUTES, ...x.minutes, valideLe: now, validePar: user.id, version: n, enCorrection: false };
+      // Fichiers joints : le choix du moment est fixé (l'ordre du jour peut encore changer).
+      mm.annexesExclues = mm.annexesExclues ?? x.odjAnnexesExclues ?? [];
       const { derniereValidee: _old, ...copyOf } = mm;
       void _old;
       mm.derniereValidee = structuredClone(copyOf);
@@ -636,7 +640,7 @@ export function Minutes() {
             <label className="inline"><input type="checkbox" checked={opts.misesAJour} disabled={!editable} onChange={(e) => setOpt({ misesAJour: e.target.checked })} /> Mises à jour des tâches (↻)</label>
             <label className="inline" title="Les fichiers et liens des tâches du PV : liste des annexes, puis les photos et les pages des PDF (1, 2 ou 4 par page)">
               <input type="checkbox" checked={opts.annexes} disabled={!editable} onChange={(e) => setOpt({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin de PV
-              <span className="muted">{annexes.length ? ` (${annexes.length})` : ' (aucun pour l’instant)'}</span>
+              <span className="muted">{annexes.length ? ` (${annexes.length})` : annexesDe(tachesPv).length ? ' (aucun choisi)' : ' (aucun pour l’instant)'}</span>
             </label>
             {opts.annexes && (
               <label className="inline" title="Photos ou pages de PDF sur une même page imprimée">
@@ -645,6 +649,15 @@ export function Minutes() {
                   {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 fichier (pleine page)' : `${n} fichiers`}</option>)}
                 </select>
               </label>
+            )}
+            {opts.annexes && (
+              <ChoixAnnexes
+                tasks={tachesPv}
+                exclues={exclues}
+                onChange={(ids) => setMinutes((x) => { x.annexesExclues = ids; })}
+                disabled={!editable}
+                note={m.annexesExclues ? undefined : s1?.odjAnnexesExclues?.length ? 'Choix repris de l’ordre du jour de la séance.' : undefined}
+              />
             )}
             <label className="inline">
               Taille du texte

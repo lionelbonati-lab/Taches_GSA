@@ -1399,3 +1399,15 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .copies-liste { list-style: none; padding: 0; margin: 8px 0; }
 .copies-liste li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; padding: 6px 0; border-bottom: 1px solid var(--border); }
 .copies-liste li .row { gap: 6px; margin: 0; }
+
+/* Choix des fichiers joints à l'ordre du jour / au PV */
+.choix-annexes { margin: 6px 0 4px; flex-basis: 100%; }
+.choix-annexes summary { cursor: pointer; font-weight: 600; font-size: .9rem; }
+.choix-annexes ul { list-style: none; padding: 0; margin: 6px 0; display: grid; gap: 4px; max-height: 340px; overflow: auto; }
+.choix-annexes li label, .pv-settings .choix-annexes li label { display: flex; flex-direction: row; align-items: center; gap: 8px; font-weight: normal; margin: 0; cursor: pointer; color: var(--text); }
+.choix-annexes .doc-thumb { width: 40px; height: 40px; object-fit: cover; border-radius: 4px; flex: none; }
+.choix-annexes .doc-icon { width: 40px; text-align: center; flex: none; }
+.choix-annexe-nom { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; font-size: .85rem; }
+.choix-annexe-nom small { font-size: .75rem; }
+.choix-annexes li:has(input:not(:checked)) .choix-annexe-nom, .choix-annexes li:has(input:not(:checked)) img { opacity: .5; }
+.choix-annexes .row { gap: 6px; margin: 2px 0 4px; }

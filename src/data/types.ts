@@ -373,6 +373,8 @@ export interface Meeting {
   excuses?: Excuse[];
   /** Ordre du jour modifié à la main : remplace le document généré tant qu'on ne revient pas à celui-ci. */
   odjEdite?: { html: string; le: string; par: string };
+  /** Fichiers liés (identifiants des documents) retirés des annexes de l'ordre du jour de la séance ; les autres y sont. */
+  odjAnnexesExclues?: string[];
   /** Séance ponctuelle : ne revient pas l'année suivante (par défaut, une séance revient chaque année le même mois). */
   unique?: boolean;
 }
@@ -410,6 +412,11 @@ export interface MeetingMinutes {
   tousLesPoints?: boolean;
   /** Options du document ; non réglées : celles du PV de la séance précédente, sinon par défaut. */
   options?: PvOptions;
+  /**
+   * Fichiers liés (identifiants des documents) retirés des annexes du PV ; les autres y sont. Absent : ceux retirés de
+   * l'ordre du jour de la séance (fixé à la validation).
+   */
+  annexesExclues?: string[];
   /** Changements de tâches faits depuis l'onglet PV (seuls ceux-ci figurent dans le PV). */
   journal?: MinutesChange[];
   /** Tâches créées pendant la séance (« nouvelle tâche décidée »). */
