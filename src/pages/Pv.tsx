@@ -468,6 +468,7 @@ export function Pv() {
           )}
           <details open>
             <summary>Contenu</summary>
+            <span className="field-label pv-sous-titre">Dans l’ordre du jour</span>
             {([
               ['presences', 'En-tête : convoqués et présences'],
               ['retards', 'Tâches en retard'],
@@ -491,6 +492,18 @@ export function Pv() {
                 )}
               </div>
             ))}
+            <span className="field-label pv-sous-titre">Pour chaque tâche</span>
+            {([
+              ['sousSection', 'Sous-section'],
+              ['echeance', 'Échéance (en retard, séance suivante, fait)'],
+              ['statut', 'Statut'],
+              ['remarque', 'Remarque'],
+              ['checklist', 'Checklist'],
+              ['documents', 'Noms de ses documents'],
+            ] as [keyof PvSettings['colonnes'], string][]).map(([k, label]) => (
+              <label key={k} className="inline"><input type="checkbox" checked={s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
+            ))}
+            <span className="field-label pv-sous-titre">Annexes</span>
             <label className="inline" title="Les fichiers et liens des tâches de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (1, 2 ou 4 par page)">
               <input type="checkbox" checked={s.annexes} onChange={(e) => set({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin d’ordre du jour
               {s.annexes && <span className="muted">{annexes.length ? ` (${annexes.length})` : annexesDe(tachesOdj).length ? ' (aucun choisi)' : ' (aucun pour l’instant)'}</span>}
@@ -535,19 +548,6 @@ export function Pv() {
                 <option value="titre">Nom de la tâche</option>
               </select>
             </label>
-          </details>
-          <details>
-            <summary>Détails affichés</summary>
-            {([
-              ['sousSection', 'Sous-section'],
-              ['echeance', 'Échéance : en retard, séance suivante, fait'],
-              ['statut', 'Statut'],
-              ['remarque', 'Remarque'],
-              ['checklist', 'Checklist sous la tâche'],
-              ['documents', 'Documents joints sous la tâche'],
-            ] as [keyof PvSettings['colonnes'], string][]).map(([k, label]) => (
-              <label key={k} className="inline"><input type="checkbox" checked={s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
-            ))}
           </details>
           <details>
             <summary>Filtres</summary>

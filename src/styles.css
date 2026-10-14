@@ -573,6 +573,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-settings label.odj-marge { margin: 2px 0 0 26px; gap: 6px; font-size: 0.85rem; color: var(--muted); }
 .pv-settings label.odj-marge select { width: auto; padding: 2px 6px; }
 .pv-settings .small { font-size: 0.8rem; }
+.pv-settings .pv-sous-titre { margin: 14px 0 0; font-weight: 600; }
+.pv-settings summary + .pv-sous-titre { margin-top: 6px; }
 .pv-msg { background: var(--primary-soft); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
 .pv-preview { overflow-x: auto; background: var(--surface2); border-radius: var(--radius); padding: 16px; }
 .pv-sheet {
