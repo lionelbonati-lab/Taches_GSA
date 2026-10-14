@@ -1,4 +1,6 @@
 import { uid } from './utils';
+import { aPrendreVersOrigine, aPrendreVu } from './aPrendre';
+import { pourInfoVersOrigine, pourInfoVu } from './pourInfo';
 import type { AppData, OrgMember, OrgUnit, PeriodeDependance, Person, Section, Status, TachePartagee, TachesDependance, Task, Unit, UnitType } from './types';
 
 // Tâches partagées entre les entités du club. Une tâche reste dans son entité ; celle-ci peut la partager
@@ -221,6 +223,9 @@ export function avecPartagees(data: AppData, list: TachePartagee[], moi: string,
       partage: t.partage,
       respPartage: t.respPartage,
       modifiePar: t.modifiePar,
+      // À prendre et Pour info (040) : ceux de l'entité ouverte comme les siens ; les autres, à part.
+      aPrendre: aPrendreVu(t.aPrendre, x.uniteId, moi),
+      pourInfo: pourInfoVu(t.pourInfo, x.uniteId, moi),
       source: { uniteId: x.uniteId, unite: x.unite, id: t.id, responsables: t.responsables ?? [] },
     });
   }
@@ -230,7 +235,8 @@ export function avecPartagees(data: AppData, list: TachePartagee[], moi: string,
 /**
  * Enregistrement depuis une entité du partage : la tâche affichée `t` (fiches de l'entité ouverte) → la tâche de son
  * entité (`orig`). Chaque responsable reste dans l'entité où il a une fiche : celle de la tâche d'abord, sinon
- * l'entité ouverte (respPartage). Ce qui n'est pas modifiable d'ici (documents, liens, répétition, partage) est gardé.
+ * l'entité ouverte (respPartage). À prendre : les propositions de l'entité ouverte ; Pour info : la liste (040). Ce qui
+ * n'est pas modifiable d'ici (documents, liens, répétition, partage) est gardé.
  */
 export function versOrigine(
   orig: Task,
@@ -248,12 +254,13 @@ export function versOrigine(
   const responsables = garde(x.uniteId, orig.responsables);
   const respPartage: Record<string, string[]> = {};
   for (const [u, ids] of Object.entries(orig.respPartage ?? {})) {
-    const g = u === moi ? [] : garde(u, ids);
+    // Ceux d'ici restent ici (une place « à prendre » prise ici se compte ici : 040).
+    const g = u === moi ? ids.filter((id) => choisis.includes(id)) : garde(u, ids);
     if (g.length) respPartage[u] = g;
   }
   const deja = new Set([
     ...responsables.map((id) => local(x.uniteId, id)?.id),
-    ...Object.entries(respPartage).flatMap(([u, ids]) => ids.map((id) => local(u, id)?.id)),
+    ...Object.entries(respPartage).flatMap(([u, ids]) => ids.map((id) => (u === moi ? id : local(u, id)?.id))),
   ]);
   const src = units.find((u) => u.id === x.uniteId)?.membres ?? [];
   const miens: string[] = [];
@@ -264,7 +271,7 @@ export function versOrigine(
     if (m) responsables.push(m.id);
     else if (p) miens.push(id);
   }
-  if (miens.length) respPartage[moi] = miens;
+  if (miens.length) respPartage[moi] = [...(respPartage[moi] ?? []), ...miens];
 
   const avant = x.statuts.find((s) => s.id === orig.statusId);
   const choisi = ctx.statuses.find((s) => s.id === t.statusId);
@@ -288,6 +295,8 @@ export function versOrigine(
     responsables,
     respPartage: Object.keys(respPartage).length ? respPartage : undefined,
     placePartage: Object.keys(placePartage).length ? placePartage : undefined,
+    aPrendre: aPrendreVersOrigine(orig.aPrendre, t.aPrendre, moi, respPartage[moi]),
+    pourInfo: pourInfoVersOrigine(orig.pourInfo, t.pourInfo, x.uniteId, moi),
     modifiePar: ctx.par,
     updatedAt: new Date().toISOString(),
   };
@@ -297,10 +306,20 @@ export function versOrigine(
  * Ce que le serveur garde d'une modification venue d'une entité du partage (même règle côté serveur, 019) :
  * les champs modifiables, le reste de la tâche d'origine.
  */
-export function fusionPartagee(old: Task, t: Task, moi: string): Task {
+export function fusionPartagee(old: Task, t: Task, moi: string, src = ''): Task {
   const placePartage = { ...old.placePartage };
   if (t.placePartage?.[moi]) placePartage[moi] = t.placePartage[moi];
   else delete placePartage[moi];
+  // À prendre (040) : d'ici, les propositions d'ici et le nombre ; leurs « Pas dispo » restent ceux d'avant.
+  const ici = t.aPrendre?.partage?.[moi];
+  const aPrendre = aPrendreVersOrigine(old.aPrendre, t.aPrendre && { ...t.aPrendre, personnes: ici?.personnes ?? [], par: ici?.par }, moi, t.respPartage?.[moi]);
+  // Pour info (040) : la liste, sans l'entité de la tâche elle-même.
+  const p = t.pourInfo;
+  const pourInfo = p && {
+    ...p,
+    unites: p.unites?.filter((u) => u !== src),
+    autres: p.autres && Object.fromEntries(Object.entries(p.autres).filter(([u]) => u !== src)),
+  };
   return {
     ...old,
     titre: t.titre,
@@ -313,6 +332,8 @@ export function fusionPartagee(old: Task, t: Task, moi: string): Task {
     responsables: t.responsables,
     respPartage: t.respPartage,
     placePartage: Object.keys(placePartage).length ? placePartage : undefined,
+    aPrendre: old.paiement ? old.aPrendre : aPrendre,
+    pourInfo: old.paiement ? old.pourInfo : pourInfo,
     modifiePar: t.modifiePar,
     updatedAt: t.updatedAt,
   };

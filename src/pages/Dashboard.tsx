@@ -73,7 +73,7 @@ export function Dashboard() {
   const infoIci = data.tasks.filter((t) => pourMoi(t, user.id) && !isDone(data, t)).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   const infoRecues = pourInfo.filter((x) => !termineeChezElle(x)).sort((a, b) => (a.task.delai || '9999').localeCompare(b.task.delai || '9999'));
   // À prendre : tâches qu'on me propose, tant qu'il reste une place.
-  const aPrendre = data.tasks.filter((t) => !t.source && aPrendrePourMoi(t, user.id) && !isDone(data, t)).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
+  const aPrendre = data.tasks.filter((t) => aPrendrePourMoi(t, user.id) && !isDone(data, t)).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   // Blocs vides ce jour-là : ils ne prennent pas de place.
   const vide = (id: string) => (id === 'aprendre' && !aPrendre.length) || (id === 'emails' && !toSend.length && !upcoming.length) || (id === 'sondages' && !toVote.length) || (id === 'compteurs' && !compteurs.length) || (id === 'pourinfo' && !infoIci.length && !infoRecues.length);
   const ordre = blocs.filter((id) => !vide(id));

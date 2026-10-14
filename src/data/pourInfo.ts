@@ -5,7 +5,7 @@ import type { OrgUnit, Person, PourInfo, TachePartagee, Task } from './types';
 //     dans « Mes tâches » avec « 👁 pour info », à l'accueil, et une notification 🔔 quand on les ajoute ;
 //   - autres entités du club (leurs admins et rôles « Voir toutes les tâches ») et personnes d'autres entités : en lecture
 //     seule, à l'accueil et dans Tâches › « 👁 Pour info » (serveur : gsa_taches_pour_info, 037), avec une notification.
-// Jamais pour les tickets (remboursements, factures). Seule l'entité de la tâche change la liste.
+// Jamais pour les tickets (remboursements, factures). Tâche partagée : les entités du partage changent aussi la liste (040).
 
 /** Pour info nettoyé : sans doublons ni listes vides, sans les responsables ; undefined s'il ne reste personne. */
 export function epurerPourInfo(p: PourInfo | undefined, responsables: string[] = []): PourInfo | undefined {
@@ -21,8 +21,31 @@ export function epurerPourInfo(p: PourInfo | undefined, responsables: string[] =
   return Object.keys(r).length ? r : undefined;
 }
 
-/** Tâche de l'entité ouverte où la personne est mentionnée pour info (pas une tâche partagée : ses fiches sont d'ailleurs). */
-export const pourMoi = (t: Pick<Task, 'pourInfo' | 'paiement' | 'source'>, userId?: string) => !!userId && !t.paiement && !t.source && !!t.pourInfo?.personnes?.includes(userId);
+/** Tâche où la personne est mentionnée pour info dans l'entité ouverte (tâche partagée : vue d'ici, voir pourInfoVu). */
+export const pourMoi = (t: Pick<Task, 'pourInfo' | 'paiement'>, userId?: string) => !!userId && !t.paiement && !!t.pourInfo?.personnes?.includes(userId);
+
+/**
+ * Vue depuis l'entité `moi` du « Pour info » d'une tâche de l'entité `src` (tâche partagée, 040) : les personnes d'ici
+ * (autres[moi]) comme personnes ; celles de l'entité de la tâche comme personnes d'une autre entité (autres[src]).
+ */
+export function pourInfoVu(p: PourInfo | undefined, src: string, moi: string): PourInfo | undefined {
+  if (!p) return undefined;
+  const autres = { ...p.autres };
+  const ici = autres[moi] ?? [];
+  delete autres[moi];
+  if (p.personnes?.length) autres[src] = p.personnes;
+  return epurerPourInfo({ personnes: ici, unites: (p.unites ?? []).filter((u) => u !== moi), autres });
+}
+
+/** Enregistrement depuis l'entité `moi` : la vue d'ici remise dans la forme de l'entité de la tâche `src` (même contrôle côté serveur). */
+export function pourInfoVersOrigine(orig: PourInfo | undefined, vu: PourInfo | undefined, src: string, moi: string): PourInfo | undefined {
+  const autres = { ...vu?.autres };
+  const personnes = autres[src] ?? [];
+  delete autres[src];
+  if (vu?.personnes?.length) autres[moi] = vu.personnes;
+  const unites = [...(vu?.unites ?? []).filter((u) => u !== src && u !== moi), ...(orig?.unites?.includes(moi) ? [moi] : [])];
+  return epurerPourInfo({ personnes, unites, autres });
+}
 
 /**
  * Tâche d'une autre entité, pour info de l'entité ouverte `moi` : visible par la personne connectée ? L'entité

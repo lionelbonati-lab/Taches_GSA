@@ -88,6 +88,8 @@ export function sectionChez(a: Attribution, t: Pick<Task, 'placePartage'>, secti
  *   - dans la section `sectionId` de l'entité, partagée avec le comité, rangée chez lui là où elle était (placePartage) ;
  *   - responsables : leur fiche de l'entité (même fiche du registre ou même email) ; sans fiche chez elle, ils restent ceux
  *     du comité (respPartage) ;
+ *   - à prendre : les personnes du comité à qui elle est proposée le restent, depuis le comité (aPrendre.partage, 040) ;
+ *     celles qui s'en chargent restent ses responsables ;
  *   - la séance du comité liée reste à son ordre du jour (seanceComite) ; les liens à ses événements et à ses autres
  *     tâches, les fichiers (rangés chez lui) et ce qui concerne ses postes ne suivent pas ;
  *   - le statut est retrouvé chez elle (serveur, ou nettoyerAttribuee en démo).
@@ -99,9 +101,11 @@ export function versEntite(
   const { comite, cible } = ctx;
   const responsables: string[] = [];
   const restent: string[] = [];
+  const proposees = t.aPrendre?.personnes ?? [];
   for (const id of t.responsables) {
     const p = ctx.people.find((x) => x.id === id);
-    const m = p && cible.membres.find((x) => memePersonne(p, x));
+    // Volontaire du comité : sa place se compte au comité, où la tâche lui est proposée.
+    const m = p && !proposees.includes(id) && cible.membres.find((x) => memePersonne(p, x));
     if (m) {
       if (!responsables.includes(m.id)) responsables.push(m.id);
     } else restent.push(id);
@@ -133,8 +137,15 @@ export function versEntite(
     },
     responsables,
   );
-  // À prendre : seulement par des personnes qui ont une fiche chez elle.
-  const aPrendre = epurerAPrendre(t.aPrendre && { ...t.aPrendre, personnes: chez(t.aPrendre.personnes), refus: chez(t.aPrendre.refus ?? []) }, responsables);
+  // À prendre : proposée aux personnes du comité depuis le comité ; celles de l'entité (proposée depuis chez elle quand la
+  // tâche lui était partagée) deviennent les siennes.
+  const a = t.aPrendre;
+  const ici = a?.partage?.[cible.id];
+  const ailleurs = { ...a?.partage };
+  delete ailleurs[cible.id];
+  delete ailleurs[comite.id];
+  if (a?.personnes.length) ailleurs[comite.id] = { personnes: a.personnes, refus: a.refus, par: a.par || t.createdBy || undefined };
+  const aPrendre = a && epurerAPrendre({ personnes: ici?.personnes ?? [], nombre: a.nombre, refus: ici?.refus, par: ici?.par, partage: ailleurs }, responsables, respPartage);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { meetingId, eventId, parentId, suivanteId, postesResp, proposee, parCentral, auCentral, evenementEntite, modifiePar, source, pieces, ...reste } = t;
   return {

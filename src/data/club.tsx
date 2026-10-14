@@ -158,6 +158,11 @@ export interface Club {
   attribuerTache: (uniteId: string, task: Task, statut: { label: string; done: boolean }) => Promise<void>;
   /** Enregistre, dans son entité, une tâche partagée modifiée depuis l'entité ouverte. */
   modifierTachePartagee: (uniteId: string, task: Task) => Promise<void>;
+  /**
+   * « 🙋 Je m'en charge » (prend) ou « Pas dispo » sur une tâche à prendre de l'entité `uniteId`, partagée avec l'entité
+   * ouverte et proposée ici à la personne connectée (040) : réponse enregistrée dans l'entité de la tâche.
+   */
+  repondreTachePartagee: (uniteId: string, tacheId: string, prend: boolean) => Promise<void>;
   /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */
   sondagesPartages: () => Promise<SondagePartage[] | null>;
   /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */

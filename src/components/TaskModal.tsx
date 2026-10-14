@@ -10,7 +10,7 @@ import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE } from '../data/partage';
 import { ciblesPourInfo, nbPourInfo } from '../data/pourInfo';
-import { aPrendreOuverte, nombreAPrendre, pasDispo as aDecline, peutPrendre, sansReponse, volontaires } from '../data/aPrendre';
+import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as aDecline, peutPrendre, plusPersonne, prisAilleurs, reponsesAilleurs, volontaires } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
 import type { DelaiUnite, EvenementEntite, OrgUnit, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
@@ -182,7 +182,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       setBusy(false);
       return setErr((e as Error).message);
     }
-    setToast(prend ? '✅ Tu t’en charges : la tâche est dans « Mes tâches ».' : '🙅 C’est noté : l’auteur est prévenu. Tu peux encore t’en charger depuis « Mes tâches ».');
+    setToast(prend ? '✅ Tu t’en charges : la tâche est dans « Mes tâches ».' : '🙅 C’est noté : la personne qui te l’a proposée est prévenue. Tu peux encore t’en charger depuis « Mes tâches ».');
     deleteFiles(track.current.added);
     onClose();
   };
@@ -237,7 +237,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     emails: !isNew && emailsOf(data, task.id).length > 0,
     partage: partage.length > 0,
     info: nbPourInfo(t.pourInfo) > 0,
-    prendre: !!t.aPrendre?.personnes.length,
+    prendre: !!t.aPrendre?.personnes.length || ailleurs(t).length > 0,
   };
   const voit = (x: Extra) => rempli[x] || ouverts.includes(x);
   const ouvrir = (x: Extra) => setOuverts((o) => [...o, x]);
@@ -256,8 +256,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         if (isNew && t.responsables.length === 1 && t.responsables[0] === user.id) set('responsables', []);
       },
       si: !voit('prendre') && !t.paiement && canAssignOthers,
+      partagee: true,
     },
-    { label: '👁 Pour info', aide: 'Des personnes ou des entités qui la voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement },
+    { label: '👁 Pour info', aide: 'Des personnes ou des entités qui la voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement, partagee: true },
     { label: '📊 Sondage', aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create') },
     {
       label: '📧 Email',
@@ -268,7 +269,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       },
       si: !isNew && !voit('emails'),
     },
-    // Tâche d'une autre entité : documents, liens, répétition, sondages et emails restent les siens.
+    // Tâche d'une autre entité : documents, liens, répétition, sondages et emails se gèrent chez elle.
   ].filter((a) => a.si && (!t.source || a.partagee));
   // Personnes à ajouter : soi-même d'abord.
   const aAjouter = assignable.filter((p) => !t.responsables.includes(p.id)).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
@@ -278,7 +279,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const infoIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !info.personnes?.includes(p.id));
   const autresUnites = club ? club.units.filter((u) => u.id !== club.current.id && !u.archive) : [];
   const iconeUnite = (id: string) => { const u = club?.units.find((x) => x.id === id); return u ? `${UNIT_TYPES[u.type].icon} ` : ''; };
-  const infoUnites = autresUnites.filter((u) => !info.unites?.includes(u.id));
+  // Tâche partagée : son entité la voit déjà.
+  const infoUnites = autresUnites.filter((u) => !info.unites?.includes(u.id) && u.id !== t.source?.uniteId);
   const infoAutres = autresUnites
     .map((u) => ({ u, l: u.membres.filter((m) => !m.viaEntite && !info.autres?.[u.id]?.includes(m.id) && !data.people.some((p) => p.actif && memePersonne(p, m))) }))
     .filter((g) => g.l.length);
@@ -292,6 +294,15 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const nPrendre = nombreAPrendre(t.aPrendre);
   const vol = volontaires(t);
   const nomsDe = (ids: string[]) => ids.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
+  // Tâche partagée ou partagée avec d'autres entités : proposée aussi à leurs personnes (040), places comptées ensemble.
+  const prisLa = prisAilleurs(t);
+  const nPris = vol.length + prisLa;
+  const quiPrend = [vol.length ? nomsDe(vol) : '', prisLa ? `${prisLa} personne${prisLa > 1 ? 's' : ''} d’une autre entité` : ''].filter(Boolean).join(' et ');
+  const nomAilleurs = (u: string, id: string) => {
+    const m = club?.units.find((x) => x.id === u)?.membres.find((x) => x.id === id);
+    return m ? `${m.prenom} ${m.nom}`.trim() : '?';
+  };
+  const propAilleurs = reponsesAilleurs(t);
   const proposer = (v: string) =>
     setT((x) => {
       const ids = v === 'tous' ? prendreIci.map((p) => p.id) : v.startsWith('r:') ? (prendreRoles.find((g) => g.r.id === v.slice(2))?.l ?? []).map((p) => p.id) : [v.slice(2)];
@@ -301,9 +312,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const setNombre = (n: number) => setT((x) => ({ ...x, aPrendre: { ...x.aPrendre, personnes: x.aPrendre?.personnes ?? [], nombre: n > 1 ? n : undefined } }));
   // « Pas dispo » (encore proposées, pas responsables) ; personnes qui n'ont pas encore répondu.
   const refusIci = (t.aPrendre?.refus ?? []).filter((id) => candidats.includes(id) && !t.responsables.includes(id));
-  const attente = sansReponse(t);
-  const auteur = data.people.find((p) => p.id === task.createdBy);
-  const pourMoiAPrendre = !isNew && !task.source && peutPrendre(task, user.id) && !isDone(data, task);
+  const auteur = data.people.find((p) => p.id === auteurAPrendre(task));
+  const pourMoiAPrendre = !isNew && peutPrendre(task, user.id) && !isDone(data, task);
+  // Tâche partagée : ce qui se gère dans son entité, et de quoi l'y ouvrir si on en fait partie.
+  const chezSource = t.source && club?.units.find((u) => u.id === t.source!.uniteId && u.moi && !u.archive);
   const jeDecline = aDecline(task, user.id);
 
   const changerInfo = (v: string, oui: boolean) =>
@@ -355,7 +367,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           <div className="full a-prendre-banner">
             <span>
               🙋 {auteur ? <b>{fullName(auteur)}</b> : 'On'} te propose cette tâche
-              {nPrendre > 1 ? ` (il faut ${nPrendre} personnes${vol.length ? `, déjà : ${nomsDe(vol)}` : ''})` : ''}
+              {nPrendre > 1 ? ` (il faut ${nPrendre} personnes${nPris ? `, déjà : ${quiPrend}` : ''})` : ''}
               {jeDecline ? '. Tu as répondu « Pas dispo ».' : ' : tu t’en charges ?'}
             </span>
             <span className="a-prendre-boutons">
@@ -447,7 +459,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           {autres && <small className="muted autres-resp">Aussi : {autres}</small>}
           {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </div>
-        {!t.source && !t.paiement && voit('prendre') && (proposable || candidats.length > 0) && (
+        {!t.paiement && voit('prendre') && (proposable || candidats.length > 0 || propAilleurs.length > 0) && (
           <div className="full a-prendre">
             <span className="field-label">🙋 À prendre</span>
             <div className="chips">
@@ -461,7 +473,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                   </span>
                 );
               })}
-              {!candidats.length && <span className="muted">Personne pour l’instant.</span>}
+              {!candidats.length && <span className="muted">{propAilleurs.length ? `Personne de « ${club?.current.nom ?? 'cette entité'} » pour l’instant.` : 'Personne pour l’instant.'}</span>}
               {proposable && prendreIci.length > 0 && (
                 <select className="chip-add" value="" aria-label="Proposer à" onChange={(e) => e.target.value && proposer(e.target.value)}>
                   <option value="">＋ Proposer à…</option>
@@ -477,7 +489,18 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 </select>
               )}
             </div>
-            {(nPrendre > 1 || (proposable && candidats.length > 1)) && (
+            {propAilleurs.length > 0 && (
+              <small className="muted a-prendre-ailleurs">
+                Aussi proposée à :{' '}
+                {propAilleurs.map((g, i) => (
+                  <span key={g.unite}>
+                    {i > 0 && ' · '}
+                    {g.personnes.map((x) => `${nomAilleurs(g.unite, x.id)}${x.pris ? ' ✓' : x.refus ? ' 🙅' : ''}`).join(', ')} ({nomUnite(g.unite) || '?'})
+                  </span>
+                ))}
+              </small>
+            )}
+            {(nPrendre > 1 || (proposable && candidats.length + propAilleurs.reduce((n, g) => n + g.personnes.length, 0) > 1)) && (
               <label className="inline a-prendre-nombre">
                 Il faut
                 <select value={nPrendre} disabled={!proposable} onChange={(e) => setNombre(Number(e.target.value))}>
@@ -487,15 +510,16 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               </label>
             )}
             <small className="muted">
-              {!candidats.length
+              {!candidats.length && !propAilleurs.length
                 ? 'Choisis à qui la proposer : '
                 : aPrendreOuverte(t)
-                  ? `${vol.length ? `${nomsDe(vol)} s’en charge${vol.length > 1 ? 'nt' : ''} ; encore ${nPrendre - vol.length} place${nPrendre - vol.length > 1 ? 's' : ''}. ` : 'Personne ne s’en charge encore. '}`
-                  : `✓ ${nomsDe(vol)} s’en charge${vol.length > 1 ? 'nt' : ''} : elle n’est plus proposée. `}
+                  ? `${nPris ? `${quiPrend} s’en charge${nPris > 1 ? 'nt' : ''} ; encore ${nPrendre - nPris} place${nPrendre - nPris > 1 ? 's' : ''}. ` : 'Personne ne s’en charge encore. '}`
+                  : `✓ ${quiPrend} s’en charge${nPris > 1 ? 'nt' : ''} : elle n’est plus proposée. `}
               {refusIci.length > 0 && `🙅 Pas dispo : ${nomsDe(refusIci)}. `}
-              {candidats.length > 0 && aPrendreOuverte(t) && !attente.length && <b>Toutes les personnes proposées ont répondu : propose-la à d’autres. </b>}
+              {(candidats.length > 0 || propAilleurs.length > 0) && aPrendreOuverte(t) && plusPersonne(t) && <b>Toutes les personnes proposées ont répondu : propose-la à d’autres. </b>}
               {(!candidats.length || aPrendreOuverte(t)) &&
-                'Ces personnes la voient dans « Mes tâches » et à l’accueil, avec une notification 🔔 ; la première qui clique « 🙋 Je m’en charge » en devient responsable ; « 🙅 Pas dispo » prévient l’auteur.'}
+                'Ces personnes la voient dans « Mes tâches » et à l’accueil, avec une notification 🔔 ; la première qui clique « 🙋 Je m’en charge » en devient responsable ; « 🙅 Pas dispo » prévient qui la propose.'}
+              {t.source && ' Chaque entité du partage la propose à ses personnes ; les places se comptent ensemble.'}
             </small>
           </div>
         )}
@@ -529,7 +553,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             )}
           </div>
         )}
-        {!t.source && !t.paiement && voit('info') && (!dis || cibles.length > 0) && (
+        {!t.paiement && voit('info') && (!dis || cibles.length > 0) && (
           <div className="full pour-info">
             <span className="field-label">👁 Pour info</span>
             <div className="chips">
@@ -717,6 +741,19 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             <span>Ajouter :</span>
             {ajouts.map((a) => <button key={a.label} type="button" className="chip" title={a.aide} onClick={a.run}>{a.label}</button>)}
           </div>
+        )}
+        {editable && t.source && (
+          <small className="muted full task-ailleurs">
+            📎 Documents, 🔁 répétition, 🔗 liens, 📊 sondage et 📧 email : dans « {t.source.unite} », l’entité de la tâche.
+            {chezSource && (
+              <>
+                {' '}
+                <button type="button" className="link-btn" onClick={() => { cancel(); club!.switchUnit(chezSource.id, `#/taches?tache=${t.source!.id}`); }}>
+                  Ouvrir dans « {chezSource.nom} »
+                </button>
+              </>
+            )}
+          </small>
         )}
         {!isNew && (
           <small className="muted full">

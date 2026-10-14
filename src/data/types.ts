@@ -368,6 +368,21 @@ export interface APrendre {
   nombre?: number;
   /** Personnes proposées qui ont répondu « Pas dispo ». */
   refus?: string[];
+  /** Qui l'a proposée (prévenu des réponses ; sinon l'auteur de la tâche). */
+  par?: string;
+  /**
+   * Tâche partagée : proposée aussi à des personnes des entités du partage (leurs fiches), par entité (serveur : 040).
+   * Vue d'une tâche partagée par une autre entité : celles de l'entité de la tâche et des autres entités (ici :
+   * personnes, refus et par sont celles de l'entité ouverte).
+   */
+  partage?: Record<string, PropositionAilleurs>;
+}
+
+/** Personnes d'une autre entité à qui une tâche à prendre est proposée. */
+export interface PropositionAilleurs {
+  personnes: string[];
+  refus?: string[];
+  par?: string;
 }
 
 export interface TachePartagee {

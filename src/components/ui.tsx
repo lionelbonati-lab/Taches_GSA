@@ -8,7 +8,7 @@ import { delaiTarget, fmtDate, fullName, initials, isDone, isLate, offsetLabel, 
 import { cachedLogo, isImage } from '../data/logo';
 import { ETATS, chf, genre, peutOuvrirTicket } from '../data/paiements';
 import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
-import { aPrendreOuverte, aPrendrePourMoi, nombreAPrendre, sansReponse, volontaires } from '../data/aPrendre';
+import { aPrendreOuverte, aPrendrePourMoi, ailleurs, nombreAPrendre, plusPersonne, prisAilleurs, volontaires } from '../data/aPrendre';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -177,19 +177,21 @@ export function PourInfoTag({ task }: { task: Task }) {
 /** Tâche à prendre, encore ouverte : « 🙋 À prendre » (avec les places prises s'il faut plusieurs personnes). */
 export function APrendreTag({ task }: { task: Task }) {
   const { data, user } = useStore();
-  if (task.source || !aPrendreOuverte(task) || isDone(data, task)) return null;
+  if (!aPrendreOuverte(task) || isDone(data, task)) return null;
   const n = nombreAPrendre(task.aPrendre);
   const nom = (id: string) => fullName(data.people.find((p) => p.id === id));
-  const noms = task.aPrendre!.personnes.map(nom).join(', ');
+  // Tâche partagée : proposée aussi dans d'autres entités (comptées seulement).
+  const nAilleurs = ailleurs(task).reduce((k, [, a]) => k + a.personnes.length, 0);
+  const noms = [...task.aPrendre!.personnes.map(nom), ...(nAilleurs ? [`${nAilleurs} personne${nAilleurs > 1 ? 's' : ''} d’une autre entité`] : [])].join(', ');
   const refus = task.aPrendre!.refus ?? [];
   const titre = aPrendrePourMoi(task, user?.id)
     ? 'On te la propose : ouvre-la et clique « 🙋 Je m’en charge »'
     : `Proposée à ${noms} : la première qui clique « Je m’en charge » s’en occupe${refus.length ? `. Pas dispo : ${refus.map(nom).join(', ')}` : ''}`;
   // Toutes les personnes proposées ont répondu « Pas dispo » (ou pris les places) : à proposer à d'autres.
-  const personne = !sansReponse(task).length;
+  const personne = plusPersonne(task);
   return (
     <span className={`badge a-prendre${personne ? ' personne' : ''}`} title={personne ? `${titre}. Plus personne n’a à répondre : propose-la à d’autres.` : titre}>
-      {personne ? '🙅 Personne de dispo' : '🙋 À prendre'}{n > 1 ? ` ${volontaires(task).length}/${n}` : ''}
+      {personne ? '🙅 Personne de dispo' : '🙋 À prendre'}{n > 1 ? ` ${volontaires(task).length + prisAilleurs(task)}/${n}` : ''}
     </span>
   );
 }

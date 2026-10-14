@@ -12,6 +12,7 @@ import { fileIds } from './data/backup';
 import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
+import { reponseAilleurs } from './data/aPrendre';
 import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
@@ -471,7 +472,22 @@ export function DemoApp() {
         const vue = u && old && !u.archive ? tacheDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)) : null;
         if (vue === 'ancienne') throw new Error(`Ancienne tâche de « ${u!.nom} » : elle se consulte et se copie, sans modification`);
         if (!u || !old || vue !== 'modifiable') throw new Error('Cette tâche n’est plus partagée avec cette entité.');
-        d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id) : t));
+        d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id, uniteId) : t));
+        saveUnitData(uniteId, d);
+      },
+      // Réponse à une tâche à prendre partagée, proposée ici à la personne connectée (version réelle : gsa_repondre_partagee, 040).
+      async repondreTachePartagee(uniteId, tacheId, prend) {
+        const u = units.find((x) => x.id === uniteId);
+        const d = loadUnitData(uniteId);
+        const old = d.tasks.find((t) => t.id === tacheId);
+        if (!u || u.archive || !old || tacheDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)) !== 'modifiable')
+          throw new Error('Cette tâche n’est plus partagée avec cette entité.');
+        const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
+        if (!fiche) throw new Error('Réservé aux membres de l’entité.');
+        const terminee = !!d.statuses.find((s) => s.id === old.statusId)?.done;
+        const t = reponseAilleurs(old, current.id, fiche.id, prend, terminee);
+        if (t === old) return;
+        d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...t, modifiePar: `${fiche.prenom} ${fiche.nom} (${current.nom})`.trim() } : x));
         saveUnitData(uniteId, d);
       },
       // Tâche attribuée à une entité qui dépend de l'entité ouverte : enregistrée chez elle (version réelle :

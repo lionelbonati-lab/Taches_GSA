@@ -14,7 +14,7 @@ import type { Mode } from './mode';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
 import { encoreMontree, epurerPourInfo, pourMoi, recuePourMoi } from './pourInfo';
-import { aPrendreOuverte, epurerAPrendre, proposeeA } from './aPrendre';
+import { aPrendreOuverte, auteurAPrendre, epurerAPrendre, proposeeA } from './aPrendre';
 import { entitesDependantes, evenementsDependants, suivreExternes, versEntite, type Externes } from './externes';
 import { parentDans } from './units';
 
@@ -451,14 +451,20 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const x = partagees.find((p) => p.uniteId === t.source?.uniteId && p.task.id === t.source?.id);
       if (!c || !x || !moi) return setToast('⚠️ Cette tâche n’est plus partagée avec cette entité.');
       const before = view.tasks.find((y) => y.id === t.id);
+      // À prendre (040) : proposée à d'autres personnes d'ici → c'est la personne connectée qui est prévenue des réponses.
+      const proposees = (t.aPrendre?.personnes ?? []).filter((id) => !before?.aPrendre?.personnes.includes(id));
+      if (proposees.length && userId) t = { ...t, aPrendre: { ...t.aPrendre!, par: userId } };
       const par = user ? `${fullName(user)} (${c.current.nom})` : c.current.nom;
       const next = versOrigine(x.task, t, x, { moi, statuses: data.statuses, people: data.people, units: c.units, par, aujourdhui: today() });
       setPartagees((l) => l.map((p) => (p === x ? { ...p, task: next } : p)));
       const actor = userId ?? '?';
       const at = new Date().toISOString();
-      const notifs: ActivityNotif[] = t.responsables
-        .filter((id) => id !== actor && !before?.responsables.includes(id))
-        .map((id) => ({ id: uid('n'), userId: id, type: 'assign', taskId: t.id, by: actor, at }));
+      const notifs: ActivityNotif[] = [];
+      const push = (id: string, type: ActivityNotif['type']) => id !== actor && notifs.push({ id: uid('n'), userId: id, type, taskId: t.id, by: actor, at });
+      t.responsables.filter((id) => !before?.responsables.includes(id)).forEach((id) => push(id, 'assign'));
+      // Pour info et À prendre (040) : les personnes d'ici ajoutées sont prévenues, comme pour une tâche d'ici.
+      (t.pourInfo?.personnes ?? []).filter((id) => !before?.pourInfo?.personnes?.includes(id)).forEach((id) => push(id, 'info'));
+      if (aPrendreOuverte(t) && !isDone(data, t)) proposees.filter((id) => !t.responsables.includes(id)).forEach((id) => push(id, 'propose'));
       update((d) => {
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
       }, `Modification de la tâche « ${t.titre} » (partagée par ${x.unite})`);
@@ -511,8 +517,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       // Modifiée ici : ce n'est plus une entité du partage qui l'a modifiée en dernier.
       const task: Task = { ...t, updatedAt: new Date().toISOString(), modifiePar: undefined };
       task.pourInfo = task.paiement ? undefined : epurerPourInfo(task.pourInfo, task.responsables);
-      task.aPrendre = task.paiement ? undefined : epurerAPrendre(task.aPrendre, task.responsables);
+      task.aPrendre = task.paiement ? undefined : epurerAPrendre(task.aPrendre, task.responsables, task.respPartage);
       const before = data.tasks.find((x) => x.id === task.id);
+      // Proposée à d'autres personnes : c'est la personne connectée qui est prévenue des réponses.
+      if (task.aPrendre && userId && task.aPrendre.personnes.some((id) => !before?.aPrendre?.personnes.includes(id))) task.aPrendre.par = userId;
       // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
       task.postesResp = postesFor(data, task, before);
 
@@ -596,12 +604,12 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   /**
    * Réponse à une tâche à prendre : « Je m'en charge » ou « Pas dispo ». Version réelle : le serveur vérifie et écrit d'un
    * coup (deux personnes en même temps : la seconde trouve la place prise ; rien d'autre n'est écrasé), puis la tâche
-   * est relue ; démo : ici. Son auteur est prévenu.
+   * est relue ; démo : ici. Qui l'a proposée est prévenu. Tâche partagée (040) : réponse enregistrée dans son entité.
    */
   const repondre = useCallback(
     async (t: Task, prend: boolean) => {
       if (!user) throw new Error('Connecte-toi d’abord.');
-      const x = data.tasks.find((y) => y.id === t.id);
+      const x = (t.source ? view.tasks : data.tasks).find((y) => y.id === t.id);
       if (!x || !proposeeA(x, user.id)) throw new Error('Cette tâche ne t’est pas proposée.');
       if (x.responsables.includes(user.id)) {
         if (prend) return;
@@ -611,9 +619,24 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (prend && !aPrendreOuverte(x)) throw new Error('Quelqu’un s’en charge déjà.');
       if (!prend && x.aPrendre?.refus?.includes(user.id)) return;
       const at = new Date().toISOString();
-      const notifs: ActivityNotif[] = x.createdBy && x.createdBy !== user.id ? [{ id: uid('n'), userId: x.createdBy, type: prend ? 'pris' : 'refus', taskId: x.id, by: user.id, at }] : [];
+      // Tâche partagée : prévenue ici, la personne d'ici qui l'a proposée.
+      const auteur = x.source ? x.aPrendre?.par : auteurAPrendre(x);
+      const notifs: ActivityNotif[] = auteur && auteur !== user.id ? [{ id: uid('n'), userId: auteur, type: prend ? 'pris' : 'refus', taskId: x.id, by: user.id, at }] : [];
       const action = prend ? `${fullName(user)} se charge de la tâche « ${x.titre} »` : `${fullName(user)} n’est pas dispo pour la tâche « ${x.titre} »`;
       const c = clubRef.current;
+      if (x.source) {
+        const src = x.source;
+        if (!c) throw new Error('Club introuvable');
+        try {
+          await c.repondreTachePartagee(src.uniteId, src.id, prend);
+        } finally {
+          chargerPartagees(); // réponse enregistrée (ou place prise entre-temps) : la tâche est relue
+        }
+        update((d) => {
+          if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
+        }, `${action} (partagée par ${src.unite})`);
+        return;
+      }
       if (cloud && c) {
         await cloud.sync.flushNow();
         await (prend ? prendreServeur : pasDispoTache)(c.current.id, x.id).catch((e) => {
@@ -638,7 +661,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
       }, action);
     },
-    [user, data, cloud, update],
+    [user, data, view.tasks, cloud, update, chargerPartagees],
   );
   const prendreTache = useCallback((t: Task) => repondre(t, true), [repondre]);
   const pasDispo = useCallback((t: Task) => repondre(t, false), [repondre]);

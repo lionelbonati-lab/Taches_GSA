@@ -3,7 +3,7 @@ import { useStore } from './data/store';
 import { dueAt, emailState, fillTemplate } from './data/emails';
 import type { AppData, NotifPrefs, Person, TachePartagee, Task } from './data/types';
 import { isOpen } from './data/polls';
-import { aPrendreOuverte, aPrendrePourMoi, sansReponse } from './data/aPrendre';
+import { aPrendreOuverte, aPrendrePourMoi, attenteAilleurs, plusPersonne, sansReponse } from './data/aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
 import { GENRES, chf, genre, holders, paiementTasks } from './data/paiements';
@@ -308,6 +308,7 @@ export async function showSystemNotification(title: string, body: string, link =
 /** Tâche à prendre déclinée : où en est-elle ? */
 function etatRefus(t: Task) {
   if (!aPrendreOuverte(t)) return 'quelqu’un s’en charge';
-  const n = sansReponse(t).length;
-  return n ? `${n} personne${n > 1 ? 's n’ont' : ' n’a'} pas encore répondu` : 'plus personne n’a à répondre : propose-la à d’autres';
+  if (plusPersonne(t)) return 'plus personne n’a à répondre : propose-la à d’autres';
+  const n = sansReponse(t).length + attenteAilleurs(t);
+  return `${n} personne${n > 1 ? 's n’ont' : ' n’a'} pas encore répondu`;
 }

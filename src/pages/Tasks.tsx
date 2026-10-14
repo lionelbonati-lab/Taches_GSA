@@ -340,12 +340,12 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
   const editable = canEditTask(t) && !t.paiement; // remboursement / paiement : suit son circuit
   // Tâche à prendre qu'on me propose : « Je m'en charge » ou « Pas dispo » directement sur la carte. Après « Pas dispo », elle
   // reste dans « Mes tâches » tant qu'il y a une place, pour changer d'avis (plus à l'accueil ni dans les notifications).
-  const aPrendre = !t.source && peutPrendre(t, user?.id) && !isDone(data, t);
+  const aPrendre = peutPrendre(t, user?.id) && !isDone(data, t);
   const decline = aDecline(t, user?.id);
   const repondre = (prend: boolean) => {
     setPrise(true);
     (prend ? prendreTache : pasDispo)(t)
-      .then(() => setToast(prend ? `✅ Tu t’en charges : « ${t.titre} »` : `🙅 C’est noté : pas dispo pour « ${t.titre} ». L’auteur est prévenu.`))
+      .then(() => setToast(prend ? `✅ Tu t’en charges : « ${t.titre} »` : `🙅 C’est noté : pas dispo pour « ${t.titre} ». La personne qui te l’a proposée est prévenue.`))
       .catch((e: Error) => setToast(`⚠️ ${e.message}`))
       .finally(() => setPrise(false));
   };

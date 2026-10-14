@@ -836,6 +836,12 @@ export async function prendreTache(unite: string, tache: string) {
   if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore les tâches à prendre (mise à jour 038 à appliquer).' : error.message);
 }
 
+/** « 🙋 Je m'en charge » ou « Pas dispo » sur une tâche à prendre de l'entité `source`, partagée avec `unite` (040). */
+export async function repondreTachePartagee(unite: string, source: string, tache: string, prend: boolean) {
+  const { error } = await sb().rpc('gsa_repondre_partagee', { unite, source, tache, prend });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore les tâches à prendre partagées (mise à jour 040 à appliquer).' : error.message);
+}
+
 /** « Pas dispo » sur une tâche à prendre de l'entité `unite` (039). */
 export async function pasDispoTache(unite: string, tache: string) {
   const { error } = await sb().rpc('gsa_pas_dispo', { unite, tache });
