@@ -2,7 +2,7 @@ import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ScheduledEmail, Task } from '../data/types';
-import { daysUntil, endOf, fmtDate, fmtRange, isDone, isLate, today } from '../data/utils';
+import { daysUntil, derniereSeancePassee, endOf, estArchivee, fmtDate, fmtRange, isDone, isLate, today } from '../data/utils';
 import { TaskCard } from './Tasks';
 import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
@@ -27,6 +27,9 @@ export function Dashboard() {
   if (!user) return null;
 
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
+  // Compteurs : sans les tâches archivées (terminées avant le dernier comité passé), comme la liste des tâches.
+  const seancePassee = derniereSeancePassee(data);
+  const actives = mine.filter((t) => !estArchivee(data, t, seancePassee));
   const open = mine.filter((t) => !isDone(data, t));
   const late = open.filter((t) => isLate(data, t)).sort((a, b) => a.delai.localeCompare(b.delai));
   // Bloc « À faire » : nombre de jours et tâches (les miennes, ou toutes celles que je vois) au choix de chacun.
@@ -75,7 +78,7 @@ export function Dashboard() {
             {/* Chaque case ouvre la liste de mes tâches filtrée sur ce statut. */}
             {compteurs.map((c) => (
               <Link key={c.id} to={`/taches?statut=${c.id}`} className="stat" style={{ borderTopColor: c.couleur }} title={`Voir mes tâches ${c.id === 'retard' ? 'en retard' : `« ${c.label} »`}`}>
-                <b>{c.id === 'retard' ? late.length : mine.filter((t) => t.statusId === c.id).length}</b>
+                <b>{c.id === 'retard' ? late.length : actives.filter((t) => t.statusId === c.id).length}</b>
                 <span>{c.label}</span>
               </Link>
             ))}

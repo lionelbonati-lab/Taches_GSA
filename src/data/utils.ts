@@ -57,6 +57,19 @@ export function isLate(data: AppData, t: Task) {
   return !isDone(data, t) && !!t.delai && t.delai < today();
 }
 
+// ---------- Archives ----------
+
+/** Dernière séance passée (la veille ou avant) : les tâches terminées jusqu'à elle sont archivées. */
+export const derniereSeancePassee = (data: AppData): Meeting | undefined =>
+  data.meetings.filter((m) => m.date < today()).sort((a, b) => b.date.localeCompare(a.date))[0];
+
+/**
+ * Tâche archivée : terminée au plus tard le jour de la dernière séance passée (elle a pu y être présentée). Retirée de
+ * la liste des tâches et des compteurs, consultable dans « 🗄 Archives » ; rien n'est effacé. Sans séance passée : aucune.
+ */
+export const estArchivee = (data: AppData, t: Task, seance = derniereSeancePassee(data)) =>
+  !!seance && isDone(data, t) && (t.termineeLe ?? t.updatedAt?.slice(0, 10) ?? '') <= seance.date;
+
 // ---------- Tâches liées ----------
 
 /** Tâches liées à une tâche principale. */

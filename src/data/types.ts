@@ -535,6 +535,8 @@ export interface Prefs {
   theme: 'clair' | 'sombre' | 'auto';
   vueDefaut: 'mes' | 'toutes';
   affichage: 'tableau' | 'kanban';
+  /** Tâches : masquer les terminées pas encore archivées (vue Tableau ; défaut : non). */
+  masquerTerminees?: boolean;
   pv?: Partial<PvSettings>;
   notif?: Partial<NotifPrefs>;
   /** Agenda : entités du club dont les dates (édition, événements) ne sont pas affichées. */

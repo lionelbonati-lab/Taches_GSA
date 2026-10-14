@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
-import { childrenOf, daysUntil, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
+import { childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
@@ -47,7 +47,11 @@ export function Tasks() {
   };
 
   const [showFilters, setShowFilters] = useState(!!params.get('statut') || !!params.get('type'));
-  const [hideDone, setHideDone] = useState(true);
+  // Terminées : visibles jusqu'à la séance suivante, puis archivées (estArchivee) ; « Masquer les terminées » les retire avant.
+  const hideDone = !!prefs.masquerTerminees;
+  const setHideDone = (v: boolean) => setPrefs({ masquerTerminees: v });
+  const [archives, setArchives] = useState(false);
+  const seancePassee = derniereSeancePassee(data);
   const [dragId, setDragId] = useState<string | null>(null);
   const view = prefs.affichage;
   // Anciennes tâches des entités qui dépendent depuis peu de l'entité ouverte (lecture et copie).
@@ -68,14 +72,14 @@ export function Tasks() {
   const statusOf = (t: Task) => data.statuses.find((s) => s.id === t.statusId);
   const respNames = (t: Task) => t.responsables.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
 
-  const list = useMemo(() => {
-    if (!user) return [];
+  const { list, nArchivees } = useMemo(() => {
+    if (!user) return { list: [], nArchivees: 0 };
     const q = f.q.trim().toLowerCase();
+    let nArchivees = 0;
     const res = data.tasks.filter((t) => {
       // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état.
       if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
-      if (hideDone && view !== 'kanban' && !f.statut && isDone(data, t)) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
       if (f.resp && !t.responsables.includes(f.resp)) return false;
@@ -97,7 +101,12 @@ export function Tasks() {
         if (f.delai === 'email' && !(data.emails ?? []).some((e) => e.taskId === t.id && e.statut === 'programme')) return false;
       }
       if (q && !`${t.titre} ${t.remarque} ${t.sousSection} ${sectionName(t.sectionId)} ${respNames(t)}`.toLowerCase().includes(q)) return false;
-      return true;
+      // Archives : les tâches archivées seules ; sinon, elles sont comptées et retirées.
+      const archivee = estArchivee(data, t, seancePassee);
+      if (archivee) nArchivees++;
+      if (archives) return archivee;
+      if (archivee) return false;
+      return !(hideDone && view !== 'kanban' && !f.statut && isDone(data, t));
     });
     const val = (t: Task): string | number => {
       switch (sort.key) {
@@ -109,9 +118,9 @@ export function Tasks() {
         case 'delai': return t.delai || (sort.dir === 1 ? '9999' : '0000'); // sans délai : en fin de liste
       }
     };
-    return res.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir);
+    return { list: res.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir), nArchivees };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, user, effScope, f, sort, hideDone, view]);
+  }, [data, user, effScope, f, sort, hideDone, view, archives, seancePassee]);
 
   if (!user) return null;
   const sec = data.sections.find((s) => s.id === f.section);
@@ -148,7 +157,7 @@ export function Tasks() {
   return (
     <div>
       <div className="page-head">
-        <h1>Tâches <span className="count">{list.length}</span></h1>
+        <h1>{archives ? '🗄 Tâches archivées' : 'Tâches'} <span className="count">{list.length}</span></h1>
         <div className="actions">
           {viewAll && (
             <div className="seg">
@@ -161,6 +170,11 @@ export function Tasks() {
             <button className={view === 'kanban' ? 'on' : ''} onClick={() => setPrefs({ affichage: 'kanban' })}>Kanban</button>
           </div>
           <button className="btn" onClick={() => setShowFilters(!showFilters)}>Filtres{activeFilters ? ` (${activeFilters})` : ''}</button>
+          {(archives || nArchivees > 0) && (
+            <button className={`btn ${archives ? 'primary' : ''}`} title="Tâches terminées au plus tard le jour du dernier comité passé" onClick={() => setArchives(!archives)}>
+              {archives ? '← Tâches en cours' : `🗄 Archives (${nArchivees})`}
+            </button>
+          )}
           {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}>📜 Anciennes tâches ({anciennes.length})</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
@@ -224,9 +238,15 @@ export function Tasks() {
           <option value="">Toutes tâches principales</option>
           {data.tasks.filter((t) => childrenOf(data, t.id).length).map((t) => <option key={t.id} value={t.id}>🔗 {t.titre}</option>)}
         </select>
-        <label className="inline hide-toggle"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminées</label>
+        {!archives && <label className="inline hide-toggle" title="Les terminées restent affichées jusqu’au prochain comité, puis sont archivées"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminées</label>}
         {activeFilters > 0 && <button className="btn link" onClick={() => setF(EMPTY_FILTERS)}>Effacer</button>}
       </div>
+
+      {archives && seancePassee && (
+        <p className="archives-note">
+          🗄 Tâches terminées au plus tard le jour du dernier comité passé (« {seancePassee.titre} », {fmtDate(seancePassee.date)}). Rien n’est effacé : une tâche rouverte revient dans la liste.
+        </p>
+      )}
 
       {f.type && <CircuitPaiements total={list.length > 1 ? list.reduce((n, t) => n + (t.paiement?.montant ?? 0), 0) : undefined} />}
 

@@ -186,6 +186,7 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .filters .search { flex: 1 1 220px; }
 .filters:not(.open) > :not(.search):not(.hide-toggle) { display: none; }
 .hide-toggle { font-size: 0.9rem; color: var(--muted); }
+.archives-note { background: var(--surface2); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; color: var(--muted); font-size: 0.9rem; }
 
 .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; box-shadow: var(--shadow); margin-bottom: 10px; }
 .empty { padding: 24px; text-align: center; color: var(--muted); border: 1px dashed var(--border); border-radius: var(--radius); }
