@@ -166,8 +166,10 @@ Le délai **suit ensuite automatiquement** la date : si le tournoi est déplacé
 
 ## Tâches récurrentes
 
-**Ajouter : 🔁 Répétition** dans une tâche : chaque semaine, mois, trimestre, semestre ou année (repère 🔁, filtre « Tâches récurrentes »).
+**Ajouter : 🔁 Répétition** dans une tâche : chaque semaine, mois, trimestre, semestre ou année, ou **à chaque comité** (« à chaque séance », « à chaque réunion » selon l'entité) (repère 🔁, filtre « Tâches récurrentes »).
 Quand la tâche passe à un statut de clôture (« Terminé »), la suivante est **créée automatiquement** avec le délai décalé, le statut « À faire » et la checklist remise à zéro. Elle est attribuée **au poste** (ex. Trésorier) : si le titulaire a changé entre-temps, elle va à son successeur. Une tâche rouverte puis refermée ne crée pas de doublon. Une tâche annuelle liée à une séance passe à la séance du même mois l'année suivante (voir « Séances qui reviennent chaque année »).
+
+**🔁 À chaque comité** (ex. « Lire la correspondance », « Point des finances ») : la tâche est liée d'office à la prochaine séance prévue ; terminée, la suivante est liée à **la séance qui suit la sienne** (pas encore passée), et figure donc à son ordre du jour. Son délai garde le même écart avec la séance (2 jours avant reste 2 jours avant ; un délai lié « 1 semaine avant » est recalculé), un email programmé à date fixe aussi. Après la dernière séance prévue, la suivante va à la première séance de l'année prochaine à planifier (créée à ce moment-là, comme le propose l'Agenda) ; s'il n'y en a aucune, elle est créée sans séance ni délai. Le formulaire indique à l'avance la séance et le délai de la suivante.
 
 ## Séances qui reviennent chaque année
 

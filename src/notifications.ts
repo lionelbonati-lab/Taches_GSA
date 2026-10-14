@@ -237,7 +237,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
         n.type === 'assign' ? `${by} t’a attribué « ${t.titre} »`
         : n.type === 'recur' ? `Tâche récurrente reconduite : « ${t.titre} »`
         : `${by} a modifié « ${t.titre} »`,
-      sub: n.type === 'recur' ? `nouveau délai : ${n.detail}` : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
+      sub: n.type === 'recur' ? (n.detail ? `nouveau délai : ${n.detail}` : 'sans délai') : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
       link: `/taches?tache=${t.id}`,
       at: n.at,
       kind: 'activite',

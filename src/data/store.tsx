@@ -507,7 +507,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       let next: Task | undefined;
       let seance: ReturnType<typeof seancePourSuivante>;
       if (task.recurrence && !task.suivanteId && isDone(data, task) && !(before && isDone(data, before))) {
-        // Tâche annuelle liée à une séance : elle passe à la séance du même mois l'an prochain (créée au besoin).
+        // Tâche annuelle liée à une séance : elle passe à la séance du même mois l'an prochain (créée au besoin) ;
+        // tâche « à chaque séance » : à la séance suivante.
         seance = seancePourSuivante(data, task);
         next = nextOccurrence(data, task, seance?.meeting);
         task.suivanteId = next.id;
@@ -532,8 +533,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           : undefined;
         if (detail) task.responsables.filter((id) => !added.includes(id)).forEach((id) => push(id, 'modif', task.id, detail));
       }
-      next?.responsables.forEach((id) => push(id, 'recur', next!.id, fmtDate(next!.delai)));
-      const nextEmails = next ? emailsForNext(data, task, next) : [];
+      next?.responsables.forEach((id) => push(id, 'recur', next!.id, next!.delai ? fmtDate(next!.delai) : undefined));
+      const nextEmails = next ? emailsForNext(data, task, next, seance?.meeting) : [];
 
       update(
         (d) => {
@@ -561,10 +562,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
         },
         `${isNew ? 'Création' : 'Modification'} de la tâche « ${t.titre} »` +
-          (next ? ` — tâche récurrente : prochaine occurrence le ${fmtDate(next.delai)} pour ${who}` : '') +
+          (next ? ` — tâche récurrente : prochaine occurrence${next.delai ? ` le ${fmtDate(next.delai)}` : ''} pour ${who}` : '') +
           (seance ? `, séance « ${seance.meeting.titre} »${seance.nouvelle ? ' (ajoutée)' : ''}` : ''),
       );
-      if (next) setToast(`🔁 Tâche récurrente reconduite au ${fmtDate(next.delai)} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
+      if (next) setToast(`🔁 Tâche récurrente reconduite${next.delai ? ` au ${fmtDate(next.delai)}` : ''} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
     },
     [update, data, userId, savePartagee],
   );

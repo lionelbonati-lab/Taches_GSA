@@ -68,12 +68,28 @@ export function seanceAnSuivant(meetings: Meeting[], m: Meeting): { meeting: Mee
   return { meeting: { id: uid('m'), titre: titreAnSuivant(m, date), date, heure: m.heure, lieu: m.lieu }, nouvelle: true };
 }
 
-/** Tâche annuelle liée à une séance : la séance du même mois l'année suivante (existante, ou à créer si elle est à venir). */
+/**
+ * Séance de l'occurrence suivante d'une tâche récurrente (existante, ou à créer si elle est à venir) :
+ * • tâche annuelle liée à une séance : la séance du même mois l'année suivante ;
+ * • tâche « à chaque séance » : la séance qui suit la sienne (sans séance : qui suit aujourd'hui), pas encore passée.
+ */
 export function seancePourSuivante(data: AppData, t: Task) {
+  if (t.recurrence === 'seance') return seanceApres(data.meetings, data.meetings.find((m) => m.id === t.meetingId)?.date ?? today());
   if (t.recurrence !== 'annuelle' || !t.meetingId) return undefined;
   const m = data.meetings.find((x) => x.id === t.meetingId);
   const s = m && seanceAnSuivant(data.meetings, m);
   return s && !(s.nouvelle && s.meeting.date < today()) ? s : undefined;
+}
+
+/**
+ * Première séance après `date`, pas encore passée. Aucune de prévue : la première séance de l'année prochaine à planifier
+ * (elle sera créée), comme celles que propose l'Agenda.
+ */
+export function seanceApres(meetings: Meeting[], date: string, jour = today()): { meeting: Meeting; nouvelle: boolean } | undefined {
+  const deja = meetings.filter((m) => m.date > date && m.date >= jour).sort((a, b) => parDate(a, b) || (a.heure ?? '').localeCompare(b.heure ?? ''))[0];
+  if (deja) return { meeting: deja, nouvelle: false };
+  const p = aPlanifier(meetings, jour).find((x) => x.meeting.date > date);
+  return p && { meeting: p.meeting, nouvelle: true };
 }
 
 /**

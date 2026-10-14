@@ -4,6 +4,7 @@ import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { entitesDependantes, evenementsDependants } from '../data/externes';
 import { nomAppli } from '../data/nomAppli';
+import { motSeance } from '../data/seances';
 import { useChemin, useNavigation } from '../components/Nav';
 
 /** « Comment ça marche ? » : où trouver quoi (selon les droits de chacun) et les gestes courants. */
@@ -27,6 +28,8 @@ export function Aide() {
   if (cloud && can('admin.access'))
     geste('Revenir aux données d’hier (erreur, suppression)', vers('/reglages'), ' › « Copies automatiques » : le serveur garde une copie par nuit pendant 30 jours ; « ↩ Restaurer » (l’état actuel est copié juste avant).');
   geste('Ajouter une checklist, un document, une répétition, un email…', 'Dans la fiche de la tâche, la ligne « Ajouter : » en bas. Ce qui est rempli reste affiché.');
+  const mot = motSeance(club?.current.type).toLowerCase();
+  geste(`Une tâche qui revient à chaque ${mot} (correspondance, point des finances…)`, `Dans la tâche, « Ajouter : » › « 🔁 Répétition » › « À chaque ${mot} » : elle est liée à la prochaine séance ; une fois terminée, la suivante est créée pour la séance d’après, à son ordre du jour, avec le même écart de délai.`);
   if (chemin('/comite')) geste('M’excuser pour une séance', vers('/comite'), ' : « 🙋 Je serai absent(e) » sous la séance.');
   if (chemin('/comite') && can('meetings.manage'))
     geste('Prévoir les séances de l’année prochaine', vers('/comite'), ' : chaque séance revient le même mois ; coche celles à ajouter dans « 🔁 Séances de l’année prochaine ».');

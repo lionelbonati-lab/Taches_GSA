@@ -172,11 +172,12 @@ export const RECURRENCES: { id: Recurrence; label: string }[] = [
   { id: 'trimestrielle', label: 'Chaque trimestre' },
   { id: 'semestrielle', label: 'Chaque semestre' },
   { id: 'annuelle', label: 'Chaque année' },
+  { id: 'seance', label: 'À chaque séance' },
 ];
 
 export const recurrenceLabel = (r?: Recurrence) => RECURRENCES.find((x) => x.id === r)?.label ?? '';
 
-export function nextDate(date: string, r: Recurrence) {
+export function nextDate(date: string, r: Exclude<Recurrence, 'seance'>) {
   switch (r) {
     case 'hebdomadaire': return addDays(date, 7);
     case 'mensuelle': return addMonths(date, 1);
@@ -184,6 +185,16 @@ export function nextDate(date: string, r: Recurrence) {
     case 'semestrielle': return addMonths(date, 6);
     case 'annuelle': return addMonths(date, 12);
   }
+}
+
+/**
+ * Une date de cette occurrence (délai, email programmé) reportée sur l'occurrence suivante. Tâche « à chaque séance » :
+ * même écart avec la séance suivante qu'avec la sienne (à défaut, qu'avec son délai) ; rien sans séance suivante.
+ */
+export function dateSuivante(data: AppData, t: Task, date: string, seance?: Meeting): string | undefined {
+  if (t.recurrence !== 'seance') return nextDate(date, t.recurrence!);
+  const repere = data.meetings.find((m) => m.id === t.meetingId)?.date || t.delai;
+  return seance && repere ? addDays(date, diffDays(repere, seance.date)) : undefined;
 }
 
 export const postesOf = (data: AppData, ids: string[]) =>
@@ -231,7 +242,8 @@ function nextParent(data: AppData, t: Task) {
 
 /**
  * Prépare l'occurrence suivante d'une tâche récurrente qui vient d'être clôturée.
- * `seance` : séance de l'année suivante pour une tâche annuelle liée à une séance (son délai lié la suit).
+ * `seance` : séance de l'occurrence suivante (seancePourSuivante) : celle de l'année suivante pour une tâche annuelle
+ * liée à une séance, la séance suivante pour une tâche « à chaque séance ». Son délai lié la suit.
  */
 export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
   const open = data.statuses.find((s) => !s.done) ?? data.statuses[0];
@@ -240,11 +252,12 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     ...t,
     id: uid('t'),
     statusId: open.id,
-    delai: suit ? delaiDepuis(suit, seance!.date) : t.delai ? nextDate(t.delai, t.recurrence!) : '',
+    delai: suit ? delaiDepuis(suit, seance!.date) : t.delai ? (dateSuivante(data, t, t.delai, seance) ?? '') : '',
     responsables: nextResponsables(data, t),
     checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
     parentId: nextParent(data, t),
-    // L'événement de cette année ne concerne pas l'occurrence suivante ; la séance, seulement celle du même mois l'an prochain.
+    // L'événement de cette année ne concerne pas l'occurrence suivante ; la séance, seulement celle du même mois l'an prochain
+    // (ou la séance suivante, pour une tâche « à chaque séance »).
     eventId: undefined,
     meetingId: seance?.id,
     // La séance du comité dont l'entité dépend concernait cette occurrence-ci.

@@ -1,5 +1,5 @@
-import type { AppData, EmailWhen, ScheduledEmail, Task } from './types';
-import { addDays, fmtDate, fullName, isDone, nextDate, uid } from './utils';
+import type { AppData, EmailWhen, Meeting, ScheduledEmail, Task } from './types';
+import { addDays, dateSuivante, fmtDate, fullName, isDone, uid } from './utils';
 
 // Emails programmés au sujet d'une tâche.
 // Démo : le navigateur ne peut pas envoyer d'email tout seul. À l'heure prévue, l'auteur reçoit
@@ -120,9 +120,11 @@ export function mailtoHref(data: AppData, task: Task, e: ScheduledEmail) {
 }
 
 /** Emails à reconduire avec l'occurrence suivante d'une tâche récurrente. */
-export function emailsForNext(data: AppData, task: Task, next: Task): ScheduledEmail[] {
+export function emailsForNext(data: AppData, task: Task, next: Task, seance?: Meeting): ScheduledEmail[] {
   return (data.emails ?? [])
     .filter((e) => e.taskId === task.id && e.statut !== 'annule')
+    // Tâche « à chaque séance » sans séance suivante : un email à date fixe ne peut pas être reporté.
+    .filter((e) => e.quand.type !== 'date' || dateSuivante(data, task, e.quand.date, seance))
     .map((e) => ({
       ...e,
       id: uid('e'),
@@ -132,7 +134,7 @@ export function emailsForNext(data: AppData, task: Task, next: Task): ScheduledE
       destinataires: task.responsables.length && task.responsables.every((id) => e.destinataires.includes(id))
         ? Array.from(new Set([...e.destinataires.filter((id) => !task.responsables.includes(id)), ...next.responsables]))
         : e.destinataires,
-      quand: e.quand.type === 'date' ? { ...e.quand, date: nextDate(e.quand.date, task.recurrence!) } : e.quand,
+      quand: e.quand.type === 'date' ? { ...e.quand, date: dateSuivante(data, task, e.quand.date, seance)! } : e.quand,
       statut: 'programme' as const,
       envoyeLe: undefined,
       envoyePar: undefined,

@@ -128,7 +128,8 @@ export interface ChecklistItem {
   done: boolean;
 }
 
-export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle';
+/** `seance` : à chaque séance de l'entité (l'occurrence suivante est liée à la séance suivante). */
+export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle' | 'seance';
 
 /**
  * Délai calculé à partir de la date de l'événement (eventId, sinon evenementEntite) ou de la séance (meetingId, sinon

@@ -12,7 +12,8 @@ import { avecPartage, libellePlace, partageDe, TACHES_DEPENDANCE } from '../data
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
 import type { DelaiUnite, EvenementEntite, OrgUnit, Recurrence, SeanceComite, Task } from '../data/types';
-import { DELAI_MAX, RECURRENCES, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
+import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
+import { motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
@@ -195,6 +196,18 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const dis = !editable;
   const seanceIci = t.source && t.meetingId ? data.meetings.find((m) => m.id === t.meetingId) : undefined;
   const postes = postesFor(data, t, isNew ? undefined : task) ?? [];
+  // Répétition : « à chaque comité » (le mot des séances de l'entité) ; séance et délai de l'occurrence suivante.
+  const mot = motSeance(club?.current.type).toLowerCase();
+  const prochaine = t.recurrence ? seancePourSuivante(data, t) : undefined;
+  const seanceLiee = data.meetings.find((m) => m.id === t.meetingId);
+  const delaiSuivant = t.recurrence ? nextOccurrence(data, t, prochaine?.meeting).delai : '';
+  const repeter = (r: Recurrence | undefined) =>
+    setT((x) => {
+      if (r !== 'seance' || x.meetingId || x.seanceComite) return { ...x, recurrence: r };
+      // À chaque séance : la tâche va d'abord à la prochaine séance prévue.
+      const s = seanceApres(data.meetings, addDays(today(), -1));
+      return s && !s.nouvelle ? applyDelaiRef(data, { ...x, recurrence: r, meetingId: s.meeting.id }) : { ...x, recurrence: r };
+    });
   const polls = (data.polls ?? []).filter((p) => p.taskId === task.id);
   const rempli: Record<Extra, boolean> = {
     checklist: t.checklist.length > 0,
@@ -210,7 +223,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const ajouts: { label: string; aide: string; run: () => void; si: boolean; partagee?: boolean }[] = [
     { label: '☑️ Checklist', aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist'), partagee: true },
     { label: '📎 Document', aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs') },
-    { label: '🔁 Répétition', aide: 'La tâche revient chaque semaine, chaque mois, chaque année…', run: () => ouvrir('repetition'), si: !voit('repetition') },
+    { label: '🔁 Répétition', aide: `La tâche revient chaque semaine, chaque mois, à chaque ${mot}…`, run: () => ouvrir('repetition'), si: !voit('repetition') },
     { label: '🔗 Lier à…', aide: 'Un événement, une séance de comité ou une autre tâche', run: () => ouvrir('liens'), si: !voit('liens') },
     { label: '🤝 Partager', aide: 'Avec d’autres entités du club : elles la voient et la modifient comme les leurs', run: () => ouvrir('partage'), si: !voit('partage') && partageables.length > 0 },
     { label: '📊 Sondage', aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create') },
@@ -411,15 +424,25 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         {voit('repetition') && (
           <label className="full">
             🔁 Répétition
-            <select value={t.recurrence ?? ''} disabled={dis} onChange={(e) => set('recurrence', (e.target.value || undefined) as Recurrence | undefined)}>
+            <select value={t.recurrence ?? ''} disabled={dis} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
               <option value="">Aucune (tâche unique)</option>
-              {RECURRENCES.map((r) => <option key={r.id} value={r.id}>🔁 {r.label}</option>)}
+              {RECURRENCES.map((r) => <option key={r.id} value={r.id}>🔁 {r.id === 'seance' ? `À chaque ${mot}` : r.label}</option>)}
             </select>
           </label>
         )}
         {t.recurrence && (
           <p className="full recur-note">
-            🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement{t.delai ? <> pour le <b>{fmtDate(nextDate(t.delai, t.recurrence))}</b></> : ' (sans délai)'}
+            🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement
+            {t.recurrence !== 'seance' ? (
+              delaiSuivant ? <> pour le <b>{fmtDate(delaiSuivant)}</b></> : ' (sans délai)'
+            ) : prochaine ? (
+              <>
+                {' '}pour la séance suivante, <b>{prochaine.meeting.titre}</b> ({fmtDate(prochaine.meeting.date)}{prochaine.nouvelle ? ', ajoutée à l’agenda à ce moment-là' : ''})
+                {delaiSuivant && <>, délai le <b>{fmtDate(delaiSuivant)}</b></>}
+              </>
+            ) : (
+              <>, sans séance ni délai : aucune séance n’est prévue après {seanceLiee ? `« ${seanceLiee.titre} »` : 'aujourd’hui'} (si une séance est ajoutée dans l’Agenda d’ici là, la suivante y sera liée)</>
+            )}
             {postes.length > 0 && <> et attribuée au poste <b>{postes.join(', ')}</b></>}
             {' '}(aujourd’hui : {nextResponsables(data, { ...t, postesResp: postes }).map((id) => fullName(data.people.find((p) => p.id === id))).join(', ')}).
             {task.suivanteId && <><br />Occurrence suivante déjà créée.</>}
