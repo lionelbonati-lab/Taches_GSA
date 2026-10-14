@@ -42,3 +42,20 @@ export function hasPermission(roles: Role[], perm: Permission, sectionId?: strin
     (r) => (r.locked || r.permissions.includes(perm)) && (!sectionId || r.sections.length === 0 || r.sections.includes(sectionId)),
   );
 }
+
+/**
+ * Personnes d'un rôle (« Tout un rôle » d'une tâche à prendre). Le rôle de base des séances (« Comité » : accès aux
+ * séances, sans autre rôle des séances aux droits plus restreints) compte aussi les personnes dont les rôles donnent au
+ * moins ses droits (président, secrétaire…) : tout le comité. Les autres rôles : leurs seules personnes.
+ */
+export function personnesDuRole<P extends Pick<Person, 'roles'>>(roles: Role[], people: P[], r: Role): P[] {
+  const seances = (x: Role) => x.locked || x.permissions.includes('tab.meetings');
+  const couvre = (a: Role, b: Role) => !!a.locked || b.permissions.every((p) => a.permissions.includes(p));
+  const base = seances(r) && !r.locked && !roles.some((s) => s.id !== r.id && seances(s) && couvre(r, s) && !couvre(s, r));
+  return people.filter((p) => {
+    if (p.roles.includes(r.id)) return true;
+    if (!base) return false;
+    const siens = roles.filter((x) => p.roles.includes(x.id));
+    return hasPermission(siens, 'tab.meetings') && r.permissions.every((x) => hasPermission(siens, x));
+  });
+}

@@ -10,6 +10,7 @@ import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE } from '../data/partage';
 import { ciblesPourInfo, nbPourInfo } from '../data/pourInfo';
+import { personnesDuRole } from '../data/permissions';
 import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as aDecline, peutPrendre, plusPersonne, prisAilleurs, reponsesAilleurs, volontaires } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
@@ -316,8 +317,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const candidats = t.aPrendre?.personnes ?? [];
   const proposable = !dis && canAssignOthers;
   const prendreIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !candidats.includes(p.id));
+  // « Comité » : tout le comité, président et secrétaire compris (personnesDuRole).
   const prendreRoles = data.roles
-    .map((r) => ({ r, l: prendreIci.filter((p) => p.roles.includes(r.id)) }))
+    .map((r) => ({ r, l: personnesDuRole(data.roles, prendreIci, r) }))
     .filter((g) => g.l.length > 1);
   const nPrendre = nombreAPrendre(t.aPrendre);
   const vol = volontaires(t);
