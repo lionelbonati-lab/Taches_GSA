@@ -12,6 +12,8 @@ import { nomAppli } from '../data/nomAppli';
 import { PageIntro } from '../components/Nav';
 import { AccueilModal, accueilPerso } from '../components/Accueil';
 import { MesDonnees } from '../components/MesDonnees';
+import { CopiesAuto } from '../components/CopiesAuto';
+import { copierMaintenant } from '../data/cloud';
 
 export function Settings() {
   const { dataLocale: data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
@@ -36,6 +38,8 @@ export function Settings() {
       const unit = club ? `« ${club.current.nom} »` : 'du comité';
       const where = cloud ? `toutes les données ${club ? `de ${unit}` : unit} (pour tous ses membres)` : `toutes les données ${club ? `de ${unit} ` : ''}dans ce navigateur`;
       if (!confirm(`Remplacer ${where} par la sauvegarde du ${fmtDateTime(b.exportedAt)} ?\n${backupSummary(b)}`)) return;
+      // Version réelle : l'état actuel est d'abord copié par le serveur (036), pour pouvoir revenir en arrière.
+      if (cloud) await copierMaintenant(cloud.membership.committeeId).catch(() => null);
       await restoreFiles(b.files);
       restore(b.data, `la sauvegarde du ${fmtDateTime(b.exportedAt)}`);
       setBackupMsg({ ok: true, text: `✅ Données restaurées : ${backupSummary(b)}.` });
@@ -173,14 +177,15 @@ export function Settings() {
         <h2>Sauvegarde des données</h2>
         {cloud ? (
           <p className="muted">
-            Les données {club ? `de « ${club.current.nom} »` : 'du comité'} sont enregistrées sur le serveur et partagées entre ses membres. Une sauvegarde en garde une copie complète
-            (tâches, séances, PV, sondages, emails, responsables, rôles, réglages et fichiers joints), par exemple chaque fin de saison.
+            Les données {club ? `de « ${club.current.nom} »` : 'du comité'} sont enregistrées sur le serveur et partagées entre ses membres. Le serveur en garde
+            chaque nuit une copie (30 jours). Une sauvegarde téléchargée en garde une copie complète chez toi (tâches, séances, PV, sondages, emails, responsables,
+            rôles, réglages et fichiers joints), par exemple chaque fin de saison.
           </p>
         ) : (
           <p className="muted">
             Dans la démo, les données ne sont enregistrées <b>que dans ce navigateur</b>, sur cet appareil. Une sauvegarde contient tout : tâches, séances, PV,
             sondages, emails, responsables, rôles, réglages et fichiers joints. Elle sert à passer à un autre appareil et à <b>reprendre tes données dans la
-            version réelle</b> (première mise en route).
+            version réelle</b> (première mise en route). Dans la version réelle, le serveur garde en plus une copie des données chaque nuit, pendant 30 jours.
           </p>
         )}
         <div className="row wrap">
@@ -194,6 +199,9 @@ export function Settings() {
         </div>
         <small className="muted">{last ? `Dernière sauvegarde depuis ce navigateur : ${fmtDateTime(last)}` : 'Aucune sauvegarde téléchargée depuis ce navigateur.'}</small>
         {backupMsg && <p className={backupMsg.ok ? 'backup-ok' : 'error'}>{backupMsg.text}</p>}
+        {cloud && can('admin.access') && (
+          <CopiesAuto unite={cloud.membership.committeeId} nom={club?.current.nom ?? cloud.membership.committeeName} restore={restore} />
+        )}
       </section>
       {!cloud && <section className="panel">
         <h2>Données de démonstration</h2>

@@ -24,6 +24,8 @@ export function Aide() {
   geste('Ajouter une tâche, demander un remboursement, payer une facture', 'Le bouton rond « + » en bas à droite, depuis n’importe quelle page.');
   geste('Modifier une tâche ou changer son statut', vers('/taches'), ' : clique sur la tâche. « Mes tâches » / « Toutes » choisit la liste.');
   geste('Retrouver une tâche terminée', vers('/taches'), ' : les terminées restent affichées jusqu’au comité suivant, puis sont archivées : bouton « 🗄 Archives ».');
+  if (cloud && can('admin.access'))
+    geste('Revenir aux données d’hier (erreur, suppression)', vers('/reglages'), ' › « Copies automatiques » : le serveur garde une copie par nuit pendant 30 jours ; « ↩ Restaurer » (l’état actuel est copié juste avant).');
   geste('Ajouter une checklist, un document, une répétition, un email…', 'Dans la fiche de la tâche, la ligne « Ajouter : » en bas. Ce qui est rempli reste affiché.');
   if (chemin('/comite')) geste('M’excuser pour une séance', vers('/comite'), ' : « 🙋 Je serai absent(e) » sous la séance.');
   if (chemin('/comite') && can('meetings.manage'))

@@ -751,6 +751,43 @@ export async function fetchAnciennesTaches(unite: string): Promise<TachePartagee
   return (data ?? []) as TachePartagee[];
 }
 
+/** Copie des données d'une entité gardée par le serveur (036) : chaque nuit si elles ont changé, 30 jours. */
+export interface CopieAuto {
+  id: number;
+  faiteLe: string;
+  /** Faite par « Copier maintenant » (ou avant une restauration), pas par la copie de la nuit. */
+  manuelle: boolean;
+  lignes: number;
+  taille: number;
+}
+
+/** Copies de l'entité, la plus récente d'abord (admins) ; null si le serveur ne les fait pas encore (036). */
+export async function copiesAuto(unite: string): Promise<CopieAuto[] | null> {
+  const { data, error } = await sb().rpc('gsa_copies_liste', { unite });
+  if (error) {
+    if (absente(error)) return null;
+    throw new Error(error.message);
+  }
+  return Array.isArray(data) ? (data as CopieAuto[]) : [];
+}
+
+/** Données de l'entité au moment d'une copie (admins). */
+export async function copieAuto(unite: string, copie: number): Promise<AppData> {
+  const { data, error } = await sb().rpc('gsa_copie', { unite, copie });
+  if (error) throw new Error(error.message);
+  return fromRows(Array.isArray(data) ? (data as Row[]) : []);
+}
+
+/** Copie tout de suite (admins) : vrai si faite, faux si rien n'a changé depuis la dernière, null avant la 036. */
+export async function copierMaintenant(unite: string): Promise<boolean | null> {
+  const { data, error } = await sb().rpc('gsa_copier_maintenant', { unite });
+  if (error) {
+    if (absente(error)) return null;
+    throw new Error(error.message);
+  }
+  return data === true;
+}
+
 /** Sondages d'autres entités ouverts à l'entité (migration 021) ; null si le serveur ne les gère pas encore. */
 export async function fetchSondagesPartages(unite: string): Promise<SondagePartage[] | null> {
   const { data, error } = await sb().rpc('gsa_sondages_partages', { unite });

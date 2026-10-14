@@ -314,6 +314,8 @@ Limite de la démo : sans serveur, les notifications sont calculées dans le nav
 
 Réglages → **Sauvegarde des données** : **⬇ Télécharger une sauvegarde** crée un fichier `.json` avec tout (tâches, séances, PV, sondages, emails, responsables, rôles, réglages et fichiers joints) ; **⬆ Restaurer une sauvegarde** (admin) remplace les données de ce navigateur par celles du fichier (format mis à niveau automatiquement). Sert à passer d'un appareil à l'autre et à reprendre les données saisies dans la démo dans la version définitive. Ne pas déposer ce fichier dans le dépôt GitHub (public).
 
+**Copies automatiques** (version réelle, migration 036) : chaque nuit, le serveur garde une copie complète des données de chaque entité, si quelque chose a changé depuis la veille, pendant **30 jours** (la plus récente est toujours gardée). Les admins de l'entité les retrouvent dans Réglages › Sauvegarde › **Copies automatiques** : ⬇ télécharger une copie (même format qu'une sauvegarde), **↩ Restaurer** (l'état actuel est d'abord copié : la restauration peut être annulée depuis la même liste), **📸 Copier maintenant**. Les fichiers joints ne sont pas dans ces copies : ils restent rangés sur le serveur et la restauration n'y touche pas. Restaurer un fichier de sauvegarde fait aussi une copie de l'état actuel juste avant.
+
 ## Mobile et installation (PWA)
 
 Sous 768 px : barre de navigation en bas, tâches en cartes avec changement de statut d'un tap, bouton **+** pour ajouter une tâche, un remboursement ou un paiement.
