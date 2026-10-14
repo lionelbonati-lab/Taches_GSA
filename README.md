@@ -226,7 +226,7 @@ Droits : « Créer des sondages » (Admin, Secrétaire, Comité par défaut) et 
 Page **📝 Ordre du jour** (rubrique Comité ; droit « Comité › Ordre du jour », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare le document de la **prochaine séance**, présenté comme les ordres du jour Word du club, en **liste numérotée** (pas de tableau) :
 
 - en-tête : **le nom du comité** (titre) et la date de la séance, début de séance, lieu, **convoqués** (avec initiales), ligne **Excusés** à compléter ;
-- **Ordre du jour** numéroté : **1. Section** (gras) › **a. Sous-section** › **■ point** (tâche avec initiales du responsable, délai, et selon le cas « ⚠ en retard », « pour le Comité 6 », « ✓ fait », statut, remarque) › **◦ détails** (checklist, documents joints, sondage lié) ;
+- **Ordre du jour** numéroté : **1. Section** (gras) › **a. Sous-section** › **■ point** (tâche avec initiales du responsable, délai, et selon le cas « ⚠ en retard », « pour le Comité 6 » (échéance à la date de la séance suivante ; avant elle, seulement la date), « ✓ fait », statut, remarque) › **◦ détails** (checklist, documents joints, sondage lié) ;
 - toujours **par section** : toutes les tâches de la section ensemble (retards, séance, séance suivante, terminées), sections sans point affichées seules ; sondages sous leur section ;
 - cadre de notes et prochaine séance en pied de page ;
 - en option (Contenu › **📎 Joindre les fichiers liés en fin d'ordre du jour**), les **annexes** : voir « Fichiers liés en annexe » sous PV.

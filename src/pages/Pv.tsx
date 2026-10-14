@@ -5,7 +5,7 @@ import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '
 import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
-import { selectAgenda } from '../data/agenda';
+import { pourLaSeance, selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
 import { archiveHtml, hydrateArchive, sansAnnexes } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
@@ -323,7 +323,7 @@ export function Pv() {
     return [
       respText(t) !== '—' && respText(t),
       b !== 'bilan' && t.delai && shortDate(t.delai),
-      s.colonnes.echeance && (b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? `pour le ${s2.titre}` : b === 'bilan' ? `✓ fait${t.termineeLe ? ` le ${shortDate(t.termineeLe)}` : ''}` : ''),
+      s.colonnes.echeance && (b === 'late' ? '⚠ en retard' : b === 'p2' && s2 && pourLaSeance(t, s2) ? `pour le ${s2.titre}` : b === 'bilan' ? `✓ fait${t.termineeLe ? ` le ${shortDate(t.termineeLe)}` : ''}` : ''),
       s.colonnes.statut && b !== 'bilan' && t.statusId !== firstOpen && st?.label,
     ].filter(Boolean) as string[];
   };

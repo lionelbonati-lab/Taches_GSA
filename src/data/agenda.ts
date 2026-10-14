@@ -32,6 +32,12 @@ export function meetingContext(data: AppData, s1?: Meeting) {
 }
 
 /**
+ * Tâche « pour » la séance suivante s2 : à faire à sa date (ou après). Celles dont l'échéance tombe avant
+ * (entre les deux séances) affichent seulement leur date : la séance suivante serait trop tard pour en parler.
+ */
+export const pourLaSeance = (t: Task, s2: Meeting) => !t.delai || t.delai >= s2.date;
+
+/**
  * Tâches de l'ordre du jour de la séance s1 :
  * en retard, à faire d'ici s1, d'ici la séance suivante s2, terminées depuis la séance précédente s0.
  */
