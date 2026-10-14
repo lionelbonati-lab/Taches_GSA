@@ -37,6 +37,8 @@ export function Aide() {
   if (chemin('/pv')) geste('Tenir le PV', vers('/pv'), ' : « Prise de notes » pendant la séance, puis « Valider et archiver » et l’envoyer.');
   if (chemin('/pv') || chemin('/ordre-du-jour'))
     geste('Joindre les fichiers des tâches au PV ou à l’ordre du jour', 'PV : « 📄 PV » › « Options du PV » ; ordre du jour : réglages « Contenu ». Coche « 📎 Joindre les fichiers liés » : liste des annexes, puis photos et pages des PDF à la fin, 1, 2 ou 4 par page. Dessous, « Fichiers joints » : décoche les photos à ne pas publier (choix de la séance, l’ordre du jour et le PV chacun le leur).');
+  if (chemin('/pv') || chemin('/ordre-du-jour'))
+    geste('Envoyer l’ordre du jour ou le PV en PDF, avec des liens cliquables', '« 📄 PDF » (ordre du jour, PV, documents archivés dans la séance) : l’appli crée le PDF elle-même et le télécharge (sur téléphone : partage direct, mail ou WhatsApp). Les adresses web des remarques, notes et checklists, les documents « 🔗 Lien » et les liens des PDF joints y restent cliquables. « 🖨 Imprimer » sert au papier.');
   const miseEnForme = ' : police, interligne, marges, puis chaque élément (titre, sections, points, notes…) en taille, gras, italique, majuscules, couleur. La même pour l’ordre du jour et le PV de l’entité.';
   if (chemin('/ordre-du-jour') && can('tab.pv'))
     geste('Changer la police, les couleurs ou la taille des titres de l’ordre du jour et du PV', vers('/ordre-du-jour'), ' › « Mise en page » › « Mise en forme »', miseEnForme);

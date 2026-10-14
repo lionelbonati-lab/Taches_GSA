@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '../data/types';
@@ -15,6 +15,8 @@ import { useClubOptional } from '../data/club';
 import { TaskModal } from '../components/TaskModal';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { margesMm, styleVars } from '../data/styleDocs';
+import { BoutonPdf } from '../components/BoutonPdf';
+import { AvecLiens, Lien } from '../components/Liens';
 import { ChoixAnnexes, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe, useAnnexesArchive } from '../components/Annexes';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
@@ -260,6 +262,8 @@ export function Pv() {
     task?: Task;
     poll?: Poll;
     text?: string;
+    /** Rendu avec liens (documents « lien ») ; `text` reste la version texte. */
+    node?: ReactNode;
     children: OItem[];
   }
   interface OSec {
@@ -278,13 +282,28 @@ export function Pv() {
         return n ? `${d.nom} (annexe ${n})` : d.nom;
       })
       .join(', ');
+  const docsNode = (t: Task): ReactNode => (
+    <>
+      📎{' '}
+      {(t.documents ?? []).map((d, i) => {
+        const n = annexes.find((a) => a.d.id === d.id)?.n;
+        const nom = n ? `${d.nom} (annexe ${n})` : d.nom;
+        return (
+          <Fragment key={d.id}>
+            {i > 0 && ', '}
+            {d.kind === 'lien' && d.url ? <Lien href={d.url}>{nom}</Lien> : nom}
+          </Fragment>
+        );
+      })}
+    </>
+  );
   // Sous-points d'une tâche : checklist, documents, sondages liés.
   const taskItem = (t: Task): OItem => ({
     key: t.id,
     task: t,
     children: [
       ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, checkText(t, c))) : []),
-      ...(s.colonnes.documents && t.documents?.length ? [textItem(`${t.id}-docs`, `📎 ${docsText(t)}`)] : []),
+      ...(s.colonnes.documents && t.documents?.length ? [{ ...textItem(`${t.id}-docs`, `📎 ${docsText(t)}`), node: docsNode(t) }] : []),
       ...polls.filter((p) => p.taskId === t.id).map(pollItem),
     ],
   });
@@ -351,7 +370,7 @@ export function Pv() {
         ? `📊 Sondage : ${it.poll.question} — ${pollSummary(it.poll)}`
         : it.text ?? '';
   const itemNode = (it: OItem): ReactNode => {
-    if (!it.task) return it.poll ? <span className="odj-poll">{itemText(it)}</span> : it.text;
+    if (!it.task) return it.poll ? <span className="odj-poll">{itemText(it)}</span> : it.node ?? <AvecLiens texte={it.text ?? ''} />;
     const t = it.task;
     const b = bucketOf.get(t.id);
     const meta = taskMeta(t);
@@ -359,7 +378,7 @@ export function Pv() {
       <span className={`odj-task ${b === 'late' ? 'late' : b === 'bilan' ? 'done' : ''}`} onClick={() => setOuverte(t)}>
         {t.titre}
         {meta.length > 0 && <span className="odj-meta"> ({meta.join(' · ')})</span>}
-        {s.colonnes.remarque && t.remarque && <span className="odj-rem"> – {t.remarque}</span>}
+        {s.colonnes.remarque && t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque} /></span>}
         {!s.colonnes.documents && numerosDe(annexes, t).length > 0 && <span className="odj-meta"> 📎 annexe {numerosDe(annexes, t).join(', ')}</span>}
       </span>
     );
@@ -422,7 +441,8 @@ export function Pv() {
       <div className="page-head no-print">
         <h1>Ordre du jour</h1>
         <div className="actions">
-          <button className="btn primary" onClick={print}>🖨 Imprimer / PDF</button>
+          <BoutonPdf className="btn primary toujours" feuille={sheetRef} titre={`Ordre du jour ${nomDoc}`} paysage={s.orientation === 'paysage'} margesMm={margesMm(data.reglagesOdj?.style)} police={data.reglagesOdj?.style?.police} disabled={draft !== null} />
+          <button className="btn" onClick={print}>🖨 Imprimer</button>
           {canEdit && s1 && draft === null && <button className="btn" onClick={startEdit}>✏️ Modifier le texte</button>}
           <button className="btn" onClick={archive} disabled={!s1 || !canEdit || draft !== null}>📁 Archiver dans la séance</button>
           <button className="btn" onClick={email}>✉ Envoyer par email</button>

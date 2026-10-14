@@ -98,6 +98,12 @@ export const margesMm = (st?: StyleDocs) => MARGES.find((m) => m.id === (st?.mar
 /** Marges d'un document archivé (gardées dans son HTML), pour l'imprimer comme il était. */
 export const margesArchive = (html: string) => Number(/--doc-marge:\s*(\d+)mm/.exec(html)?.[1] ?? 12);
 
+/** Police d'un document archivé (gardée dans son HTML). */
+export function policeArchive(html: string): StyleDocs['police'] {
+  const css = /--doc-police:\s*([^;"]+)/.exec(html)?.[1]?.replace(/&quot;/g, '"').trim();
+  return (POLICES.find((p) => p.css && p.css === css)?.id || undefined) as StyleDocs['police'];
+}
+
 /** Variables CSS à poser sur la feuille du document. */
 export function styleVars(st?: StyleDocs): CSSProperties {
   const v: Record<string, string> = {};

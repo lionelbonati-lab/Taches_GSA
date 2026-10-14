@@ -16,6 +16,8 @@ import { ChoixAnnexes, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexes
 import { useClubOptional } from '../data/club';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { margesMm, styleVars } from '../data/styleDocs';
+import { BoutonPdf } from '../components/BoutonPdf';
+import { AvecLiens } from '../components/Liens';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -363,7 +365,7 @@ export function Minutes() {
           <span className="min-title">
             {isChild(t) && <span className="muted">↳ </span>}
             {t.titre} <span className="odj-meta">({meta(t).join(' · ')})</span>
-            {t.remarque && <span className="odj-rem"> – {t.remarque}</span>}
+            {t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque} /></span>}
           </span>
           {editable && (
             <span className="min-controls">
@@ -421,7 +423,7 @@ export function Minutes() {
         {t.titre}
         {opts.details && meta(t).length > 0 && <span className="odj-meta"> ({meta(t).join(' · ')})</span>}
         {numeros(t).length > 0 && <span className="odj-meta"> 📎 annexe {numeros(t).join(', ')}</span>}
-        {noteOf(`task:${t.id}`) && <p className="min-pv-note">→ {noteOf(`task:${t.id}`)}</p>}
+        {noteOf(`task:${t.id}`) && <p className="min-pv-note">→ <AvecLiens texte={noteOf(`task:${t.id}`)} /></p>}
         {opts.misesAJour && changesOf(t).length > 0 && <p className="min-pv-change">↻ {changesOf(t).join(' · ')}</p>}
       </>
     );
@@ -453,7 +455,7 @@ export function Minutes() {
             {pvSections.map((g) => (
               <li key={g.sec.id}>
                 <span className="odj-sec">{g.sec.nom}</span>
-                {noteOf(`sec:${g.sec.id}`) && <p className="min-pv-note">{noteOf(`sec:${g.sec.id}`)}</p>}
+                {noteOf(`sec:${g.sec.id}`) && <p className="min-pv-note"><AvecLiens texte={noteOf(`sec:${g.sec.id}`)} /></p>}
                 {(g.subs.length > 0 || g.polls.length > 0) && (
                   <ol className="odj-l1">
                     {g.subs.map((s) =>
@@ -469,7 +471,7 @@ export function Minutes() {
                     {g.polls.map((p) => (
                       <li key={p.id}>
                         <span className="odj-poll">Sondage : {p.question} — {pollSummary(p)}</span>
-                        {noteOf(`poll:${p.id}`) && <p className="min-pv-note">{noteOf(`poll:${p.id}`)}</p>}
+                        {noteOf(`poll:${p.id}`) && <p className="min-pv-note"><AvecLiens texte={noteOf(`poll:${p.id}`)} /></p>}
                       </li>
                     ))}
                   </ol>
@@ -480,7 +482,7 @@ export function Minutes() {
               <li key={p.id}><span className="odj-sec">Sondage : {p.question}</span> — {pollSummary(p)}</li>
             ))}
             {noteOf('divers') && (
-              <li><span className="odj-sec">Divers</span><p className="min-pv-note">{noteOf('divers')}</p></li>
+              <li><span className="odj-sec">Divers</span><p className="min-pv-note"><AvecLiens texte={noteOf('divers')} /></p></li>
             )}
           </ol>
         )}
@@ -680,7 +682,8 @@ export function Minutes() {
           <div className="actions no-print min-pv-actions">
             <span className="grow" />
             <LienEntete className="btn" />
-            <button className="btn" onClick={() => window.print()}>🖨 Imprimer / PDF</button>
+            <BoutonPdf feuille={sheetRef} titre={`PV ${titre}${draftVersion > 1 ? ` v${draftVersion}` : ''}`} margesMm={margesMm(data.reglagesOdj?.style)} police={data.reglagesOdj?.style?.police} />
+            <button className="btn" onClick={() => window.print()}>🖨 Imprimer</button>
             <button className="btn" onClick={copy}>📋 Copier le texte</button>
             <button className="btn" onClick={email}>✉ Envoyer par email</button>
             {can('tab.minutes') && (locked ? (

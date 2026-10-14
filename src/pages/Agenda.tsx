@@ -17,7 +17,8 @@ import { aPlanifier, aRenommer, annuelle, duMois, finDeSerie, motSeance, nomSean
 import { UNIT_TYPES } from '../data/units';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { useAnnexesArchive } from '../components/Annexes';
-import { margesArchive } from '../data/styleDocs';
+import { margesArchive, policeArchive } from '../data/styleDocs';
+import { BoutonPdf } from '../components/BoutonPdf';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
 
@@ -174,6 +175,7 @@ export function Meetings() {
       {viewPv && (
         <PvViewer
           pv={viewPv.pv}
+          kind={viewPv.kind}
           canDelete={viewPv.kind === 'pv' ? can('tab.minutes') : manage || can('tab.pv')}
           onDelete={() => {
             update((d) => {
@@ -455,7 +457,7 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
 }
 
 /** Consultation d'un ordre du jour archivé (copie figée), imprimable tel quel. */
-function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDelete: boolean; onDelete: () => void; onClose: () => void }) {
+function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; kind: 'pv' | 'odj'; canDelete: boolean; onDelete: () => void; onClose: () => void }) {
   const { data } = useStore();
   const logo = useUnitLogo();
   // PV avec fichiers joints en annexe : photos et pages de PDF relues (non copiées dans l'archive).
@@ -478,8 +480,9 @@ function PvViewer({ pv, canDelete, onDelete, onClose }: { pv: PvArchive; canDele
         <strong>📄 {pv.titre}</strong>
         <small>archivé le {fmtDateTime(pv.at)} par {fullName(data.people.find((p) => p.id === pv.by))}</small>
         <span className="grow" />
-        <button className="btn primary" onClick={() => window.print()}>🖨 Imprimer / PDF</button>
-        {canDelete && <button className="btn danger" onClick={() => confirm('Supprimer cet ordre du jour archivé ?') && onDelete()}>Supprimer</button>}
+        <BoutonPdf className="btn primary" feuille={doc} titre={kind === 'odj' ? `Ordre du jour ${pv.titre}` : pv.titre} paysage={pv.orientation === 'paysage'} margesMm={margesArchive(pv.html)} police={policeArchive(pv.html)} />
+        <button className="btn" onClick={() => window.print()}>🖨 Imprimer</button>
+        {canDelete && <button className="btn danger" onClick={() => confirm(kind === 'pv' ? 'Supprimer ce PV archivé ?' : 'Supprimer cet ordre du jour archivé ?') && onDelete()}>Supprimer</button>}
         <button className="btn" onClick={onClose}>Fermer</button>
       </div>
       {/* Contenu généré par l'application elle-même (textes déjà échappés à la création) ; images de l'en-tête remises (data URL contrôlées). */}
