@@ -1,7 +1,9 @@
 // Nettoyage du HTML enregistré (ordre du jour modifié à la main, archives) avant de l'afficher :
 // ces documents sont écrits par des membres et relus par d'autres, rien ne doit s'y exécuter.
+// noscript, template, xmp… : lus autrement ici (analyseur sans scripts) que dans la page ; certains navigateurs
+// (anciens Safari) en feraient sortir du HTML actif. L'appli n'en produit jamais.
 
-const BANNED = 'script, style, iframe, object, embed, link, meta, base, form, input, button, textarea, select, svg, math';
+const BANNED = 'script, style, iframe, object, embed, link, meta, base, form, input, button, textarea, select, svg, math, noscript, template, xmp, noembed, noframes, plaintext';
 const SAFE_URL = /^(data:image\/(png|jpeg|webp);base64,|https?:|mailto:|#|\.\/)/i;
 
 /** HTML nettoyé ; `champs` remplit les éléments marqués data-champ (ex. les excusés, à jour même dans un document figé). */
