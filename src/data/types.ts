@@ -156,6 +156,8 @@ export interface TaskDoc {
   mime?: string;
   taille?: number;
   par: string;
+  /** Ajouté depuis une autre entité (tâche partagée, 041) : « Prénom Nom (Entité) » (`par` est alors vide). */
+  parNom?: string;
   le: string;
 }
 
@@ -278,8 +280,12 @@ export interface Task {
   placePartage?: Record<string, { sectionId: string; sousSection: string }>;
   /** Dernière modification faite depuis une entité du partage : « Nom (entité) ». */
   modifiePar?: string;
-  /** Affichage seulement (jamais enregistré) : tâche d'une autre entité, partagée avec l'entité ouverte. */
-  source?: { uniteId: string; unite: string; id: string; responsables: string[] };
+  /**
+   * Affichage seulement (jamais enregistré) : tâche d'une autre entité, partagée avec l'entité ouverte. `complet` : ses
+   * documents, sa répétition, sa séance (ici) et son partage se modifient d'ici (serveur à jour : 041) ; `seanceAilleurs` :
+   * la séance à laquelle elle est liée hors de l'entité ouverte (pas modifiable d'ici).
+   */
+  source?: { uniteId: string; unite: string; id: string; responsables: string[]; complet?: boolean; seanceAilleurs?: string };
   /** Tâche ajoutée par un membre du comité central (ancien accès « modifier / ajouter ») : son nom. */
   parCentral?: string;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
@@ -392,6 +398,8 @@ export interface TachePartagee {
   task: Task;
   /** Statuts de l'entité de la tâche (correspondance avec ceux de l'entité ouverte). */
   statuts: { id: string; label: string; done: boolean }[];
+  /** Version du serveur (41 : documents, répétition, séance et partage modifiables d'ici). */
+  v?: number;
   /**
    * Ancienne tâche (gsa_anciennes_taches, 030) : d'avant que l'entité dépende de l'entité ouverte. Elle se consulte et se
    * copie, sans modification ; `comite` : le comité dont l'entité dépendait alors, `jusqua` : date du changement.

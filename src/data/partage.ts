@@ -1,12 +1,13 @@
 import { uid } from './utils';
 import { aPrendreVersOrigine, aPrendreVu } from './aPrendre';
 import { pourInfoVersOrigine, pourInfoVu } from './pourInfo';
-import type { AppData, OrgMember, OrgUnit, PeriodeDependance, Person, Section, Status, TachePartagee, TachesDependance, Task, Unit, UnitType } from './types';
+import type { AppData, Meeting, OrgMember, OrgUnit, PeriodeDependance, Person, Section, Status, TachePartagee, TachesDependance, Task, TaskDoc, Unit, UnitType } from './types';
 
 // Tâches partagées entre les entités du club. Une tâche reste dans son entité ; celle-ci peut la partager
 // avec d'autres entités (comité central, sous-comités, groupes, équipes) : chacune la voit dans ses tâches et
-// son ordre du jour, et la modifie comme les siennes (titre, délai, statut, responsables, remarque, checklist).
-// Les modifications sont enregistrées dans l'entité de la tâche (démo : DemoApp ; version réelle : 019).
+// son ordre du jour, et la modifie comme les siennes (titre, délai, statut, responsables, remarque, checklist ; depuis 040
+// « À prendre » et « Pour info » ; depuis 041 documents, répétition, séance de l'entité qui la voit et partage).
+// Les modifications sont enregistrées dans l'entité de la tâche (démo : DemoApp ; version réelle : 019, 030, 040, 041).
 // Dans l'entité qui la reçoit, la tâche est rangée :
 //   - d'un événement (sous-comité, équipe) : sous « Événements », dans la sous-section de l'événement ;
 //   - sinon : sous la section qui porte le nom de l'entité (« École de cyclisme »…) ;
@@ -184,6 +185,41 @@ function responsablesIci(t: Task, uniteId: string, moi: string, people: Person[]
   return [...new Set(ids.filter((x): x is string => !!x))];
 }
 
+/** Fichier d'une autre entité vu d'ici : « <entité>/<fichier> » (ceux déposés depuis une entité du partage le sont déjà). */
+const idFichierVu = (src: string, id: string) => (id.includes('/') ? id : `${src}/${id}`);
+const idVu = (src: string, d: TaskDoc) => (d.kind === 'fichier' ? idFichierVu(src, d.id) : d.id);
+
+/** Documents d'une tâche partagée vus de l'entité ouverte : fichiers avec leur dossier, auteur nommé (« Prénom Nom (Entité) »). */
+function docsVus(docs: TaskDoc[] | undefined, x: Pick<TachePartagee, 'uniteId' | 'unite'>, units: OrgUnit[]): TaskDoc[] | undefined {
+  if (!Array.isArray(docs) || !docs.length) return undefined;
+  return docs.map((d) => {
+    const m = d.par ? membre(units, x.uniteId, d.par) : undefined;
+    return { ...d, id: idVu(x.uniteId, d), par: '', parNom: d.parNom ?? (m ? `${`${m.prenom} ${m.nom}`.trim()} (${x.unite})` : undefined) };
+  });
+}
+
+/**
+ * Documents enregistrés depuis l'entité ouverte (même règle côté serveur : gsa_docs_partagee, 041) : ceux de la tâche
+ * restent tels quels (ou sont retirés) ; les nouveaux (liens, fichiers « <entité>/pt-… ») sont au nom de `par`.
+ */
+export function docsVersOrigine(orig: TaskDoc[] | undefined, vus: TaskDoc[] | undefined, src: string, par: string): TaskDoc[] {
+  const out: TaskDoc[] = [];
+  for (const d of vus ?? []) {
+    const o = (orig ?? []).find((y) => idVu(src, y) === d.id);
+    if (out.some((y) => y.id === (o ?? d).id)) continue;
+    out.push(o ?? { ...d, par: '', parNom: par });
+  }
+  return out;
+}
+
+/** Séance à laquelle la tâche de l'entité `x` est liée, hors de l'entité `moi` (pas modifiable d'ici). */
+function seanceAilleurs(t: Task, x: Pick<TachePartagee, 'unite'>, moi: string, units: OrgUnit[]) {
+  if (t.meetingId) return `une séance de « ${x.unite} »`;
+  const s = t.seanceComite;
+  if (!s || s.uniteId === moi) return undefined;
+  return `« ${s.titre} »${s.date ? ` (${dateCourte(s.date)})` : ''} de « ${units.find((u) => u.id === s.uniteId)?.nom ?? '?'} »`;
+}
+
 /** Données affichées de l'entité `moi` avec les tâches que d'autres entités lui partagent (et les sections ajoutées pour elles). */
 export function avecPartagees(data: AppData, list: TachePartagee[], moi: string, units: OrgUnit[]): AppData {
   if (!list.length) return data;
@@ -221,12 +257,23 @@ export function avecPartagees(data: AppData, list: TachePartagee[], moi: string,
       createdBy: '',
       updatedAt: t.updatedAt ?? '',
       partage: t.partage,
+      auCentral: t.auCentral,
       respPartage: t.respPartage,
       modifiePar: t.modifiePar,
       // À prendre et Pour info (040) : ceux de l'entité ouverte comme les siens ; les autres, à part.
       aPrendre: aPrendreVu(t.aPrendre, x.uniteId, moi),
       pourInfo: pourInfoVu(t.pourInfo, x.uniteId, moi),
-      source: { uniteId: x.uniteId, unite: x.unite, id: t.id, responsables: t.responsables ?? [] },
+      // Documents et répétition (041).
+      documents: docsVus(t.documents, x, units),
+      recurrence: t.recurrence,
+      source: {
+        uniteId: x.uniteId,
+        unite: x.unite,
+        id: t.id,
+        responsables: t.responsables ?? [],
+        complet: (x.v ?? 0) >= 41,
+        seanceAilleurs: seanceAilleurs(t, x, moi, units),
+      },
     });
   }
   return { ...data, sections, tasks: [...data.tasks, ...tasks] };
@@ -235,14 +282,16 @@ export function avecPartagees(data: AppData, list: TachePartagee[], moi: string,
 /**
  * Enregistrement depuis une entité du partage : la tâche affichée `t` (fiches de l'entité ouverte) → la tâche de son
  * entité (`orig`). Chaque responsable reste dans l'entité où il a une fiche : celle de la tâche d'abord, sinon
- * l'entité ouverte (respPartage). À prendre : les propositions de l'entité ouverte ; Pour info : la liste (040). Ce qui
- * n'est pas modifiable d'ici (documents, liens, répétition, partage) est gardé.
+ * l'entité ouverte (respPartage). À prendre : les propositions de l'entité ouverte ; Pour info : la liste (040).
+ * Serveur à jour (041) : documents, répétition, séance de l'entité ouverte (`meetingId` ici ↔ seanceComite) et partage
+ * avec d'autres entités (l'entité ouverte reste comme elle était) ; sinon, gardés. Le reste (événement, tâche principale)
+ * est gardé.
  */
 export function versOrigine(
   orig: Task,
   t: Task,
-  x: Pick<TachePartagee, 'uniteId' | 'statuts'>,
-  ctx: { moi: string; statuses: Status[]; people: Person[]; units: OrgUnit[]; par: string; aujourdhui: string },
+  x: Pick<TachePartagee, 'uniteId' | 'statuts' | 'v'>,
+  ctx: { moi: string; statuses: Status[]; people: Person[]; units: OrgUnit[]; par: string; aujourdhui: string; meetings?: Meeting[]; centralId?: string },
 ): Task {
   const { moi, people, units } = ctx;
   const local = (u: string, id: string) => ici(people, membre(units, u, id));
@@ -282,12 +331,42 @@ export function versOrigine(
   if (estPartagee(t.sectionId)) delete placePartage[moi];
   else placePartage[moi] = { sectionId: t.sectionId, sousSection: t.sousSection };
   const delaiChange = (t.delai ?? '') !== (orig.delai ?? '');
+  // Délai changé ici : il ne suit plus l'événement / la séance de l'autre entité.
+  let delaiRef = delaiChange ? undefined : orig.delaiRef;
+  let plus: Partial<Task> = {};
+  if ((x.v ?? 0) >= 41) {
+    // Partage (041) : avec d'autres entités ; l'entité ouverte reste comme elle était. Une entité retirée : ses responsables,
+    // sa place et sa séance aussi.
+    const avant = partageDe(orig, ctx.centralId);
+    const partage = partageDe(t, ctx.centralId).filter((id) => id !== moi && id !== x.uniteId);
+    if (avant.includes(moi)) partage.push(moi);
+    const retirees = avant.filter((id) => !partage.includes(id));
+    for (const id of retirees) {
+      delete respPartage[id];
+      delete placePartage[id];
+    }
+    // Séance (041) : une séance d'ici, si la tâche n'est liée ni à une séance de son entité ni à celle d'une autre.
+    let seanceComite = orig.seanceComite && retirees.includes(orig.seanceComite.uniteId) ? undefined : orig.seanceComite;
+    if (!orig.meetingId && (!orig.seanceComite || orig.seanceComite.uniteId === moi)) {
+      const m = t.meetingId ? ctx.meetings?.find((y) => y.id === t.meetingId) : undefined;
+      seanceComite = m ? { uniteId: moi, id: m.id, titre: m.titre, date: m.date } : undefined;
+    }
+    if (orig.seanceComite && !seanceComite && !orig.meetingId && delaiRef?.type === 'meeting') delaiRef = undefined;
+    plus = {
+      documents: docsVersOrigine(orig.documents, t.documents, x.uniteId, ctx.par),
+      // « À chaque séance » : les séances de son entité ; seulement si elle l'était déjà.
+      recurrence: t.recurrence === 'seance' && orig.recurrence !== 'seance' ? orig.recurrence : t.recurrence,
+      partage: partage.length ? partage : undefined,
+      auCentral: undefined,
+      seanceComite,
+    };
+  }
   return {
     ...orig,
+    ...plus,
     titre: t.titre,
     delai: t.delai,
-    // Délai changé ici : il ne suit plus l'événement / la séance de l'autre entité.
-    delaiRef: delaiChange ? undefined : orig.delaiRef,
+    delaiRef,
     statusId,
     termineeLe: !fini ? undefined : avant?.done ? orig.termineeLe : ctx.aujourdhui,
     remarque: t.remarque,
@@ -303,10 +382,17 @@ export function versOrigine(
 }
 
 /**
- * Ce que le serveur garde d'une modification venue d'une entité du partage (même règle côté serveur, 019) :
- * les champs modifiables, le reste de la tâche d'origine.
+ * Ce que le serveur garde d'une modification venue d'une entité du partage (même règle côté serveur : 019, 030, 040, 041) :
+ * les champs modifiables, le reste de la tâche d'origine. `ctx` (démo) : entités du club, comité central, séances de
+ * l'entité `moi`.
  */
-export function fusionPartagee(old: Task, t: Task, moi: string, src = ''): Task {
+export function fusionPartagee(
+  old: Task,
+  t: Task,
+  moi: string,
+  src = '',
+  ctx: { entites?: Pick<Unit, 'id' | 'archive'>[]; centralId?: string; meetings?: Meeting[] } = {},
+): Task {
   const placePartage = { ...old.placePartage };
   if (t.placePartage?.[moi]) placePartage[moi] = t.placePartage[moi];
   else delete placePartage[moi];
@@ -320,11 +406,42 @@ export function fusionPartagee(old: Task, t: Task, moi: string, src = ''): Task 
     unites: p.unites?.filter((u) => u !== src),
     autres: p.autres && Object.fromEntries(Object.entries(p.autres).filter(([u]) => u !== src)),
   };
+  // Documents (041) : ceux de la tâche tels quels ; d'ici, des liens http(s) et des fichiers « <entité>/pt-… ».
+  let documents = old.documents;
+  if (Array.isArray(t.documents)) {
+    const out: TaskDoc[] = [];
+    for (const d of t.documents) {
+      if (out.some((y) => y.id === d.id)) continue;
+      const o = old.documents?.find((y) => y.id === d.id);
+      if (o) out.push(o);
+      else if (d.kind === 'lien' && /^https?:\/\/\S+$/i.test(d.url ?? '')) out.push({ ...d, par: '', parNom: t.modifiePar ?? '?' });
+      else if (d.kind === 'fichier' && d.id.startsWith(`${src}/pt-`)) out.push({ ...d, par: '', parNom: t.modifiePar ?? '?' });
+      else throw new Error(d.kind === 'lien' ? `Lien invalide : « ${d.nom || d.url} »` : `Fichier introuvable : « ${d.nom} » ; ajoute-le à nouveau`);
+    }
+    documents = out.length ? out : undefined;
+  }
+  // Répétition (041) : « à chaque séance » (les séances de son entité) seulement si elle l'était.
+  const recurrence = t.recurrence === 'seance' && old.recurrence !== 'seance' ? undefined : t.recurrence;
+  // Partage (041) : entités du club (pas l'entité de la tâche ; une archivée si elle y était) ; `moi` reste comme avant.
+  const avant = partageDe(old, ctx.centralId);
+  const partage = [...new Set(partageDe(t, ctx.centralId))].filter(
+    (id) => id !== moi && id !== src && ctx.entites?.some((u) => u.id === id && (!u.archive || avant.includes(id))),
+  );
+  if (avant.includes(moi)) partage.push(moi);
+  let seanceComite = old.seanceComite && avant.includes(old.seanceComite.uniteId) && !partage.includes(old.seanceComite.uniteId) ? undefined : old.seanceComite;
+  let delaiRef = t.delai !== old.delai ? undefined : old.delaiRef;
+  if (old.seanceComite && !seanceComite && !old.meetingId && delaiRef?.type === 'meeting') delaiRef = undefined;
+  // Séance (041) : une séance de `moi`, si la tâche n'est liée ni à une séance de son entité ni à celle d'une autre.
+  if (!old.meetingId && (!old.seanceComite || old.seanceComite.uniteId === moi)) {
+    const m = t.seanceComite?.uniteId === moi ? ctx.meetings?.find((y) => y.id === t.seanceComite!.id) : undefined;
+    seanceComite = m ? { uniteId: moi, id: m.id, titre: m.titre, date: m.date } : undefined;
+    if (old.seanceComite && !m && delaiRef?.type === 'meeting') delaiRef = undefined;
+  }
   return {
     ...old,
     titre: t.titre,
     delai: t.delai,
-    delaiRef: t.delai !== old.delai ? undefined : old.delaiRef,
+    delaiRef,
     statusId: t.statusId,
     termineeLe: t.termineeLe,
     remarque: t.remarque,
@@ -334,6 +451,11 @@ export function fusionPartagee(old: Task, t: Task, moi: string, src = ''): Task 
     placePartage: Object.keys(placePartage).length ? placePartage : undefined,
     aPrendre: old.paiement ? old.aPrendre : aPrendre,
     pourInfo: old.paiement ? old.pourInfo : pourInfo,
+    documents,
+    recurrence,
+    partage: partage.length ? partage : undefined,
+    auCentral: undefined,
+    seanceComite,
     modifiePar: t.modifiePar,
     updatedAt: t.updatedAt,
   };

@@ -131,6 +131,54 @@ function sansPartagees(d: AppData) {
   if (d.polls) d.polls = d.polls.filter((p) => !estPartagee(p.id)).map(sondageEnregistre);
 }
 
+/**
+ * Occurrence suivante d'une tâche récurrente terminée : la tâche, sa séance (à ajouter à l'agenda si `nouvelle`) et les
+ * emails reconduits. `ids` : identifiants fixes, les mêmes sur chaque appareil (rattrapage : une seule occurrence).
+ */
+function preparerSuivante(data: AppData, task: Task, ids?: { tache: string; seance: string }) {
+  let seance = seancePourSuivante(data, task);
+  if (seance?.nouvelle && ids) seance = { ...seance, meeting: { ...seance.meeting, id: ids.seance } };
+  const next = nextOccurrence(data, task, seance?.meeting);
+  if (ids) next.id = ids.tache;
+  let emails = emailsForNext(data, task, next, seance?.meeting);
+  if (ids) emails = emails.map((e, i) => ({ ...e, id: idDe('e', `${ids.tache}:${i}`) }));
+  return { next, seance, emails };
+}
+
+/** Ajoute l'occurrence suivante préparée (séance ajoutée au besoin, tâches liées rattachées, emails reconduits). */
+function ajouterSuivante(d: AppData, task: Task, { next, seance, emails }: ReturnType<typeof preparerSuivante>) {
+  if (d.tasks.some((x) => x.id === next.id)) return;
+  let suivante = next;
+  if (seance?.nouvelle) {
+    // Ajoutée entre-temps (deux tâches clôturées d'affilée) : la tâche rejoint celle-ci.
+    const deja = d.meetings.find((m) => !m.unique && m.date.slice(0, 7) === seance.meeting.date.slice(0, 7));
+    if (!deja) d.meetings.push(seance.meeting);
+    else suivante = applyDelaiRef(d, { ...next, meetingId: deja.id });
+  }
+  d.tasks.unshift(suivante);
+  // Tâche principale reconduite : les occurrences suivantes de ses tâches liées la rejoignent.
+  d.tasks
+    .filter((x) => x.parentId === task.id)
+    .forEach((c) => {
+      let x = c;
+      for (let y = d.tasks.find((z) => z.id === x.suivanteId); y; y = d.tasks.find((z) => z.id === x.suivanteId)) x = y;
+      if (x !== c && !x.parentId) x.parentId = next.id;
+    });
+  if (emails.length) d.emails = [...(d.emails ?? []), ...emails];
+}
+
+/** Identifiant tiré d'un texte, le même sur chaque appareil. */
+function idDe(prefix: string, texte: string) {
+  let a = 0x811c9dc5;
+  let b = 0x9747b28c;
+  for (let i = 0; i < texte.length; i++) {
+    const k = texte.charCodeAt(i);
+    a = Math.imul(a ^ k, 0x01000193) >>> 0;
+    b = Math.imul(b ^ k, 0x5bd1e995) >>> 0;
+  }
+  return `${prefix}${a.toString(36)}${b.toString(36)}`;
+}
+
 function load(): AppData {
   try {
     const raw = localStorage.getItem(KEY);
@@ -189,7 +237,8 @@ interface Store {
   /** Modification sans entrée au journal (prise de notes, présences…). */
   updateSilent: (fn: (d: AppData) => void) => void;
   setPrefs: (p: Partial<Prefs>) => void;
-  saveTask: (t: Task, isNew: boolean) => void;
+  /** Tâche partagée par une autre entité : promesse résolue une fois la modification envoyée à son entité (acceptée ou non). */
+  saveTask: (t: Task, isNew: boolean) => void | Promise<void>;
   /**
    * Tâche attribuée à l'entité `cible` qui dépend de l'entité ouverte (sous-section du formulaire) : enregistrée chez elle,
    * dans sa section `sectionId`, partagée avec l'entité ouverte ; une tâche existante est retirée d'ici (elle y revient
@@ -449,13 +498,16 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     (t: Task) => {
       const c = clubRef.current;
       const x = partagees.find((p) => p.uniteId === t.source?.uniteId && p.task.id === t.source?.id);
-      if (!c || !x || !moi) return setToast('⚠️ Cette tâche n’est plus partagée avec cette entité.');
+      if (!c || !x || !moi) {
+        setToast('⚠️ Cette tâche n’est plus partagée avec cette entité.');
+        return Promise.resolve();
+      }
       const before = view.tasks.find((y) => y.id === t.id);
       // À prendre (040) : proposée à d'autres personnes d'ici → c'est la personne connectée qui est prévenue des réponses.
       const proposees = (t.aPrendre?.personnes ?? []).filter((id) => !before?.aPrendre?.personnes.includes(id));
       if (proposees.length && userId) t = { ...t, aPrendre: { ...t.aPrendre!, par: userId } };
       const par = user ? `${fullName(user)} (${c.current.nom})` : c.current.nom;
-      const next = versOrigine(x.task, t, x, { moi, statuses: data.statuses, people: data.people, units: c.units, par, aujourdhui: today() });
+      const next = versOrigine(x.task, t, x, { moi, statuses: data.statuses, people: data.people, units: c.units, par, aujourdhui: today(), meetings: data.meetings, centralId: c.central?.id });
       setPartagees((l) => l.map((p) => (p === x ? { ...p, task: next } : p)));
       const actor = userId ?? '?';
       const at = new Date().toISOString();
@@ -468,11 +520,15 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       update((d) => {
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
       }, `Modification de la tâche « ${t.titre} » (partagée par ${x.unite})`);
-      c.modifierTachePartagee(x.uniteId, next)
+      // Tâche récurrente terminée ici (041) : son entité crée l'occurrence suivante.
+      if (next.recurrence && !next.suivanteId && isDone(data, t) && !(before && isDone(data, before)))
+        setToast(`🔁 « ${x.unite} » créera l’occurrence suivante (dès que l’un de ses membres ouvrira l’appli).`);
+      return c
+        .modifierTachePartagee(x.uniteId, next)
         .catch((e: Error) => setToast(`⚠️ Modification non enregistrée dans « ${x.unite} » : ${e.message}`))
         .finally(chargerPartagees);
     },
-    [partagees, moi, view.tasks, user, data.statuses, data.people, userId, update, chargerPartagees],
+    [partagees, moi, view.tasks, user, data, userId, update, chargerPartagees],
   );
 
   const attribuerTache = useCallback(
@@ -528,16 +584,13 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (!isDone(data, task)) task.termineeLe = undefined;
       else if (!(before && isDone(data, before))) task.termineeLe = new Date().toISOString().slice(0, 10);
 
-      // Clôture d'une tâche récurrente → création de l'occurrence suivante.
-      let next: Task | undefined;
-      let seance: ReturnType<typeof seancePourSuivante>;
-      if (task.recurrence && !task.suivanteId && isDone(data, task) && !(before && isDone(data, before))) {
-        // Tâche annuelle liée à une séance : elle passe à la séance du même mois l'an prochain (créée au besoin) ;
-        // tâche « à chaque séance » : à la séance suivante.
-        seance = seancePourSuivante(data, task);
-        next = nextOccurrence(data, task, seance?.meeting);
-        task.suivanteId = next.id;
-      }
+      // Clôture d'une tâche récurrente → création de l'occurrence suivante (aussi : terminée depuis une entité du partage et
+      // pas encore reconduite). Tâche annuelle liée à une séance : elle passe à la séance du même mois l'an prochain (créée
+      // au besoin) ; tâche « à chaque séance » : à la séance suivante.
+      const suite = task.recurrence && !task.suivanteId && isDone(data, task) && (!(before && isDone(data, before)) || !!before.modifiePar) ? preparerSuivante(data, task) : undefined;
+      const next = suite?.next;
+      const seance = suite?.seance;
+      if (next) task.suivanteId = next.id;
 
       const who = next?.responsables.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ') || (next?.aPrendre ? '🙋 à prendre' : '');
 
@@ -565,31 +618,12 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       }
       next?.responsables.forEach((id) => push(id, 'recur', next!.id, next!.delai ? fmtDate(next!.delai) : undefined));
       next?.aPrendre?.personnes.filter((id) => !next!.responsables.includes(id)).forEach((id) => push(id, 'propose', next!.id));
-      const nextEmails = next ? emailsForNext(data, task, next, seance?.meeting) : [];
 
       update(
         (d) => {
           if (isNew) d.tasks.unshift(task);
           else d.tasks = d.tasks.map((x) => (x.id === task.id ? task : x));
-          if (next) {
-            let suivante = next;
-            if (seance?.nouvelle) {
-              // Ajoutée entre-temps (deux tâches clôturées d'affilée) : la tâche rejoint celle-ci.
-              const deja = d.meetings.find((m) => !m.unique && m.date.slice(0, 7) === seance!.meeting.date.slice(0, 7));
-              if (!deja) d.meetings.push(seance.meeting);
-              else suivante = applyDelaiRef(d, { ...next, meetingId: deja.id });
-            }
-            d.tasks.unshift(suivante);
-            // Tâche principale reconduite : les occurrences suivantes de ses tâches liées la rejoignent.
-            d.tasks
-              .filter((x) => x.parentId === task.id)
-              .forEach((c) => {
-                let x = c;
-                for (let y = d.tasks.find((z) => z.id === x.suivanteId); y; y = d.tasks.find((z) => z.id === x.suivanteId)) x = y;
-                if (x !== c && !x.parentId) x.parentId = next!.id;
-              });
-          }
-          if (nextEmails.length) d.emails = [...(d.emails ?? []), ...nextEmails];
+          if (suite) ajouterSuivante(d, task, suite);
           if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
         },
         `${isNew ? 'Création' : 'Modification'} de la tâche « ${t.titre} »` +
@@ -769,14 +803,15 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [update, data.tasks],
   );
 
-  const taskTitle = (id: string) => data.tasks.find((t) => t.id === id)?.titre ?? '';
+  // Avec les tâches partagées par d'autres entités (emails liés à « x:<entité>:<tâche> »).
+  const taskTitle = (id: string) => view.tasks.find((t) => t.id === id)?.titre ?? '';
   const saveEmail = useCallback(
     (e: ScheduledEmail, isNew: boolean) =>
       update((d) => {
         d.emails = isNew ? [...(d.emails ?? []), e] : (d.emails ?? []).map((x) => (x.id === e.id ? e : x));
       }, `${isNew ? 'Email programmé' : 'Modification de l’email programmé'} « ${e.objet} » (tâche « ${taskTitle(e.taskId)} »)`),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [update, data.tasks],
+    [update, view.tasks],
   );
   const setEmailStatus = useCallback(
     (id: string, statut: ScheduledEmail['statut']) => {
@@ -791,7 +826,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       }, `Email « ${e.objet} » (tâche « ${taskTitle(e.taskId)} ») ${statut === 'envoye' ? 'envoyé' : statut === 'annule' ? 'annulé' : 'reprogrammé'}`);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [update, data.emails, data.tasks, userId],
+    [update, data.emails, view.tasks, userId],
   );
   const deleteEmail = useCallback(
     (id: string) => {
@@ -827,6 +862,38 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     }, `Changement suivi : ${cibles.join(', ')} → ${suivis.size} tâche${suivis.size > 1 ? 's' : ''} à jour`);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.tasks, externes, units, myRoles, user?.id]);
+
+  // Tâche récurrente terminée depuis une entité du partage (041) : l'occurrence suivante est créée ici, à l'ouverture de
+  // l'appli par un membre qui peut la modifier. Identifiants fixes : deux appareils en même temps créent la même.
+  useEffect(() => {
+    if (!user) return;
+    const finies = data.tasks.filter(
+      (t) => t.recurrence && !t.suivanteId && t.modifiePar && !t.source && !t.paiement && isDone(data, t) && canEditTask(t) && !tentes.current.has(`r:${t.id}`),
+    );
+    if (!finies.length) return;
+    finies.forEach((t) => tentes.current.add(`r:${t.id}`));
+    const at = new Date().toISOString();
+    const suites = finies.map((t) => {
+      const task = { ...t, postesResp: postesFor(data, t, t) };
+      return { task, suite: preparerSuivante(data, task, { tache: idDe('t', `${t.id}:suivante`), seance: idDe('m', `${t.id}:seance`) }) };
+    });
+    const notifs: ActivityNotif[] = suites.flatMap(({ suite: { next } }) => [
+      ...next.responsables.filter((id) => id !== user.id).map((id) => ({ id: uid('n'), userId: id, type: 'recur' as const, taskId: next.id, by: user.id, at, detail: next.delai ? fmtDate(next.delai) : undefined })),
+      ...(next.aPrendre?.personnes ?? []).filter((id) => id !== user.id && !next.responsables.includes(id)).map((id) => ({ id: uid('n'), userId: id, type: 'propose' as const, taskId: next.id, by: user.id, at })),
+    ]);
+    update((d) => {
+      for (const { task, suite } of suites) {
+        const x = d.tasks.find((y) => y.id === task.id);
+        if (!x || x.suivanteId) continue;
+        x.suivanteId = suite.next.id;
+        x.postesResp = task.postesResp;
+        ajouterSuivante(d, task, suite);
+      }
+      if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
+    }, `Tâche${suites.length > 1 ? 's' : ''} récurrente${suites.length > 1 ? 's' : ''} terminée${suites.length > 1 ? 's' : ''} depuis une autre entité : ${suites.map(({ task, suite }) => `« ${task.titre} » → prochaine occurrence${suite.next.delai ? ` le ${fmtDate(suite.next.delai)}` : ''}`).join(', ')}`);
+    setToast(`🔁 ${suites.length > 1 ? `${suites.length} tâches récurrentes terminées` : `« ${suites[0].task.titre} », terminée`} depuis une autre entité : occurrence suivante créée.`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.tasks, data.statuses, myRoles, user?.id]);
 
   const value: Store = {
     mode: cloud ? 'reel' : 'demo',

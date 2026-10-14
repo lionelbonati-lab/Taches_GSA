@@ -18,7 +18,10 @@ export function setServerFiles(committeeId: string) {
   cloudCommittee = committeeId;
 }
 const bucket = () => supabase!.storage.from(BUCKET);
-/** Un identifiant « dossier/fichier » désigne un fichier d'un autre dossier (ticket déposé à la caisse centrale). */
+/**
+ * Un identifiant « dossier/fichier » désigne un fichier d'un autre dossier : ticket déposé à la caisse centrale, fichier
+ * d'une tâche partagée par une autre entité, ou déposé dans son dossier depuis l'entité ouverte (« <entité>/pt-… », 041).
+ */
 const path = (id: string) => (id.includes('/') ? id : `${cloudCommittee}/${id}`);
 
 function db(): Promise<IDBDatabase | null> {
@@ -68,7 +71,8 @@ export async function getFile(id: string): Promise<Blob | undefined> {
     if (data) memory.set(id, data);
     return data ?? undefined;
   }
-  return run<Blob>('readonly', (s) => s.get(id));
+  // Démo : un fichier d'une tâche partagée par une autre entité est vu « <entité>/<fichier> » ; il est gardé sous son nom.
+  return (await run<Blob>('readonly', (s) => s.get(id))) ?? (id.includes('/') ? run<Blob>('readonly', (s) => s.get(id.slice(id.indexOf('/') + 1))) : undefined);
 }
 
 export async function deleteFiles(ids: string[]) {

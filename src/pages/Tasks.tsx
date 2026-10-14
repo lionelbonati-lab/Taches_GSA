@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
@@ -44,6 +44,14 @@ export function Tasks() {
     const t = data.tasks.find((x) => x.id === params.get('tache'));
     return t ? { task: t, isNew: false, email: params.get('email') ?? undefined } : null;
   });
+  // Tâche partagée par une autre entité : elle arrive un peu après l'ouverture de l'appli ; on l'ouvre alors.
+  const attendue = useRef(edit ? null : params.get('tache'));
+  useEffect(() => {
+    const t = attendue.current ? data.tasks.find((x) => x.id === attendue.current) : undefined;
+    if (!t) return;
+    attendue.current = null;
+    setEdit((e) => e ?? { task: t, isNew: false, email: params.get('email') ?? undefined });
+  }, [data.tasks, params]);
   const closeEdit = () => {
     setEdit(null);
     if (params.get('tache')) navigate('/taches', { replace: true });

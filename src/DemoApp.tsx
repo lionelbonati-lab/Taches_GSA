@@ -407,7 +407,7 @@ export function DemoApp() {
             const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
             return d.tasks
               .filter((t) => tacheDans(t, u, parentDans(actives, u)?.id, current.id, reglageTaches(org, u)) === 'modifiable')
-              .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts }));
+              .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts, v: 41 }));
           });
       },
       // Séances du comité dont dépend l'entité ouverte, pour y lier une tâche (version réelle : gsa_seances_comite, 032).
@@ -472,7 +472,8 @@ export function DemoApp() {
         const vue = u && old && !u.archive ? tacheDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)) : null;
         if (vue === 'ancienne') throw new Error(`Ancienne tâche de « ${u!.nom} » : elle se consulte et se copie, sans modification`);
         if (!u || !old || vue !== 'modifiable') throw new Error('Cette tâche n’est plus partagée avec cette entité.');
-        d.tasks = d.tasks.map((t) => (t.id === old.id ? fusionPartagee(old, task, current.id, uniteId) : t));
+        const t = fusionPartagee(old, task, current.id, uniteId, { entites: units, centralId: central?.id, meetings: loadUnitData(current.id).meetings });
+        d.tasks = d.tasks.map((x) => (x.id === old.id ? t : x));
         saveUnitData(uniteId, d);
       },
       // Réponse à une tâche à prendre partagée, proposée ici à la personne connectée (version réelle : gsa_repondre_partagee, 040).

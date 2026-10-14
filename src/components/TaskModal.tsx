@@ -14,7 +14,7 @@ import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as 
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
 import type { DelaiUnite, EvenementEntite, OrgUnit, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
-import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
+import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
 
@@ -61,7 +61,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   // Liens et partage déjà remplis : ils restent affichés si on les vide (ex. partage retiré : plus de séance du comité).
   const [ouverts, setOuverts] = useState<Extra[]>(() => [
     ...(task.eventId || task.evenementEntite || (task.meetingId && !task.source) || task.seanceComite || task.parentId ? ['liens' as const] : []),
-    ...(task.partage?.length || task.auCentral ? ['partage' as const] : []),
+    ...((task.partage?.length || task.auCentral) && !task.source ? ['partage' as const] : []),
     ...(task.pourInfo ? ['info' as const] : []),
     ...(task.aPrendre ? ['prendre' as const] : []),
   ]);
@@ -69,11 +69,17 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const club = useClubOptional();
   if (!user) return null;
   // Partage avec d'autres entités du club (tâche de l'entité ouverte) ; tâche partagée par une autre entité : t.source.
+  // Serveur à jour (041) : documents, répétition, séance d'ici et partage se modifient aussi depuis une entité du partage.
+  const complet = !t.source || !!t.source.complet;
   const partage = partageDe(t, club?.central?.id);
-  const partageables = club && !t.paiement && !t.source ? club.units.filter((u) => u.id !== club.current.id && (!u.archive || partage.includes(u.id))) : [];
+  const partageables = club && !t.paiement && complet ? club.units.filter((u) => u.id !== club.current.id && u.id !== t.source?.uniteId && (!u.archive || partage.includes(u.id))) : [];
+  // Tâche partagée : avec d'autres entités que celle-ci (et que la sienne).
+  const partageAutres = partage.filter((id) => id !== club?.current.id && id !== t.source?.uniteId);
   // (Sans l'entité à qui la tâche est attribuée : elle en devient l'entité ; voir plus bas.)
   const nomUnite = (id: string) => club?.units.find((u) => u.id === id)?.nom ?? '';
-  const versCentral = club?.central && club.current.type !== 'central' && partage.includes(club.central.id) ? libellePlace(club.central.sections ?? [], club.current) : '';
+  // Rangée au comité central selon son entité (celle de la tâche partagée par une autre entité).
+  const chez = t.source ? club?.units.find((u) => u.id === t.source!.uniteId) : club?.current;
+  const versCentral = club?.central && chez && chez.type !== 'central' && club.current.type !== 'central' && partage.includes(club.central.id) ? libellePlace(club.central.sections ?? [], chez) : '';
   // Réglage de l'entité : ses tâches toutes affichées (ou aucune) dans le comité dont elle dépend ; un événement dont tout
   // le comité est responsable : toutes.
   const reglage = club ? reglageTaches(club.units, club.current) : undefined;
@@ -140,6 +146,14 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const toggleResp = (id: string) =>
     set('responsables', t.responsables.includes(id) ? t.responsables.filter((x) => x !== id) : [...t.responsables, id]);
 
+  // Fichiers encore joints à une autre tâche (occurrences d'une tâche répétée, qui les reprennent) : gardés.
+  const libres = (ids: string[]) => ids.filter((id) => !data.tasks.some((x) => x.id !== task.id && x.documents?.some((d) => d.id === id)));
+  // Fichiers retirés : effacés une fois la tâche enregistrée (tâche partagée : chez son entité, qui ne les référence plus).
+  const enregistrer = (x: Task) => {
+    const retires = libres(track.current.removed);
+    void Promise.resolve(saveTask(x, isNew)).then(() => deleteFiles(retires));
+  };
+
   const submit = async () => {
     if (!t.titre.trim()) return setErr('Le titre de la tâche est obligatoire.');
     if (!t.sectionId) return setErr('Choisis une section.');
@@ -163,12 +177,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         return setErr((e as Error).message);
       }
       setToast(`✅ Tâche enregistrée dans « ${u.nom} » : elle apparaît ici partagée.`);
-      deleteFiles(track.current.removed);
+      deleteFiles(libres(track.current.removed));
       onClose();
       return;
     }
-    saveTask({ ...t, titre: t.titre.trim() }, isNew);
-    deleteFiles(track.current.removed); // fichiers retirés : effacés seulement une fois la tâche enregistrée
+    enregistrer({ ...t, titre: t.titre.trim() });
     onClose();
   };
 
@@ -208,7 +221,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         }
       });
     }, `Suppression de la tâche « ${task.titre} »`);
-    deleteFiles([...(task.documents ?? []).filter((d) => d.kind === 'fichier').map((d) => d.id), ...track.current.added]);
+    deleteFiles([...libres((task.documents ?? []).filter((d) => d.kind === 'fichier').map((d) => d.id)), ...track.current.added]);
     onClose();
   };
 
@@ -217,12 +230,13 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const postes = postesFor(data, t, isNew ? undefined : task) ?? [];
   // Répétition : « à chaque comité » (le mot des séances de l'entité) ; séance et délai de l'occurrence suivante.
   const mot = motSeance(club?.current.type).toLowerCase();
-  const prochaine = t.recurrence ? seancePourSuivante(data, t) : undefined;
+  // Tâche partagée : c'est son entité qui crée l'occurrence suivante (selon ses séances, ses postes).
+  const prochaine = t.recurrence && !t.source ? seancePourSuivante(data, t) : undefined;
   const seanceLiee = data.meetings.find((m) => m.id === t.meetingId);
-  const delaiSuivant = t.recurrence ? nextOccurrence(data, t, prochaine?.meeting).delai : '';
+  const delaiSuivant = t.recurrence && !t.source ? nextOccurrence(data, t, prochaine?.meeting).delai : t.recurrence && t.recurrence !== 'seance' && t.delai ? nextDate(t.delai, t.recurrence) : '';
   const repeter = (r: Recurrence | undefined) =>
     setT((x) => {
-      if (r !== 'seance' || x.meetingId || x.seanceComite) return { ...x, recurrence: r };
+      if (r !== 'seance' || x.source || x.meetingId || x.seanceComite) return { ...x, recurrence: r };
       // À chaque séance : la tâche va d'abord à la prochaine séance prévue.
       const s = seanceApres(data.meetings, addDays(today(), -1));
       return s && !s.nouvelle ? applyDelaiRef(data, { ...x, recurrence: r, meetingId: s.meeting.id }) : { ...x, recurrence: r };
@@ -232,10 +246,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     checklist: t.checklist.length > 0,
     docs: (t.documents ?? []).length > 0,
     repetition: !!t.recurrence,
-    // Tâche partagée par une autre entité : sa séance ici s'affiche dans le bandeau.
-    liens: !!(t.eventId || t.evenementEntite || (t.meetingId && !t.source) || t.seanceComite || t.parentId || kids.length),
+    // Tâche partagée par une autre entité : sa séance d'ici (ou celle d'ailleurs, en lecture) ; serveur pas à jour : dans le bandeau.
+    liens: !!(t.eventId || t.evenementEntite || t.seanceComite || t.parentId || kids.length || (complet && (t.meetingId || t.source?.seanceAilleurs))),
     emails: !isNew && emailsOf(data, task.id).length > 0,
-    partage: partage.length > 0,
+    partage: (t.source ? partageAutres : partage).length > 0,
     info: nbPourInfo(t.pourInfo) > 0,
     prendre: !!t.aPrendre?.personnes.length || ailleurs(t).length > 0,
   };
@@ -243,10 +257,22 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const ouvrir = (x: Extra) => setOuverts((o) => [...o, x]);
   const ajouts: { label: string; aide: string; run: () => void; si: boolean; partagee?: boolean }[] = [
     { label: '☑️ Checklist', aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist'), partagee: true },
-    { label: '📎 Document', aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs') },
-    { label: '🔁 Répétition', aide: `La tâche revient chaque semaine, chaque mois, à chaque ${mot}…`, run: () => ouvrir('repetition'), si: !voit('repetition') },
-    { label: '🔗 Lier à…', aide: 'Un événement, une séance de comité ou une autre tâche', run: () => ouvrir('liens'), si: !voit('liens') },
-    { label: '🤝 Partager', aide: 'Avec d’autres entités du club : elles la voient et la modifient comme les leurs', run: () => ouvrir('partage'), si: !voit('partage') && partageables.length > 0 },
+    { label: '📎 Document', aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs'), partagee: complet },
+    {
+      label: '🔁 Répétition',
+      aide: t.source ? 'La tâche revient chaque semaine, chaque mois… (son entité crée la suivante)' : `La tâche revient chaque semaine, chaque mois, à chaque ${mot}…`,
+      run: () => ouvrir('repetition'),
+      si: !voit('repetition'),
+      partagee: complet,
+    },
+    {
+      label: '🔗 Lier à…',
+      aide: t.source ? `Une séance de « ${club?.current.nom ?? 'cette entité'} » : la tâche figure à son ordre du jour et à son PV` : 'Un événement, une séance de comité ou une autre tâche',
+      run: () => ouvrir('liens'),
+      si: !voit('liens') && (!t.source || data.meetings.length > 0),
+      partagee: complet,
+    },
+    { label: '🤝 Partager', aide: 'Avec d’autres entités du club : elles la voient et la modifient comme les leurs', run: () => ouvrir('partage'), si: !voit('partage') && partageables.length > 0, partagee: true },
     {
       label: '🙋 À prendre',
       aide: 'Proposer la tâche à quelques personnes : l’une d’elles s’en charge elle-même',
@@ -259,7 +285,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       partagee: true,
     },
     { label: '👁 Pour info', aide: 'Des personnes ou des entités qui la voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement, partagee: true },
-    { label: '📊 Sondage', aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create') },
+    { label: '📊 Sondage', aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create'), partagee: true },
     {
       label: '📧 Email',
       aide: 'Un email envoyé à une date choisie',
@@ -268,8 +294,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         ouvrir('emails');
       },
       si: !isNew && !voit('emails'),
+      partagee: true,
     },
-    // Tâche d'une autre entité : documents, liens, répétition, sondages et emails se gèrent chez elle.
+    // Tâche d'une autre entité : sondages et emails restent ici ; documents, répétition, séance et partage vont chez elle
+    // (serveur à jour : 041).
   ].filter((a) => a.si && (!t.source || a.partagee));
   // Personnes à ajouter : soi-même d'abord.
   const aAjouter = assignable.filter((p) => !t.responsables.includes(p.id)).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
@@ -529,7 +557,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             <textarea rows={2} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} placeholder="Détails utiles (facultatif)" />
           </label>
         )}
-        {partageables.length > 0 && voit('partage') && (!dis || partage.length > 0) && (
+        {partageables.length > 0 && voit('partage') && (!dis || (t.source ? partageAutres : partage).length > 0) && (
           <div className="full partage">
             <span className="field-label">🤝 Partager avec d’autres entités</span>
             <div className="chips">
@@ -542,7 +570,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 ))}
             </div>
             <small className="muted">
-              {partageVisible.length
+              {t.source
+                ? `La tâche reste dans « ${t.source.unite} » ; les entités choisies la voient aussi dans leurs tâches et leur ordre du jour, et la modifient comme les leurs${versCentral ? ` (comité central : ${versCentral})` : ''}.`
+                : partageVisible.length
                 ? `Elles la voient dans leurs tâches et leur ordre du jour, et la modifient comme les leurs${versCentral ? ` (comité central : ${versCentral})` : ''}.`
                 : 'La tâche reste ici ; les entités choisies la voient dans leurs tâches et leur ordre du jour, et peuvent la modifier.'}
             </small>
@@ -623,17 +653,36 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             )}
           </fieldset>
         )}
-        {voit('docs') && <DocsField docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track.current} />}
+        {voit('docs') && (
+          <DocsField
+            docs={t.documents ?? []}
+            setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))}
+            disabled={dis || !complet}
+            track={track.current}
+            // Tâche partagée (041) : fichiers déposés dans le dossier de son entité.
+            idPrefix={t.source ? `${t.source.uniteId}/pt-` : undefined}
+            liens
+          />
+        )}
         {voit('repetition') && (
           <label className="full">
             🔁 Répétition
-            <select value={t.recurrence ?? ''} disabled={dis} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
+            <select value={t.recurrence ?? ''} disabled={dis || !complet} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
               <option value="">Aucune (tâche unique)</option>
-              {RECURRENCES.map((r) => <option key={r.id} value={r.id}>🔁 {r.id === 'seance' ? `À chaque ${mot}` : r.label}</option>)}
+              {/* Tâche partagée : « à chaque séance » (celles de son entité), seulement si elle l'est déjà. */}
+              {RECURRENCES.filter((r) => r.id !== 'seance' || !t.source || t.recurrence === 'seance').map((r) => (
+                <option key={r.id} value={r.id}>🔁 {r.id !== 'seance' ? r.label : t.source ? `À chaque séance de « ${t.source.unite} »` : `À chaque ${mot}`}</option>
+              ))}
             </select>
           </label>
         )}
-        {t.recurrence && (
+        {t.recurrence && t.source && (
+          <p className="full recur-note">
+            🔁 Quand cette tâche sera terminée, « {t.source.unite} » créera automatiquement la suivante
+            {delaiSuivant ? <> pour le <b>{fmtDate(delaiSuivant)}</b></> : t.recurrence === 'seance' ? ' pour sa séance suivante' : ' (sans délai)'}, dès que l’un de ses membres ouvrira l’appli.
+          </p>
+        )}
+        {t.recurrence && !t.source && (
           <p className="full recur-note">
             🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement
             {t.recurrence !== 'seance' ? (
@@ -655,9 +704,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           <fieldset className="full liens">
             <legend>🔗 Liens</legend>
             <div className="form">
-              <EvenementLie t={t} setT={setT} disabled={dis} />
-              <SeanceLiee t={t} setT={setT} disabled={dis} />
-              {!kids.length && (
+              {t.source && <SeanceIci t={t} setT={setT} disabled={dis || !complet} />}
+              {!t.source && <EvenementLie t={t} setT={setT} disabled={dis} />}
+              {!t.source && <SeanceLiee t={t} setT={setT} disabled={dis} />}
+              {!t.source && !kids.length && (
                 <label className="full">
                   Tâche principale
                   <select
@@ -677,7 +727,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                   </select>
                 </label>
               )}
-              {!t.parentId && !isNew && (
+              {!t.source && !t.parentId && !isNew && (
                 <div className="full linked">
                   <span className="field-label">Tâches liées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</span>
                   {kids.length > 0 && (
@@ -744,7 +794,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         )}
         {editable && t.source && (
           <small className="muted full task-ailleurs">
-            📎 Documents, 🔁 répétition, 🔗 liens, 📊 sondage et 📧 email : dans « {t.source.unite} », l’entité de la tâche.
+            {complet
+              ? `🗑️ Supprimer la tâche, la lier à un événement ou à une autre tâche : dans « ${t.source.unite} », l’entité de la tâche.`
+              : `📎 Documents, 🔁 répétition, 🔗 séance et 🤝 partage : dans « ${t.source.unite} », l’entité de la tâche (d’ici aussi après la mise à jour 041 du serveur).`}
             {chezSource && (
               <>
                 {' '}
@@ -895,6 +947,37 @@ function SeanceLiee({ t, setT, disabled }: { t: Task; setT: SetT; disabled: bool
       ) : parent && lu === null ? (
         <small className="muted">Les séances de « {parent.nom} » seront proposées ici après la mise à jour du serveur (migration 032).</small>
       ) : null}
+    </label>
+  );
+}
+
+/**
+ * Tâche partagée par une autre entité (041) : une séance de l'entité ouverte (son ordre du jour et son PV), si la tâche
+ * n'est pas déjà liée à une séance de son entité ou d'une autre (seanceAilleurs, en lecture).
+ */
+function SeanceIci({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
+  const { data } = useStore();
+  const club = useClubOptional();
+  const ailleurs = t.source?.seanceAilleurs;
+  const ici = club?.current.nom ?? 'cette entité';
+  return (
+    <label className="full">
+      Séance de comité liée
+      {ailleurs ? (
+        <input value={ailleurs.replace(/^./, (c) => c.toUpperCase())} disabled readOnly />
+      ) : (
+        <select value={t.meetingId ?? ''} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, meetingId: e.target.value || undefined }))}>
+          <option value="">—</option>
+          {data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre} ({fmtDate(m.date)})</option>)}
+        </select>
+      )}
+      <small className="muted">
+        {ailleurs
+          ? `Elle se change dans « ${t.source!.unite} », l’entité de la tâche.`
+          : t.meetingId
+            ? `🗓️ À l’ordre du jour et au PV de cette séance de « ${ici} ».`
+            : `Une séance de « ${ici} » : la tâche figure alors à son ordre du jour et à son PV.`}
+      </small>
     </label>
   );
 }

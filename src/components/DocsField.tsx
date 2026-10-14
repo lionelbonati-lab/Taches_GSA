@@ -33,14 +33,16 @@ export function DocThumb({ d, page }: { d: TaskDoc; page?: number }) {
   return <span className="doc-icon">{docIcon(d)}</span>;
 }
 
-export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, legende = 'Documents' }: {
+export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, liens = !idPrefix, legende = 'Documents' }: {
   docs: TaskDoc[];
   setDocs: (fn: (d: TaskDoc[]) => TaskDoc[]) => void;
   disabled: boolean;
   compact?: boolean;
   track: DocTracking;
-  /** Préfixe des fichiers ajoutés (dépôt à la caisse centrale) ; pas de liens dans ce cas. */
+  /** Préfixe des fichiers ajoutés : dépôt à la caisse centrale, ou dans le dossier de l'entité d'une tâche partagée. */
   idPrefix?: string;
+  /** Bouton « 🔗 Lien » (par défaut : sans préfixe). */
+  liens?: boolean;
   /** Titre du cadre (ex. « Photo du ticket »). */
   legende?: string;
 }) {
@@ -83,9 +85,10 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
 
   const addLink = () => {
     if (!link || !user) return;
-    let url = link.url.trim();
+    let url = link.url.trim().replace(/\s/g, '%20');
     if (!url) return setErr('Colle l’adresse du document.');
     if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    if (url.length > 2000) return setErr('Adresse trop longue.');
     let nom = link.nom.trim();
     if (!nom) {
       try {
@@ -128,7 +131,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
               </button>
               {!compact && (
                 <small className="muted">
-                  {d.kind === 'lien' ? 'lien' : fmtSize(d.taille)} · {fullName(data.people.find((p) => p.id === d.par))} · {fmtDate(d.le.slice(0, 10))}
+                  {d.kind === 'lien' ? 'lien' : fmtSize(d.taille)} · {d.parNom ?? fullName(data.people.find((p) => p.id === d.par))} · {fmtDate(d.le.slice(0, 10))}
                 </small>
               )}
               {!disabled && <button type="button" className="icon-btn" onClick={() => remove(d)} aria-label={`Retirer ${d.nom}`}>✕</button>}
@@ -141,7 +144,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
           <div className="doc-actions">
             <button type="button" className="btn small" onClick={() => fileRef.current?.click()} disabled={busy}>📎 Fichier</button>
             <button type="button" className="btn small" onClick={() => photoRef.current?.click()} disabled={busy}>📷 Photo</button>
-            {!idPrefix && <button type="button" className="btn small" onClick={() => setLink(link ? null : { url: '', nom: '' })}>🔗 Lien</button>}
+            {liens && <button type="button" className="btn small" onClick={() => setLink(link ? null : { url: '', nom: '' })}>🔗 Lien</button>}
             {busy && <small className="muted">Ajout…</small>}
           </div>
           <input ref={fileRef} type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
