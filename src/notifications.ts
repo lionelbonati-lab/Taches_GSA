@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './data/store';
 import { dueAt, emailState, fillTemplate } from './data/emails';
-import type { AppData, NotifPrefs, Person, TachePartagee } from './data/types';
+import type { AppData, NotifPrefs, Person, TachePartagee, Task } from './data/types';
 import { isOpen } from './data/polls';
-import { aPrendrePourMoi } from './data/aPrendre';
+import { aPrendreOuverte, aPrendrePourMoi, sansReponse } from './data/aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
 import { GENRES, chf, genre, holders, paiementTasks } from './data/paiements';
@@ -227,7 +227,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
 
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    const nouvelle = ['assign', 'info', 'propose', 'pris'].includes(n.type);
+    const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus'].includes(n.type);
     if ((nouvelle && !p.assign) || (!nouvelle && !p.modif)) continue;
     const t = data.tasks.find((x) => x.id === n.taskId);
     if (!t || (t.paiement && n.type === 'assign')) continue; // les tickets ont leur propre alerte
@@ -236,15 +236,20 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
     const by = n.byName ?? fullName(data.people.find((x) => x.id === n.by));
     items.push({
       key: n.id,
-      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : n.type === 'info' ? '👁' : n.type === 'propose' || n.type === 'pris' ? '🙋' : '✏️',
+      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : n.type === 'info' ? '👁' : n.type === 'propose' || n.type === 'pris' ? '🙋' : n.type === 'refus' ? '🙅' : '✏️',
       text:
         n.type === 'assign' ? `${by} t’a attribué « ${t.titre} »`
         : n.type === 'info' ? `${by} te met au courant : « ${t.titre} »`
         : n.type === 'propose' ? `${by} te propose « ${t.titre} » : tu t’en charges ?`
         : n.type === 'pris' ? `${by} se charge de « ${t.titre} »`
+        : n.type === 'refus' ? `${by} n’est pas dispo pour « ${t.titre} »`
         : n.type === 'recur' ? `Tâche récurrente reconduite : « ${t.titre} »`
         : `${by} a modifié « ${t.titre} »`,
-      sub: n.type === 'recur' ? (n.detail ? `nouveau délai : ${n.detail}` : 'sans délai') : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
+      sub:
+        n.type === 'recur' ? (n.detail ? `nouveau délai : ${n.detail}` : 'sans délai')
+        : n.type === 'modif' ? n.detail
+        : n.type === 'refus' ? etatRefus(t)
+        : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
       link: `/taches?tache=${t.id}`,
       at: n.at,
       kind: 'activite',
@@ -298,4 +303,11 @@ export async function showSystemNotification(title: string, body: string, link =
   } catch {
     return false;
   }
+}
+
+/** Tâche à prendre déclinée : où en est-elle ? */
+function etatRefus(t: Task) {
+  if (!aPrendreOuverte(t)) return 'quelqu’un s’en charge';
+  const n = sansReponse(t).length;
+  return n ? `${n} personne${n > 1 ? 's n’ont' : ' n’a'} pas encore répondu` : 'plus personne n’a à répondre : propose-la à d’autres';
 }

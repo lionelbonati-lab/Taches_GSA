@@ -8,7 +8,7 @@ import { delaiTarget, fmtDate, fullName, initials, isDone, isLate, offsetLabel, 
 import { cachedLogo, isImage } from '../data/logo';
 import { ETATS, chf, genre, peutOuvrirTicket } from '../data/paiements';
 import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
-import { aPrendreOuverte, aPrendrePourMoi, nombreAPrendre, volontaires } from '../data/aPrendre';
+import { aPrendreOuverte, aPrendrePourMoi, nombreAPrendre, sansReponse, volontaires } from '../data/aPrendre';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -179,11 +179,19 @@ export function APrendreTag({ task }: { task: Task }) {
   const { data, user } = useStore();
   if (task.source || !aPrendreOuverte(task) || isDone(data, task)) return null;
   const n = nombreAPrendre(task.aPrendre);
-  const noms = task.aPrendre!.personnes.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
+  const nom = (id: string) => fullName(data.people.find((p) => p.id === id));
+  const noms = task.aPrendre!.personnes.map(nom).join(', ');
+  const refus = task.aPrendre!.refus ?? [];
   const titre = aPrendrePourMoi(task, user?.id)
     ? 'On te la propose : ouvre-la et clique « 🙋 Je m’en charge »'
-    : `Proposée à ${noms} : la première qui clique « Je m’en charge » s’en occupe`;
-  return <span className="badge a-prendre" title={titre}>🙋 À prendre{n > 1 ? ` ${volontaires(task).length}/${n}` : ''}</span>;
+    : `Proposée à ${noms} : la première qui clique « Je m’en charge » s’en occupe${refus.length ? `. Pas dispo : ${refus.map(nom).join(', ')}` : ''}`;
+  // Toutes les personnes proposées ont répondu « Pas dispo » (ou pris les places) : à proposer à d'autres.
+  const personne = !sansReponse(task).length;
+  return (
+    <span className={`badge a-prendre${personne ? ' personne' : ''}`} title={personne ? `${titre}. Plus personne n’a à répondre : propose-la à d’autres.` : titre}>
+      {personne ? '🙅 Personne de dispo' : '🙋 À prendre'}{n > 1 ? ` ${volontaires(task).length}/${n}` : ''}
+    </span>
+  );
 }
 
 export function Toast() {

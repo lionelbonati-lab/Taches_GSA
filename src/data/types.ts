@@ -366,6 +366,8 @@ export interface APrendre {
   personnes: string[];
   /** Personnes qu'il faut (1 si absent). */
   nombre?: number;
+  /** Personnes proposées qui ont répondu « Pas dispo ». */
+  refus?: string[];
 }
 
 export interface TachePartagee {
@@ -606,8 +608,11 @@ export interface ColonnesMembres {
 export interface ActivityNotif {
   id: string;
   userId: string;
-  /** info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge (à son auteur). */
-  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris';
+  /**
+   * info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge, refus : quelqu'un
+   * n'est pas dispo (à l'auteur de la tâche).
+   */
+  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus';
   taskId: string;
   by: string;
   /** Auteur hors de l'entité (membre du comité central) : son nom, à afficher tel quel. */

@@ -836,6 +836,12 @@ export async function prendreTache(unite: string, tache: string) {
   if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore les tâches à prendre (mise à jour 038 à appliquer).' : error.message);
 }
 
+/** « Pas dispo » sur une tâche à prendre de l'entité `unite` (039). */
+export async function pasDispoTache(unite: string, tache: string) {
+  const { error } = await sb().rpc('gsa_pas_dispo', { unite, tache });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore « Pas dispo » (mise à jour 039 à appliquer).' : error.message);
+}
+
 /** Proposition d'amélioration de l'appli, enregistrée au comité central (le serveur y met le nom et l'entité de l'auteur). */
 export async function proposerAmelioration(club: string, source: string, p: NouvelleProposition) {
   const { data, error } = await sb().rpc('gsa_proposer_amelioration', { club, source, proposition: p });

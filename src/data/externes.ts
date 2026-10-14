@@ -134,7 +134,7 @@ export function versEntite(
     responsables,
   );
   // À prendre : seulement par des personnes qui ont une fiche chez elle.
-  const aPrendre = epurerAPrendre(t.aPrendre && { ...t.aPrendre, personnes: chez(t.aPrendre.personnes) });
+  const aPrendre = epurerAPrendre(t.aPrendre && { ...t.aPrendre, personnes: chez(t.aPrendre.personnes), refus: chez(t.aPrendre.refus ?? []) }, responsables);
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { meetingId, eventId, parentId, suivanteId, postesResp, proposee, parCentral, auCentral, evenementEntite, modifiePar, source, pieces, ...reste } = t;
   return {

@@ -1,5 +1,5 @@
 import type { AppData, DelaiRef, DelaiUnite, Meeting, Person, Recurrence, Task } from './types';
-import { sansVolontaires } from './aPrendre';
+import { aPrendreSuivante, sansVolontaires } from './aPrendre';
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -256,6 +256,7 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     delai: suit ? delaiDepuis(suit, seance!.date) : t.delai ? (dateSuivante(data, t, t.delai, seance) ?? '') : '',
     // Tâche à prendre : la place se rouvre (les personnes proposées ne sont pas reconduites).
     responsables: sansVolontaires(nextResponsables(data, t), t.aPrendre),
+    aPrendre: aPrendreSuivante(t.aPrendre),
     checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
     parentId: nextParent(data, t),
     // L'événement de cette année ne concerne pas l'occurrence suivante ; la séance, seulement celle du même mois l'an prochain

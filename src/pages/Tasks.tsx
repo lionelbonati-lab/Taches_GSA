@@ -11,7 +11,7 @@ import { nomAppli } from '../data/nomAppli';
 import { APrendreTag, Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 import { PourInfoRecues } from '../components/PourInfo';
 import { pourMoi } from '../data/pourInfo';
-import { aPrendrePourMoi } from '../data/aPrendre';
+import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
 import { editionDe, evenementsDependants, tacheDeLEvenement } from '../data/externes';
@@ -88,7 +88,7 @@ export function Tasks() {
     const res = data.tasks.filter((t) => {
       // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état, les tâches pour info et celles
       // qu'on me propose (à prendre, tant qu'il reste une place).
-      if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || aPrendrePourMoi(t, user.id)) : !canSeeTask(t)) return false;
+      if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
@@ -335,15 +335,17 @@ export function Tasks() {
 }
 
 export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void; onStatus: (t: Task, s: string) => void }) {
-  const { data, user, canEditTask, prendreTache, setToast } = useStore();
+  const { data, user, canEditTask, prendreTache, pasDispo, setToast } = useStore();
   const [prise, setPrise] = useState(false);
   const editable = canEditTask(t) && !t.paiement; // remboursement / paiement : suit son circuit
-  // Tâche à prendre qu'on me propose : « Je m'en charge » directement sur la carte.
-  const aPrendre = !t.source && aPrendrePourMoi(t, user?.id) && !isDone(data, t);
-  const prendre = () => {
+  // Tâche à prendre qu'on me propose : « Je m'en charge » ou « Pas dispo » directement sur la carte. Après « Pas dispo », elle
+  // reste dans « Mes tâches » tant qu'il y a une place, pour changer d'avis (plus à l'accueil ni dans les notifications).
+  const aPrendre = !t.source && peutPrendre(t, user?.id) && !isDone(data, t);
+  const decline = aDecline(t, user?.id);
+  const repondre = (prend: boolean) => {
     setPrise(true);
-    prendreTache(t)
-      .then(() => setToast(`✅ Tu t’en charges : « ${t.titre} »`))
+    (prend ? prendreTache : pasDispo)(t)
+      .then(() => setToast(prend ? `✅ Tu t’en charges : « ${t.titre} »` : `🙅 C’est noté : pas dispo pour « ${t.titre} ». L’auteur est prévenu.`))
       .catch((e: Error) => setToast(`⚠️ ${e.message}`))
       .finally(() => setPrise(false));
   };
@@ -368,7 +370,9 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
       </div>
       {aPrendre && (
         <div className="a-prendre-tap" onClick={(e) => e.stopPropagation()}>
-          <button className="btn primary small" disabled={prise} onClick={prendre}>🙋 Je m’en charge</button>
+          {decline && <small className="muted">🙅 Tu as répondu « Pas dispo ».</small>}
+          <button className={`btn small ${decline ? '' : 'primary'}`} disabled={prise} onClick={() => repondre(true)}>🙋 Je m’en charge{decline ? ' quand même' : ''}</button>
+          {!decline && <button className="btn small" disabled={prise} onClick={() => repondre(false)}>🙅 Pas dispo</button>}
         </div>
       )}
       {editable && (
