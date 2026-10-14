@@ -5,7 +5,7 @@ import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '
 import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
-import { pourLaSeance, selectAgenda } from '../data/agenda';
+import { JOURS_APRES, echeanceSuivante, joursApresTexte, selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
 import { archiveHtml, hydrateArchive, sansAnnexes } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
@@ -110,6 +110,12 @@ export function Pv() {
   useEffect(() => setDraft(null), [s1Id]);
 
   // ---------- Sélection des tâches (partagée avec l'onglet PV) ----------
+  // Marge après la séance suivante : réglage commun à l'entité (le PV reprend les mêmes tâches).
+  const joursApres = data.reglagesOdj?.joursApres ?? 0;
+  const setJoursApres = (n: number) =>
+    update((d) => {
+      d.reglagesOdj = { ...d.reglagesOdj, joursApres: n };
+    }, n ? `Ordre du jour : aussi les tâches jusqu’à ${joursApresTexte(n)} après la séance suivante` : 'Ordre du jour : plus de tâches après la séance suivante');
   const { late, avant1, avant2, bilan, since } = selectAgenda(odj, s0, s1, s2, {
     retards: s.parts.retards,
     avantProchaine: s.parts.avantProchaine,
@@ -117,6 +123,7 @@ export function Pv() {
     bilan: s.parts.bilan,
     statutsExclus: s.statutsExclus,
     sectionsExclues: s.sectionsExclues,
+    joursApres,
   });
 
   // Échéance de chaque tâche retenue (retard, séance, séance suivante, terminée).
@@ -323,7 +330,7 @@ export function Pv() {
     return [
       respText(t) !== '—' && respText(t),
       b !== 'bilan' && t.delai && shortDate(t.delai),
-      s.colonnes.echeance && (b === 'late' ? '⚠ en retard' : b === 'p2' && s2 && pourLaSeance(t, s2) ? `pour le ${s2.titre}` : b === 'bilan' ? `✓ fait${t.termineeLe ? ` le ${shortDate(t.termineeLe)}` : ''}` : ''),
+      s.colonnes.echeance && (b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? `✓ fait${t.termineeLe ? ` le ${shortDate(t.termineeLe)}` : ''}` : ''),
       s.colonnes.statut && b !== 'bilan' && t.statusId !== firstOpen && st?.label,
     ].filter(Boolean) as string[];
   };
@@ -463,7 +470,18 @@ export function Pv() {
               ['notes', 'Cadre de notes et décisions'],
               ...(nbPartagees || !s.parts.partagees ? [['partagees', `Tâches partagées par d’autres entités${nbPartagees ? ` (${nbPartagees})` : ''}`]] : []),
             ] as [keyof PvSettings['parts'], string][]).map(([k, label]) => (
-              <label key={k} className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
+              <div key={k}>
+                <label className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
+                {k === 'avantSuivante' && s.parts.avantSuivante && (
+                  <label className="inline odj-marge" title="Une tâche à faire juste après la séance suivante est mieux vue dès cette séance. Réglage commun à l’entité, repris par le PV.">
+                    et jusqu’à
+                    <select value={joursApres} disabled={!canEdit} onChange={(e) => setJoursApres(Number(e.target.value))}>
+                      {[...new Set([...JOURS_APRES, joursApres])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{joursApresTexte(n)}</option>)}
+                    </select>
+                    après
+                  </label>
+                )}
+              </div>
             ))}
             <label className="inline" title="Les fichiers et liens des tâches de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (1, 2 ou 4 par page)">
               <input type="checkbox" checked={s.annexes} onChange={(e) => set({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin d’ordre du jour

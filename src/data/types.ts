@@ -600,6 +600,8 @@ export interface AppData {
   entetes?: { odj?: Entete; pv?: Entete; bon?: Entete };
   /** Sceau « OK pour paiement » des tickets à rembourser. */
   timbre?: Timbre;
+  /** Réglages communs de l'ordre du jour et du PV de l'entité. */
+  reglagesOdj?: ReglagesOdj;
   /** Entités dont tous les membres font aussi partie de celle-ci (fiches liées tenues à jour). */
   membresDe?: LienEntite[];
   /** Comité central : propositions d'amélioration de l'appli reçues des membres du club. */
@@ -619,6 +621,15 @@ export interface Poste {
   titulaire?: string;
   /** Poste lié au ★ d'une autre entité (son identifiant) : son titulaire en est le ★, changer l'un change l'autre. */
   lien?: string;
+}
+
+/** Réglages communs de l'ordre du jour et du PV. */
+export interface ReglagesOdj {
+  /**
+   * Tâches dont l'échéance tombe peu après la séance suivante (jusqu'à N jours), reprises dès la séance préparée :
+   * la séance suivante serait trop tard pour en parler (défaut : 0).
+   */
+  joursApres?: number;
 }
 
 /** En-tête des documents imprimés (ordre du jour, PV, bon de paiement), commun à toute l'entité. */

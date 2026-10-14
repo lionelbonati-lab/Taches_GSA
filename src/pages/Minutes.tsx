@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { FULL_AGENDA, meetingContext, pourLaSeance, selectAgenda, sortedMeetings } from '../data/agenda';
+import { FULL_AGENDA, echeanceSuivante, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
 import type { MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
@@ -123,7 +123,7 @@ export function Minutes() {
   }, [data, pending, edit]);
 
   // ---------- Points de la séance ----------
-  const sel = selectAgenda(data, s0, s1, s2, FULL_AGENDA);
+  const sel = selectAgenda(data, s0, s1, s2, { ...FULL_AGENDA, joursApres: data.reglagesOdj?.joursApres });
   const bucket = new Map<string, 'late' | 'p1' | 'p2' | 'bilan'>();
   sel.late.forEach((t) => bucket.set(t.id, 'late'));
   sel.avant1.forEach((t) => bucket.set(t.id, 'p1'));
@@ -145,7 +145,7 @@ export function Minutes() {
     return [
       t.responsables.map((id) => initials(person(id))).join(', '),
       b !== 'bilan' && t.delai && shortDate(t.delai),
-      b === 'late' ? '⚠ en retard' : b === 'p2' && s2 && pourLaSeance(t, s2) ? `pour le ${s2.titre}` : b === 'bilan' ? '✓ fait' : '',
+      b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? '✓ fait' : '',
       isNewTask(t) && '🆕 nouvelle',
     ].filter(Boolean) as string[];
   };

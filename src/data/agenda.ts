@@ -10,6 +10,8 @@ export interface AgendaOptions {
   bilan: boolean;
   statutsExclus: string[];
   sectionsExclues: string[];
+  /** Aussi les tâches dont l'échéance tombe jusqu'à N jours après la séance suivante. */
+  joursApres?: number;
 }
 
 export const FULL_AGENDA: AgendaOptions = {
@@ -31,15 +33,20 @@ export function meetingContext(data: AppData, s1?: Meeting) {
   return { meetings, after, s0, s2: after[0] as Meeting | undefined };
 }
 
+/** Marges proposées après la séance suivante (jours). */
+export const JOURS_APRES = [0, 3, 7, 14, 21, 30];
+export const joursApresTexte = (n: number) => (n === 0 ? 'non' : n % 7 === 0 ? `${n / 7} semaine${n > 7 ? 's' : ''}` : n === 30 ? '1 mois' : `${n} jours`);
+
 /**
- * Tâche « pour » la séance suivante s2 : à faire à sa date (ou après). Celles dont l'échéance tombe avant
- * (entre les deux séances) affichent seulement leur date : la séance suivante serait trop tard pour en parler.
+ * Échéance d'une tâche retenue pour la séance suivante s2 : « pour le … » à sa date, « après le … » peu après (marge
+ * « joursApres »). Avant elle (entre les deux séances), rien : seulement la date, la séance suivante serait trop tard.
  */
-export const pourLaSeance = (t: Task, s2: Meeting) => !t.delai || t.delai >= s2.date;
+export const echeanceSuivante = (t: Task, s2: Meeting) =>
+  !t.delai || t.delai === s2.date ? `pour le ${s2.titre}` : t.delai > s2.date ? `après le ${s2.titre}` : '';
 
 /**
  * Tâches de l'ordre du jour de la séance s1 :
- * en retard, à faire d'ici s1, d'ici la séance suivante s2, terminées depuis la séance précédente s0.
+ * en retard, à faire d'ici s1, d'ici la séance suivante s2 (et peu après : « joursApres »), terminées depuis la séance précédente s0.
  */
 export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting | undefined, s2: Meeting | undefined, o: AgendaOptions) {
   const eligible = (t: Task) => !o.sectionsExclues.includes(t.sectionId);
@@ -48,7 +55,9 @@ export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting
   const rest = open.filter((t) => !late.includes(t));
   const avant1 = s1 && o.avantProchaine ? rest.filter((t) => t.meetingId === s1.id || !t.delai || t.delai <= s1.date) : [];
   const avant2 =
-    s2 && o.avantSuivante ? rest.filter((t) => !avant1.includes(t) && (t.meetingId === s2.id || (!!t.delai && t.delai <= s2.date))) : [];
+    s2 && o.avantSuivante
+      ? rest.filter((t) => !avant1.includes(t) && (t.meetingId === s2.id || (!!t.delai && t.delai <= addDays(s2.date, o.joursApres ?? 0))))
+      : [];
   const since = s0?.date ?? addDays(today(), -60);
   const bilan = o.bilan
     ? data.tasks.filter(
