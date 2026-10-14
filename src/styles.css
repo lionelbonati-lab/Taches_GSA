@@ -1411,3 +1411,4 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .choix-annexe-nom small { font-size: .75rem; }
 .choix-annexes li:has(input:not(:checked)) .choix-annexe-nom, .choix-annexes li:has(input:not(:checked)) img { opacity: .5; }
 .choix-annexes .row { gap: 6px; margin: 2px 0 4px; }
+.btn.link.danger-link { color: var(--danger); }

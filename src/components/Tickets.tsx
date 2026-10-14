@@ -229,8 +229,14 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
     window.addEventListener('afterprint', fin);
     setTimeout(() => window.print(), 100);
   };
+  // Après la demande de visa : la caisse seule (le serveur le vérifie aussi), pour une demande de test ou une erreur.
+  const engage = p.etat === 'visa' || p.etat === 'valide' || p.etat === 'paye';
   const supprimer = () => {
-    if (!confirm(`Supprimer « ${t.titre} » (${g.nom.toLowerCase()}) ?`)) return;
+    const quoi = `« ${t.titre} » (${g.nom.toLowerCase()} de ${chf(p.montant)})`;
+    const avert = engage
+      ? `\n\nAttention : ${p.etat === 'paye' ? 'il est payé' : p.etat === 'valide' ? 'il est visé' : 'un visa est demandé'}. Il disparaît des paiements avec ses justificatifs${p.validation?.docVise ? ' et la copie visée' : ''}. À faire seulement pour une demande de test ou une erreur ; la suppression reste notée dans le journal.`
+      : '';
+    if (!confirm(`Supprimer ${quoi} ?${avert}`)) return;
     update((d) => { d.tasks = d.tasks.filter((x) => x.id !== t.id); }, `Suppression : ${g.nom.toLowerCase()} « ${t.titre} » (${chf(p.montant)})`);
     deleteFiles((t.documents ?? []).filter((d) => d.kind === 'fichier').map((d) => d.id));
   };
@@ -310,6 +316,7 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
           <button className="btn" onClick={onEdit}>{p.etat === 'refuse' && mien ? 'Corriger et renvoyer' : 'Modifier'}</button>
         )}
         {(p.etat === 'recu' || p.etat === 'refuse') && (mien || caisse) && <button className="btn danger" onClick={supprimer}>Supprimer</button>}
+        {engage && caisse && <button className="btn link danger-link" onClick={supprimer} title="Demande de test ou erreur : la caisse peut la supprimer">Supprimer…</button>}
         {(p.etat === 'valide' || p.etat === 'paye') && p.validation?.docVise && <button className="btn" onClick={telecharger}>⬇️ Télécharger : {g.vise.toLowerCase()}</button>}
         {(p.etat === 'valide' || p.etat === 'paye') && <button className="btn" onClick={imprimer}>🖨 Bon de paiement</button>}
         {p.etat === 'valide' && caisse && <button className="btn link" onClick={retirerVisa}>Retirer le visa</button>}
