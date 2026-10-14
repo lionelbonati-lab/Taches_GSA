@@ -830,6 +830,12 @@ export async function attribuerTache(unite: string, cible: string, task: Task, s
   if (error) throw new Error(absente(error) ? 'Le serveur ne sait pas encore enregistrer une tâche dans l’entité qui dépend du comité (mise à jour 035 à appliquer).' : error.message);
 }
 
+/** « 🙋 Je m'en charge » sur une tâche à prendre de l'entité `unite` : la personne connectée en devient responsable (038). */
+export async function prendreTache(unite: string, tache: string) {
+  const { error } = await sb().rpc('gsa_prendre_tache', { unite, tache });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore les tâches à prendre (mise à jour 038 à appliquer).' : error.message);
+}
+
 /** Proposition d'amélioration de l'appli, enregistrée au comité central (le serveur y met le nom et l'entité de l'auteur). */
 export async function proposerAmelioration(club: string, source: string, p: NouvelleProposition) {
   const { data, error } = await sb().rpc('gsa_proposer_amelioration', { club, source, proposition: p });

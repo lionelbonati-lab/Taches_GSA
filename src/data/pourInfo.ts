@@ -21,8 +21,8 @@ export function epurerPourInfo(p: PourInfo | undefined, responsables: string[] =
   return Object.keys(r).length ? r : undefined;
 }
 
-/** Tâche de l'entité ouverte où la personne est mentionnée pour info. */
-export const pourMoi = (t: Pick<Task, 'pourInfo' | 'paiement'>, userId?: string) => !!userId && !t.paiement && !!t.pourInfo?.personnes?.includes(userId);
+/** Tâche de l'entité ouverte où la personne est mentionnée pour info (pas une tâche partagée : ses fiches sont d'ailleurs). */
+export const pourMoi = (t: Pick<Task, 'pourInfo' | 'paiement' | 'source'>, userId?: string) => !!userId && !t.paiement && !t.source && !!t.pourInfo?.personnes?.includes(userId);
 
 /**
  * Tâche d'une autre entité, pour info de l'entité ouverte `moi` : visible par la personne connectée ? L'entité

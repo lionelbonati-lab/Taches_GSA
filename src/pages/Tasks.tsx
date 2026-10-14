@@ -8,9 +8,10 @@ import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
-import { Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
+import { APrendreTag, Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 import { PourInfoRecues } from '../components/PourInfo';
 import { pourMoi } from '../data/pourInfo';
+import { aPrendrePourMoi } from '../data/aPrendre';
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
 import { editionDe, evenementsDependants, tacheDeLEvenement } from '../data/externes';
@@ -85,8 +86,9 @@ export function Tasks() {
     const q = f.q.trim().toLowerCase();
     let nArchivees = 0;
     const res = data.tasks.filter((t) => {
-      // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état, et les tâches pour info.
-      if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id)) : !canSeeTask(t)) return false;
+      // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état, les tâches pour info et celles
+      // qu'on me propose (à prendre, tant qu'il reste une place).
+      if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || aPrendrePourMoi(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
@@ -283,7 +285,7 @@ export function Tasks() {
                   <td>{sectionName(t.sectionId)}</td>
                   <td className="muted">{t.sousSection}</td>
                   <td>
-                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /> <TicketTag task={t} />
+                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /> <TicketTag task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
                     <Linked t={t} />
                   </td>
@@ -309,7 +311,7 @@ export function Tasks() {
                 {col.map((t) => (
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t) && !t.paiement} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
-                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /></strong>
+                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
                     <TicketTag task={t} />
                     <Linked t={t} />
                     <div className="kmeta">
@@ -333,8 +335,18 @@ export function Tasks() {
 }
 
 export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void; onStatus: (t: Task, s: string) => void }) {
-  const { data, canEditTask } = useStore();
+  const { data, user, canEditTask, prendreTache, setToast } = useStore();
+  const [prise, setPrise] = useState(false);
   const editable = canEditTask(t) && !t.paiement; // remboursement / paiement : suit son circuit
+  // Tâche à prendre qu'on me propose : « Je m'en charge » directement sur la carte.
+  const aPrendre = !t.source && aPrendrePourMoi(t, user?.id) && !isDone(data, t);
+  const prendre = () => {
+    setPrise(true);
+    prendreTache(t)
+      .then(() => setToast(`✅ Tu t’en charges : « ${t.titre} »`))
+      .catch((e: Error) => setToast(`⚠️ ${e.message}`))
+      .finally(() => setPrise(false));
+  };
   const sectionName = data.sections.find((s) => s.id === t.sectionId)?.nom ?? '';
   const late = isLate(data, t);
   const n = daysUntil(t.delai);
@@ -344,7 +356,7 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         <small className="muted">{sectionName}{t.sousSection && ` › ${t.sousSection}`}</small>
         <StatusBadge task={t} />
       </div>
-      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /></strong>
+      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
       <TicketTag task={t} />
       <Linked t={t} />
       {t.remarque && <small className="muted clip">{t.remarque}</small>}
@@ -354,6 +366,11 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
           <LinkIcon task={t} /> {fmtDate(t.delai)} {late ? `(${-n} j de retard)` : n === 0 ? "(aujourd'hui)" : n > 0 && n <= 7 ? `(J-${n})` : ''}
         </span>
       </div>
+      {aPrendre && (
+        <div className="a-prendre-tap" onClick={(e) => e.stopPropagation()}>
+          <button className="btn primary small" disabled={prise} onClick={prendre}>🙋 Je m’en charge</button>
+        </div>
+      )}
       {editable && (
         <div className="status-tap" onClick={(e) => e.stopPropagation()}>
           {data.statuses.map((s) => (

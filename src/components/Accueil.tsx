@@ -38,6 +38,7 @@ export function useBlocsAccueil(): Element[] {
     { id: 'edition', label: '📅 Date de l’édition', si: hasEdition(club?.current) },
     { id: 'compteurs', label: '🔢 Compteurs de mes tâches', si: true },
     { id: 'retard', label: '⚠ Mes tâches en retard', si: true },
+    { id: 'aprendre', label: '🙋 À prendre (tâches qu’on me propose)', si: true },
     { id: 'semaine', label: `📅 À faire dans les ${jours} jours`, si: true },
     { id: 'pourinfo', label: '👁 Pour info', si: true },
     { id: 'demandes', label: central ? '📨 Demandes reçues' : '📨 Demandes au comité central', si: !!club },

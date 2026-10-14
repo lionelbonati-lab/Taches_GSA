@@ -1319,7 +1319,13 @@ body.glisse-en-cours, body.glisse-en-cours * { cursor: grabbing !important; user
 .badge.proposal { background: #0e7490; font-size: 0.7rem; padding: 2px 7px; vertical-align: middle; }
 .badge.pour-info { background: #6d28d9; font-size: 0.7rem; padding: 2px 7px; vertical-align: middle; }
 .partage-banner { margin: 0; border: 1px solid #0e7490; background: color-mix(in srgb, #0e7490 10%, var(--surface)); border-radius: 8px; padding: 7px 10px; font-size: 0.9rem; }
-.partage .chips, .pour-info .chips { margin-top: 4px; }
+.partage .chips, .pour-info .chips, .a-prendre .chips { margin-top: 4px; }
+/* À prendre : tâche proposée à quelques personnes, l'une s'en charge (« 🙋 Je m'en charge »). */
+.badge.a-prendre { background: #c2410c; font-size: 0.7rem; padding: 2px 7px; vertical-align: middle; }
+.a-prendre-banner { margin: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #c2410c; background: color-mix(in srgb, #c2410c 10%, var(--surface)); border-radius: 8px; padding: 8px 10px; font-size: 0.92rem; }
+.a-prendre-nombre { display: flex; align-items: center; gap: 6px; margin-top: 6px; font-size: 0.9rem; }
+.a-prendre-nombre select { width: auto; }
+.a-prendre-tap { margin-top: 8px; }
 .autres-resp { display: block; margin-top: 4px; }
 .proposal-banner { margin: 0; border: 1px solid #0e7490; background: color-mix(in srgb, #0e7490 10%, var(--surface)); border-radius: 8px; padding: 7px 10px; font-size: 0.9rem; }
 h2.with-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }

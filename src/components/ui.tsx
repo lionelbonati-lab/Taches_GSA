@@ -4,10 +4,11 @@ import { useClubOptional } from '../data/club';
 import { partageDe } from '../data/partage';
 import { UNIT_TYPES } from '../data/units';
 import type { Task } from '../data/types';
-import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
+import { delaiTarget, fmtDate, fullName, initials, isDone, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
 import { ETATS, chf, genre, peutOuvrirTicket } from '../data/paiements';
 import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
+import { aPrendreOuverte, aPrendrePourMoi, nombreAPrendre, volontaires } from '../data/aPrendre';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -171,6 +172,18 @@ export function PourInfoTag({ task }: { task: Task }) {
   const noms = ciblesPourInfo(task.pourInfo, data.people, club?.units ?? []).map((c) => c.texte).join(', ');
   if (pourMoi(task, user?.id)) return <span className="badge pour-info" title={`On te tient au courant, sans que tu t'en occupes · pour info : ${noms}`}>👁 Pour info</span>;
   return <span className="badge pour-info" title={`Pour info : ${noms}`}>👁 {n}</span>;
+}
+
+/** Tâche à prendre, encore ouverte : « 🙋 À prendre » (avec les places prises s'il faut plusieurs personnes). */
+export function APrendreTag({ task }: { task: Task }) {
+  const { data, user } = useStore();
+  if (task.source || !aPrendreOuverte(task) || isDone(data, task)) return null;
+  const n = nombreAPrendre(task.aPrendre);
+  const noms = task.aPrendre!.personnes.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
+  const titre = aPrendrePourMoi(task, user?.id)
+    ? 'On te la propose : ouvre-la et clique « 🙋 Je m’en charge »'
+    : `Proposée à ${noms} : la première qui clique « Je m’en charge » s’en occupe`;
+  return <span className="badge a-prendre" title={titre}>🙋 À prendre{n > 1 ? ` ${volontaires(task).length}/${n}` : ''}</span>;
 }
 
 export function Toast() {

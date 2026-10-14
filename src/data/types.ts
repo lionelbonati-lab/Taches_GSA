@@ -272,6 +272,8 @@ export interface Task {
   respPartage?: Record<string, string[]>;
   /** Pour info : personnes et entités qui voient la tâche sans s'en occuper. */
   pourInfo?: PourInfo;
+  /** À prendre : tâche proposée à quelques personnes ; l'une d'elles s'en charge elle-même (« 🙋 Je m'en charge »). */
+  aPrendre?: APrendre;
   /** Section choisie par les entités du partage (par entité ; sinon rangée automatiquement). */
   placePartage?: Record<string, { sectionId: string; sousSection: string }>;
   /** Dernière modification faite depuis une entité du partage : « Nom (entité) ». */
@@ -353,6 +355,17 @@ export interface PourInfo {
   unites?: string[];
   /** Personnes d'autres entités : leur fiche dans leur entité, par entité. */
   autres?: Record<string, string[]>;
+}
+
+/**
+ * À prendre : la tâche est proposée à des personnes de son entité ; la première qui clique « 🙋 Je m'en charge » en devient
+ * responsable. Une place est prise tant que la personne proposée est responsable (retirée : la place se libère).
+ */
+export interface APrendre {
+  /** Fiches de l'entité à qui la tâche est proposée. */
+  personnes: string[];
+  /** Personnes qu'il faut (1 si absent). */
+  nombre?: number;
 }
 
 export interface TachePartagee {
@@ -593,8 +606,8 @@ export interface ColonnesMembres {
 export interface ActivityNotif {
   id: string;
   userId: string;
-  /** info : mentionné « pour info » sur la tâche. */
-  type: 'assign' | 'modif' | 'recur' | 'info';
+  /** info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge (à son auteur). */
+  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris';
   taskId: string;
   by: string;
   /** Auteur hors de l'entité (membre du comité central) : son nom, à afficher tel quel. */

@@ -9,11 +9,12 @@ import { clearFiles } from './files';
 import { avecSondages, avecVote, sondageEnregistre } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
-import { applyRows, type CloudSync, type Membership } from './cloud';
+import { applyRows, prendreTache as prendreServeur, rattraper, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
 import { encoreMontree, epurerPourInfo, pourMoi, recuePourMoi } from './pourInfo';
+import { aPrendreOuverte, epurerAPrendre, proposeeA } from './aPrendre';
 import { entitesDependantes, evenementsDependants, suivreExternes, versEntite, type Externes } from './externes';
 import { parentDans } from './units';
 
@@ -195,6 +196,8 @@ interface Store {
    * partagée). Erreur : rien n'est changé.
    */
   attribuerTache: (t: Task, cible: OrgUnit, sectionId: string, isNew: boolean) => Promise<void>;
+  /** « 🙋 Je m'en charge » : la personne connectée devient responsable d'une tâche à prendre qui lui est proposée. */
+  prendreTache: (t: Task) => Promise<void>;
   /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
   toast: string | null;
   setToast: (msg: string | null) => void;
@@ -506,6 +509,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       // Modifiée ici : ce n'est plus une entité du partage qui l'a modifiée en dernier.
       const task: Task = { ...t, updatedAt: new Date().toISOString(), modifiePar: undefined };
       task.pourInfo = task.paiement ? undefined : epurerPourInfo(task.pourInfo, task.responsables);
+      task.aPrendre = task.paiement ? undefined : epurerAPrendre(task.aPrendre);
       const before = data.tasks.find((x) => x.id === task.id);
       // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
       task.postesResp = postesFor(data, task, before);
@@ -525,7 +529,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         task.suivanteId = next.id;
       }
 
-      const who = next?.responsables.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
+      const who = next?.responsables.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ') || (next?.aPrendre ? '🙋 à prendre' : '');
 
       // Notifications d'activité pour les autres responsables.
       const actor = userId ?? '?';
@@ -537,6 +541,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       added.forEach((id) => push(id, 'assign', task.id));
       // Mentionnés pour info : prévenus une fois, quand on les ajoute.
       (task.pourInfo?.personnes ?? []).filter((id) => !before?.pourInfo?.personnes?.includes(id)).forEach((id) => push(id, 'info', task.id));
+      // À prendre : les personnes à qui on la propose sont prévenues (tant qu'il reste une place et qu'elle n'est pas terminée).
+      if (aPrendreOuverte(task) && !isDone(data, task))
+        task.aPrendre!.personnes.filter((id) => !task.responsables.includes(id) && !before?.aPrendre?.personnes.includes(id)).forEach((id) => push(id, 'propose', task.id));
       if (before) {
         const st = data.statuses.find((x) => x.id === task.statusId)?.label;
         const detail =
@@ -547,6 +554,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         if (detail) task.responsables.filter((id) => !added.includes(id)).forEach((id) => push(id, 'modif', task.id, detail));
       }
       next?.responsables.forEach((id) => push(id, 'recur', next!.id, next!.delai ? fmtDate(next!.delai) : undefined));
+      next?.aPrendre?.personnes.filter((id) => !next!.responsables.includes(id)).forEach((id) => push(id, 'propose', next!.id));
       const nextEmails = next ? emailsForNext(data, task, next, seance?.meeting) : [];
 
       update(
@@ -581,6 +589,41 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (next) setToast(`🔁 Tâche récurrente reconduite${next.delai ? ` au ${fmtDate(next.delai)}` : ''} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
     },
     [update, data, userId, savePartagee],
+  );
+
+  const prendreTache = useCallback(
+    async (t: Task) => {
+      if (!user) throw new Error('Connecte-toi d’abord.');
+      const x = data.tasks.find((y) => y.id === t.id);
+      if (!x || !proposeeA(x, user.id)) throw new Error('Cette tâche ne t’est pas proposée.');
+      if (x.responsables.includes(user.id)) return;
+      if (isDone(data, x)) throw new Error('Cette tâche est déjà terminée.');
+      if (!aPrendreOuverte(x)) throw new Error('Quelqu’un s’en charge déjà.');
+      const at = new Date().toISOString();
+      // Son auteur est prévenu.
+      const notifs: ActivityNotif[] = x.createdBy && x.createdBy !== user.id ? [{ id: uid('n'), userId: x.createdBy, type: 'pris', taskId: x.id, by: user.id, at }] : [];
+      const action = `${fullName(user)} se charge de la tâche « ${x.titre} »`;
+      const c = clubRef.current;
+      if (cloud && c) {
+        // Serveur : place vérifiée et prise d'un coup (deux personnes en même temps : la seconde trouve la place prise).
+        await cloud.sync.flushNow();
+        await prendreServeur(c.current.id, x.id).catch((e) => {
+          rattraper(); // place prise entre-temps : la version du serveur est relue
+          throw e;
+        });
+        const fresh = await cloud.sync.fetchRows([{ kind: 'tasks', id: x.id }]);
+        setData((prev) => applyRows(prev, fresh, cloud.sync.posOf));
+        update((d) => {
+          if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
+        }, action);
+        return;
+      }
+      update((d) => {
+        d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, responsables: [...y.responsables, user.id], updatedAt: at } : y));
+        if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
+      }, action);
+    },
+    [user, data, cloud, update],
   );
 
   const markNotifsRead = useCallback(
@@ -753,10 +796,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     user,
     myRoles,
     can,
-    // Comme le serveur (migration 029) : ses tâches (responsable, créées par soi) et celles des sections « Voir toutes » ;
-    // les tickets (remboursements, factures) à part : la caisse, le demandeur et la personne qui vise (ou a visé).
+    // Comme le serveur (migrations 029, 037, 038) : ses tâches (responsable, créées par soi, pour info, à prendre) et celles
+    // des sections « Voir toutes » ; les tickets (remboursements, factures) à part : la caisse, le demandeur et la personne qui vise (ou a visé).
     canSeeTask: (t) => {
-      if (isOwn(t) || pourMoi(t, user?.id)) return true;
+      if (isOwn(t) || pourMoi(t, user?.id) || proposeeA(t, user?.id)) return true;
       const p = t.paiement;
       if (!p) return can('tasks.viewAll', t.sectionId);
       return (!!user && [p.demandePar, p.visa?.a, p.validation?.par].includes(user.id)) || can('paiements.payer');
@@ -773,6 +816,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     setPrefs,
     saveTask,
     attribuerTache,
+    prendreTache,
     toast,
     setToast,
     markNotifsRead,

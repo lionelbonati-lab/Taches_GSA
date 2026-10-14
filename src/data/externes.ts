@@ -2,6 +2,8 @@ import type { AgendaClubEvent, AppData, EvenementEntite, Meeting, OrgUnit, Perso
 import { entiteDeSection, estEvenement, estSectionEvenements, memePersonne, partageDe, placeAuto, sousSectionDe, statutCorrespondant } from './partage';
 import { parentDans } from './units';
 import { endOf } from './utils';
+import { epurerPourInfo } from './pourInfo';
+import { epurerAPrendre } from './aPrendre';
 
 // Tâches liées à une autre entité du club, dans les deux sens de « Dépend de » :
 // - une entité (ex. une équipe d'événement) lie une tâche à une séance du comité dont elle dépend (seanceComite) ;
@@ -116,6 +118,23 @@ export function versEntite(
   const m = t.meetingId ? ctx.meetings.find((x) => x.id === t.meetingId) : undefined;
   const seanceComite: SeanceComite | undefined = m && { uniteId: comite.id, id: m.id, titre: m.titre, date: m.date };
   const createur = ctx.moi && cible.membres.find((x) => memePersonne(ctx.moi!, x));
+  // Personnes du comité (fiches d'ici) : leur fiche chez l'entité, si elles en ont une.
+  const chez = (ids: string[]) =>
+    ids.flatMap((id) => { const p = ctx.people.find((x) => x.id === id); const m = p && cible.membres.find((x) => memePersonne(p, x)); return m ? [m.id] : []; });
+  // Pour info : les personnes d'ici sans fiche chez elle restent au courant comme personnes du comité ; l'entité ne se
+  // met pas pour info d'elle-même.
+  const info = t.pourInfo;
+  const infoIci = (info?.personnes ?? []).filter((id) => !chez([id]).length);
+  const pourInfo = epurerPourInfo(
+    info && {
+      personnes: [...chez(info.personnes ?? []), ...(info.autres?.[cible.id] ?? [])],
+      unites: (info.unites ?? []).filter((id) => id !== cible.id),
+      autres: { ...Object.fromEntries(Object.entries(info.autres ?? {}).filter(([u]) => u !== cible.id)), ...(infoIci.length ? { [comite.id]: infoIci } : {}) },
+    },
+    responsables,
+  );
+  // À prendre : seulement par des personnes qui ont une fiche chez elle.
+  const aPrendre = epurerAPrendre(t.aPrendre && { ...t.aPrendre, personnes: chez(t.aPrendre.personnes) });
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { meetingId, eventId, parentId, suivanteId, postesResp, proposee, parCentral, auCentral, evenementEntite, modifiePar, source, pieces, ...reste } = t;
   return {
@@ -130,6 +149,8 @@ export function versEntite(
     delaiRef: seanceComite && t.delaiRef?.type === 'meeting' ? t.delaiRef : undefined,
     documents: t.documents?.filter((d) => d.kind !== 'fichier'),
     createdBy: createur?.id ?? '',
+    pourInfo,
+    aPrendre,
     attribueePar: { uniteId: comite.id, unite: comite.nom, par: ctx.par, le: ctx.aujourdhui },
     updatedAt: new Date().toISOString(),
   };

@@ -8,6 +8,7 @@ import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
 import { PourInfoRecues, clePourInfo, delaiRecu } from '../components/PourInfo';
 import { pourMoi, termineeChezElle } from '../data/pourInfo';
+import { aPrendrePourMoi } from '../data/aPrendre';
 import { isOpen } from '../data/polls';
 import { dueAt, emailState, fillTemplate, whenLabel } from '../data/emails';
 import { EmailSend } from '../components/EmailsField';
@@ -71,8 +72,10 @@ export function Dashboard() {
   // Pour info : tâches d'ici où je suis mentionné, et celles d'autres entités (moi ou mon entité), en cours.
   const infoIci = data.tasks.filter((t) => pourMoi(t, user.id) && !isDone(data, t)).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   const infoRecues = pourInfo.filter((x) => !termineeChezElle(x)).sort((a, b) => (a.task.delai || '9999').localeCompare(b.task.delai || '9999'));
+  // À prendre : tâches qu'on me propose, tant qu'il reste une place.
+  const aPrendre = data.tasks.filter((t) => !t.source && aPrendrePourMoi(t, user.id) && !isDone(data, t)).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   // Blocs vides ce jour-là : ils ne prennent pas de place.
-  const vide = (id: string) => (id === 'emails' && !toSend.length && !upcoming.length) || (id === 'sondages' && !toVote.length) || (id === 'compteurs' && !compteurs.length) || (id === 'pourinfo' && !infoIci.length && !infoRecues.length);
+  const vide = (id: string) => (id === 'aprendre' && !aPrendre.length) || (id === 'emails' && !toSend.length && !upcoming.length) || (id === 'sondages' && !toVote.length) || (id === 'compteurs' && !compteurs.length) || (id === 'pourinfo' && !infoIci.length && !infoRecues.length);
   const ordre = blocs.filter((id) => !vide(id));
 
   const rendre = (id: string): ReactNode => {
@@ -110,6 +113,13 @@ export function Dashboard() {
               jours{toutes && <small className="muted"> · toutes les tâches</small>}
             </h2>
             {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>{jours <= 7 ? 'Aucune échéance cette semaine.' : `Aucune échéance dans les ${jours} jours.`}</Empty>}
+          </>
+        );
+      case 'aprendre':
+        return (
+          <>
+            <h2>🙋 À prendre <small className="muted">· on te les propose : l’une est pour toi ?</small></h2>
+            <div className="cards">{aPrendre.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div>
           </>
         );
       case 'pourinfo':
@@ -263,7 +273,7 @@ export function Dashboard() {
 
 /** Ordinateur : blocs sur toute la largeur, et blocs de tâches (colonne de gauche). */
 const LARGES = ['edition', 'compteurs'];
-const TACHES = ['retard', 'semaine', 'pourinfo'];
+const TACHES = ['retard', 'aprendre', 'semaine', 'pourinfo'];
 
 export function Progress({ done, total }: { done: number; total: number }) {
   const pct = total ? Math.round((done / total) * 100) : 0;

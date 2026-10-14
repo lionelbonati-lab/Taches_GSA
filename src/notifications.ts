@@ -3,6 +3,7 @@ import { useStore } from './data/store';
 import { dueAt, emailState, fillTemplate } from './data/emails';
 import type { AppData, NotifPrefs, Person, TachePartagee } from './data/types';
 import { isOpen } from './data/polls';
+import { aPrendrePourMoi } from './data/aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
 import { GENRES, chf, genre, holders, paiementTasks } from './data/paiements';
@@ -226,16 +227,21 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
 
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    if ((['assign', 'info'].includes(n.type) && !p.assign) || (!['assign', 'info'].includes(n.type) && !p.modif)) continue;
+    const nouvelle = ['assign', 'info', 'propose', 'pris'].includes(n.type);
+    if ((nouvelle && !p.assign) || (!nouvelle && !p.modif)) continue;
     const t = data.tasks.find((x) => x.id === n.taskId);
     if (!t || (t.paiement && n.type === 'assign')) continue; // les tickets ont leur propre alerte
+    // Tâche à prendre : plus rien à faire si quelqu'un s'en charge déjà (ou si elle est terminée).
+    if (n.type === 'propose' && (!aPrendrePourMoi(t, user.id) || isDone(data, t))) continue;
     const by = n.byName ?? fullName(data.people.find((x) => x.id === n.by));
     items.push({
       key: n.id,
-      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : n.type === 'info' ? '👁' : '✏️',
+      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : n.type === 'info' ? '👁' : n.type === 'propose' || n.type === 'pris' ? '🙋' : '✏️',
       text:
         n.type === 'assign' ? `${by} t’a attribué « ${t.titre} »`
         : n.type === 'info' ? `${by} te met au courant : « ${t.titre} »`
+        : n.type === 'propose' ? `${by} te propose « ${t.titre} » : tu t’en charges ?`
+        : n.type === 'pris' ? `${by} se charge de « ${t.titre} »`
         : n.type === 'recur' ? `Tâche récurrente reconduite : « ${t.titre} »`
         : `${by} a modifié « ${t.titre} »`,
       sub: n.type === 'recur' ? (n.detail ? `nouveau délai : ${n.detail}` : 'sans délai') : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
