@@ -6,6 +6,8 @@ import { daysUntil, derniereSeancePassee, endOf, estArchivee, fmtDate, fmtRange,
 import { TaskCard } from './Tasks';
 import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
+import { PourInfoRecues, clePourInfo, delaiRecu } from '../components/PourInfo';
+import { pourMoi, termineeChezElle } from '../data/pourInfo';
 import { isOpen } from '../data/polls';
 import { dueAt, emailState, fillTemplate, whenLabel } from '../data/emails';
 import { EmailSend } from '../components/EmailsField';
@@ -17,11 +19,13 @@ import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { UNIT_TYPES } from '../data/units';
 
 export function Dashboard() {
-  const { data, user, saveTask, prefs, setPrefs, can, canSeeTask } = useStore();
+  const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo } = useStore();
   const club = useClubOptional();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
   const [reglage, setReglage] = useState(false);
+  // Tâche d'une autre entité pour info, ouverte en lecture seule.
+  const [recue, setRecue] = useState<string | null>(null);
   // Blocs et compteurs que la personne a choisi de voir sur cet appareil, dans son ordre (« ⚙ Personnaliser »).
   const { appareil, blocs, compteurs } = useAccueil();
   if (!user) return null;
@@ -64,8 +68,11 @@ export function Dashboard() {
   const toSend = myEmails.filter((x) => x.st === 'aEnvoyer');
   const upcoming = myEmails.filter((x) => x.st === 'programme').slice(0, 3);
   const toVote = (data.polls ?? []).filter((p) => isOpen(p) && p.cleMoi && !p.votes[p.cleMoi]);
+  // Pour info : tâches d'ici où je suis mentionné, et celles d'autres entités (moi ou mon entité), en cours.
+  const infoIci = data.tasks.filter((t) => pourMoi(t, user.id) && !isDone(data, t)).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
+  const infoRecues = pourInfo.filter((x) => !termineeChezElle(x)).sort((a, b) => (a.task.delai || '9999').localeCompare(b.task.delai || '9999'));
   // Blocs vides ce jour-là : ils ne prennent pas de place.
-  const vide = (id: string) => (id === 'emails' && !toSend.length && !upcoming.length) || (id === 'sondages' && !toVote.length) || (id === 'compteurs' && !compteurs.length);
+  const vide = (id: string) => (id === 'emails' && !toSend.length && !upcoming.length) || (id === 'sondages' && !toVote.length) || (id === 'compteurs' && !compteurs.length) || (id === 'pourinfo' && !infoIci.length && !infoRecues.length);
   const ordre = blocs.filter((id) => !vide(id));
 
   const rendre = (id: string): ReactNode => {
@@ -103,6 +110,33 @@ export function Dashboard() {
               jours{toutes && <small className="muted"> · toutes les tâches</small>}
             </h2>
             {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>{jours <= 7 ? 'Aucune échéance cette semaine.' : `Aucune échéance dans les ${jours} jours.`}</Empty>}
+          </>
+        );
+      case 'pourinfo':
+        return (
+          <>
+            <h2>👁 Pour info <small className="muted">· pour que tu sois au courant</small></h2>
+            <div className="cards">
+              {infoIci.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}
+              {infoRecues.map((x) => {
+                const t = x.task;
+                const retard = !!t.delai && daysUntil(t.delai) < 0;
+                return (
+                  <div key={clePourInfo(x)} className={`tcard ${retard ? 'late' : ''}`} role="button" tabIndex={0} onClick={() => setRecue(clePourInfo(x))} onKeyDown={(e) => e.key === 'Enter' && setRecue(clePourInfo(x))}>
+                    <div className="tcard-top">
+                      <small className="muted">{x.unite}</small>
+                      <small className="muted">{x.statuts.find((s) => s.id === t.statusId)?.label ?? ''}</small>
+                    </div>
+                    <strong>{t.titre}</strong>
+                    {t.remarque && <small className="muted clip">{t.remarque}</small>}
+                    <div className="tcard-bottom">
+                      <span className="badge pour-info">👁 lecture seule</span>
+                      <span className={retard ? 'late-text' : 'muted'}>{delaiRecu(x)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </>
         );
       case 'demandes':
@@ -222,13 +256,14 @@ export function Dashboard() {
       {edit && <TaskModal task={edit} isNew={false} onClose={() => setEdit(null)} />}
       {send && <EmailSend task={send.task} email={send.email} onClose={() => setSend(null)} />}
       {reglage && <AccueilModal onClose={() => setReglage(false)} />}
+      {recue && <PourInfoRecues list={pourInfo} ouverte={recue} onClose={() => setRecue(null)} />}
     </div>
   );
 }
 
 /** Ordinateur : blocs sur toute la largeur, et blocs de tâches (colonne de gauche). */
 const LARGES = ['edition', 'compteurs'];
-const TACHES = ['retard', 'semaine'];
+const TACHES = ['retard', 'semaine', 'pourinfo'];
 
 export function Progress({ done, total }: { done: number; total: number }) {
   const pct = total ? Math.round((done / total) * 100) : 0;

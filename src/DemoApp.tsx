@@ -443,6 +443,26 @@ export function DemoApp() {
               .map(({ documents, ...t }) => ({ uniteId: u.id, unite: u.nom, type: u.type, ancienne: { comite: fin.nom, jusqua: fin.jusqua }, task: { ...t, pieces: documents?.length ?? 0 }, statuts }));
           });
       },
+      // Tâches des autres entités pour info de l'entité ouverte ou de l'une de ses personnes (version réelle :
+      // gsa_taches_pour_info, 037). Lecture seule ; jamais les tickets.
+      async tachesPourInfo(): Promise<TachePartagee[]> {
+        return units
+          .filter((u) => u.id !== current.id && !u.archive)
+          .flatMap((u) => {
+            const d = loadUnitData(u.id);
+            const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
+            return d.tasks
+              .filter((t) => !t.paiement && (t.pourInfo?.unites?.includes(current.id) || !!t.pourInfo?.autres?.[current.id]?.length))
+              .map(({ documents = [], ...t }) => ({
+                uniteId: u.id,
+                unite: u.nom,
+                type: u.type,
+                // Liens transmis ; fichiers comptés seulement (consultables dans l'entité de la tâche).
+                task: { ...t, documents: documents.filter((x) => x.kind === 'lien'), pieces: documents.filter((x) => x.kind !== 'lien').length },
+                statuts,
+              }));
+          });
+      },
       // Modification depuis l'entité ouverte, enregistrée dans l'entité de la tâche (version réelle : gsa_modifier_tache_partagee).
       async modifierTachePartagee(uniteId, task) {
         const u = units.find((x) => x.id === uniteId);

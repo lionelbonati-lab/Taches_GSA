@@ -7,6 +7,7 @@ import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
 import { ETATS, chf, genre, peutOuvrirTicket } from '../data/paiements';
+import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -159,6 +160,17 @@ export function ProposalTag({ task }: { task: Task }) {
   if (task.parCentral && !p) return <span className="badge proposal" title={`Tâche ajoutée par ${task.parCentral} (comité central)`}>🏛️ Comité central</span>;
   if (!p) return null;
   return <span className="badge proposal" title={`Demande de « ${p.unite} », envoyée par ${p.par} le ${fmtDate(p.le.slice(0, 10))}`}>📨 {p.unite}</span>;
+}
+
+/** « Pour info » : la tâche est montrée à la personne connectée, ou à n personnes et entités (noms au survol). */
+export function PourInfoTag({ task }: { task: Task }) {
+  const { data, user } = useStore();
+  const club = useClubOptional();
+  const n = nbPourInfo(task.pourInfo);
+  if (!n || task.paiement) return null;
+  const noms = ciblesPourInfo(task.pourInfo, data.people, club?.units ?? []).map((c) => c.texte).join(', ');
+  if (pourMoi(task, user?.id)) return <span className="badge pour-info" title={`On te tient au courant, sans que tu t'en occupes · pour info : ${noms}`}>👁 Pour info</span>;
+  return <span className="badge pour-info" title={`Pour info : ${noms}`}>👁 {n}</span>;
 }
 
 export function Toast() {

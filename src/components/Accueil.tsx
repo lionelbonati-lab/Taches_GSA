@@ -39,6 +39,7 @@ export function useBlocsAccueil(): Element[] {
     { id: 'compteurs', label: '🔢 Compteurs de mes tâches', si: true },
     { id: 'retard', label: '⚠ Mes tâches en retard', si: true },
     { id: 'semaine', label: `📅 À faire dans les ${jours} jours`, si: true },
+    { id: 'pourinfo', label: '👁 Pour info', si: true },
     { id: 'demandes', label: central ? '📨 Demandes reçues' : '📨 Demandes au comité central', si: !!club },
     { id: 'emails', label: '📧 Mes emails à envoyer et programmés', si: true },
     { id: 'sondages', label: '📊 Sondages à voter', si: true },

@@ -46,6 +46,7 @@ export function Aide() {
   geste('Voter ou poser une question au comité', vers('/sondages'), '. Un sondage qui attend ta réponse apparaît aussi à l’accueil.');
   if (sondagesEntites && club && club.units.length > 1 && can('polls.create'))
     geste('Poser une question à d’autres entités (École, groupe, CO…)', vers('/sondages'), ' : « + Nouveau sondage » › « Ouvrir aussi à d’autres entités ». Tous leurs membres votent depuis leur entité ; une personne de plusieurs entités ne vote qu’une fois.');
+  geste('Mettre quelqu’un au courant d’une tâche, sans qu’il s’en occupe', 'Dans la tâche, « Ajouter : » › « 👁 Pour info », puis « ＋ Ajouter… » : une personne d’ici, une autre entité ou une personne d’une autre entité. Une personne d’ici la voit dans « Mes tâches » (👁 Pour info) et à l’accueil, avec une notification 🔔 ; les autres entités la consultent en lecture seule (accueil, Tâches › « 👁 Pour info »).');
   if (club && club.units.length > 1)
     geste('Partager une tâche avec d’autres entités (comité central, CO, groupe…)', 'Dans la tâche, « Ajouter : » › « 🤝 Partager », puis choisis les entités : elles la voient dans leurs tâches et leur ordre du jour (sous l’événement, ou la section qui porte ton nom) et la modifient comme les leurs. Elle reste enregistrée chez toi, repérée 🤝.');
   if (club && club.current.type !== 'central')

@@ -8,7 +8,9 @@ import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
-import { Avatar, DocPollIcons, Empty, LinkIcon, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
+import { Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
+import { PourInfoRecues } from '../components/PourInfo';
+import { pourMoi } from '../data/pourInfo';
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
 import { editionDe, evenementsDependants, tacheDeLEvenement } from '../data/externes';
@@ -19,7 +21,7 @@ type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 
 const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
 
 export function Tasks() {
-  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, pourInfo } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
     params.get('statut') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
@@ -65,6 +67,12 @@ export function Tasks() {
     return u ? { evenementEntite: editionDe(u) } : {};
   };
   const [voirAnciennes, setVoirAnciennes] = useState(false);
+  // Tâches d'autres entités pour info (lecture seule) ; lien d'une notification : /taches?pourinfo=<entité>:<tâche>.
+  const [voirPourInfo, setVoirPourInfo] = useState(() => !!params.get('pourinfo'));
+  const fermerPourInfo = () => {
+    setVoirPourInfo(false);
+    if (params.get('pourinfo')) navigate('/taches', { replace: true });
+  };
 
   const viewAll = can('tasks.viewAll');
   const effScope = viewAll ? scope : 'mes';
@@ -77,8 +85,8 @@ export function Tasks() {
     const q = f.q.trim().toLowerCase();
     let nArchivees = 0;
     const res = data.tasks.filter((t) => {
-      // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état.
-      if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id) : !canSeeTask(t)) return false;
+      // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état, et les tâches pour info.
+      if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
@@ -175,6 +183,7 @@ export function Tasks() {
               {archives ? '← Tâches en cours' : `🗄 Archives (${nArchivees})`}
             </button>
           )}
+          {(pourInfo.length > 0 || voirPourInfo) && <button className="btn" title="Tâches d’autres entités du club, pour que tu sois au courant" onClick={() => setVoirPourInfo(true)}>👁 Pour info ({pourInfo.length})</button>}
           {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}>📜 Anciennes tâches ({anciennes.length})</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
@@ -274,7 +283,7 @@ export function Tasks() {
                   <td>{sectionName(t.sectionId)}</td>
                   <td className="muted">{t.sousSection}</td>
                   <td>
-                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <TicketTag task={t} />
+                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /> <TicketTag task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
                     <Linked t={t} />
                   </td>
@@ -300,7 +309,7 @@ export function Tasks() {
                 {col.map((t) => (
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t) && !t.paiement} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
-                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /></strong>
+                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /></strong>
                     <TicketTag task={t} />
                     <Linked t={t} />
                     <div className="kmeta">
@@ -318,6 +327,7 @@ export function Tasks() {
       {effScope === 'mes' && <SuiviCentral />}
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} onClose={closeEdit} />}
       {voirAnciennes && anciennes && <AnciennesTaches list={anciennes} onClose={() => setVoirAnciennes(false)} />}
+      {voirPourInfo && <PourInfoRecues list={pourInfo} ouverte={params.get('pourinfo') ?? undefined} onClose={fermerPourInfo} />}
     </div>
   );
 }
@@ -334,7 +344,7 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
         <small className="muted">{sectionName}{t.sousSection && ` › ${t.sousSection}`}</small>
         <StatusBadge task={t} />
       </div>
-      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /></strong>
+      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /></strong>
       <TicketTag task={t} />
       <Linked t={t} />
       {t.remarque && <small className="muted clip">{t.remarque}</small>}

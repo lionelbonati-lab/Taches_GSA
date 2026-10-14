@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './data/store';
 import { dueAt, emailState, fillTemplate } from './data/emails';
-import type { AppData, NotifPrefs, Person } from './data/types';
+import type { AppData, NotifPrefs, Person, TachePartagee } from './data/types';
 import { isOpen } from './data/polls';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
@@ -47,7 +47,7 @@ export function ago(iso: string) {
   return d === 1 ? 'hier' : `il y a ${d} jours`;
 }
 
-export function computeNotifications(data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = []): NotifItem[] {
+export function computeNotifications(data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = [], pourInfo: TachePartagee[] = []): NotifItem[] {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items: Omit<NotifItem, 'unread'>[] = [];
   const now = new Date().toISOString();
@@ -226,15 +226,16 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
 
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    if ((n.type === 'assign' && !p.assign) || (n.type !== 'assign' && !p.modif)) continue;
+    if ((['assign', 'info'].includes(n.type) && !p.assign) || (!['assign', 'info'].includes(n.type) && !p.modif)) continue;
     const t = data.tasks.find((x) => x.id === n.taskId);
     if (!t || (t.paiement && n.type === 'assign')) continue; // les tickets ont leur propre alerte
     const by = n.byName ?? fullName(data.people.find((x) => x.id === n.by));
     items.push({
       key: n.id,
-      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : '✏️',
+      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : n.type === 'info' ? '👁' : '✏️',
       text:
         n.type === 'assign' ? `${by} t’a attribué « ${t.titre} »`
+        : n.type === 'info' ? `${by} te met au courant : « ${t.titre} »`
         : n.type === 'recur' ? `Tâche récurrente reconduite : « ${t.titre} »`
         : `${by} a modifié « ${t.titre} »`,
       sub: n.type === 'recur' ? (n.detail ? `nouveau délai : ${n.detail}` : 'sans délai') : n.type === 'modif' ? n.detail : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
@@ -244,13 +245,29 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
     });
   }
 
+  // Tâches d'autres entités pour info (la personne ou son entité mentionnée) : tant qu'elles ne sont pas terminées.
+  if (p.assign)
+    for (const x of pourInfo) {
+      const t = x.task;
+      if (x.statuts.find((s) => s.id === t.statusId)?.done) continue;
+      items.push({
+        key: `info:${x.uniteId}:${t.id}`,
+        icon: '👁',
+        text: `Pour info : « ${t.titre} »`,
+        sub: `${x.unite}${t.delai ? ` · délai : ${fmtDate(t.delai)}` : ''}`,
+        link: `/taches?pourinfo=${x.uniteId}:${t.id}`,
+        at: t.updatedAt,
+        kind: 'activite',
+      });
+    }
+
   return items
     .map((x) => ({ ...x, unread: !seen.has(x.key) }))
     .sort((a, b) => (a.kind !== b.kind ? (a.kind === 'alerte' ? -1 : 1) : b.at.localeCompare(a.at)));
 }
 
 export function useNotifications() {
-  const { data, user, prefs } = useStore();
+  const { data, user, prefs, pourInfo } = useStore();
   const club = useClubOptional();
   // Recalcul chaque minute : un email programmé ou une échéance peut arriver pendant que l'appli est ouverte.
   const [, setTick] = useState(0);
@@ -259,7 +276,7 @@ export function useNotifications() {
     return () => clearInterval(id);
   }, []);
   const p = { ...DEFAULT_NOTIF, ...prefs.notif };
-  const items = user ? computeNotifications(data, user, p, club?.demandesMdp) : [];
+  const items = user ? computeNotifications(data, user, p, club?.demandesMdp, pourInfo) : [];
   return { items, unread: items.filter((x) => x.unread), prefs: p };
 }
 

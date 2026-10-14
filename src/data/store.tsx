@@ -13,6 +13,7 @@ import { applyRows, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
+import { encoreMontree, epurerPourInfo, pourMoi, recuePourMoi } from './pourInfo';
 import { entitesDependantes, evenementsDependants, suivreExternes, versEntite, type Externes } from './externes';
 import { parentDans } from './units';
 
@@ -209,6 +210,8 @@ interface Store {
   sondagesEntites: boolean;
   /** Séances du comité dont l'entité dépend, agenda du club (entités qui dépendent d'elle) : pour y lier des tâches. */
   externes: Externes;
+  /** Tâches d'autres entités « pour info » de la personne connectée (elle, ou son entité), en lecture seule. */
+  pourInfo: TachePartagee[];
   /** Lie une tâche à une tâche principale (ou la délie avec undefined). */
   linkTask: (taskId: string, parentId: string | undefined) => void;
   saveEmail: (e: ScheduledEmail, isNew: boolean) => void;
@@ -311,6 +314,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const moi = club?.current.id;
   const [partagees, setPartagees] = useState<TachePartagee[]>([]);
   const lecture = useRef(0);
+  // Tâches d'autres entités pour info de celle-ci ou de l'une de ses personnes (lecture seule).
+  const [pourInfoRecus, setPourInfoRecus] = useState<TachePartagee[]>([]);
+  const lecturePourInfo = useRef(0);
   // Sondages des autres entités ouverts à celle-ci (null : le serveur ne les gère pas encore).
   const [sondagesRecus, setSondagesRecus] = useState<SondagePartage[]>([]);
   const [sondagesEntites, setSondagesEntites] = useState(false);
@@ -325,6 +331,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     const n = ++lecture.current;
     c.tachesPartagees()
       .then((l) => n === lecture.current && setPartagees(l))
+      .catch(() => {});
+    const i = ++lecturePourInfo.current;
+    c.tachesPourInfo()
+      .then((l) => i === lecturePourInfo.current && setPourInfoRecus(l ?? []))
       .catch(() => {});
     const s = ++lectureSondages.current;
     c.sondagesPartages()
@@ -495,6 +505,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (t.source) return savePartagee(t);
       // Modifiée ici : ce n'est plus une entité du partage qui l'a modifiée en dernier.
       const task: Task = { ...t, updatedAt: new Date().toISOString(), modifiePar: undefined };
+      task.pourInfo = task.paiement ? undefined : epurerPourInfo(task.pourInfo, task.responsables);
       const before = data.tasks.find((x) => x.id === task.id);
       // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
       task.postesResp = postesFor(data, task, before);
@@ -524,6 +535,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         uidTo !== actor && notifs.push({ id: uid('n'), userId: uidTo, type, taskId, by: actor, at: now, detail });
       const added = task.responsables.filter((id) => !before?.responsables.includes(id));
       added.forEach((id) => push(id, 'assign', task.id));
+      // Mentionnés pour info : prévenus une fois, quand on les ajoute.
+      (task.pourInfo?.personnes ?? []).filter((id) => !before?.pourInfo?.personnes?.includes(id)).forEach((id) => push(id, 'info', task.id));
       if (before) {
         const st = data.statuses.find((x) => x.id === task.statusId)?.label;
         const detail =
@@ -743,7 +756,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     // Comme le serveur (migration 029) : ses tâches (responsable, créées par soi) et celles des sections « Voir toutes » ;
     // les tickets (remboursements, factures) à part : la caisse, le demandeur et la personne qui vise (ou a visé).
     canSeeTask: (t) => {
-      if (isOwn(t)) return true;
+      if (isOwn(t) || pourMoi(t, user?.id)) return true;
       const p = t.paiement;
       if (!p) return can('tasks.viewAll', t.sectionId);
       return (!!user && [p.demandePar, p.visa?.a, p.validation?.par].includes(user.id)) || can('paiements.payer');
@@ -770,6 +783,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     canManagePoll: (p) => !!user && !p.source && (p.creePar === user.id || can('polls.manage')),
     sondagesEntites,
     externes,
+    pourInfo: user && moi ? pourInfoRecus.filter((x) => recuePourMoi(x, moi, user.id, can('tasks.viewAll')) && encoreMontree(x) && !partagees.some((y) => y.uniteId === x.uniteId && y.task.id === x.task.id)) : [],
     linkTask,
     saveEmail,
     setEmailStatus,

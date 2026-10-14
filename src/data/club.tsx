@@ -137,6 +137,11 @@ export interface Club {
    */
   anciennesTaches: () => Promise<TachePartagee[] | null>;
   /**
+   * Tâches d'autres entités du club « pour info » de l'entité ouverte (l'entité, ou l'une de ses personnes, mentionnée),
+   * en lecture seule ; null : le serveur ne les gère pas encore (migration 037).
+   */
+  tachesPourInfo: () => Promise<TachePartagee[] | null>;
+  /**
    * Séances du comité dont dépend l'entité ouverte, pour y lier une tâche (son ordre du jour et son PV) ; null : le
    * serveur ne les donne pas encore (migration 032).
    */

@@ -8,10 +8,11 @@ import { deleteFiles } from '../data/files';
 import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { avecPartage, libellePlace, partageDe, TACHES_DEPENDANCE } from '../data/partage';
+import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE } from '../data/partage';
+import { ciblesPourInfo, nbPourInfo } from '../data/pourInfo';
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
-import type { DelaiUnite, EvenementEntite, OrgUnit, Recurrence, SeanceComite, Task } from '../data/types';
+import type { DelaiUnite, EvenementEntite, OrgUnit, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
 import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
@@ -42,7 +43,7 @@ export function TaskModal(props: TaskModalProps) {
 }
 
 /** Parties facultatives : affichées si elles sont remplies, sinon ajoutées à la demande (« Ajouter : »). */
-type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage';
+type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage' | 'info';
 
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, update, linkTask, autresResp, externes, setToast } = useStore();
@@ -60,6 +61,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const [ouverts, setOuverts] = useState<Extra[]>(() => [
     ...(task.eventId || task.evenementEntite || (task.meetingId && !task.source) || task.seanceComite || task.parentId ? ['liens' as const] : []),
     ...(task.partage?.length || task.auCentral ? ['partage' as const] : []),
+    ...(task.pourInfo ? ['info' as const] : []),
   ]);
   const [nouvelEmail, setNouvelEmail] = useState(false);
   const club = useClubOptional();
@@ -217,6 +219,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     liens: !!(t.eventId || t.evenementEntite || (t.meetingId && !t.source) || t.seanceComite || t.parentId || kids.length),
     emails: !isNew && emailsOf(data, task.id).length > 0,
     partage: partage.length > 0,
+    info: nbPourInfo(t.pourInfo) > 0,
   };
   const voit = (x: Extra) => rempli[x] || ouverts.includes(x);
   const ouvrir = (x: Extra) => setOuverts((o) => [...o, x]);
@@ -226,6 +229,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     { label: '🔁 Répétition', aide: `La tâche revient chaque semaine, chaque mois, à chaque ${mot}…`, run: () => ouvrir('repetition'), si: !voit('repetition') },
     { label: '🔗 Lier à…', aide: 'Un événement, une séance de comité ou une autre tâche', run: () => ouvrir('liens'), si: !voit('liens') },
     { label: '🤝 Partager', aide: 'Avec d’autres entités du club : elles la voient et la modifient comme les leurs', run: () => ouvrir('partage'), si: !voit('partage') && partageables.length > 0 },
+    { label: '👁 Pour info', aide: 'Des personnes ou des entités qui la voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement },
     { label: '📊 Sondage', aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create') },
     {
       label: '📧 Email',
@@ -240,6 +244,26 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   ].filter((a) => a.si && (!t.source || a.partagee));
   // Personnes à ajouter : soi-même d'abord.
   const aAjouter = assignable.filter((p) => !t.responsables.includes(p.id)).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
+  // Pour info : personnes d'ici (sauf responsables), autres entités du club, personnes d'autres entités (« a:entité:fiche »).
+  const info = t.pourInfo ?? {};
+  const cibles = ciblesPourInfo(t.pourInfo, data.people, club?.units ?? []).filter((c) => c.genre !== 'personne' || !t.responsables.includes(c.id));
+  const infoIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !info.personnes?.includes(p.id));
+  const autresUnites = club ? club.units.filter((u) => u.id !== club.current.id && !u.archive) : [];
+  const iconeUnite = (id: string) => { const u = club?.units.find((x) => x.id === id); return u ? `${UNIT_TYPES[u.type].icon} ` : ''; };
+  const infoUnites = autresUnites.filter((u) => !info.unites?.includes(u.id));
+  const infoAutres = autresUnites
+    .map((u) => ({ u, l: u.membres.filter((m) => !m.viaEntite && !info.autres?.[u.id]?.includes(m.id) && !data.people.some((p) => p.actif && memePersonne(p, m))) }))
+    .filter((g) => g.l.length);
+  const changerInfo = (v: string, oui: boolean) =>
+    setT((x) => {
+      const p: PourInfo = { ...x.pourInfo };
+      const [g, a, b] = v.split(':');
+      const maj = (l: string[] | undefined, id: string) => (oui ? [...(l ?? []), id] : (l ?? []).filter((y) => y !== id));
+      if (g === 'p') p.personnes = maj(p.personnes, a);
+      else if (g === 'u') p.unites = maj(p.unites, a);
+      else p.autres = { ...p.autres, [a]: maj(p.autres?.[a], b) };
+      return { ...x, pourInfo: p };
+    });
 
   return (
     <Modal title={isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'} onClose={cancel} wide>
@@ -386,6 +410,44 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 {TACHES_DEPENDANCE[reglage].aide(parentIci.nom)} ({comiteEntier ? 'tout le comité est responsable de l’événement' : 'réglage de l’entité'})
               </small>
             )}
+          </div>
+        )}
+        {!t.source && !t.paiement && voit('info') && (!dis || cibles.length > 0) && (
+          <div className="full pour-info">
+            <span className="field-label">👁 Pour info</span>
+            <div className="chips">
+              {cibles.map((c) => (
+                <span key={c.cle} className={`chip on ${dis ? 'locked' : ''}`}>
+                  {c.genre === 'unite' && iconeUnite(c.id)}{c.texte}
+                  {!dis && <button type="button" className="chip-x" aria-label={`Retirer ${c.texte}`} onClick={() => changerInfo(c.cle, false)}>✕</button>}
+                </span>
+              ))}
+              {!cibles.length && <span className="muted">Personne pour l’instant.</span>}
+              {!dis && (infoIci.length > 0 || infoUnites.length > 0 || infoAutres.length > 0) && (
+                <select className="chip-add" value="" aria-label="Mettre au courant" onChange={(e) => e.target.value && changerInfo(e.target.value, true)}>
+                  <option value="">＋ Ajouter…</option>
+                  {infoIci.length > 0 && (
+                    <optgroup label={`Personnes${club ? ` de « ${club.current.nom} »` : ''}`}>
+                      {infoIci.map((p) => <option key={p.id} value={`p:${p.id}`}>{nomPoste(p, user.id)}</option>)}
+                    </optgroup>
+                  )}
+                  {infoUnites.length > 0 && (
+                    <optgroup label="Entités du club">
+                      {infoUnites.map((u) => <option key={u.id} value={`u:${u.id}`}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
+                    </optgroup>
+                  )}
+                  {infoAutres.map(({ u, l }) => (
+                    <optgroup key={u.id} label={`Personnes de « ${u.nom} »`}>
+                      {l.map((m) => <option key={m.id} value={`a:${u.id}:${m.id}`}>{`${m.prenom} ${m.nom}`.trim()}{m.poste ? ` · ${m.poste}` : ''}</option>)}
+                    </optgroup>
+                  ))}
+                </select>
+              )}
+            </div>
+            <small className="muted">
+              Elles voient la tâche sans s’en occuper : les personnes d’ici dans « Mes tâches » (👁) avec une notification 🔔 ; les autres entités (leurs
+              admins et les rôles « Voir toutes les tâches ») et leurs personnes, en lecture seule, à l’accueil et dans Tâches › 👁 Pour info.
+            </small>
           </div>
         )}
 

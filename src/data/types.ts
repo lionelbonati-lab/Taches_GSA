@@ -270,6 +270,8 @@ export interface Task {
   auCentral?: boolean;
   /** Responsables choisis par les entités du partage, parmi leurs propres membres (par entité). */
   respPartage?: Record<string, string[]>;
+  /** Pour info : personnes et entités qui voient la tâche sans s'en occuper. */
+  pourInfo?: PourInfo;
   /** Section choisie par les entités du partage (par entité ; sinon rangée automatiquement). */
   placePartage?: Record<string, { sectionId: string; sousSection: string }>;
   /** Dernière modification faite depuis une entité du partage : « Nom (entité) ». */
@@ -285,7 +287,7 @@ export interface Task {
    * l'entité dépendait alors, l'entité, la date de la copie (AAAA-MM-JJ) ; l'original (repère « déjà copiée »).
    */
   copieDe?: { comite: string; entite: string; le: string; uniteId?: string; tache?: string };
-  /** Ancienne tâche lue du serveur : nombre de pièces jointes (non transmises). Affichage seulement. */
+  /** Ancienne tâche ou tâche « pour info » lue du serveur : nombre de fichiers joints (non transmis). Affichage seulement. */
   pieces?: number;
   /**
    * Séance du comité dont l'entité dépend, à laquelle la tâche est liée : la tâche est partagée avec ce comité et figure à
@@ -340,6 +342,19 @@ export interface Proposal {
 }
 
 /** Tâche d'une autre entité partagée avec l'entité ouverte, telle que la lit le serveur (gsa_taches_partagees). */
+/**
+ * « Pour info » d'une tâche : vue (accueil, « Mes tâches », 🔔) sans en être responsable, en lecture seule ailleurs que
+ * dans l'entité de la tâche.
+ */
+export interface PourInfo {
+  /** Fiches de l'entité de la tâche. */
+  personnes?: string[];
+  /** Entités du club : leurs admins et les rôles « Voir toutes les tâches ». */
+  unites?: string[];
+  /** Personnes d'autres entités : leur fiche dans leur entité, par entité. */
+  autres?: Record<string, string[]>;
+}
+
 export interface TachePartagee {
   uniteId: string;
   unite: string;
@@ -578,7 +593,8 @@ export interface ColonnesMembres {
 export interface ActivityNotif {
   id: string;
   userId: string;
-  type: 'assign' | 'modif' | 'recur';
+  /** info : mentionné « pour info » sur la tâche. */
+  type: 'assign' | 'modif' | 'recur' | 'info';
   taskId: string;
   by: string;
   /** Auteur hors de l'entité (membre du comité central) : son nom, à afficher tel quel. */

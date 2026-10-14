@@ -751,6 +751,16 @@ export async function fetchAnciennesTaches(unite: string): Promise<TachePartagee
   return (data ?? []) as TachePartagee[];
 }
 
+/** Tâches d'autres entités « pour info » de l'entité (037) ; null si le serveur ne les donne pas encore. */
+export async function fetchTachesPourInfo(unite: string): Promise<TachePartagee[] | null> {
+  const { data, error } = await sb().rpc('gsa_taches_pour_info', { unite });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') return null;
+    throw new Error(error.message);
+  }
+  return Array.isArray(data) ? (data as TachePartagee[]) : [];
+}
+
 /** Copie des données d'une entité gardée par le serveur (036) : chaque nuit si elles ont changé, 30 jours. */
 export interface CopieAuto {
   id: number;
