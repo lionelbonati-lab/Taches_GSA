@@ -40,7 +40,7 @@ export function initials(p?: Pick<Person, 'prenom' | 'nom'>) {
 }
 
 const plain = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
-/** Poste à afficher à côté d'un nom, sauf s'il le répète (démo : la personne est désignée par son poste). */
+/** Poste à afficher à côté d'un nom, sauf s'il le répète (fiche sans nom, appelée par son poste). */
 export const posteBesideName = (name: string, poste?: string) =>
   poste && plain(name) !== plain(poste) && !plain(name).startsWith(`${plain(poste)} `) ? poste : '';
 

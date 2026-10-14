@@ -9,7 +9,7 @@ import { convertirPostes, lierEntite, suivre } from './organigramme';
 import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUnit, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
-// Le site est public : aucun nom, chaque personne est désignée par son poste (adresses @gsajoie.example),
+// Le site est public : les personnes sont fictives (noms inventés, adresses @gsajoie.example, pas de téléphones),
 // et aucune tâche : chaque testeur part de zéro.
 
 export const CENTRAL_ID = 'u-central';
@@ -50,51 +50,55 @@ const SEED_UNITS: Unit[] = [
 ];
 
 // Une personne = son poste principal (même nom et même adresse dans chaque entité où elle a un poste).
-type P = [nom: string, couleur: string, poste: string, role: string];
+type P = [prenom: string, nom: string, couleur: string, poste: string, role: string];
 const slug = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-const person = (i: number, [nom, couleur, poste, role]: P): Person => ({
-  id: `p${i + 1}`,
-  prenom: nom,
-  nom: '',
-  email: `${slug(nom)}@gsajoie.example`,
-  telephone: '',
-  // Déjà au comité central : même couleur partout.
-  couleur: centralPeople.find((p) => p.prenom === nom)?.couleur ?? couleur,
-  poste,
-  roles: [role],
-  actif: true,
-});
+/** Même personne dans plusieurs entités : même nom, donc même adresse. */
+const person = (i: number, [prenom, nom, couleur, poste, role]: P): Person => {
+  const email = `${slug(prenom)}.${slug(nom)}@gsajoie.example`;
+  return {
+    id: `p${i + 1}`,
+    prenom,
+    nom,
+    email,
+    telephone: '',
+    // Déjà au comité central : même couleur partout.
+    couleur: centralPeople.find((p) => p.email === email)?.couleur ?? couleur,
+    poste,
+    roles: [role],
+    actif: true,
+  };
+};
 
 const MEMBERS: Record<string, P[]> = {
   'u-ecole': [
-    ['École de cyclisme', '#ca8a04', 'Responsable', 'admin'],
-    ['Coach JS', '#c026d3', 'Moniteur J+S', 'moniteur'],
-    ['Moniteur 1', '#0d9488', 'Moniteur', 'moniteur'],
-    ['Moniteur 2', '#2563eb', 'Moniteur', 'moniteur'],
-    ['Aide-moniteur', '#a16207', 'Aide-moniteur', 'membre'],
+    ['Céline', 'Robert', '#ca8a04', 'Responsable', 'admin'],
+    ['Kevin', 'Roux', '#c026d3', 'Moniteur J+S', 'moniteur'],
+    ['Antoine', 'Mercier', '#0d9488', 'Moniteur', 'moniteur'],
+    ['Simon', 'Vincent', '#2563eb', 'Moniteur', 'moniteur'],
+    ['Noah', 'Chevalier', '#a16207', 'Aide-moniteur', 'membre'],
   ],
   'u-competition': [
-    ['Compétition 1', '#ea580c', 'Responsable', 'admin'],
+    ['Nicolas', 'Perret', '#ea580c', 'Responsable', 'admin'],
     // Co-responsables : chacun tient un poste « Compétition » du comité central, lié au ★ du groupe.
-    ['Compétition 2', '#0891b2', 'Responsable', 'admin'],
-    ['Entraîneur route', '#4f46e5', 'Entraîneur route', 'moniteur'],
-    ['Course préparation 1', '#b45309', 'Coureur', 'membre'],
-    ['Coureur', '#be185d', 'Coureur', 'membre'],
+    ['Laura', 'Meyer', '#0891b2', 'Responsable', 'admin'],
+    ['Olivier', 'Gauthier', '#4f46e5', 'Entraîneur route', 'moniteur'],
+    ['Lucas', 'Fontaine', '#b45309', 'Coureur', 'membre'],
+    ['Mathieu', 'Marchand', '#be185d', 'Coureur', 'membre'],
   ],
   'u-bruntrutaine': [
-    ['Bruntrutaine', '#9333ea', 'Président du CO', 'admin'],
-    ['Vice-président', '#7c3aed', 'Délégué du comité central', 'membre'],
-    ['Parcours et sécurité', '#15803d', 'Parcours et sécurité', 'membre'],
-    ['Inscriptions et caisse', '#c2410c', 'Inscriptions et caisse', 'caissier'],
-    ['Bénévole 1', '#65a30d', 'Responsable des bénévoles', 'membre'],
-    ['Bénévole 4', '#0d9488', 'Ravitaillement', 'benevole'],
+    ['David', 'Muller', '#9333ea', 'Président du CO', 'admin'],
+    ['Marc', 'Lambert', '#7c3aed', 'Délégué du comité central', 'membre'],
+    ['Patrick', 'Aubry', '#15803d', 'Parcours et sécurité', 'membre'],
+    ['Valérie', 'Lefèvre', '#c2410c', 'Inscriptions et caisse', 'caissier'],
+    ['Michel', 'Blanc', '#65a30d', 'Responsable des bénévoles', 'membre'],
+    ['Hugo', 'Morel', '#0d9488', 'Ravitaillement', 'benevole'],
   ],
   'u-soiree': [
-    ['Gruppetto', '#be123c', 'Responsable de la soirée', 'admin'],
-    ['Président', '#1d4ed8', 'Animation', 'membre'],
-    ['École de cyclisme', '#ca8a04', 'Jeux pour les enfants', 'membre'],
-    ['Bénévole 2', '#e11d48', 'Décoration', 'membre'],
-    ['Bénévole 3', '#0369a1', 'Bar', 'membre'],
+    ['Pierre', 'Favre', '#be123c', 'Responsable de la soirée', 'admin'],
+    ['Julien', 'Moreau', '#1d4ed8', 'Animation', 'membre'],
+    ['Céline', 'Robert', '#ca8a04', 'Jeux pour les enfants', 'membre'],
+    ['Nathalie', 'Fournier', '#e11d48', 'Décoration', 'membre'],
+    ['Yannick', 'Leroy', '#0369a1', 'Bar', 'membre'],
   ],
 };
 
@@ -129,9 +133,9 @@ function seedUnit(u: Unit): AppData {
 /**
  * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro
  * (v2 : postes au lieu des noms, sans tâches ; v3 : une caisse dans chaque entité ; v5 : deux co-responsables du groupe
- * compétition ; v6 : postes liés par leur nom, une ligne par personne).
+ * compétition ; v6 : postes liés par leur nom, une ligne par personne ; v7 : personnes fictives, avec prénom et nom).
  */
-const DEMO_VERSION = '6';
+const DEMO_VERSION = '7';
 const VERSION_KEY = 'taches-gsa-demo-version';
 
 function checkVersion() {
@@ -323,11 +327,11 @@ export function photographierDemo(units: OrgUnit[], maintenant = new Date()) {
 
 /** Membres sans poste dans une entité (licenciés, parents, membres de soutien) : fictifs, sans téléphone ni IBAN. */
 const EXTRAS: Partial<ClubMembre>[] = [
-  { prenom: 'Licencié École 1', couleur: '#16a34a', groupes: ['u-ecole'] },
-  { prenom: 'Licencié École 2', couleur: '#0d9488', groupes: ['u-ecole'] },
-  { prenom: 'Parent École 1', email: 'parent.ecole1@gsajoie.example', couleur: '#ca8a04', groupes: ['u-ecole'] },
-  { prenom: 'Coureur Compétition 3', email: 'coureur3@gsajoie.example', couleur: '#ea580c', groupes: ['u-competition'] },
-  { prenom: 'Membre Soutien 1', email: 'soutien1@gsajoie.example', couleur: '#475569' },
+  { prenom: 'Léo', nom: 'Bertrand', couleur: '#16a34a', groupes: ['u-ecole'] },
+  { prenom: 'Zoé', nom: 'Bertrand', couleur: '#0d9488', groupes: ['u-ecole'] },
+  { prenom: 'Anne', nom: 'Bertrand', email: 'anne.bertrand@gsajoie.example', couleur: '#ca8a04', groupes: ['u-ecole'] },
+  { prenom: 'Maxime', nom: 'Renaud', email: 'maxime.renaud@gsajoie.example', couleur: '#ea580c', groupes: ['u-competition'] },
+  { prenom: 'Françoise', nom: 'Colin', email: 'francoise.colin@gsajoie.example', couleur: '#475569' },
 ];
 
 const unitIds = () => (read<Unit[]>(CLUB_KEY) ?? SEED_UNITS).map((u) => u.id);

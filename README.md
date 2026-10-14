@@ -17,19 +17,19 @@ npm run build      # version statique dans dist/
 
 La démo part de l'organisation du **G.S. Ajoie** (12 sections, séances de comité 2026-27, événements du club, sous-comités et groupes), **sans aucune tâche** : chaque testeur part de zéro et crée les siennes. Pas de sondage ni d'email programmé d'exemple non plus.
 
-Le site étant public, **aucun nom** : chaque personne est désignée par son **poste** (numéroté quand plusieurs personnes ont le même : Compétition 1 et 2, Bénévole 1 à 3…), adresses fictives (`president@gsajoie.example`…), pas de téléphones. Les données de démo déjà enregistrées dans un navigateur (avec les anciens noms et tâches) sont remises à zéro automatiquement à la première visite.
+Le site étant public, les **personnes sont fictives** : noms inventés, adresses fictives (`julien.moreau@gsajoie.example`…), pas de téléphones ; seuls les postes et l'organisation sont ceux du club. Les données de démo déjà enregistrées dans un navigateur sont remises à zéro automatiquement à la première visite.
 
-Connexion par simple clic sur un poste (sans mot de passe) :
+Connexion par simple clic sur une personne (sans mot de passe) ; l'écran indique son poste et ses entités :
 
-| Poste | Rôle(s) |
+| Personne (poste) | Rôle(s) |
 |---|---|
-| Président | Admin – tout, dont la console admin, l'Ordre du jour et la création d'entités |
-| Secrétaire | Secrétaire – voit/gère tout sauf console admin, listes et Ordre du jour ; tient le **PV** |
-| Caissier | Comité **+** Caissier (gère toutes les tâches de Comptabilité) |
-| Vice-président, Compétition 1 et 2, École de cyclisme, Gruppetto | Comité – voit tout, modifie ses propres tâches |
-| Natation, Bruntrutaine, Montvoie, Course préparation 1 et 2, Coach JS, Camp de Pentecôte, Bénévole 1 à 3 | Responsable d'activité – uniquement ses propres tâches |
+| Julien Moreau (Président) | Admin – tout, dont la console admin, l'Ordre du jour et la création d'entités |
+| Sophie Girard (Secrétaire) | Secrétaire – voit/gère tout sauf console admin, listes et Ordre du jour ; tient le **PV** |
+| Thomas Bernard (Caissier) | Comité **+** Caissier (gère toutes les tâches de Comptabilité) |
+| Marc Lambert (Vice-président), Nicolas Perret et Laura Meyer (Compétition), Céline Robert (École de cyclisme), Pierre Favre (Gruppetto) | Comité – voit tout, modifie ses propres tâches |
+| Émilie Rossi (Natation), David Muller (Bruntrutaine), Sandrine Petit (Montvoie), Lucas Fontaine et Manon Dubois (Course préparation), Kevin Roux (Coach JS), Isabelle Garnier (Camp de Pentecôte), Michel Blanc, Nathalie Fournier et Yannick Leroy (Bénévoles) | Responsable d'activité – uniquement ses propres tâches |
 
-L'écran de connexion liste aussi les membres des sous-comités, groupes et équipes (Moniteur 1 et 2, Aide-moniteur, Entraîneur route, Coureur, Parcours et sécurité…) : chacun retrouve les entités dont il fait partie. Exemples : **École de cyclisme** (comité central, responsable de l'école de cyclisme, soirée récréative), **Bruntrutaine** (président du CO Bruntrutaine), **Moniteur 1** (seulement l'école de cyclisme).
+L'écran de connexion liste aussi les membres des sous-comités, groupes et équipes (Antoine Mercier et Simon Vincent, moniteurs ; Noah Chevalier, aide-moniteur ; Olivier Gauthier, entraîneur route ; Mathieu Marchand, coureur ; Patrick Aubry, parcours et sécurité ; Valérie Lefèvre, inscriptions et caisse ; Hugo Morel, ravitaillement) : chacun retrouve les entités dont il fait partie. Exemples : **Céline Robert** (comité central, responsable de l'école de cyclisme, soirée récréative), **David Muller** (président du CO Bruntrutaine), **Antoine Mercier** (seulement l'école de cyclisme).
 
 Dans la démo, la **Soirée récréative** est sous le poste **Gruppetto** du comité central (lié ⛓). Glissée dans le cadre du comité central (« ✏️ Modifier » de l'organigramme), elle n'a plus de poste lié : tout le comité en est responsable, et toutes ses tâches s'affichent dans les siennes.
 
@@ -302,7 +302,7 @@ Le virement ne se fait pas dans l'appli : elle sert à **demander, viser et suiv
 
 **Une caisse par entité** : chaque entité (comité central, sous-comité d'une manifestation, groupe, équipe) a son rôle **Caissier** (à attribuer dans la fiche de la personne, depuis l'organigramme). **Seules les entités qui ont un caissier désigné reçoivent des tickets** : une entité sans caissier n'est pas proposée, et son formulaire invite à choisir la caisse d'une autre entité. Un bénévole envoie ainsi son ticket directement à la caisse de son entité, sans passer par le comité central. Le ticket reste dans les données de cette entité.
 
-**Caisse du comité ou caisse centrale, pour tous** : un membre de n'importe quelle entité (bénévole compris) peut envoyer son ticket à la caisse qui reçoit les tickets de son entité, sans en faire partie : celle du **comité dont l'entité dépend** si ce comité a un caissier (rôle avec le droit « Caisse »), sinon la **caisse centrale**. Le ticket y arrive avec le nom du demandeur et son entité (« Bénévole 4 (CO Bruntrutaine) »), et suit le même circuit (visa d'un membre de ce comité). Le demandeur en suit l'état dans « Mes tâches » (« Envoyés à une autre caisse », sous la liste, avec le nom de la caisse). Dans une entité sans caissier, cette caisse est choisie d'office. Un membre du comité de la caisse saisit son ticket directement dans ce comité. En version réelle : migration 030 (avant : toujours la caisse centrale).
+**Caisse du comité ou caisse centrale, pour tous** : un membre de n'importe quelle entité (bénévole compris) peut envoyer son ticket à la caisse qui reçoit les tickets de son entité, sans en faire partie : celle du **comité dont l'entité dépend** si ce comité a un caissier (rôle avec le droit « Caisse »), sinon la **caisse centrale**. Le ticket y arrive avec le nom du demandeur et son entité (« Hugo Morel (CO Bruntrutaine) »), et suit le même circuit (visa d'un membre de ce comité). Le demandeur en suit l'état dans « Mes tâches » (« Envoyés à une autre caisse », sous la liste, avec le nom de la caisse). Dans une entité sans caissier, cette caisse est choisie d'office. Un membre du comité de la caisse saisit son ticket directement dans ce comité. En version réelle : migration 030 (avant : toujours la caisse centrale).
 
 **Sceau modifiable** : la caisse règle le modèle (« 🖋 Sceau », affiché quand la liste des tâches est filtrée sur les paiements : Filtres › « 💰 Paiements et remboursements ») : en-tête (ex. « G.S. Ajoie – Caisse »), texte (« OK pour paiement », « Bon pour paiement »…), couleur et **transparence** : du fond (de blanc opaque à entièrement transparent, pour laisser voir le document sous le sceau) et du texte et du cadre, avec un aperçu sur un faux document. La personne qui vise peut encore ajuster la transparence du fond selon la photo. Le droit « peut viser » (console admin, groupe Gestion) place des personnes en tête de la liste proposée à la caisse ; par défaut les admins.
 

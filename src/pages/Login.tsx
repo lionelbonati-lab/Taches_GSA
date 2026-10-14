@@ -10,7 +10,7 @@ import { nomAppli } from '../data/nomAppli';
 /** Démo : connexion en choisissant une personne de l'annuaire du club (sans mot de passe). */
 export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (key: string) => void; onReset: () => void }) {
   const [q, setQ] = useState('');
-  // Dans l'ordre de l'organigramme (président d'abord) : en démo, les personnes sont désignées par leur poste.
+  // Dans l'ordre de l'organigramme (président d'abord) ; personnes fictives, avec leurs postes dans le club.
   const people = directory(units.filter((u) => !u.archive), false).filter((e) => `${e.prenom} ${e.nom} ${e.postes.map((p) => `${p.unit.nom} ${p.member.poste}`).join(' ')}`.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="login">
@@ -18,11 +18,11 @@ export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (k
         <AppLogo src={units.find((u) => u.type === 'central')?.logo ?? null} size={56} />
         <h1>{nomAppli()}</h1>
         <p className="muted">
-          Démonstration – choisis un poste du club pour te connecter.
+          Démonstration – choisis une personne pour te connecter : son poste et ses entités sont indiqués.
           <br />
-          Aucun mot de passe, aucune donnée réelle.
+          Personnes fictives, aucun mot de passe, aucune donnée réelle.
         </p>
-        <input className="login-search" type="search" placeholder="Rechercher un poste, une entité…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="login-search" type="search" placeholder="Rechercher une personne, un poste, une entité…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="login-list">
           {people.map((e) => (
             <button key={e.key} className="login-user" onClick={() => onPick(e.key)}>

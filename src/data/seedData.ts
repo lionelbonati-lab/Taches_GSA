@@ -1,6 +1,6 @@
 // Données de départ de la démo, d'après l'organisation du G.S. Ajoie (sections, séances, événements).
-// Le site est public : aucun nom, chaque personne est désignée par son poste (numéroté quand il y en a
-// plusieurs), adresses fictives, pas de téléphones. Pas de tâches : chaque testeur part de zéro.
+// Le site est public : les personnes sont fictives (noms inventés, adresses @gsajoie.example, pas de téléphones),
+// seuls les postes sont ceux du club. Pas de tâches : chaque testeur part de zéro.
 import type { AppData } from './types';
 
 export const people: AppData['people'] = [
@@ -8,9 +8,9 @@ export const people: AppData['people'] = [
     "id": "p1",
     "poste": "Président",
     "autresPostes": "Course à Pied, Camp de Pentecôte",
-    "nom": "",
-    "prenom": "Président",
-    "email": "president@gsajoie.example",
+    "nom": "Moreau",
+    "prenom": "Julien",
+    "email": "julien.moreau@gsajoie.example",
     "telephone": "",
     "roles": [
       "admin"
@@ -22,9 +22,9 @@ export const people: AppData['people'] = [
     "id": "p2",
     "poste": "Vice-président",
     "autresPostes": "Programme, Critérium",
-    "nom": "",
-    "prenom": "Vice-président",
-    "email": "vice-president@gsajoie.example",
+    "nom": "Lambert",
+    "prenom": "Marc",
+    "email": "marc.lambert@gsajoie.example",
     "telephone": "",
     "roles": [
       "comite"
@@ -35,9 +35,9 @@ export const people: AppData['people'] = [
   {
     "id": "p3",
     "poste": "Secrétaire",
-    "nom": "",
-    "prenom": "Secrétaire",
-    "email": "secretaire@gsajoie.example",
+    "nom": "Girard",
+    "prenom": "Sophie",
+    "email": "sophie.girard@gsajoie.example",
     "telephone": "",
     "roles": [
       "secretaire"
@@ -48,9 +48,9 @@ export const people: AppData['people'] = [
   {
     "id": "p4",
     "poste": "Caissier",
-    "nom": "",
-    "prenom": "Caissier",
-    "email": "caissier@gsajoie.example",
+    "nom": "Bernard",
+    "prenom": "Thomas",
+    "email": "thomas.bernard@gsajoie.example",
     "telephone": "",
     "roles": [
       "comite",
@@ -63,9 +63,9 @@ export const people: AppData['people'] = [
     "id": "p5",
     "poste": "Compétition",
     "autresPostes": "Commande équipement",
-    "nom": "",
-    "prenom": "Compétition 1",
-    "email": "competition-1@gsajoie.example",
+    "nom": "Perret",
+    "prenom": "Nicolas",
+    "email": "nicolas.perret@gsajoie.example",
     "telephone": "",
     "roles": [
       "comite"
@@ -76,9 +76,9 @@ export const people: AppData['people'] = [
   {
     "id": "p6",
     "poste": "Compétition",
-    "nom": "",
-    "prenom": "Compétition 2",
-    "email": "competition-2@gsajoie.example",
+    "nom": "Meyer",
+    "prenom": "Laura",
+    "email": "laura.meyer@gsajoie.example",
     "telephone": "",
     "roles": [
       "comite"
@@ -89,9 +89,9 @@ export const people: AppData['people'] = [
   {
     "id": "p7",
     "poste": "École de cyclisme",
-    "nom": "",
-    "prenom": "École de cyclisme",
-    "email": "ecole-de-cyclisme@gsajoie.example",
+    "nom": "Robert",
+    "prenom": "Céline",
+    "email": "celine.robert@gsajoie.example",
     "telephone": "",
     "roles": [
       "comite"
@@ -103,9 +103,9 @@ export const people: AppData['people'] = [
     "id": "p8",
     "poste": "Gruppetto",
     "autresPostes": "Gestion stocks",
-    "nom": "",
-    "prenom": "Gruppetto",
-    "email": "gruppetto@gsajoie.example",
+    "nom": "Favre",
+    "prenom": "Pierre",
+    "email": "pierre.favre@gsajoie.example",
     "telephone": "",
     "roles": [
       "comite"
@@ -116,9 +116,9 @@ export const people: AppData['people'] = [
   {
     "id": "p9",
     "poste": "Natation",
-    "nom": "",
-    "prenom": "Natation",
-    "email": "natation@gsajoie.example",
+    "nom": "Rossi",
+    "prenom": "Émilie",
+    "email": "emilie.rossi@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -129,9 +129,9 @@ export const people: AppData['people'] = [
   {
     "id": "p10",
     "poste": "Bruntrutaine",
-    "nom": "",
-    "prenom": "Bruntrutaine",
-    "email": "bruntrutaine@gsajoie.example",
+    "nom": "Muller",
+    "prenom": "David",
+    "email": "david.muller@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -142,9 +142,9 @@ export const people: AppData['people'] = [
   {
     "id": "p11",
     "poste": "Montvoie",
-    "nom": "",
-    "prenom": "Montvoie",
-    "email": "montvoie@gsajoie.example",
+    "nom": "Petit",
+    "prenom": "Sandrine",
+    "email": "sandrine.petit@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -156,9 +156,9 @@ export const people: AppData['people'] = [
     "id": "p12",
     "poste": "Course préparation",
     "autresPostes": "Critérium",
-    "nom": "",
-    "prenom": "Course préparation 1",
-    "email": "course-preparation-1@gsajoie.example",
+    "nom": "Fontaine",
+    "prenom": "Lucas",
+    "email": "lucas.fontaine@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -169,9 +169,9 @@ export const people: AppData['people'] = [
   {
     "id": "p13",
     "poste": "Course préparation",
-    "nom": "",
-    "prenom": "Course préparation 2",
-    "email": "course-preparation-2@gsajoie.example",
+    "nom": "Dubois",
+    "prenom": "Manon",
+    "email": "manon.dubois@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -182,9 +182,9 @@ export const people: AppData['people'] = [
   {
     "id": "p14",
     "poste": "Coach JS",
-    "nom": "",
-    "prenom": "Coach JS",
-    "email": "coach-js@gsajoie.example",
+    "nom": "Roux",
+    "prenom": "Kevin",
+    "email": "kevin.roux@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -196,9 +196,9 @@ export const people: AppData['people'] = [
     "id": "p15",
     "poste": "Camp de Pentecôte",
     "autresPostes": "Camp EC",
-    "nom": "",
-    "prenom": "Camp de Pentecôte",
-    "email": "camp-de-pentecote@gsajoie.example",
+    "nom": "Garnier",
+    "prenom": "Isabelle",
+    "email": "isabelle.garnier@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -209,9 +209,9 @@ export const people: AppData['people'] = [
   {
     "id": "p16",
     "poste": "Bénévole",
-    "nom": "",
-    "prenom": "Bénévole 1",
-    "email": "benevole-1@gsajoie.example",
+    "nom": "Blanc",
+    "prenom": "Michel",
+    "email": "michel.blanc@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -222,9 +222,9 @@ export const people: AppData['people'] = [
   {
     "id": "p17",
     "poste": "Bénévole",
-    "nom": "",
-    "prenom": "Bénévole 2",
-    "email": "benevole-2@gsajoie.example",
+    "nom": "Fournier",
+    "prenom": "Nathalie",
+    "email": "nathalie.fournier@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
@@ -235,9 +235,9 @@ export const people: AppData['people'] = [
   {
     "id": "p18",
     "poste": "Bénévole",
-    "nom": "",
-    "prenom": "Bénévole 3",
-    "email": "benevole-3@gsajoie.example",
+    "nom": "Leroy",
+    "prenom": "Yannick",
+    "email": "yannick.leroy@gsajoie.example",
     "telephone": "",
     "roles": [
       "responsable"
