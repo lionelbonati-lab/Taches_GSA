@@ -492,7 +492,41 @@ export function Pv() {
                 )}
               </div>
             ))}
-            <span className="field-label pv-sous-titre">Pour chaque tâche</span>
+            <span className="field-label pv-sous-titre">Sections</span>
+            <label>
+              Niveau de détail
+              <select value={s.detail} onChange={(e) => set({ detail: e.target.value as PvSettings['detail'] })}>
+                <option value="complet">Complet (sections, sous-sections, points)</option>
+                <option value="sousSections">Sections et sous-sections</option>
+                <option value="sections">Sections seulement</option>
+              </select>
+            </label>
+            <label className="inline">
+              <input type="checkbox" checked={s.sectionsVides} onChange={(e) => set({ sectionsVides: e.target.checked })} />
+              Afficher les sections sans tâche
+            </label>
+            <small className="muted pv-petit-titre">Sections incluses</small>
+            <div className="chips">
+              {odj.sections.map((x) => (
+                <button key={x.id} className={`chip ${!s.sectionsExclues.includes(x.id) ? 'on' : ''}`} onClick={() => set({ sectionsExclues: toggleIn(s.sectionsExclues, x.id) })}>{x.nom}</button>
+              ))}
+            </div>
+            <span className="field-label pv-sous-titre">Tâches</span>
+            <small className="muted pv-petit-titre">Statuts inclus</small>
+            <div className="chips">
+              {openStatuses.map((x) => (
+                <button key={x.id} className={`chip ${!s.statutsExclus.includes(x.id) ? 'on' : ''}`} onClick={() => set({ statutsExclus: toggleIn(s.statutsExclus, x.id) })}>{x.label}</button>
+              ))}
+            </div>
+            <label>
+              Trier par
+              <select value={s.tri} onChange={(e) => set({ tri: e.target.value as PvSettings['tri'] })}>
+                <option value="delai">Délai</option>
+                <option value="statut">Statut</option>
+                <option value="titre">Nom de la tâche</option>
+              </select>
+            </label>
+            <small className="muted pv-petit-titre">Affiché pour chaque tâche</small>
             {([
               ['sousSection', 'Sous-section'],
               ['echeance', 'Échéance (en retard, séance suivante, fait)'],
@@ -525,44 +559,6 @@ export function Pv() {
                 note={edite ? 'Ordre du jour modifié à la main : le choix s’appliquera en revenant à la version générée.' : 'Choix commun au comité, pour cette séance.'}
               />
             )}
-          </details>
-          <details>
-            <summary>Présentation</summary>
-            <label>
-              Niveau de détail
-              <select value={s.detail} onChange={(e) => set({ detail: e.target.value as PvSettings['detail'] })}>
-                <option value="complet">Complet (sections, sous-sections, points)</option>
-                <option value="sousSections">Sections et sous-sections</option>
-                <option value="sections">Sections seulement</option>
-              </select>
-            </label>
-            <label className="inline">
-              <input type="checkbox" checked={s.sectionsVides} onChange={(e) => set({ sectionsVides: e.target.checked })} />
-              Afficher les sections sans tâche
-            </label>
-            <label>
-              Trier par
-              <select value={s.tri} onChange={(e) => set({ tri: e.target.value as PvSettings['tri'] })}>
-                <option value="delai">Délai</option>
-                <option value="statut">Statut</option>
-                <option value="titre">Nom de la tâche</option>
-              </select>
-            </label>
-          </details>
-          <details>
-            <summary>Filtres</summary>
-            <small className="muted">Statuts inclus</small>
-            <div className="chips">
-              {openStatuses.map((x) => (
-                <button key={x.id} className={`chip ${!s.statutsExclus.includes(x.id) ? 'on' : ''}`} onClick={() => set({ statutsExclus: toggleIn(s.statutsExclus, x.id) })}>{x.label}</button>
-              ))}
-            </div>
-            <small className="muted">Sections incluses</small>
-            <div className="chips">
-              {odj.sections.map((x) => (
-                <button key={x.id} className={`chip ${!s.sectionsExclues.includes(x.id) ? 'on' : ''}`} onClick={() => set({ sectionsExclues: toggleIn(s.sectionsExclues, x.id) })}>{x.nom}</button>
-              ))}
-            </div>
           </details>
           <details>
             <summary>Mise en page</summary>

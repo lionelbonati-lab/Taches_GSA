@@ -575,6 +575,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-settings .small { font-size: 0.8rem; }
 .pv-settings .pv-sous-titre { margin: 14px 0 0; font-weight: 600; }
 .pv-settings summary + .pv-sous-titre { margin-top: 6px; }
+.pv-settings .pv-petit-titre { display: block; margin-top: 10px; }
 .pv-msg { background: var(--primary-soft); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }
 .pv-preview { overflow-x: auto; background: var(--surface2); border-radius: var(--radius); padding: 16px; }
 .pv-sheet {
