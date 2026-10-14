@@ -55,7 +55,7 @@ export function ChoixAnnexes({ tasks, exclues, onChange, disabled, note }: {
   const joints = tous.filter((a) => !exclues.includes(a.d.id)).length;
   const ids = tous.map((a) => a.d.id);
   return (
-    <details className="choix-annexes" open>
+    <details className="choix-annexes">
       <summary>
         Fichiers joints : {joints} sur {tous.length}
       </summary>

@@ -431,7 +431,7 @@ export function Pv() {
 
       <div className="pv-layout">
         <aside className="pv-settings no-print">
-          <details open>
+          <details>
             <summary>Séances</summary>
             <label>
               Séance à préparer
@@ -449,7 +449,7 @@ export function Pv() {
             </label>
           </details>
           {s1 && (
-            <details open>
+            <details>
               <summary>Excusés</summary>
               <span className="field-label">Excusés {excuses.length > 0 && `(${excuses.length})`}</span>
               {canEdit ? (
@@ -466,7 +466,7 @@ export function Pv() {
               <small className="muted">Chacun peut aussi s’excuser lui-même dans la liste des séances.</small>
             </details>
           )}
-          <details open>
+          <details>
             <summary>Contenu</summary>
             <span className="field-label pv-sous-titre">Dans l’ordre du jour</span>
             {([
@@ -526,7 +526,7 @@ export function Pv() {
               />
             )}
           </details>
-          <details open>
+          <details>
             <summary>Présentation</summary>
             <label>
               Niveau de détail
