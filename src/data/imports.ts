@@ -228,16 +228,27 @@ export function analyserTaches(lignes: Record<ColTache, string>[], d: AppData, u
 
 // ---------- Événements ----------
 
-export type ColEvenement = 'nom' | 'date' | 'dateFin' | 'lieu' | 'description';
+export type ColEvenement = 'nom' | 'date' | 'dateFin' | 'heure' | 'heureFin' | 'lieu' | 'description';
 export const COLS_EVENEMENTS: Colonne<ColEvenement>[] = [
   { key: 'nom', label: 'Nom', aliases: ['Événement', 'Evenement', 'Titre'], required: true, exemple: 'Course du club' },
   { key: 'date', label: 'Date', aliases: ['Date de début', 'Début', 'Le'], required: true, exemple: '05.06.2027' },
   { key: 'dateFin', label: 'Date de fin', aliases: ['Fin', 'Jusqu’au', "Jusqu'au"], exemple: '' },
+  { key: 'heure', label: 'Heure', aliases: ['Heure de début', 'Début à', 'Dès'], exemple: '09:00' },
+  { key: 'heureFin', label: 'Heure de fin', aliases: ['Fin à', 'Jusqu’à', "Jusqu'à"], exemple: '17:00' },
   { key: 'lieu', label: 'Lieu', aliases: ['Endroit'], exemple: 'Porrentruy' },
   { key: 'description', label: 'Description', aliases: ['Remarque', 'Détails', 'Infos'], exemple: '' },
 ];
 
-/** Événements à ajouter ; même nom à la même date : mis à jour. */
+/** Heure « 19:30 », « 19h30 », « 19h », « 19.30 » → « 19:30 » ; vide : '' ; illisible : null. */
+function lireHeure(x: string): string | null {
+  const t = x.trim();
+  if (!t) return '';
+  const m = /^(\d{1,2})\s*(?:[:.h]\s*(\d{2})?)?$/i.exec(t);
+  if (!m || Number(m[1]) > 23 || Number(m[2] ?? 0) > 59) return null;
+  return `${m[1].padStart(2, '0')}:${m[2] ?? '00'}`;
+}
+
+/** Événements à ajouter ; même nom à la même date : mis à jour. Sans heure : toute la journée. */
 export function analyserEvenements(lignes: Record<ColEvenement, string>[], d: AppData): LigneImport<ClubEvent>[] {
   const travail = d.events.map((e) => ({ ...e }));
   const nouveaux = new Set<string>();
@@ -252,14 +263,26 @@ export function analyserEvenements(lignes: Record<ColEvenement, string>[], d: Ap
       avertissements.push(`Date de fin « ${l.dateFin} » ignorée`);
       fin = '';
     }
+    let [heure, heureFin] = [lireHeure(l.heure ?? ''), lireHeure(l.heureFin ?? '')];
+    if (heure === null) avertissements.push(`Heure « ${l.heure} » ignorée`);
+    if (heureFin === null || (heureFin && !heure)) {
+      if (heureFin === null || l.heureFin) avertissements.push(`Heure de fin « ${l.heureFin} » ignorée`);
+      heureFin = '';
+    }
+    if (heure && heureFin && heureFin < heure && !(fin && fin > date)) {
+      avertissements.push(`Heure de fin « ${l.heureFin} » avant le début : ignorée`);
+      heureFin = '';
+    }
+    heure = heure || '';
+    const heures = { ...(heure ? { heure } : {}), ...(heureFin ? { heureFin } : {}) };
     const e = travail.find((x) => x.date === date && norm(x.nom) === norm(l.nom));
     if (!e) {
-      const n: ClubEvent = { id: uid('e'), nom: l.nom, date, lieu: l.lieu, description: l.description, ...(fin && fin > date ? { dateFin: fin } : {}) };
+      const n: ClubEvent = { id: uid('e'), nom: l.nom, date, ...heures, lieu: l.lieu, description: l.description, ...(fin && fin > date ? { dateFin: fin } : {}) };
       travail.push(n);
       nouveaux.add(n.id);
       return { statut: 'nouveau', texte, avertissements, valeur: n };
     }
-    const { apres, changes } = changer(e, { lieu: l.lieu, description: l.description, dateFin: fin && fin > date ? fin : undefined });
+    const { apres, changes } = changer(e, { lieu: l.lieu, description: l.description, dateFin: fin && fin > date ? fin : undefined, heure: heure || undefined, heureFin: heureFin || undefined });
     if (!changes.length) return { statut: 'ignore', texte, detail: nouveaux.has(e.id) ? 'Doublon d’une ligne précédente' : 'Déjà à jour', avertissements };
     Object.assign(e, apres);
     return { statut: nouveaux.has(e.id) ? 'nouveau' : 'maj', texte, detail: `Modifié : ${changes.join(', ')}`, avertissements, valeur: { ...e } };

@@ -4,11 +4,14 @@ import { useStore } from '../data/store';
 import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, Poll, Task } from '../data/types';
 import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
-import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, parentOf, today } from '../data/utils';
+import { addDays, diffDays, fmtDate, fmtRange, isDone, isLate, parentOf, today } from '../data/utils';
 import { isOpen } from '../data/polls';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { Avatar, StatusBadge } from '../components/ui';
-import { EVENT_FIELDS, ItemModal, MeetingModal, checkEvent, linkedTasksNote, newEvent, newMeeting, useAgendaActions, useMotSeance } from './Agenda';
+import { MeetingModal, newMeeting, useAgendaActions, useMotSeance } from './Agenda';
+import { ChoixPortee, EventModal, newEvent, useEventActions } from '../components/EventModal';
+import { aLaDate, duree, estOccurrence, fmtHeure, horaire, libelleRepetition, occurrencesEntre } from '../data/repetition';
+import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
 
@@ -21,11 +24,12 @@ import { PageIntro } from '../components/Nav';
 type Kind = 'meeting' | 'event' | 'task' | 'poll' | 'manif';
 type Item =
   | { kind: 'meeting'; key: string; date: string; m: Meeting }
-  | { kind: 'event'; key: string; date: string; e: ClubEvent }
+  /** `o` : premier jour de l'occurrence (événement qui se répète : l'une d'elles). */
+  | { kind: 'event'; key: string; date: string; e: ClubEvent; o: string }
   | { kind: 'task'; key: string; date: string; t: Task }
   | { kind: 'poll'; key: string; date: string; p: Poll }
   /** Agenda du club : prochaine édition d'une manifestation, ou événement d'une autre entité (`e`). */
-  | { kind: 'manif'; key: string; date: string; u: OrgUnit; e?: AgendaClubEvent };
+  | { kind: 'manif'; key: string; date: string; u: OrgUnit; e?: AgendaClubEvent; o?: string };
 
 const KINDS: { id: Kind; label: string }[] = [
   { id: 'meeting', label: '🗓️ Séances' },
@@ -52,7 +56,8 @@ function longDate(date: string) {
 export function Calendar() {
   const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, setToast } = useStore();
   const club = useClubOptional();
-  const { saveMeeting, saveEvent, removeEvent } = useAgendaActions();
+  const { saveMeeting } = useAgendaActions();
+  const { saveEvent, saveOccurrence } = useEventActions();
   const motSeance = useMotSeance();
   const navigate = useNavigate();
   const [month, setMonth] = useState(monthOf(today()));
@@ -65,7 +70,9 @@ export function Calendar() {
   const [over, setOver] = useState<string | null>(null);
   const [task, setTask] = useState<{ t: Task; isNew: boolean } | null>(null);
   const [meeting, setMeeting] = useState<Meeting | null>(null);
-  const [event, setEvent] = useState<ClubEvent | null>(null);
+  const [event, setEvent] = useState<{ e: ClubEvent; jour?: string } | null>(null);
+  // Occurrence d'un événement qui se répète glissée sur un autre jour : celle-ci, les suivantes ou toutes ?
+  const [deplace, setDeplace] = useState<{ serie: ClubEvent; jour: string; date: string } | null>(null);
 
   // Ferme le petit menu « + » au clic ailleurs.
   const menuRef = useRef<HTMLDivElement>(null);
@@ -101,7 +108,7 @@ export function Calendar() {
         .map((u) => {
           const own = u.id === club?.current.id;
           const events = own ? [] : clubEvents.filter((e) => e.uniteId === u.id);
-          const edition = (u.type === 'sous-comite' || u.type === 'equipe') && !!u.date && !(own ? data.events : events).some((e) => e.date === u.date);
+          const edition = (u.type === 'sous-comite' || u.type === 'equipe') && !!u.date && !(own ? data.events : events).some((e) => e.date === u.date || (!!e.repetition && estOccurrence(e, u.date!)));
           return { u, events, edition, own };
         })
         .filter((x) => x.events.length > 0 || x.edition),
@@ -134,20 +141,21 @@ export function Calendar() {
     const mine = (t: Task) => t.responsables.includes(user.id);
     const visible = (t: Task) => (effScope === 'mes' ? mine(t) : canSeeTask(t)) && (showDone || !isDone(data, t));
     if (seeMeetings && kinds.includes('meeting')) data.meetings.forEach((m) => push({ kind: 'meeting', key: m.id, date: m.date, m }));
-    // Événement sur plusieurs jours : une case par jour (31 au plus).
+    // Événement sur plusieurs jours : une case par jour (31 au plus) ; qui se répète : chaque occurrence du mois affiché.
     if (seeEvents && kinds.includes('event'))
       data.events.forEach((e) => {
-        const n = Math.min(diffDays(e.date, endOf(e)), 30);
-        for (let i = 0; i <= n; i++) push({ kind: 'event', key: i ? `${e.id}:${i}` : e.id, date: addDays(e.date, i), e });
+        const n = Math.min(duree(e), 30);
+        for (const o of occurrencesEntre(e, from, to))
+          for (let i = 0; i <= n; i++) push({ kind: 'event', key: `${e.id}@${o}:${i}`, date: addDays(o, i), e, o });
       });
     manifs.forEach(({ u, events, edition }) => {
       if (masquees.includes(u.id)) return;
       const span = (key: string, x: { date: string; dateFin?: string }, e?: AgendaClubEvent) => {
-        const n = Math.min(diffDays(x.date, endOf(x)), 30);
-        for (let i = 0; i <= n; i++) push({ kind: 'manif', key: `${key}:${i}`, date: addDays(x.date, i), u, e });
+        const n = Math.min(duree(x), 30);
+        for (let i = 0; i <= n; i++) push({ kind: 'manif', key: `${key}:${i}`, date: addDays(x.date, i), u, e, o: x.date });
       };
       if (edition) span(`m-${u.id}`, { date: u.date!, dateFin: u.dateFin });
-      events.forEach((e) => span(`c-${u.id}-${e.id}`, e, e));
+      events.forEach((e) => occurrencesEntre(e, from, to).forEach((o) => span(`c-${u.id}-${e.id}@${o}`, aLaDate(e, o), e)));
     });
     if (kinds.includes('poll'))
       (data.polls ?? []).forEach((p) => p.dateLimite && (isOpen(p) || showDone) && push({ kind: 'poll', key: p.id, date: p.dateLimite, p }));
@@ -155,8 +163,10 @@ export function Calendar() {
       if (!visible(t)) continue;
       if (kinds.includes('task') && t.delai) push({ kind: 'task', key: t.id, date: t.delai, t });
     }
+    // Par genre ; séances et événements : toute la journée d'abord, puis par heure.
     const rank: Record<Kind, number> = { meeting: 0, manif: 1, event: 2, poll: 3, task: 4 };
-    map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind]));
+    const heure = (it: Item) => (it.kind === 'meeting' ? it.m.heure : it.kind === 'event' || it.kind === 'manif' ? it.e?.heure : '') ?? '';
+    map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind] || heure(a).localeCompare(heure(b))));
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, user, days, kinds, effScope, showDone, seeMeetings, seeEvents, canSeeTask, manifs, masquees.join()]);
@@ -173,7 +183,7 @@ export function Calendar() {
     setMenu(null);
     setSelected(date);
     if (kind === 'meeting') setMeeting(newMeeting(data.meetings, date, motSeance));
-    else if (kind === 'event') setEvent(newEvent(date));
+    else if (kind === 'event') setEvent({ e: newEvent(date) });
     else setTask({ t: newTask(user.id, { delai: date }), isNew: true });
   };
   const addChoices = [
@@ -185,7 +195,7 @@ export function Calendar() {
   const open = (it: Item) => {
     if (it.kind === 'task') setTask({ t: it.t, isNew: false });
     else if (it.kind === 'meeting') (addMeeting ? setMeeting(it.m) : navigate('/comite'));
-    else if (it.kind === 'event') (addEvent ? setEvent(it.e) : navigate('/evenements'));
+    else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : navigate('/evenements'));
     else if (it.kind === 'manif') navigate(it.u.id === club?.current.id && seeEvents ? '/evenements' : '/organigramme');
     else navigate(`/sondages?id=${it.p.id}`);
   };
@@ -203,11 +213,12 @@ export function Calendar() {
       saveMeeting({ ...it.m, date, titre });
       setToast(`🗓️ ${titre} déplacé au ${when}${n ? ` · le délai de ${n} tâche(s) suit` : ''}`);
     } else if (it.kind === 'event') {
-      // Glisser un des jours déplace tout l'événement.
-      const delta = diffDays(it.date, date);
-      const debut = addDays(it.e.date, delta);
-      saveEvent({ ...it.e, date: debut, dateFin: it.e.dateFin ? addDays(it.e.dateFin, delta) : undefined });
-      setToast(`🎉 ${it.e.nom} déplacé au ${it.e.dateFin ? fmtRange(debut, addDays(it.e.dateFin, delta)) : fmtDate(debut)}`);
+      // Glisser un des jours déplace tout l'événement (qui se répète : on demande lesquels).
+      const debut = addDays(it.o, diffDays(it.date, date));
+      if (it.e.repetition) return setDeplace({ serie: it.e, jour: it.o, date: debut });
+      const x = aLaDate(it.e, debut);
+      saveEvent(x);
+      setToast(`🎉 ${it.e.nom} déplacé au ${fmtRange(x.date, x.dateFin)}`);
     } else if (it.kind === 'task') {
       if (it.t.delaiRef && !confirm(`Le délai de « ${it.t.titre} » suit une séance ou un événement. Le fixer au ${when} retire ce lien. Continuer ?`)) return;
       saveTask({ ...it.t, delai: date, delaiRef: undefined }, false);
@@ -219,31 +230,37 @@ export function Calendar() {
     switch (it.kind) {
       case 'meeting': return `${it.m.heure ? it.m.heure.replace(':', 'h') + ' ' : ''}${it.m.titre}`;
       case 'event': {
-        const n = diffDays(it.e.date, endOf(it.e)) + 1;
-        return n > 1 ? `${it.e.nom} (${diffDays(it.e.date, it.date) + 1}/${n})` : it.e.nom;
+        // L'heure de début le premier jour : « 12h30 Entraînement ».
+        const n = duree(it.e) + 1;
+        const i = diffDays(it.o, it.date) + 1;
+        return `${i === 1 && it.e.heure ? `${fmtHeure(it.e.heure)} ` : ''}${it.e.nom}${n > 1 ? ` (${i}/${n})` : ''}`;
       }
       case 'task': return it.t.titre;
       case 'poll': return `Fin : ${it.p.question}`;
       case 'manif': {
-        const x = it.e ?? { date: it.u.date!, dateFin: it.u.dateFin };
-        const n = diffDays(x.date, endOf(x)) + 1;
-        return `${it.e ? it.e.nom : `🎪 ${it.u.nom}`}${n > 1 ? ` (${diffDays(x.date, it.date) + 1}/${n})` : ''}`;
+        const n = duree(it.e ?? { date: it.u.date!, dateFin: it.u.dateFin }) + 1;
+        const i = diffDays(it.o ?? it.u.date!, it.date) + 1;
+        return `${it.e ? `${i === 1 && it.e.heure ? `${fmtHeure(it.e.heure)} ` : ''}${it.e.nom}` : `🎪 ${it.u.nom}`}${n > 1 ? ` (${i}/${n})` : ''}`;
       }
     }
   };
   const chipTitle = (it: Item) => {
     switch (it.kind) {
       case 'meeting': return `Séance : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
-      case 'event': return `Événement : ${it.e.nom} · ${fmtRange(it.e.date, it.e.dateFin)}${it.e.lieu ? ` · ${it.e.lieu}` : ''}`;
+      case 'event': {
+        const x = aLaDate(it.e, it.o);
+        return `Événement : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ')}`;
+      }
       case 'task': {
         const p = parentOf(data, it.t);
         return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · liée à « ${p.titre} »` : ''}`;
       }
       case 'poll': return `Sondage : ${it.p.question} (date limite)`;
-      case 'manif':
-        return it.e
-          ? `${it.u.nom} : ${it.e.nom} · ${fmtRange(it.e.date, it.e.dateFin)}${it.e.lieu ? ` · ${it.e.lieu}` : ''}`
-          : `Prochaine édition : ${it.u.nom} · ${fmtRange(it.u.date, it.u.dateFin)}`;
+      case 'manif': {
+        if (!it.e) return `Prochaine édition : ${it.u.nom} · ${fmtRange(it.u.date, it.u.dateFin)}`;
+        const x = aLaDate(it.e, it.o ?? it.e.date);
+        return `${it.u.nom} : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ')}`;
+      }
     }
   };
   const chipClass = (it: Item) => {
@@ -398,12 +415,12 @@ export function Calendar() {
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}
-                        {it.kind === 'event' && (it.e.lieu || 'Événement du club')}
+                        {it.kind === 'event' && ([horaire(it.e), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ') || 'Événement du club')}
                         {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
                         {it.kind === 'poll' && 'date limite pour répondre'}
                         {it.kind === 'manif' &&
                           (it.e
-                            ? [it.u.nom, fmtRange(it.e.date, it.e.dateFin), it.e.lieu].filter(Boolean).join(' · ')
+                            ? [it.u.nom, fmtRange(it.o ?? it.e.date, aLaDate(it.e, it.o ?? it.e.date).dateFin), horaire(it.e), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ')
                             : `${UNIT_TYPES[it.u.type].label}${it.u.id === club?.current.id ? ' (cette entité)' : ''} · prochaine édition ${fmtRange(it.u.date, it.u.dateFin)}`)}
                       </small>
                     </span>
@@ -420,16 +437,17 @@ export function Calendar() {
 
       {task && <TaskModal task={task.t} isNew={task.isNew} onClose={() => setTask(null)} />}
       {meeting && <MeetingModal meeting={meeting} onClose={() => setMeeting(null)} />}
-      {event && (
-        <ItemModal
-          title="Événement"
-          item={event}
-          note={linkedTasksNote(data.tasks, event.id, 'event')}
-          fields={EVENT_FIELDS}
-          validate={checkEvent}
-          onSave={saveEvent}
-          onDelete={data.events.some((x) => x.id === event.id) ? removeEvent : undefined}
-          onClose={() => setEvent(null)}
+      {event && <EventModal event={event.e} jour={event.jour} onClose={() => setEvent(null)} />}
+      {deplace && (
+        <ChoixPortee
+          action="deplacer"
+          onChoisir={(p: Portee) => {
+            const { serie, jour, date } = deplace;
+            saveOccurrence(serie, jour, aLaDate(serie, date), p);
+            setToast(`🎉 ${serie.nom} déplacé au ${fmtDate(date)}${p === 'une' ? '' : p === 'suivantes' ? ' (et les suivants)' : ' (toute la série)'}`);
+            setDeplace(null);
+          }}
+          onClose={() => setDeplace(null)}
         />
       )}
     </div>

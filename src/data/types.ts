@@ -143,6 +143,8 @@ export interface DelaiRef {
   unite?: DelaiUnite;
   /** Délai en mois du calendrier (négatif = après) : 1 mois avant le 15.11 → le 15.10. */
   moisAvant?: number;
+  /** Événement qui se répète : le premier jour de l'occurrence que suit le délai. */
+  occurrence?: string;
 }
 
 export type DelaiUnite = 'jours' | 'semaines' | 'mois';
@@ -557,17 +559,48 @@ export interface AgendaClubEvent {
   nom: string;
   date: string;
   dateFin?: string;
+  /** Heures et répétition : avec la migration 042. */
+  heure?: string;
+  heureFin?: string;
   lieu: string;
+  repetition?: RepetitionEvenement;
+  sauf?: string[];
 }
 
 export interface ClubEvent {
   id: string;
   nom: string;
+  /** Premier jour ; pour un événement qui se répète, celui de la première occurrence. */
   date: string;
   /** Dernier jour, pour un événement sur plusieurs jours. */
   dateFin?: string;
+  /** Heure de début (ex. 12:30) ; sans heure : toute la journée. */
+  heure?: string;
+  /** Heure de fin (le dernier jour). */
+  heureFin?: string;
   lieu: string;
   description: string;
+  /** Événement qui se répète (voir repetition.ts). */
+  repetition?: RepetitionEvenement;
+  /** Occurrences retirées de la série (leur premier jour) : supprimées seules, ou modifiées à part (événement `serie`). */
+  sauf?: string[];
+  /** Occurrence d'une série modifiée seule : la série et le jour de l'occurrence d'origine. */
+  serie?: { id: string; date: string };
+}
+
+/** Répétition d'un événement, comme dans un agenda : tous les N jours, semaines, mois ou ans. */
+export interface RepetitionEvenement {
+  freq: 'jour' | 'semaine' | 'mois' | 'an';
+  /** Tous les N jours / semaines / mois / ans (1 sans valeur). */
+  intervalle?: number;
+  /** Chaque semaine : les jours, 1 = lundi … 7 = dimanche (sans valeur : le jour de la première occurrence). */
+  jours?: number[];
+  /** Chaque mois : le même jour de la semaine (« le 3e jeudi », « le dernier jeudi ») au lieu de la même date (« le 15 »). */
+  mensuel?: 'rang' | 'dernier';
+  /** Se termine le (dernier jour possible, inclus). */
+  jusquau?: string;
+  /** Se termine après N occurrences. */
+  nombre?: number;
 }
 
 export interface LogEntry {

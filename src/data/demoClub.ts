@@ -103,7 +103,10 @@ const MEMBERS: Record<string, P[]> = {
 };
 
 const EVENTS: Record<string, ClubEvent[]> = {
-  'u-ecole': [{ id: 'e1', nom: 'Camp de juillet', date: '2027-07-05', lieu: 'À définir', description: 'Camp d’été de l’école de cyclisme' }],
+  'u-ecole': [
+    { id: 'e1', nom: 'Camp de juillet', date: '2027-07-05', lieu: 'À définir', description: 'Camp d’été de l’école de cyclisme' },
+    { id: 'e2', nom: 'Entraînement du mercredi', date: '2026-08-19', heure: '14:00', heureFin: '16:00', lieu: 'Piste du club', description: 'Pour tous les enfants de l’école.', repetition: { freq: 'semaine', jours: [3], jusquau: '2027-06-30' } },
+  ],
   'u-bruntrutaine': [{ id: 'e1', nom: 'Bruntrutaine 2027', date: '2027-02-27', lieu: 'Porrentruy', description: '' }],
   'u-soiree': [{ id: 'e1', nom: 'Soirée récréative', date: '2026-11-28', lieu: 'Salle des fêtes', description: '' }],
 };
@@ -133,9 +136,10 @@ function seedUnit(u: Unit): AppData {
 /**
  * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro
  * (v2 : postes au lieu des noms, sans tâches ; v3 : une caisse dans chaque entité ; v5 : deux co-responsables du groupe
- * compétition ; v6 : postes liés par leur nom, une ligne par personne ; v7 : personnes fictives, avec prénom et nom).
+ * compétition ; v6 : postes liés par leur nom, une ligne par personne ; v7 : personnes fictives, avec prénom et nom ;
+ * v8 : événements avec heures et répétitions).
  */
-const DEMO_VERSION = '7';
+const DEMO_VERSION = '8';
 const VERSION_KEY = 'taches-gsa-demo-version';
 
 function checkVersion() {

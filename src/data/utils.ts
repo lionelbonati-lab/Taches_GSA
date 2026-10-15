@@ -1,5 +1,6 @@
-import type { AppData, DelaiRef, DelaiUnite, Meeting, Person, Recurrence, Task } from './types';
+import type { AppData, ClubEvent, DelaiRef, DelaiUnite, Meeting, Person, Recurrence, Task } from './types';
 import { aPrendreSuivante, sansVolontaires, sansVolontairesPartage } from './aPrendre';
+import { derniereOccurrence, estOccurrence, occurrenceApres, occurrenceDu, occurrenceProche } from './repetition';
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
@@ -140,12 +141,25 @@ export function offsetLabel(r: Decalage) {
   return `${n} ${u} ${apres ? 'après' : 'avant'}`;
 }
 
-/** Événement ou séance servant de référence au délai de la tâche. */
-export function delaiTarget(data: AppData, t: Task): { nom: string; date: string } | null {
+/**
+ * Occurrence d'un événement qui se répète que suit une tâche : celle enregistrée (ou la plus proche, si la série a
+ * changé) ; sans : la prochaine, à défaut la dernière.
+ */
+export function occurrenceSuivie(e: ClubEvent, occurrence?: string): string | undefined {
+  if (occurrence) return estOccurrence(e, occurrence) ? occurrence : occurrenceProche(e, occurrence);
+  return occurrenceDu(e, today()) ?? derniereOccurrence(e);
+}
+
+/** Événement ou séance servant de référence au délai de la tâche ; `occurrence` : celle d'un événement qui se répète. */
+export function delaiTarget(data: AppData, t: Task): { nom: string; date: string; occurrence?: string } | null {
   if (!t.delaiRef) return null;
   // Sans événement / séance de l'entité : celui d'une entité qui dépend du comité, ou la séance du comité dont elle dépend.
   if (t.delaiRef.type === 'event') {
     const e = t.eventId ? data.events.find((x) => x.id === t.eventId) : t.evenementEntite;
+    if (e && t.eventId && (e as ClubEvent).repetition) {
+      const o = occurrenceSuivie(e as ClubEvent, t.delaiRef.occurrence);
+      return o ? { nom: e.nom, date: o, occurrence: o } : null;
+    }
     return e?.date ? { nom: e.nom, date: e.date } : null;
   }
   if (!t.meetingId) return t.seanceComite?.date ? { nom: t.seanceComite.titre, date: t.seanceComite.date } : null;
@@ -162,7 +176,10 @@ export function applyDelaiRef<T extends Task>(data: AppData, t: T): T {
   if (!t.delaiRef) return t;
   const target = delaiTarget(data, t);
   if (!target) return { ...t, delaiRef: undefined };
-  return { ...t, delai: delaiDepuis(t.delaiRef, target.date) };
+  // Événement qui se répète : l'occurrence suivie est gardée ; sinon, aucune.
+  const { occurrence: _, ...ref } = t.delaiRef;
+  const delaiRef = target.occurrence ? { ...ref, occurrence: target.occurrence } : ref;
+  return { ...t, delai: delaiDepuis(delaiRef, target.date), delaiRef };
 }
 
 // ---------- Tâches récurrentes ----------
@@ -249,25 +266,32 @@ function nextParent(data: AppData, t: Task) {
 export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
   const open = data.statuses.find((s) => !s.done) ?? data.statuses[0];
   const suit = seance && t.delaiRef?.type === 'meeting' ? t.delaiRef : undefined;
+  // Délai selon un événement qui se répète : l'occurrence de l'événement la plus proche de la prochaine échéance.
+  const ev = t.delaiRef?.type === 'event' && t.recurrence && t.recurrence !== 'seance' ? data.events.find((e) => e.id === t.eventId && e.repetition) : undefined;
+  const cur = ev && delaiTarget(data, t)?.date;
+  const proche = ev && cur ? occurrenceProche(ev, nextDate(cur, t.recurrence as Exclude<Recurrence, 'seance'>)) : undefined;
+  const occ = ev && cur ? (proche && proche > cur ? proche : occurrenceApres(ev, cur)) : undefined;
+  const suitEvent = occ ? { ...t.delaiRef!, occurrence: occ } : undefined;
   return {
     ...t,
     id: uid('t'),
     statusId: open.id,
-    delai: suit ? delaiDepuis(suit, seance!.date) : t.delai ? (dateSuivante(data, t, t.delai, seance) ?? '') : '',
+    delai: suit ? delaiDepuis(suit, seance!.date) : suitEvent ? delaiDepuis(suitEvent, occ!) : t.delai ? (dateSuivante(data, t, t.delai, seance) ?? '') : '',
     // Tâche à prendre : la place se rouvre (les personnes proposées ne sont pas reconduites).
     responsables: sansVolontaires(nextResponsables(data, t), t.aPrendre),
     respPartage: sansVolontairesPartage(t.respPartage, t.aPrendre),
     aPrendre: aPrendreSuivante(t.aPrendre),
     checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
     parentId: nextParent(data, t),
-    // L'événement de cette année ne concerne pas l'occurrence suivante ; la séance, seulement celle du même mois l'an prochain
-    // (ou la séance suivante, pour une tâche « à chaque séance »).
-    eventId: undefined,
+    // L'événement de cette année ne concerne pas l'occurrence suivante (sauf un événement qui se répète : son occurrence
+    // suivante) ; la séance, seulement celle du même mois l'an prochain (ou la séance suivante, pour une tâche « à chaque
+    // séance »).
+    eventId: suitEvent ? t.eventId : undefined,
     meetingId: seance?.id,
     // La séance du comité dont l'entité dépend concernait cette occurrence-ci.
     seanceComite: undefined,
     evenementEntite: undefined,
-    delaiRef: suit,
+    delaiRef: suit ?? suitEvent,
     suivanteId: undefined,
     // La demande d'une autre entité concernait cette occurrence-ci.
     proposee: undefined,

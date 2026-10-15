@@ -45,8 +45,9 @@ function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void })
   const { data, can, update } = useStore();
   const [debut, setDebut] = useState(unit.date ?? '');
   const [fin, setFin] = useState(unit.dateFin ?? '');
-  // Événement de l'agenda à déplacer aussi : celui de l'édition actuelle si elle est encore à venir (report).
-  const events = [...data.events].sort((a, b) => a.date.localeCompare(b.date));
+  // Événement de l'agenda à déplacer aussi : celui de l'édition actuelle si elle est encore à venir (report). Pas un
+  // événement qui se répète (il se déplace depuis sa fiche).
+  const events = data.events.filter((e) => !e.repetition).sort((a, b) => a.date.localeCompare(b.date));
   const moveable = can('events.manage');
   const auto = unit.date && endOf({ date: unit.date, dateFin: unit.dateFin }) >= today() ? events.find((e) => e.date === unit.date) : undefined;
   const [ev, setEv] = useState(auto?.id ?? '');

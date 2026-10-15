@@ -393,7 +393,7 @@ export function DemoApp() {
       async agendaClub(): Promise<AgendaClubEvent[]> {
         return units
           .filter((u) => !u.archive)
-          .flatMap((u) => loadUnitData(u.id).events.map((e) => ({ uniteId: u.id, id: e.id, nom: e.nom, date: e.date, dateFin: e.dateFin, lieu: e.lieu })))
+          .flatMap((u) => loadUnitData(u.id).events.map((e) => ({ uniteId: u.id, id: e.id, nom: e.nom, date: e.date, dateFin: e.dateFin, heure: e.heure, heureFin: e.heureFin, lieu: e.lieu, repetition: e.repetition, sauf: e.sauf })))
           .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date))
           .sort((a, b) => a.date.localeCompare(b.date));
       },

@@ -297,6 +297,23 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .chip { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px; }
 .chip.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); }
 .chip.locked { cursor: default; opacity: 0.7; }
+
+/* Fiche d'un événement : heures, répétition (comme dans un agenda) ; choix « cet événement / les suivants / tous ». */
+.event-form label.inline { align-items: center; gap: 8px; }
+.repetition-perso { display: flex; flex-direction: column; gap: 10px; }
+.rep-ligne { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; color: var(--text); font-size: 0.95rem; }
+.rep-ligne input[type='number'] { width: 70px; }
+.rep-ligne select { width: auto; }
+.jours-semaine { display: flex; gap: 6px; flex-wrap: wrap; }
+.jours-semaine button { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); cursor: pointer; font-size: 0.85rem; padding: 0; }
+.jours-semaine button.on { background: var(--primary); border-color: var(--primary); color: #fff; }
+.rep-fin { display: flex; flex-direction: column; gap: 6px; color: var(--text); font-size: 0.95rem; }
+.rep-fin label.inline { align-items: center; gap: 8px; flex-wrap: wrap; }
+.rep-fin input[type='date'] { width: auto; }
+.rep-fin input[type='number'] { width: 80px; }
+.rep-fin input[type='radio'], .choix-portee input[type='radio'] { width: 18px; height: 18px; padding: 0; margin: 0; accent-color: var(--primary); }
+.choix-portee { display: flex; flex-direction: column; gap: 14px; margin: 6px 0 16px; }
+.choix-portee label.inline { display: flex; align-items: center; gap: 12px; font-size: 1rem; cursor: pointer; }
 .chip-x { border: none; background: none; cursor: pointer; color: inherit; padding: 0 0 0 2px; font-size: 0.75rem; }
 .sub-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; }
 .sub-list li { display: flex; align-items: center; gap: 4px; }
@@ -338,6 +355,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 /* Formulaire de tâche : l'essentiel, puis « Ajouter : » pour le reste. */
 .delai-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .delai-field .field-label { margin-bottom: 0; }
+.occurrence-field { display: flex; flex-direction: column; gap: 4px; }
 .link-btn { align-self: flex-start; background: none; border: none; padding: 2px 0; color: var(--primary); font-size: 0.85rem; cursor: pointer; text-align: left; }
 .link-btn:hover { text-decoration: underline; }
 .qui .chips { align-items: center; margin-bottom: 0; }

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, Meeting, OrgUnit, PvArchive, Task } from '../data/types';
+import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, PvArchive, Task } from '../data/types';
 import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
+import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu } from '../data/repetition';
+import { EventModal, newEvent } from '../components/EventModal';
 import { EditionCard } from '../components/Edition';
 import { Empty, Modal } from '../components/ui';
 import { Progress } from './Dashboard';
@@ -20,9 +22,9 @@ import { useAnnexesArchive } from '../components/Annexes';
 import { margesArchive, policeArchive } from '../data/styleDocs';
 import { BoutonPdf } from '../components/BoutonPdf';
 
-// Onglets « Comité » (séances) et « Événements » : même principe, champs différents.
+// Onglets « Comité » (séances) et « Événements » : même principe, champs différents (fiche d'un événement : EventModal).
 
-/** Enregistrement / suppression des séances et événements (onglets Comité, Événements et Agenda). */
+/** Enregistrement / suppression des séances (onglets Comité et Agenda). */
 export function useAgendaActions() {
   const { data, update } = useStore();
   return {
@@ -36,24 +38,8 @@ export function useAgendaActions() {
       d.meetings = d.meetings.filter((x) => x.id !== m.id).map((x) => (fin.includes(x.id) ? { ...x, unique: true } : x));
       d.tasks.forEach((t) => { if (t.meetingId === m.id) t.meetingId = undefined; });
     }, `Suppression de la séance « ${m.titre} »`),
-    saveEvent: (x: ClubEvent) => {
-      // Sur un seul jour : pas de date de fin.
-      const e: ClubEvent = { ...x, dateFin: x.dateFin && x.dateFin > x.date ? x.dateFin : undefined };
-      const isNew = !data.events.some((x) => x.id === e.id);
-      update((d) => { d.events = isNew ? [...d.events, e] : d.events.map((x) => (x.id === e.id ? e : x)); }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »`);
-    },
-    removeEvent: (e: ClubEvent) => update((d) => {
-      d.events = d.events.filter((x) => x.id !== e.id);
-      d.tasks.forEach((t) => { if (t.eventId === e.id) t.eventId = undefined; });
-    }, `Suppression de l'événement « ${e.nom} »`),
   };
 }
-
-export const EVENT_FIELDS: [keyof ClubEvent & string, string, 'text' | 'date' | 'area'][] = [
-  ['nom', 'Événement', 'text'], ['date', 'Date (premier jour)', 'date'], ['dateFin', 'Dernier jour (si plusieurs jours)', 'date'], ['lieu', 'Lieu', 'text'],
-  ['description', 'Description', 'area'],
-];
-export const checkEvent = (e: ClubEvent) => (e.dateFin && e.date && e.dateFin < e.date ? 'Le dernier jour ne peut pas précéder le premier.' : undefined);
 
 /** Mot des séances de l'entité ouverte : « Comité », « Séance », « Réunion ». */
 export const useMotSeance = () => motSeance(useClubOptional()?.current.type);
@@ -69,7 +55,6 @@ export function newMeeting(meetings: Meeting[], date = today(), mot = 'Comité')
     ...(extra ? { unique: true } : {}),
   };
 }
-export const newEvent = (date = today()): ClubEvent => ({ id: uid('e'), nom: '', date, lieu: '', description: '' });
 
 /** Avertissement : tâches dont le délai suit la date de la séance / de l'événement. */
 export const linkedTasksNote = (tasks: Task[], id: string, type: 'meeting' | 'event') =>
@@ -356,63 +341,55 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
 
 export function Events() {
   const { data, can } = useStore();
-  const { saveEvent: save, removeEvent: remove } = useAgendaActions();
-  const [edit, setEdit] = useState<ClubEvent | null>(null);
+  const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string } | null>(null);
   const manage = can('events.manage');
-  const sorted = [...data.events].sort((a, b) => a.date.localeCompare(b.date));
+  // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
+  const jour = today();
+  const affiche = (e: ClubEvent) => (e.repetition ? (occurrenceDu(e, jour) ?? derniereOccurrence(e) ?? e.date) : e.date);
   // Avec les événements du club qui dépendent de ce comité, à leur date (sans date : à la fin).
   const club = useClubOptional();
   const dependants = club ? evenementsDependants(club.units, club.current) : [];
   const liste = [
-    ...sorted.map((e) => ({ date: e.date, e, u: undefined })),
+    ...data.events.map((e) => ({ date: affiche(e), e, u: undefined })),
     ...dependants.map((u) => ({ date: u.date || '9999', e: undefined, u })),
-  ].sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u));
+  ].sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? ''));
 
   return (
     <div>
       <div className="page-head">
         <h1>Événements</h1>
-        {manage && <button className="btn primary" onClick={() => setEdit(newEvent())}>+ Nouvel événement</button>}
+        {manage && <button className="btn primary" onClick={() => setEdit({ e: newEvent() })}>+ Nouvel événement</button>}
       </div>
       <PageIntro />
       <EditionCard />
       <div className="agenda">
-        {liste.map(({ e, u }) => {
+        {liste.map(({ e: serie, u, date }) => {
           if (u) return <EvenementDependant key={u.id} u={u} />;
-          if (!e) return null;
+          if (!serie) return null;
+          const e = aLaDate(serie, date);
           const tasks = data.tasks.filter((t) => t.eventId === e.id);
           const fin = endOf(e);
-          const past = fin < today();
+          const past = fin < jour;
           const jours = diffDays(e.date, fin) + 1;
-          const quand = past ? '' : e.date <= today() ? 'en cours' : `dans ${daysUntil(e.date)} j`;
+          const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
           return (
             <article key={e.id} className={`panel agenda-item ${past ? 'past' : ''}`}>
               <DateBlock date={e.date} fin={e.dateFin} />
               <div className="grow">
                 <strong>{e.nom}</strong>
-                <div className="muted">{[e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
+                <div className="muted">{[horaire(e), e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
+                {e.repetition && <div className="muted">🔁 {libelleRepetition(serie)}</div>}
                 <p>{e.description}</p>
                 <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
                 <Link to={`/taches?event=${e.id}`}>Voir les tâches →</Link>
               </div>
-              {manage && <button className="btn small" onClick={() => setEdit(e)}>Modifier</button>}
+              {manage && <button className="btn small" onClick={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}>Modifier</button>}
             </article>
           );
         })}
         {!liste.length && <Empty>Aucun événement.</Empty>}
       </div>
-      {edit && (
-        <ItemModal
-          title="Événement"
-          item={edit}
-          note={linkedTasksNote(data.tasks, edit.id, 'event')}
-          fields={EVENT_FIELDS}
-          validate={checkEvent}
-          onSave={save}
-          onDelete={data.events.some((x) => x.id === edit.id) ? remove : undefined}
-          onClose={() => setEdit(null)}
-        />
-      )}
+      {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
     </div>
   );
 }
@@ -432,7 +409,12 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
   const past = !!fin && fin < jour;
   const jours = u.date ? diffDays(u.date, fin) + 1 : 0;
   const quand = !u.date ? 'date de la prochaine édition à fixer' : past ? '' : u.date <= jour ? 'en cours' : `dans ${daysUntil(u.date)} j`;
-  const siens = agenda.filter((e) => e.uniteId === u.id && endOf(e) >= jour && !(e.date === u.date && (e.dateFin ?? '') === (u.dateFin ?? '')));
+  // Ses événements à venir (qui se répète : sa prochaine occurrence), hors celui de l'édition.
+  const siens = agenda
+    .filter((e) => e.uniteId === u.id)
+    .map((e) => (e.repetition ? (occurrenceDu(e, jour) ? aLaDate(e, occurrenceDu(e, jour)!) : undefined) : e))
+    .filter((e): e is AgendaClubEvent => !!e && endOf(e) >= jour && !(e.date === u.date && (e.dateFin ?? '') === (u.dateFin ?? '')))
+    .sort((a, b) => a.date.localeCompare(b.date));
   const taches = data.tasks.filter((t) => tacheDeLEvenement(t, u.id));
   const membre = club.mine.some((x) => x.id === u.id);
   return (
@@ -444,7 +426,11 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
         {u.description && <p>{u.description}</p>}
         {siens.length > 0 && (
           <ul className="dependant-events">
-            {siens.map((e) => <li key={e.id}>🎉 {e.nom} · {fmtRange(e.date, e.dateFin)}{e.lieu && ` · ${e.lieu}`}</li>)}
+            {siens.map((e) => (
+              <li key={e.id}>
+                🎉 {e.nom} · {[fmtRange(e.date, e.dateFin), horaire(e), e.lieu, e.repetition && `🔁 ${libelleRepetition(e)}`].filter(Boolean).join(' · ')}
+              </li>
+            ))}
           </ul>
         )}
         {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
@@ -506,51 +492,5 @@ function DateBlock({ date, fin }: { date: string; fin?: string }) {
       <span>{f && mois(f) !== mois(d) ? `${mois(d)}–${mois(f)}` : mois(d)}</span>
       <small>{f && f.getFullYear() !== d.getFullYear() ? `${d.getFullYear()}–${String(f.getFullYear()).slice(2)}` : d.getFullYear()}</small>
     </div>
-  );
-}
-
-export function ItemModal<T extends { id: string }>({ title, item, fields, onSave, onDelete, onClose, note, validate }: {
-  title: string;
-  note?: string;
-  /** Contrôle avant enregistrement : message d'erreur, ou rien. */
-  validate?: (t: T) => string | undefined;
-  item: T;
-  fields: [keyof T & string, string, 'text' | 'date' | 'time' | 'area' | 'email' | 'tel'][];
-  onSave: (t: T) => void;
-  onDelete?: (t: T) => void;
-  onClose: () => void;
-}) {
-  const [v, setV] = useState<T>(item);
-  const [err, setErr] = useState('');
-  const submit = () => {
-    if (!String(v[fields[0][0]] ?? '').trim()) return setErr(`« ${fields[0][1]} » est obligatoire.`);
-    const bad = validate?.(v);
-    if (bad) return setErr(bad);
-    onSave(v);
-    onClose();
-  };
-  return (
-    <Modal title={title} onClose={onClose}>
-      <div className="form">
-        {fields.map(([k, label, type]) => (
-          <label key={k} className={type === 'area' ? 'full' : ''}>
-            {label}
-            {type === 'area' ? (
-              <textarea rows={4} value={String(v[k] ?? '')} onChange={(e) => setV({ ...v, [k]: e.target.value })} />
-            ) : (
-              <input type={type} value={String(v[k] ?? '')} onChange={(e) => setV({ ...v, [k]: e.target.value })} />
-            )}
-          </label>
-        ))}
-      </div>
-      {note && <p className="muted">{note}</p>}
-      {err && <p className="error">{err}</p>}
-      <div className="modal-foot">
-        {onDelete && <button className="btn danger" onClick={() => { if (confirm('Supprimer définitivement ?')) { onDelete(item); onClose(); } }}>Supprimer</button>}
-        <span className="grow" />
-        <button className="btn" onClick={onClose}>Annuler</button>
-        <button className="btn primary" onClick={submit}>Enregistrer</button>
-      </div>
-    </Modal>
   );
 }

@@ -1,8 +1,9 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ScheduledEmail, Task } from '../data/types';
+import type { ClubEvent, ScheduledEmail, Task } from '../data/types';
 import { daysUntil, derniereSeancePassee, endOf, estArchivee, fmtDate, fmtRange, isDone, isLate, today } from '../data/utils';
+import { aLaDate, horaire, occurrenceDu } from '../data/repetition';
 import { TaskCard } from './Tasks';
 import { TaskModal } from '../components/TaskModal';
 import { Empty } from '../components/ui';
@@ -51,7 +52,10 @@ export function Dashboard() {
   const simple = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   const memeNom = (a: string, b: string) => { const [x, y] = [simple(a), simple(b)]; return !!x && !!y && (x.includes(y) || y.includes(x)); };
   const editions = (club ? evenementsDependants(club.units, club.current) : []).filter((u) => u.date && endOf({ date: u.date, dateFin: u.dateFin }) >= jour);
-  const aVenir = data.events.filter((e) => endOf(e) >= jour);
+  // Événement qui se répète : sa prochaine occurrence.
+  const aVenir = data.events
+    .map((e) => (e.repetition ? (occurrenceDu(e, jour) ? aLaDate(e, occurrenceDu(e, jour)!) : undefined) : e))
+    .filter((e): e is ClubEvent => !!e && endOf(e) >= jour);
   const nextEvents = [
     ...aVenir.filter((e) => !editions.some((u) => u.date === e.date && memeNom(u.nom, e.nom))).map((e) => ({ date: e.date, e, u: undefined })),
     ...editions.map((u) => ({ date: u.date!, e: aVenir.find((e) => e.date === u.date && memeNom(u.nom, e.nom)), u })),
@@ -216,7 +220,7 @@ export function Dashboard() {
               return (
                 <Link key={u ? `u:${u.id}` : e!.id} to={`/taches?event=${encodeURIComponent(u ? `u:${u.id}` : e!.id)}`} className="panel link-panel">
                   <strong>{u ? `${UNIT_TYPES[u.type].icon} ${u.nom}` : e!.nom}</strong>
-                  <span>{[fmtRange(x.date, x.dateFin), e?.lieu].filter(Boolean).join(' · ')} <em className="muted">({quand})</em></span>
+                  <span>{[fmtRange(x.date, x.dateFin), e && horaire(e), e?.lieu, e?.repetition && '🔁'].filter(Boolean).join(' · ')} <em className="muted">({quand})</em></span>
                   <Progress done={done} total={tasks.length} />
                 </Link>
               );

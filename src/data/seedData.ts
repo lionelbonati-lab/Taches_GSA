@@ -526,6 +526,7 @@ export const events: AppData['events'] = [
     "id": "e8",
     "nom": "Souper du comité",
     "date": "2026-11-01",
+    "heure": "19:00",
     "lieu": "Auberge du Peupe",
     "description": "Menu de groupe, 20 personnes."
   },
@@ -540,6 +541,8 @@ export const events: AppData['events'] = [
     "id": "e10",
     "nom": "Soirée récréative",
     "date": "2026-11-28",
+    "heure": "18:30",
+    "heureFin": "23:30",
     "lieu": "Stand de tir, Courtemautruy",
     "description": "Repas choucroute et animations."
   },
@@ -556,6 +559,16 @@ export const events: AppData['events'] = [
     "date": "2027-03-13",
     "lieu": "À définir",
     "description": "AG ordinaire."
+  },
+  {
+    "id": "e13",
+    "nom": "Entraînement en salle",
+    "date": "2026-10-27",
+    "heure": "18:30",
+    "heureFin": "20:00",
+    "lieu": "Salle de gym",
+    "description": "Programme hivernal : chaque mardi.",
+    "repetition": { "freq": "semaine", "jours": [2], "jusquau": "2027-03-23" }
   }
 ];
 

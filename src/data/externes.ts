@@ -2,6 +2,7 @@ import type { AgendaClubEvent, AppData, EvenementEntite, Meeting, OrgUnit, Perso
 import { entiteDeSection, estEvenement, estSectionEvenements, memePersonne, partageDe, placeAuto, sousSectionDe, statutCorrespondant } from './partage';
 import { parentDans } from './units';
 import { endOf } from './utils';
+import { aLaDate, estOccurrence, occurrenceDu, occurrenceProche } from './repetition';
 import { epurerPourInfo } from './pourInfo';
 import { epurerAPrendre } from './aPrendre';
 
@@ -211,10 +212,13 @@ export function choixEvenements(dependants: OrgUnit[], agenda: AgendaClubEvent[]
   for (const u of dependants) {
     const ed = editionDe(u);
     if (!ed.date || endOf(ed) >= jour || memeEvenement(ed, lie)) choix.push(ed);
-    for (const e of agenda) {
+    for (const a of agenda) {
+      // Qui se répète : sa prochaine occurrence (celle que suivra la tâche).
+      const o = a.repetition ? occurrenceDu(a, jour) : a.date;
+      const e = o ? aLaDate(a, o) : a;
       if (e.uniteId !== u.id || (e.date === ed.date && (e.dateFin ?? '') === (ed.dateFin ?? ''))) continue;
       const x: EvenementEntite = { uniteId: u.id, id: e.id, nom: e.nom, date: e.date, ...(e.dateFin ? { dateFin: e.dateFin } : {}) };
-      if (endOf(e) >= jour || memeEvenement(x, lie)) choix.push(x);
+      if ((o && endOf(e) >= jour) || memeEvenement(x, lie)) choix.push(x);
     }
   }
   if (lie && !choix.some((x) => memeEvenement(x, lie))) choix.push(lie);
@@ -255,7 +259,10 @@ export function suivreExternes(tasks: Task[], ext: Externes, units: OrgUnit[], j
       a = u && (u.date || !e.date) ? editionDe(u) : u ? { ...e, nom: u.nom } : undefined;
     } else {
       const lu = ext.agenda?.find((x) => x.uniteId === e.uniteId && x.id === e.id);
-      a = lu && { uniteId: e.uniteId, id: e.id, nom: lu.nom, date: lu.date, ...(lu.dateFin ? { dateFin: lu.dateFin } : {}) };
+      // Qui se répète : la même occurrence (la plus proche, si la série a changé).
+      const o = lu?.repetition ? (estOccurrence(lu, e.date) ? e.date : occurrenceProche(lu, e.date)) : lu?.date;
+      const x = lu && o ? aLaDate(lu, o) : undefined;
+      a = x && { uniteId: e.uniteId, id: e.id, nom: x.nom, date: x.date, ...(x.dateFin ? { dateFin: x.dateFin } : {}) };
     }
     if (a && (a.nom !== e.nom || a.date !== e.date || (a.dateFin ?? '') !== (e.dateFin ?? ''))) out.set(t.id, { ...out.get(t.id), evenementEntite: a });
   }

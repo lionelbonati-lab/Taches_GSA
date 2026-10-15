@@ -15,6 +15,7 @@ import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as 
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
 import type { DelaiUnite, EvenementEntite, OrgUnit, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
+import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
 import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
@@ -831,6 +832,13 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
 
 type SetT = (fn: (x: Task) => Task) => void;
 
+/** Sans l'occurrence suivie (autre événement : sa prochaine occurrence, s'il se répète). */
+const sansOccurrence = (t: Task): Task => {
+  if (!t.delaiRef?.occurrence) return t;
+  const { occurrence: _, ...ref } = t.delaiRef;
+  return { ...t, delaiRef: ref };
+};
+
 /** Tâche liée à une séance du comité dont l'entité dépend : partagée avec ce comité (ses tâches, son ordre du jour, son PV). */
 function avecSeance(x: Task, s: SeanceComite, centralId?: string): Task {
   const l = partageDe(x, centralId);
@@ -880,9 +888,9 @@ function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disabled: bo
   const value = lie ? `x:${evenements.findIndex((x) => memeEvenement(x, lie))}` : (t.eventId ?? '');
   const choisir = (v: string) =>
     setT((x) =>
-      applyDelaiRef(data, v.startsWith('x:') ? { ...x, eventId: undefined, evenementEntite: evenements[Number(v.slice(2))] } : { ...x, eventId: v || undefined, evenementEntite: undefined }),
+      applyDelaiRef(data, sansOccurrence(v.startsWith('x:') ? { ...x, eventId: undefined, evenementEntite: evenements[Number(v.slice(2))] } : { ...x, eventId: v || undefined, evenementEntite: undefined })),
     );
-  const locales = data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>);
+  const locales = data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}{e.repetition ? ' 🔁' : ''}</option>);
   const u = lie && unite(lie.uniteId);
   const partagee = !!lie && partageDe(t, club?.central?.id).includes(lie.uniteId);
   return (
@@ -995,7 +1003,8 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
   const [choisir, setChoisir] = useState(false);
   const upcoming = <T extends { id: string; date: string; dateFin?: string }>(list: T[], current?: string) =>
     list.filter((x) => endOf(x) >= today() || x.id === current).sort((a, b) => a.date.localeCompare(b.date));
-  const events = upcoming(data.events, t.eventId);
+  // Événement qui se répète : à sa prochaine occurrence (tant qu'il en reste).
+  const events = upcoming(data.events.map((e) => (e.repetition ? aLaDate(e, occurrenceDu(e, today()) ?? derniereOccurrence(e) ?? e.date) : e)), t.eventId);
   const meetings = upcoming(data.meetings, t.meetingId);
   // Édition pas encore datée : pas de repère pour un délai.
   const xe = evenements.filter((x) => x.date);
@@ -1021,7 +1030,8 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
         : cle === 'meeting' ? { ...x, meetingId: id, seanceComite: undefined }
         : avecSeance(x, xm[Number(id)], club?.central?.id);
       const type = cle === 'event' || cle === 'xe' ? 'event' : 'meeting';
-      return applyDelaiRef(data, { ...y, delaiRef: { ...(x.delaiRef ?? makeDelai(1, 'semaines', false)), type } });
+      // Autre événement : sa prochaine occurrence (s'il se répète).
+      return applyDelaiRef(data, sansOccurrence({ ...y, delaiRef: { ...(x.delaiRef ?? makeDelai(1, 'semaines', false)), type } }));
     });
   };
 
@@ -1030,7 +1040,7 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
       <option value="fixe">📆 Date fixe</option>
       {events.length > 0 && (
         <optgroup label="Selon un événement">
-          {events.map((e) => <option key={e.id} value={`event:${e.id}`}>🎉 {e.nom} ({fmtRange(e.date, e.dateFin)})</option>)}
+          {events.map((e) => <option key={e.id} value={`event:${e.id}`}>🎉 {e.nom} ({e.repetition ? `🔁 ${libelleRegle(e.repetition, e.date).toLowerCase()}` : fmtRange(e.date, e.dateFin)})</option>)}
         </optgroup>
       )}
       {xe.length > 0 && (
@@ -1066,12 +1076,39 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
       ) : (
         <>
           {choix}
+          <OccurrenceField t={t} setT={setT} disabled={disabled} />
           <QuandField t={t} setT={setT} disabled={disabled} />
         </>
       )}
     </div>
   );
 }
+
+/** Délai selon un événement qui se répète : l'occurrence qu'il suit (les prochaines, et celle choisie). */
+function OccurrenceField({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
+  const { data } = useStore();
+  const e = t.delaiRef?.type === 'event' ? data.events.find((x) => x.id === t.eventId) : undefined;
+  if (!e?.repetition) return null;
+  const jour = today();
+  const cur = t.delaiRef?.occurrence;
+  const prochaines = occurrencesEntre(e, jour, addDays(jour, 3 * 366), 12);
+  const liste = [...new Set([...(cur ? [cur] : []), ...prochaines])].sort();
+  return (
+    <label className="occurrence-field">
+      <span className="field-label">Occurrence</span>
+      <select
+        value={cur ?? ''}
+        disabled={disabled}
+        onChange={(ev) => setT((x) => applyDelaiRef(data, { ...x, delaiRef: { ...x.delaiRef!, occurrence: ev.target.value } }))}
+      >
+        {liste.map((o) => <option key={o} value={o}>{longDate(o)}{horaire(e) ? ` · ${horaire(e)}` : ''}</option>)}
+      </select>
+    </label>
+  );
+}
+
+/** « jeudi 22.10.2026 ». */
+const longDate = (d: string) => `${new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'long' })} ${fmtDate(d)}`;
 
 const UNITES: { id: DelaiUnite; un: string; plusieurs: string }[] = [
   { id: 'jours', un: 'jour', plusieurs: 'jours' },
@@ -1088,7 +1125,7 @@ function QuandField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Ta
   const shown = txt === '' || Number(txt) === cur.n ? txt : String(cur.n);
   const change = (patch: Partial<typeof cur>) => {
     const next = { ...cur, ...patch };
-    setT((x) => applyDelaiRef(data, { ...x, delaiRef: { type: x.delaiRef!.type, ...makeDelai(next.n, next.unite, next.apres) } }));
+    setT((x) => applyDelaiRef(data, { ...x, delaiRef: { ...x.delaiRef!, ...makeDelai(next.n, next.unite, next.apres) } }));
   };
   return (
     <div className="quand">
