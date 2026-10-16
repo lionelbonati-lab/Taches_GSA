@@ -327,6 +327,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
 .modal-head h2 { margin: 0; font-size: 1.2rem; }
 .modal-foot { display: flex; gap: 8px; margin-top: 18px; align-items: center; }
+/* Boutons d'en-tête (« 📤 Lien ») : à droite, avant ✕. */
+.modal-actions { margin-left: auto; margin-right: 8px; display: flex; gap: 6px; }
 
 /* ---------- Login ---------- */
 .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: linear-gradient(135deg, var(--primary), #0f766e); }
@@ -1523,3 +1525,16 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .pdf-rendu .pv-annexe-img { border: none; }
 .pdf-rendu .pdf-puce { position: absolute; right: 100%; top: 0; padding-right: 0.3em; white-space: nowrap; }
 .pdf-rendu .pdf-puce.sym { padding-right: 0.5em; }
+
+/* ---------- Envoyer un lien (WhatsApp, email, autre appli) ---------- */
+.icone-partage { vertical-align: -0.2em; flex: none; }
+.btn .icone-partage { margin-right: 2px; }
+.modal-actions > .icon-btn { font-size: 1.05rem; color: var(--text); }
+.poll-actions .envoyer-lien { margin-left: auto; }
+.envoyer textarea { width: 100%; resize: vertical; }
+.lien-apercu { margin: 0; display: flex; gap: 6px; align-items: center; min-width: 0; }
+.lien-apercu input { flex: 1; min-width: 0; font-size: 0.85rem; color: var(--muted); }
+.envoyer-choix { display: flex; flex-wrap: wrap; gap: 8px; }
+.envoyer-choix .btn { text-decoration: none; }
+.avis-lien { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.avis-lien .icon-btn { margin-left: auto; }

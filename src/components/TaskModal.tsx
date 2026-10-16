@@ -19,6 +19,8 @@ import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occur
 import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
+import { EnvoyerLien } from './EnvoyerLien';
+import { lienAppli, texteTache } from '../data/lienPartage';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
   return {
@@ -361,7 +363,22 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     });
 
   return (
-    <Modal title={isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'} onClose={cancel} wide>
+    <Modal
+      title={isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'}
+      onClose={cancel}
+      wide
+      actions={
+        !isNew && (
+          <EnvoyerLien
+            icone
+            titre={`Tâche « ${task.titre} »`}
+            texte={texteTache(task, data.people, task.source?.unite ?? club?.current.nom, isDone(data, task))}
+            lien={lienAppli(`/taches?tache=${encodeURIComponent(task.id)}`, club?.current.id)}
+            acces={`Le lien ne donne aucun accès : il faut un compte de l’appli et voir cette tâche${club ? ` dans « ${club.current.nom} »` : ''}.`}
+          />
+        )
+      }
+    >
       <div className="form">
         {parent && (
           <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>

@@ -238,6 +238,17 @@ Page **📊 Sondages** (rubrique Comité) (filtres À voter / En cours / Termin�
 
 Droits : « Créer des sondages » (Admin, Secrétaire, Comité par défaut) et « Gérer tous les sondages » (Admin, Secrétaire). Pour tester un vote à plusieurs, change d'utilisateur (bouton « Changer »).
 
+## Envoyer une tâche ou un sondage par WhatsApp, email…
+
+Bouton **Envoyer un lien** (icône de partage, trois points reliés) en haut de la fiche d'une tâche, et sous chaque sondage de la page Sondages (à ne pas confondre avec « 🤝 Partager » d'une tâche, qui la partage avec d'autres entités). La fenêtre propose un court message, modifiable (« 📋 Tâche « … » (Entité) · 📅 Pour le … · 👤 responsables » ou « 🙋 À prendre » ; « 📊 Sondage « … » · Réponds d'ici le … »), suivi du **lien** qui ouvre la tâche ou le sondage dans l'appli :
+
+- **💬 WhatsApp** (appli ou WhatsApp Web, choix du contact ou du groupe), **Autre appli…** sur téléphone (Signal, SMS, Messenger… : la feuille de partage du téléphone), **✉ Email**, **📋 Copier le message** et **Copier le lien** seul ;
+- le lien garde la **version** (`?reel` / `?demo` : pas d'écran de choix sur un appareil neuf) et l'**entité** (`&u=…`) : il ouvre l'appli **dans cette entité** si la personne en fait partie, puis la tâche ou le sondage. Appli déjà ouverte sur une autre entité : un bouton « Ouvrir « Entité » » y mène ;
+- le lien **ne donne aucun accès** : il faut un compte, et voir la tâche avec son rôle (ou être votant du sondage). Sinon l'appli l'indique : « une entité dont tu ne fais pas partie », « Tâche introuvable… » ou « Sondage introuvable… » ;
+- le champ **{lien}** des emails programmés mène de la même façon à la tâche, dans l'entité.
+
+Démo : les données restent dans le navigateur, un lien n'ouvre donc l'élément que sur l'appareil où il a été créé.
+
 ## Ordre du jour
 
 Page **📝 Ordre du jour** (rubrique Comité ; droit « Comité › Ordre du jour », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare le document de la **prochaine séance**, présenté comme les ordres du jour Word du club, en **liste numérotée** (pas de tableau) :

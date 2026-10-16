@@ -168,8 +168,8 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
         </div>
         <details className="full email-preview">
           <summary>Aperçu</summary>
-          <p><b>Objet :</b> {fillTemplate(data, task, e, e.objet)}</p>
-          <pre>{fillTemplate(data, task, e, e.message)}</pre>
+          <p><b>Objet :</b> {fillTemplate(data, task, e, e.objet, club?.current.id)}</p>
+          <pre>{fillTemplate(data, task, e, e.message, club?.current.id)}</pre>
         </details>
       </div>
       {err && <p className="error">{err}</p>}
@@ -322,8 +322,8 @@ export function EmailSend({ task, email, onClose }: { task: Task; email: Schedul
   const [opened, setOpened] = useState(false);
   const [copied, setCopied] = useState(false);
   const to = recipients(data, email, club?.units, club?.current.id);
-  const objet = fillTemplate(data, task, email, email.objet);
-  const body = fillTemplate(data, task, email, email.message);
+  const objet = fillTemplate(data, task, email, email.objet, club?.current.id);
+  const body = fillTemplate(data, task, email, email.message, club?.current.id);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(`À : ${to.join(', ')}\nObjet : ${objet}\n\n${body}`);
@@ -351,7 +351,7 @@ export function EmailSend({ task, email, onClose }: { task: Task; email: Schedul
         <button className="btn" onClick={copy}>{copied ? '✓ Copié' : 'Copier le texte'}</button>
         <span className="grow" />
         <button className="btn" onClick={onClose}>Plus tard</button>
-        <a className={`btn ${opened ? '' : 'primary'}`} href={mailtoHref(data, task, email, to)} onClick={() => setOpened(true)}>📧 Ouvrir dans ma messagerie</a>
+        <a className={`btn ${opened ? '' : 'primary'}`} href={mailtoHref(data, task, email, to, club?.current.id)} onClick={() => setOpened(true)}>📧 Ouvrir dans ma messagerie</a>
         <button className={`btn ${opened ? 'primary' : ''}`} onClick={done}>✓ Marquer comme envoyé</button>
       </div>
     </Modal>

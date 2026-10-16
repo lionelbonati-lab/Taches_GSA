@@ -17,14 +17,16 @@ import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
+import { uniteDuLien } from './data/lienPartage';
 
 // Démo : le club et ses entités, toutes gardées dans ce navigateur.
 // On se connecte en choisissant une personne de l'annuaire du club ; elle retrouve les entités dont elle fait partie,
 // et, membre du comité central, celles qui lui sont ouvertes (consulter, ou aussi modifier / ajouter).
 
+// Entité d'un lien reçu (WhatsApp…), sinon la dernière ouverte.
 const readUnit = () => {
   try {
-    return localStorage.getItem(UNIT_KEY);
+    return uniteDuLien() ?? localStorage.getItem(UNIT_KEY);
   } catch {
     return null;
   }

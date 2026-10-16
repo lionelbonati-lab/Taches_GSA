@@ -13,6 +13,7 @@ import { PourInfoRecues } from '../components/PourInfo';
 import { pourMoi } from '../data/pourInfo';
 import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { PageIntro } from '../components/Nav';
+import { AvisLien } from '../components/EnvoyerLien';
 import { useClubOptional } from '../data/club';
 import { editionDe, evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { UNIT_TYPES } from '../data/units';
@@ -39,15 +40,18 @@ export function Tasks() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'delai', dir: 1 });
   const navigate = useNavigate();
   // Lien depuis une notification : /taches?tache=<id> ouvre directement la tâche.
-  // …&email=<id> ouvre en plus l'email programmé à envoyer.
+  // …&email=<id> ouvre en plus l'email programmé à envoyer. Lien envoyé (WhatsApp…, avec &u=<entité>) : seulement
+  // une tâche que la personne voit dans sa liste.
+  const lienTache = params.get('tache');
+  const ouvrable = (x: Task) => x.id === lienTache && (!params.get('u') || canSeeTask(x));
   const [edit, setEdit] = useState<{ task: Task; isNew: boolean; email?: string } | null>(() => {
-    const t = data.tasks.find((x) => x.id === params.get('tache'));
+    const t = data.tasks.find(ouvrable);
     return t ? { task: t, isNew: false, email: params.get('email') ?? undefined } : null;
   });
   // Tâche partagée par une autre entité : elle arrive un peu après l'ouverture de l'appli ; on l'ouvre alors.
-  const attendue = useRef(edit ? null : params.get('tache'));
+  const attendue = useRef(edit ? null : lienTache);
   useEffect(() => {
-    const t = attendue.current ? data.tasks.find((x) => x.id === attendue.current) : undefined;
+    const t = attendue.current ? data.tasks.find(ouvrable) : undefined;
     if (!t) return;
     attendue.current = null;
     setEdit((e) => e ?? { task: t, isNew: false, email: params.get('email') ?? undefined });
@@ -201,6 +205,14 @@ export function Tasks() {
         </div>
       </div>
       <PageIntro />
+      {lienTache && (
+        <AvisLien
+          trouve={!!edit}
+          nom="une tâche"
+          introuvable="Tâche introuvable : elle a peut-être été supprimée, ou ton rôle ne te permet pas de la voir."
+          chemin={`/taches?tache=${encodeURIComponent(lienTache)}`}
+        />
+      )}
 
       <div className={`filters ${showFilters ? 'open' : ''}`}>
         <input className="search" placeholder="🔍 Rechercher…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />

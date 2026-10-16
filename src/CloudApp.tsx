@@ -12,6 +12,7 @@ import { CloudClub } from './CloudClub';
 import { AppLogo } from './components/ui';
 import { ChooseCommittee, FirstPassword, Message, NewPassword, RealLogin, Setup, WhoAreYou } from './pages/Real';
 import { ComptesSeuls } from './pages/Comptes';
+import { uniteDuLien } from './data/lienPartage';
 
 // Version réelle : connexion, choix du comité, mise en route, puis l'appli avec les données du serveur.
 
@@ -95,8 +96,13 @@ export function CloudApp() {
         } catch {
           /* ignore */
         }
-        // Dernière entité ouverte, sinon le comité central ; le choix ne se pose qu'à défaut.
-        const m = list.find((x) => x.committeeId === saved) ?? list.find((x) => x.type === 'central') ?? (list.length === 1 ? list[0] : null);
+        // Entité d'un lien reçu (WhatsApp…), sinon la dernière ouverte, sinon le comité central ; le choix ne se pose qu'à défaut.
+        const lien = uniteDuLien();
+        const m =
+          list.find((x) => !!lien && x.committeeId === lien) ??
+          list.find((x) => x.committeeId === saved) ??
+          list.find((x) => x.type === 'central') ??
+          (list.length === 1 ? list[0] : null);
         if (!m) return setPhase({ k: 'choixComite', list });
         await open(s, m);
       } catch (e) {

@@ -1,5 +1,6 @@
 import type { AppData, EmailWhen, Meeting, ScheduledEmail, Task } from './types';
 import { addDays, dateSuivante, fmtDate, fullName, isDone, uid } from './utils';
+import { lienAppli } from './lienPartage';
 
 // Emails programmés au sujet d'une tâche.
 // L'appli n'envoie pas d'email elle-même : à l'heure prévue, l'auteur reçoit une notification et
@@ -87,12 +88,13 @@ export function emailsOf(data: AppData, taskId: string) {
     .sort((a, b) => ((task && dueAt(task, a.quand)) ?? '9').localeCompare((task && dueAt(task, b.quand)) ?? '9'));
 }
 
-export function appLink(taskId: string) {
-  return `${location.origin}${location.pathname}#/taches?tache=${taskId}`;
+/** Lien vers la tâche dans l'appli, ouverte dans l'entité `unite` (voir lienPartage.ts). */
+export function appLink(taskId: string, unite?: string) {
+  return lienAppli(`/taches?tache=${encodeURIComponent(taskId)}`, unite);
 }
 
-/** Remplace les champs {tâche}, {délai}… par les valeurs de la tâche. */
-export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text: string) {
+/** Remplace les champs {tâche}, {délai}… par les valeurs de la tâche ; `unite` : entité ouverte (pour {lien}). */
+export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text: string, unite?: string) {
   const person = (id: string) => data.people.find((p) => p.id === id);
   const values: Record<string, string> = {
     '{tâche}': task.titre,
@@ -101,15 +103,15 @@ export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text:
     '{responsables}': task.responsables.map((id) => fullName(person(id))).join(', '),
     '{statut}': data.statuses.find((s) => s.id === task.statusId)?.label ?? '',
     '{remarque}': task.remarque,
-    '{lien}': appLink(task.id),
+    '{lien}': appLink(task.id, unite),
     '{expéditeur}': fullName(person(e.creePar)),
   };
   return text.replace(/\{[^}]+\}/g, (k) => values[k] ?? k);
 }
 
 /** Lien qui ouvre l'email rempli dans la messagerie ; `to` : les adresses (voir recipients, destinataires.ts). */
-export function mailtoHref(data: AppData, task: Task, e: ScheduledEmail, to: string[]) {
-  const q = `subject=${encodeURIComponent(fillTemplate(data, task, e, e.objet))}&body=${encodeURIComponent(fillTemplate(data, task, e, e.message))}`;
+export function mailtoHref(data: AppData, task: Task, e: ScheduledEmail, to: string[], unite?: string) {
+  const q = `subject=${encodeURIComponent(fillTemplate(data, task, e, e.objet, unite))}&body=${encodeURIComponent(fillTemplate(data, task, e, e.message, unite))}`;
   return `mailto:${to.join(',')}?${q}`;
 }
 

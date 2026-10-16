@@ -6,6 +6,8 @@ import { AUTRE_ID, POLL_TYPES, autreTextes, electeursDe, isOpen, nomVotant, opti
 import { fmtDate, initials } from '../data/utils';
 import { useClubOptional } from '../data/club';
 import { PollEditor } from './PollEditor';
+import { EnvoyerLien } from './EnvoyerLien';
+import { lienAppli, texteSondage } from '../data/lienPartage';
 
 /** Sondage : vote, résultats (barres, tableau des disponibilités) et gestion. */
 export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: boolean; highlight?: boolean }) {
@@ -137,11 +139,21 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
           {waiting.length > 40 && ` et ${waiting.length - 40} autres`}
         </p>
       )}
-      {manage && !compact && (
+      {!compact && (
         <div className="poll-actions">
-          <button className="btn small" onClick={() => setEdit(true)}>Modifier</button>
-          <button className="btn small" onClick={() => closePoll(poll.id, open)}>{open ? 'Clôturer' : 'Rouvrir'}</button>
-          <button className="btn small danger" onClick={() => confirm('Supprimer ce sondage et ses réponses ?') && deletePoll(poll.id)}>Supprimer</button>
+          {manage && (
+            <>
+              <button className="btn small" onClick={() => setEdit(true)}>Modifier</button>
+              <button className="btn small" onClick={() => closePoll(poll.id, open)}>{open ? 'Clôturer' : 'Rouvrir'}</button>
+              <button className="btn small danger" onClick={() => confirm('Supprimer ce sondage et ses réponses ?') && deletePoll(poll.id)}>Supprimer</button>
+            </>
+          )}
+          <EnvoyerLien
+            titre={`Sondage « ${poll.question} »`}
+            texte={texteSondage(poll, open, poll.source?.unite ?? club?.current.nom)}
+            lien={lienAppli(`/sondages?id=${encodeURIComponent(poll.id)}`, club?.current.id)}
+            acces={`Le lien ne donne aucun accès : seuls les votants du sondage${club ? ` dans « ${club.current.nom} »` : ''}, avec leur compte, peuvent l’ouvrir et répondre.`}
+          />
         </div>
       )}
       {edit && <PollEditor poll={poll} onClose={() => setEdit(false)} />}

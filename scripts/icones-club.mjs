@@ -135,13 +135,13 @@ async function publier(dist) {
   if (icone) [...man.icons, ...(man.shortcuts ?? []).flatMap((r) => r.icons ?? [])].forEach((i) => (i.src = `${i.src}?v=${v}`));
   fs.writeFileSync(pm, `${JSON.stringify(man, null, 2)}\n`);
 
-  // Page : titre et nom de l'appli (iPhone, appli), adresses des icônes.
+  // Page : titre et nom de l'appli (iPhone, appli, aperçu des liens), adresses des icônes.
   const ph = path.join(dist, 'index.html');
   let page = fs.readFileSync(ph, 'utf8');
   if (nom) {
     page = page
       .replace(/<title>[^<]*<\/title>/, () => `<title>${html(nom)}</title>`)
-      .replace(/(<meta name="(?:apple-mobile-web-app-title|application-name)" content=")[^"]*"/g, (_, debut) => `${debut}${html(nom)}"`);
+      .replace(/(<meta (?:name="(?:apple-mobile-web-app-title|application-name)"|property="og:title") content=")[^"]*"/g, (_, debut) => `${debut}${html(nom)}"`);
   }
   if (icone) for (const n of Object.keys(TAILLES)) page = page.replace(new RegExp(`(["/])${n.replaceAll('.', '\\.')}"`, 'g'), (_, a) => `${a}${n}?v=${v}"`);
   fs.writeFileSync(ph, page);

@@ -6,6 +6,7 @@ import { PollCard } from '../components/PollCard';
 import { PollEditor } from '../components/PollEditor';
 import { Empty } from '../components/ui';
 import { PageIntro } from '../components/Nav';
+import { AvisLien } from '../components/EnvoyerLien';
 
 type Filter = 'avoter' | 'encours' | 'termines';
 
@@ -47,6 +48,14 @@ export function Polls() {
         {can('polls.create') && <button className="btn primary" onClick={() => setCreating(true)}>+ Nouveau sondage</button>}
       </div>
       <PageIntro />
+      {focus && (
+        <AvisLien
+          trouve={!!focused}
+          nom="un sondage"
+          introuvable="Sondage introuvable : il a peut-être été supprimé, ou tu ne fais pas partie de ses votants."
+          chemin={`/sondages?id=${encodeURIComponent(focus)}`}
+        />
+      )}
       {focused ? (
         <p><a href="#/sondages">← Tous les sondages</a></p>
       ) : (

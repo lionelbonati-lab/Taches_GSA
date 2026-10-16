@@ -61,7 +61,7 @@ export function StatusBadge({ task }: { task: Task }) {
   );
 }
 
-export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+export function Modal({ title, onClose, children, wide, actions }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; actions?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -78,6 +78,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
       <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
         <div className="modal-head">
           <h2>{title}</h2>
+          {actions && <span className="modal-actions">{actions}</span>}
           <button className="icon-btn" onClick={onClose} aria-label="Fermer">✕</button>
         </div>
         {children}
