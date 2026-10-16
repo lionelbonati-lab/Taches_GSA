@@ -224,6 +224,10 @@ export interface ScheduledEmail {
   taskId: string;
   /** Personnes destinataires (leur adresse vient de leur fiche dans l'entité). */
   destinataires: string[];
+  /** Entités du club entières : toutes leurs personnes, lues au moment d'envoyer. */
+  unites?: string[];
+  /** Personnes d'autres entités du club, par entité (leur fiche là-bas). */
+  externes?: Record<string, string[]>;
   /** Adresses supplémentaires, séparées par des virgules. */
   autres?: string;
   objet: string;

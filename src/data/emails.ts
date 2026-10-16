@@ -2,9 +2,8 @@ import type { AppData, EmailWhen, Meeting, ScheduledEmail, Task } from './types'
 import { addDays, dateSuivante, fmtDate, fullName, isDone, uid } from './utils';
 
 // Emails programmés au sujet d'une tâche.
-// Démo : le navigateur ne peut pas envoyer d'email tout seul. À l'heure prévue, l'auteur reçoit
-// une notification et l'email s'ouvre, déjà rempli, dans sa messagerie. Dans la version réelle,
-// un serveur l'enverrait automatiquement à l'heure prévue.
+// L'appli n'envoie pas d'email elle-même : à l'heure prévue, l'auteur reçoit une notification et
+// l'email s'ouvre, déjà rempli, dans sa messagerie.
 
 export const EMAIL_DELAIS: { jours: number; label: string }[] = [
   { jours: 30, label: '1 mois avant le délai' },
@@ -108,15 +107,10 @@ export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text:
   return text.replace(/\{[^}]+\}/g, (k) => values[k] ?? k);
 }
 
-export function recipients(data: AppData, e: ScheduledEmail) {
-  const fromPeople = e.destinataires.map((id) => data.people.find((p) => p.id === id)?.email).filter((x): x is string => !!x);
-  const extra = (e.autres ?? '').split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean);
-  return Array.from(new Set([...fromPeople, ...extra]));
-}
-
-export function mailtoHref(data: AppData, task: Task, e: ScheduledEmail) {
+/** Lien qui ouvre l'email rempli dans la messagerie ; `to` : les adresses (voir recipients, destinataires.ts). */
+export function mailtoHref(data: AppData, task: Task, e: ScheduledEmail, to: string[]) {
   const q = `subject=${encodeURIComponent(fillTemplate(data, task, e, e.objet))}&body=${encodeURIComponent(fillTemplate(data, task, e, e.message))}`;
-  return `mailto:${recipients(data, e).join(',')}?${q}`;
+  return `mailto:${to.join(',')}?${q}`;
 }
 
 /** Emails à reconduire avec l'occurrence suivante d'une tâche récurrente. */

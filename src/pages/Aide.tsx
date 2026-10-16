@@ -28,6 +28,7 @@ export function Aide() {
   if (cloud && can('admin.access'))
     geste('Revenir aux données d’hier (erreur, suppression)', vers('/reglages'), ' › « Copies automatiques » : le serveur garde une copie par nuit pendant 30 jours ; « ↩ Restaurer » (l’état actuel est copié juste avant).');
   geste('Ajouter une checklist, un document, une répétition, un email…', 'Dans la fiche de la tâche, la ligne « Ajouter : » en bas. Ce qui est rempli reste affiché.');
+  geste('Programmer un email à quelqu’un ou à toute une entité', 'Dans la tâche, « Ajouter : » › « 📧 Email ». Sous « Destinataires », tape un nom, un poste' + (club ? ', une entité (l’email part à toutes ses personnes) ou une personne d’une autre entité' : '') + ', ou une adresse email, puis choisis dans la liste (Entrée au clavier). ✕ retire une puce. À l’heure prévue, une notification 🔔 te propose d’ouvrir l’email rempli dans ta messagerie.');
   const mot = motSeance(club?.current.type).toLowerCase();
   geste(`Une tâche qui revient à chaque ${mot} (correspondance, point des finances…)`, `Dans la tâche, « Ajouter : » › « 🔁 Répétition » › « À chaque ${mot} » : elle est liée à la prochaine séance ; une fois terminée, la suivante est créée pour la séance d’après, à son ordre du jour, avec le même écart de délai.`);
   if (chemin('/comite')) geste('M’excuser pour une séance', vers('/comite'), ' : « 🙋 Je serai absent(e) » sous la séance.');

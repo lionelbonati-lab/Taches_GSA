@@ -210,13 +210,14 @@ Les **sous-tâches** restent une simple checklist (case à cocher + intitulé), 
 
 ## Emails programmés
 
-Dans une tâche enregistrée, **Ajouter : 📧 Email** (puis **📧 Programmer un email** pour les suivants) : destinataires (responsables cochés par défaut, autres membres, adresses supplémentaires), **quand** (1 mois / 2 semaines / 1 semaine / 3 jours avant le délai, la veille, le jour même, 1 à 7 jours après pour une relance, ou date précise) et heure, objet et message avec champs automatiques ({tâche}, {délai}, {section}, {responsables}, {statut}, {remarque}, {lien}, {expéditeur}) et aperçu. Option « Ne pas envoyer si la tâche est déjà terminée ».
+Dans une tâche enregistrée, **Ajouter : 📧 Email** (puis **📧 Programmer un email** pour les suivants) : destinataires, **quand** (1 mois / 2 semaines / 1 semaine / 3 jours avant le délai, la veille, le jour même, 1 à 7 jours après pour une relance, ou date précise) et heure, objet et message avec champs automatiques ({tâche}, {délai}, {section}, {responsables}, {statut}, {remarque}, {lien}, {expéditeur}) et aperçu. Option « Ne pas envoyer si la tâche est déjà terminée ».
 
+- **Destinataires** : les responsables de la tâche d'office (★), puis un **champ de recherche** (nom, prénom, poste, sans souci des accents ; ↑ ↓ et Entrée au clavier) : une **personne de l'entité**, une **entité du club** (🏛️ 🎪 🚴 🎉 : l'email part à **toutes ses personnes**, lues au moment de l'envoyer, donc à jour des arrivées et des départs), ou une **personne d'une autre entité** (adresse de l'organigramme du club ; une personne déjà ici n'est proposée qu'une fois). Une **adresse email** tapée ou collée s'ajoute aussi (Entrée ou virgule). Chaque choix est une puce, ✕ pour la retirer ; une personne sans adresse, ou qui a quitté l'entité, reste affichée avec ⚠. Le nombre d'adresses est indiqué ; une adresse présente deux fois ne reçoit l'email qu'une fois.
 - Un email calé sur le délai **suit le délai** s'il change (y compris un délai lié à un événement).
 - États : 🕓 programmé, 📨 à envoyer, ✅ envoyé (date), ⛔ annulé, ✔️ pas envoyé car tâche terminée ; actions Envoyer maintenant, Modifier, Annuler, Reprogrammer, Supprimer. Repère 📧 et filtre « Avec email programmé » dans Tâches.
 - Tâche récurrente : les emails sont reconduits avec l'occurrence suivante (destinataires qui suivent le poste).
 
-Limite de la démo : sans serveur, l'appli ne peut pas envoyer d'email elle-même. À l'heure prévue, l'auteur reçoit une notification 🔔 (et de l'appareil si activée) ; **✉ Envoyer** ouvre l'email déjà rempli dans sa messagerie, puis « Marquer comme envoyé ». La version réelle l'enverra automatiquement à l'heure prévue.
+L'appli n'envoie pas l'email elle-même : à l'heure prévue, l'auteur reçoit une notification 🔔 (et de l'appareil si activée) ; **✉ Envoyer** ouvre l'email déjà rempli dans sa messagerie (toutes les adresses, une seule fois chacune), puis « Marquer comme envoyé ».
 
 ## Documents joints
 

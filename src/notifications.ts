@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './data/store';
 import { dueAt, emailState, fillTemplate } from './data/emails';
-import type { AppData, NotifPrefs, Person, TachePartagee, Task } from './data/types';
+import type { AppData, NotifPrefs, OrgUnit, Person, TachePartagee, Task } from './data/types';
+import { nomsDestinataires } from './data/destinataires';
 import { isOpen } from './data/polls';
 import { aPrendreOuverte, aPrendrePourMoi, attenteAilleurs, plusPersonne, sansReponse } from './data/aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
@@ -48,7 +49,9 @@ export function ago(iso: string) {
   return d === 1 ? 'hier' : `il y a ${d} jours`;
 }
 
-export function computeNotifications(data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = [], pourInfo: TachePartagee[] = []): NotifItem[] {
+export function computeNotifications(
+  data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = [], pourInfo: TachePartagee[] = [], units: OrgUnit[] = [], courante?: string,
+): NotifItem[] {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items: Omit<NotifItem, 'unread'>[] = [];
   const now = new Date().toISOString();
@@ -131,14 +134,14 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
       });
     }
 
-  // Emails programmés arrivés à leur heure : l'auteur est prévenu pour l'envoyer (démo).
+  // Emails programmés arrivés à leur heure : l'auteur est prévenu pour l'envoyer depuis sa messagerie.
   if (p.email)
     for (const e of data.emails ?? []) {
       if (e.creePar !== user.id) continue;
       const t = data.tasks.find((x) => x.id === e.taskId);
       if (!t || emailState(data, t, e) !== 'aEnvoyer') continue;
       const at = dueAt(t, e.quand)!;
-      const to = e.destinataires.map((id) => shortName(data.people.find((x) => x.id === id)));
+      const to = nomsDestinataires(data, e, units, courante);
       items.push({
         key: `email:${e.id}:${at}`,
         icon: '📧',
@@ -287,7 +290,7 @@ export function useNotifications() {
     return () => clearInterval(id);
   }, []);
   const p = { ...DEFAULT_NOTIF, ...prefs.notif };
-  const items = user ? computeNotifications(data, user, p, club?.demandesMdp, pourInfo) : [];
+  const items = user ? computeNotifications(data, user, p, club?.demandesMdp, pourInfo, club?.units, club?.current.id) : [];
   return { items, unread: items.filter((x) => x.unread), prefs: p };
 }
 

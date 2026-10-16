@@ -432,7 +432,18 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .email-badge.b-aEnvoyer { background: var(--primary); color: #fff; }
 .email-badge.b-envoye { background: #dcfce7; color: #166534; }
 .email-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.demo-note { display: block; margin-top: 6px; }
+.destinataires .chips { margin-top: 2px; }
+.chip.dest { cursor: default; max-width: 100%; overflow-wrap: anywhere; }
+.chip.dest.alerte { border-style: dashed; border-color: var(--late); }
+.dest-alerte { color: var(--late); }
+/* Liste des résultats par-dessus les champs suivants : l'ouvrir ou la fermer ne déplace rien (un clic sur ✕ reste où il est). */
+.dest-recherche { margin: 4px 0; position: relative; }
+.dest-recherche input { width: 100%; }
+.dest-options { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; list-style: none; margin: 4px 0 0; padding: 4px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); box-shadow: var(--shadow); max-height: 280px; overflow-y: auto; }
+.dest-options li { display: flex; flex-direction: column; gap: 1px; padding: 6px 10px; border-radius: 6px; cursor: pointer; overflow-wrap: anywhere; }
+.dest-options li.on { background: var(--primary-soft); }
+.dest-options li.off { cursor: default; opacity: 0.6; }
+.dest-options li.dest-titre { cursor: default; color: var(--muted); font-size: 0.8rem; padding: 4px 10px; }
 .email-when { margin-top: 0; }
 .email-when label { flex: 1; }
 .email-calc { margin: 0; font-size: 0.88rem; color: var(--muted); }

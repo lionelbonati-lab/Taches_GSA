@@ -1,11 +1,13 @@
-import { useRef, useState } from 'react';
+import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from '../data/store';
+import { useClubOptional } from '../data/club';
 import type { ScheduledEmail, Task } from '../data/types';
 import {
-  EMAIL_DELAIS, PLACEHOLDERS, STATE_LABEL, dueAt, emailState, emailsOf, fillTemplate, localNow, mailtoHref, newEmail, recipients, whenLabel,
+  EMAIL_DELAIS, PLACEHOLDERS, STATE_LABEL, dueAt, emailState, emailsOf, fillTemplate, localNow, mailtoHref, newEmail, whenLabel,
   type EmailState,
 } from '../data/emails';
-import { fmtDate, fmtDateTime, fullName, shortName } from '../data/utils';
+import { EMAIL_RE, ajouter, candidats, chercher, choisis, nomsDestinataires, recipients, retirer, type Destinataire } from '../data/destinataires';
+import { fmtDate, fmtDateTime, fullName } from '../data/utils';
 import { Modal } from './ui';
 
 const STATE_ICON: Record<EmailState, string> = { programme: '🕓', aEnvoyer: '📨', envoye: '✅', annule: '⛔', sansObjet: '✔️', sansDate: '⏸️' };
@@ -14,6 +16,7 @@ const STATE_ICON: Record<EmailState, string> = { programme: '🕓', aEnvoyer: '�
 /** « nouveau » : la fenêtre d'un nouvel email s'ouvre tout de suite (bouton « Ajouter : 📧 Email » de la tâche). */
 export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task; isNew: boolean; openEmailId?: string; nouveau?: boolean }) {
   const { data, user, canEditTask, setEmailStatus, deleteEmail } = useStore();
+  const club = useClubOptional();
   const [edit, setEdit] = useState<{ e: ScheduledEmail; isNew: boolean } | null>(() =>
     nouveau && user && !isNew ? { e: newEmail(data.tasks.find((t) => t.id === task.id) ?? task, user.id), isNew: true } : null,
   );
@@ -22,8 +25,7 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
   const list = emailsOf(data, task.id);
   const current = data.tasks.find((t) => t.id === task.id) ?? task;
   const canManage = (e: ScheduledEmail) => e.creePar === user.id || canEditTask(current);
-  const names = (e: ScheduledEmail) =>
-    [...e.destinataires.map((id) => shortName(data.people.find((p) => p.id === id))), ...(e.autres ? [e.autres] : [])].join(', ') || '—';
+  const names = (e: ScheduledEmail) => nomsDestinataires(data, e, club?.units ?? [], club?.current.id).join(', ') || '—';
   const sending = list.find((e) => e.id === send);
 
   return (
@@ -74,7 +76,6 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
           <button type="button" className="btn small" onClick={() => setEdit({ e: newEmail(current, user.id), isNew: true })}>📧 Programmer un email</button>
         )
       )}
-      {!isNew && <small className="muted demo-note">Démo : à l’heure prévue, l’auteur reçoit une notification 🔔 et l’email s’ouvre, déjà rempli, dans sa messagerie. La version réelle l’enverra automatiquement.</small>}
       {edit && <EmailEditor task={current} email={edit.e} isNew={edit.isNew} onClose={() => setEdit(null)} />}
       {sending && <EmailSend task={current} email={sending} onClose={() => setSend(null)} />}
     </fieldset>
@@ -84,12 +85,11 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
 /** Création / modification d'un email programmé. */
 function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: ScheduledEmail; isNew: boolean; onClose: () => void }) {
   const { data, saveEmail } = useStore();
+  const club = useClubOptional();
   const [e, setE] = useState<ScheduledEmail>(email);
   const [err, setErr] = useState('');
   const msgRef = useRef<HTMLTextAreaElement>(null);
   const set = <K extends keyof ScheduledEmail>(k: K, v: ScheduledEmail[K]) => setE((x) => ({ ...x, [k]: v }));
-  const people = data.people.filter((p) => p.actif && p.email);
-  const toggle = (id: string) => set('destinataires', e.destinataires.includes(id) ? e.destinataires.filter((x) => x !== id) : [...e.destinataires, id]);
   const at = dueAt(task, e.quand);
   const past = !!at && at <= localNow();
 
@@ -104,7 +104,7 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
   };
 
   const submit = () => {
-    if (!recipients(data, e).length) return setErr('Choisis au moins un destinataire.');
+    if (!recipients(data, e, club?.units, club?.current.id).length) return setErr('Choisis au moins un destinataire avec une adresse email.');
     if (!e.objet.trim()) return setErr('L’objet est obligatoire.');
     if (e.quand.type === 'date' && !e.quand.date) return setErr('Choisis la date d’envoi.');
     saveEmail({ ...e, objet: e.objet.trim(), statut: 'programme' }, isNew);
@@ -115,21 +115,7 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
     <Modal title={isNew ? 'Programmer un email' : 'Modifier l’email programmé'} onClose={onClose} wide>
       <div className="form">
         <p className="full muted" style={{ margin: 0 }}>Au sujet de la tâche <b>« {task.titre} »</b>{task.delai ? ` · délai ${fmtDate(task.delai)}` : ''}</p>
-        <fieldset className="full">
-          <legend>Destinataires</legend>
-          <div className="chips">
-            {people.map((p) => (
-              <button type="button" key={p.id} className={`chip ${e.destinataires.includes(p.id) ? 'on' : ''}`} onClick={() => toggle(p.id)} title={p.email}>
-                {shortName(p)}{task.responsables.includes(p.id) ? ' ★' : ''}
-              </button>
-            ))}
-          </div>
-          <small className="muted">★ responsable de la tâche</small>
-          <label className="full">
-            Autres adresses
-            <input value={e.autres ?? ''} placeholder="ex. sponsor@exemple.ch, …" onChange={(ev) => set('autres', ev.target.value)} />
-          </label>
-        </fieldset>
+        <ChoixDestinataires task={task} email={e} onChange={(x) => setE(x)} />
         <label>
           Envoi
           <select
@@ -196,12 +182,146 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
   );
 }
 
-/** Envoi (démo) : ouvre l'email déjà rempli dans la messagerie, puis le marque comme envoyé. */
+/**
+ * Destinataires : les choix en puces (✕ pour retirer) et un champ de recherche — une personne d'ici, une entité du club
+ * (toutes ses personnes) ou une personne d'une autre entité ; une adresse tapée s'ajoute aussi (Entrée, virgule).
+ */
+function ChoixDestinataires({ task, email, onChange }: { task: Task; email: ScheduledEmail; onChange: (e: ScheduledEmail) => void }) {
+  const { data } = useStore();
+  const club = useClubOptional();
+  const units = club?.units;
+  const courante = club?.current.id;
+  const [q, setQ] = useState('');
+  const [ouvert, setOuvert] = useState(false);
+  const [actif, setActif] = useState(0);
+  const tous = useMemo(() => candidats(data.people, units ?? [], courante), [data.people, units, courante]);
+  const liste = choisis(data, email, units ?? [], courante);
+  const exclus = new Set(liste.map((d) => d.cle));
+  const nb = recipients(data, email, units, courante).length;
+  const adresse = q.trim();
+  const nouvelleAdresse = EMAIL_RE.test(adresse) && !liste.some((d) => d.email?.toLowerCase() === adresse.toLowerCase());
+  // Champ vide : les responsables de la tâche pas encore choisis.
+  const resultats: Destinataire[] = q.trim()
+    ? chercher(tous, q, exclus)
+    : tous.filter((c) => c.genre === 'personne' && task.responsables.includes(c.id) && !exclus.has(c.cle));
+  const options: (Destinataire & { etiquette?: string })[] = [
+    ...(nouvelleAdresse ? [{ cle: `m:${adresse}`, genre: 'adresse' as const, id: adresse, texte: adresse, etiquette: `✉ ${adresse}`, detail: 'Ajouter cette adresse' }] : []),
+    ...resultats,
+  ];
+  const i = Math.min(actif, Math.max(options.length - 1, 0));
+  const montre = ouvert && (options.length > 0 || !!adresse);
+
+  const choisir = (d?: Destinataire) => {
+    if (!d || (d.alerte && d.genre !== 'adresse')) return;
+    onChange(ajouter(email, d));
+    setQ('');
+    setActif(0);
+  };
+  // Adresses collées ou tapées avant une virgule : ajoutées tout de suite ; le reste reste à chercher.
+  const saisir = (v: string) => {
+    const morceaux = v.split(/[,;]/);
+    let x = email;
+    if (morceaux.length > 1) {
+      const reste = morceaux.pop() ?? '';
+      const autres = morceaux.map((m) => m.trim()).filter(Boolean);
+      for (const m of autres.filter((m) => EMAIL_RE.test(m))) x = ajouter(x, { genre: 'adresse', id: m });
+      if (x !== email) onChange(x);
+      v = [...autres.filter((m) => !EMAIL_RE.test(m)), reste.trim()].filter(Boolean).join(' ');
+    }
+    setQ(v);
+    setActif(0);
+    setOuvert(true);
+  };
+  const touche = (ev: KeyboardEvent<HTMLInputElement>) => {
+    if (ev.key === 'ArrowDown' || ev.key === 'ArrowUp') {
+      ev.preventDefault();
+      setOuvert(true);
+      if (options.length) setActif((i + (ev.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length);
+    } else if (ev.key === 'Enter') {
+      ev.preventDefault();
+      if (montre) choisir(options[i]);
+    } else if (ev.key === 'Escape' && montre) {
+      ev.stopPropagation();
+      setOuvert(false);
+    }
+  };
+
+  return (
+    <fieldset className="full destinataires">
+      <legend>Destinataires</legend>
+      {liste.length > 0 && (
+        <div className="chips">
+          {liste.map((d) => (
+            <span key={d.cle} className={`chip dest dest-${d.genre} ${d.alerte ? 'alerte' : ''}`} title={[d.detail, d.genre === 'personne' ? d.email : '', d.alerte].filter(Boolean).join(' · ')}>
+              {d.texte}
+              {d.genre === 'personne' && task.responsables.includes(d.id) && ' ★'}
+              {d.genre === 'unite' && <small className="muted"> · {d.detail}</small>}
+              {d.alerte && <small className="dest-alerte"> ⚠ {d.alerte}</small>}
+              <button type="button" className="chip-x" aria-label={`Retirer ${d.texte}`} onClick={() => onChange(retirer(email, d))}>✕</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="dest-recherche">
+        <input
+          type="text"
+          role="combobox"
+          aria-label="Ajouter un destinataire"
+          aria-expanded={montre}
+          aria-controls="dest-options"
+          aria-autocomplete="list"
+          aria-activedescendant={montre && options.length ? `dest-opt-${i}` : undefined}
+          autoComplete="off"
+          value={q}
+          placeholder={club ? '🔍 Une personne, une entité ou une adresse email' : '🔍 Une personne ou une adresse email'}
+          onChange={(ev) => saisir(ev.target.value)}
+          onFocus={() => setOuvert(true)}
+          onBlur={() => {
+            setOuvert(false);
+            if (nouvelleAdresse) choisir(options[0]);
+          }}
+          onKeyDown={touche}
+        />
+        {montre && (
+          <ul id="dest-options" role="listbox" className="dest-options">
+            {!q.trim() && <li className="dest-titre" role="presentation">Responsables de la tâche</li>}
+            {options.map((o, k) => (
+              <li
+                key={o.cle}
+                id={`dest-opt-${k}`}
+                role="option"
+                aria-selected={k === i}
+                aria-disabled={!!o.alerte && o.genre !== 'adresse'}
+                className={`${k === i ? 'on' : ''} ${o.alerte ? 'off' : ''}`}
+                onMouseDown={(ev) => {
+                  ev.preventDefault();
+                  choisir(o);
+                }}
+                onMouseEnter={() => setActif(k)}
+              >
+                <span>{o.etiquette ?? o.texte}{o.genre === 'personne' && task.responsables.includes(o.id) && ' ★'}</span>
+                <small className="muted">{[o.detail, o.alerte].filter(Boolean).join(' · ')}</small>
+              </li>
+            ))}
+            {!options.length && <li className="dest-titre" role="presentation">Aucun résultat{adresse.includes('@') ? ' (adresse incomplète ?)' : ''}</li>}
+          </ul>
+        )}
+      </div>
+      <small className="muted">
+        {nb ? `${nb} adresse${nb > 1 ? 's' : ''} email` : 'Aucune adresse pour l’instant'}
+        {club ? ' · une entité envoie à toutes ses personnes' : ''} · ★ responsable de la tâche
+      </small>
+    </fieldset>
+  );
+}
+
+/** Envoi : ouvre l'email déjà rempli dans la messagerie, puis le marque comme envoyé. */
 export function EmailSend({ task, email, onClose }: { task: Task; email: ScheduledEmail; onClose: () => void }) {
   const { data, setEmailStatus } = useStore();
+  const club = useClubOptional();
   const [opened, setOpened] = useState(false);
   const [copied, setCopied] = useState(false);
-  const to = recipients(data, email);
+  const to = recipients(data, email, club?.units, club?.current.id);
   const objet = fillTemplate(data, task, email, email.objet);
   const body = fillTemplate(data, task, email, email.message);
   const copy = async () => {
@@ -231,7 +351,7 @@ export function EmailSend({ task, email, onClose }: { task: Task; email: Schedul
         <button className="btn" onClick={copy}>{copied ? '✓ Copié' : 'Copier le texte'}</button>
         <span className="grow" />
         <button className="btn" onClick={onClose}>Plus tard</button>
-        <a className={`btn ${opened ? '' : 'primary'}`} href={mailtoHref(data, task, email)} onClick={() => setOpened(true)}>📧 Ouvrir dans ma messagerie</a>
+        <a className={`btn ${opened ? '' : 'primary'}`} href={mailtoHref(data, task, email, to)} onClick={() => setOpened(true)}>📧 Ouvrir dans ma messagerie</a>
         <button className={`btn ${opened ? 'primary' : ''}`} onClick={done}>✓ Marquer comme envoyé</button>
       </div>
     </Modal>
