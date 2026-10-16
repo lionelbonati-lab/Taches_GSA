@@ -370,7 +370,6 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       actions={
         !isNew && (
           <EnvoyerLien
-            icone
             titre={`Tâche « ${task.titre} »`}
             texte={texteTache(task, data.people, task.source?.unite ?? club?.current.nom, isDone(data, task))}
             lien={lienAppli(`/taches?tache=${encodeURIComponent(task.id)}`, club?.current.id)}

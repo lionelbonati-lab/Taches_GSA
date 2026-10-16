@@ -240,7 +240,7 @@ Droits : « Créer des sondages » (Admin, Secrétaire, Comité par défaut) et 
 
 ## Envoyer une tâche ou un sondage par WhatsApp, email…
 
-Bouton **Envoyer un lien** (icône de partage, trois points reliés) en haut de la fiche d'une tâche, et sous chaque sondage de la page Sondages (à ne pas confondre avec « 🤝 Partager » d'une tâche, qui la partage avec d'autres entités). La fenêtre propose un court message, modifiable (« 📋 Tâche « … » (Entité) · 📅 Pour le … · 👤 responsables » ou « 🙋 À prendre » ; « 📊 Sondage « … » · Réponds d'ici le … »), suivi du **lien** qui ouvre la tâche ou le sondage dans l'appli :
+**Icône de partage** (trois points reliés, « Envoyer un lien ») en haut à droite de la fiche d'une tâche et de chaque sondage de la page Sondages (à ne pas confondre avec « 🤝 Partager » d'une tâche, qui la partage avec d'autres entités). La fenêtre propose un court message, modifiable (« 📋 Tâche « … » (Entité) · 📅 Pour le … · 👤 responsables » ou « 🙋 À prendre » ; « 📊 Sondage « … » · Réponds d'ici le … »), suivi du **lien** qui ouvre la tâche ou le sondage dans l'appli :
 
 - **💬 WhatsApp** (appli ou WhatsApp Web, choix du contact ou du groupe), **Autre appli…** sur téléphone (Signal, SMS, Messenger… : la feuille de partage du téléphone), **✉ Email**, **📋 Copier le message** et **Copier le lien** seul ;
 - le lien garde la **version** (`?reel` / `?demo` : pas d'écran de choix sur un appareil neuf) et l'**entité** (`&u=…`) : il ouvre l'appli **dans cette entité** si la personne en fait partie, puis la tâche ou le sondage. Appli déjà ouverte sur une autre entité : un bouton « Ouvrir « Entité » » y mène ;

@@ -1528,9 +1528,9 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 
 /* ---------- Envoyer un lien (WhatsApp, email, autre appli) ---------- */
 .icone-partage { vertical-align: -0.2em; flex: none; }
-.btn .icone-partage { margin-right: 2px; }
-.modal-actions > .icon-btn { font-size: 1.05rem; color: var(--text); }
-.poll-actions .envoyer-lien { margin-left: auto; }
+.icon-btn.envoyer-lien { font-size: 1.05rem; color: var(--text); }
+.poll-badges { align-items: center; }
+.poll-badges .envoyer-lien { padding: 2px 6px; }
 .envoyer textarea { width: 100%; resize: vertical; }
 .lien-apercu { margin: 0; display: flex; gap: 6px; align-items: center; min-width: 0; }
 .lien-apercu input { flex: 1; min-width: 0; font-size: 0.85rem; color: var(--muted); }

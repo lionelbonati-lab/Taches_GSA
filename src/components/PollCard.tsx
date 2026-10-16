@@ -49,6 +49,14 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
           {!compact && <span className="pbadge">{POLL_TYPES.find((t) => t.id === poll.type)?.label}</span>}
           {poll.anonyme && <span className="pbadge">Anonyme</span>}
           {poll.source && <span className="pbadge" title={`Sondage de « ${poll.source.unite} », ouvert à ton entité`}>🤝 {poll.source.unite}</span>}
+          {!compact && (
+            <EnvoyerLien
+              titre={`Sondage « ${poll.question} »`}
+              texte={texteSondage(poll, open, poll.source?.unite ?? club?.current.nom)}
+              lien={lienAppli(`/sondages?id=${encodeURIComponent(poll.id)}`, club?.current.id)}
+              acces={`Le lien ne donne aucun accès : seuls les votants du sondage${club ? ` dans « ${club.current.nom} »` : ''}, avec leur compte, peuvent l’ouvrir et répondre.`}
+            />
+          )}
         </span>
       </header>
       {poll.description && <p className="poll-desc">{poll.description}</p>}
@@ -139,21 +147,11 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
           {waiting.length > 40 && ` et ${waiting.length - 40} autres`}
         </p>
       )}
-      {!compact && (
+      {manage && !compact && (
         <div className="poll-actions">
-          {manage && (
-            <>
-              <button className="btn small" onClick={() => setEdit(true)}>Modifier</button>
-              <button className="btn small" onClick={() => closePoll(poll.id, open)}>{open ? 'Clôturer' : 'Rouvrir'}</button>
-              <button className="btn small danger" onClick={() => confirm('Supprimer ce sondage et ses réponses ?') && deletePoll(poll.id)}>Supprimer</button>
-            </>
-          )}
-          <EnvoyerLien
-            titre={`Sondage « ${poll.question} »`}
-            texte={texteSondage(poll, open, poll.source?.unite ?? club?.current.nom)}
-            lien={lienAppli(`/sondages?id=${encodeURIComponent(poll.id)}`, club?.current.id)}
-            acces={`Le lien ne donne aucun accès : seuls les votants du sondage${club ? ` dans « ${club.current.nom} »` : ''}, avec leur compte, peuvent l’ouvrir et répondre.`}
-          />
+          <button className="btn small" onClick={() => setEdit(true)}>Modifier</button>
+          <button className="btn small" onClick={() => closePoll(poll.id, open)}>{open ? 'Clôturer' : 'Rouvrir'}</button>
+          <button className="btn small danger" onClick={() => confirm('Supprimer ce sondage et ses réponses ?') && deletePoll(poll.id)}>Supprimer</button>
         </div>
       )}
       {edit && <PollEditor poll={poll} onClose={() => setEdit(false)} />}

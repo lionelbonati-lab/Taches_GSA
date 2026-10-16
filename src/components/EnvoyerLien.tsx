@@ -38,21 +38,14 @@ export function IconePartage() {
   );
 }
 
-/** Bouton « Envoyer un lien » (icône de partage ; à ne pas confondre avec « 🤝 Partager » avec d'autres entités) ; `icone` : l'icône seule (en-tête d'une fenêtre). */
-export function EnvoyerLien({ titre, texte, lien, acces, icone }: { titre: string; texte: string; lien: string; acces: string; icone?: boolean }) {
+/** Bouton « Envoyer un lien » : l'icône de partage seule (à ne pas confondre avec « 🤝 Partager » avec d'autres entités). */
+export function EnvoyerLien({ titre, texte, lien, acces }: { titre: string; texte: string; lien: string; acces: string }) {
   const [ouvert, setOuvert] = useState(false);
-  const aide = 'Envoyer un lien (WhatsApp, email, autre appli…)';
   return (
     <>
-      {icone ? (
-        <button type="button" className="icon-btn envoyer-lien" onClick={() => setOuvert(true)} title={aide} aria-label="Envoyer un lien">
-          <IconePartage />
-        </button>
-      ) : (
-        <button type="button" className="btn small envoyer-lien" onClick={() => setOuvert(true)} title={aide}>
-          <IconePartage /> Envoyer un lien
-        </button>
-      )}
+      <button type="button" className="icon-btn envoyer-lien" onClick={() => setOuvert(true)} title="Envoyer un lien (WhatsApp, email, autre appli…)" aria-label="Envoyer un lien">
+        <IconePartage />
+      </button>
       {ouvert && <FenetreLien titre={titre} texte={texte} lien={lien} acces={acces} onClose={() => setOuvert(false)} />}
     </>
   );
