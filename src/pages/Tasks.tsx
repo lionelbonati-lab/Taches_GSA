@@ -253,11 +253,11 @@ export function Tasks() {
           <option value="passe">Délai dépassé</option>
           <option value="7">7 prochains jours</option>
           <option value="30">30 prochains jours</option>
-          <option value="lie">🔗 Délai lié à un événement / une séance</option>
+          <option value="lie">📌 Délai calé sur un événement / une séance</option>
           <option value="recurrente">🔁 Tâches récurrentes</option>
           <option value="email">📧 Avec email programmé</option>
-          <option value="principale">🔗 Tâches principales</option>
-          <option value="liee">↳ Tâches liées</option>
+          <option value="principale">🧩 Tâches principales</option>
+          <option value="liee">↳ Tâches rattachées</option>
         </select>
         <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
           <option value="">Tâches et paiements</option>
@@ -267,7 +267,7 @@ export function Tasks() {
         </select>
         <select value={f.parent} onChange={(e) => setF({ ...f, parent: e.target.value })}>
           <option value="">Toutes tâches principales</option>
-          {data.tasks.filter((t) => childrenOf(data, t.id).length).map((t) => <option key={t.id} value={t.id}>🔗 {t.titre}</option>)}
+          {data.tasks.filter((t) => childrenOf(data, t.id).length).map((t) => <option key={t.id} value={t.id}>🧩 {t.titre}</option>)}
         </select>
         {!archives && <label className="inline hide-toggle" title="Les terminées restent affichées jusqu’au prochain comité, puis sont archivées"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminées</label>}
         {activeFilters > 0 && <button className="btn link" onClick={() => setF(EMPTY_FILTERS)}>Effacer</button>}
@@ -413,12 +413,12 @@ export function Linked({ t }: { t: Task }) {
   const { data } = useStore();
   const parent = parentOf(data, t);
   const kids = childrenOf(data, t.id);
-  if (parent) return <small className="linked-to" title={`Tâche liée à « ${parent.titre} »`}>↳ {parent.titre}</small>;
+  if (parent) return <small className="linked-to" title={`Tâche rattachée à « ${parent.titre} »`}>↳ {parent.titre}</small>;
   if (!kids.length) return null;
   const done = kids.filter((k) => isDone(data, k)).length;
   return (
-    <small className={`linked-count ${done === kids.length ? 'all' : ''}`} title={`${kids.length} tâche(s) liée(s), ${done} terminée(s)`}>
-      🔗 {done}/{kids.length} tâches liées
+    <small className={`linked-count ${done === kids.length ? 'all' : ''}`} title={`${kids.length} tâche(s) rattachée(s), ${done} terminée(s)`}>
+      🧩 {done}/{kids.length} tâches rattachées
     </small>
   );
 }

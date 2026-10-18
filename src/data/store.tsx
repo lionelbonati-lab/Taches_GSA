@@ -798,7 +798,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           x.parentId = parentId;
           x.updatedAt = new Date().toISOString();
         }
-      }, parentId ? `Tâche « ${t.titre} » liée à « ${p?.titre ?? ''} »` : `Tâche « ${t.titre} » déliée de « ${p?.titre ?? ''} »`);
+      }, parentId ? `Tâche « ${t.titre} » rattachée à « ${p?.titre ?? ''} »` : `Tâche « ${t.titre} » détachée de « ${p?.titre ?? ''} »`);
     },
     [update, data.tasks],
   );

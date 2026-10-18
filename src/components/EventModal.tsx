@@ -162,8 +162,8 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
   const note = !liees.length
     ? undefined
     : serie
-      ? `🔗 ${liees.length} tâche(s) ont un délai lié à une occurrence de cette série : si sa date change, leurs délais suivent automatiquement.`
-      : `🔗 ${liees.length} tâche(s) ont un délai lié à cette date : si tu la changes, leurs délais suivront automatiquement.`;
+      ? `📌 ${liees.length} tâche(s) ont un délai calé sur une occurrence de cette série : si sa date change, leurs délais suivent automatiquement.`
+      : `📌 ${liees.length} tâche(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.`;
   const origine = event.serie && data.events.find((x) => x.id === event.serie!.id);
 
   return (

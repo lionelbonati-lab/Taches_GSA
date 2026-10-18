@@ -93,7 +93,7 @@ export function Empty({ children }: { children: ReactNode }) {
 
 /**
  * Petits repères : 🔁 tâche récurrente, 🤝 tâche partagée entre entités, 🏛️ à l'ordre du jour d'une séance du comité dont
- * l'entité dépend, 🎪 / 🎉 liée à un événement qui dépend du comité, 🔗 délai lié à un événement / une séance.
+ * l'entité dépend, 🎪 / 🎉 rattachée à un événement qui dépend du comité, 📌 délai calé sur un événement / une séance.
  */
 export function RecurIcon({ task }: { task: Task }) {
   const club = useClubOptional();
@@ -109,7 +109,7 @@ export function RecurIcon({ task }: { task: Task }) {
         <span className="ticon" title={`À l’ordre du jour de « ${task.seanceComite.titre} » (${club?.units.find((u) => u.id === task.seanceComite!.uniteId)?.nom ?? 'comité'})`}>🏛️</span>
       )}
       {task.evenementEntite && !task.source && (
-        <span className="ticon" title={`Liée à « ${task.evenementEntite.nom} »${task.evenementEntite.date ? ` (${fmtDate(task.evenementEntite.date)})` : ''}, qui dépend de ce comité`}>
+        <span className="ticon" title={`Rattachée à « ${task.evenementEntite.nom} »${task.evenementEntite.date ? ` (${fmtDate(task.evenementEntite.date)})` : ''}, qui dépend de ce comité`}>
           {UNIT_TYPES[club?.units.find((u) => u.id === task.evenementEntite!.uniteId)?.type ?? 'equipe'].icon}
         </span>
       )}
@@ -122,7 +122,7 @@ export function LinkIcon({ task }: { task: Task }) {
   const { data } = useStore();
   const target = delaiTarget(data, task);
   if (!target || !task.delaiRef) return null;
-  return <span className="ticon" title={`${offsetLabel(task.delaiRef)} « ${target.nom} » (${fmtDate(target.date)})`}>🔗</span>;
+  return <span className="ticon" title={`${offsetLabel(task.delaiRef)} « ${target.nom} » (${fmtDate(target.date)})`}>📌</span>;
 }
 
 export function DocPollIcons({ task }: { task: Task }) {
@@ -134,7 +134,7 @@ export function DocPollIcons({ task }: { task: Task }) {
     <>
       {task.paiement && <span className="ticon" title={genre(task.paiement).nom}>{genre(task.paiement).icon}</span>}
       {n > 0 && <span className="ticon" title={`${n} document(s)`}>📎{n > 1 ? n : ''}</span>}
-      {polls > 0 && <span className="ticon" title="Sondage lié">📊</span>}
+      {polls > 0 && <span className="ticon" title="Sondage rattaché">📊</span>}
       {emails > 0 && <span className="ticon" title={`${emails} email(s) programmé(s)`}>📧</span>}
     </>
   );

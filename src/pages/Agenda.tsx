@@ -85,7 +85,7 @@ function Excuses({ m, past }: { m: Meeting; past: boolean }) {
   if (!names.length && (past || !convoque)) return null;
   return (
     <div className="excuses">
-      {names.length > 0 && <p className="muted">🙋 Excusé{names.length > 1 ? 's' : ''} : {names.join(', ')}</p>}
+      {names.length > 0 && <p className="muted">🚫 Excusé{names.length > 1 ? 's' : ''} : {names.join(', ')}</p>}
       {!past && convoque && (
         mine ? (
           <p><span className="chip on">✓ Tu es excusé(e)</span> <button className="btn small link" onClick={() => set(false)}>Je serai finalement présent(e)</button></p>
@@ -96,7 +96,7 @@ function Excuses({ m, past }: { m: Meeting; past: boolean }) {
             <button className="btn small" onClick={() => setOpen(false)}>Annuler</button>
           </div>
         ) : (
-          <button className="btn small" onClick={() => setOpen(true)}>🙋 Je serai absent(e)</button>
+          <button className="btn small" onClick={() => setOpen(true)}>🚫 Je serai absent(e)</button>
         )
       )}
     </div>
@@ -323,7 +323,7 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
         <p className="muted full serie-note">
           {v.unique
             ? 'Séance unique : elle ne sera pas proposée l’année prochaine.'
-            : 'Proposée de nouveau l’année prochaine, le même mois. Les tâches annuelles liées à cette séance passeront à celle de l’année suivante.'}
+            : 'Proposée de nouveau l’année prochaine, le même mois. Les tâches annuelles rattachées à cette séance passeront à celle de l’année suivante.'}
           {autre && ` ⚠️ « ${autre.titre} » revient déjà ce mois-là : décoche si celle-ci est exceptionnelle.`}
         </p>
       </div>
@@ -435,7 +435,7 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
         )}
         {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
         <Link to={`/taches?event=${encodeURIComponent(`u:${u.id}`)}`}>Voir les tâches →</Link>
-        {!taches.length && <small className="muted"> Aucune pour l’instant : range une tâche sous « Événements » › « {u.nom} », ou lie-la à lui (« Événement lié » ou « Pour quand ? ») ; ou il partage les siennes.</small>}
+        {!taches.length && <small className="muted"> Aucune pour l’instant : range une tâche sous « Événements » › « {u.nom} », ou rattache-la à lui (« 🧩 Rattacher à… » ou « Pour quand ? ») ; ou il partage les siennes.</small>}
       </div>
       {membre && <button className="btn small" onClick={() => club.switchUnit(u.id, '#/evenements')} title={`Ouvrir « ${u.nom} »`}>Ouvrir</button>}
     </article>
@@ -479,7 +479,7 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
 }
 
 const linkedNote = (n: number) =>
-  n ? `🔗 ${n} tâche(s) ont un délai lié à cette date : si tu la changes, leurs délais suivront automatiquement.` : undefined;
+  n ? `📌 ${n} tâche(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.` : undefined;
 
 function DateBlock({ date, fin }: { date: string; fin?: string }) {
   const d = new Date(date + 'T12:00:00');

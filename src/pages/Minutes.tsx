@@ -372,7 +372,7 @@ export function Minutes() {
               <select className="min-status" value={t.statusId} disabled={!can2} onChange={(e) => quickChange(t, { statusId: e.target.value })} aria-label={`Statut de ${t.titre}`}>
                 {data.statuses.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
               </select>
-              <input type="date" className="min-date" value={t.delai} disabled={!can2} title={t.delaiRef ? 'Délai lié (le changer supprime le lien)' : 'Délai'}
+              <input type="date" className="min-date" value={t.delai} disabled={!can2} title={t.delaiRef ? 'Délai calé sur un événement ou une séance (le changer à la main le détache)' : 'Délai'}
                 onChange={(e) => quickChange(t, { delai: e.target.value, delaiRef: undefined })} />
               <button className="icon-btn" title="Modifier la tâche" onClick={() => openTask(t)}>✏️</button>
               {!noteOf(`task:${t.id}`) && !openNotes[`task:${t.id}`] && (

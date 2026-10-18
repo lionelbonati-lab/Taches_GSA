@@ -98,7 +98,7 @@ function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void })
       </div>
       <p className="muted small-note">
         La date est visible de tout le club (organigramme).
-        {liees > 0 && ` 🔗 ${liees} tâche(s) ont un délai lié à cet événement : leurs délais suivront.`}
+        {liees > 0 && ` 📌 ${liees} tâche(s) ont un délai calé sur cet événement : leurs délais suivront.`}
       </p>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">

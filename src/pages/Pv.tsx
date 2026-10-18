@@ -479,7 +479,7 @@ export function Pv() {
                 <div className="chips">
                   {committee.map((p) => (
                     <button key={p.id} type="button" className={`chip ${isExcused(p.id) ? 'on' : ''}`} onClick={() => toggleExcuse(p)} title={excuses.find((e) => e.personId === p.id)?.motif}>
-                      {isExcused(p.id) ? '🙋 ' : ''}{shortName(p)}
+                      {isExcused(p.id) ? '🚫 ' : ''}{shortName(p)}
                     </button>
                   ))}
                 </div>

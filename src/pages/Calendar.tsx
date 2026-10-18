@@ -253,7 +253,7 @@ export function Calendar() {
       }
       case 'task': {
         const p = parentOf(data, it.t);
-        return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · liée à « ${p.titre} »` : ''}`;
+        return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · rattachée à « ${p.titre} »` : ''}`;
       }
       case 'poll': return `Sondage : ${it.p.question} (date limite)`;
       case 'manif': {

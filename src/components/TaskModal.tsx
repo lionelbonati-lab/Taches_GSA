@@ -170,7 +170,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         return setErr(`Les fichiers joints sont rangés ici : retire-les avant d’enregistrer la tâche dans « ${u.nom} » (elle pourra les y ajouter). Les liens suivent la tâche.`);
       if (!isNew && emailsOf(data, task.id).length)
         return setErr(`Cette tâche a des emails programmés ici : supprime-les avant de l’enregistrer dans « ${u.nom} » (elle pourra les y programmer).`);
-      if (!isNew && !confirm(`Enregistrer la tâche dans « ${u.nom} » ?\n\nElle sera à « ${u.nom} », qui la gérera comme les siennes ; ici, elle restera visible et modifiable comme tâche partagée.${kids.length ? '\nSes tâches liées restent ici, sans tâche principale.' : ''}`))
+      if (!isNew && !confirm(`Enregistrer la tâche dans « ${u.nom} » ?\n\nElle sera à « ${u.nom} », qui la gérera comme les siennes ; ici, elle restera visible et modifiable comme tâche partagée.${kids.length ? '\nSes tâches rattachées restent ici, sans tâche principale.' : ''}`))
         return;
       setBusy(true);
       setErr('');
@@ -270,7 +270,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       partagee: complet,
     },
     {
-      label: '🔗 Lier à…',
+      label: '🧩 Rattacher à…',
       aide: t.source ? `Une séance de « ${club?.current.nom ?? 'cette entité'} » : la tâche figure à son ordre du jour et à son PV` : 'Un événement, une séance de comité ou une autre tâche',
       run: () => ouvrir('liens'),
       si: !voit('liens') && (!t.source || data.meetings.length > 0),
@@ -381,7 +381,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       <div className="form">
         {parent && (
           <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>
-            ↳ Tâche liée à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
+            ↳ Tâche rattachée à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
           </button>
         )}
         {t.source && (
@@ -712,7 +712,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 {delaiSuivant && <>, délai le <b>{fmtDate(delaiSuivant)}</b></>}
               </>
             ) : (
-              <>, sans séance ni délai : aucune séance n’est prévue après {seanceLiee ? `« ${seanceLiee.titre} »` : 'aujourd’hui'} (si une séance est ajoutée dans l’Agenda d’ici là, la suivante y sera liée)</>
+              <>, sans séance ni délai : aucune séance n’est prévue après {seanceLiee ? `« ${seanceLiee.titre} »` : 'aujourd’hui'} (si une séance est ajoutée dans l’Agenda d’ici là, la suivante y sera rattachée)</>
             )}
             {postes.length > 0 && <> et attribuée au poste <b>{postes.join(', ')}</b></>}
             {' '}(aujourd’hui : {nextResponsables(data, { ...t, postesResp: postes }).map((id) => fullName(data.people.find((p) => p.id === id))).join(', ')}).
@@ -721,7 +721,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         )}
         {voit('liens') && (
           <fieldset className="full liens">
-            <legend>🔗 Liens</legend>
+            <legend>🧩 Rattachements</legend>
             <div className="form">
               {t.source && <SeanceIci t={t} setT={setT} disabled={dis || !complet} />}
               {!t.source && <EvenementLie t={t} setT={setT} disabled={dis} />}
@@ -748,7 +748,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               )}
               {!t.source && !t.parentId && !isNew && (
                 <div className="full linked">
-                  <span className="field-label">Tâches liées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</span>
+                  <span className="field-label">Tâches rattachées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</span>
                   {kids.length > 0 && (
                     <>
                       <div className="progress"><div style={{ width: `${Math.round((kids.filter((k) => isDone(data, k)).length / kids.length) * 100)}%` }} /></div>
@@ -761,13 +761,13 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                               <span className={`linked-date ${isLate(data, k) ? 'late-text' : 'muted'}`}>{k.delai ? fmtDate(k.delai) : '—'}</span>
                               <StatusBadge task={k} />
                             </button>
-                            {editable && <button type="button" className="icon-btn" title="Délier (la tâche reste, sans tâche principale)" onClick={() => linkTask(k.id, undefined)}>✕</button>}
+                            {editable && <button type="button" className="icon-btn" title="Détacher (la tâche reste, sans tâche principale)" onClick={() => linkTask(k.id, undefined)}>✕</button>}
                           </li>
                         ))}
                       </ul>
                     </>
                   )}
-                  {!kids.length && <small className="muted">Aucune. Une tâche liée a son propre responsable, délai et statut.</small>}
+                  {!kids.length && <small className="muted">Aucune. Une tâche rattachée a son propre responsable, délai et statut.</small>}
                   {editable && (
                     <div className="row wrap">
                       <button
@@ -775,13 +775,13 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                         className="btn small"
                         onClick={() => setOther({ task: newTask(user.id, { parentId: task.id, sectionId: task.sectionId, sousSection: task.sousSection, delai: task.delai }), isNew: true })}
                       >
-                        + Nouvelle tâche liée
+                        + Nouvelle tâche rattachée
                       </button>
                       {!linking ? (
-                        linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}>🔗 Lier une tâche existante</button>
+                        linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}>🧩 Rattacher une tâche existante</button>
                       ) : (
                         <select autoFocus defaultValue="" onChange={(e) => { if (e.target.value) linkTask(e.target.value, task.id); setLinking(false); }} onBlur={() => setLinking(false)}>
-                          <option value="">— Choisir la tâche à lier —</option>
+                          <option value="">— Choisir la tâche à rattacher —</option>
                           {bySection(linkable).map((g) => (
                             <optgroup key={g.sec.id} label={g.sec.nom}>
                               {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
@@ -814,8 +814,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         {editable && t.source && (
           <small className="muted full task-ailleurs">
             {complet
-              ? `🗑️ Supprimer la tâche, la lier à un événement ou à une autre tâche : dans « ${t.source.unite} », l’entité de la tâche.`
-              : `📎 Documents, 🔁 répétition, 🔗 séance et 🤝 partage : dans « ${t.source.unite} », l’entité de la tâche (d’ici aussi après la mise à jour 041 du serveur).`}
+              ? `🗑️ Supprimer la tâche, la rattacher à un événement ou à une autre tâche : dans « ${t.source.unite} », l’entité de la tâche.`
+              : `📎 Documents, 🔁 répétition, 🧩 séance et 🤝 partage : dans « ${t.source.unite} », l’entité de la tâche (d’ici aussi après la mise à jour 041 du serveur).`}
             {chezSource && (
               <>
                 {' '}
@@ -911,7 +911,7 @@ function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disabled: bo
   const partagee = !!lie && partageDe(t, club?.central?.id).includes(lie.uniteId);
   return (
     <label className={evenements.length ? 'full' : undefined}>
-      Événement lié
+      Événement
       <select value={value} disabled={disabled} onChange={(e) => choisir(e.target.value)}>
         <option value="">—</option>
         {evenements.length > 0 ? (
@@ -925,7 +925,7 @@ function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disabled: bo
       </select>
       {lie && (
         <small className="muted">
-          {u ? UNIT_TYPES[u.type].icon : '🎉'} {lie.id ? `Événement de « ${u?.nom ?? '?'} »` : 'Prochaine édition'}, qui dépend de « {ici} » : son nom et sa date sont suivis (délai lié compris).
+          {u ? UNIT_TYPES[u.type].icon : '🎉'} {lie.id ? `Événement de « ${u?.nom ?? '?'} »` : 'Prochaine édition'}, qui dépend de « {ici} » : son nom et sa date sont suivis (délai calé dessus compris).
           {!partagee && !disabled && u && ` Pour que « ${u.nom} » voie aussi la tâche : 🤝 Partager.`}
         </small>
       )}
@@ -953,7 +953,7 @@ function SeanceLiee({ t, setT, disabled }: { t: Task; setT: SetT; disabled: bool
   const locales = data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>);
   return (
     <label className={parent ? 'full' : undefined}>
-      Séance de comité liée
+      Séance de comité
       <select value={value} disabled={disabled} onChange={(e) => choisir(e.target.value)}>
         <option value="">—</option>
         {choix.length > 0 ? (
@@ -988,7 +988,7 @@ function SeanceIci({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boole
   const ici = club?.current.nom ?? 'cette entité';
   return (
     <label className="full">
-      Séance de comité liée
+      Séance de comité
       {ailleurs ? (
         <input value={ailleurs.replace(/^./, (c) => c.toUpperCase())} disabled readOnly />
       ) : (
