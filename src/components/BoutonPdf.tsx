@@ -46,7 +46,9 @@ export function BoutonPdf({ feuille, titre, paysage, margesMm, police, className
       await pdfDeFeuille(feuille.current, { titre, paysage, margesMm, police, auteur: user ? fullName(user) : undefined });
     } catch (e) {
       console.error(e);
-      setToast('⚠️ Le PDF n’a pas pu être créé : utilise « Imprimer », puis « Enregistrer en PDF ».');
+      // Détail technique en fin de message : à transmettre pour trouver la cause.
+      const detail = e instanceof Error ? e.message : String(e);
+      setToast(`⚠️ Le PDF n’a pas pu être créé : utilise « Imprimer », puis « Enregistrer en PDF ».${detail ? ` (Détail : ${detail.slice(0, 160)})` : ''}`);
     } finally {
       setEnCours(false);
     }

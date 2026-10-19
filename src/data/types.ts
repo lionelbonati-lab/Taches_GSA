@@ -757,6 +757,8 @@ export interface StyleElement {
   centre?: boolean;
   /** Couleur (#rrggbb). */
   couleur?: string;
+  /** Couleur de fond (#rrggbb), pour les éléments encadrés (prochaine séance). */
+  fond?: string;
 }
 
 /** Mise en forme de l'ordre du jour et du PV, commune à l'entité (et gardée dans leurs archives). */

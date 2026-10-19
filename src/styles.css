@@ -702,7 +702,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-empty { color: #64748b; font-style: italic; margin: 4px 0; }
 .pv-lines { height: 60mm; background-image: repeating-linear-gradient(#fff 0, #fff 7.5mm, #cbd5e1 7.5mm, #cbd5e1 calc(7.5mm + 1px)); border: 1px solid #cbd5e1; }
 .pv-next {
-  margin: 14px 0 4px; padding: 6px 10px; background: #eff6ff; border-left: 3px solid #1d4ed8; font-size: calc(var(--doc-base, 10.5pt) * var(--e-prochaine-t, 1));
+  margin: 14px 0 4px; padding: 6px 10px; background: var(--e-prochaine-f, #eff6ff); border-left: 3px solid #1d4ed8; font-size: calc(var(--doc-base, 10.5pt) * var(--e-prochaine-t, 1));
   font-weight: var(--e-prochaine-g, 400); font-style: var(--e-prochaine-i, normal); text-transform: var(--e-prochaine-m, none); color: var(--e-prochaine-c, #111);
 }
 .pv-foot {

@@ -30,7 +30,7 @@ export const MARGES: { id: NonNullable<StyleDocs['marges']> | ''; label: string;
 export const TAILLES = [70, 80, 90, 100, 115, 130, 150, 175, 200];
 
 /** Éléments réglables et leur mise en forme par défaut (la même que dans styles.css). */
-export const ELEMENTS: { id: ElementDoc; label: string; gras: boolean; italique: boolean; majuscules: boolean; couleur: string; centrable?: boolean }[] = [
+export const ELEMENTS: { id: ElementDoc; label: string; gras: boolean; italique: boolean; majuscules: boolean; couleur: string; centrable?: boolean; fond?: string }[] = [
   { id: 'titre', label: 'Titre (nom du comité)', gras: true, italique: false, majuscules: false, couleur: '#111111', centrable: true },
   { id: 'date', label: 'Date de la séance', gras: false, italique: false, majuscules: false, couleur: '#333333', centrable: true },
   { id: 'infos', label: 'Heure, lieu, convoqués, présents', gras: false, italique: false, majuscules: false, couleur: '#111111' },
@@ -42,7 +42,7 @@ export const ELEMENTS: { id: ElementDoc; label: string; gras: boolean; italique:
   { id: 'meta', label: 'Responsables, délais, échéances', gras: false, italique: false, majuscules: false, couleur: '#64748b' },
   { id: 'remarque', label: 'Remarques des tâches', gras: false, italique: true, majuscules: false, couleur: '#334155' },
   { id: 'note', label: 'Notes et décisions (PV)', gras: false, italique: false, majuscules: false, couleur: '#111111' },
-  { id: 'prochaine', label: 'Prochaine séance', gras: false, italique: false, majuscules: false, couleur: '#111111' },
+  { id: 'prochaine', label: 'Prochaine séance', gras: false, italique: false, majuscules: false, couleur: '#111111', fond: '#eff6ff' },
   { id: 'pied', label: 'Pied de page', gras: false, italique: false, majuscules: false, couleur: '#64748b' },
 ];
 
@@ -59,6 +59,7 @@ function epure(id: ElementDoc, e: StyleElement): StyleElement | undefined {
   if (e.majuscules !== undefined && e.majuscules !== def.majuscules) x.majuscules = e.majuscules;
   if (e.centre && def.centrable) x.centre = true;
   if (e.couleur && COULEUR.test(e.couleur) && e.couleur.toLowerCase() !== def.couleur) x.couleur = e.couleur.toLowerCase();
+  if (e.fond && def.fond && COULEUR.test(e.fond) && e.fond.toLowerCase() !== def.fond) x.fond = e.fond.toLowerCase();
   return Object.keys(x).length ? x : undefined;
 }
 
@@ -89,6 +90,7 @@ export function styleDe(st: StyleDocs | undefined, id: ElementDoc) {
     majuscules: e.majuscules ?? def.majuscules,
     centre: !!e.centre,
     couleur: e.couleur ?? def.couleur,
+    fond: e.fond ?? def.fond,
   };
 }
 
@@ -121,6 +123,7 @@ export function styleVars(st?: StyleDocs): CSSProperties {
     if (e.majuscules !== undefined) v[`--e-${id}-m`] = e.majuscules ? 'uppercase' : 'none';
     if (e.centre) v[`--e-${id}-a`] = 'center';
     if (e.couleur) v[`--e-${id}-c`] = e.couleur;
+    if (e.fond) v[`--e-${id}-f`] = e.fond;
   }
   return v as CSSProperties;
 }

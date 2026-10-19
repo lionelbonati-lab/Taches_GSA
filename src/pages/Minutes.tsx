@@ -356,7 +356,8 @@ export function Minutes() {
     const now = new Date().toISOString();
     update((d) => {
       const x = d.meetings.find((y) => y.id === s1.id)!;
-      const mm: MeetingMinutes = { ...EMPTY_MINUTES, ...x.minutes, valideLe: now, validePar: user.id, version: n, enCorrection: false };
+      // Excusés annoncés (ordre du jour, « Je m'excuse ») : enregistrés dans le PV validé, comme affichés.
+      const mm: MeetingMinutes = { ...withExcuses({ ...EMPTY_MINUTES, ...x.minutes }, x.excuses), valideLe: now, validePar: user.id, version: n, enCorrection: false };
       // Fichiers joints : le choix du moment est fixé (l'ordre du jour peut encore changer).
       mm.annexesExclues = mm.annexesExclues ?? x.odjAnnexesExclues ?? [];
       const { derniereValidee: _old, ...copyOf } = mm;

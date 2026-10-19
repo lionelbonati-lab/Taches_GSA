@@ -487,6 +487,14 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
           if (src && page <= src.getPageCount()) {
             const sp = src.getPage(page - 1);
             const e: PDFEmbeddedPage = await pdf.embedPage(sp);
+            try {
+              // Recopiée tout de suite : sinon seulement à l'enregistrement, où une page illisible (page blanche sans
+              // contenu, codage inconnu…) ferait échouer tout le document.
+              await e.embed();
+            } catch (err) {
+              oublier(pdf, e);
+              throw err;
+            }
             pages[k].drawPage(e, dessin);
             fait = true;
             // Liens du PDF joint : gardés, à la même place sur la page réduite.
@@ -565,6 +573,14 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
   } finally {
     boite.remove();
   }
+}
+
+/** Page jointe qui n'a pas pu être recopiée : retirée des pages à recopier à l'enregistrement (remplacée par son image). */
+function oublier(pdf: PDFDocument, e: PDFEmbeddedPage) {
+  const liste = (pdf as unknown as { embeddedPages?: PDFEmbeddedPage[] }).embeddedPages;
+  const i = liste?.indexOf(e) ?? -1;
+  if (i >= 0) liste!.splice(i, 1);
+  else (e as unknown as { alreadyEmbedded: boolean }).alreadyEmbedded = true;
 }
 
 /** Image pour le PDF : JPEG ou PNG d'origine si possible, sinon redessinée (SVG, WebP…) ; très grandes photos réduites. */
