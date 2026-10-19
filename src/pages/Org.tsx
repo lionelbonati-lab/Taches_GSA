@@ -6,6 +6,7 @@ import { auComiteEntier, directory, orgMembers, parentDans, sousEntites, SUB_TYP
 import type { OrganigrammeAnnuel, OrgMember, OrgUnit, TachesDependance, Unit, UnitType } from '../data/types';
 import { dateCourte, TACHES_DEPENDANCE } from '../data/partage';
 import { fmtDate } from '../data/utils';
+import { getMode } from '../data/mode';
 import { Initials, Modal, UnitMark } from '../components/ui';
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { groupesLies } from '../data/liens';
@@ -930,7 +931,7 @@ function Created({ c, n, onClose }: { c: CreatedUnit; n: NewUnit; onClose: () =>
         « {n.nom} » est créé, avec {n.chef.prenom} {n.chef.nom} comme {chef}
         {n.membres.length > 0 && ` et ${n.membres.length} membre${n.membres.length > 1 ? 's' : ''}`}.
       </p>
-      <p className="muted">Démo : pour y entrer, connecte-toi en tant que {n.chef.prenom} (« Changer » en haut à droite).</p>
+      {getMode() === 'demo' && <p className="muted">Démo : pour y entrer, connecte-toi en tant que {n.chef.prenom} (« Changer » en haut à droite).</p>}
       <div className="modal-foot">
         <span className="grow" />
         {mine && <button className="btn" onClick={() => club.switchUnit(c.unitId)}>Ouvrir « {n.nom} »</button>}

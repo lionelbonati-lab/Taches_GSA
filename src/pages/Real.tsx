@@ -93,7 +93,6 @@ export function RealLogin() {
       <button className="btn link" onClick={() => setForgot(!forgot)} aria-expanded={forgot}>Mot de passe oublié ou pas encore de compte ?</button>
       {forgot && <MotDePasseOublie email={email} setEmail={setEmail} invalide={invalide} />}
       <div className="login-foot">
-        <button className="btn link" onClick={() => switchMode('demo')}>🧪 Essayer la démo</button>
         <InstallButton variant="compact" hideWhenUnavailable />
       </div>
     </Card>
@@ -233,7 +232,6 @@ export function Message({ title, children, onSignOut }: { title: string; childre
       <div className="muted">{children}</div>
       <div className="login-foot">
         {onSignOut && <button className="btn" onClick={onSignOut}>Se déconnecter</button>}
-        <button className="btn link" onClick={() => switchMode('demo')}>🧪 Ouvrir la démo</button>
       </div>
     </Card>
   );
@@ -300,7 +298,7 @@ function emptyBase(me: Person): AppData {
     notifLues: {},
     prefs: {},
     schema: SCHEMA,
-    log: [{ id: uid('l'), at: new Date().toISOString(), userId: me.id, action: 'Mise en route de la version réelle (base vide)' }],
+    log: [{ id: uid('l'), at: new Date().toISOString(), userId: me.id, action: 'Mise en route (base vide)' }],
   };
 }
 
@@ -356,7 +354,7 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
   const doImport = () => {
     if (!backup || !me) return;
     const d = migrate(structuredClone(backup.data));
-    d.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: me, action: `Mise en route de la version réelle : données reprises de la sauvegarde du ${fmtDateTime(backup.exportedAt)}` });
+    d.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: me, action: `Mise en route : données reprises de la sauvegarde du ${fmtDateTime(backup.exportedAt)}` });
     void write(d, me, backup.files);
   };
 
@@ -370,7 +368,7 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
             <button className="mode-card" onClick={() => fileRef.current?.click()}>
               <span className="mode-icon">⬆</span>
               <strong>Reprendre une sauvegarde</strong>
-              <small>Le fichier téléchargé depuis la démo (Réglages › Sauvegarde des données) : tâches, séances, PV, responsables, fichiers joints…</small>
+              <small>Une sauvegarde téléchargée (Réglages › Sauvegarde des données) : tâches, séances, PV, responsables, fichiers joints…</small>
             </button>
             <button className="mode-card" onClick={() => setStep('vide')}>
               <span className="mode-icon">✨</span>
@@ -399,7 +397,7 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
             </select>
           </label>
           <p className="muted small-note">Pense à corriger ensuite les noms et les adresses email dans l’organigramme (clic sur chaque personne) : ce sont elles qui serviront à créer les accès des membres.</p>
-          <button className="btn primary" disabled={!!busy || !me} onClick={doImport}>Importer dans la version réelle</button>
+          <button className="btn primary" disabled={!!busy || !me} onClick={doImport}>Importer</button>
           {!busy && <button className="btn link" onClick={() => { setBackup(null); setStep('choix'); }}>← Retour</button>}
         </>
       )}

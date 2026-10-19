@@ -54,7 +54,7 @@ export function AccessCell({ person, access, onChange, onShow, committeeId, soi 
         <span className="row wrap">
           <button className="btn small" disabled={busy} onClick={() => confirm(`Donner un nouveau mot de passe provisoire à ${fullName(person)} ? L’actuel ne fonctionnera plus.`) && act('reinitialiser')}>Nouveau mot de passe</button>
           {!(soi ?? person.id === cloud.personId) && (
-            <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${fullName(person)} à la version réelle ?`) && act('retirer')}>Retirer l’accès</button>
+            <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${fullName(person)} à l’appli ?`) && act('retirer')}>Retirer l’accès</button>
           )}
         </span>
         {err && <small className="error">{err}</small>}
@@ -74,10 +74,11 @@ export function AccessCell({ person, access, onChange, onShow, committeeId, soi 
 
 export function CredentialsModal({ person, email, password, existant, intro, onClose }: Shown & { intro?: string; onClose: () => void }) {
   const [copied, setCopied] = useState(false);
-  const url = `${location.origin}${location.pathname}`;
+  // ?reel : le lien ouvre directement l'appli du club (sans l'écran de choix avec la démo).
+  const url = `${location.origin}${location.pathname}?reel`;
   const text = password
-    ? `Bonjour ${person.prenom},\n\nVoici ton accès à ${nomAppli()} (version réelle) :\n- Adresse : ${url}\n- Email : ${email}\n- Mot de passe provisoire : ${password}\n\nÀ la première connexion, choisis « Version réelle », puis ton propre mot de passe.\n`
-    : `Bonjour ${person.prenom},\n\nTu as maintenant accès à ${nomAppli()} (version réelle) : ${url}\nConnecte-toi avec ton adresse ${email} et ton mot de passe habituel.\n`;
+    ? `Bonjour ${person.prenom},\n\nVoici ton accès à ${nomAppli()} :\n- Adresse : ${url}\n- Email : ${email}\n- Mot de passe provisoire : ${password}\n\nÀ la première connexion, choisis ton propre mot de passe.\n`
+    : `Bonjour ${person.prenom},\n\nTu as maintenant accès à ${nomAppli()} : ${url}\nConnecte-toi avec ton adresse ${email} et ton mot de passe habituel.\n`;
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(text);

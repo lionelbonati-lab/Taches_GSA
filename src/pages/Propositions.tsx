@@ -58,7 +58,7 @@ export function Propositions() {
       <PageIntro />
       {mes === null ? (
         <p className="panel muted">
-          La version réelle ne reçoit pas encore les propositions : le comité central doit d’abord mettre le serveur à jour (migration 022).
+          Les propositions ne sont pas encore reçues : le comité central doit d’abord mettre le serveur à jour (migration 022).
         </p>
       ) : (
         <Formulaire

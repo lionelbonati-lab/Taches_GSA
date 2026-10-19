@@ -165,7 +165,7 @@ export function Settings() {
           {perm === 'denied' && <small className="muted">Notifications bloquées pour ce site : réautorise-les dans les réglages du navigateur.</small>}
           {n.systeme && perm === 'granted' && <button className="btn small" onClick={test}>Envoyer une notification de test</button>}
           {testMsg && <small>{testMsg}</small>}
-          <small className="muted">Démo : les notifications de l’appareil s’affichent à l’ouverture de l’application. Dans la version réelle, un serveur les enverra aussi application fermée (rappel du matin, nouvelle tâche…).</small>
+          <small className="muted">Les notifications de l’appareil s’affichent à l’ouverture de l’application.</small>
         </div>
       </section>
       <section className="panel">
