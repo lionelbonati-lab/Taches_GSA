@@ -168,7 +168,7 @@ Les CSV avec point-virgule, virgule ou tabulation, en UTF-8 ou en encodage Windo
 
 Un seul formulaire, le même partout (bouton « + Nouvelle tâche », bouton flottant **+**, clic sur une tâche) :
 
-- **toujours visible, l'essentiel** : **Tâche** (que faut-il faire ?), **Section** (la sous-section apparaît seulement si la section en a), **Pour quand ?**, **Qui s'en occupe ?** (les personnes choisies, ✕ pour en retirer une, « ＋ Ajouter… » pour en ajouter ; « Moi » en premier), **Remarque** ; en modification, aussi le **Statut** ;
+- **toujours visible, l'essentiel** : **Tâche** (que faut-il faire ?), **Section** (la sous-section apparaît seulement si la section en a), **Pour quand ?**, **Qui s'en occupe ?** (les personnes choisies, ✕ pour en retirer une, « ＋ Ajouter… » pour en ajouter ; « Moi » en premier), **Statut** (« À faire » par défaut), **Remarque** ;
 - **le reste à la demande**, par la ligne **« Ajouter : »** : ☑️ Checklist, 📎 Document, 🔁 Répétition, 🧩 Rattacher à… (événement, séance de comité, tâche principale, tâches rattachées), 📊 Sondage et 📧 Email (une fois la tâche enregistrée ; la fenêtre s'ouvre directement). Une partie remplie reste affichée quand on rouvre la tâche ; une partie vide ne prend pas de place.
 
 ## Délais calés sur un événement

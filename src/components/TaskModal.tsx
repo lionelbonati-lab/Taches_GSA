@@ -53,7 +53,16 @@ type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, update, linkTask, autresResp, externes, setToast } = useStore();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
-  const [t, setT] = useState<Task>(() => (isNew ? { ...task, responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)) } : task));
+  // Statut inconnu de l'entité (statuts personnalisés) : le premier statut ouvert.
+  const [t, setT] = useState<Task>(() =>
+    isNew
+      ? {
+          ...task,
+          responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)),
+          statusId: data.statuses.some((s) => s.id === task.statusId) ? task.statusId : (data.statuses.find((s) => !s.done) ?? data.statuses[0])?.id ?? task.statusId,
+        }
+      : task,
+  );
   const [newItem, setNewItem] = useState('');
   // Tâche liée (ou principale) ouverte par-dessus cette fenêtre.
   const [other, setOther] = useState<{ task: Task; isNew: boolean } | null>(null);
@@ -474,14 +483,12 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             )}
           </label>
         )}
-        {!isNew && (
-          <label>
-            Statut
-            <select value={t.statusId} disabled={dis} onChange={(e) => set('statusId', e.target.value)}>
-              {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-            </select>
-          </label>
-        )}
+        <label>
+          Statut
+          <select value={t.statusId} disabled={dis} onChange={(e) => set('statusId', e.target.value)}>
+            {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+          </select>
+        </label>
         <div className="full qui">
           <span className="field-label">Qui s’en occupe ?</span>
           <div className="chips">
