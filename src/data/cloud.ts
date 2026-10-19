@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, TachePartagee, Task, TicketCentral, UnitType, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, TachePartagee, Task, TicketCentral, UnitType, VisaVerifie, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
 import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -593,6 +593,16 @@ export async function myCentralTickets(): Promise<SuiviTicket[]> {
   const { data, error } = await sb().rpc('gsa_mes_tickets_centraux');
   if (error) throw new Error(error.message);
   return (data ?? []) as SuiviTicket[];
+}
+
+/** Ticket visé qui porte ce n° de visa (membres du club) ; null : inconnu, visa retiré ou ticket supprimé. */
+export async function verifyVisa(code: string): Promise<VisaVerifie | null> {
+  const { data, error } = await sb().rpc('gsa_verifier_visa', { code });
+  if (error) {
+    if (error.code === 'PGRST202' || error.code === '42883') throw new Error('Le serveur ne vérifie pas encore les visas (migration 043 à appliquer).');
+    throw new Error(error.message);
+  }
+  return (data as VisaVerifie | null) ?? null;
 }
 
 /** Date de la prochaine édition d'une entité (contrôlée par le serveur : gsa_date_edition). */

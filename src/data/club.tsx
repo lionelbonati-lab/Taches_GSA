@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { Carte, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { Carte, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, VisaVerifie, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 import type { OpOrga } from './organigramme';
 import type { DemandeMdp } from './cloud';
@@ -127,6 +127,11 @@ export interface Club {
   ticketCentral: (t: TicketCentral) => Promise<void>;
   /** Tickets envoyés à une autre caisse (comité dont l'entité dépend, caisse centrale) par la personne connectée. */
   mesTicketsCentraux: () => Promise<SuiviTicket[]>;
+  /**
+   * Ticket visé qui porte ce n° de visa, dans toutes les entités du club (« Vérifier un visa ») ; null : inconnu, visa
+   * retiré ou ticket supprimé. Version réelle : gsa_verifier_visa (migration 043).
+   */
+  verifierVisa: (code: string) => Promise<VisaVerifie | null>;
   /** Événements de toutes les entités du club (agenda ; sans description). */
   agendaClub: () => Promise<AgendaClubEvent[]>;
   /** Tâches que d'autres entités du club partagent avec l'entité ouverte. */

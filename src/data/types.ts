@@ -916,6 +916,22 @@ export interface TicketCentral {
   documents: TaskDoc[];
 }
 
+/** Visa retrouvé par son n° (« Vérifier un visa ») : ce que le document visé doit montrer. Jamais l'IBAN. */
+export interface VisaVerifie {
+  code: string;
+  entite: string;
+  titre: string;
+  type: 'remboursement' | 'facture';
+  montant: number;
+  beneficiaire: string;
+  signataire: string;
+  /** Facture visée par la personne qui l'a envoyée (droit de signature). */
+  direct: boolean;
+  le: string;
+  etat: 'valide' | 'paye';
+  payeLe?: string | null;
+}
+
 /** Suivi d'un ticket envoyé à une autre caisse, tel que le voit son demandeur. */
 export interface SuiviTicket {
   id: string;
@@ -987,8 +1003,11 @@ export interface Paiement {
   externe?: { uniteId: string; unite: string; par: string; email?: string; userId?: string };
   /** Visa demandé par la caisse (`par`) à la personne `a` (jamais le demandeur). */
   visa?: { a: string; par: string; le: string; message?: string };
-  /** Visa donné : signature et sceau posé sur le justificatif (`docVise` : copie du ticket avec le sceau). */
-  validation?: { par: string; le: string; signature: string; sceau?: SceauPose; docVise?: string };
+  /**
+   * Visa donné : signature (marquée du n° de visa) et sceau posé sur le justificatif (`docVise` : copie du ticket avec
+   * le sceau) ; `code` : n° de visa unique imprimé sur le sceau (043), pour vérifier un document visé.
+   */
+  validation?: { par: string; le: string; signature: string; sceau?: SceauPose; docVise?: string; code?: string };
   refus?: { par: string; le: string; motif: string };
   paye?: { par: string; le: string; remarque?: string };
 }

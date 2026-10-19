@@ -1,5 +1,5 @@
 import { hasPermission, userRoles } from './permissions';
-import type { AppData, Paiement, Person, Task, Timbre } from './types';
+import type { AppData, Paiement, Person, Task, Timbre, VisaVerifie } from './types';
 import { fullName } from './utils';
 
 // Remboursements (une personne a avancé l'argent : photo de son ticket) et paiements de factures (payées
@@ -120,4 +120,25 @@ export function responsablesPour(data: AppData, t: Ticket) {
   const { etat, visa, demandePar } = t.paiement;
   const r = etat === 'visa' && visa ? [visa.a] : etat === 'recu' || etat === 'valide' ? holders(data, 'paiements.payer') : [];
   return r.length ? r : demandePar ? [demandePar] : [];
+}
+
+/** Ticket visé qui porte ce n° de visa dans les données d'une entité (démo, ou entité ouverte) ; comme gsa_verifier_visa (043). */
+export function visaDans(data: AppData, code: string, entite: string): VisaVerifie | null {
+  const t = data.tasks.find((x): x is Ticket => !!x.paiement && x.paiement.validation?.code === code && (x.paiement.etat === 'valide' || x.paiement.etat === 'paye'));
+  if (!t) return null;
+  const p = t.paiement;
+  const v = p.validation!;
+  return {
+    code,
+    entite,
+    titre: t.titre,
+    type: genreDe(p),
+    montant: p.montant,
+    beneficiaire: p.beneficiaire,
+    signataire: nomDe(data, v.par),
+    direct: v.par === p.demandePar,
+    le: v.le,
+    etat: p.etat as VisaVerifie['etat'],
+    payeLe: p.paye?.le ?? null,
+  };
 }

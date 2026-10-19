@@ -1,15 +1,16 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { caisseDe, UNIT_TYPES } from '../data/units';
-import type { AppData, MonRegistre, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre } from '../data/types';
+import type { AppData, MonRegistre, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre, VisaVerifie } from '../data/types';
 import { compactIban, formatIban, ibanValide } from '../data/membres';
 import {
-  COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, peutOuvrirTicket, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, viseDirect,
+  COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, peutOuvrirTicket, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, viseDirect, visaDans,
   type GenreTicket, type Ticket,
 } from '../data/paiements';
-import { SCEAU_RATIO, apposerSceau, renderSceau, type SceauContenu } from '../data/sceau';
+import { SCEAU_RATIO, apposerSceau, lireCodeVisa, marquerSignature, nouveauCodeVisa, renderSceau, type SceauContenu } from '../data/sceau';
+import { supabase } from '../lib/supabase';
 import { apercuPdf, apposerSceauPdf, estPdf } from '../data/pdf';
 import { deleteFiles, getFile, openFile, saveFile } from '../data/files';
 import { fmtDate, fmtDateTime, fullName, today, uid } from '../data/utils';
@@ -76,6 +77,7 @@ export function CircuitPaiements({ total }: { total?: number }) {
         Circuit : la caisse reçoit la demande et la fait viser par un membre du comité (jamais le demandeur), qui signe et pose le sceau « {timbreDe(data).texte} » → la caisse fait le virement et met « OK ». Une facture peut aussi être visée par la personne qui l’envoie, si elle a le droit de signature (ex. le président, pas la caisse) : elle arrive prête pour le virement. Le virement lui-même ne passe pas par l’appli.
       </p>
       {caisse && <TimbreReglage />}
+      <VerifierVisa />
       {caisse && <LienEntete className="btn small entete-bon" />}
       {total !== undefined && <p className="muted small">Total : <strong>{chf(total)}</strong></p>}
     </div>
@@ -188,7 +190,7 @@ function sceauDe(data: AppData, t: Ticket): SceauContenu | null {
   const v = t.paiement.validation;
   if (!v) return null;
   const s = v.sceau ?? timbreDe(data);
-  return { entete: s.entete, texte: s.texte, couleur: s.couleur, fond: s.fond, encre: s.encre, montant: chf(t.paiement.montant), date: fmtDate(v.le.slice(0, 10)), nom: nomDe(data, v.par), signature: v.signature };
+  return { entete: s.entete, texte: s.texte, couleur: s.couleur, fond: s.fond, encre: s.encre, montant: chf(t.paiement.montant), date: fmtDate(v.le.slice(0, 10)), nom: nomDe(data, v.par), signature: v.signature, code: v.code };
 }
 
 function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onClose: () => void }) {
@@ -276,6 +278,7 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
           <small>
             Visé par <strong>{nomDe(data, p.validation!.par)}</strong> · {fmtDateTime(p.validation!.le)}
             {p.validation!.par === p.demandePar && ' · visa direct (droit de signature)'}
+            {p.validation!.code && <> · N° de visa <span className="mono">{p.validation!.code}</span></>}
           </small>
         </div>
       )}
@@ -430,10 +433,66 @@ function PhotoImage({ id, onLoad }: { id: string; onLoad: (img: HTMLImageElement
   return url ? <img className="sceau-doc" src={url} alt="Justificatif" onLoad={(e) => onLoad(e.currentTarget)} draggable={false} /> : <p className="muted small">Chargement du justificatif…</p>;
 }
 
+const erreurMdp = (msg: string) =>
+  /invalid login credentials/i.test(msg) ? 'Mot de passe incorrect : visa non enregistré.'
+  : /rate limit|too many/i.test(msg) ? 'Trop de tentatives : patiente quelques minutes.'
+  : /fetch|network/i.test(msg) ? 'Pas de connexion au serveur : visa non enregistré.'
+  : msg;
+
+/** Vérifier un visa : le n° imprimé sur le sceau d'un document visé retrouve le ticket, dans tout le club. */
+function VerifierVisa() {
+  const { data } = useStore();
+  const club = useClubOptional();
+  const [saisie, setSaisie] = useState('');
+  const [res, setRes] = useState<{ code: string; v: VisaVerifie | null } | null>(null);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const verifier = async (e: FormEvent) => {
+    e.preventDefault();
+    setRes(null);
+    setErr('');
+    const code = lireCodeVisa(saisie);
+    if (!code) return setErr('Un n° de visa a 8 caractères, ex. K7PM-2XQD (ni 0, ni O, ni 1, ni I).');
+    setBusy(true);
+    try {
+      setRes({ code, v: club ? await club.verifierVisa(code) : visaDans(data, code, '') });
+    } catch (x) {
+      setErr((x as Error).message);
+    }
+    setBusy(false);
+  };
+  const v = res?.v;
+  return (
+    <details className="card timbre-reglage verifier-visa no-print">
+      <summary>🔎 Vérifier un visa</summary>
+      <p className="muted small">Le n° de visa figure en bas du sceau d’un document visé avec l’appli. Il retrouve le ticket : le document doit montrer le même montant, le même bénéficiaire, la même date et le même nom sous la signature.</p>
+      <form className="ticket-inline" onSubmit={verifier}>
+        <input className="mono" value={saisie} onChange={(e) => setSaisie(e.target.value)} placeholder="N° de visa, ex. K7PM-2XQD" aria-label="N° de visa" maxLength={12} autoCapitalize="characters" autoComplete="off" spellCheck={false} />
+        <button className="btn small primary" disabled={busy || !saisie.trim()}>{busy ? 'Recherche…' : 'Vérifier'}</button>
+      </form>
+      {err && <p className="error">{err}</p>}
+      {res && !v && <p className="ticket-refus">❌ N° {res.code} inconnu : visa retiré, ticket supprimé, ou sceau qui ne vient pas de l’appli.</p>}
+      {res && v && (
+        <div className="visa-verifie">
+          <p className="ticket-ok">✅ <strong>Visa {v.code} enregistré dans l’appli</strong></p>
+          <dl className="ticket-infos">
+            {v.entite && <><dt>Entité</dt><dd>{v.entite}</dd></>}
+            <dt>{GENRES[v.type].icon} {GENRES[v.type].nom}</dt><dd>{v.titre}</dd>
+            <dt>Montant</dt><dd><strong>{chf(v.montant)}</strong></dd>
+            <dt>{GENRES[v.type].a}</dt><dd>{v.beneficiaire}</dd>
+            <dt>Visé par</dt><dd>{v.signataire || '–'} · {fmtDateTime(v.le)}{v.direct ? ' · visa direct (droit de signature)' : ''}</dd>
+            <dt>État</dt><dd>{ETATS[v.etat].icon} {ETATS[v.etat].label}{v.etat === 'paye' && v.payeLe ? ` le ${fmtDate(v.payeLe.slice(0, 10))}` : ''}</dd>
+          </dl>
+        </div>
+      )}
+    </details>
+  );
+}
+
 /** Visa : la personne désignée par la caisse place le sceau sur le ticket, l'ajuste et signe. `direct` : la personne qui
  *  envoie la facture la vise elle-même (droit de signature) ; elle arrive à la caisse prête pour le virement. */
 function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean; onClose: () => void; onVise: () => void }) {
-  const { data, user } = useStore();
+  const { data, user, cloud } = useStore();
   const save = useSaveTicket();
   const p = t.paiement;
   const g = genre(p);
@@ -447,13 +506,26 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
   const [texte, setTexte] = useState(modele.texte);
   const [fond, setFond] = useState(modele.fond ?? 85);
   const [png, setPng] = useState<string>();
+  // N° de visa tiré à l'ouverture : imprimé sur le sceau et en filigrane sur la signature, qui n'est enregistrée que
+  // marquée (copiée, elle reste liée à ce visa). Version réelle : le mot de passe est redemandé (le serveur, 043, refuse
+  // un visa sans mot de passe saisi dans les 10 minutes, sans n° ou antidaté).
+  const [code] = useState(nouveauCodeVisa);
+  const [signe, setSigne] = useState<string>();
+  const [mdp, setMdp] = useState('');
+  const date = fmtDate(today());
+  useEffect(() => {
+    let alive = true;
+    setSigne(undefined);
+    if (png) marquerSignature(png, `${code} · ${date}`, modele.couleur).then((x) => alive && setSigne(x)).catch(() => {});
+    return () => { alive = false; };
+  }, [png]);
   const [pose, setPose] = useState({ x: 0.5, y: 0.6, largeur: 0.45 });
   const [aspect, setAspect] = useState(1.4); // hauteur / largeur de l'image
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const zone = useRef<HTMLDivElement>(null);
   const drag = useRef<{ px: number; py: number; x: number; y: number } | null>(null);
-  const contenu: SceauContenu = { entete: modele.entete, texte: texte.trim() || modele.texte, couleur: modele.couleur, fond, encre: modele.encre, montant: chf(p.montant), date: fmtDate(today()), nom: fullName(user ?? undefined), signature: png };
+  const contenu: SceauContenu = { entete: modele.entete, texte: texte.trim() || modele.texte, couleur: modele.couleur, fond, encre: modele.encre, montant: chf(p.montant), date, nom: fullName(user ?? undefined), signature: signe, code };
 
   const clamp = (q: typeof pose, asp = aspect) => {
     const h = (q.largeur * SCEAU_RATIO) / asp;
@@ -478,11 +550,16 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
   };
   const up = () => { drag.current = null; };
 
+  const pret = !!signe && (!cloud || !!mdp);
   const viser = async () => {
-    if (!png || !user || busy) return;
+    if (!pret || !user || busy) return;
     setBusy(true);
     setErr('');
     try {
+      if (cloud) {
+        const { error } = await supabase!.auth.signInWithPassword({ email: cloud.email, password: mdp });
+        if (error) throw new Error(erreurMdp(error.message));
+      }
       const le = new Date().toISOString();
       const pdf = !!doc && estPdf(doc);
       const sceau: SceauPose = { entete: contenu.entete, texte: contenu.texte, couleur: contenu.couleur, fond, encre: contenu.encre, docId, ...(pdf ? { page } : {}), ...pose };
@@ -506,7 +583,7 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
         await saveFile(docVise, out);
         documents = [{ id: docVise, nom: `${g.vise} – ${t.titre}.${enPdf ? 'pdf' : 'jpg'}`, kind: 'fichier', mime: out.type, taille: out.size, par: user.id, le }, ...documents];
       }
-      const validation = { par: user.id, le, signature: png, sceau, docVise };
+      const validation = { par: user.id, le, signature: signe!, sceau, docVise, code };
       if (direct) save(t, { etat: 'valide', validation, visa: undefined, refus: undefined }, `${g.vise} et envoyée à la caisse : « ${t.titre} » (${chf(p.montant)})`, { documents });
       else save(t, { etat: 'valide', validation }, `Visé et signé : « ${t.titre} » (${chf(p.montant)})`, { documents });
       onVise();
@@ -578,13 +655,22 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
           </label>
           <p className="small">En signant, <strong>{fullName(user ?? undefined)}</strong> donne son accord pour {g.accord} de <strong>{chf(p.montant)}</strong> à {p.beneficiaire}.</p>
           <SignaturePad onChange={setPng} />
+          {cloud ? (
+            <label className="small visa-mdp">
+              Ton mot de passe, pour confirmer que c’est bien toi qui signes
+              <input type="password" autoComplete="current-password" value={mdp} onChange={(e) => setMdp(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void viser()} />
+            </label>
+          ) : (
+            <small className="muted">Démo : dans la version réelle, le mot de passe est redemandé ici.</small>
+          )}
+          <small className="muted visa-code">N° de visa <span className="mono">{code}</span> : imprimé sur le sceau, il permet ensuite de vérifier le document visé.</small>
         </div>
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
-        <button className="btn primary" disabled={!png || busy} onClick={viser}>{busy ? 'Enregistrement…' : direct ? '✍️ Viser et envoyer à la caisse' : '✍️ Viser et signer'}</button>
+        <button className="btn primary" disabled={!pret || busy} onClick={viser}>{busy ? 'Enregistrement…' : direct ? '✍️ Viser et envoyer à la caisse' : '✍️ Viser et signer'}</button>
       </div>
     </Modal>
   );

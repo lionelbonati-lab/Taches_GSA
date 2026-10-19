@@ -14,7 +14,7 @@ import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
 import { nettoyerAttribuee } from './data/externes';
-import { GENRES, caissiers, sectionFinances, statutPour, type Ticket } from './data/paiements';
+import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
 import { uniteDuLien } from './data/lienPartage';
@@ -541,6 +541,14 @@ export function DemoApp() {
             motif: t.paiement.refus?.motif,
           })))
           .sort((a, b) => b.le.localeCompare(a.le));
+      },
+      // Comme le serveur (043) : dans toutes les entités du club, ticket visé ou payé seulement.
+      async verifierVisa(code) {
+        for (const u of units) {
+          const v = visaDans(loadUnitData(u.id), code, u.nom);
+          if (v) return v;
+        }
+        return null;
       },
       membresAcces,
       caissier,

@@ -887,6 +887,12 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .sceau-drag .sceau { width: 100%; display: block; pointer-events: none; }
 .sceau-taille { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
 .visa-grid label.small { display: flex; flex-direction: column; gap: 4px; }
+.visa-grid .visa-mdp { margin-top: 4px; }
+.visa-grid .visa-code { display: block; margin-top: 8px; }
+.verifier-visa form { margin: 6px 0; }
+.verifier-visa input { max-width: 260px; text-transform: uppercase; }
+.verifier-visa input::placeholder { text-transform: none; }
+.verifier-visa .ticket-infos { margin-top: 4px; }
 @media (max-width: 720px) {
   .visa-grid, .timbre-grid { grid-template-columns: 1fr; }
 }

@@ -16,6 +16,25 @@ export interface SceauContenu {
   fond?: number;
   /** Opacité du cadre, du texte et de la signature, en % (100 par défaut). */
   encre?: number;
+  /** N° de visa (043), imprimé en bas du sceau ; absent des visas plus anciens. */
+  code?: string;
+}
+
+// N° de visa : 8 caractères sans 0/O ni 1/I (lisibles sur un document imprimé), tirés au hasard, ex. « K7PM-2XQD ».
+const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+export const CODE_VISA = /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/;
+
+export function nouveauCodeVisa(): string {
+  const b = crypto.getRandomValues(new Uint8Array(8));
+  const c = Array.from(b, (x) => ALPHABET[x % ALPHABET.length]).join('');
+  return `${c.slice(0, 4)}-${c.slice(4)}`;
+}
+
+/** N° saisi (minuscules, espaces, sans tiret) remis en forme ; undefined s'il ne peut pas être un n° de visa. */
+export function lireCodeVisa(s: string): string | undefined {
+  const k = s.toUpperCase().replace(/[\s-]/g, '');
+  const c = `${k.slice(0, 4)}-${k.slice(4)}`;
+  return CODE_VISA.test(c) ? c : undefined;
 }
 
 const pct = (v: number | undefined, def: number) => Math.min(100, Math.max(0, v ?? def)) / 100;
@@ -77,9 +96,9 @@ export async function renderSceau(c: SceauContenu, scale = 2): Promise<string> {
   fit(ctx, ligne, 21, '600', 420);
   ctx.fillText(ligne, W / 2, (y += 30));
 
-  // Signature dans son cadre, au-dessus de la ligne « Visa : … ».
+  // Signature dans son cadre, au-dessus de la ligne « Visa : … » (et du n° de visa).
   const top = y + 10;
-  const bottom = H - 50;
+  const bottom = H - (c.code ? 66 : 50);
   if (c.signature) {
     const img = await loadImg(c.signature);
     const k = Math.min(300 / img.width, (bottom - top) / img.height, 1.5);
@@ -97,7 +116,36 @@ export async function renderSceau(c: SceauContenu, scale = 2): Promise<string> {
   ctx.lineWidth = 1;
   ctx.stroke();
   fit(ctx, `Visa : ${c.nom}`, 17, '500', 420);
-  ctx.fillText(`Visa : ${c.nom}`, W / 2, H - 24);
+  ctx.fillText(`Visa : ${c.nom}`, W / 2, H - (c.code ? 40 : 24));
+  if (c.code) {
+    ctx.font = `700 16px ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace`;
+    ctx.fillText(`N° de visa ${c.code}`, W / 2, H - 21);
+  }
+  return cv.toDataURL('image/png');
+}
+
+/**
+ * Signature marquée en filigrane (n° de visa et date, en biais, de la couleur du sceau) : c'est elle qui est
+ * enregistrée et posée sur le document. Copiée, elle reste liée à ce visa et ne se réutilise pas telle quelle.
+ */
+export async function marquerSignature(png: string, texte: string, couleur: string): Promise<string> {
+  const img = await loadImg(png);
+  const cv = document.createElement('canvas');
+  cv.width = img.width;
+  cv.height = img.height;
+  const ctx = cv.getContext('2d')!;
+  ctx.drawImage(img, 0, 0);
+  const taille = Math.max(10, Math.round(Math.min(img.height / 7, img.width / 16)));
+  ctx.font = `700 ${taille}px system-ui, -apple-system, 'Segoe UI', sans-serif`;
+  ctx.fillStyle = couleur;
+  ctx.globalAlpha = 0.3;
+  ctx.textBaseline = 'middle';
+  const pas = ctx.measureText(texte).width + taille * 2;
+  const r = Math.hypot(cv.width, cv.height) / 2;
+  ctx.translate(cv.width / 2, cv.height / 2);
+  ctx.rotate(-0.22);
+  for (let y = -r, i = 0; y <= r; y += taille * 1.9, i++)
+    for (let x = -r - (i % 2 ? pas / 2 : 0); x <= r; x += pas) ctx.fillText(texte, x, y);
   return cv.toDataURL('image/png');
 }
 
