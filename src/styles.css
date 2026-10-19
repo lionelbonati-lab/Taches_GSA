@@ -621,6 +621,10 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .mef .swatch-perso input { height: 26px; }
 .min-pv-options details.min-pv-mef { flex-basis: 100%; }
 .min-pv-options details.min-pv-mef summary { cursor: pointer; font-weight: 600; }
+.min-pv-options .depot-pv { max-width: 720px; }
+.min-pv-options .depot-pv p { margin: 6px 0; }
+.min-pv-options .depot-pv input { min-width: 0; flex-basis: 260px; }
+.pv-depot a { font-weight: 600; }
 .min-pv-options .mef { max-width: 720px; }
 .min-pv-options .mef select { margin-left: 0; }
 .pv-msg { background: var(--primary-soft); border-radius: 8px; padding: 8px 12px; margin: 0 0 12px; }

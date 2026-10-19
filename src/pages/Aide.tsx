@@ -35,7 +35,7 @@ export function Aide() {
   if (chemin('/comite') && can('meetings.manage'))
     geste('Prévoir les séances de l’année prochaine', vers('/comite'), ' : chaque séance revient le même mois ; coche celles à ajouter dans « 🔁 Séances de l’année prochaine ».');
   if (chemin('/ordre-du-jour')) geste('Préparer une séance', vers('/ordre-du-jour'), ' : choisis la séance, relis (clic sur une tâche pour la modifier), puis imprime ou envoie par email.');
-  if (chemin('/pv')) geste('Tenir le PV', vers('/pv'), ' : « Prise de notes » pendant la séance, puis « Valider et archiver » et l’envoyer.');
+  if (chemin('/pv')) geste('Tenir le PV', vers('/pv'), ' : « Prise de notes » pendant la séance, puis « Valider et archiver » et l’envoyer. Avec « 📤 Dépôt du PV validé » (options du PV), la validation ouvre aussi la page où déposer le PDF du PV.');
   if (chemin('/pv') || chemin('/ordre-du-jour'))
     geste('Joindre les fichiers des tâches au PV ou à l’ordre du jour', 'PV : « 📄 PV » › « Options du PV » ; ordre du jour : réglages « Contenu ». Coche « 📎 Joindre les fichiers liés » : liste des annexes, puis photos et pages des PDF à la fin, 1, 2 ou 4 par page. Dessous, « Fichiers joints » : décoche les photos à ne pas publier (choix de la séance, l’ordre du jour et le PV chacun le leur).');
   if (chemin('/pv') || chemin('/ordre-du-jour'))

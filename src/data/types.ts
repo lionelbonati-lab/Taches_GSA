@@ -736,6 +736,11 @@ export interface ReglagesOdj {
   joursApres?: number;
   /** Mise en forme des documents (police, interligne, marges, et de chaque élément). */
   style?: StyleDocs;
+  /**
+   * Page web où déposer le PV validé (dossier partagé du club, formulaire d'envoi…), http(s) seulement :
+   * « Valider et archiver » l'ouvre dans une nouvelle fenêtre et crée le PDF du PV, à y déposer.
+   */
+  depotPv?: string;
 }
 
 /** Éléments de l'ordre du jour et du PV dont la mise en forme se règle. */

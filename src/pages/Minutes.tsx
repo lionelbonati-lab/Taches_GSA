@@ -16,7 +16,7 @@ import { ChoixAnnexes, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexes
 import { useClubOptional } from '../data/club';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { margesMm, styleVars } from '../data/styleDocs';
-import { BoutonPdf } from '../components/BoutonPdf';
+import { BoutonPdf, pdfDeFeuille } from '../components/BoutonPdf';
 import { AvecLiens } from '../components/Liens';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
@@ -29,6 +29,20 @@ const nowHM = () => new Date().toTimeString().slice(0, 5);
 const hm = (h?: string) => (h ? h.replace(':', 'h') : '');
 /** Options du PV par défaut. */
 const OPTIONS: Required<PvOptions> = { details: true, misesAJour: true, annexes: false, annexesParPage: 1, taille: 'normale' };
+
+/** Adresse de la page de dépôt du PV : http(s) seulement (« www… » complété en https), sinon null. */
+const urlDepot = (s?: string): string | null => {
+  let u = s?.trim().replace(/\s/g, '%20') ?? '';
+  if (!u || u.length > 2000) return null;
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(u)) u = 'https://' + u;
+  try {
+    const x = new URL(u);
+    return (x.protocol === 'https:' || x.protocol === 'http:') && x.hostname.includes('.') ? x.href : null;
+  } catch {
+    return null;
+  }
+};
+const hote = (u: string) => new URL(u).hostname.replace(/^www\./, '');
 
 const letter = (i: number) => {
   let r = '';
@@ -56,6 +70,8 @@ export function Minutes() {
   const [pending, setPending] = useState<{ id: string; before?: TaskSnapshot; isNew: boolean } | null>(null);
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState('');
+  // Après « Valider et archiver » : page de dépôt ouverte (ou bloquée par le navigateur) et PDF en cours, créé ou raté.
+  const [depotEtat, setDepotEtat] = useState<{ seance: string; ouverte: boolean; pdf: 'encours' | 'ok' | 'erreur' } | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   // En-tête commun à tous les documents de l'entité (console admin).
   const logo = useUnitLogo();
@@ -79,6 +95,7 @@ export function Minutes() {
   const draftVersion = m.enCorrection ? version + 1 : version || 1;
   // Options du PV de la séance ; non réglées : celles du PV précédent.
   const opts: Required<PvOptions> = { ...OPTIONS, ...s0?.minutes?.options, ...m.options };
+  const depot = urlDepot(data.reglagesOdj?.depotPv);
   const setOpt = (patch: PvOptions) => setMinutes((x) => { x.options = { ...opts, ...patch }; });
 
   useEffect(() => {
@@ -325,6 +342,15 @@ export function Minutes() {
   };
   const validate = () => {
     if (!s1 || !user || !sheetRef.current) return;
+    // Page de dépôt : ouverte dès le clic (plus tard, le navigateur la bloquerait), sans accès en retour à l'appli.
+    const fenetre = depot ? window.open(depot, '_blank') : null;
+    if (fenetre) {
+      try {
+        fenetre.opener = null;
+      } catch {
+        /* déjà sur la page de dépôt */
+      }
+    }
     const n = m.valideLe ? (m.enCorrection ? version + 1 : version) : 1;
     const html = archiveHtml(sheetRef.current.outerHTML);
     const now = new Date().toISOString();
@@ -345,6 +371,20 @@ export function Minutes() {
         ? `✅ Version ${n} validée et archivée (la version ${n - 1} reste consultable dans la liste des séances). Tu peux envoyer le PV corrigé.`
         : `✅ PV validé et archivé dans « ${s1.titre} » (liste des séances). Tu peux maintenant l’envoyer par email.`,
     );
+    if (!depot) return setDepotEtat(null);
+    // PDF du PV validé, à déposer sur la page : créé une fois la feuille redessinée (pied « version n validée »).
+    const seance = s1.id;
+    setDepotEtat({ seance, ouverte: !!fenetre, pdf: 'encours' });
+    const o = { titre: `PV ${titre}${n > 1 ? ` v${n}` : ''}`, margesMm: margesMm(data.reglagesOdj?.style), police: data.reglagesOdj?.style?.police, auteur: fullName(user) };
+    window.setTimeout(async () => {
+      let ok = false;
+      try {
+        ok = await pdfDeFeuille(sheetRef.current, o);
+      } catch (e) {
+        console.error(e);
+      }
+      setDepotEtat((x) => (x?.seance === seance ? { ...x, pdf: ok ? 'ok' : 'erreur' } : x));
+    }, 0);
   };
 
   // ---------- Rendu ----------
@@ -553,6 +593,17 @@ export function Minutes() {
       <PageIntro />
       {statusBanner}
       {msg && <p className="pv-msg no-print">{msg}</p>}
+      {depot && locked && depotEtat?.seance === s1.id && (
+        <p className="pv-msg pv-depot no-print">
+          📤 {depotEtat.ouverte ? 'Page de dépôt ouverte dans une nouvelle fenêtre' : 'Le navigateur a bloqué la nouvelle fenêtre'} (
+          <a href={depot} target="_blank" rel="noopener noreferrer">{depotEtat.ouverte ? 'la rouvrir' : 'ouvrir la page de dépôt'}</a>).{' '}
+          {depotEtat.pdf === 'encours'
+            ? '⏳ Création du PDF du PV…'
+            : depotEtat.pdf === 'ok'
+              ? '📄 PDF du PV créé (dans tes téléchargements) : dépose-le sur cette page.'
+              : '⚠️ Le PDF n’a pas pu être créé : « 📄 PDF » ou « 🖨 Imprimer », puis dépose le fichier sur la page.'}
+        </p>
+      )}
 
       {view === 'saisie' ? (
         <div className="min-layout">
@@ -678,6 +729,12 @@ export function Minutes() {
               </details>
             )}
             {!editable && can('tab.minutes') && <small className="muted">PV validé : « Corriger le PV » pour changer ses options.</small>}
+            {can('tab.minutes') && (
+              <details className="min-pv-mef min-pv-depot">
+                <summary>📤 Dépôt du PV validé{depot ? <span className="muted"> : {hote(depot)}</span> : null}</summary>
+                <ReglageDepot />
+              </details>
+            )}
           </div>
           <div className="actions no-print min-pv-actions">
             <span className="grow" />
@@ -686,6 +743,9 @@ export function Minutes() {
             <button className="btn" onClick={() => window.print()}>🖨 Imprimer</button>
             <button className="btn" onClick={copy}>📋 Copier le texte</button>
             <button className="btn" onClick={email}>✉ Envoyer par email</button>
+            {depot && locked && (
+              <a className="btn" href={depot} target="_blank" rel="noopener noreferrer" title="Page où déposer le PDF du PV validé">📤 Page de dépôt</a>
+            )}
             {can('tab.minutes') && (locked ? (
               <button className="btn primary" onClick={startCorrection}>✏️ Corriger le PV</button>
             ) : (
@@ -698,6 +758,42 @@ export function Minutes() {
       )}
 
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} onClose={() => setEdit(null)} />}
+    </div>
+  );
+}
+
+/** Réglage de l'entité : page web où déposer le PV validé, ouverte par « Valider et archiver ». */
+function ReglageDepot() {
+  const { data, update } = useStore();
+  const actuel = data.reglagesOdj?.depotPv ?? '';
+  const [val, setVal] = useState(actuel);
+  const [err, setErr] = useState('');
+  useEffect(() => setVal(actuel), [actuel]);
+  const enregistrer = (brut: string) => {
+    const url = brut.trim() ? urlDepot(brut) : '';
+    if (url === null) return setErr('Adresse invalide : une page web, ex. https://drive.google.com/…');
+    setErr('');
+    setVal(url);
+    if (url === actuel) return;
+    update((d) => {
+      const { depotPv: _old, ...reste } = d.reglagesOdj ?? {};
+      void _old;
+      d.reglagesOdj = url ? { ...reste, depotPv: url } : reste;
+    }, url ? `PV : page de dépôt « ${hote(url)} » enregistrée` : 'PV : page de dépôt retirée');
+  };
+  return (
+    <div className="depot-pv">
+      <p className="muted">
+        Adresse de la page où déposer le PV (dossier partagé du club, formulaire d’envoi…). « Valider et archiver » l’ouvre dans une nouvelle fenêtre
+        et crée le PDF du PV, à y déposer. Commune à tous les PV de l’entité.
+      </p>
+      <form className="row wrap" onSubmit={(e) => { e.preventDefault(); enregistrer(val); }}>
+        <input className="grow" type="text" inputMode="url" autoComplete="url" placeholder="https://…" value={val} onChange={(e) => { setVal(e.target.value); setErr(''); }} aria-label="Adresse de la page de dépôt du PV" />
+        <button className="btn small primary" type="submit" disabled={val.trim() === actuel}>Enregistrer</button>
+        {actuel && <button className="btn small" type="button" onClick={() => enregistrer('')}>Retirer</button>}
+        {actuel && urlDepot(actuel) && <a className="btn small" href={urlDepot(actuel)!} target="_blank" rel="noopener noreferrer">Ouvrir</a>}
+      </form>
+      {err && <p className="error">{err}</p>}
     </div>
   );
 }
