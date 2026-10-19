@@ -14,6 +14,7 @@ import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
 import { TaskModal } from '../components/TaskModal';
 import { MiseEnForme } from '../components/MiseEnForme';
+import { ProfilsOdj } from '../components/ProfilsOdj';
 import { margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf } from '../components/BoutonPdf';
 import { AvecLiens, Lien } from '../components/Liens';
@@ -454,6 +455,7 @@ export function Pv() {
 
       <div className="pv-layout">
         <aside className="pv-settings no-print">
+          <ProfilsOdj s={s} normaliser={withDefaults} appliquerReglages={(r) => setPrefs({ pv: r })} canEdit={canEdit} />
           <details>
             <summary>Séances</summary>
             <label>

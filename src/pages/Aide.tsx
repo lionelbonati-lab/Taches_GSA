@@ -44,6 +44,8 @@ export function Aide() {
   if (chemin('/ordre-du-jour') && can('tab.pv'))
     geste('Changer la police, les couleurs ou la taille des titres de l’ordre du jour et du PV', vers('/ordre-du-jour'), ' › « Mise en page » › « Mise en forme »', miseEnForme);
   else if (chemin('/pv')) geste('Changer la police, les couleurs ou la taille des titres du PV et de l’ordre du jour', vers('/pv'), ' › « 📄 PV » › « 🎨 Mise en forme »', miseEnForme);
+  if (chemin('/ordre-du-jour') && can('tab.pv'))
+    geste('Garder des réglages de l’ordre du jour pour la prochaine fois (profil)', vers('/ordre-du-jour'), ' › « Profils » : règle le contenu et la mise en page, donne un nom (« Comité ordinaire », « AG »…) puis « 💾 Enregistrer le profil » (avec ou sans la mise en forme). Un clic sur son nom rétablit ces réglages ; 💾 le remplace par les réglages actuels, ✏️ le renomme, 🗑 le supprime. Communs à l’entité.');
   geste('Voter ou poser une question au comité', vers('/sondages'), '. Un sondage qui attend ta réponse apparaît aussi à l’accueil.');
   geste('Envoyer une tâche ou un sondage par WhatsApp (ou une autre appli)', 'L’icône de partage (trois points reliés) en haut à droite de la tâche ou du sondage : modifie le message si besoin, puis « 💬 WhatsApp », « Autre appli… » (téléphone), « ✉ Email » ou « 📋 Copier ». Le lien ouvre la tâche ou le sondage dans l’appli' + (club ? ', dans la bonne entité' : '') + ' ; il ne donne accès qu’aux personnes qui ont un compte et la voient déjà.');
   if (sondagesEntites && club && club.units.length > 1 && can('polls.create'))

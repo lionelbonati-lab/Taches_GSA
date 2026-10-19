@@ -741,6 +741,23 @@ export interface ReglagesOdj {
    * « Valider et archiver » l'ouvre dans une nouvelle fenêtre et crée le PDF du PV, à y déposer.
    */
   depotPv?: string;
+  /** Profils de l'ordre du jour : jeux de réglages enregistrés sous un nom, communs à l'entité. */
+  profils?: ProfilOdj[];
+}
+
+/** Profil de l'ordre du jour (« Comité ordinaire », « Assemblée générale »…), réappliqué en un clic. */
+export interface ProfilOdj {
+  id: string;
+  nom: string;
+  /** Contenu et mise en page (réglages de chacun, appliqués à qui choisit le profil). */
+  reglages: PvSettings;
+  /** Réglage commun « et jusqu'à N jours après » la séance suivante. */
+  joursApres?: number;
+  /** Mise en forme commune (police, couleurs…), si le profil la garde ; {} : celle par défaut. */
+  style?: StyleDocs;
+  /** Dernier enregistrement. */
+  par?: string;
+  le?: string;
 }
 
 /** Éléments de l'ordre du jour et du PV dont la mise en forme se règle. */
