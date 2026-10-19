@@ -8,6 +8,7 @@ import {
 } from '../data/repetition';
 import { PORTEES, modifierOccurrence, supprimerOccurrence, type Portee } from '../data/series';
 import { Modal } from './ui';
+import { ZoneTexte } from './ZoneTexte';
 
 // Fiche d'un événement, comme dans un agenda : toute la journée ou de telle heure à telle heure, sur un ou plusieurs
 // jours, une seule fois ou répété (tous les jours, semaines, mois, ans, ou personnalisé). Une occurrence d'un événement
@@ -303,7 +304,7 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
         </label>
         <label className="full">
           Description
-          <textarea rows={4} value={v.description} onChange={(e) => set({ description: e.target.value })} />
+          <ZoneTexte rows={4} value={v.description} onChange={(e) => set({ description: e.target.value })} />
         </label>
       </div>
       {origine && <p className="muted">🔁 Occurrence de « {origine.nom} » modifiée seule (prévue le {fmtDate(event.serie!.date)}).</p>}

@@ -7,6 +7,7 @@ import { Modal } from './ui';
 import { estPartagee } from '../data/partage';
 import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
+import { ZoneTexte } from './ZoneTexte';
 
 const emptyOptions = (type: PollType): Poll['options'] =>
   type === 'ouinon' ? OUINON : type === 'dates'
@@ -70,7 +71,7 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
         </label>
         <label className="full">
           Précisions (facultatif)
-          <textarea rows={2} value={p.description ?? ''} onChange={(e) => set({ description: e.target.value || undefined })} />
+          <ZoneTexte rows={2} value={p.description ?? ''} onChange={(e) => set({ description: e.target.value || undefined })} />
         </label>
         <label>
           Type

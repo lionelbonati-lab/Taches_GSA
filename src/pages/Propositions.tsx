@@ -7,6 +7,7 @@ import { libellePage } from '../data/navigation';
 import { fmtDate, fullName } from '../data/utils';
 import { PageIntro, useNavigation } from '../components/Nav';
 import { Empty } from '../components/ui';
+import { ZoneTexte } from '../components/ZoneTexte';
 
 // Propositions d'amélioration de l'appli : tout membre du club en envoie au comité central et en suit la réponse ;
 // les admins du comité central les reçoivent (données du comité central), les étudient et y répondent.
@@ -140,7 +141,7 @@ function Formulaire({ envoyer }: { envoyer: (p: { genre: Proposition['genre']; t
       </fieldset>
       <label className="full">
         {genre === 'probleme' ? 'Qu’est-ce qui ne marche pas ?' : 'Ta proposition'}
-        <textarea
+        <ZoneTexte
           rows={5}
           maxLength={4000}
           value={texte}
@@ -261,7 +262,7 @@ function Traiter({ p }: { p: Proposition }) {
         </label>
         <label className="grow">
           Réponse à {p.par}
-          <textarea rows={2} maxLength={4000} value={reponse} onChange={(e) => setReponse(e.target.value)} placeholder="Merci ! On regarde ça pour… (facultatif)" />
+          <ZoneTexte rows={2} maxLength={4000} value={reponse} onChange={(e) => setReponse(e.target.value)} placeholder="Merci ! On regarde ça pour… (facultatif)" />
         </label>
       </div>
       <div className="row">

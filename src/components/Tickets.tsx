@@ -19,6 +19,7 @@ import { PdfApercu, PdfPage } from './PdfViewer';
 import { SignaturePad } from './SignaturePad';
 import { Modal } from './ui';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from './Entete';
+import { ZoneTexte } from './ZoneTexte';
 
 // Remboursements et paiements de factures : des tâches de la section des finances, ouvertes dans cette fenêtre
 // (circuit caisse → visa → virement) au lieu du formulaire de tâche.
@@ -929,7 +930,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
         )}
         <label className="full">
           Remarque (facultatif)
-          <textarea rows={2} value={remarque} onChange={(e) => setRemarque(e.target.value)} />
+          <ZoneTexte rows={2} value={remarque} onChange={(e) => setRemarque(e.target.value)} />
         </label>
         {direct && (
           <label className="inline full">

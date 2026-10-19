@@ -5,6 +5,7 @@ import type { MyRequest, Task } from '../data/types';
 import { fmtDate, fullName, isDone } from '../data/utils';
 import { Empty, Modal } from './ui';
 import { TaskCard } from '../pages/Tasks';
+import { ZoneTexte } from './ZoneTexte';
 
 // Demandes au comité central : une entité (sous-comité, groupe, équipe) lui envoie une tâche,
 // puis en suit l'avancement ; le comité central la reçoit dans ses tâches, sans responsable.
@@ -105,7 +106,7 @@ function RequestModal({ onClose, onSent }: { onClose: () => void; onSent: (titre
         </label>
         <label className="full">
           Détails
-          <textarea rows={3} value={remarque} onChange={(e) => setRemarque(e.target.value)} placeholder="Contexte, montants, contacts… (facultatif)" />
+          <ZoneTexte rows={3} value={remarque} onChange={(e) => setRemarque(e.target.value)} placeholder="Contexte, montants, contacts… (facultatif)" />
         </label>
         <label>
           Pour quand ?

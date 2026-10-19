@@ -35,6 +35,7 @@ import { benevolesDe, et, fonctionsDe, memeQui, nomDe, type OpOrga } from '../da
 import { norm } from '../data/csv';
 import { OrgLignes, type EditionLignes } from '../components/OrgLignes';
 import type { ActionOrga, PosteLie } from '../data/organigrammeLignes';
+import { ZoneTexte } from '../components/ZoneTexte';
 
 // Organigramme du club, par postes (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une carte
 // par poste ; un clic sur un nom ouvre le profil de la personne, sur une entité l'ouvre. Par défaut une vue d'ensemble ;
@@ -828,7 +829,7 @@ function UnitModal({
         )}
         <label className="full">
           Description
-          <textarea rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ce que fait l’entité (facultatif)" />
+          <ZoneTexte rows={2} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Ce que fait l’entité (facultatif)" />
         </label>
 
         {isNew && (

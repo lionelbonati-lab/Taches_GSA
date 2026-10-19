@@ -21,6 +21,7 @@ import { motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteTache } from '../data/lienPartage';
+import { ZoneTexte } from './ZoneTexte';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
   return {
@@ -580,7 +581,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         {(!dis || !!t.remarque) && (
           <label className="full">
             Remarque
-            <textarea rows={2} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} placeholder="Détails utiles (facultatif)" />
+            <ZoneTexte rows={2} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} placeholder="Détails utiles (facultatif)" />
           </label>
         )}
         {partageables.length > 0 && voit('partage') && (!dis || (t.source ? partageAutres : partage).length > 0) && (
