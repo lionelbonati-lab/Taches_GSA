@@ -93,6 +93,7 @@ export function RealLogin() {
       <button className="btn link" onClick={() => setForgot(!forgot)} aria-expanded={forgot}>Mot de passe oublié ou pas encore de compte ?</button>
       {forgot && <MotDePasseOublie email={email} setEmail={setEmail} invalide={invalide} />}
       <div className="login-foot">
+        <button className="btn link" onClick={() => switchMode('demo')}>🧪 Essayer la démo</button>
         <InstallButton variant="compact" hideWhenUnavailable />
       </div>
     </Card>
@@ -232,6 +233,7 @@ export function Message({ title, children, onSignOut }: { title: string; childre
       <div className="muted">{children}</div>
       <div className="login-foot">
         {onSignOut && <button className="btn" onClick={onSignOut}>Se déconnecter</button>}
+        <button className="btn link" onClick={() => switchMode('demo')}>🧪 Ouvrir la démo</button>
       </div>
     </Card>
   );

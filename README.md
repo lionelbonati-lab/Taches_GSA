@@ -390,7 +390,7 @@ Réglages GitHub nécessaires (une seule fois) :
 
 ## Version réelle (Supabase)
 
-La version réelle utilise la même appli, à la même adresse : au premier passage, un écran d'accueil propose **Version réelle** (membres du comité, email + mot de passe, données partagées en direct) ou **Démo** (données fictives dans le navigateur, pour faire essayer). Le choix est retenu sur l'appareil. La démo propose de passer à la version réelle (page de connexion, Réglages) ; la version réelle, elle, ne mentionne jamais la démo (ni lien, ni note) : on y revient par le lien direct `?demo` ci-dessous. Le message d'accès envoyé à une personne (mot de passe provisoire) contient le lien `?reel`, qui ouvre directement la version réelle.
+La version réelle utilise la même appli, à la même adresse : au premier passage, un écran d'accueil propose **Version réelle** (membres du comité, email + mot de passe, données partagées en direct) ou **Démo** (données fictives dans le navigateur, pour faire essayer). Le choix est retenu sur l'appareil. On change depuis la page de connexion (« 🧪 Essayer la démo », pratique pour tester une mise à jour sans toucher aux données du club ; « 🔐 Version réelle » dans la démo) ou les Réglages de la démo. Hors de ces boutons, la version réelle n'affiche aucun texte sur la démo. Le message d'accès envoyé à une personne (mot de passe provisoire) contient le lien `?reel`, qui ouvre directement la version réelle.
 
 Liens directs : https://lionelbonati-lab.github.io/Taches_GSA/?demo (à envoyer aux testeurs) et https://lionelbonati-lab.github.io/Taches_GSA/?reel (membres du comité).
 
