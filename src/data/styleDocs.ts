@@ -107,6 +107,22 @@ export function policeArchive(html: string): StyleDocs['police'] {
 }
 
 /** Variables CSS à poser sur la feuille du document. */
+/** Trait d'un encadré, accordé à son fond : même teinte, foncée (gris pour un fond blanc ou gris). */
+export function traitDuFond(fond: string): string {
+  const [r, g, b] = [1, 3, 5].map((i) => parseInt(fond.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1));
+  if (s < 0.08) return '#64748b';
+  let h = d === 0 ? 0 : max === r ? ((g - b) / d) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  h = (h * 60 + 360) % 360;
+  // Jaune foncé = olive : tiré vers l'ambre.
+  if (h > 45 && h < 70) h = 42;
+  return `hsl(${Math.round(h)}, ${Math.round(Math.min(s, 0.8) * 100)}%, 40%)`;
+}
+
 export function styleVars(st?: StyleDocs): CSSProperties {
   const v: Record<string, string> = {};
   const x = st && epurer(st);
@@ -123,7 +139,10 @@ export function styleVars(st?: StyleDocs): CSSProperties {
     if (e.majuscules !== undefined) v[`--e-${id}-m`] = e.majuscules ? 'uppercase' : 'none';
     if (e.centre) v[`--e-${id}-a`] = 'center';
     if (e.couleur) v[`--e-${id}-c`] = e.couleur;
-    if (e.fond) v[`--e-${id}-f`] = e.fond;
+    if (e.fond) {
+      v[`--e-${id}-f`] = e.fond;
+      v[`--e-${id}-b`] = traitDuFond(e.fond);
+    }
   }
   return v as CSSProperties;
 }

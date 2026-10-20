@@ -1,13 +1,13 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { ElementDoc, StyleDocs, StyleElement } from '../data/types';
-import { ELEMENTS, INTERLIGNES, MARGES, POLICES, TAILLES, epurer, styleDe } from '../data/styleDocs';
+import { ELEMENTS, INTERLIGNES, MARGES, POLICES, TAILLES, epurer, styleDe, traitDuFond } from '../data/styleDocs';
 
 // Mise en forme de l'ordre du jour et du PV : police, interligne, marges, puis chaque élément (taille, gras, couleur…).
 // Commune à l'entité (réglages de l'ordre du jour), appliquée tout de suite à l'aperçu.
 
 const COULEURS = ['#111111', '#475569', '#1d4ed8', '#047857', '#b91c1c', '#7c3aed', '#c2410c'];
-// Fonds clairs (éléments encadrés) : le texte reste lisible ; blanc = sans fond.
+// Fonds clairs (éléments encadrés) : le texte reste lisible ; blanc = sans fond. Le trait de l'encadré suit le fond.
 const FONDS = ['#ffffff', '#f1f5f9', '#ecfdf5', '#fef9c3', '#fff7ed', '#fef2f2', '#f5f3ff'];
 
 export function MiseEnForme({ disabled }: { disabled?: boolean }) {
@@ -83,7 +83,7 @@ export function MiseEnForme({ disabled }: { disabled?: boolean }) {
           <span className="field-label">Fond</span>
           <div className="swatches">
             {fonds.map((c) => (
-              <button key={c} type="button" className={`swatch ${c === e.fond ? 'on' : ''}`} style={{ background: c }} disabled={disabled} onClick={() => setElement({ fond: c })} aria-label={`Fond ${c}`} title={c === def.fond ? 'Fond par défaut' : c === '#ffffff' ? 'Sans fond (blanc)' : undefined} />
+              <button key={c} type="button" className={`swatch fond ${c === e.fond ? 'on' : ''}`} style={{ background: c, ['--trait' as string]: c === def.fond ? '#1d4ed8' : traitDuFond(c) }} disabled={disabled} onClick={() => setElement({ fond: c })} aria-label={`Fond ${c}`} title={c === def.fond ? 'Fond par défaut' : c === '#ffffff' ? 'Sans fond (blanc)' : undefined} />
             ))}
             <label className="swatch-perso" title="Autre fond">
               <input type="color" value={e.fond} disabled={disabled} onChange={(x) => setElement({ fond: x.target.value })} aria-label="Autre fond" />

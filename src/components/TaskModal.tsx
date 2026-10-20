@@ -326,6 +326,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const infoAutres = autresUnites
     .map((u) => ({ u, l: u.membres.filter((m) => !m.viaEntite && !info.autres?.[u.id]?.includes(m.id) && !data.people.some((p) => p.actif && memePersonne(p, m))) }))
     .filter((g) => g.l.length);
+  // Tout un groupe d'un coup : les personnes d'ici, celles d'un rôle (« Comité »…), celles d'une autre entité.
+  const infoRoles = data.roles.map((r) => ({ r, l: personnesDuRole(data.roles, infoIci, r) })).filter((g) => g.l.length > 1);
   // À prendre : personnes d'ici à qui la tâche est proposée (ajoutées une à une, par rôle ou toutes) ; places prises.
   const candidats = t.aPrendre?.personnes ?? [];
   const proposable = !dis && canAssignOthers;
@@ -364,11 +366,19 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const changerInfo = (v: string, oui: boolean) =>
     setT((x) => {
       const p: PourInfo = { ...x.pourInfo };
-      const [g, a, b] = v.split(':');
-      const maj = (l: string[] | undefined, id: string) => (oui ? [...(l ?? []), id] : (l ?? []).filter((y) => y !== id));
-      if (g === 'p') p.personnes = maj(p.personnes, a);
-      else if (g === 'u') p.unites = maj(p.unites, a);
-      else p.autres = { ...p.autres, [a]: maj(p.autres?.[a], b) };
+      // Groupes : chacune de leurs personnes, ajoutée comme si on l'avait choisie (et retirable une à une).
+      const cles =
+        v === 'tous' ? infoIci.map((y) => `p:${y.id}`)
+        : v.startsWith('r:') ? (infoRoles.find((g) => g.r.id === v.slice(2))?.l ?? []).map((y) => `p:${y.id}`)
+        : v.startsWith('ta:') ? (infoAutres.find((g) => g.u.id === v.slice(3))?.l ?? []).map((m) => `a:${v.slice(3)}:${m.id}`)
+        : [v];
+      for (const c of cles) {
+        const [g, a, b] = c.split(':');
+        const maj = (l: string[] | undefined, id: string) => (oui ? [...new Set([...(l ?? []), id])] : (l ?? []).filter((y) => y !== id));
+        if (g === 'p') p.personnes = maj(p.personnes, a);
+        else if (g === 'u') p.unites = maj(p.unites, a);
+        else p.autres = { ...p.autres, [a]: maj(p.autres?.[a], b) };
+      }
       return { ...x, pourInfo: p };
     });
 
@@ -624,6 +634,13 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               {!dis && (infoIci.length > 0 || infoUnites.length > 0 || infoAutres.length > 0) && (
                 <select className="chip-add" value="" aria-label="Mettre au courant" onChange={(e) => e.target.value && changerInfo(e.target.value, true)}>
                   <option value="">＋ Ajouter…</option>
+                  {(infoIci.length > 1 || infoRoles.length > 0 || infoAutres.some((g) => g.l.length > 1)) && (
+                    <optgroup label="Tout un groupe d’un coup">
+                      {infoIci.length > 1 && <option value="tous">👥 Toutes les personnes{club ? ` de « ${club.current.nom} »` : ''} ({infoIci.length})</option>}
+                      {infoRoles.map(({ r, l }) => <option key={r.id} value={`r:${r.id}`}>👥 {r.label} ({l.length})</option>)}
+                      {infoAutres.filter((g) => g.l.length > 1).map(({ u, l }) => <option key={u.id} value={`ta:${u.id}`}>👥 Toutes les personnes de « {u.nom} » ({l.length})</option>)}
+                    </optgroup>
+                  )}
                   {infoIci.length > 0 && (
                     <optgroup label={`Personnes${club ? ` de « ${club.current.nom} »` : ''}`}>
                       {infoIci.map((p) => <option key={p.id} value={`p:${p.id}`}>{nomPoste(p, user.id)}</option>)}
@@ -1054,8 +1071,8 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
         : cle === 'meeting' ? { ...x, meetingId: id, seanceComite: undefined }
         : avecSeance(x, xm[Number(id)], club?.central?.id);
       const type = cle === 'event' || cle === 'xe' ? 'event' : 'meeting';
-      // Autre événement : sa prochaine occurrence (s'il se répète).
-      return applyDelaiRef(data, sansOccurrence({ ...y, delaiRef: { ...(x.delaiRef ?? makeDelai(1, 'semaines', false)), type } }));
+      // Par défaut le jour même ; autre événement : sa prochaine occurrence (s'il se répète).
+      return applyDelaiRef(data, sansOccurrence({ ...y, delaiRef: { ...(x.delaiRef ?? makeDelai(0, 'jours', false)), type } }));
     });
   };
 
