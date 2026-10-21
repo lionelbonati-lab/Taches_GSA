@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
 import { TaskModal, newTask } from './TaskModal';
+import { versProchaineSeance } from '../data/seances';
 import { TicketForm } from './Tickets';
 import { GENRES, type GenreTicket } from '../data/paiements';
 import { AppLogo, Avatar, Toast, UnitMark } from './ui';
@@ -17,7 +18,7 @@ import { applyTabIcon, cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 
 export function Layout() {
-  const { user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
+  const { data, user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
   const club = useClubOptional();
   const [quick, setQuick] = useState(false);
   const [ticket, setTicket] = useState<GenreTicket | null>(null);
@@ -244,7 +245,7 @@ export function Layout() {
       )}
 
       <Toast />
-      {quick && canCreate && <TaskModal isNew task={newTask(user.id)} onClose={() => setQuick(false)} />}
+      {quick && canCreate && <TaskModal isNew task={newTask(user.id, versProchaineSeance(data.meetings))} onClose={() => setQuick(false)} />}
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
     </div>
   );

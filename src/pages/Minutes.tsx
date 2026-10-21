@@ -8,6 +8,7 @@ import type { MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../dat
 import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
+import { versProchaineSeance } from '../data/seances';
 import { nomAppli } from '../data/nomAppli';
 import { archiveHtml } from '../data/entete';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
@@ -230,7 +231,8 @@ export function Minutes() {
     const t = newTask(user.id, {
       sectionId,
       responsables: [],
-      ...(s2 ? { meetingId: s2.id, delaiRef: { type: 'meeting' as const, joursAvant: 0 }, delai: s2.date } : {}),
+      // Pour la séance suivante (pas encore passée), le jour même : elle figure à son ordre du jour.
+      ...versProchaineSeance(data.meetings, s1?.date),
     });
     setEdit({ task: t, isNew: true });
     setPending({ id: t.id, isNew: true });

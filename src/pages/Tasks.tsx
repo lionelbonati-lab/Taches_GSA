@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
-import { childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
+import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
+import { versProchaineSeance } from '../data/seances';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
@@ -79,6 +80,17 @@ export function Tasks() {
     const u = dependants.find((x) => x.id === v.slice(2));
     return u ? { evenementEntite: editionDe(u) } : {};
   };
+  // Nouvelle tâche : pour la séance filtrée (le jour même), liée à l'événement filtré ; sans filtre, pour la prochaine séance.
+  const nouvelleTache = () =>
+    applyDelaiRef(
+      data,
+      newTask(
+        user!.id,
+        f.meeting
+          ? { ...lienEvenement(f.event), meetingId: f.meeting, delaiRef: { type: 'meeting', joursAvant: 0 } }
+          : f.event ? lienEvenement(f.event) : versProchaineSeance(data.meetings),
+      ),
+    );
   const [voirAnciennes, setVoirAnciennes] = useState(false);
   // Tâches d'autres entités pour info (lecture seule) ; lien d'une notification : /taches?pourinfo=<entité>:<tâche>.
   const [voirPourInfo, setVoirPourInfo] = useState(() => !!params.get('pourinfo'));
@@ -201,7 +213,7 @@ export function Tasks() {
           {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}>📜 Anciennes tâches ({anciennes.length})</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
-          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: newTask(user.id, { ...lienEvenement(f.event), meetingId: f.meeting || undefined }), isNew: true })}>+ Nouvelle tâche</button>}
+          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouvelle tâche</button>}
         </div>
       </div>
       <PageIntro />

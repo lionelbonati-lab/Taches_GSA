@@ -22,7 +22,7 @@ export function Aide() {
   const geste = (titre: string, ...texte: ReactNode[]) => gestes.push([titre, texte.map((t, i) => <Fragment key={i}>{t}</Fragment>)]);
 
   geste('Voir ce que j’ai à faire', vers('/'), ' : mes tâches en retard et celles de la semaine. La cloche 🔔 en haut signale ce qui m’attend.');
-  geste('Ajouter une tâche, demander un remboursement, payer une facture', 'Le bouton rond « + » en bas à droite, depuis n’importe quelle page.');
+  geste('Ajouter une tâche, demander un remboursement, payer une facture', 'Le bouton rond « + » en bas à droite, depuis n’importe quelle page. Une nouvelle tâche est pour la prochaine séance de comité (le jour même, à son ordre du jour) ; dans un PV, pour la séance suivante. « Pour quand ? » se change à volonté.');
   geste('Modifier une tâche ou changer son statut', vers('/taches'), ' : clique sur la tâche. « Mes tâches » / « Toutes » choisit la liste.');
   geste('Retrouver une tâche terminée', vers('/taches'), ' : les terminées restent affichées jusqu’au comité suivant, puis sont archivées : bouton « 🗄 Archives ».');
   if (cloud && can('admin.access'))

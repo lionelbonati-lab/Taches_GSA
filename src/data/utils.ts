@@ -4,6 +4,13 @@ import { derniereOccurrence, estOccurrence, occurrenceApres, occurrenceDu, occur
 
 export const today = () => new Date().toISOString().slice(0, 10);
 
+/** Date et heure locales : AAAA-MM-JJTHH:MM. */
+export const localNow = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+};
+
 export const fmtDate = (s?: string) =>
   s ? new Date(s + (s.length === 10 ? 'T12:00:00' : '')).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' }) : '—';
 

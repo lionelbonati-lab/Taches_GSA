@@ -1,6 +1,6 @@
 import type { AppData, Meeting, Task, UnitType } from './types';
 import { UNIT_TYPES } from './units';
-import { today, uid } from './utils';
+import { localNow, today, uid } from './utils';
 
 // Séances qui reviennent chaque année : une séance revient l'année suivante le même mois (sauf si elle est
 // « unique »). Leur nom suit le mois (« Comité de mars 2027 ») ; une tâche annuelle liée à une séance passe à
@@ -79,6 +79,18 @@ export function seancePourSuivante(data: AppData, t: Task) {
   const m = data.meetings.find((x) => x.id === t.meetingId);
   const s = m && seanceAnSuivant(data.meetings, m);
   return s && !(s.nouvelle && s.meeting.date < today()) ? s : undefined;
+}
+
+/**
+ * « Pour quand ? » d'une nouvelle tâche : la prochaine séance de l'entité pas encore commencée (après `apres` : la séance
+ * dont on rédige le PV), le jour même ; elle figure aussi à son ordre du jour. Rien sans séance prévue dans l'Agenda.
+ */
+export function versProchaineSeance(meetings: Meeting[], apres?: string): Partial<Task> {
+  const maintenant = localNow();
+  const m = meetings
+    .filter((x) => (!apres || x.date > apres) && `${x.date}T${x.heure || '23:59'}` > maintenant)
+    .sort((a, b) => parDate(a, b) || (a.heure ?? '').localeCompare(b.heure ?? ''))[0];
+  return m ? { meetingId: m.id, delaiRef: { type: 'meeting', joursAvant: 0 }, delai: m.date } : {};
 }
 
 /**

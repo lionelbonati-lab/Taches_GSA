@@ -1,5 +1,5 @@
 import type { AppData, EmailWhen, Meeting, ScheduledEmail, Task } from './types';
-import { addDays, dateSuivante, fmtDate, fullName, isDone, uid } from './utils';
+import { addDays, dateSuivante, fmtDate, fullName, isDone, localNow, uid } from './utils';
 import { lienAppli } from './lienPartage';
 
 // Emails programmés au sujet d'une tâche.
@@ -46,11 +46,7 @@ export function dueAt(task: Task, q: EmailWhen): string | null {
   return date ? `${date}T${q.heure || '08:00'}` : null;
 }
 
-export const localNow = () => {
-  const d = new Date();
-  const p = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
-};
+export { localNow };
 
 export type EmailState = 'programme' | 'aEnvoyer' | 'envoye' | 'annule' | 'sansObjet' | 'sansDate';
 
