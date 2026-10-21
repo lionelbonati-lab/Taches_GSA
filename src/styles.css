@@ -70,6 +70,9 @@ input, select, textarea {
 }
 input:focus, select:focus, textarea:focus { outline: 2px solid var(--primary); outline-offset: -1px; }
 input[type='checkbox'] { width: 18px; height: 18px; accent-color: var(--primary); }
+/* Dans une ligne avec un long texte (formulaires), la case garde sa taille ; plus grande sur écran tactile. */
+input[type='checkbox'], input[type='radio'] { flex-shrink: 0; }
+@media (pointer: coarse) { input[type='checkbox'] { width: 22px; height: 22px; } }
 input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 :disabled { opacity: 0.6; cursor: not-allowed; }
 
