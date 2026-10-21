@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { isOpen } from '../data/polls';
-import { PollCard } from '../components/PollCard';
+import { PollCard, useClotureAuto } from '../components/PollCard';
 import { PollEditor } from '../components/PollEditor';
 import { Empty } from '../components/ui';
 import { PageIntro } from '../components/Nav';
@@ -17,6 +17,7 @@ export function Polls() {
   const [creating, setCreating] = useState(false);
   // Sondages des autres entités ouverts à celle-ci : pour ses membres qui y votent.
   const visible = (data.polls ?? []).filter((p) => user && (p.cleMoi || (!p.source && (p.creePar === user.id || can('polls.manage')))));
+  useClotureAuto(visible);
   const toVote = visible.filter((p) => isOpen(p) && p.cleMoi && !p.votes[p.cleMoi]);
   const [filter, setFilter] = useState<Filter>(toVote.length ? 'avoter' : 'encours');
   // Sondages des autres entités : lus après l'ouverture de la page ; « À voter » s'ils attendent une réponse (sauf autre choix).

@@ -165,7 +165,7 @@ export function Calendar() {
     }
     // Par genre ; séances et événements : toute la journée d'abord, puis par heure.
     const rank: Record<Kind, number> = { meeting: 0, manif: 1, event: 2, poll: 3, task: 4 };
-    const heure = (it: Item) => (it.kind === 'meeting' ? it.m.heure : it.kind === 'event' || it.kind === 'manif' ? it.e?.heure : '') ?? '';
+    const heure = (it: Item) => (it.kind === 'meeting' ? it.m.heure : it.kind === 'event' || it.kind === 'manif' ? it.e?.heure : it.kind === 'poll' ? it.p.heureLimite : '') ?? '';
     map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind] || heure(a).localeCompare(heure(b))));
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -255,7 +255,7 @@ export function Calendar() {
         const p = parentOf(data, it.t);
         return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · rattachée à « ${p.titre} »` : ''}`;
       }
-      case 'poll': return `Sondage : ${it.p.question} (date limite)`;
+      case 'poll': return `Sondage : ${it.p.question} (date limite${it.p.heureLimite ? ` ${it.p.heureLimite.replace(':', 'h')}` : ''})`;
       case 'manif': {
         if (!it.e) return `Prochaine édition : ${it.u.nom} · ${fmtRange(it.u.date, it.u.dateFin)}`;
         const x = aLaDate(it.e, it.o ?? it.e.date);
@@ -417,7 +417,7 @@ export function Calendar() {
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}
                         {it.kind === 'event' && ([horaire(it.e), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ') || 'Événement du club')}
                         {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
-                        {it.kind === 'poll' && 'date limite pour répondre'}
+                        {it.kind === 'poll' && `date limite pour répondre${it.p.heureLimite ? ` à ${it.p.heureLimite.replace(':', 'h')}` : ''}${it.p.clotureAuto === false ? ' (indicative)' : ', clôture automatique'}`}
                         {it.kind === 'manif' &&
                           (it.e
                             ? [it.u.nom, fmtRange(it.o ?? it.e.date, aLaDate(it.e, it.o ?? it.e.date).dateFin), horaire(it.e), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ')

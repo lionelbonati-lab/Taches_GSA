@@ -1,13 +1,26 @@
-import { useState } from 'react';
+import { useEffect, useReducer, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Poll } from '../data/types';
-import { AUTRE_ID, POLL_TYPES, autreTextes, electeursDe, isOpen, nomVotant, optionLabel, results, texteVotant } from '../data/polls';
+import { AUTRE_ID, POLL_TYPES, autreTextes, echeance, electeursDe, finSondage, isOpen, nomVotant, optionLabel, results, texteVotant } from '../data/polls';
 import { fmtDate, initials } from '../data/utils';
 import { useClubOptional } from '../data/club';
 import { PollEditor } from './PollEditor';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteSondage } from '../data/lienPartage';
+
+/** Clôture automatique : réaffiche à la prochaine date et heure limite de ces sondages (« Clôturé »), sans recharger. */
+export function useClotureAuto(polls: Poll[]) {
+  const [, rafraichir] = useReducer((n: number) => n + 1, 0);
+  const maintenant = Date.now();
+  const prochaine = Math.min(...polls.map((p) => (p.clotureLe ? Infinity : finSondage(p) ?? Infinity)).filter((t) => t > maintenant));
+  useEffect(() => {
+    const reste = prochaine - Date.now();
+    if (!(reste > 0 && reste <= 2 * 864e5)) return;
+    const t = setTimeout(rafraichir, reste + 500);
+    return () => clearTimeout(t);
+  }, [prochaine]);
+}
 
 /** Sondage : vote, résultats (barres, tableau des disponibilités) et gestion. */
 export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: boolean; highlight?: boolean }) {
@@ -21,6 +34,7 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
   const [texte, setTexte] = useState(myText);
   const [changing, setChanging] = useState(false);
   const [edit, setEdit] = useState(false);
+  useClotureAuto([poll]);
   if (!user) return null;
 
   const open = isOpen(poll);
@@ -62,7 +76,12 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
       {poll.description && <p className="poll-desc">{poll.description}</p>}
       <p className="poll-meta">
         {r.voters.length}/{electeurs.length} réponses
-        {poll.dateLimite && ` · jusqu’au ${fmtDate(poll.dateLimite)}`}
+        {poll.dateLimite &&
+          (poll.clotureAuto === false
+            ? open && ` · réponses souhaitées d’ici le ${echeance(poll)}`
+            : open
+              ? <> · jusqu’au {echeance(poll)} <span title="Le sondage se clôture tout seul à la date et l’heure limite">(clôture automatique)</span></>
+              : !poll.clotureLe && ` · clôturé automatiquement (date limite ${echeance(poll)})`)}
         {poll.clotureLe && ` · clôturé le ${fmtDate(poll.clotureLe)}`}
         {!compact && task && <> · tâche <Link to={`/taches?tache=${task.id}`}>« {task.titre} »</Link></>}
         {!compact && ` · créé par ${texteVotant(qui(poll.creePar))}`}

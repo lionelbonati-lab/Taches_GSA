@@ -3,7 +3,7 @@ import { useStore } from './data/store';
 import { dueAt, emailState, fillTemplate } from './data/emails';
 import type { AppData, NotifPrefs, OrgUnit, Person, TachePartagee, Task } from './data/types';
 import { nomsDestinataires } from './data/destinataires';
-import { isOpen } from './data/polls';
+import { echeance, isOpen } from './data/polls';
 import { aPrendreOuverte, aPrendrePourMoi, attenteAilleurs, plusPersonne, sansReponse } from './data/aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './data/utils';
 import { hasPermission, userRoles } from './data/permissions';
@@ -127,7 +127,7 @@ export function computeNotifications(
         key: `sondage:${poll.id}`,
         icon: '📊',
         text: `Sondage : « ${poll.question} »`,
-        sub: poll.dateLimite ? `réponds avant le ${fmtDate(poll.dateLimite)}` : 'en attente de ta réponse',
+        sub: poll.dateLimite ? `réponds ${poll.clotureAuto === false ? 'si possible ' : ''}avant le ${echeance(poll)}` : 'en attente de ta réponse',
         link: `/sondages?id=${poll.id}`,
         at: poll.creeLe,
         kind: 'alerte',

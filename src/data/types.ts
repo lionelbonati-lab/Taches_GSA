@@ -185,6 +185,10 @@ export interface Poll {
   votants: string[];
   anonyme: boolean;
   dateLimite?: string;
+  /** Heure limite (« 18:00 », heure locale) ; absente = fin de la journée de la date limite. */
+  heureLimite?: string;
+  /** false : date limite indicative, le sondage reste ouvert jusqu'à « Clôturer » ; sinon il se clôture tout seul à la date limite. */
+  clotureAuto?: boolean;
   taskId?: string;
   /** Section de l'ordre du jour (sinon celle de la tâche liée). */
   sectionId?: string;

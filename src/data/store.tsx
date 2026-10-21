@@ -6,7 +6,7 @@ import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, to
 import { seancePourSuivante } from './seances';
 import type { ActivityNotif, AppData, ChecklistItem, OrgUnit, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task } from './types';
 import { clearFiles } from './files';
-import { avecSondages, avecVote, sondageEnregistre } from './polls';
+import { avecSondages, avecVote, finSondage, sondageEnregistre } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
 import { applyRows, pasDispoTache, prendreTache as prendreServeur, rattraper, type CloudSync, type Membership } from './cloud';
@@ -770,8 +770,12 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const x = d.polls?.find((y) => y.id === pollId);
         if (!x) return;
         x.clotureLe = closed ? new Date().toISOString().slice(0, 10) : undefined;
-        // Rouvrir un sondage dont la date limite est passée : on retire la date limite.
-        if (!closed && x.dateLimite && x.dateLimite < new Date().toISOString().slice(0, 10)) x.dateLimite = undefined;
+        // Rouvrir un sondage clôturé automatiquement (date et heure limite passées) : on retire la date limite.
+        if (!closed && (finSondage(x) ?? Infinity) <= Date.now()) {
+          x.dateLimite = undefined;
+          x.heureLimite = undefined;
+          x.clotureAuto = undefined;
+        }
       }, `Sondage « ${p?.question ?? ''} » ${closed ? 'clôturé' : 'rouvert'}`);
     },
     [update, data.polls],

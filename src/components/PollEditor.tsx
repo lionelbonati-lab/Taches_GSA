@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { Poll, PollType } from '../data/types';
-import { OUINON, POLL_TYPES, autreOption, committeeOf, electorat } from '../data/polls';
+import { OUINON, POLL_TYPES, autreOption, committeeOf, electorat, finSondage } from '../data/polls';
 import { fullName, nomPoste, today, uid } from '../data/utils';
 import { Modal } from './ui';
 import { estPartagee } from '../data/partage';
@@ -58,6 +58,10 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
     const options = autre ? [...base, autreOption(p.type)] : base;
     if (base.length < 2) return setErr(p.type === 'dates' ? 'Propose au moins deux dates.' : 'Propose au moins deux réponses.');
     if (!p.votants.length && !p.entites?.length) return setErr('Choisis au moins un votant ou une entité.');
+    const fin = finSondage(p);
+    const finAvant = poll ? finSondage(poll) : null;
+    if (fin !== null && fin <= Date.now() && fin !== finAvant)
+      return setErr('La date et l’heure limite sont déjà passées : le sondage serait clôturé tout de suite. Choisis plus tard, ou décoche « Clôturer automatiquement ».');
     savePoll({ ...p, question: p.question.trim(), options, multiple: p.type === 'dates' ? true : p.type === 'ouinon' ? false : p.multiple }, !poll);
     onClose();
   };
@@ -79,10 +83,34 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
             {POLL_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
           </select>
         </label>
-        <label>
-          Date limite (facultatif)
-          <input type="date" value={p.dateLimite ?? ''} min={today()} onChange={(e) => set({ dateLimite: e.target.value || undefined })} />
-        </label>
+        <div className="poll-limite">
+          <label>
+            Date limite (facultatif)
+            <input type="date" value={p.dateLimite ?? ''} min={today()} onChange={(e) => set(e.target.value ? { dateLimite: e.target.value } : { dateLimite: undefined, heureLimite: undefined, clotureAuto: undefined })} />
+          </label>
+          {p.dateLimite && (
+            <label>
+              Heure
+              <input type="time" value={p.heureLimite ?? ''} onChange={(e) => set({ heureLimite: e.target.value || undefined })} aria-label="Heure limite" />
+            </label>
+          )}
+        </div>
+        {p.dateLimite && (
+          <label className="inline full">
+            <input type="checkbox" checked={p.clotureAuto !== false} onChange={(e) => set({ clotureAuto: e.target.checked ? undefined : false })} />
+            <span>
+              🔒 Clôturer automatiquement à la date{p.heureLimite ? ' et à l’heure' : ''} limite
+              <small className="muted">
+                {' '}
+                {p.clotureAuto === false
+                  ? '— décoché : date indicative, le sondage reste ouvert jusqu’à « Clôturer ».'
+                  : p.heureLimite
+                    ? '— plus de réponse après cette heure.'
+                    : '— à minuit, à la fin de ce jour (ou choisis une heure).'}
+              </small>
+            </span>
+          </label>
+        )}
 
         {p.type !== 'ouinon' && (
           <fieldset className="full">

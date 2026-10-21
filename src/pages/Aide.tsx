@@ -47,6 +47,8 @@ export function Aide() {
   if (chemin('/ordre-du-jour') && can('tab.pv'))
     geste('Garder des réglages de l’ordre du jour pour la prochaine fois (profil)', vers('/ordre-du-jour'), ' › « Profils » : règle le contenu et la mise en page, donne un nom (« Comité ordinaire », « AG »…) puis « 💾 Enregistrer le profil » (avec ou sans la mise en forme). Un clic sur son nom rétablit ces réglages ; 💾 le remplace par les réglages actuels, ✏️ le renomme, 🗑 le supprime. Communs à l’entité.');
   geste('Voter ou poser une question au comité', vers('/sondages'), '. Un sondage qui attend ta réponse apparaît aussi à l’accueil.');
+  if (can('polls.create'))
+    geste('Fermer un sondage tout seul à une date et une heure', vers('/sondages'), ' : dans le sondage, « Date limite » puis « Heure », avec « 🔒 Clôturer automatiquement » coché. Décoche-le pour une date seulement indicative (le sondage reste ouvert jusqu’à « Clôturer »).');
   geste('Envoyer une tâche ou un sondage par WhatsApp (ou une autre appli)', 'L’icône de partage (trois points reliés) en haut à droite de la tâche ou du sondage : modifie le message si besoin, puis « 💬 WhatsApp », « Autre appli… » (téléphone), « ✉ Email » ou « 📋 Copier ». Le lien ouvre la tâche ou le sondage dans l’appli' + (club ? ', dans la bonne entité' : '') + ' ; il ne donne accès qu’aux personnes qui ont un compte et la voient déjà.');
   if (sondagesEntites && club && club.units.length > 1 && can('polls.create'))
     geste('Poser une question à d’autres entités (École, groupe, CO…)', vers('/sondages'), ' : « + Nouveau sondage » › « Ouvrir aussi à d’autres entités ». Tous leurs membres votent depuis leur entité ; une personne de plusieurs entités ne vote qu’une fois.');

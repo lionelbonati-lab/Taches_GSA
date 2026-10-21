@@ -2,7 +2,7 @@ import type { AppData, OrgUnit, Person, Poll, PollOption, SondagePartage } from 
 import { hasPermission, userRoles } from './permissions';
 import { emailKey } from './membres';
 import { idPartagee } from './partage';
-import { fmtDate, fullName, today } from './utils';
+import { fmtDate, fullName } from './utils';
 
 export const OUINON: PollOption[] = [
   { id: 'oui', label: 'Oui' },
@@ -20,7 +20,19 @@ export const POLL_TYPES: { id: Poll['type']; label: string }[] = [
   { id: 'dates', label: 'Choix de dates (disponibilités)' },
 ];
 
-export const isOpen = (p: Poll) => !p.clotureLe && (!p.dateLimite || p.dateLimite >= today());
+/** Moment de la clôture automatique (ms), à la date et l'heure limite (heure locale ; sans heure, à minuit) ; null si aucune. */
+export function finSondage(p: Pick<Poll, 'dateLimite' | 'heureLimite' | 'clotureAuto'>): number | null {
+  if (!p.dateLimite || p.clotureAuto === false) return null;
+  const [y, m, d] = p.dateLimite.split('-').map(Number);
+  const [h, mn] = (p.heureLimite || '24:00').split(':').map(Number);
+  return new Date(y, m - 1, d, h, mn).getTime();
+}
+
+export const isOpen = (p: Poll) => !p.clotureLe && (finSondage(p) ?? Infinity) > Date.now();
+
+/** Date limite lisible : « 22.10.2026 à 18h00 », « 22.10.2026 » sans heure. */
+export const echeance = (p: Pick<Poll, 'dateLimite' | 'heureLimite'>) =>
+  p.dateLimite ? `${fmtDate(p.dateLimite)}${p.heureLimite ? ` à ${p.heureLimite.replace(':', 'h')}` : ''}` : '';
 
 export function optionLabel(o: PollOption) {
   if (!o.date) return o.label;
@@ -64,7 +76,7 @@ export function pollSummary(p: Poll) {
     const textes = autreTextes(p, autre.ids).map((x) => `« ${x.texte} »`);
     parts.push(`${autre.option.label} ${autre.ids.length}${textes.length ? ` (${textes.join(' ; ')})` : ''}`);
   }
-  const state = isOpen(p) ? (p.dateLimite ? `ouvert jusqu’au ${fmtDate(p.dateLimite)}` : 'ouvert') : 'clôturé';
+  const state = isOpen(p) ? (!p.dateLimite ? 'ouvert' : p.clotureAuto === false ? `ouvert, réponses souhaitées d’ici le ${echeance(p)}` : `ouvert jusqu’au ${echeance(p)}`) : 'clôturé';
   return `${parts.join(' · ')} — ${r.voters.length}/${electeursDe(p).length} réponses, ${state}`;
 }
 

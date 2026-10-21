@@ -10,7 +10,7 @@ import { Empty } from '../components/ui';
 import { PourInfoRecues, clePourInfo, delaiRecu } from '../components/PourInfo';
 import { pourMoi, termineeChezElle } from '../data/pourInfo';
 import { aPrendrePourMoi } from '../data/aPrendre';
-import { isOpen } from '../data/polls';
+import { echeance, isOpen } from '../data/polls';
 import { dueAt, emailState, fillTemplate, whenLabel } from '../data/emails';
 import { EmailSend } from '../components/EmailsField';
 import { IncomingRequests, OutgoingRequests } from '../components/Requests';
@@ -190,7 +190,7 @@ export function Dashboard() {
             {toVote.map((p) => (
               <Link key={p.id} to={`/sondages?id=${p.id}`} className="panel link-panel">
                 <strong>{p.question}</strong>
-                <span className="muted">{p.dateLimite ? `Réponds avant le ${fmtDate(p.dateLimite)}` : 'En attente de ta réponse'}</span>
+                <span className="muted">{p.dateLimite ? `Réponds ${p.clotureAuto === false ? 'si possible ' : ''}avant le ${echeance(p)}` : 'En attente de ta réponse'}</span>
               </Link>
             ))}
           </>

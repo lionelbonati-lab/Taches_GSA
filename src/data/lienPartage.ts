@@ -2,6 +2,7 @@ import { aPrendreOuverte } from './aPrendre';
 import { getMode } from './mode';
 import type { Person, Poll, Task } from './types';
 import { fmtDate, shortName } from './utils';
+import { echeance } from './polls';
 
 // Liens à envoyer (WhatsApp, email…) vers une tâche ou un sondage. Ils gardent :
 //   - la version (?reel / ?demo) : ouverts sur un appareil où l'appli n'a jamais servi, ils n'arrêtent pas sur l'écran de choix ;
@@ -44,9 +45,9 @@ export function texteTache(
 }
 
 /** Message qui accompagne le lien d'un sondage. */
-export function texteSondage(p: Pick<Poll, 'question' | 'dateLimite'>, ouvert: boolean, entite?: string): string {
+export function texteSondage(p: Pick<Poll, 'question' | 'dateLimite' | 'heureLimite'>, ouvert: boolean, entite?: string): string {
   return [
     `📊 Sondage « ${p.question.trim()} »${entite ? ` (${entite})` : ''}`,
-    !ouvert ? 'Clôturé, résultats dans l’appli :' : p.dateLimite ? `Réponds d’ici le ${fmtDate(p.dateLimite)} dans l’appli :` : 'Réponds dans l’appli :',
+    !ouvert ? 'Clôturé, résultats dans l’appli :' : p.dateLimite ? `Réponds d’ici le ${echeance(p)} dans l’appli :` : 'Réponds dans l’appli :',
   ].join('\n');
 }
