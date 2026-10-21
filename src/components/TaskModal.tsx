@@ -1077,7 +1077,7 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
   };
 
   const choix = (
-    <select value={mode} disabled={disabled} aria-label="Date fixe, ou selon un événement / une séance" onChange={(e) => onMode(e.target.value)}>
+    <select value={mode} disabled={disabled} aria-label="Date fixe, ou selon un événement / une séance" title="Changer : une autre séance, un événement ou une date fixe" onChange={(e) => onMode(e.target.value)}>
       <option value="fixe">📆 Date fixe</option>
       {events.length > 0 && (
         <optgroup label="Selon un événement">
@@ -1119,6 +1119,7 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
           {choix}
           <OccurrenceField t={t} setT={setT} disabled={disabled} />
           <QuandField t={t} setT={setT} disabled={disabled} />
+          {!disabled && <button type="button" className="link-btn" onClick={() => onMode('fixe')}>📆 ou une date fixe</button>}
         </>
       )}
     </div>
