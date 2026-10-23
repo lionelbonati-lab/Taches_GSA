@@ -640,10 +640,15 @@ export async function enregistrerPdf(blob: Blob, titre: string) {
       // Partage refusé (délai dépassé…) : téléchargement.
     }
   }
+  telechargerPdf(blob, titre);
+}
+
+/** Télécharge le PDF sous le nom du document. */
+export function telechargerPdf(blob: Blob, titre: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = nom;
+  a.download = nomFichierPdf(titre);
   document.body.appendChild(a);
   a.click();
   a.remove();

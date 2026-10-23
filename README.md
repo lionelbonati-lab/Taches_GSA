@@ -286,7 +286,18 @@ Réglages (mémorisés, panneau de gauche, toutes les parties fermées à l'ouve
 - les tailles restent relatives à la « Taille du texte » de chacun (petite, normale, grande) ; agrandir un niveau ne grossit pas ceux qu'il contient ; « (modifié) » repère les éléments réglés, **Rétablir cet élément** / **Tout rétablir** ;
 - un document **archivé garde la mise en forme du moment** (et ses marges à l'impression).
 
-Actions : **📄 PDF** (voir plus bas), **🖨 Imprimer**, **Archiver dans la séance** (copie figée consultable, réimprimable et exportable en PDF dans Comité › Séances), **Envoyer par email** aux membres du comité, **Copier le texte** (même numérotation, prêt à coller dans Word, un email ou WhatsApp).
+Actions : **PDF** (voir plus bas), **Imprimer**, **Archiver dans la séance** (copie figée consultable, réimprimable et exportable en PDF dans Comité › Séances), **Envoyer par email** aux membres du comité (ci-dessous), **Copier le texte** (même numérotation, prêt à coller dans Word, un email ou WhatsApp).
+
+**Envoyer par email** : une fenêtre choisit séparément
+- le **texte du mail** : les réglages affichés ou un **profil** (ex. « Comité ordinaire », version courte) ;
+- le **PDF joint** : les réglages affichés, un **autre profil** (ex. version complète avec annexes et mise en forme) ou « Pas de PDF ».
+
+Le PDF est préparé tout de suite (nom et taille affichés, « Voir » pour le relire) ; « Aperçu du texte » montre le corps du mail. Puis :
+- **Partager avec le PDF joint** (téléphone, tablette, et ordinateurs qui le permettent) : le mail ou WhatsApp s'ouvre avec le texte et le PDF en pièce jointe ;
+- **Ouvrir dans ma messagerie** : le PDF est téléchargé, puis le mail s'ouvre adressé aux membres du comité, avec l'objet et le texte ; il reste à joindre le PDF (trombone ou glisser-déposer) — un lien « mailto » ne peut pas joindre de fichier ;
+- **Copier les adresses**.
+
+Les choix sont **mémorisés pour l'entité** (droit « Comité › Ordre du jour ») ; un profil supprimé depuis revient aux réglages affichés. Un ordre du jour **modifié à la main** est envoyé tel quel (texte et PDF), sans profil.
 
 ## En-tête des documents
 

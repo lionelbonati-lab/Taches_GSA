@@ -749,6 +749,11 @@ export interface ReglagesOdj {
   depotPv?: string;
   /** Profils de l'ordre du jour : jeux de réglages enregistrés sous un nom, communs à l'entité. */
   profils?: ProfilOdj[];
+  /**
+   * « Envoyer par email » : profil du texte du mail et profil du PDF joint (`aucun` : sans PDF) ;
+   * rien, ou un profil supprimé depuis : les réglages affichés.
+   */
+  envoi?: { texte?: string; pdf?: string };
 }
 
 /** Profil de l'ordre du jour (« Comité ordinaire », « Assemblée générale »…), réappliqué en un clic. */

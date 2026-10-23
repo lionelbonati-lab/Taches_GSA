@@ -623,6 +623,13 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pv-settings .profils-odj { list-style: none; margin: 6px 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
 .pv-settings .profils-odj li { display: flex; align-items: center; gap: 2px; border-radius: 8px; padding: 1px 2px; }
 .pv-settings .profils-odj li.on { background: var(--primary-soft, rgba(29, 78, 216, 0.1)); }
+/* Ordre du jour › « Envoyer par email » : texte d'un profil, PDF joint d'un autre. */
+.envoi-odj { display: flex; flex-direction: column; gap: 10px; }
+.envoi-odj p { margin: 0; }
+.envoi-odj label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+.envoi-odj select { color: var(--text); font-size: 1rem; font-weight: 400; }
+.envoi-etat { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 1.6em; }
+.envoi-apercu pre { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 40vh; overflow: auto; margin: 6px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--surface2); font: inherit; font-size: 0.85rem; }
 .pv-settings .profils-odj form { flex: 1; gap: 4px; min-width: 0; }
 .pv-settings .profils-odj form input { min-width: 0; }
 .pv-settings .profil-nom { flex: 1; min-width: 0; text-align: left; background: none; border: 0; padding: 6px 4px; color: var(--text); font: inherit; font-size: 0.9rem; cursor: pointer; overflow-wrap: anywhere; }

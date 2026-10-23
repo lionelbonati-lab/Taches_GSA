@@ -66,7 +66,7 @@ export function ProfilsOdj({ s, normaliser, appliquerReglages, canEdit }: {
   const enregistrer = () => {
     const n = nom.trim().slice(0, 60);
     if (!n) return setErr('Donne un nom au profil.');
-    if (nomPris(n)) return setErr(`Un profil s’appelle déjà « ${n} » : choisis un autre nom, ou « 💾 » sur ce profil pour le remplacer.`);
+    if (nomPris(n)) return setErr(`Un profil s’appelle déjà « ${n} » : choisis un autre nom, ou la disquette de ce profil pour le remplacer.`);
     if (profils.length >= MAX_PROFILS) return setErr(`${MAX_PROFILS} profils au plus : supprime-en un.`);
     setErr('');
     setNom('');
