@@ -300,6 +300,8 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     evenementEntite: undefined,
     delaiRef: suit ?? suitEvent,
     suivanteId: undefined,
+    // Pas encore terminée : la date de clôture de cette occurrence-ci ne la suit pas.
+    termineeLe: undefined,
     // La demande d'une autre entité concernait cette occurrence-ci.
     proposee: undefined,
     updatedAt: new Date().toISOString(),
