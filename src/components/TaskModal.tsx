@@ -14,7 +14,7 @@ import { personnesDuRole } from '../data/permissions';
 import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as aDecline, peutPrendre, plusPersonne, prisAilleurs, reponsesAilleurs, volontaires } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
-import type { DelaiUnite, EvenementEntite, OrgUnit, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
+import type { DelaiUnite, EvenementEntite, OrgMember, OrgUnit, Person, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
 import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { finAnticipee, motSeance, seanceApres, seancePourSuivante } from '../data/seances';
@@ -101,7 +101,6 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const parentIci = club && reglage && reglage !== 'partagees' && !t.source ? parentDans(club.units.filter((u) => !u.archive), club.current) : undefined;
   // Plus partagée avec le comité : plus à l'ordre du jour de sa séance (ni de délai selon elle).
   const togglePartage = (id: string) => setT((x) => applyDelaiRef(data, avecPartage(x, id, !partageDe(x, club?.central?.id).includes(id), club?.central?.id)));
-  const autres = autresResp(t);
 
   const editable = isNew ? true : canEditTask(task);
   const canAssignOthers = t.sectionId ? canAssign(t.sectionId) : creatableSections().some((s) => canAssign(s.id));
@@ -139,6 +138,25 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       return applyDelaiRef(data, { ...y, sousSection: c.sousSection, placePartage });
     });
   const assignable = data.people.filter((p) => p.actif && (canAssignOthers || p.id === user.id));
+  // Tâche attribuée : ses responsables se choisissent aussi parmi les personnes de l'entité (ses fiches, enregistrées chez
+  // elle) ; les personnes d'ici sans fiche chez elle la suivent d'ici.
+  const chezId = attribuee?.unite.id ?? '';
+  const choisisChez = attribuee ? (t.respPartage?.[chezId] ?? []).map((id) => attribuee.unite.membres.find((m) => m.id === id)).filter((m): m is OrgMember => !!m) : [];
+  const respIci = t.responsables.map((id) => data.people.find((p) => p.id === id)).filter((p): p is Person => !!p);
+  const membresChez = attribuee && canAssignOthers
+    ? attribuee.unite.membres
+        .filter((m) => !choisisChez.includes(m) && !respIci.some((p) => memePersonne(p, m)))
+        .sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`))
+    : [];
+  const toggleChez = (id: string) =>
+    setT((x) => {
+      const l = x.respPartage?.[chezId] ?? [];
+      const respPartage = { ...x.respPartage, [chezId]: l.includes(id) ? l.filter((y) => y !== id) : [...l, id] };
+      if (!respPartage[chezId].length) delete respPartage[chezId];
+      return { ...x, respPartage: Object.keys(respPartage).length ? respPartage : undefined };
+    });
+  // Responsables des autres entités (tâche partagée), sauf ceux de l'entité à qui elle est attribuée (choisis ci-dessus).
+  const autres = autresResp(attribuee ? { ...t, respPartage: { ...t.respPartage, [chezId]: [] } } : t);
 
   const addItem = () => {
     if (!newItem.trim()) return;
@@ -321,7 +339,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     // (serveur à jour : 041).
   ].filter((a) => a.si && (!t.source || a.partagee));
   // Personnes à ajouter : soi-même d'abord.
-  const aAjouter = assignable.filter((p) => !t.responsables.includes(p.id)).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
+  // (Personne aussi chez l'entité à qui la tâche est attribuée : proposée seulement avec elle.)
+  const aAjouter = assignable
+    .filter((p) => !t.responsables.includes(p.id) && ![...choisisChez, ...membresChez].some((m) => memePersonne(p, m)))
+    .sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
   // Pour info : personnes d'ici (sauf responsables), autres entités du club, personnes d'autres entités (« a:entité:fiche »).
   const info = t.pourInfo ?? {};
   const cibles = ciblesPourInfo(t.pourInfo, data.people, club?.units ?? []).filter((c) => c.genre !== 'personne' || !t.responsables.includes(c.id));
@@ -520,14 +541,36 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 </span>
               );
             })}
-            {!t.responsables.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
-            {!dis && aAjouter.length > 0 && (
-              <select className="chip-add" value="" aria-label="Ajouter une personne" onChange={(e) => e.target.value && toggleResp(e.target.value)}>
+            {choisisChez.map((m) => (
+              <span key={m.id} className="chip on" title={`Personne de « ${attribuee!.unite.nom} »`}>
+                {UNIT_TYPES[attribuee!.unite.type].icon} {m.prenom} {m.nom}
+                {!dis && canAssignOthers && <button type="button" className="chip-x" aria-label={`Retirer ${m.prenom} ${m.nom}`} onClick={() => toggleChez(m.id)}>✕</button>}
+              </span>
+            ))}
+            {!t.responsables.length && !choisisChez.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
+            {!dis && (aAjouter.length > 0 || membresChez.length > 0) && (
+              <select className="chip-add" value="" aria-label="Ajouter une personne" onChange={(e) => e.target.value && (e.target.value.startsWith('chez:') ? toggleChez(e.target.value.slice(5)) : toggleResp(e.target.value))}>
                 <option value="">＋ Ajouter…</option>
-                {aAjouter.map((p) => <option key={p.id} value={p.id}>{nomPoste(p, user.id)}</option>)}
+                {attribuee ? (
+                  <>
+                    {membresChez.length > 0 && (
+                      <optgroup label={`${UNIT_TYPES[attribuee.unite.type].icon} ${attribuee.unite.nom}`}>
+                        {membresChez.map((m) => <option key={m.id} value={`chez:${m.id}`}>{nomPoste(m)}</option>)}
+                      </optgroup>
+                    )}
+                    {aAjouter.length > 0 && (
+                      <optgroup label={club?.current.nom ?? 'Ici'}>
+                        {aAjouter.map((p) => <option key={p.id} value={p.id}>{nomPoste(p, user.id)}</option>)}
+                      </optgroup>
+                    )}
+                  </>
+                ) : (
+                  aAjouter.map((p) => <option key={p.id} value={p.id}>{nomPoste(p, user.id)}</option>)
+                )}
               </select>
             )}
           </div>
+          {attribuee && canAssignOthers && !dis && !attribuee.unite.membres.length && <small className="muted">« {attribuee.unite.nom} » n’a encore personne dans l’appli : ajoute ses membres dans l’organigramme pour leur confier la tâche.</small>}
           {autres && <small className="muted autres-resp">Aussi : {autres}</small>}
           {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </div>
