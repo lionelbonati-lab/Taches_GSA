@@ -77,7 +77,6 @@ export function RealLogin() {
   };
   return (
     <Card>
-      <p className="muted">Version réelle – connexion des membres du comité</p>
       <form className="login-form" onSubmit={signIn}>
         <label>
           Email

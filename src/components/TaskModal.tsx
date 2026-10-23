@@ -1108,18 +1108,28 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
       {mode === 'fixe' ? (
         <>
           <input type="date" aria-label="Pour quand ?" value={t.delai} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, delai: e.target.value }))} />
-          {choisir
-            ? choix
-            : !disabled && !dateSeule && events.length + meetings.length + xe.length + xm.length > 0 && (
+          {!t.delai && <small className="muted">Aucun délai</small>}
+          {choisir && choix}
+          {!disabled && (
+            <div className="delai-liens">
+              {!choisir && !dateSeule && events.length + meetings.length + xe.length + xm.length > 0 && (
                 <button type="button" className="link-btn" onClick={() => setChoisir(true)}>📌 ou selon un événement / une séance</button>
               )}
+              {t.delai && <button type="button" className="link-btn" onClick={() => setT((x) => ({ ...x, delai: '' }))}>✕ Aucun délai</button>}
+            </div>
+          )}
         </>
       ) : (
         <>
           {choix}
           <OccurrenceField t={t} setT={setT} disabled={disabled} />
           <QuandField t={t} setT={setT} disabled={disabled} />
-          {!disabled && <button type="button" className="link-btn" onClick={() => onMode('fixe')}>📆 ou une date fixe</button>}
+          {!disabled && (
+            <div className="delai-liens">
+              <button type="button" className="link-btn" onClick={() => onMode('fixe')}>📆 ou une date fixe</button>
+              <button type="button" className="link-btn" onClick={() => { setChoisir(false); setT((x) => ({ ...x, delaiRef: undefined, delai: '' })); }}>✕ Aucun délai</button>
+            </div>
+          )}
         </>
       )}
     </div>
