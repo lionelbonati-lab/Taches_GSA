@@ -176,22 +176,27 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     if (attribuee) {
       const u = attribuee.unite;
       if (!secChez) return setErr(`Choisis la section de « ${u.nom} » où ranger la tâche.`);
-      if ((t.documents ?? []).some((d) => d.kind === 'fichier'))
-        return setErr(`Les fichiers joints sont rangés ici : retire-les avant d’enregistrer la tâche dans « ${u.nom} » (elle pourra les y ajouter). Les liens suivent la tâche.`);
+      if (cacheChez && (t.documents ?? []).some((d) => d.kind === 'fichier'))
+        return setErr(`« ${u.nom} » n’affiche aucune de ses tâches au comité : les fichiers joints ne peuvent pas y suivre la tâche d’ici. Retire-les avant de l’enregistrer (« ${u.nom} » pourra les y ajouter). Les liens suivent la tâche.`);
       if (!isNew && emailsOf(data, task.id).length)
         return setErr(`Cette tâche a des emails programmés ici : supprime-les avant de l’enregistrer dans « ${u.nom} » (elle pourra les y programmer).`);
       if (!isNew && !confirm(`Enregistrer la tâche dans « ${u.nom} » ?\n\nElle sera à « ${u.nom} », qui la gérera comme les siennes ; ici, elle restera visible et modifiable comme tâche partagée.${kids.length ? '\nSes tâches rattachées restent ici, sans tâche principale.' : ''}`))
         return;
       setBusy(true);
       setErr('');
+      let r: { fichiers: number; erreur?: string };
       try {
-        await attribuerTache({ ...t, titre: t.titre.trim() }, u, secChez, isNew);
+        r = await attribuerTache({ ...t, titre: t.titre.trim() }, u, secChez, isNew);
       } catch (e) {
         setBusy(false);
         return setErr((e as Error).message);
       }
-      setToast(`✅ Tâche enregistrée dans « ${u.nom} » : elle apparaît ici partagée.`);
-      deleteFiles(libres(track.current.removed));
+      // Fichiers copiés chez l'entité : ceux d'ici ne servent plus (sauf à une autre tâche).
+      const ici = r.erreur ? [] : (t.documents ?? []).filter((d) => d.kind === 'fichier' && !d.id.includes('/')).map((d) => d.id);
+      setToast(r.erreur
+        ? `⚠️ Tâche enregistrée dans « ${u.nom} », mais pas ses fichiers (${r.erreur}) : ajoute-les depuis la tâche.`
+        : `✅ Tâche enregistrée dans « ${u.nom} »${r.fichiers ? ` avec ${r.fichiers > 1 ? `ses ${r.fichiers} fichiers` : 'son fichier'}` : ''} : elle apparaît ici partagée.`);
+      deleteFiles(libres([...track.current.removed, ...ici]));
       onClose();
       return;
     }
@@ -471,7 +476,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               <small className="muted attribuee-note">
                 📦 À l’enregistrement, la tâche {isNew ? 'sera créée' : 'passera'} dans « {attribuee.unite.nom} »
                 {secChez && `, section « ${sectionsChez.find((x) => x.id === secChez)?.nom ?? attribuee.sousSection} »`}, qui la gérera comme ses
-                tâches ; ici, elle apparaîtra partagée 🤝 et restera modifiable.
+                tâches ; ici, elle apparaîtra partagée 🤝 et restera modifiable.{(t.documents ?? []).some((d) => d.kind === 'fichier') && !cacheChez && ' Ses fichiers joints la suivent.'}
                 {cacheChez && <b> « {attribuee.unite.nom} » n’affiche aucune de ses tâches au comité (réglage « Ne rien afficher ») : elle n’apparaîtra pas ici.</b>}
               </small>
             )}

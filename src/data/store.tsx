@@ -4,8 +4,8 @@ import { statuses as STATUSES } from './seedData';
 import { hasPermission, userRoles } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, today, uid } from './utils';
 import { seancePourSuivante } from './seances';
-import type { ActivityNotif, AppData, ChecklistItem, OrgUnit, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task } from './types';
-import { clearFiles } from './files';
+import type { ActivityNotif, AppData, ChecklistItem, OrgUnit, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task, TaskDoc } from './types';
+import { clearFiles, deleteFiles, getFile, saveFile } from './files';
 import { avecSondages, avecVote, finSondage, sondageEnregistre } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
@@ -242,9 +242,10 @@ interface Store {
   /**
    * Tâche attribuée à l'entité `cible` qui dépend de l'entité ouverte (sous-section du formulaire) : enregistrée chez elle,
    * dans sa section `sectionId`, partagée avec l'entité ouverte ; une tâche existante est retirée d'ici (elle y revient
-   * partagée). Erreur : rien n'est changé.
+   * partagée). Ses fichiers joints sont copiés chez l'entité et y suivent la tâche ; `erreur` : la tâche est enregistrée,
+   * mais pas ses fichiers. Erreur : rien n'est changé.
    */
-  attribuerTache: (t: Task, cible: OrgUnit, sectionId: string, isNew: boolean) => Promise<void>;
+  attribuerTache: (t: Task, cible: OrgUnit, sectionId: string, isNew: boolean) => Promise<{ fichiers: number; erreur?: string }>;
   /** « 🙋 Je m'en charge » : la personne connectée devient responsable d'une tâche à prendre qui lui est proposée. */
   prendreTache: (t: Task) => Promise<void>;
   /** « Pas dispo » : la personne connectée décline une tâche à prendre qui lui est proposée (l'auteur est prévenu). */
@@ -540,7 +541,36 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         { ...t, titre: t.titre.trim() },
         { comite: c.current, cible, sectionId, people: data.people, meetings: data.meetings, moi: user, par: user ? fullName(user) : '', aujourdhui: today(), centralId: c.central?.id },
       );
-      await c.attribuerTache(cible.id, x, { label: st?.label ?? '', done: !!st?.done });
+      // Fichiers joints (rangés ici) : copiés dans le dossier de l'entité, comme déposés depuis la tâche partagée (041).
+      const copies: TaskDoc[] = [];
+      try {
+        for (const d of (t.documents ?? []).filter((y) => y.kind === 'fichier')) {
+          const blob = await getFile(d.id);
+          if (!blob) throw new Error(`fichier « ${d.nom} » introuvable`);
+          const id = `${cible.id}/pt-${uid('d')}`;
+          await saveFile(id, blob);
+          copies.push({ ...d, id });
+        }
+        await c.attribuerTache(cible.id, x, { label: st?.label ?? '', done: !!st?.done });
+      } catch (e) {
+        void deleteFiles(copies.map((d) => d.id));
+        throw e;
+      }
+      // Puis joints à la tâche chez l'entité, comme depuis la tâche partagée.
+      let erreur: string | undefined;
+      if (copies.length) {
+        try {
+          const p = (await c.tachesPartagees()).find((y) => y.uniteId === cible.id && y.task.id === x.id);
+          const vue = p && moi ? avecPartagees(data, [p], moi, c.units).tasks.find((y) => y.source?.id === x.id) : undefined;
+          if (!p || !vue || !moi) throw new Error(`la tâche n’est pas visible ici depuis « ${cible.nom} »`);
+          const par = user ? `${fullName(user)} (${c.current.nom})` : c.current.nom;
+          const next = versOrigine(p.task, { ...vue, documents: [...(vue.documents ?? []), ...copies] }, p, { moi, statuses: data.statuses, people: data.people, units: c.units, par, aujourdhui: today(), meetings: data.meetings, centralId: c.central?.id });
+          await c.modifierTachePartagee(cible.id, next);
+        } catch (e) {
+          erreur = (e as Error).message;
+          void deleteFiles(copies.map((d) => d.id));
+        }
+      }
       // Responsables restés ceux d'ici (sans fiche chez elle) : prévenus comme pour une tâche partagée.
       const actor = userId ?? '?';
       const at = new Date().toISOString();
@@ -563,8 +593,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
       }, `Tâche « ${x.titre} » ${isNew ? 'créée et ' : ''}enregistrée dans « ${cible.nom} » (partagée avec ${c.current.nom})`);
       chargerPartagees();
+      return { fichiers: erreur ? 0 : copies.length, erreur };
     },
-    [data.statuses, data.people, data.meetings, data.tasks, user, userId, update, chargerPartagees],
+    [data, moi, user, userId, update, chargerPartagees],
   );
 
   const saveTask = useCallback(
