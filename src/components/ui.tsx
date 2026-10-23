@@ -61,19 +61,48 @@ export function StatusBadge({ task }: { task: Task }) {
   );
 }
 
-/** Icône « supprimer » : poubelle au trait (couvercle à poignée, trois rainures), de la couleur du texte. */
-export function IconePoubelle() {
+/** Icône dessinée au trait (24 × 24), de la couleur du texte. */
+function IconeTrait({ children }: { children: ReactNode }) {
   return (
-    <svg className="icone-poubelle" viewBox="0 0 24 24" width="1.25em" height="1.25em" aria-hidden="true" focusable="false">
-      <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9.2 4.6 10.6 2.6h2.8l1.4 2" />
-        <path d="M3.4 8.2V6.6a2 2 0 0 1 2-2h13.2a2 2 0 0 1 2 2v1.6Z" />
-        <path d="M5 8.2 6.3 21.4h11.4L19 8.2" />
-        <path d="M8.8 11.2 9.3 18.4M12 11.2v7.2M15.2 11.2l-.5 7.2" />
-      </g>
+    <svg className="icone-trait" viewBox="0 0 24 24" width="1.25em" height="1.25em" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">{children}</g>
     </svg>
   );
 }
+
+/** Icône « supprimer » : poubelle (couvercle à poignée, trois rainures). */
+export const IconePoubelle = () => (
+  <IconeTrait>
+    <path d="M9.2 4.6 10.6 2.6h2.8l1.4 2" />
+    <path d="M3.4 8.2V6.6a2 2 0 0 1 2-2h13.2a2 2 0 0 1 2 2v1.6Z" />
+    <path d="M5 8.2 6.3 21.4h11.4L19 8.2" />
+    <path d="M8.8 11.2 9.3 18.4M12 11.2v7.2M15.2 11.2l-.5 7.2" />
+  </IconeTrait>
+);
+
+/** Icône « enregistrer » : disquette. */
+export const IconeDisquette = () => (
+  <IconeTrait>
+    <path d="M4.6 3.4h11.6l4.4 4.4v11.6a1.2 1.2 0 0 1-1.2 1.2H4.6a1.2 1.2 0 0 1-1.2-1.2V4.6a1.2 1.2 0 0 1 1.2-1.2Z" />
+    <path d="M7.4 3.4v4.8h7.8V3.4M12.6 5.2v1.2" />
+    <path d="M6.8 20.6v-6.2h10.4v6.2" />
+  </IconeTrait>
+);
+
+/** Icône « renommer / modifier » : crayon. */
+export const IconeCrayon = () => (
+  <IconeTrait>
+    <path d="M15.6 4.4a2 2 0 0 1 2.8 0l1.2 1.2a2 2 0 0 1 0 2.8L8.4 19.6l-4.8 1 1-4.8Z" />
+    <path d="M13.8 6.2l4 4M4.6 15.8l3.8 3.8" />
+  </IconeTrait>
+);
+
+/** Icône « monter » : flèche vers le haut. */
+export const IconeMonter = () => (
+  <IconeTrait>
+    <path d="M12 20V4.4M5.6 10.8 12 4.4l6.4 6.4" />
+  </IconeTrait>
+);
 
 export function Modal({ title, onClose, children, wide, actions }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; actions?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);

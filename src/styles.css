@@ -1567,7 +1567,7 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 
 /* ---------- Envoyer un lien (WhatsApp, email, autre appli) ---------- */
 .icone-partage { vertical-align: -0.2em; flex: none; }
-.icone-poubelle { vertical-align: -0.2em; flex: none; }
+.icone-trait { vertical-align: -0.25em; flex: none; }
 .icon-btn.envoyer-lien,
 .icon-btn.dupliquer { font-size: 1.05rem; color: var(--text); }
 .poll-badges { align-items: center; }

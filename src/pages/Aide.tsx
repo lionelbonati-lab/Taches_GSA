@@ -46,7 +46,7 @@ export function Aide() {
     geste('Changer la police, les couleurs ou la taille des titres de l’ordre du jour et du PV', vers('/ordre-du-jour'), ' › « Mise en page » › « Mise en forme »', miseEnForme);
   else if (chemin('/pv')) geste('Changer la police, les couleurs ou la taille des titres du PV et de l’ordre du jour', vers('/pv'), ' › « 📄 PV » › « 🎨 Mise en forme »', miseEnForme);
   if (chemin('/ordre-du-jour') && can('tab.pv'))
-    geste('Garder des réglages de l’ordre du jour pour la prochaine fois (profil)', vers('/ordre-du-jour'), ' › « Profils » : règle le contenu et la mise en page, donne un nom (« Comité ordinaire », « AG »…) puis « 💾 Enregistrer le profil » (avec ou sans la mise en forme). Un clic sur son nom rétablit ces réglages ; 💾 le remplace par les réglages actuels, ✏️ le renomme, 🗑 le supprime. Communs à l’entité.');
+    geste('Garder des réglages de l’ordre du jour pour la prochaine fois (profil)', vers('/ordre-du-jour'), ' › « Profils » : règle le contenu et la mise en page, donne un nom (« Comité ordinaire », « AG »…) puis « Enregistrer le profil » (avec ou sans la mise en forme). Un clic sur son nom rétablit ces réglages ; à côté, la disquette le remplace par les réglages actuels, le crayon le renomme, la flèche le remonte, la poubelle le supprime. Communs à l’entité.');
   geste('Voter ou poser une question au comité', vers('/sondages'), '. Un sondage qui attend ta réponse apparaît aussi à l’accueil.');
   if (can('polls.create'))
     geste('Fermer un sondage tout seul à une date et une heure', vers('/sondages'), ' : dans le sondage, « Date limite » puis « Heure », avec « 🔒 Clôturer automatiquement » coché. Décoche-le pour une date seulement indicative (le sondage reste ouvert jusqu’à « Clôturer »).');
