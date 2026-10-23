@@ -111,6 +111,45 @@ export function Meetings() {
   const [viewPv, setViewPv] = useState<{ meeting: Meeting; pv: PvArchive; kind: 'odj' | 'pv' } | null>(null);
   const manage = can('meetings.manage');
   const sorted = [...data.meetings].sort((a, b) => a.date.localeCompare(b.date));
+  // Les séances passées sont repliées en bas (archives des PV et ordres du jour), les plus récentes d'abord.
+  const jour = today();
+  const aVenir = sorted.filter((m) => m.date >= jour);
+  const passees = sorted.filter((m) => m.date < jour).reverse();
+
+  const carte = (m: Meeting) => {
+    const tasks = data.tasks.filter((t) => t.meetingId === m.id);
+    const past = m.date < jour;
+    return (
+      <article key={m.id} className={`panel agenda-item ${past ? 'past' : ''}`}>
+        <DateBlock date={m.date} />
+        <div className="grow">
+          <strong>{m.titre}</strong>
+          <div className="muted">
+            {m.heure && `${m.heure.replace(':', 'h')} · `}{m.lieu}{!past && ` · dans ${daysUntil(m.date)} j`}
+            {annuelle(m) ? ' · 🔁 chaque année' : ' · une seule fois'}
+          </div>
+          <Excuses m={m} past={past} />
+          <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
+          {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
+            <div className="pv-archives">
+              {(m.minutesArchives ?? []).map((pv, i) => (
+                <button key={pv.id} className="chip on" onClick={() => setViewPv({ meeting: m, pv, kind: 'pv' })} title={`Validé le ${fmtDateTime(pv.at)}`}>
+                  <Icone n="pv" /> {pv.titre}{i > 0 ? ` (version du ${fmtDateTime(pv.at)})` : ''}
+                </button>
+              ))}
+              {(m.pvArchives ?? []).map((pv) => (
+                <button key={pv.id} className="chip" onClick={() => setViewPv({ meeting: m, pv, kind: 'odj' })} title={`Archivé le ${fmtDateTime(pv.at)}`}>
+                  <Icone n="odj" /> Ordre du jour · {fmtDateTime(pv.at)}
+                </button>
+              ))}
+              {can('tab.minutes') && <Link className="chip" to={`/pv?seance=${m.id}`}><Icone n="notes" /> {m.minutes ? 'Reprendre le PV' : 'Prendre les notes du PV'}</Link>}
+            </div>
+          )}
+        </div>
+        {manage && <button className="btn small" onClick={() => setEdit(m)}>Modifier</button>}
+      </article>
+    );
+  };
 
   return (
     <div>
@@ -122,42 +161,15 @@ export function Meetings() {
       {manage && <Renommer />}
       {manage && <AnneeProchaine />}
       <div className="agenda">
-        {sorted.map((m) => {
-          const tasks = data.tasks.filter((t) => t.meetingId === m.id);
-          const past = m.date < today();
-          return (
-            <article key={m.id} className={`panel agenda-item ${past ? 'past' : ''}`}>
-              <DateBlock date={m.date} />
-              <div className="grow">
-                <strong>{m.titre}</strong>
-                <div className="muted">
-                  {m.heure && `${m.heure.replace(':', 'h')} · `}{m.lieu}{!past && ` · dans ${daysUntil(m.date)} j`}
-                  {annuelle(m) ? ' · 🔁 chaque année' : ' · une seule fois'}
-                </div>
-                <Excuses m={m} past={past} />
-                <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
-                {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
-                  <div className="pv-archives">
-                    {(m.minutesArchives ?? []).map((pv, i) => (
-                      <button key={pv.id} className="chip on" onClick={() => setViewPv({ meeting: m, pv, kind: 'pv' })} title={`Validé le ${fmtDateTime(pv.at)}`}>
-                        <Icone n="pv" /> {pv.titre}{i > 0 ? ` (version du ${fmtDateTime(pv.at)})` : ''}
-                      </button>
-                    ))}
-                    {(m.pvArchives ?? []).map((pv) => (
-                      <button key={pv.id} className="chip" onClick={() => setViewPv({ meeting: m, pv, kind: 'odj' })} title={`Archivé le ${fmtDateTime(pv.at)}`}>
-                        <Icone n="odj" /> Ordre du jour · {fmtDateTime(pv.at)}
-                      </button>
-                    ))}
-                    {can('tab.minutes') && <Link className="chip" to={`/pv?seance=${m.id}`}><Icone n="notes" /> {m.minutes ? 'Reprendre le PV' : 'Prendre les notes du PV'}</Link>}
-                  </div>
-                )}
-              </div>
-              {manage && <button className="btn small" onClick={() => setEdit(m)}>Modifier</button>}
-            </article>
-          );
-        })}
-        {!sorted.length && <Empty>Aucune séance.</Empty>}
+        {aVenir.map(carte)}
+        {!aVenir.length && <Empty>{passees.length ? 'Aucune séance à venir.' : 'Aucune séance.'}</Empty>}
       </div>
+      {passees.length > 0 && (
+        <details className="seances-passees">
+          <summary><Icone n="archives" /> Séances passées ({passees.length})</summary>
+          <div className="agenda">{passees.map(carte)}</div>
+        </details>
+      )}
       {viewPv && (
         <PvViewer
           pv={viewPv.pv}

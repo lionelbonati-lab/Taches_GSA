@@ -46,7 +46,7 @@ const RUBRIQUES: NavRubrique[] = [
     icon: 'seances',
     mobile: true,
     pages: [
-      { to: '/comite', label: 'Séances', icon: 'seances', perm: 'tab.meetings', aide: 'Date et lieu de chaque séance, les excusés, et l’ordre du jour et le PV une fois archivés.' },
+      { to: '/comite', label: 'Séances', icon: 'seances', perm: 'tab.meetings', aide: 'Les séances à venir : date, lieu, excusés, ordre du jour et PV archivés. Les séances passées sont repliées en bas.' },
       {
         to: '/ordre-du-jour',
         label: 'Ordre du jour',

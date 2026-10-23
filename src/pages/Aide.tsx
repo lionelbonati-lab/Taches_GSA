@@ -34,6 +34,7 @@ export function Aide() {
   const mot = motSeance(club?.current.type).toLowerCase();
   geste(`Une tâche qui revient à chaque ${mot} (correspondance, point des finances…)`, `Dans la tâche, « Ajouter : » › « Répétition » › « À chaque ${mot} » : elle est rattachée à la prochaine séance ; une fois terminée, la suivante est créée pour la séance d’après, à son ordre du jour, avec le même écart de délai. Ce n’est pas un doublon : l’appli demande confirmation si on la termine longtemps avant son délai.`);
   if (chemin('/comite')) geste('M’excuser pour une séance', vers('/comite'), ' : « Je serai absent(e) » sous la séance.');
+  if (chemin('/comite')) geste('Retrouver le PV ou l’ordre du jour d’une séance passée', vers('/comite'), ' : tout en bas, déplie « Séances passées » (les plus récentes d’abord).');
   if (chemin('/comite') && can('meetings.manage'))
     geste('Prévoir les séances de l’année prochaine', vers('/comite'), ' : chaque séance revient le même mois ; coche celles à ajouter dans « 🔁 Séances de l’année prochaine ».');
   if (chemin('/ordre-du-jour')) geste('Préparer une séance', vers('/ordre-du-jour'), ' : choisis la séance, relis (clic sur une tâche pour la modifier), puis imprime ou envoie par email.');
