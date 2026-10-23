@@ -21,7 +21,7 @@ import { UNIT_TYPES } from '../data/units';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { margesArchive, policeArchive } from '../data/styleDocs';
-import { BoutonPdf } from '../components/BoutonPdf';
+import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents (fiche d'un événement : EventModal).
 
@@ -464,6 +464,7 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
   const html = cleanHtml(hydrateArchive(pv.html, data, logo));
   useAnnexesArchive(doc, html);
   useOuvrirDocs();
+  usePiedImprime(doc);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);

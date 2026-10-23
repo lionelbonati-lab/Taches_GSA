@@ -16,7 +16,7 @@ import { TaskModal } from '../components/TaskModal';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { ProfilsOdj } from '../components/ProfilsOdj';
 import { epurer, margesMm, styleVars } from '../data/styleDocs';
-import { BoutonPdf } from '../components/BoutonPdf';
+import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
 import { AvecLiens } from '../components/Liens';
 import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { Icone } from '../components/icones';
@@ -691,6 +691,7 @@ export function Pv() {
   // Version modifiée à la main (ou en cours de modification) : photos et pages de PDF joints remis à l'affichage.
   const htmlEdite = edite ? cleanHtml(hydrateArchive(edite.html, data, logo), { excuses: excusesTxt }) : '';
   useAnnexesArchive(sheetRef, draft ?? htmlEdite, draft !== null || !!edite);
+  usePiedImprime(sheetRef);
   useOuvrirDocs();
 
   const openStatuses = data.statuses.filter((x) => !x.done);

@@ -17,7 +17,7 @@ import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeIn
 import { useClubOptional } from '../data/club';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { margesMm, styleVars } from '../data/styleDocs';
-import { BoutonPdf, pdfDeFeuille } from '../components/BoutonPdf';
+import { BoutonPdf, pdfDeFeuille, usePiedImprime } from '../components/BoutonPdf';
 import { AvecLiens } from '../components/Liens';
 import { Icone } from '../components/icones';
 
@@ -76,6 +76,7 @@ export function Minutes() {
   // Après « Valider et archiver » : page de dépôt ouverte (ou bloquée par le navigateur) et PDF en cours, créé ou raté.
   const [depotEtat, setDepotEtat] = useState<{ seance: string; ouverte: boolean; pdf: 'encours' | 'ok' | 'erreur' } | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
+  usePiedImprime(sheetRef);
   // En-tête commun à tous les documents de l'entité (console admin).
   const logo = useUnitLogo();
   const entete = useEntete();

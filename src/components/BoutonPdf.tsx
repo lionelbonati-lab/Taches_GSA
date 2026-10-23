@@ -1,4 +1,4 @@
-import { useState, type RefObject } from 'react';
+import { useEffect, useState, type RefObject } from 'react';
 import { useStore } from '../data/store';
 import { fullName } from '../data/utils';
 import { nomAppli } from '../data/nomAppli';
@@ -59,4 +59,46 @@ export function BoutonPdf({ feuille, titre, paysage, margesMm, police, className
       {enCours ? <><Icone n="attente" /> Création du PDF…</> : <><Icone n="pdf" /> PDF</>}
     </button>
   );
+}
+
+/** Marges de page à l'impression (@bottom-left…) : Chromium 131 et plus (Chrome, Edge, navigateur d'Android). */
+function margesDePage() {
+  const nav = navigator as Navigator & { userAgentData?: { brands: { brand: string; version: string }[] } };
+  const b = nav.userAgentData?.brands.find((x) => x.brand === 'Chromium');
+  return !!b && Number(b.version) >= 131;
+}
+
+/**
+ * Impression d'un document : le pied de page (« Document généré le… ») va dans la marge du bas de chaque page, à
+ * gauche du numéro, comme dans le PDF de l'appli : il ne fait jamais une page à lui seul. Ailleurs que dans Chromium
+ * (marges de page non gérées), il reste à la fin du document. `feuille` : la feuille, ou un élément qui la contient.
+ */
+export function usePiedImprime(feuille: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    if (!margesDePage()) return;
+    let style: HTMLStyleElement | null = null;
+    const apres = () => {
+      style?.remove();
+      style = null;
+      document.body.classList.remove('pied-en-marge');
+    };
+    const avant = () => {
+      apres();
+      const pied = feuille.current?.querySelector<HTMLElement>('.pv-foot');
+      const texte = pied?.textContent?.replace(/\s+/g, ' ').trim();
+      if (!pied || !texte) return;
+      const cs = getComputedStyle(pied);
+      style = document.createElement('style');
+      style.textContent = `@page { @bottom-left { content: "${texte.replace(/[\\"]/g, '\\$&')}"; font-family: ${cs.fontFamily}; font-size: ${cs.fontSize}; font-weight: ${cs.fontWeight}; font-style: ${cs.fontStyle}; text-transform: ${cs.textTransform}; color: ${cs.color}; } @bottom-right { content: counter(page) " / " counter(pages); font-family: ${cs.fontFamily}; font-size: 9pt; color: #666; } }`;
+      document.head.appendChild(style);
+      document.body.classList.add('pied-en-marge');
+    };
+    window.addEventListener('beforeprint', avant);
+    window.addEventListener('afterprint', apres);
+    return () => {
+      window.removeEventListener('beforeprint', avant);
+      window.removeEventListener('afterprint', apres);
+      apres();
+    };
+  }, [feuille]);
 }

@@ -990,6 +990,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   .pv-table tr, .pv-next, .pv-lines { break-inside: avoid; }
   .pv-sheet h2, .pv-sheet h3 { break-after: avoid; }
   body.printing-archive #root { display: none !important; }
+  /* Pied de page dans la marge du bas de chaque page (BoutonPdf.tsx, usePiedImprime). */
+  body.pied-en-marge .pv-sheet .pv-foot { display: none; }
   .pv-overlay { position: static; overflow: visible; background: none; }
   .desktop-only { display: table !important; }
   .print-only { display: block; }

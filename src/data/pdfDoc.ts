@@ -8,6 +8,7 @@ import type { StyleDocs } from './types';
 // mise en page par le navigateur avec les polices du PDF (mêmes mesures), puis chaque élément (texte, puces, traits,
 // fonds, images, liens) est reporté à sa place, page par page. Coupures comme à l'impression : jamais au milieu d'une
 // ligne ou d'une image, pas dans un encadré ni une section qui tiennent sur une page, pas juste après un titre.
+// Le pied de page (« Document généré le… ») est écrit dans la marge du bas de chaque page, à gauche du numéro.
 // Les PDF joints en annexe sont repris tels quels (pages vectorielles), les photos en pleine qualité.
 
 /** Fichiers de polices (src/polices, voir LICENCES.md), chargés à la première création d'un PDF. */
@@ -123,6 +124,13 @@ interface Morceau extends Bloc {
   /** Avance attendue dans le PDF pour le caractère suivant. */
   suite: number;
 }
+/** Pied de page de la feuille, écrit dans la marge du bas. */
+interface Pied {
+  texte: string;
+  taille: number;
+  style: Style;
+  c: Couleur;
+}
 interface Image extends Bloc {
   x: number;
   l: number;
@@ -195,6 +203,17 @@ function puces(racine: HTMLElement) {
 /** Part de page laissée vide au plus pour garder un bloc entier (« break-inside: avoid ») ou un titre avec la suite : au-delà, on coupe. */
 const VIDE_MAX = 0.3;
 
+/** Lit le pied de page de la feuille (.pv-foot) et le retire du document : il ira dans la marge du bas de chaque page. */
+function lirePied(copie: HTMLElement): Pied | null {
+  const el = copie.querySelector<HTMLElement>('.pv-foot');
+  if (!el) return null;
+  const cs = getComputedStyle(el);
+  let texte = (el.textContent ?? '').replace(/\s+/g, ' ').trim();
+  if (cs.textTransform === 'uppercase') texte = texte.toLocaleUpperCase('fr');
+  el.style.display = 'none';
+  return texte ? { texte, taille: parseFloat(cs.fontSize), style: styleDe(Number(cs.fontWeight) >= 600, cs.fontStyle !== 'normal'), c: couleur(cs.color) ?? [0.4, 0.4, 0.4] } : null;
+}
+
 /** Coupures de page (px depuis le haut du document) : début de chaque page. */
 function coupes(total: number, H: number, atomes: Bloc[], evites: Bloc[], titres: Bloc[], forcees: number[]): number[] {
   const debuts = [0];
@@ -252,6 +271,7 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
   document.body.appendChild(boite);
   try {
     await Promise.all([...copie.querySelectorAll('img')].map((i) => (i.getAttribute('src') ? i.decode().catch(() => {}) : null)));
+    const pied = lirePied(copie);
     puces(copie);
     const origine = copie.getBoundingClientRect();
     const X = (x: number) => x - origine.left;
@@ -571,12 +591,27 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
       lien(k, [px(a.x), py(k, a.bas), px(a.x + a.l), py(k, a.haut)], a.url);
     }
 
-    // Numéros de page, en bas à droite (comme à l'impression).
+    // Numéros de page en bas à droite, pied de page en bas à gauche sur la même ligne (comme à l'impression) :
+    // le pied de page ne fait jamais une page à lui seul.
     const numero = await police(false, 'r');
+    const ligne = Math.max(8, (marge * PT) / 2 - 3);
+    let ecrirePied = (_p: PDFPage) => {};
+    if (pied) {
+      const repli = ![...pied.texte].every((x) => /\s/.test(x) || mesure(false, pied.style).hasGlyphForCodePoint(x.codePointAt(0)!));
+      const m = mesure(repli, pied.style);
+      const texte = [...pied.texte].filter((x) => /\s/.test(x) || m.hasGlyphForCodePoint(x.codePointAt(0)!)).join('');
+      const f = await police(repli, pied.style);
+      // Réduit s'il est trop long pour la place à gauche du numéro, ou trop grand pour la marge.
+      const dispo = L * PT - numero.widthOfTextAtSize(`${pages.length} / ${pages.length}`, 9) - 12;
+      let taille = Math.min(pied.taille * PT, (marge * PT - 1 - ligne) / 0.9);
+      taille = Math.max(5, Math.min(taille, (taille * dispo) / Math.max(1, f.widthOfTextAtSize(texte, taille))));
+      ecrirePied = (p) => p.drawText(texte, { x: marge * PT, y: ligne, size: taille, font: f, color: coul(pied.c) });
+    }
     pages.forEach((p, k) => {
       const t = `${k + 1} / ${pages.length}`;
       const taille = 9;
-      p.drawText(t, { x: (pageL - marge) * PT - numero.widthOfTextAtSize(t, taille), y: Math.max(8, (marge * PT) / 2 - 3), size: taille, font: numero, color: rgb(0.4, 0.4, 0.4) });
+      p.drawText(t, { x: (pageL - marge) * PT - numero.widthOfTextAtSize(t, taille), y: ligne, size: taille, font: numero, color: rgb(0.4, 0.4, 0.4) });
+      ecrirePied(p);
     });
 
     const bytes = await pdf.save();
