@@ -754,7 +754,12 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .odj-fill-line { display: flex; align-items: baseline; gap: 6px; }
 .odj-fill { flex: 1; border-bottom: 1px dotted #94a3b8; min-height: 1em; }
 .pv-sheet ol.odj { margin: 6px 0 0; padding-left: 1.6em; list-style: decimal; }
-.pv-sheet ol.odj > li { margin: 8px 0 2px; break-inside: avoid-page; font-size: calc(var(--doc-base) * var(--e-section-t, 1)); }
+.pv-sheet ol.odj > li { margin: 8px 0 2px; font-size: calc(var(--doc-base) * var(--e-section-t, 1)); }
+/* Coupures de page : une longue section se coupe entre ses points (pas de page presque vide) ; un titre de section,
+   de sous-section ou un point détaillé reste avec sa première ligne, et un point n'est pas coupé. */
+.pv-sheet ol.odj > li > .odj-sec:not(:last-child) { display: block; break-after: avoid; }
+.pv-sheet ol.odj li > :is(ol, ul, p) { break-before: avoid; }
+.pv-sheet ol.odj li li:not(:has(li)) { break-inside: avoid; }
 .pv-sheet ol.odj > li::marker { font-weight: var(--e-section-g, 700); font-style: var(--e-section-i, normal); color: var(--e-section-c, #111); }
 .odj-sec { font-weight: var(--e-section-g, 700); font-style: var(--e-section-i, normal); text-transform: var(--e-section-m, none); color: var(--e-section-c, #111); }
 .pv-sheet ol.odj-l1 { list-style: lower-alpha; padding-left: 1.7em; margin: 2px 0; }

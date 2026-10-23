@@ -192,6 +192,9 @@ function puces(racine: HTMLElement) {
   });
 }
 
+/** Part de page laissée vide au plus pour garder un bloc entier (« break-inside: avoid ») ou un titre avec la suite : au-delà, on coupe. */
+const VIDE_MAX = 0.3;
+
 /** Coupures de page (px depuis le haut du document) : début de chaque page. */
 function coupes(total: number, H: number, atomes: Bloc[], evites: Bloc[], titres: Bloc[], forcees: number[]): number[] {
   const debuts = [0];
@@ -205,8 +208,8 @@ function coupes(total: number, H: number, atomes: Bloc[], evites: Bloc[], titres
       for (let tour = 0; tour < 8; tour++) {
         const avant = c;
         for (const a of atomes) if (a.haut < c - 0.5 && a.bas > c + 0.5 && a.haut > y + 1) c = Math.min(c, a.haut);
-        for (const b of evites) if (b.haut < c - 0.5 && b.bas > c + 0.5 && b.haut > y + 1 && b.bas - b.haut <= H) c = Math.min(c, b.haut);
-        for (const t of titres) if (t.haut > y + 1 && t.haut < c && t.bas <= c + 0.5 && !atomes.some((a) => a.haut >= t.bas - 0.5 && a.haut < c - 0.5)) c = Math.min(c, t.haut);
+        for (const b of evites) if (b.haut < c - 0.5 && b.bas > c + 0.5 && b.haut > y + 1 && b.bas - b.haut <= H && limite - b.haut <= H * VIDE_MAX) c = Math.min(c, b.haut);
+        for (const t of titres) if (t.haut > y + 1 && t.haut < c && t.bas <= c + 0.5 && limite - t.haut <= H * VIDE_MAX && !atomes.some((a) => a.haut >= t.bas - 0.5 && a.haut < c - 0.5)) c = Math.min(c, t.haut);
         if (c === avant) break;
       }
       if (c <= y + 1) c = limite; // rien ne tient : coupe franche
@@ -282,6 +285,7 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
     const evites: Bloc[] = [];
     const titres: Bloc[] = [];
     const forcees: number[] = [];
+    const colles: number[] = [];
 
     // Éléments : fonds, bordures, images, liens, règles de coupure.
     const tous = [copie, ...copie.querySelectorAll<HTMLElement>('*')];
@@ -295,6 +299,7 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
       if (/avoid/.test(cs.breakInside)) evites.push(bloc);
       if (/avoid/.test(cs.breakAfter) || /^H[1-6]$/.test(el.tagName)) titres.push(bloc);
       if (/page|always|left|right/.test(cs.breakBefore) && bloc.haut > 1) forcees.push(bloc.haut);
+      if (/avoid/.test(cs.breakBefore) && bloc.haut > 1) colles.push(bloc.haut);
       const fond = el === copie ? null : couleur(cs.backgroundColor);
       for (const r of rects) {
         if (fond) fonds.push({ x: X(r.left), l: r.width, haut: Y(r.top), bas: Y(r.bottom), c: fond });
@@ -406,6 +411,12 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
 
     const total = copie.getBoundingClientRect().height;
     const atomes: Bloc[] = [...morceaux, ...emojis, ...images];
+    // « break-before: avoid » : la ligne juste avant l'élément reste avec lui (titre d'une section, d'une liste).
+    for (const h of colles) {
+      let prec: Bloc | undefined;
+      for (const a of atomes) if (a.bas <= h + 0.5 && (!prec || a.bas > prec.bas)) prec = a;
+      if (prec) titres.push({ haut: prec.haut, bas: prec.bas });
+    }
     const debuts = coupes(total, H, atomes, evites, titres, forcees);
     const pageDe = (y: number) => {
       let k = 0;
