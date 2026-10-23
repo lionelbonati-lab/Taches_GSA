@@ -330,7 +330,7 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
       {note && <p className="muted">{note}</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && <button className="btn danger" onClick={supprimer}>Supprimer</button>}
+        {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer la séance" aria-label="Supprimer la séance">🗑</button>}
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
         <button className="btn primary" onClick={submit}>Enregistrer</button>

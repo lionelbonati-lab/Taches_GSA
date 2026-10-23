@@ -311,7 +311,7 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
       {note && <p className="muted">{note}</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && <button className="btn danger" onClick={supprimer}>Supprimer</button>}
+        {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer l’événement" aria-label="Supprimer l’événement">🗑</button>}
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
         <button className="btn primary" onClick={submit}>Enregistrer</button>

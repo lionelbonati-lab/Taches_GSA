@@ -300,7 +300,11 @@ export function versOrigine(
     const p = local(u, id);
     return !p || choisis.includes(p.id);
   });
-  const responsables = garde(x.uniteId, orig.responsables);
+  const src = units.find((u) => u.id === x.uniteId)?.membres ?? [];
+  // Personnes de l'entité de la tâche sans fiche ici : choisies d'ici aussi (t.source.responsables, ses fiches à elle).
+  const leurs = t.source?.responsables;
+  const responsables = garde(x.uniteId, orig.responsables).filter((id) => !leurs || !!local(x.uniteId, id) || leurs.includes(id));
+  for (const id of leurs ?? []) if (!responsables.includes(id) && !local(x.uniteId, id) && src.some((m) => m.id === id)) responsables.push(id);
   const respPartage: Record<string, string[]> = {};
   for (const [u, ids] of Object.entries(orig.respPartage ?? {})) {
     // Ceux d'ici restent ici (une place « à prendre » prise ici se compte ici : 040).
@@ -311,7 +315,6 @@ export function versOrigine(
     ...responsables.map((id) => local(x.uniteId, id)?.id),
     ...Object.entries(respPartage).flatMap(([u, ids]) => ids.map((id) => (u === moi ? id : local(u, id)?.id))),
   ]);
-  const src = units.find((u) => u.id === x.uniteId)?.membres ?? [];
   const miens: string[] = [];
   for (const id of choisis) {
     if (deja.has(id)) continue;

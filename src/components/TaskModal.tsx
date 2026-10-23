@@ -138,25 +138,39 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       return applyDelaiRef(data, { ...y, sousSection: c.sousSection, placePartage });
     });
   const assignable = data.people.filter((p) => p.actif && (canAssignOthers || p.id === user.id));
-  // Tâche attribuée : ses responsables se choisissent aussi parmi les personnes de l'entité (ses fiches, enregistrées chez
-  // elle) ; les personnes d'ici sans fiche chez elle la suivent d'ici.
-  const chezId = attribuee?.unite.id ?? '';
-  const choisisChez = attribuee ? (t.respPartage?.[chezId] ?? []).map((id) => attribuee.unite.membres.find((m) => m.id === id)).filter((m): m is OrgMember => !!m) : [];
+  // Responsables choisis aussi parmi les personnes de l'entité de la tâche : celle à qui elle est attribuée (choisies :
+  // respPartage, enregistrées chez elle), ou celle d'une tâche partagée (ses responsables sans fiche ici :
+  // source.responsables). Les personnes d'ici sans fiche chez elle la suivent d'ici.
+  const entite = attribuee?.unite ?? (t.source ? club?.units.find((u) => u.id === t.source!.uniteId) : undefined);
+  const chezId = entite?.id ?? '';
+  const ficheIci = (m: OrgMember) => data.people.find((p) => p.actif && memePersonne(p, m));
+  const choisisChez = (!entite ? [] : attribuee ? (t.respPartage?.[chezId] ?? []) : t.source!.responsables)
+    .map((id) => entite?.membres.find((m) => m.id === id))
+    .filter((m): m is OrgMember => !!m && (!!attribuee || !ficheIci(m)));
   const respIci = t.responsables.map((id) => data.people.find((p) => p.id === id)).filter((p): p is Person => !!p);
-  const membresChez = attribuee && canAssignOthers
-    ? attribuee.unite.membres
+  const membresChez = entite && canAssignOthers
+    ? entite.membres
         .filter((m) => !choisisChez.includes(m) && !respIci.some((p) => memePersonne(p, m)))
         .sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`))
     : [];
-  const toggleChez = (id: string) =>
+  const toggleChez = (id: string) => {
+    // Tâche partagée : une personne qui a aussi une fiche ici en est responsable d'ici (elle passe à sa fiche de l'entité).
+    const m = entite?.membres.find((x) => x.id === id);
+    const p = !attribuee && m ? ficheIci(m) : undefined;
+    if (p) return toggleResp(p.id);
     setT((x) => {
+      if (!attribuee && x.source) {
+        const l = x.source.responsables;
+        return { ...x, source: { ...x.source, responsables: l.includes(id) ? l.filter((y) => y !== id) : [...l, id] } };
+      }
       const l = x.respPartage?.[chezId] ?? [];
       const respPartage = { ...x.respPartage, [chezId]: l.includes(id) ? l.filter((y) => y !== id) : [...l, id] };
       if (!respPartage[chezId].length) delete respPartage[chezId];
       return { ...x, respPartage: Object.keys(respPartage).length ? respPartage : undefined };
     });
-  // Responsables des autres entités (tâche partagée), sauf ceux de l'entité à qui elle est attribuée (choisis ci-dessus).
-  const autres = autresResp(attribuee ? { ...t, respPartage: { ...t.respPartage, [chezId]: [] } } : t);
+  };
+  // Responsables des autres entités (tâche partagée), sauf ceux de l'entité de la tâche (choisis ci-dessus).
+  const autres = autresResp(!entite ? t : attribuee ? { ...t, respPartage: { ...t.respPartage, [chezId]: [] } } : { ...t, source: { ...t.source!, responsables: [] } });
 
   const addItem = () => {
     if (!newItem.trim()) return;
@@ -237,6 +251,28 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     setToast(prend ? '✅ Tu t’en charges : la tâche est dans « Mes tâches ».' : '🙅 C’est noté : la personne qui te l’a proposée est prévenue. Tu peux encore t’en charger depuis « Mes tâches ».');
     deleteFiles(track.current.added);
     onClose();
+  };
+
+  // Dupliquer : une nouvelle tâche pré-remplie d'après la tâche enregistrée, à compléter puis créer (« À faire », checklist
+  // décochée). Ses fichiers restent communs avec l'original (gardés tant que l'une des deux les utilise) ; emails et
+  // sondages ne suivent pas.
+  const peutDupliquer = !isNew && !task.source && !task.paiement && creatableSections().some((s) => s.id === task.sectionId);
+  const dupliquer = () => {
+    const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, ...reste } = task;
+    setOther({
+      task: {
+        ...reste,
+        id: uid('t'),
+        titre: `${task.titre} (copie)`,
+        statusId: ouvert?.id ?? task.statusId,
+        checklist: task.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
+        createdBy: user.id,
+        updatedAt: new Date().toISOString(),
+      },
+      isNew: true,
+    });
   };
 
   // Annuler : on efface les fichiers ajoutés pendant cette édition.
@@ -339,7 +375,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     // (serveur à jour : 041).
   ].filter((a) => a.si && (!t.source || a.partagee));
   // Personnes à ajouter : soi-même d'abord.
-  // (Personne aussi chez l'entité à qui la tâche est attribuée : proposée seulement avec elle.)
+  // (Personne aussi chez l'entité de la tâche, ou à qui elle est attribuée : proposée seulement avec elle.)
   const aAjouter = assignable
     .filter((p) => !t.responsables.includes(p.id) && ![...choisisChez, ...membresChez].some((m) => memePersonne(p, m)))
     .sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
@@ -417,12 +453,22 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       wide
       actions={
         !isNew && (
+          <>
+          {peutDupliquer && (
+            <button type="button" className="icon-btn dupliquer" onClick={dupliquer} title="Dupliquer : créer une nouvelle tâche à partir de celle-ci" aria-label="Dupliquer la tâche">
+              <svg viewBox="0 0 24 24" width="1.1em" height="1.1em" aria-hidden="true" focusable="false">
+                <rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2" fill="none" stroke="currentColor" strokeWidth="2.2" />
+                <path d="M15.5 4.5H6.5a2 2 0 0 0-2 2v9" fill="none" stroke="currentColor" strokeWidth="2.2" />
+              </svg>
+            </button>
+          )}
           <EnvoyerLien
             titre={`Tâche « ${task.titre} »`}
             texte={texteTache(task, data.people, task.source?.unite ?? club?.current.nom, isDone(data, task))}
             lien={lienAppli(`/taches?tache=${encodeURIComponent(task.id)}`, club?.current.id)}
             acces={`Le lien ne donne aucun accès : il faut un compte de l’appli et voir cette tâche${club ? ` dans « ${club.current.nom} »` : ''}.`}
           />
+          </>
         )
       }
     >
@@ -542,8 +588,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               );
             })}
             {choisisChez.map((m) => (
-              <span key={m.id} className="chip on" title={`Personne de « ${attribuee!.unite.nom} »`}>
-                {UNIT_TYPES[attribuee!.unite.type].icon} {m.prenom} {m.nom}
+              <span key={m.id} className="chip on" title={`Personne de « ${entite!.nom} »`}>
+                {UNIT_TYPES[entite!.type].icon} {m.prenom} {m.nom}
                 {!dis && canAssignOthers && <button type="button" className="chip-x" aria-label={`Retirer ${m.prenom} ${m.nom}`} onClick={() => toggleChez(m.id)}>✕</button>}
               </span>
             ))}
@@ -551,10 +597,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             {!dis && (aAjouter.length > 0 || membresChez.length > 0) && (
               <select className="chip-add" value="" aria-label="Ajouter une personne" onChange={(e) => e.target.value && (e.target.value.startsWith('chez:') ? toggleChez(e.target.value.slice(5)) : toggleResp(e.target.value))}>
                 <option value="">＋ Ajouter…</option>
-                {attribuee ? (
+                {entite ? (
                   <>
                     {membresChez.length > 0 && (
-                      <optgroup label={`${UNIT_TYPES[attribuee.unite.type].icon} ${attribuee.unite.nom}`}>
+                      <optgroup label={`${UNIT_TYPES[entite.type].icon} ${entite.nom}`}>
                         {membresChez.map((m) => <option key={m.id} value={`chez:${m.id}`}>{nomPoste(m)}</option>)}
                       </optgroup>
                     )}
@@ -570,7 +616,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               </select>
             )}
           </div>
-          {attribuee && canAssignOthers && !dis && !attribuee.unite.membres.length && <small className="muted">« {attribuee.unite.nom} » n’a encore personne dans l’appli : ajoute ses membres dans l’organigramme pour leur confier la tâche.</small>}
+          {entite && canAssignOthers && !dis && !entite.membres.length && <small className="muted">« {entite.nom} » n’a encore personne dans l’appli : ajoute ses membres dans l’organigramme pour leur confier la tâche.</small>}
           {autres && <small className="muted autres-resp">Aussi : {autres}</small>}
           {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </div>
@@ -910,7 +956,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove}>Supprimer</button>}
+        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove} title="Supprimer la tâche" aria-label="Supprimer la tâche">🗑</button>}
         <span className="grow" />
         <button className="btn" onClick={cancel}>{editable ? 'Annuler' : 'Fermer'}</button>
         {editable && <button className="btn primary" disabled={busy} onClick={() => void submit()}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}
