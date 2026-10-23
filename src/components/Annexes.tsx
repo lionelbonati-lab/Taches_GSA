@@ -1,8 +1,10 @@
-import { useEffect, useState, type RefObject } from 'react';
-import { getFile } from '../data/files';
+import { Fragment, useEffect, useState, type ReactNode, type RefObject } from 'react';
+import { getFile, openFile } from '../data/files';
+import { useStore } from '../data/store';
 import { apercuPdf, estPdf } from '../data/pdf';
 import type { Task, TaskDoc } from '../data/types';
 import { DocThumb } from './DocsField';
+import { Lien } from './Liens';
 
 // Fichiers liés aux tâches d'un document (PV, ordre du jour), joints à la fin (option « Joindre les fichiers liés ») :
 // la liste des annexes, puis les photos et chaque page des PDF en image, 1, 2 ou 4 par page imprimée. Les archives ne
@@ -24,8 +26,8 @@ export interface Annexe {
 /** Fichier reproductible dans le document : photo ou PDF (les autres sont seulement nommés). */
 export const annexeVisible = (d: TaskDoc) => d.kind === 'fichier' && (!!d.mime?.startsWith('image/') || estPdf(d));
 
-/** Reproduite à la fin : photo ou PDF, sauf d'une tâche partagée (ses fichiers sont rangés chez son entité). */
-export const annexeReproduite = (a: Annexe) => !a.t.source && annexeVisible(a.d);
+/** Reproduite à la fin : photo ou PDF (aussi d'une tâche partagée : ses fichiers se lisent d'ici, 041). */
+export const annexeReproduite = (a: Annexe) => annexeVisible(a.d);
 
 /**
  * Annexes des tâches, dans leur ordre (un fichier lié à deux tâches ne compte qu'une fois), sans celles retirées pour ce
@@ -95,6 +97,64 @@ export const annexeInfo = (a: Annexe) =>
     .filter(Boolean)
     .join(' · ');
 
+/** Noms des documents d'une tâche, avec leur numéro d'annexe (« Devis.pdf (annexe 2), Plan »). */
+export const docsTexte = (t: Task, annexes: Annexe[]) =>
+  (t.documents ?? []).map((d) => nomAvecAnnexe(d, annexes)).join(', ');
+const nomAvecAnnexe = (d: TaskDoc, annexes: Annexe[]) => {
+  const n = annexes.find((a) => a.d.id === d.id)?.n;
+  return n ? `${d.nom} (annexe ${n})` : d.nom;
+};
+
+/**
+ * Nom d'un fichier joint dans un document (ordre du jour, PV) : un clic l'ouvre (useOuvrirDocs). Marqué data-doc, sans
+ * bouton (retiré des archives) : il s'ouvre aussi depuis un document archivé ou modifié à la main.
+ */
+function NomFichier({ d, children }: { d: TaskDoc; children: ReactNode }) {
+  return <span className="doc-ouvrir" data-doc={d.id} data-nom={d.nom} role="button" tabIndex={0} title="Ouvrir le fichier">{children}</span>;
+}
+
+/** « 📎 Devis.pdf (annexe 2), Site du fournisseur » : liens et fichiers s'ouvrent d'un clic. */
+export function DocsTache({ t, annexes }: { t: Task; annexes: Annexe[] }) {
+  return (
+    <>
+      📎{' '}
+      {(t.documents ?? []).map((d, i) => {
+        const nom = nomAvecAnnexe(d, annexes);
+        return (
+          <Fragment key={d.id}>
+            {i > 0 && ', '}
+            {d.kind === 'lien' && d.url ? <Lien href={d.url}>{nom}</Lien> : d.kind === 'fichier' ? <NomFichier d={d}>{nom}</NomFichier> : nom}
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+/** Fichiers nommés dans les documents affichés (data-doc) : ouverts d'un clic ou avec Entrée, sauf pendant la modification à la main. */
+export function useOuvrirDocs() {
+  const { setToast } = useStore();
+  useEffect(() => {
+    const ouvrir = (e: Event) => {
+      if (e instanceof KeyboardEvent && e.key !== 'Enter' && e.key !== ' ') return;
+      const el = (e.target as Element | null)?.closest?.<HTMLElement>('[data-doc]');
+      if (!el || el.closest('[contenteditable="true"]')) return;
+      e.preventDefault();
+      // Une seule ouverture, même si plusieurs vues écoutent (archive ouverte depuis le PV).
+      e.stopImmediatePropagation();
+      void openFile(el.dataset.doc ?? '', el.dataset.nom ?? 'fichier').then((ok) => {
+        if (!ok) setToast(`⚠️ « ${el.dataset.nom ?? 'Fichier'} » introuvable (retiré depuis, ou pas de connexion).`);
+      });
+    };
+    document.addEventListener('click', ouvrir, true);
+    document.addEventListener('keydown', ouvrir, true);
+    return () => {
+      document.removeEventListener('click', ouvrir, true);
+      document.removeEventListener('keydown', ouvrir, true);
+    };
+  }, [setToast]);
+}
+
 /** Numéros des annexes d'une tâche. */
 export const numerosDe = (annexes: Annexe[], t: Task) => annexes.filter((a) => a.t.id === t.id).map((a) => a.n);
 
@@ -107,7 +167,7 @@ export function ListeAnnexes({ annexes }: { annexes: Annexe[] }) {
       <ol className="pv-annexes">
         {annexes.map((a) => (
           <li key={a.d.id}>
-            {a.d.kind === 'lien' ? <a href={a.d.url} target="_blank" rel="noreferrer">{a.d.nom}</a> : a.d.nom}
+            {a.d.kind === 'lien' ? <a href={a.d.url} target="_blank" rel="noreferrer">{a.d.nom}</a> : <NomFichier d={a.d}>{a.d.nom}</NomFichier>}
             <span className="odj-meta"> ({annexeInfo(a)})</span>
           </li>
         ))}

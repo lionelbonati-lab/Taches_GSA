@@ -503,6 +503,8 @@ export interface PvOptions {
   details?: boolean;
   /** Mises à jour des tâches faites pendant la séance, ↻ (défaut : oui). */
   misesAJour?: boolean;
+  /** Documents (fichiers et liens) de chaque point, nommés ; un clic les ouvre (défaut : oui). */
+  documents?: boolean;
   /**
    * Fichiers liés aux points du PV joints en fin de PV (défaut : non) : liste des annexes, puis les photos et les pages
    * des PDF reproduites (1, 2 ou 4 par page) ; les liens et les autres fichiers sont nommés.

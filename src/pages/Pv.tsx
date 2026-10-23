@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
 import type { ChecklistItem, Meeting, Person, PvSettings, Section, Task } from '../data/types';
@@ -17,8 +17,8 @@ import { MiseEnForme } from '../components/MiseEnForme';
 import { ProfilsOdj } from '../components/ProfilsOdj';
 import { margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf } from '../components/BoutonPdf';
-import { AvecLiens, Lien } from '../components/Liens';
-import { ChoixAnnexes, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, numerosDe, useAnnexesArchive } from '../components/Annexes';
+import { AvecLiens } from '../components/Liens';
+import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête (le nom du comité), convoqués, liste numérotée
@@ -275,36 +275,13 @@ export function Pv() {
   const firstOpen = data.statuses.find((x) => !x.done)?.id;
   const pollItem = (p: Poll): OItem => ({ key: p.id, poll: p, children: [] });
   const textItem = (key: string, text: string): OItem => ({ key, text, children: [] });
-  // Documents d'une tâche, avec leur numéro d'annexe.
-  const docsText = (t: Task) =>
-    (t.documents ?? [])
-      .map((d) => {
-        const n = annexes.find((a) => a.d.id === d.id)?.n;
-        return n ? `${d.nom} (annexe ${n})` : d.nom;
-      })
-      .join(', ');
-  const docsNode = (t: Task): ReactNode => (
-    <>
-      📎{' '}
-      {(t.documents ?? []).map((d, i) => {
-        const n = annexes.find((a) => a.d.id === d.id)?.n;
-        const nom = n ? `${d.nom} (annexe ${n})` : d.nom;
-        return (
-          <Fragment key={d.id}>
-            {i > 0 && ', '}
-            {d.kind === 'lien' && d.url ? <Lien href={d.url}>{nom}</Lien> : nom}
-          </Fragment>
-        );
-      })}
-    </>
-  );
   // Sous-points d'une tâche : checklist, documents, sondages liés.
   const taskItem = (t: Task): OItem => ({
     key: t.id,
     task: t,
     children: [
       ...(s.colonnes.checklist ? t.checklist.map((c) => textItem(c.id, checkText(t, c))) : []),
-      ...(s.colonnes.documents && t.documents?.length ? [{ ...textItem(`${t.id}-docs`, `📎 ${docsText(t)}`), node: docsNode(t) }] : []),
+      ...(s.colonnes.documents && t.documents?.length ? [{ ...textItem(`${t.id}-docs`, `📎 ${docsTexte(t, annexes)}`), node: <DocsTache t={t} annexes={annexes} /> }] : []),
       ...polls.filter((p) => p.taskId === t.id).map(pollItem),
     ],
   });
@@ -431,6 +408,7 @@ export function Pv() {
   // Version modifiée à la main (ou en cours de modification) : photos et pages de PDF joints remis à l'affichage.
   const htmlEdite = edite ? cleanHtml(hydrateArchive(edite.html, data, logo), { excuses: excusesTxt }) : '';
   useAnnexesArchive(sheetRef, draft ?? htmlEdite, draft !== null || !!edite);
+  useOuvrirDocs();
 
   const openStatuses = data.statuses.filter((x) => !x.done);
   const docStyle = styleVars(data.reglagesOdj?.style);

@@ -110,7 +110,8 @@ export async function openFile(id: string, nom: string, telecharger = false) {
   const blob = await getFile(id);
   if (!blob) return false;
   const url = URL.createObjectURL(blob);
-  const viewable = blob.type.startsWith('image/') || blob.type === 'application/pdf' || blob.type.startsWith('text/');
+  // Affichés dans un onglet : photos, PDF et texte brut ; le reste (HTML, SVG… qui pourraient contenir du script) est téléchargé.
+  const viewable = (blob.type.startsWith('image/') && blob.type !== 'image/svg+xml') || blob.type === 'application/pdf' || blob.type === 'text/plain';
   if (viewable && !telecharger) window.open(url, '_blank', 'noopener');
   else {
     const a = document.createElement('a');

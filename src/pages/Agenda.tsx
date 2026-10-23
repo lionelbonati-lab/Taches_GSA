@@ -18,7 +18,7 @@ import { useClubOptional } from '../data/club';
 import { aPlanifier, aRenommer, annuelle, duMois, finDeSerie, motSeance, nomSeance, serieDuMois, seuleDuMois, titreSelonDate } from '../data/seances';
 import { UNIT_TYPES } from '../data/units';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
-import { useAnnexesArchive } from '../components/Annexes';
+import { useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { margesArchive, policeArchive } from '../data/styleDocs';
 import { BoutonPdf } from '../components/BoutonPdf';
 
@@ -450,6 +450,7 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
   const doc = useRef<HTMLDivElement>(null);
   const html = cleanHtml(hydrateArchive(pv.html, data, logo));
   useAnnexesArchive(doc, html);
+  useOuvrirDocs();
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
     window.addEventListener('keydown', k);
