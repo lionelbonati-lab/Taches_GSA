@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
-import { versProchaineSeance } from '../data/seances';
+import { finAnticipee, versProchaineSeance } from '../data/seances';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
@@ -165,6 +165,8 @@ export function Tasks() {
 
   const setStatus = (t: Task, statusId: string) => {
     if (t.statusId === statusId || !canEditTask(t) || t.paiement) return; // remboursement / paiement : suit son circuit
+    const q = finAnticipee(data, t, { ...t, statusId });
+    if (q && !confirm(q)) return;
     saveTask({ ...t, statusId }, false);
   };
 

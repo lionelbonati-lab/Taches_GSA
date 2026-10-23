@@ -1,6 +1,6 @@
-import type { AppData, Meeting, Task, UnitType } from './types';
+import type { AppData, Meeting, Recurrence, Task, UnitType } from './types';
 import { UNIT_TYPES } from './units';
-import { localNow, today, uid } from './utils';
+import { addDays, fmtDate, isDone, localNow, nextOccurrence, today, uid } from './utils';
 
 // Séances qui reviennent chaque année : une séance revient l'année suivante le même mois (sauf si elle est
 // « unique »). Leur nom suit le mois (« Comité de mars 2027 ») ; une tâche annuelle liée à une séance passe à
@@ -79,6 +79,25 @@ export function seancePourSuivante(data: AppData, t: Task) {
   const m = data.meetings.find((x) => x.id === t.meetingId);
   const s = m && seanceAnSuivant(data.meetings, m);
   return s && !(s.nouvelle && s.meeting.date < today()) ? s : undefined;
+}
+
+/** Avance (en jours) au-delà de laquelle terminer une tâche récurrente se confirme : environ une demi-période. */
+const AVANCE: Record<Exclude<Recurrence, 'seance'>, number> = { hebdomadaire: 5, mensuelle: 15, trimestrielle: 45, semestrielle: 90, annuelle: 180 };
+
+/**
+ * Tâche récurrente terminée bien avant son délai (ex. l'occurrence de l'an prochain, à peine créée, prise pour un doublon) :
+ * la question à poser avant d'enregistrer, car la terminer crée déjà l'occurrence suivante. Rien à demander sinon. « À chaque
+ * séance » : son délai tombe après la prochaine séance.
+ */
+export function finAnticipee(data: AppData, avant: Task | undefined, apres: Task): string | undefined {
+  const r = apres.recurrence;
+  if (!r || !apres.delai || apres.suivanteId || !isDone(data, apres) || (avant && isDone(data, avant))) return undefined;
+  const jour = today();
+  const limite = r === 'seance' ? data.meetings.map((m) => m.date).filter((d) => d >= jour).sort()[0] : addDays(jour, AVANCE[r]);
+  if (!limite || apres.delai <= limite) return undefined;
+  // Tâche partagée : c'est son entité qui crée la suivante (selon ses séances).
+  const suivante = apres.source ? '' : nextOccurrence(data, apres, seancePourSuivante(data, apres)?.meeting).delai;
+  return `« ${apres.titre} » est prévue pour le ${fmtDate(apres.delai)}.\n\nElle se répète : la terminer maintenant crée déjà la suivante${suivante ? `, pour le ${fmtDate(suivante)}` : ''}.\n\nC’est bien celle-ci qui est faite ?`;
 }
 
 /**

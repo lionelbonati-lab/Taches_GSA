@@ -6,6 +6,7 @@ import { fmtDate, fullName, isDone } from '../data/utils';
 import { Empty, Modal } from './ui';
 import { TaskCard } from '../pages/Tasks';
 import { ZoneTexte } from './ZoneTexte';
+import { finAnticipee } from '../data/seances';
 
 // Demandes au comité central : une entité (sous-comité, groupe, équipe) lui envoie une tâche,
 // puis en suit l'avancement ; le comité central la reçoit dans ses tâches, sans responsable.
@@ -146,7 +147,7 @@ export function IncomingRequests({ onOpen }: { onOpen: (t: Task) => void }) {
     <>
       <h2>📨 Demandes reçues <span className="count">{list.length}</span></h2>
       <p className="muted small-note">Envoyées par les sous-comités, groupes et équipes : à attribuer à un responsable.</p>
-      <div className="cards">{list.map((t) => <TaskCard key={t.id} t={t} onOpen={() => onOpen(t)} onStatus={(x, s) => saveTask({ ...x, statusId: s }, false)} />)}</div>
+      <div className="cards">{list.map((t) => <TaskCard key={t.id} t={t} onOpen={() => onOpen(t)} onStatus={(x, s) => { const q = finAnticipee(data, x, { ...x, statusId: s }); if (!q || confirm(q)) saveTask({ ...x, statusId: s }, false); }} />)}</div>
     </>
   );
 }

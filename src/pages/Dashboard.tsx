@@ -19,6 +19,7 @@ import { EditionCard } from '../components/Edition';
 import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../components/Accueil';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { UNIT_TYPES } from '../data/units';
+import { finAnticipee } from '../data/seances';
 
 export function Dashboard() {
   const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo } = useStore();
@@ -62,7 +63,10 @@ export function Dashboard() {
   ]
     .sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u))
     .slice(0, 3);
-  const onStatus = (t: Task, s: string) => saveTask({ ...t, statusId: s }, false);
+  const onStatus = (t: Task, s: string) => {
+    const q = finAnticipee(data, t, { ...t, statusId: s });
+    if (!q || confirm(q)) saveTask({ ...t, statusId: s }, false);
+  };
   // Emails que j'ai programmés : à envoyer maintenant, puis les prochains.
   const myEmails = (data.emails ?? [])
     .filter((e) => e.creePar === user.id)

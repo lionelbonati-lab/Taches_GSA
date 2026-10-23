@@ -8,7 +8,7 @@ import type { MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../dat
 import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
-import { versProchaineSeance } from '../data/seances';
+import { finAnticipee, versProchaineSeance } from '../data/seances';
 import { nomAppli } from '../data/nomAppli';
 import { archiveHtml } from '../data/entete';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
@@ -220,6 +220,8 @@ export function Minutes() {
 
   const quickChange = (t: Task, patch: Partial<Task>) => {
     const after = { ...t, ...patch };
+    const q = finAnticipee(data, t, after);
+    if (q && !confirm(q)) return;
     saveTask(after, false);
     record(t, diffTask(data, stateOf(t), after));
   };

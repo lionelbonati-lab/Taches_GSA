@@ -17,7 +17,7 @@ import { attributionDe, attributions, choixEvenements, choixSeances, entitesDepe
 import type { DelaiUnite, EvenementEntite, OrgUnit, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
 import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
-import { motSeance, seanceApres, seancePourSuivante } from '../data/seances';
+import { finAnticipee, motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteTache } from '../data/lienPartage';
@@ -173,6 +173,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     if (!t.sectionId) return setErr('Choisis une section.');
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
       return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
+    const fin = finAnticipee(data, isNew ? undefined : task, t);
+    if (fin && !confirm(fin)) return;
     if (attribuee) {
       const u = attribuee.unite;
       if (!secChez) return setErr(`Choisis la section de « ${u.nom} » où ranger la tâche.`);
