@@ -770,6 +770,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .odj-rem {
   font-size: calc(0.92em * var(--e-remarque-t, 1)); font-weight: var(--e-remarque-g, 400); font-style: var(--e-remarque-i, italic);
   text-transform: var(--e-remarque-m, none); color: var(--e-remarque-c, #334155);
+  /* Retours à la ligne de la remarque gardés, comme dans le formulaire (écran, impression, PDF, archives). */
+  white-space: pre-line;
 }
 .odj-task.late .odj-meta { color: #be123c; }
 .odj-task.done { color: #64748b; }

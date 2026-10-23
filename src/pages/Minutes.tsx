@@ -414,7 +414,7 @@ export function Minutes() {
           <span className="min-title">
             {isChild(t) && <span className="muted">↳ </span>}
             {t.titre} <span className="odj-meta">({meta(t).join(' · ')})</span>
-            {t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque} /></span>}
+            {t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque.trim()} /></span>}
           </span>
           {editable && (
             <span className="min-controls">

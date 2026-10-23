@@ -343,7 +343,7 @@ export function Pv() {
   };
   const itemText = (it: OItem) =>
     it.task
-      ? `${it.task.titre}${taskMeta(it.task).length ? ` (${taskMeta(it.task).join(' · ')})` : ''}${s.colonnes.remarque && it.task.remarque ? ` – ${it.task.remarque}` : ''}${!s.colonnes.documents && numerosDe(annexes, it.task).length ? ` 📎 annexe ${numerosDe(annexes, it.task).join(', ')}` : ''}`
+      ? `${it.task.titre}${taskMeta(it.task).length ? ` (${taskMeta(it.task).join(' · ')})` : ''}${s.colonnes.remarque && it.task.remarque ? ` – ${it.task.remarque.trim()}` : ''}${!s.colonnes.documents && numerosDe(annexes, it.task).length ? ` 📎 annexe ${numerosDe(annexes, it.task).join(', ')}` : ''}`
       : it.poll
         ? `📊 Sondage : ${it.poll.question} — ${pollSummary(it.poll)}`
         : it.text ?? '';
@@ -356,7 +356,7 @@ export function Pv() {
       <span className={`odj-task ${b === 'late' ? 'late' : b === 'bilan' ? 'done' : ''}`} onClick={() => setOuverte(t)}>
         {t.titre}
         {meta.length > 0 && <span className="odj-meta"> ({meta.join(' · ')})</span>}
-        {s.colonnes.remarque && t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque} /></span>}
+        {s.colonnes.remarque && t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque.trim()} /></span>}
         {!s.colonnes.documents && numerosDe(annexes, t).length > 0 && <span className="odj-meta"> 📎 annexe {numerosDe(annexes, t).join(', ')}</span>}
       </span>
     );
@@ -394,7 +394,8 @@ export function Pv() {
       depth <= maxDepth &&
       items.forEach((it, j) => {
         const pad = '   '.repeat(depth + 1);
-        out.push(`${pad}${depth === 0 ? `${letter(j)}.` : depth === 1 ? '■' : '◦'} ${itemText(it)}`);
+        // Remarque sur plusieurs lignes : les suivantes alignées sous le texte du point.
+        out.push(`${pad}${depth === 0 ? `${letter(j)}.` : depth === 1 ? '■' : '◦'} ${itemText(it).replace(/[ \t]*\n\s*/g, `\n${pad}   `)}`);
         walk(it.children, depth + 1);
       });
     secs.forEach((sec, i) => {
