@@ -7,7 +7,7 @@ import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, to
 import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu } from '../data/repetition';
 import { EventModal, newEvent } from '../components/EventModal';
 import { EditionCard } from '../components/Edition';
-import { Empty, Modal } from '../components/ui';
+import { Empty, IconePoubelle, Modal } from '../components/ui';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
@@ -330,7 +330,7 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
       {note && <p className="muted">{note}</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer la séance" aria-label="Supprimer la séance">🗑</button>}
+        {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer la séance" aria-label="Supprimer la séance"><IconePoubelle /></button>}
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
         <button className="btn primary" onClick={submit}>Enregistrer</button>

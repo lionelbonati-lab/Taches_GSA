@@ -61,6 +61,20 @@ export function StatusBadge({ task }: { task: Task }) {
   );
 }
 
+/** Icône « supprimer » : poubelle au trait (couvercle à poignée, trois rainures), de la couleur du texte. */
+export function IconePoubelle() {
+  return (
+    <svg className="icone-poubelle" viewBox="0 0 24 24" width="1.25em" height="1.25em" aria-hidden="true" focusable="false">
+      <g fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9.2 4.6 10.6 2.6h2.8l1.4 2" />
+        <path d="M3.4 8.2V6.6a2 2 0 0 1 2-2h13.2a2 2 0 0 1 2 2v1.6Z" />
+        <path d="M5 8.2 6.3 21.4h11.4L19 8.2" />
+        <path d="M8.8 11.2 9.3 18.4M12 11.2v7.2M15.2 11.2l-.5 7.2" />
+      </g>
+    </svg>
+  );
+}
+
 export function Modal({ title, onClose, children, wide, actions }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; actions?: ReactNode }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {

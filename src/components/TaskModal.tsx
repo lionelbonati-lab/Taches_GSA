@@ -18,7 +18,7 @@ import type { DelaiUnite, EvenementEntite, OrgMember, OrgUnit, Person, PourInfo,
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
 import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { finAnticipee, motSeance, seanceApres, seancePourSuivante } from '../data/seances';
-import { Avatar, Modal, StatusBadge } from './ui';
+import { Avatar, IconePoubelle, Modal, StatusBadge } from './ui';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteTache } from '../data/lienPartage';
 import { ZoneTexte } from './ZoneTexte';
@@ -956,7 +956,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove} title="Supprimer la tâche" aria-label="Supprimer la tâche">🗑</button>}
+        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove} title="Supprimer la tâche" aria-label="Supprimer la tâche"><IconePoubelle /></button>}
         <span className="grow" />
         <button className="btn" onClick={cancel}>{editable ? 'Annuler' : 'Fermer'}</button>
         {editable && <button className="btn primary" disabled={busy} onClick={() => void submit()}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}
