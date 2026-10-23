@@ -6,6 +6,7 @@ import type { OrgUnit } from '../data/types';
 import { AppLogo, Initials } from '../components/ui';
 import { posteBesideName } from '../data/utils';
 import { nomAppli } from '../data/nomAppli';
+import { Icone } from '../components/icones';
 
 /** Démo : connexion en choisissant une personne de l'annuaire du club (sans mot de passe). */
 export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (key: string) => void; onReset: () => void }) {
@@ -45,7 +46,7 @@ export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (k
         <p className="muted small-note">★ = président ou responsable de l’entité. Chaque comité, groupe ou équipe a ses propres tâches, invisibles des autres.</p>
         <InstallButton variant="compact" hideWhenUnavailable />
         <div className="login-foot">
-          <button className="btn link" onClick={() => switchMode('reel')}>🔐 Version réelle (membres du comité)</button>
+          <button className="btn link" onClick={() => switchMode('reel')}><Icone n="verrou" /> Version réelle (membres du comité)</button>
           <button className="btn link" onClick={() => confirm('Réinitialiser toutes les données de démonstration (toutes les entités) ?') && onReset()}>Réinitialiser la démo</button>
         </div>
       </div>

@@ -7,7 +7,8 @@ import {
   JOURS_COURTS, aLaDate, jourDuMois, jourSemaine, libelleRegle, libelleRepetition, memeRegle, nomJour, normaliser, rangDansMois,
 } from '../data/repetition';
 import { PORTEES, modifierOccurrence, supprimerOccurrence, type Portee } from '../data/series';
-import { IconePoubelle, Modal } from './ui';
+import { Modal } from './ui';
+import { Icone } from './icones';
 import { ZoneTexte } from './ZoneTexte';
 
 // Fiche d'un événement, comme dans un agenda : toute la journée ou de telle heure à telle heure, sur un ou plusieurs
@@ -311,7 +312,7 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
       {note && <p className="muted">{note}</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer l’événement" aria-label="Supprimer l’événement"><IconePoubelle /></button>}
+        {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer l’événement" aria-label="Supprimer l’événement"><Icone n="supprimer" /></button>}
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
         <button className="btn primary" onClick={submit}>Enregistrer</button>

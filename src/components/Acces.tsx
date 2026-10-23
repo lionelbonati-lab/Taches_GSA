@@ -5,6 +5,7 @@ import type { Person } from '../data/types';
 import { fmtDateTime, fullName } from '../data/utils';
 import { Modal } from './ui';
 import { nomAppli } from '../data/nomAppli';
+import { Icone } from './icones';
 
 // Accès à la version réelle d'une fiche (compte, mot de passe provisoire), réglé par les admins de l'entité.
 
@@ -101,8 +102,8 @@ export function CredentialsModal({ person, email, password, existant, intro, onC
       )}
       <textarea className="cred-texte" readOnly rows={8} value={text} />
       <div className="modal-foot wrap">
-        <a className="btn" href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(`Ton accès à ${nomAppli()}`)}&body=${encodeURIComponent(text)}`}>📧 Préparer l’email</a>
-        <button className="btn" onClick={copy}>{copied ? '✅ Copié' : '📋 Copier le message'}</button>
+        <a className="btn" href={`mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(`Ton accès à ${nomAppli()}`)}&body=${encodeURIComponent(text)}`}><Icone n="email" /> Préparer l’email</a>
+        <button className="btn" onClick={copy}>{copied ? <><Icone n="ok" /> Copié</> : <><Icone n="copier" /> Copier le message</>}</button>
         <span className="grow" />
         <button className="btn primary" onClick={onClose}>Fermer</button>
       </div>

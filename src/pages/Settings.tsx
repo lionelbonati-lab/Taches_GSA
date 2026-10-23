@@ -14,6 +14,7 @@ import { AccueilModal, accueilPerso } from '../components/Accueil';
 import { MesDonnees } from '../components/MesDonnees';
 import { CopiesAuto } from '../components/CopiesAuto';
 import { copierMaintenant } from '../data/cloud';
+import { Icone } from '../components/icones';
 
 export function Settings() {
   const { dataLocale: data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
@@ -80,7 +81,7 @@ export function Settings() {
             Connecté en tant que <b>{cloud.email}</b> · {cloud.membership.committeeName}
           </p>
           <div className="row wrap">
-            <button className="btn" onClick={() => setPwd(pwd === 'ouvert' ? 'ferme' : 'ouvert')}>🔑 Changer mon mot de passe</button>
+            <button className="btn" onClick={() => setPwd(pwd === 'ouvert' ? 'ferme' : 'ouvert')}><Icone n="cle" /> Changer mon mot de passe</button>
             <button className="btn" onClick={cloud.signOut}>Se déconnecter</button>
           </div>
           {pwd === 'ouvert' && <PasswordForm onDone={() => setPwd('ok')} />}
@@ -126,7 +127,7 @@ export function Settings() {
             Mon accueil{' '}
             <small className="muted">{accueilPerso(prefs) ? '(personnalisé)' : '(tout est affiché, dans l’ordre d’origine)'}</small>
           </span>
-          <button type="button" className="btn small" onClick={() => setAccueil(true)}>⚙ Choisir les blocs et leur ordre</button>
+          <button type="button" className="btn small" onClick={() => setAccueil(true)}><Icone n="reglages" /> Choisir les blocs et leur ordre</button>
         </div>
         {accueil && <AccueilModal onClose={() => setAccueil(false)} />}
       </section>
@@ -189,10 +190,10 @@ export function Settings() {
           </p>
         )}
         <div className="row wrap">
-          <button className="btn primary" onClick={exportAll}>⬇ Télécharger une sauvegarde</button>
+          <button className="btn primary" onClick={exportAll}><Icone n="telecharger" /> Télécharger une sauvegarde</button>
           {can('admin.access') && (
             <>
-              <button className="btn" onClick={() => fileRef.current?.click()}>⬆ Restaurer une sauvegarde…</button>
+              <button className="btn" onClick={() => fileRef.current?.click()}><Icone n="televerser" /> Restaurer une sauvegarde…</button>
               <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
             </>
           )}
@@ -208,7 +209,7 @@ export function Settings() {
         <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club) et efface tout ce qui a été saisi : télécharge d’abord une sauvegarde.</p>
         <div className="row wrap">
           <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration (toutes les entités du club) ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
-          <button className="btn" onClick={() => switchMode('reel')}>🔐 Passer à la version réelle</button>
+          <button className="btn" onClick={() => switchMode('reel')}><Icone n="verrou" /> Passer à la version réelle</button>
         </div>
       </section>}
     </div>

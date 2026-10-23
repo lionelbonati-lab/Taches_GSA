@@ -19,6 +19,7 @@ import { MiseEnForme } from '../components/MiseEnForme';
 import { margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf, pdfDeFeuille } from '../components/BoutonPdf';
 import { AvecLiens } from '../components/Liens';
+import { Icone } from '../components/icones';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -423,9 +424,9 @@ export function Minutes() {
               </select>
               <input type="date" className="min-date" value={t.delai} disabled={!can2} title={t.delaiRef ? 'Délai calé sur un événement ou une séance (le changer à la main le détache)' : 'Délai'}
                 onChange={(e) => quickChange(t, { delai: e.target.value, delaiRef: undefined })} />
-              <button className="icon-btn" title="Modifier la tâche" onClick={() => openTask(t)}>✏️</button>
+              <button className="icon-btn" title="Modifier la tâche" onClick={() => openTask(t)} aria-label="Modifier la tâche"><Icone n="modifier" /></button>
               {!noteOf(`task:${t.id}`) && !openNotes[`task:${t.id}`] && (
-                <button className="icon-btn" title="Ajouter une note" onClick={() => setOpenNotes({ ...openNotes, [`task:${t.id}`]: true })}>📝</button>
+                <button className="icon-btn" title="Ajouter une note" onClick={() => setOpenNotes({ ...openNotes, [`task:${t.id}`]: true })} aria-label="Ajouter une note"><Icone n="note" /></button>
               )}
             </span>
           )}
@@ -459,7 +460,7 @@ export function Minutes() {
         <span className="min-title odj-poll">📊 Sondage : {p.question} <span className="odj-meta">— {pollSummary(p)}</span></span>
         {editable && !noteOf(`poll:${p.id}`) && !openNotes[`poll:${p.id}`] && (
           <span className="min-controls">
-            <button className="icon-btn" title="Ajouter une note" onClick={() => setOpenNotes({ ...openNotes, [`poll:${p.id}`]: true })}>📝</button>
+            <button className="icon-btn" title="Ajouter une note" onClick={() => setOpenNotes({ ...openNotes, [`poll:${p.id}`]: true })} aria-label="Ajouter une note"><Icone n="note" /></button>
           </span>
         )}
       </div>
@@ -580,7 +581,7 @@ export function Minutes() {
         <>
           <span>✅ <b>PV validé</b> (version {version}) le {fmtDateTime(m.valideLe)} – lecture seule.</span>
           <span className="grow" />
-          {can('tab.minutes') && <button className="btn small primary" onClick={startCorrection}>✏️ Corriger le PV</button>}
+          {can('tab.minutes') && <button className="btn small primary" onClick={startCorrection}><Icone n="modifier" /> Corriger le PV</button>}
         </>
       )}
     </div>
@@ -599,8 +600,8 @@ export function Minutes() {
             ))}
           </select>
           <div className="seg">
-            <button className={view === 'saisie' ? 'on' : ''} onClick={() => setView('saisie')}>✍️ Prise de notes</button>
-            <button className={view === 'pv' ? 'on' : ''} onClick={() => setView('pv')}>📄 PV</button>
+            <button className={view === 'saisie' ? 'on' : ''} onClick={() => setView('saisie')}><Icone n="notes" /> Prise de notes</button>
+            <button className={view === 'pv' ? 'on' : ''} onClick={() => setView('pv')}><Icone n="pdf" /> PV</button>
           </div>
         </div>
       </div>
@@ -615,7 +616,7 @@ export function Minutes() {
             ? '⏳ Création du PDF du PV…'
             : depotEtat.pdf === 'ok'
               ? '📄 PDF du PV créé (dans tes téléchargements) : dépose-le sur cette page.'
-              : '⚠️ Le PDF n’a pas pu être créé : « 📄 PDF » ou « 🖨 Imprimer », puis dépose le fichier sur la page.'}
+              : '⚠️ Le PDF n’a pas pu être créé : « PDF » ou « Imprimer », puis dépose le fichier sur la page.'}
         </p>
       )}
 
@@ -631,9 +632,9 @@ export function Minutes() {
                 <label className="inline">Début <input type="time" value={m.heureDebut ?? ''} disabled={!editable} onChange={(e) => setMinutes((x) => { x.heureDebut = e.target.value || undefined; })} /></label>
                 <label className="inline">Fin <input type="time" value={m.heureFin ?? ''} disabled={!editable} onChange={(e) => setMinutes((x) => { x.heureFin = e.target.value || undefined; })} /></label>
                 {editable && !m.valideLe && (!m.demarreLe ? (
-                  <button className="btn primary" onClick={start}>▶ Démarrer la séance</button>
+                  <button className="btn primary" onClick={start}><Icone n="demarrer" /> Démarrer la séance</button>
                 ) : !m.heureFin ? (
-                  <button className="btn" onClick={() => setMinutes((x) => { x.heureFin = nowHM(); })}>⏹ Terminer la séance</button>
+                  <button className="btn" onClick={() => setMinutes((x) => { x.heureFin = nowHM(); })}><Icone n="terminer" /> Terminer la séance</button>
                 ) : (
                   <span className="pbadge closed">Séance terminée – notes et points encore modifiables</span>
                 ))}
@@ -695,7 +696,7 @@ export function Minutes() {
               <p>{Object.keys(m.notes).length} note(s)</p>
               <p>{new Set(journal.map((j) => j.taskId)).size} tâche(s) mise(s) à jour</p>
               <p>{newTasks.length} nouvelle(s) tâche(s)</p>
-              <button className="btn primary" onClick={() => setView('pv')}>📄 Voir le PV</button>
+              <button className="btn primary" onClick={() => setView('pv')}><Icone n="pdf" /> Voir le PV</button>
               <small className="muted">{editable ? 'Les notes s’enregistrent automatiquement. Seules les modifications de tâches faites ici figurent dans le PV.' : 'PV validé : lecture seule.'}</small>
             </div>
           </aside>
@@ -741,14 +742,14 @@ export function Minutes() {
             </label>
             {can('tab.minutes') && (
               <details className="min-pv-mef">
-                <summary>🎨 Mise en forme</summary>
+                <summary><Icone n="miseEnForme" /> Mise en forme</summary>
                 <MiseEnForme disabled={!editable} />
               </details>
             )}
             {!editable && can('tab.minutes') && <small className="muted">PV validé : « Corriger le PV » pour changer ses options.</small>}
             {can('tab.minutes') && (
               <details className="min-pv-mef min-pv-depot">
-                <summary>📤 Dépôt du PV validé{depot ? <span className="muted"> : {hote(depot)}</span> : null}</summary>
+                <summary><Icone n="televerser" /> Dépôt du PV validé{depot ? <span className="muted"> : {hote(depot)}</span> : null}</summary>
                 <ReglageDepot />
               </details>
             )}
@@ -757,16 +758,16 @@ export function Minutes() {
             <span className="grow" />
             <LienEntete className="btn" />
             <BoutonPdf feuille={sheetRef} titre={`PV ${titre}${draftVersion > 1 ? ` v${draftVersion}` : ''}`} margesMm={margesMm(data.reglagesOdj?.style)} police={data.reglagesOdj?.style?.police} />
-            <button className="btn" onClick={() => window.print()}>🖨 Imprimer</button>
-            <button className="btn" onClick={copy}>📋 Copier le texte</button>
-            <button className="btn" onClick={email}>✉ Envoyer par email</button>
+            <button className="btn" onClick={() => window.print()}><Icone n="imprimer" /> Imprimer</button>
+            <button className="btn" onClick={copy}><Icone n="copier" /> Copier le texte</button>
+            <button className="btn" onClick={email}><Icone n="email" /> Envoyer par email</button>
             {depot && locked && (
-              <a className="btn" href={depot} target="_blank" rel="noopener noreferrer" title="Page où déposer le PDF du PV validé">📤 Page de dépôt</a>
+              <a className="btn" href={depot} target="_blank" rel="noopener noreferrer" title="Page où déposer le PDF du PV validé"><Icone n="televerser" /> Page de dépôt</a>
             )}
             {can('tab.minutes') && (locked ? (
-              <button className="btn primary" onClick={startCorrection}>✏️ Corriger le PV</button>
+              <button className="btn primary" onClick={startCorrection}><Icone n="modifier" /> Corriger le PV</button>
             ) : (
-              <button className="btn primary" onClick={validate}>✅ {m.enCorrection ? `Valider la version ${version + 1}` : 'Valider et archiver'}</button>
+              <button className="btn primary" onClick={validate}><Icone n="valider" /> {m.enCorrection ? `Valider la version ${version + 1}` : 'Valider et archiver'}</button>
             ))}
           </div>
           <style>{`@page { size: A4 portrait; margin: ${margesMm(data.reglagesOdj?.style)}mm; }`}</style>

@@ -20,6 +20,7 @@ import { SignaturePad } from './SignaturePad';
 import { Modal } from './ui';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from './Entete';
 import { ZoneTexte } from './ZoneTexte';
+import { Icone } from './icones';
 
 // Remboursements et paiements de factures : des tâches de la section des finances, ouvertes dans cette fenêtre
 // (circuit caisse → visa → virement) au lieu du formulaire de tâche.
@@ -142,7 +143,7 @@ function TimbreReglage() {
   const modifie = JSON.stringify(t) !== JSON.stringify(timbreDe(data));
   return (
     <details className="card timbre-reglage no-print">
-      <summary>🖋 Sceau « {timbreDe(data).texte} » : modifier</summary>
+      <summary><Icone n="sceau" /> Sceau « {timbreDe(data).texte} » : modifier</summary>
       <div className="timbre-grid">
         <div className="form">
           <label className="full">
@@ -309,20 +310,20 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
 
       {msg && <p className="error no-print">{msg}</p>}
       <div className="ticket-actions no-print">
-        {p.etat === 'recu' && caisse && !demande && <button className="btn primary" onClick={() => setDemande(true)}>✍️ Demander le visa</button>}
+        {p.etat === 'recu' && caisse && !demande && <button className="btn primary" onClick={() => setDemande(true)}><Icone n="signer" /> Demander le visa</button>}
         {/* La personne qui vise ne change pas de signataire (même si elle a aussi le droit Caisse, ex. un admin). */}
         {p.etat === 'visa' && caisse && !pourMoi && !demande && <button className="btn" onClick={() => setDemande(true)}>Changer de signataire</button>}
-        {pourMoi && <button className="btn primary" onClick={() => setViser(true)}>✍️ Viser et signer</button>}
-        {peutDirect && <button className="btn primary" onClick={() => setDirect(true)}>✍️ Viser moi-même</button>}
+        {pourMoi && <button className="btn primary" onClick={() => setViser(true)}><Icone n="signer" /> Viser et signer</button>}
+        {peutDirect && <button className="btn primary" onClick={() => setDirect(true)}><Icone n="signer" /> Viser moi-même</button>}
         {((p.etat === 'recu' && caisse) || pourMoi) && refus === null && <button className="btn" onClick={() => setRefus('')}>Refuser</button>}
-        {p.etat === 'valide' && caisse && ok === null && <button className="btn primary" onClick={() => setOk('')}>✅ Virement fait (OK)</button>}
+        {p.etat === 'valide' && caisse && ok === null && <button className="btn primary" onClick={() => setOk('')}><Icone n="valider" /> Virement fait (OK)</button>}
         {(p.etat === 'recu' || p.etat === 'refuse') && (mien || caisse) && (
           <button className="btn" onClick={onEdit}>{p.etat === 'refuse' && mien ? 'Corriger et renvoyer' : 'Modifier'}</button>
         )}
         {(p.etat === 'recu' || p.etat === 'refuse') && (mien || caisse) && <button className="btn danger" onClick={supprimer}>Supprimer</button>}
         {engage && caisse && <button className="btn link danger-link" onClick={supprimer} title="Demande de test ou erreur : la caisse peut la supprimer">Supprimer…</button>}
-        {(p.etat === 'valide' || p.etat === 'paye') && p.validation?.docVise && <button className="btn" onClick={telecharger}>⬇️ Télécharger : {g.vise.toLowerCase()}</button>}
-        {(p.etat === 'valide' || p.etat === 'paye') && <button className="btn" onClick={imprimer}>🖨 Bon de paiement</button>}
+        {(p.etat === 'valide' || p.etat === 'paye') && p.validation?.docVise && <button className="btn" onClick={telecharger}><Icone n="telecharger" /> Télécharger : {g.vise.toLowerCase()}</button>}
+        {(p.etat === 'valide' || p.etat === 'paye') && <button className="btn" onClick={imprimer}><Icone n="imprimer" /> Bon de paiement</button>}
         {p.etat === 'valide' && caisse && <button className="btn link" onClick={retirerVisa}>Retirer le visa</button>}
         {p.etat === 'paye' && caisse && (
           <button className="btn link" onClick={() => confirm('Le virement n’a pas été fait ? La demande revient « à payer ».') && save(t, { etat: 'valide', paye: undefined }, `« ${t.titre} » remis « à payer »`)}>Annuler « payé »</button>
@@ -465,7 +466,7 @@ function VerifierVisa() {
   const v = res?.v;
   return (
     <details className="card timbre-reglage verifier-visa no-print">
-      <summary>🔎 Vérifier un visa</summary>
+      <summary><Icone n="verifier" /> Vérifier un visa</summary>
       <p className="muted small">Le n° de visa figure en bas du sceau d’un document visé avec l’appli. Il retrouve le ticket : le document doit montrer le même montant, le même bénéficiaire, la même date et le même nom sous la signature.</p>
       <form className="ticket-inline" onSubmit={verifier}>
         <input className="mono" value={saisie} onChange={(e) => setSaisie(e.target.value)} placeholder="N° de visa, ex. K7PM-2XQD" aria-label="N° de visa" maxLength={12} autoCapitalize="characters" autoComplete="off" spellCheck={false} />
@@ -671,7 +672,7 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
-        <button className="btn primary" disabled={!pret || busy} onClick={viser}>{busy ? 'Enregistrement…' : direct ? '✍️ Viser et envoyer à la caisse' : '✍️ Viser et signer'}</button>
+        <button className="btn primary" disabled={!pret || busy} onClick={viser}>{busy ? 'Enregistrement…' : <><Icone n="signer" /> {direct ? 'Viser et envoyer à la caisse' : 'Viser et signer'}</>}</button>
       </div>
     </Modal>
   );
@@ -944,7 +945,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
         <span className="grow" />
         <button className="btn" onClick={cancel}>Annuler</button>
         <button className="btn primary" disabled={bloque || busy} onClick={() => void submit()}>
-          {busy ? 'Envoi…' : direct && viserAvant ? '✍️ Viser…' : ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}
+          {busy ? 'Envoi…' : direct && viserAvant ? <><Icone n="signer" /> Viser…</> : ticket?.paiement.etat === 'refuse' ? 'Renvoyer' : ticket ? 'Enregistrer' : 'Envoyer à la caisse'}
         </button>
       </div>
       {brouillon && (

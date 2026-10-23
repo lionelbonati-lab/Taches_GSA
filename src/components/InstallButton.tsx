@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useInstall } from '../pwa';
+import { Icone } from './icones';
 
 /** Bouton « Installer l'application » : invite native si possible, sinon marche à suivre. */
 export function InstallButton({ variant = 'btn', hideWhenUnavailable }: { variant?: 'btn' | 'sheet' | 'compact'; hideWhenUnavailable?: boolean }) {
@@ -13,7 +14,7 @@ export function InstallButton({ variant = 'btn', hideWhenUnavailable }: { varian
   const cls = variant === 'sheet' ? 'sheet-link' : variant === 'compact' ? 'btn small install' : 'btn primary';
   return (
     <>
-      <button className={cls} onClick={onClick}>📲 Installer l’application</button>
+      <button className={cls} onClick={onClick}><Icone n="installer" /> Installer l’application</button>
       {help && state.kind === 'manual' && <p className="install-help">{state.steps}</p>}
     </>
   );

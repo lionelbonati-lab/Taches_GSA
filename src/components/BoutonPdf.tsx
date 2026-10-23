@@ -3,6 +3,7 @@ import { useStore } from '../data/store';
 import { fullName } from '../data/utils';
 import { nomAppli } from '../data/nomAppli';
 import type { StyleDocs } from '../data/types';
+import { Icone } from './icones';
 
 export interface OptionsPdf {
   titre: string;
@@ -26,7 +27,7 @@ export async function pdfDeFeuille(el: HTMLElement | null, o: OptionsPdf): Promi
 }
 
 /**
- * Bouton « 📄 PDF » d'un document (ordre du jour, PV, archive) : le PDF est créé dans l'appli, liens cliquables, puis
+ * Bouton « PDF » d'un document (ordre du jour, PV, archive) : le PDF est créé dans l'appli, liens cliquables, puis
  * téléchargé (ou partagé sur téléphone). `feuille` : la feuille du document (.pv-sheet), ou un élément qui la contient.
  */
 export function BoutonPdf({ feuille, titre, paysage, margesMm, police, className = 'btn', disabled }: {
@@ -55,7 +56,7 @@ export function BoutonPdf({ feuille, titre, paysage, margesMm, police, className
   };
   return (
     <button className={className} onClick={creer} disabled={disabled || enCours} title="PDF créé par l’appli : liens cliquables, prêt à envoyer">
-      {enCours ? '⏳ Création du PDF…' : '📄 PDF'}
+      {enCours ? <><Icone n="attente" /> Création du PDF…</> : <><Icone n="pdf" /> PDF</>}
     </button>
   );
 }

@@ -36,6 +36,7 @@ import { norm } from '../data/csv';
 import { OrgLignes, type EditionLignes } from '../components/OrgLignes';
 import type { ActionOrga, PosteLie } from '../data/organigrammeLignes';
 import { ZoneTexte } from '../components/ZoneTexte';
+import { Icone } from '../components/icones';
 
 // Organigramme du club, par postes (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une carte
 // par poste ; un clic sur un nom ouvre le profil de la personne, sur une entité l'ouvre. Par défaut une vue d'ensemble ;
@@ -366,13 +367,13 @@ export function Org() {
         {edition ? (
           <div className="row wrap">
             {club.canManage && <button className="btn" onClick={() => setEdit({})}>+ Nouvelle entité</button>}
-            <button className="btn primary" onClick={() => setModeModifier(false)}>✓ Terminer</button>
+            <button className="btn primary" onClick={() => setModeModifier(false)}><Icone n="ok" /> Terminer</button>
           </div>
         ) : (
           (choixAnnee || peutModifier) && (
             <div className="row wrap">
               {choixAnnee}
-              {peutModifier && !photo && <button className="btn" onClick={() => setModeModifier(true)}>✏️ Modifier l’organigramme</button>}
+              {peutModifier && !photo && <button className="btn" onClick={() => setModeModifier(true)}><Icone n="modifier" /> Modifier l’organigramme</button>}
             </div>
           )
         )}
@@ -397,7 +398,7 @@ export function Org() {
       <LegendePostes />
       {archived.length > 0 && (
         <details className="org-archives">
-          <summary>🗄️ Entités archivées ({archived.length})</summary>
+          <summary><Icone n="archives" /> Entités archivées ({archived.length})</summary>
           <div className="arbre-archives">
             {archived.map((u) => (
               <Fiche key={u.id} u={u} o={vue} a={actions(u)} />
@@ -500,7 +501,7 @@ export function Org() {
           <span>{fait.message}</span>
           {fait.annuler && (
             <button type="button" className="btn small" onClick={() => void fait.annuler!()}>
-              ↶ Annuler
+              <Icone n="annuler" /> Annuler
             </button>
           )}
           <button type="button" className="orga-fait-x" aria-label="Fermer" onClick={() => setFait(null)}>×</button>
@@ -536,7 +537,7 @@ function OrgAnnee({ photo, units, vue, onRetour }: { photo: OrganigrammeAnnuel; 
       <LegendePostes />
       {archivees.length > 0 && (
         <details className="org-archives">
-          <summary>🗄️ Entités archivées ({archivees.length})</summary>
+          <summary><Icone n="archives" /> Entités archivées ({archivees.length})</summary>
           <div className="arbre-archives">
             {archivees.map((u) => (
               <Fiche key={u.id} u={u} o={vue} a={actions(u)} />
@@ -894,7 +895,7 @@ function UnitModal({
         {!isNew && manage && unit?.archive && (
           <div className="full zone-suppression">
             <button type="button" className="btn danger small" onClick={() => setSupprimer(true)}>
-              🗑 Supprimer définitivement…
+              <Icone n="supprimer" /> Supprimer définitivement…
             </button>
             <small className="muted"> Efface l’entité archivée et toutes ses données, sans retour possible.</small>
           </div>

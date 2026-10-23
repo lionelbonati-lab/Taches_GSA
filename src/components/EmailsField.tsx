@@ -9,6 +9,7 @@ import {
 import { EMAIL_RE, ajouter, candidats, chercher, choisis, nomsDestinataires, recipients, retirer, type Destinataire } from '../data/destinataires';
 import { fmtDate, fmtDateTime, fullName } from '../data/utils';
 import { Modal } from './ui';
+import { Icone } from './icones';
 
 const STATE_ICON: Record<EmailState, string> = { programme: '🕓', aEnvoyer: '📨', envoye: '✅', annule: '⛔', sansObjet: '✔️', sansDate: '⏸️' };
 
@@ -51,7 +52,7 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
               <div className="email-actions">
                 {(st === 'aEnvoyer' || st === 'programme' || st === 'sansDate' || st === 'sansObjet') && (
                   <button type="button" className={`btn small ${st === 'aEnvoyer' ? 'primary' : ''}`} onClick={() => setSend(e.id)}>
-                    ✉ {st === 'aEnvoyer' ? 'Envoyer' : 'Envoyer maintenant'}
+                    <Icone n="envoyer" /> {st === 'aEnvoyer' ? 'Envoyer' : 'Envoyer maintenant'}
                   </button>
                 )}
                 {e.statut === 'programme' && <button type="button" className="btn small" onClick={() => setEdit({ e, isNew: false })}>Modifier</button>}
@@ -73,7 +74,7 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
         <small className="muted">Enregistre d’abord la tâche pour programmer un email.</small>
       ) : (
         canEditTask(current) && (
-          <button type="button" className="btn small" onClick={() => setEdit({ e: newEmail(current, user.id), isNew: true })}>📧 Programmer un email</button>
+          <button type="button" className="btn small" onClick={() => setEdit({ e: newEmail(current, user.id), isNew: true })}><Icone n="programmer" /> Programmer un email</button>
         )
       )}
       {edit && <EmailEditor task={current} email={edit.e} isNew={edit.isNew} onClose={() => setEdit(null)} />}
@@ -351,8 +352,8 @@ export function EmailSend({ task, email, onClose }: { task: Task; email: Schedul
         <button className="btn" onClick={copy}>{copied ? '✓ Copié' : 'Copier le texte'}</button>
         <span className="grow" />
         <button className="btn" onClick={onClose}>Plus tard</button>
-        <a className={`btn ${opened ? '' : 'primary'}`} href={mailtoHref(data, task, email, to, club?.current.id)} onClick={() => setOpened(true)}>📧 Ouvrir dans ma messagerie</a>
-        <button className={`btn ${opened ? 'primary' : ''}`} onClick={done}>✓ Marquer comme envoyé</button>
+        <a className={`btn ${opened ? '' : 'primary'}`} href={mailtoHref(data, task, email, to, club?.current.id)} onClick={() => setOpened(true)}><Icone n="email" /> Ouvrir dans ma messagerie</a>
+        <button className={`btn ${opened ? 'primary' : ''}`} onClick={done}><Icone n="ok" /> Marquer comme envoyé</button>
       </div>
     </Modal>
   );

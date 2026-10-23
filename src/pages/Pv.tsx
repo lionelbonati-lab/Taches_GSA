@@ -19,6 +19,7 @@ import { margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf } from '../components/BoutonPdf';
 import { AvecLiens } from '../components/Liens';
 import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
+import { Icone } from '../components/icones';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête (le nom du comité), convoqués, liste numérotée
@@ -422,11 +423,11 @@ export function Pv() {
         <h1>Ordre du jour</h1>
         <div className="actions">
           <BoutonPdf className="btn primary toujours" feuille={sheetRef} titre={`Ordre du jour ${nomDoc}`} paysage={s.orientation === 'paysage'} margesMm={margesMm(data.reglagesOdj?.style)} police={data.reglagesOdj?.style?.police} disabled={draft !== null} />
-          <button className="btn" onClick={print}>🖨 Imprimer</button>
-          {canEdit && s1 && draft === null && <button className="btn" onClick={startEdit}>✏️ Modifier le texte</button>}
-          <button className="btn" onClick={archive} disabled={!s1 || !canEdit || draft !== null}>📁 Archiver dans la séance</button>
-          <button className="btn" onClick={email}>✉ Envoyer par email</button>
-          <button className="btn" onClick={copy}>📋 Copier le texte</button>
+          <button className="btn" onClick={print}><Icone n="imprimer" /> Imprimer</button>
+          {canEdit && s1 && draft === null && <button className="btn" onClick={startEdit}><Icone n="modifier" /> Modifier le texte</button>}
+          <button className="btn" onClick={archive} disabled={!s1 || !canEdit || draft !== null}><Icone n="archiver" /> Archiver dans la séance</button>
+          <button className="btn" onClick={email}><Icone n="email" /> Envoyer par email</button>
+          <button className="btn" onClick={copy}><Icone n="copier" /> Copier le texte</button>
         </div>
       </div>
       <PageIntro />
@@ -460,7 +461,7 @@ export function Pv() {
                 <div className="chips">
                   {committee.map((p) => (
                     <button key={p.id} type="button" className={`chip ${isExcused(p.id) ? 'on' : ''}`} onClick={() => toggleExcuse(p)} title={excuses.find((e) => e.personId === p.id)?.motif}>
-                      {isExcused(p.id) ? '🚫 ' : ''}{shortName(p)}
+                      {isExcused(p.id) && <><Icone n="absent" /> </>}{shortName(p)}
                     </button>
                   ))}
                 </div>
@@ -607,7 +608,7 @@ export function Pv() {
               <div className="odj-edit-bar no-print">
                 <span>✏️ Version modifiée à la main le {fmtDateTime(edite.le)}{data.people.find((p) => p.id === edite.par) ? ` par ${fullName(data.people.find((p) => p.id === edite.par))}` : ''}. Les changements de tâches et de mise en page n’y apparaissent plus (les excusés, si).</span>
                 <span className="grow" />
-                {canEdit && <button className="btn" onClick={resetEdit}>🔄 Revenir à la version générée</button>}
+                {canEdit && <button className="btn" onClick={resetEdit}><Icone n="revenir" /> Revenir à la version générée</button>}
               </div>
             )
           )}

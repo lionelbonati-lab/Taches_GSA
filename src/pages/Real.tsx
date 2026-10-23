@@ -13,6 +13,7 @@ import { fmtDateTime, fullName, posteBesideName, uid } from '../data/utils';
 import type { AppData, Person } from '../data/types';
 import { nomAppli } from '../data/nomAppli';
 import { sortUnits, UNIT_TYPES } from '../data/units';
+import { Icone } from '../components/icones';
 
 // Écrans de la version réelle (avant d'entrer dans l'appli) et écran d'accueil (choix démo / version réelle).
 
@@ -35,12 +36,12 @@ export function Welcome() {
       <p className="muted">Gestion des tâches du comité du G.S. Ajoie</p>
       <div className="mode-choice">
         <button className="mode-card" onClick={() => switchMode('reel')}>
-          <span className="mode-icon">🔐</span>
+          <span className="mode-icon"><Icone n="verrou" /></span>
           <strong>Version réelle</strong>
           <small>Pour les membres du comité : connexion avec ton email et ton mot de passe. Les données sont partagées en direct entre tous les membres.</small>
         </button>
         <button className="mode-card" onClick={() => switchMode('demo')}>
-          <span className="mode-icon">🧪</span>
+          <span className="mode-icon"><Icone n="demo" /></span>
           <strong>Démo</strong>
           <small>Pour découvrir l’appli : données fictives, aucun mot de passe. Ce que tu saisis reste dans ce navigateur et n’est partagé avec personne.</small>
         </button>
@@ -92,7 +93,7 @@ export function RealLogin() {
       <button className="btn link" onClick={() => setForgot(!forgot)} aria-expanded={forgot}>Mot de passe oublié ou pas encore de compte ?</button>
       {forgot && <MotDePasseOublie email={email} setEmail={setEmail} invalide={invalide} />}
       <div className="login-foot">
-        <button className="btn link" onClick={() => switchMode('demo')}>🧪 Essayer la démo</button>
+        <button className="btn link" onClick={() => switchMode('demo')}><Icone n="demo" /> Essayer la démo</button>
         <InstallButton variant="compact" hideWhenUnavailable />
       </div>
     </Card>
@@ -146,8 +147,8 @@ function MotDePasseOublie({ email, setEmail, invalide }: { email: string; setEma
         <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
       </label>
       <div className="mdp-oublie-actions">
-        <button className="btn" disabled={!valide || !!busy} onClick={lien}>{busy === 'lien' ? 'Envoi…' : '📧 Recevoir un lien par email'}</button>
-        <button className="btn" disabled={!valide || !!busy} onClick={admins}>{busy === 'admins' ? 'Envoi…' : '🙋 Demander aux admins de mes entités'}</button>
+        <button className="btn" disabled={!valide || !!busy} onClick={lien}>{busy === 'lien' ? 'Envoi…' : <><Icone n="email" /> Recevoir un lien par email</>}</button>
+        <button className="btn" disabled={!valide || !!busy} onClick={admins}>{busy === 'admins' ? 'Envoi…' : <><Icone n="personnes" /> Demander aux admins de mes entités</>}</button>
       </div>
       {msg && <p className={msg.ok ? 'ok-note' : 'error'} role="status">{msg.text}</p>}
       <p className="muted small-note">
@@ -232,7 +233,7 @@ export function Message({ title, children, onSignOut }: { title: string; childre
       <div className="muted">{children}</div>
       <div className="login-foot">
         {onSignOut && <button className="btn" onClick={onSignOut}>Se déconnecter</button>}
-        <button className="btn link" onClick={() => switchMode('demo')}>🧪 Ouvrir la démo</button>
+        <button className="btn link" onClick={() => switchMode('demo')}><Icone n="demo" /> Ouvrir la démo</button>
       </div>
     </Card>
   );
@@ -367,12 +368,12 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
           <p className="muted">Le comité n’a encore aucune donnée sur le serveur. Comment veux-tu commencer ?</p>
           <div className="mode-choice">
             <button className="mode-card" onClick={() => fileRef.current?.click()}>
-              <span className="mode-icon">⬆</span>
+              <span className="mode-icon"><Icone n="televerser" /></span>
               <strong>Reprendre une sauvegarde</strong>
               <small>Une sauvegarde téléchargée (Réglages › Sauvegarde des données) : tâches, séances, PV, responsables, fichiers joints…</small>
             </button>
             <button className="mode-card" onClick={() => setStep('vide')}>
-              <span className="mode-icon">✨</span>
+              <span className="mode-icon"><Icone n="nouveau" /></span>
               <strong>Commencer avec une base vide</strong>
               <small>Statuts, sections et rôles du club, et ta fiche. Tu ajoutes ensuite les responsables, séances et tâches.</small>
             </button>

@@ -6,6 +6,7 @@ import { defaultEntete, defaultTexte, enteteDe, enteteImage } from '../data/ente
 import { isImage } from '../data/logo';
 import type { Entete } from '../data/types';
 import { ImagePicker } from './ImagePicker';
+import { Icone } from './icones';
 
 // En-tête des documents imprimés (ordre du jour, PV, bon de paiement) : un seul pour toute l'entité, réglé dans la console admin.
 
@@ -57,7 +58,7 @@ export function useEntete() {
 export function LienEntete({ className = 'btn small' }: { className?: string }) {
   const { can } = useStore();
   if (!can('admin.access')) return null;
-  return <Link to="/admin/entete" className={className} title="Le même pour l’ordre du jour, le PV et le bon de paiement">✏️ En-tête (console admin)</Link>;
+  return <Link to="/admin/entete" className={className} title="Le même pour l’ordre du jour, le PV et le bon de paiement"><Icone n="modifier" /> En-tête (console admin)</Link>;
 }
 
 /** Console admin : l'en-tête de tous les documents de l'entité, avec aperçu. */

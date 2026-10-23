@@ -13,8 +13,9 @@ import { PageIntro } from '../components/Nav';
 import { COULEURS_APPLI } from '../data/couleur';
 import { EnteteReglage } from '../components/Entete';
 import { defaultTexte, enteteDe, enteteRegle } from '../data/entete';
+import { Icone, type IconeNom } from '../components/icones';
 
-type Partie = { id: string; icon: string; titre: string; carte: string; aide: string; resume: string; contenu: ReactNode };
+type Partie = { id: string; icon: IconeNom; titre: string; carte: string; aide: string; resume: string; contenu: ReactNode };
 
 /** Console admin : une page d'accueil qui explique chaque partie, puis une adresse par partie (/admin/droits…). */
 export function Admin() {
@@ -35,7 +36,7 @@ export function Admin() {
   const parties: Partie[] = [
     {
       id: 'droits',
-      icon: '🔑',
+      icon: 'cle' as const,
       titre: 'Rôles et droits',
       carte: 'Ce que chaque rôle (Secrétaire, Caissier…) permet de voir et de faire.',
       aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ' (organigramme du club : clic sur son nom)' : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.`,
@@ -44,7 +45,7 @@ export function Admin() {
     },
     {
       id: 'taches',
-      icon: '🗂️',
+      icon: 'rangement' as const,
       titre: 'Sections et statuts',
       carte: 'Le rangement des tâches (sections, sous-sections) et leurs étapes (À faire, En cours…).',
       aide: 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV) et leurs étapes (À faire, En cours, Terminé…).',
@@ -55,7 +56,7 @@ export function Admin() {
       ? [
           {
             id: 'apparence',
-            icon: '🎨',
+            icon: 'miseEnForme' as const,
             titre: 'Apparence',
             carte: central ? 'Logo, couleur, nom et icône de l’appli.' : 'Logo de l’entité et couleur de l’appli.',
             aide: central
@@ -68,7 +69,7 @@ export function Admin() {
       : []),
     {
       id: 'entete',
-      icon: '📄',
+      icon: 'entete' as const,
       titre: 'En-tête des documents',
       carte: 'Le haut de page de l’ordre du jour, du PV et du bon de paiement : logo ou image, texte, couleur.',
       aide: 'Le même en-tête pour tous les documents imprimés de l’entité : ordre du jour, PV et bon de paiement. Chacun les imprime avec cet en-tête.',
@@ -77,7 +78,7 @@ export function Admin() {
     },
     {
       id: 'import',
-      icon: '📥',
+      icon: 'importer' as const,
       titre: 'Importer un fichier',
       carte: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur.',
       aide: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur (fichier CSV, avec un modèle à télécharger).',
@@ -86,7 +87,7 @@ export function Admin() {
     },
     {
       id: 'historique',
-      icon: '🕓',
+      icon: 'historique' as const,
       titre: 'Historique',
       carte: 'Qui a fait quoi, et quand.',
       aide: 'Toutes les modifications faites dans l’entité : qui a fait quoi, et quand.',
@@ -103,7 +104,7 @@ export function Admin() {
         <p className="admin-retour no-print">
           <Link to="/admin">‹ Console admin</Link>
         </p>
-        <h1>{ouverte.icon} {ouverte.titre}</h1>
+        <h1><Icone n={ouverte.icon} /> {ouverte.titre}</h1>
         {prefs.explications !== false && <p className="page-intro">{ouverte.aide}</p>}
         {ouverte.contenu}
       </div>
@@ -116,7 +117,7 @@ export function Admin() {
       <div className="admin-cartes">
         {personnes && (
           <Link to="/organigramme?modifier" className="panel admin-carte">
-            <span className="admin-carte-icone" aria-hidden>👥</span>
+            <span className="admin-carte-icone" aria-hidden><Icone n="personnes" /></span>
             <span>
               <b>Personnes et accès</b>
               <span className="muted">« + Ajouter une personne » sous l’entité ; un clic sur une personne ouvre la fiche : poste, rôle, accès à l’appli.</span>
@@ -126,7 +127,7 @@ export function Admin() {
         )}
         {parties.map((x) => (
           <Link key={x.id} to={`/admin/${x.id}`} className="panel admin-carte">
-            <span className="admin-carte-icone" aria-hidden>{x.icon}</span>
+            <span className="admin-carte-icone" aria-hidden><Icone n={x.icon} /></span>
             <span>
               <b>{x.titre}</b>
               <span className="muted">{x.carte}</span>
@@ -170,7 +171,7 @@ function Roles() {
                 <th key={r.id} className="center">
                   <button className="role-head" onClick={() => setEdit({ role: r, isNew: false })}>
                     <span className="dot" style={{ background: r.couleur }} />
-                    {r.label} {r.locked ? '🔒' : '✎'}
+                    {r.label} <Icone n={r.locked ? 'verrou' : 'modifier'} />
                   </button>
                   <small className="scope">{scope(r)}</small>
                   <small className="scope">{data.people.filter((p) => p.roles.includes(r.id)).length} pers.</small>
@@ -393,8 +394,8 @@ function Lists() {
                     const n = data.tasks.filter((t) => t.sectionId === s.id && t.sousSection === ss).length;
                     return (
                       <li key={`${i}-${ss}`}>
-                        <button className="icon-btn" disabled={i === 0} onClick={() => moveSub(s.id, i, -1)} aria-label={`Monter ${ss}`}>▲</button>
-                        <button className="icon-btn" disabled={i === s.sousSections.length - 1} onClick={() => moveSub(s.id, i, 1)} aria-label={`Descendre ${ss}`}>▼</button>
+                        <button className="icon-btn" disabled={i === 0} onClick={() => moveSub(s.id, i, -1)} aria-label={`Monter ${ss}`}><Icone n="monter" /></button>
+                        <button className="icon-btn" disabled={i === s.sousSections.length - 1} onClick={() => moveSub(s.id, i, 1)} aria-label={`Descendre ${ss}`}><Icone n="descendre" /></button>
                         <input
                           className="grow"
                           defaultValue={ss}
@@ -439,7 +440,7 @@ function Lists() {
               <label className="inline" title="Une tâche dans ce statut est considérée comme terminée">
                 <input type="checkbox" checked={s.done} onChange={() => update((d) => { d.statuses[i].done = !s.done; }, `Statut « ${s.label} » : terminé = ${!s.done}`)} /> Clôture
               </label>
-              <button className="icon-btn" disabled={i === 0} onClick={() => update((d) => { [d.statuses[i - 1], d.statuses[i]] = [d.statuses[i], d.statuses[i - 1]]; }, `Ordre des statuts modifié`)} aria-label="Monter">▲</button>
+              <button className="icon-btn" disabled={i === 0} onClick={() => update((d) => { [d.statuses[i - 1], d.statuses[i]] = [d.statuses[i], d.statuses[i - 1]]; }, `Ordre des statuts modifié`)} aria-label="Monter"><Icone n="monter" /></button>
               <button className="btn small danger" disabled={used > 0 || data.statuses.length <= 2} title={used ? `${used} tâche(s) ont ce statut` : ''} onClick={() => update((d) => { d.statuses = d.statuses.filter((x) => x.id !== s.id); }, `Suppression du statut « ${s.label} »`)}>Supprimer</button>
             </div>
           );

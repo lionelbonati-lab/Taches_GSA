@@ -3,7 +3,7 @@ import { useStore } from '../data/store';
 import type { ProfilOdj, PvSettings } from '../data/types';
 import { epurer } from '../data/styleDocs';
 import { fmtDateTime, fullName, uid } from '../data/utils';
-import { IconeCrayon, IconeDisquette, IconeMonter, IconePoubelle } from './ui';
+import { Icone } from './icones';
 
 // Profils de l'ordre du jour : les réglages du moment (contenu, mise en page, et au choix la mise en forme) enregistrés
 // sous un nom, communs à l'entité, puis réappliqués en un clic (« Comité ordinaire », « Assemblée générale »…).
@@ -146,10 +146,10 @@ export function ProfilsOdj({ s, normaliser, appliquerReglages, canEdit }: {
                   </button>
                   {canEdit && (
                     <span className="profil-actions">
-                      <button type="button" className="btn small link" onClick={() => remplacer(p)} title="Remplacer par les réglages actuels" aria-label={`Remplacer le profil ${p.nom} par les réglages actuels`}><IconeDisquette /></button>
-                      <button type="button" className="btn small link" onClick={() => { setRenomme({ id: p.id, nom: p.nom }); setErr(''); }} title="Renommer" aria-label={`Renommer le profil ${p.nom}`}><IconeCrayon /></button>
-                      {profils.length > 1 && <button type="button" className="btn small link" disabled={i === 0} onClick={() => deplacer(p, -1)} title="Monter" aria-label={`Monter le profil ${p.nom}`}><IconeMonter /></button>}
-                      <button type="button" className="btn small link danger-link" onClick={() => supprimer(p)} title="Supprimer" aria-label={`Supprimer le profil ${p.nom}`}><IconePoubelle /></button>
+                      <button type="button" className="btn small link" onClick={() => remplacer(p)} title="Remplacer par les réglages actuels" aria-label={`Remplacer le profil ${p.nom} par les réglages actuels`}><Icone n="enregistrer" /></button>
+                      <button type="button" className="btn small link" onClick={() => { setRenomme({ id: p.id, nom: p.nom }); setErr(''); }} title="Renommer" aria-label={`Renommer le profil ${p.nom}`}><Icone n="modifier" /></button>
+                      {profils.length > 1 && <button type="button" className="btn small link" disabled={i === 0} onClick={() => deplacer(p, -1)} title="Monter" aria-label={`Monter le profil ${p.nom}`}><Icone n="monter" /></button>}
+                      <button type="button" className="btn small link danger-link" onClick={() => supprimer(p)} title="Supprimer" aria-label={`Supprimer le profil ${p.nom}`}><Icone n="supprimer" /></button>
                     </span>
                   )}
                 </>
@@ -168,7 +168,7 @@ export function ProfilsOdj({ s, normaliser, appliquerReglages, canEdit }: {
           <label className="inline">
             <input type="checkbox" checked={avecStyle} onChange={(e) => setAvecStyle(e.target.checked)} /> Avec la mise en forme (police, couleurs, marges…)
           </label>
-          <button className="btn small primary" type="submit" disabled={!nom.trim()}><IconeDisquette /> Enregistrer le profil</button>
+          <button className="btn small primary" type="submit" disabled={!nom.trim()}><Icone n="enregistrer" /> Enregistrer le profil</button>
         </form>
       )}
       {err && <p className="error small">{err}</p>}

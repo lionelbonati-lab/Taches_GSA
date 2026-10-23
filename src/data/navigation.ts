@@ -1,30 +1,31 @@
+import type { IconeNom } from '../components/icones';
 import type { Permission, UnitType } from './types';
 import { UNIT_TYPES } from './units';
 
 // Navigation : quelques rubriques, chacune avec ses pages (sous-onglets). Les adresses des pages ne changent pas
 // (liens déjà envoyés, raccourcis installés). Le texte « aide » s'affiche en haut de la page et dans « Comment ça marche ? ».
 
-export type NavPage = { to: string; label: string; icon: string; aide: string; perm?: Permission; club?: boolean; registre?: boolean; demandes?: boolean; superAdmin?: boolean };
-export type NavRubrique = { id: string; label: string; icon: string; mobile?: boolean; pages: NavPage[] };
+export type NavPage = { to: string; label: string; icon: IconeNom; aide: string; perm?: Permission; club?: boolean; registre?: boolean; demandes?: boolean; superAdmin?: boolean };
+export type NavRubrique = { id: string; label: string; icon: IconeNom; mobile?: boolean; pages: NavPage[] };
 
 const RUBRIQUES: NavRubrique[] = [
   {
     id: 'accueil',
     label: 'Accueil',
-    icon: '🏠',
+    icon: 'accueil',
     mobile: true,
-    pages: [{ to: '/', label: 'Accueil', icon: '🏠', aide: 'Ton résumé : tâches en retard, à faire cette semaine, prochaine séance et prochains événements.' }],
+    pages: [{ to: '/', label: 'Accueil', icon: 'accueil', aide: 'Ton résumé : tâches en retard, à faire cette semaine, prochaine séance et prochains événements.' }],
   },
   {
     id: 'taches',
     label: 'Tâches',
-    icon: '✅',
+    icon: 'taches',
     mobile: true,
     pages: [
       {
         to: '/taches',
         label: 'Tâches',
-        icon: '✅',
+        icon: 'taches',
         aide: 'Toutes les tâches, remboursements et paiements de factures. Clique sur une tâche pour l’ouvrir ; le bouton « + » en ajoute une.',
       },
     ],
@@ -32,54 +33,54 @@ const RUBRIQUES: NavRubrique[] = [
   {
     id: 'agenda',
     label: 'Agenda',
-    icon: '📅',
+    icon: 'calendrier',
     mobile: true,
     pages: [
-      { to: '/agenda', label: 'Calendrier', icon: '📅', aide: 'Le mois en un coup d’œil : séances, événements, échéances des tâches et fins de sondage. Clique sur un jour pour le détail.' },
-      { to: '/evenements', label: 'Événements', icon: '🎉', perm: 'tab.events', aide: 'Les manifestations, avec l’avancement des tâches qui les préparent.' },
+      { to: '/agenda', label: 'Calendrier', icon: 'calendrier', aide: 'Le mois en un coup d’œil : séances, événements, échéances des tâches et fins de sondage. Clique sur un jour pour le détail.' },
+      { to: '/evenements', label: 'Événements', icon: 'evenements', perm: 'tab.events', aide: 'Les manifestations, avec l’avancement des tâches qui les préparent.' },
     ],
   },
   {
     id: 'comite',
     label: 'Comité',
-    icon: '🗓️',
+    icon: 'seances',
     mobile: true,
     pages: [
-      { to: '/comite', label: 'Séances', icon: '🗓️', perm: 'tab.meetings', aide: 'Date et lieu de chaque séance, les excusés, et l’ordre du jour et le PV une fois archivés.' },
+      { to: '/comite', label: 'Séances', icon: 'seances', perm: 'tab.meetings', aide: 'Date et lieu de chaque séance, les excusés, et l’ordre du jour et le PV une fois archivés.' },
       {
         to: '/ordre-du-jour',
         label: 'Ordre du jour',
-        icon: '📝',
+        icon: 'odj',
         perm: 'tab.pv',
         aide: 'Avant la séance : l’ordre du jour se prépare tout seul à partir des tâches. Relis-le, puis imprime-le, envoie-le ou archive-le.',
       },
       {
         to: '/pv',
         label: 'PV',
-        icon: '🖊️',
+        icon: 'pv',
         perm: 'tab.minutes',
         aide: 'Pendant la séance : présences, notes sous chaque point, nouvelles tâches. Ensuite : valider et envoyer le PV.',
       },
-      { to: '/sondages', label: 'Sondages', icon: '📊', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli.' },
+      { to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli.' },
     ],
   },
   {
     // L'organigramme du club n'est pas une rubrique : il s'ouvre depuis le menu des entités (en haut à gauche).
     id: 'personnes',
     label: 'Membres du club',
-    icon: '📇',
-    pages: [{ to: '/membres-club', label: 'Membres du club', icon: '📇', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli ; on y gère aussi les accès de chacun aux entités.' }],
+    icon: 'membres',
+    pages: [{ to: '/membres-club', label: 'Membres du club', icon: 'membres', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli ; on y gère aussi les accès de chacun aux entités.' }],
   },
 ];
 
 /** Menu du compte (en haut à droite ; « Plus » sur téléphone). */
 export const PAGES_COMPTE: NavPage[] = [
-  { to: '/reglages', label: 'Réglages', icon: '⚙️', aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage, les notifications et la sauvegarde.' },
-  { to: '/admin', label: 'Console admin', icon: '🛡️', perm: 'admin.access', aide: 'Les réglages de l’entité, réservés à ses admins. Choisis ce que tu veux régler.' },
+  { to: '/reglages', label: 'Réglages', icon: 'reglages', aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage, les notifications et la sauvegarde.' },
+  { to: '/admin', label: 'Console admin', icon: 'admin', perm: 'admin.access', aide: 'Les réglages de l’entité, réservés à ses admins. Choisis ce que tu veux régler.' },
   {
     to: '/mots-de-passe',
     label: 'Mots de passe oubliés',
-    icon: '🔑',
+    icon: 'cle',
     perm: 'admin.access',
     demandes: true,
     aide: 'Des membres de l’entité ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
@@ -87,18 +88,18 @@ export const PAGES_COMPTE: NavPage[] = [
   {
     to: '/comptes',
     label: 'Comptes du club',
-    icon: '🔐',
+    icon: 'comptes',
     superAdmin: true,
     aide: 'Super-admin : tous les comptes du club et leurs entités. Nouveau mot de passe provisoire, blocage, et fusion de deux comptes d’une même personne.',
   },
   {
     to: '/propositions',
     label: 'Proposer une amélioration',
-    icon: '💡',
+    icon: 'idee',
     club: true,
     aide: 'Une idée pour l’appli, ou quelque chose qui ne marche pas ? Écris-le ici : le comité central l’étudie et te répond sur cette page.',
   },
-  { to: '/aide', label: 'Comment ça marche ?', icon: '❓', aide: 'Où trouver quoi, et les gestes courants.' },
+  { to: '/aide', label: 'Comment ça marche ?', icon: 'aide', aide: 'Où trouver quoi, et les gestes courants.' },
 ];
 
 /** Nom d'une page de l'appli (« Comité › PV »), quels que soient les droits ; l'adresse elle-même si inconnue. */

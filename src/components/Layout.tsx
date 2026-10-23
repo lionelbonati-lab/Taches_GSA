@@ -16,6 +16,7 @@ import { SousOnglets, useNavigation } from './Nav';
 import { ErrorBoundary } from './ErrorBoundary';
 import { applyTabIcon, cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
+import { Icone, type IconeNom } from './icones';
 
 export function Layout() {
   const { data, user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
@@ -107,9 +108,10 @@ export function Layout() {
   const canCreate = creatableSections().length > 0;
   // Bouton flottant « + » : tâche (ajout rapide), remboursement, paiement de facture.
   const ajouts = [
-    ...(canCreate ? [{ label: '✅ Nouvelle tâche', title: 'Ajout rapide d’une tâche', run: () => setQuick(true) }] : []),
+    ...(canCreate ? [{ label: 'Nouvelle tâche', icone: 'taches' as IconeNom, title: 'Ajout rapide d’une tâche', run: () => setQuick(true) }] : []),
     ...(['remboursement', 'facture'] as const).map((g) => ({
-      label: `${GENRES[g].icon} ${GENRES[g].nouveau}`,
+      label: GENRES[g].nouveau,
+      icone: g as IconeNom,
       title: g === 'facture' ? 'Payer une facture directement à qui l’a envoyée' : 'Rembourser une personne qui a avancé de l’argent',
       run: () => setTicket(g),
     })),
@@ -120,7 +122,7 @@ export function Layout() {
   const horsBarre = rubriques.filter((r) => !r.mobile);
   const dansPlus = !!ouverte && !barre.some((r) => r.id === rubriqueOuverte);
   const sortir = () => login(null);
-  const sortirLabel = cloud ? '🚪 Se déconnecter' : '🔄 Changer d’utilisateur';
+  const sortirLabel = <><Icone n={cloud ? 'sortir' : 'changer'} /> {cloud ? 'Se déconnecter' : 'Changer d’utilisateur'}</>;
 
   return (
     <div className="app">
@@ -165,7 +167,7 @@ export function Layout() {
                   <small className="muted">{user.poste} · {rolesText}</small>
                 </div>
                 {pagesCompte.map((p) => (
-                  <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="unit-item" role="menuitem">{p.icon} {p.label}</NavLink>
+                  <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="unit-item" role="menuitem"><Icone n={p.icon} /> {p.label}</NavLink>
                 ))}
                 <button className="unit-item" role="menuitem" onClick={sortir}>{sortirLabel}</button>
               </div>
@@ -187,7 +189,7 @@ export function Layout() {
           {fab && (
             <div className="fab-menu" role="menu">
               {ajouts.map((a) => (
-                <button key={a.label} role="menuitem" title={a.title} onClick={() => { setFab(false); a.run(); }}>{a.label}</button>
+                <button key={a.label} role="menuitem" title={a.title} onClick={() => { setFab(false); a.run(); }}><Icone n={a.icone} /> {a.label}</button>
               ))}
             </div>
           )}
@@ -205,12 +207,12 @@ export function Layout() {
       <nav className="bottomnav">
         {barre.map((r) => (
           <NavLink key={r.id} to={r.pages[0].to} end className={() => (r.id === rubriqueOuverte ? 'active' : '')}>
-            <span>{r.icon}</span>
+            <span><Icone n={r.icon} /></span>
             {r.label}
           </NavLink>
         ))}
         <button className={menu || dansPlus ? 'active' : ''} onClick={() => setMenu(!menu)}>
-          <span>☰</span>Plus
+          <span><Icone n="menu" /></span>Plus
         </button>
       </nav>
       {menu && (
@@ -228,14 +230,14 @@ export function Layout() {
               <div key={r.id} className="sheet-group">
                 <small className="sheet-titre">{r.label}</small>
                 {r.pages.map((p) => (
-                  <NavLink key={p.to} to={p.to} className="sheet-link">{p.icon} {p.label}</NavLink>
+                  <NavLink key={p.to} to={p.to} className="sheet-link"><Icone n={p.icon} /> {p.label}</NavLink>
                 ))}
               </div>
             ))}
             <div className="sheet-group">
               <small className="sheet-titre">Mon compte</small>
               {pagesCompte.map((p) => (
-                <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="sheet-link">{p.icon} {p.label}</NavLink>
+                <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="sheet-link"><Icone n={p.icon} /> {p.label}</NavLink>
               ))}
               <InstallButton variant="sheet" />
               <button className="sheet-link" onClick={sortir}>{sortirLabel}</button>
@@ -283,7 +285,7 @@ function UnitSwitch() {
                 <span><b>{u.nom}</b><small className="muted">{UNIT_TYPES[u.type].label}{u.moiAdmin ? ' · ★ admin' : ''}</small></span>
               </button>
             ))}
-            <NavLink to="/organigramme" className="unit-item link" onClick={() => setOpen(false)}>🏛️ Organigramme du club</NavLink>
+            <NavLink to="/organigramme" className="unit-item link" onClick={() => setOpen(false)}><Icone n="organigramme" /> Organigramme du club</NavLink>
           </div>
         </>
       )}

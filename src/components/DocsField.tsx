@@ -5,6 +5,7 @@ import { compressImage, deleteFiles, docIcon, fmtSize, getFile, MAX_FILE_SIZE, o
 import { fmtDate, fullName, uid } from '../data/utils';
 import { estPdf } from '../data/pdf';
 import { PdfApercu, PdfPage } from './PdfViewer';
+import { Icone } from './icones';
 
 /** Suivi des fichiers ajoutés / retirés pendant l'édition, pour ranger le stockage à l'enregistrement ou à l'annulation. */
 export interface DocTracking {
@@ -142,9 +143,9 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
       {!disabled && (
         <>
           <div className="doc-actions">
-            <button type="button" className="btn small" onClick={() => fileRef.current?.click()} disabled={busy}>📎 Fichier</button>
-            <button type="button" className="btn small" onClick={() => photoRef.current?.click()} disabled={busy}>📷 Photo</button>
-            {liens && <button type="button" className="btn small" onClick={() => setLink(link ? null : { url: '', nom: '' })}>🔗 Lien</button>}
+            <button type="button" className="btn small" onClick={() => fileRef.current?.click()} disabled={busy}><Icone n="fichier" /> Fichier</button>
+            <button type="button" className="btn small" onClick={() => photoRef.current?.click()} disabled={busy}><Icone n="photo" /> Photo</button>
+            {liens && <button type="button" className="btn small" onClick={() => setLink(link ? null : { url: '', nom: '' })}><Icone n="lien" /> Lien</button>}
             {busy && <small className="muted">Ajout…</small>}
           </div>
           <input ref={fileRef} type="file" multiple hidden onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />

@@ -20,6 +20,7 @@ import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../compone
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { UNIT_TYPES } from '../data/units';
 import { finAnticipee } from '../data/seances';
+import { Icone } from '../components/icones';
 
 export function Dashboard() {
   const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo } = useStore();
@@ -29,7 +30,7 @@ export function Dashboard() {
   const [reglage, setReglage] = useState(false);
   // Tâche d'une autre entité pour info, ouverte en lecture seule.
   const [recue, setRecue] = useState<string | null>(null);
-  // Blocs et compteurs que la personne a choisi de voir sur cet appareil, dans son ordre (« ⚙ Personnaliser »).
+  // Blocs et compteurs que la personne a choisi de voir sur cet appareil, dans son ordre (« Personnaliser »).
   const { appareil, blocs, compteurs } = useAccueil();
   if (!user) return null;
 
@@ -169,7 +170,7 @@ export function Dashboard() {
                   <div key={e.id} className="panel email-due">
                     <strong>{fillTemplate(data, t, e, e.objet)}</strong>
                     <span className="muted">{whenLabel(t, e.quand)}</span>
-                    <button className="btn small primary" onClick={() => setSend({ task: t, email: e })}>✉ Envoyer</button>
+                    <button className="btn small primary" onClick={() => setSend({ task: t, email: e })}><Icone n="envoyer" /> Envoyer</button>
                   </div>
                 ))}
               </>
@@ -264,12 +265,12 @@ export function Dashboard() {
     <div>
       <div className="page-head">
         <h1>Bonjour {user.prenom} 👋</h1>
-        <button className="btn small" onClick={() => setReglage(true)} aria-label="Personnaliser l’accueil" title="Choisir ce qui s’affiche sur ton accueil, et dans quel ordre">⚙<span className="hide-mobile"> Personnaliser</span></button>
+        <button className="btn small" onClick={() => setReglage(true)} aria-label="Personnaliser l’accueil" title="Choisir ce qui s’affiche sur ton accueil, et dans quel ordre"><Icone n="reglages" /><span className="hide-mobile"> Personnaliser</span></button>
       </div>
       <Bienvenue userId={user.id} />
       {corps}
       {!blocs.length && (
-        <Empty>Ton accueil est vide sur {appareil === 'telephone' ? 'ce téléphone' : 'cet ordinateur'} : « ⚙ Personnaliser » pour choisir ce qui s’affiche.</Empty>
+        <Empty>Ton accueil est vide sur {appareil === 'telephone' ? 'ce téléphone' : 'cet ordinateur'} : « Personnaliser » pour choisir ce qui s’affiche.</Empty>
       )}
       {edit && <TaskModal task={edit} isNew={false} onClose={() => setEdit(null)} />}
       {send && <EmailSend task={send.task} email={send.email} onClose={() => setSend(null)} />}

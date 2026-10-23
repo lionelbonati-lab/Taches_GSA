@@ -5,6 +5,7 @@ import { UNIT_TYPES } from '../data/units';
 import { CredentialsModal, type Shown } from '../components/Acces';
 import { AppLogo, Empty, Modal } from '../components/ui';
 import { nomAppli } from '../data/nomAppli';
+import { Icone } from '../components/icones';
 
 // Comptes du club (super-admins, hors des entités) : chaque compte, ses entités et sa fiche dans chacune ; nouveau mot de
 // passe provisoire, blocage, fusion de deux comptes d'une même personne. Tout passe par la fonction gsa-acces
@@ -136,16 +137,16 @@ export function Comptes({ intro }: { intro?: ReactNode }) {
               <small className="muted">{c.derniere_connexion ? `Dernière connexion : ${fmtDateTime(c.derniere_connexion)}` : 'Jamais connecté'}</small>
               <div className="row wrap compte-actions">
                 <button className={`btn small ${c.demande ? 'primary' : ''}`} disabled={!!busy} onClick={() => agir(c, 'reinitialiserCompte')}>
-                  🔑 {c.demande ? 'Valider la demande : nouveau mot de passe' : 'Nouveau mot de passe'}
+                  <Icone n="cle" /> {c.demande ? 'Valider la demande : nouveau mot de passe' : 'Nouveau mot de passe'}
                 </button>
                 {c.user_id !== moi && (
                   <button className={`btn small ${c.bloque ? '' : 'danger'}`} disabled={!!busy} onClick={() => agir(c, c.bloque ? 'debloquer' : 'bloquer')}>
-                    {c.bloque ? '✅ Débloquer' : '⛔ Bloquer'}
+                    <Icone n={c.bloque ? 'valider' : 'refuser'} /> {c.bloque ? 'Débloquer' : 'Bloquer'}
                   </button>
                 )}
                 {liste.length > 1 && (
                   <button className="btn small" disabled={!!busy} onClick={() => setFusion(c)} title="Une même personne a deux comptes : on garde celui-ci, l’autre y est fondu">
-                    🔗 Fusionner un autre compte dans celui-ci
+                    <Icone n="fusionner" /> Fusionner un autre compte dans celui-ci
                   </button>
                 )}
               </div>
@@ -220,7 +221,7 @@ function Fusion({ garder, autres, onClose, onDone }: { garder: CompteClub; autre
       <div className="modal-foot">
         <button className="btn" onClick={onClose}>Annuler</button>
         <span className="grow" />
-        <button className="btn danger" disabled={!autre || busy} onClick={go}>{busy ? 'Fusion…' : '🔗 Fusionner'}</button>
+        <button className="btn danger" disabled={!autre || busy} onClick={go}>{busy ? 'Fusion…' : <><Icone n="fusionner" /> Fusionner</>}</button>
       </div>
     </Modal>
   );

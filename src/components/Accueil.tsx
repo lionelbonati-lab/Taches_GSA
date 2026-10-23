@@ -4,6 +4,7 @@ import { useClubOptional } from '../data/club';
 import type { Prefs, Status } from '../data/types';
 import { hasEdition } from './Edition';
 import { Modal } from './ui';
+import { Icone } from './icones';
 
 /** Écran de téléphone : même limite que la mise en page (styles.css). */
 const ETROIT = '(max-width: 767px)';
@@ -137,8 +138,8 @@ function Rangement({ titre, elements, masque, ordre, appareil, setMasque, setOrd
             return (
               <tr key={id}>
                 <td className="ordre">
-                  <button type="button" className="icon-btn" disabled={i === 0} aria-label={`Monter « ${e.label} »`} title="Monter" onClick={() => deplacer(i, -1)}>↑</button>
-                  <button type="button" className="icon-btn" disabled={i === ids.length - 1} aria-label={`Descendre « ${e.label} »`} title="Descendre" onClick={() => deplacer(i, 1)}>↓</button>
+                  <button type="button" className="icon-btn" disabled={i === 0} aria-label={`Monter « ${e.label} »`} title="Monter" onClick={() => deplacer(i, -1)}><Icone n="monter" /></button>
+                  <button type="button" className="icon-btn" disabled={i === ids.length - 1} aria-label={`Descendre « ${e.label} »`} title="Descendre" onClick={() => deplacer(i, 1)}><Icone n="descendre" /></button>
                 </td>
                 <td>{e.couleur ? <span className="compteur-nom" style={{ borderLeftColor: e.couleur }}>{e.label}</span> : e.label}</td>
                 {COLONNES.map((c) => (

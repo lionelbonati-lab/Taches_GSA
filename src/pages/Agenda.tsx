@@ -7,7 +7,8 @@ import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, to
 import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu } from '../data/repetition';
 import { EventModal, newEvent } from '../components/EventModal';
 import { EditionCard } from '../components/Edition';
-import { Empty, IconePoubelle, Modal } from '../components/ui';
+import { Empty, Modal } from '../components/ui';
+import { Icone } from '../components/icones';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
@@ -96,7 +97,7 @@ function Excuses({ m, past }: { m: Meeting; past: boolean }) {
             <button className="btn small" onClick={() => setOpen(false)}>Annuler</button>
           </div>
         ) : (
-          <button className="btn small" onClick={() => setOpen(true)}>🚫 Je serai absent(e)</button>
+          <button className="btn small" onClick={() => setOpen(true)}><Icone n="absent" /> Je serai absent(e)</button>
         )
       )}
     </div>
@@ -139,15 +140,15 @@ export function Meetings() {
                   <div className="pv-archives">
                     {(m.minutesArchives ?? []).map((pv, i) => (
                       <button key={pv.id} className="chip on" onClick={() => setViewPv({ meeting: m, pv, kind: 'pv' })} title={`Validé le ${fmtDateTime(pv.at)}`}>
-                        📝 {pv.titre}{i > 0 ? ` (version du ${fmtDateTime(pv.at)})` : ''}
+                        <Icone n="pv" /> {pv.titre}{i > 0 ? ` (version du ${fmtDateTime(pv.at)})` : ''}
                       </button>
                     ))}
                     {(m.pvArchives ?? []).map((pv) => (
                       <button key={pv.id} className="chip" onClick={() => setViewPv({ meeting: m, pv, kind: 'odj' })} title={`Archivé le ${fmtDateTime(pv.at)}`}>
-                        📄 Ordre du jour · {fmtDateTime(pv.at)}
+                        <Icone n="odj" /> Ordre du jour · {fmtDateTime(pv.at)}
                       </button>
                     ))}
-                    {can('tab.minutes') && <Link className="chip" to={`/pv?seance=${m.id}`}>🖊️ {m.minutes ? 'Reprendre le PV' : 'Prendre les notes du PV'}</Link>}
+                    {can('tab.minutes') && <Link className="chip" to={`/pv?seance=${m.id}`}><Icone n="notes" /> {m.minutes ? 'Reprendre le PV' : 'Prendre les notes du PV'}</Link>}
                   </div>
                 )}
               </div>
@@ -213,7 +214,7 @@ function AnneeProchaine() {
         ))}
       </ul>
       <button className="btn primary" disabled={!choisies.length} onClick={ajouter}>
-        📅 Ajouter {choisies.length > 1 ? `les ${choisies.length} séances` : 'la séance'}
+        <Icone n="ajouterSeance" /> Ajouter {choisies.length > 1 ? `les ${choisies.length} séances` : 'la séance'}
       </button>
     </section>
   );
@@ -250,7 +251,7 @@ function Renommer() {
         </details>
       )}
       <p className="row wrap">
-        <button className="btn primary" onClick={renommer}>✏️ Renommer {liste.length > 1 ? `les ${liste.length} séances` : 'la séance'}</button>
+        <button className="btn primary" onClick={renommer}><Icone n="modifier" /> Renommer {liste.length > 1 ? `les ${liste.length} séances` : 'la séance'}</button>
         <button className="btn" onClick={garder}>Garder les noms actuels</button>
       </p>
     </section>
@@ -330,7 +331,7 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
       {note && <p className="muted">{note}</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer la séance" aria-label="Supprimer la séance"><IconePoubelle /></button>}
+        {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer la séance" aria-label="Supprimer la séance"><Icone n="supprimer" /></button>}
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
         <button className="btn primary" onClick={submit}>Enregistrer</button>
@@ -468,7 +469,7 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
         <small>archivé le {fmtDateTime(pv.at)} par {fullName(data.people.find((p) => p.id === pv.by))}</small>
         <span className="grow" />
         <BoutonPdf className="btn primary" feuille={doc} titre={kind === 'odj' ? `Ordre du jour ${pv.titre}` : pv.titre} paysage={pv.orientation === 'paysage'} margesMm={margesArchive(pv.html)} police={policeArchive(pv.html)} />
-        <button className="btn" onClick={() => window.print()}>🖨 Imprimer</button>
+        <button className="btn" onClick={() => window.print()}><Icone n="imprimer" /> Imprimer</button>
         {canDelete && <button className="btn danger" onClick={() => confirm(kind === 'pv' ? 'Supprimer ce PV archivé ?' : 'Supprimer cet ordre du jour archivé ?') && onDelete()}>Supprimer</button>}
         <button className="btn" onClick={onClose}>Fermer</button>
       </div>

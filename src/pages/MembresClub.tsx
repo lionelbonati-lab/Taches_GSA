@@ -12,6 +12,7 @@ import type { ClubMembre, ColonnesMembres, FichesEntite, OrgUnit, Person } from 
 import { Initials, Modal } from '../components/ui';
 import { ImportCsv } from '../components/ImportCsv';
 import { AccessCell, CredentialsModal, type Shown } from '../components/Acces';
+import { Icone } from '../components/icones';
 
 // Membres du club : registre commun à toutes les entités (une fiche par personne, avec ou sans accès à l'appli).
 // Réservé au droit « Membres du club » (Admin, Secrétaire…) et aux admins des entités ; les caissiers la lisent, avec les
@@ -167,9 +168,9 @@ export function MembresClub() {
         <h1>Membres du club{list && <small className="muted"> · {list.length}</small>}</h1>
         {list && (
           <span className="row wrap">
-            <button className="btn" onClick={() => setReglerColonnes(true)}>⚙️ Colonnes</button>
-            {gerer && <button className="btn" onClick={() => setImporter(true)}>📥 Importer</button>}
-            <button className="btn" disabled={!vus.length} onClick={exporter}>📤 Exporter</button>
+            <button className="btn" onClick={() => setReglerColonnes(true)}><Icone n="colonnes" /> Colonnes</button>
+            {gerer && <button className="btn" onClick={() => setImporter(true)}><Icone n="importer" /> Importer</button>}
+            <button className="btn" disabled={!vus.length} onClick={exporter}><Icone n="exporter" /> Exporter</button>
             {gerer && <button className="btn primary" onClick={() => setEdit(nouveauMembre({}))}>+ Nouveau membre</button>}
           </span>
         )}
@@ -282,8 +283,8 @@ function ColonnesModal({ ordre, visibles, onSave, onReset, onClose }: { ordre: C
               {libelle(k)}
             </label>
             <span className="grow" />
-            <button className="btn small" disabled={i === 0} aria-label={`Monter « ${libelle(k)} »`} onClick={() => deplacer(i, -1)}>↑</button>
-            <button className="btn small" disabled={i === o.length - 1} aria-label={`Descendre « ${libelle(k)} »`} onClick={() => deplacer(i, 1)}>↓</button>
+            <button className="btn small" disabled={i === 0} aria-label={`Monter « ${libelle(k)} »`} onClick={() => deplacer(i, -1)}><Icone n="monter" /></button>
+            <button className="btn small" disabled={i === o.length - 1} aria-label={`Descendre « ${libelle(k)} »`} onClick={() => deplacer(i, 1)}><Icone n="descendre" /></button>
           </li>
         ))}
       </ul>

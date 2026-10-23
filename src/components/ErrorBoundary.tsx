@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
+import { Icone } from './icones';
 
 // Une erreur pendant l'affichage : un message lisible (à copier pour le signaler) au lieu d'un écran blanc.
 // « page » : seule la page est remplacée, les menus restent utilisables ; le message disparaît en changeant de page.
@@ -52,8 +53,8 @@ export class ErrorBoundary extends Component<Props, State> {
         </p>
         <pre>{details}</pre>
         <p className="row wrap">
-          <button className="btn primary" onClick={() => location.reload()}>🔄 Recharger</button>
-          <button className="btn" onClick={copier}>📋 Copier le message</button>
+          <button className="btn primary" onClick={() => location.reload()}><Icone n="recharger" /> Recharger</button>
+          <button className="btn" onClick={copier}><Icone n="copier" /> Copier le message</button>
         </p>
       </div>
     );

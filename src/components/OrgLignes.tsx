@@ -25,6 +25,7 @@ import {
 import { Initials, Modal, UnitMark } from './ui';
 import { quiDeMembre, type Glisser, type Prise as PrisePersonne } from './Organiser';
 import type { Depuis } from '../data/organigramme';
+import { Icone } from './icones';
 
 // Organigramme par postes, en lignes (calcul dans data/organigrammeLignes.ts) : comités dans des cadres reliés, une
 // carte par poste (le poste, le nom ; un poste à plusieurs : tous les noms), les groupes sous leur carte (dans le comité où siège leur responsable ; « Dépend
@@ -288,7 +289,7 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
                   Tout déplier
                 </button>
               )}
-              <button type="button" className="btn small" title="Imprimer, ou enregistrer en PDF (choisir « Enregistrer au format PDF »)" onClick={() => setImpression(true)}>🖨️ Imprimer / PDF</button>
+              <button type="button" className="btn small" title="Imprimer, ou enregistrer en PDF (choisir « Enregistrer au format PDF »)" onClick={() => setImpression(true)}><Icone n="imprimer" /> Imprimer / PDF</button>
             </>
           )}
           {edition?.onNouveauComite && (
@@ -302,7 +303,7 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
               aria-pressed={plein}
               onClick={basculerPlein}
             >
-              {plein ? '✕ Quitter le plein écran' : '⛶ Plein écran'}
+              {plein ? <><Icone n="quitterPleinEcran" /> Quitter le plein écran</> : <><Icone n="pleinEcran" /> Plein écran</>}
             </button>
           )}
         </div>
@@ -719,7 +720,7 @@ function CarteEnt({
         <div className="orgl-entite-pied">
           {regler && (
             <button type="button" className="orgl-plus" title={`Modifier « ${e.u.nom} » (nom, couleur, date, « Dépend de »…)`} aria-label={`Modifier « ${e.u.nom} »`} onClick={regler}>
-              ⚙️
+              <Icone n="reglages" />
             </button>
           )}
           {fiche && (
@@ -754,7 +755,7 @@ function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx
       )}
       {regler && (
         <button type="button" className="orgl-plus" title={`Modifier « ${c.titre} » (nom, couleur, date…)`} aria-label={`Modifier « ${c.titre} »`} onClick={regler}>
-          ⚙️
+          <Icone n="reglages" />
         </button>
       )}
     </h3>
@@ -1057,7 +1058,7 @@ export function ProfilOrga({
         <button className="btn" onClick={onClose}>Fermer</button>
         {onDeplacer && (
           <button className="btn" title="Puis touche le poste, le ★ ou les bénévoles où la poser" onClick={onDeplacer}>
-            ✋ Déplacer
+            <Icone n="deplacer" /> Déplacer
           </button>
         )}
         {onFiche && <button className="btn primary" onClick={onFiche}>Fiche complète</button>}

@@ -1,5 +1,6 @@
 import { useState, type ReactNode } from 'react';
 import { decode, downloadCsv, lireTableau, parseCsv, type Colonne } from '../data/csv';
+import { Icone } from './icones';
 
 // Import en masse : fichier CSV (Excel, LibreOffice, Google Sheets) ou lignes copiées-collées depuis un tableur,
 // avec un modèle à télécharger et un aperçu ligne par ligne avant de valider.
@@ -145,9 +146,9 @@ export function ImportCsv<K extends string, R>({
         ))}
       </ul>
       <div className="row wrap">
-        <button className="btn" onClick={() => downloadCsv(modele, [colonnes.map((c) => c.label), colonnes.map((c) => c.exemple ?? '')])}>⬇️ Télécharger le modèle</button>
+        <button className="btn" onClick={() => downloadCsv(modele, [colonnes.map((c) => c.label), colonnes.map((c) => c.exemple ?? '')])}><Icone n="telecharger" /> Télécharger le modèle</button>
         <label className="btn primary">
-          📂 Choisir un fichier CSV
+          <Icone n="dossier" /> Choisir un fichier CSV
           <input type="file" accept=".csv,.tsv,.txt,text/csv,text/plain" hidden onChange={(e) => { void fichier(e.target.files?.[0]); e.target.value = ''; }} />
         </label>
       </div>

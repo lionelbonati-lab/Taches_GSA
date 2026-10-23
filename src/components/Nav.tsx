@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { navigation, pageOuverte } from '../data/navigation';
+import { Icone } from './icones';
 
 /** Rubriques, pages du compte et page ouverte, selon les droits et l'entité ouverte. */
 export function useNavigation() {
@@ -51,7 +52,7 @@ export function SousOnglets() {
     <nav ref={barre} className="subtabs no-print" aria-label={r.label}>
       {r.pages.map((p) => (
         <NavLink key={p.to} to={p.to}>
-          <span aria-hidden>{p.icon}</span> {p.label}
+          <Icone n={p.icon} /> {p.label}
         </NavLink>
       ))}
     </nav>

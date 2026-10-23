@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { ago, useNotifications } from '../notifications';
+import { Icone } from './icones';
 
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */
 export function Bell() {
@@ -32,7 +33,7 @@ export function Bell() {
   return (
     <div className="bell-wrap" ref={ref}>
       <button className="bell" onClick={() => setOpen(!open)} aria-label={`Notifications${unread.length ? ` (${unread.length} non lues)` : ''}`}>
-        🔔{unread.length > 0 && <span className="bell-badge">{unread.length > 9 ? '9+' : unread.length}</span>}
+        <Icone n="cloche" />{unread.length > 0 && <span className="bell-badge">{unread.length > 9 ? '9+' : unread.length}</span>}
       </button>
       {open && (
         <div className="bell-panel" role="dialog" aria-label="Notifications">
@@ -59,7 +60,7 @@ export function Bell() {
               ))}
             </ul>
           )}
-          <button className="bell-foot" onClick={() => { setOpen(false); navigate('/reglages'); }}>⚙️ Réglages des notifications</button>
+          <button className="bell-foot" onClick={() => { setOpen(false); navigate('/reglages'); }}><Icone n="reglages" /> Réglages des notifications</button>
         </div>
       )}
     </div>

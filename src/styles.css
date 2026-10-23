@@ -851,9 +851,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
     flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
     padding: 8px 0 6px; font-size: 0.68rem; color: var(--muted); border: none; background: none; cursor: pointer;
   }
-  .bottomnav span { font-size: 1.25rem; filter: grayscale(1); opacity: 0.7; }
+  .bottomnav span { font-size: 1.25rem; line-height: 1; }
+  .bottomnav .icone-trait { vertical-align: 0; }
   .bottomnav a.active, .bottomnav button.active { color: var(--primary); font-weight: 600; text-decoration: none; }
-  .bottomnav a.active span, .bottomnav button.active span { filter: none; opacity: 1; }
   .sheet-back { display: block; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 25; }
   .sheet { position: absolute; left: 0; right: 0; bottom: calc(58px + env(safe-area-inset-bottom)); background: var(--surface); border-radius: 16px 16px 0 0; padding: 12px; display: flex; flex-direction: column; max-height: calc(100vh - 90px - env(safe-area-inset-bottom)); overflow-y: auto; }
   .sheet-group { display: flex; flex-direction: column; }
@@ -1484,7 +1484,7 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .admin-carte b { font-size: 1.05rem; }
 .admin-carte .muted { font-size: 0.92rem; line-height: 1.35; }
 .admin-carte small { color: var(--primary); font-weight: 600; font-size: 0.8rem; }
-.admin-carte-icone { font-size: 1.6rem; line-height: 1; width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.admin-carte-icone { font-size: 1.4rem; line-height: 1; color: var(--primary); width: 44px; height: 44px; border-radius: 12px; background: var(--primary-soft); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .admin-retour { margin: -6px 0 4px; }
 .admin-retour a { font-weight: 600; }
 @media (max-width: 767px) { .admin-cartes { grid-template-columns: 1fr; } }
@@ -1566,8 +1566,9 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .pdf-rendu .pdf-puce.sym { padding-right: 0.5em; }
 
 /* ---------- Envoyer un lien (WhatsApp, email, autre appli) ---------- */
-.icone-partage { vertical-align: -0.2em; flex: none; }
 .icone-trait { vertical-align: -0.25em; flex: none; }
+.icone-trait.tourne { animation: tourne 1s linear infinite; }
+@keyframes tourne { to { transform: rotate(360deg); } }
 .icon-btn.envoyer-lien,
 .icon-btn.dupliquer { font-size: 1.05rem; color: var(--text); }
 .poll-badges { align-items: center; }

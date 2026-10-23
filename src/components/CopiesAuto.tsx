@@ -3,6 +3,7 @@ import { copieAuto, copierMaintenant, copiesAuto, type CopieAuto } from '../data
 import { downloadBackup } from '../data/backup';
 import { fmtDateTime } from '../data/utils';
 import type { AppData } from '../data/types';
+import { Icone } from './icones';
 
 const taille = (o: number) => (o < 1024 * 1024 ? `${Math.max(1, Math.round(o / 1024))} Ko` : `${(o / 1024 / 1024).toFixed(1)} Mo`);
 
@@ -85,15 +86,15 @@ export function CopiesAuto({ unite, nom, restore }: { unite: string; nom: string
                 <b>{fmtDateTime(c.faiteLe)}</b> <small className="muted">· {c.manuelle ? 'manuelle' : 'de la nuit'} · {c.lignes} éléments · {taille(c.taille)}</small>
               </span>
               <span className="row">
-                <button className="btn small" disabled={occupe} onClick={() => telecharger(c)} title="Télécharger cette copie (fichier de sauvegarde)">⬇</button>
-                <button className="btn small" disabled={occupe} onClick={() => restaurer(c)}>↩ Restaurer</button>
+                <button className="btn small" disabled={occupe} onClick={() => telecharger(c)} title="Télécharger cette copie (fichier de sauvegarde)" aria-label="Télécharger cette copie"><Icone n="telecharger" /></button>
+                <button className="btn small" disabled={occupe} onClick={() => restaurer(c)}><Icone n="revenir" /> Restaurer</button>
               </span>
             </li>
           ))}
         </ul>
       )}
       <div className="row wrap">
-        <button className="btn" disabled={occupe} onClick={copier}>📸 Copier maintenant</button>
+        <button className="btn" disabled={occupe} onClick={copier}><Icone n="sauvegarde" /> Copier maintenant</button>
         {copies.length > 7 && (
           <button className="btn link" onClick={() => setTout(!tout)}>
             {tout ? 'Seulement les plus récentes' : `Toutes les copies (${copies.length})`}

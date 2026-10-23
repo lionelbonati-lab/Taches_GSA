@@ -18,6 +18,7 @@ import { AvisLien } from '../components/EnvoyerLien';
 import { useClubOptional } from '../data/club';
 import { editionDe, evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { UNIT_TYPES } from '../data/units';
+import { Icone } from '../components/icones';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
@@ -208,11 +209,11 @@ export function Tasks() {
           <button className="btn" onClick={() => setShowFilters(!showFilters)}>Filtres{activeFilters ? ` (${activeFilters})` : ''}</button>
           {(archives || nArchivees > 0) && (
             <button className={`btn ${archives ? 'primary' : ''}`} title="Tâches terminées au plus tard le jour du dernier comité passé" onClick={() => setArchives(!archives)}>
-              {archives ? '← Tâches en cours' : `🗄 Archives (${nArchivees})`}
+              {archives ? '← Tâches en cours' : <><Icone n="archives" /> Archives ({nArchivees})</>}
             </button>
           )}
-          {(pourInfo.length > 0 || voirPourInfo) && <button className="btn" title="Tâches d’autres entités du club, pour que tu sois au courant" onClick={() => setVoirPourInfo(true)}>👁 Pour info ({pourInfo.length})</button>}
-          {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}>📜 Anciennes tâches ({anciennes.length})</button>}
+          {(pourInfo.length > 0 || voirPourInfo) && <button className="btn" title="Tâches d’autres entités du club, pour que tu sois au courant" onClick={() => setVoirPourInfo(true)}><Icone n="voir" /> Pour info ({pourInfo.length})</button>}
+          {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}><Icone n="anciennes" /> Anciennes tâches ({anciennes.length})</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
           {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouvelle tâche</button>}
@@ -405,8 +406,8 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
       {aPrendre && (
         <div className="a-prendre-tap" onClick={(e) => e.stopPropagation()}>
           {decline && <small className="muted">🙅 Tu as répondu « Pas dispo ».</small>}
-          <button className={`btn small ${decline ? '' : 'primary'}`} disabled={prise} onClick={() => repondre(true)}>🙋 Je m’en charge{decline ? ' quand même' : ''}</button>
-          {!decline && <button className="btn small" disabled={prise} onClick={() => repondre(false)}>🙅 Pas dispo</button>}
+          <button className={`btn small ${decline ? '' : 'primary'}`} disabled={prise} onClick={() => repondre(true)}><Icone n="main" /> Je m’en charge{decline ? ' quand même' : ''}</button>
+          {!decline && <button className="btn small" disabled={prise} onClick={() => repondre(false)}><Icone n="refuser" /> Pas dispo</button>}
         </div>
       )}
       {editable && (

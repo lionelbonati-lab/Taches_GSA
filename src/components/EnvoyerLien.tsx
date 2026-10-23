@@ -4,6 +4,7 @@ import { useClubOptional } from '../data/club';
 import { getMode } from '../data/mode';
 import { lienEmail, lienWhatsApp } from '../data/lienPartage';
 import { Modal } from './ui';
+import { Icone } from './icones';
 
 // Envoyer une tâche ou un sondage par WhatsApp, email ou une autre appli : un court message suivi du lien qui l'ouvre
 // dans l'appli. Le message se modifie avant l'envoi ; le lien ne donne aucun accès par lui-même.
@@ -26,25 +27,13 @@ async function copier(texte: string, zone: HTMLTextAreaElement | HTMLInputElemen
   }
 }
 
-/** Icône « partager » (trois points reliés), de la couleur du texte. */
-export function IconePartage() {
-  return (
-    <svg className="icone-partage" viewBox="0 0 24 24" width="1.1em" height="1.1em" aria-hidden="true" focusable="false">
-      <path d="M17.2 6.4 6.8 12l10.4 5.6" fill="none" stroke="currentColor" strokeWidth="2.4" />
-      <circle cx="18" cy="5" r="3.4" fill="currentColor" />
-      <circle cx="6" cy="12" r="3.4" fill="currentColor" />
-      <circle cx="18" cy="19" r="3.4" fill="currentColor" />
-    </svg>
-  );
-}
-
 /** Bouton « Envoyer un lien » : l'icône de partage seule (à ne pas confondre avec « 🤝 Partager » avec d'autres entités). */
 export function EnvoyerLien({ titre, texte, lien, acces }: { titre: string; texte: string; lien: string; acces: string }) {
   const [ouvert, setOuvert] = useState(false);
   return (
     <>
       <button type="button" className="icon-btn envoyer-lien" onClick={() => setOuvert(true)} title="Envoyer un lien (WhatsApp, email, autre appli…)" aria-label="Envoyer un lien">
-        <IconePartage />
+        <Icone n="partager" />
       </button>
       {ouvert && <FenetreLien titre={titre} texte={texte} lien={lien} acces={acces} onClose={() => setOuvert(false)} />}
     </>
@@ -85,10 +74,10 @@ function FenetreLien({ titre, texte, lien, acces, onClose }: { titre: string; te
           <button type="button" className="btn small" onClick={() => copierVers('lien')}>{copie === 'lien' ? '✓ Copié' : 'Copier le lien'}</button>
         </p>
         <div className="full envoyer-choix">
-          <a className="btn primary" href={lienWhatsApp(complet)} target="_blank" rel="noopener noreferrer">💬 WhatsApp</a>
-          {partageSysteme() && <button type="button" className="btn" onClick={autreAppli}><IconePartage /> Autre appli…</button>}
-          <a className="btn" href={lienEmail(titre, complet)}>✉ Email</a>
-          <button type="button" className="btn" onClick={() => copierVers('message')}>{copie === 'message' ? '✓ Message copié' : '📋 Copier le message'}</button>
+          <a className="btn primary" href={lienWhatsApp(complet)} target="_blank" rel="noopener noreferrer"><Icone n="message" /> WhatsApp</a>
+          {partageSysteme() && <button type="button" className="btn" onClick={autreAppli}><Icone n="partager" /> Autre appli…</button>}
+          <a className="btn" href={lienEmail(titre, complet)}><Icone n="email" /> Email</a>
+          <button type="button" className="btn" onClick={() => copierVers('message')}>{copie === 'message' ? '✓ Message copié' : <><Icone n="copier" /> Copier le message</>}</button>
         </div>
         {copie === 'erreur' && <p className="full small-note" role="status">Copie impossible ici : sélectionne le texte et copie-le à la main.</p>}
         <p className="full small-note">

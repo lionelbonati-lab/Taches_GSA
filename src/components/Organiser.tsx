@@ -8,6 +8,7 @@ import { directory, UNIT_COLORS, UNIT_TYPES } from '../data/units';
 import { fmtRange, posteBesideName } from '../data/utils';
 import type { ClubMembre, OrgMember, OrgUnit, Poste } from '../data/types';
 import { Initials, Modal, UnitMark } from './ui';
+import { Icone } from './icones';
 
 // Ce que l'organigramme par postes (OrgLignes.tsx) partage : glisser une personne (souris ; au doigt : la toucher,
 // elle est « en main », puis toucher où la poser), la recherche en haut à gauche (pilules), les fiches de poste et la
@@ -262,7 +263,7 @@ export function useGlisser(opts: { peut: (p: Prise, cible: string) => boolean; d
         />
         {glisse.depuis && !copie && (
           <div className={`glisse-corbeille ${survol === 'corbeille' ? 'survol' : ''}`} data-cible="corbeille">
-            🗑 Retirer de la fiche
+            <Icone n="supprimer" /> Retirer de la fiche
           </div>
         )}
       </>
@@ -398,7 +399,7 @@ export function EnMain({ glisser, onRetirer }: { glisser: Glisser; onRetirer: (p
             onRetirer(p);
           }}
         >
-          🗑 Retirer
+          <Icone n="supprimer" /> Retirer
         </button>
       )}
       <button type="button" className="btn small" onClick={glisser.lacher}>Lâcher</button>
@@ -676,7 +677,7 @@ export function Fiche({ u, o, a }: { u: OrgUnit; o: OrgaVue; a: ActionsFiche }) 
               + Ajouter une personne
             </button>
           )}
-          {a.onModifier && <button type="button" className="arbre-regler" title={`Modifier l’entité « ${u.nom} »`} aria-label={`Modifier l’entité ${u.nom}`} onClick={a.onModifier}>⚙️</button>}
+          {a.onModifier && <button type="button" className="arbre-regler" title={`Modifier l’entité « ${u.nom} »`} aria-label={`Modifier l’entité ${u.nom}`} onClick={a.onModifier}><Icone n="reglages" /></button>}
         </div>
       )}
     </div>
@@ -743,7 +744,7 @@ export function AvecModal({ u, poste, nom, onAvec, onPlace, onClose }: {
         </button>
         {tit.map((t) => (
           <button key={t.posteId} type="button" className="btn" onClick={() => onPlace(t.posteId)}>
-            ⇄ À la place de {nomDe(t.m)}
+            <Icone n="echanger" /> À la place de {nomDe(t.m)}
             <small>{nomDe(t.m)} quitte le poste</small>
           </button>
         ))}

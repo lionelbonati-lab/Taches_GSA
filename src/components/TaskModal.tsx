@@ -18,7 +18,8 @@ import type { DelaiUnite, EvenementEntite, OrgMember, OrgUnit, Person, PourInfo,
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
 import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { finAnticipee, motSeance, seanceApres, seancePourSuivante } from '../data/seances';
-import { Avatar, IconePoubelle, Modal, StatusBadge } from './ui';
+import { Avatar, Modal, StatusBadge } from './ui';
+import { Icone, type IconeNom } from './icones';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteTache } from '../data/lienPartage';
 import { ZoneTexte } from './ZoneTexte';
@@ -330,26 +331,29 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   };
   const voit = (x: Extra) => rempli[x] || ouverts.includes(x);
   const ouvrir = (x: Extra) => setOuverts((o) => [...o, x]);
-  const ajouts: { label: string; aide: string; run: () => void; si: boolean; partagee?: boolean }[] = [
-    { label: '☑️ Checklist', aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist'), partagee: true },
-    { label: '📎 Document', aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs'), partagee: complet },
+  const ajouts: { label: string; icone: IconeNom; aide: string; run: () => void; si: boolean; partagee?: boolean }[] = [
+    { label: 'Checklist', icone: 'checklist' as const, aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist'), partagee: true },
+    { label: 'Document', icone: 'fichier' as const, aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs'), partagee: complet },
     {
-      label: '🔁 Répétition',
+      label: 'Répétition',
+      icone: 'repetition' as const,
       aide: t.source ? 'La tâche revient chaque semaine, chaque mois… (son entité crée la suivante)' : `La tâche revient chaque semaine, chaque mois, à chaque ${mot}…`,
       run: () => ouvrir('repetition'),
       si: !voit('repetition'),
       partagee: complet,
     },
     {
-      label: '🧩 Rattacher à…',
+      label: 'Rattacher à…',
+      icone: 'rattacher' as const,
       aide: t.source ? `Une séance de « ${club?.current.nom ?? 'cette entité'} » : la tâche figure à son ordre du jour et à son PV` : 'Un événement, une séance de comité ou une autre tâche',
       run: () => ouvrir('liens'),
       si: !voit('liens') && (!t.source || data.meetings.length > 0),
       partagee: complet,
     },
-    { label: '🤝 Partager', aide: 'Avec d’autres entités du club : elles la voient et la modifient comme les leurs', run: () => ouvrir('partage'), si: !voit('partage') && partageables.length > 0, partagee: true },
+    { label: 'Partager', icone: 'partage' as const, aide: 'Avec d’autres entités du club : elles la voient et la modifient comme les leurs', run: () => ouvrir('partage'), si: !voit('partage') && partageables.length > 0, partagee: true },
     {
-      label: '🙋 À prendre',
+      label: 'À prendre',
+      icone: 'main' as const,
       aide: 'Proposer la tâche à quelques personnes : l’une d’elles s’en charge elle-même',
       run: () => {
         ouvrir('prendre');
@@ -359,10 +363,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       si: !voit('prendre') && !t.paiement && canAssignOthers,
       partagee: true,
     },
-    { label: '👁 Pour info', aide: 'Des personnes ou des entités qui la voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement, partagee: true },
-    { label: '📊 Sondage', aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create'), partagee: true },
+    { label: 'Pour info', icone: 'voir' as const, aide: 'Des personnes ou des entités qui la voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement, partagee: true },
+    { label: 'Sondage', icone: 'sondage' as const, aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create'), partagee: true },
     {
-      label: '📧 Email',
+      label: 'Email',
+      icone: 'email' as const,
       aide: 'Un email envoyé à une date choisie',
       run: () => {
         setNouvelEmail(true);
@@ -456,10 +461,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           <>
           {peutDupliquer && (
             <button type="button" className="icon-btn dupliquer" onClick={dupliquer} title="Dupliquer : créer une nouvelle tâche à partir de celle-ci" aria-label="Dupliquer la tâche">
-              <svg viewBox="0 0 24 24" width="1.1em" height="1.1em" aria-hidden="true" focusable="false">
-                <rect x="8.5" y="8.5" width="11.5" height="11.5" rx="2" fill="none" stroke="currentColor" strokeWidth="2.2" />
-                <path d="M15.5 4.5H6.5a2 2 0 0 0-2 2v9" fill="none" stroke="currentColor" strokeWidth="2.2" />
-              </svg>
+              <Icone n="dupliquer" />
             </button>
           )}
           <EnvoyerLien
@@ -512,8 +514,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               {jeDecline ? '. Tu as répondu « Pas dispo ».' : ' : tu t’en charges ?'}
             </span>
             <span className="a-prendre-boutons">
-              <button type="button" className="btn primary" disabled={busy} onClick={() => repondre(true)}>🙋 Je m’en charge{jeDecline ? ' quand même' : ''}</button>
-              {!jeDecline && <button type="button" className="btn" disabled={busy} onClick={() => repondre(false)}>🙅 Pas dispo</button>}
+              <button type="button" className="btn primary" disabled={busy} onClick={() => repondre(true)}><Icone n="main" /> Je m’en charge{jeDecline ? ' quand même' : ''}</button>
+              {!jeDecline && <button type="button" className="btn" disabled={busy} onClick={() => repondre(false)}><Icone n="refuser" /> Pas dispo</button>}
             </span>
           </div>
         )}
@@ -899,7 +901,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                         + Nouvelle tâche rattachée
                       </button>
                       {!linking ? (
-                        linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}>🧩 Rattacher une tâche existante</button>
+                        linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}><Icone n="rattacher" /> Rattacher une tâche existante</button>
                       ) : (
                         <select autoFocus defaultValue="" onChange={(e) => { if (e.target.value) linkTask(e.target.value, task.id); setLinking(false); }} onBlur={() => setLinking(false)}>
                           <option value="">— Choisir la tâche à rattacher —</option>
@@ -929,7 +931,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         {editable && ajouts.length > 0 && (
           <div className="full task-plus">
             <span>Ajouter :</span>
-            {ajouts.map((a) => <button key={a.label} type="button" className="chip" title={a.aide} onClick={a.run}>{a.label}</button>)}
+            {ajouts.map((a) => <button key={a.label} type="button" className="chip" title={a.aide} onClick={a.run}><Icone n={a.icone} /> {a.label}</button>)}
           </div>
         )}
         {editable && t.source && (
@@ -956,7 +958,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove} title="Supprimer la tâche" aria-label="Supprimer la tâche"><IconePoubelle /></button>}
+        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove} title="Supprimer la tâche" aria-label="Supprimer la tâche"><Icone n="supprimer" /></button>}
         <span className="grow" />
         <button className="btn" onClick={cancel}>{editable ? 'Annuler' : 'Fermer'}</button>
         {editable && <button className="btn primary" disabled={busy} onClick={() => void submit()}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}
@@ -1209,7 +1211,7 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
           {!disabled && (
             <div className="delai-liens">
               {!choisir && !dateSeule && events.length + meetings.length + xe.length + xm.length > 0 && (
-                <button type="button" className="link-btn" onClick={() => setChoisir(true)}>📌 ou selon un événement / une séance</button>
+                <button type="button" className="link-btn" onClick={() => setChoisir(true)}><Icone n="epingle" /> ou selon un événement / une séance</button>
               )}
               {t.delai && <button type="button" className="link-btn" onClick={() => setT((x) => ({ ...x, delai: '' }))}>✕ Aucun délai</button>}
             </div>
@@ -1222,7 +1224,7 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
           <QuandField t={t} setT={setT} disabled={disabled} />
           {!disabled && (
             <div className="delai-liens">
-              <button type="button" className="link-btn" onClick={() => onMode('fixe')}>📆 ou une date fixe</button>
+              <button type="button" className="link-btn" onClick={() => onMode('fixe')}><Icone n="date" /> ou une date fixe</button>
               <button type="button" className="link-btn" onClick={() => { setChoisir(false); setT((x) => ({ ...x, delaiRef: undefined, delai: '' })); }}>✕ Aucun délai</button>
             </div>
           )}
