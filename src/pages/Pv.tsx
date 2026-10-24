@@ -19,6 +19,7 @@ import { epurer, margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
 import { AvecLiens, LieuSeance } from '../components/Liens';
 import { LIENS_LIEU, avecLienLieu, lienLieu, texteLieu } from '../data/lieux';
+import { lienMailto } from '../data/lienPartage';
 import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { Icone } from '../components/icones';
 import { Modal } from '../components/ui';
@@ -472,7 +473,7 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
     if (fichier) telecharger.current?.(fichier, titrePdf);
     let body = texte;
     if (body.length > 1800) body = body.slice(0, 1800) + (fichier ? '\n…\n(suite dans le PDF joint)' : '\n…\n(liste complète dans l’ordre du jour imprimé)');
-    const mailto = `mailto:${avecAdresse.map((p) => p.email).join(',')}?subject=${encodeURIComponent(sujet)}&body=${encodeURIComponent(body)}`;
+    const mailto = lienMailto(avecAdresse.map((p) => p.email).join(','), sujet, body);
     // La messagerie s'ouvre juste après le téléchargement du PDF.
     if (fichier) setTimeout(() => (window.location.href = mailto), 500);
     else window.location.href = mailto;

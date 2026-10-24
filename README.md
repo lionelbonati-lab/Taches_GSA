@@ -294,11 +294,11 @@ Actions : **PDF** (voir plus bas), **Imprimer**, **Archiver dans la séance** (c
 **Envoyer par email** : une fenêtre choisit séparément
 - le **texte du mail** : les réglages affichés ou un **profil** (ex. « Comité ordinaire », version courte) ;
 - le **PDF joint** : les réglages affichés, un **autre profil** (ex. version complète avec annexes et mise en forme) ou « Pas de PDF » ;
-- le **lien du lieu**, quand la séance est placée sur une carte : une ligne « Itinéraire : … » sous « Lieu : … » ; sur téléphone, le lien ouvre l'**application de navigation** avec l'itinéraire jusqu'au lieu. Au choix : **Google Maps** (par défaut, aussi sur ordinateur), **Waze**, **Plans (Apple)**, **Voir sur la carte** (sans itinéraire) ou **Pas de lien**.
+- le **lien du lieu**, quand la séance est placée sur une carte : une ligne « Itinéraire : … » sous « Lieu : … » ; sur téléphone, le lien ouvre l'**application de navigation** avec l'itinéraire jusqu'au lieu. Au choix : **Google Maps** (par défaut, aussi sur ordinateur), **Waze** (s'ouvre sur le lieu, « Y aller »), **Plans (Apple)**, **Voir sur la carte** (sans itinéraire) ou **Pas de lien**.
 
 Le PDF est préparé tout de suite (nom et taille affichés, « Voir » pour le relire) ; « Aperçu du texte » montre le corps du mail. Puis :
 - **Partager avec le PDF joint** (téléphone, tablette, et ordinateurs qui le permettent) : le mail ou WhatsApp s'ouvre avec le texte et le PDF en pièce jointe ;
-- **Ouvrir dans ma messagerie** : le PDF est téléchargé, puis le mail s'ouvre adressé aux membres du comité, avec l'objet et le texte ; il reste à joindre le PDF (trombone ou glisser-déposer) — un lien « mailto » ne peut pas joindre de fichier ;
+- **Ouvrir dans ma messagerie** : le PDF est téléchargé, puis le mail s'ouvre adressé aux membres du comité, avec l'objet et le texte ; il reste à joindre le PDF (trombone ou glisser-déposer) — un lien « mailto » ne peut pas joindre de fichier. Certaines messageries coupaient le texte au premier « & » : dans les mails ouverts par l'appli (ordre du jour, PV, tâches), « & » est remplacé par « ＆ », de même aspect, et les liens du lieu n'en contiennent pas ;
 - **Copier les adresses**.
 
 Les choix (profils, lien du lieu) sont **mémorisés pour l'entité** (droit « Comité › Ordre du jour ») ; un profil supprimé depuis revient aux réglages affichés. Un ordre du jour **modifié à la main** est envoyé tel quel (texte et PDF), sans profil.

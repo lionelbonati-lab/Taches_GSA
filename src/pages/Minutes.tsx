@@ -20,6 +20,7 @@ import { margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf, pdfDeFeuille, usePiedImprime } from '../components/BoutonPdf';
 import { AvecLiens, LieuSeance } from '../components/Liens';
 import { texteLieu } from '../data/lieux';
+import { lienMailto } from '../data/lienPartage';
 import { Icone } from '../components/icones';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
@@ -349,7 +350,7 @@ export function Minutes() {
     let body = plainText();
     if (body.length > 1800) body = body.slice(0, 1800) + '\n…\n(PV complet en pièce jointe / imprimé)';
     const subject = draftVersion > 1 ? `PV corrigé (version ${draftVersion}) – ${titre}` : `PV – ${titre}`;
-    window.location.href = `mailto:${to}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = lienMailto(to, subject, body);
   };
   const validate = () => {
     if (!s1 || !user || !sheetRef.current) return;

@@ -26,7 +26,18 @@ export function uniteDuLien(hash = typeof location === 'undefined' ? '' : locati
 
 export const lienWhatsApp = (texte: string) => `https://wa.me/?text=${encodeURIComponent(texte)}`;
 
-export const lienEmail = (objet: string, texte: string) => `mailto:?subject=${encodeURIComponent(objet)}&body=${encodeURIComponent(texte)}`;
+/**
+ * Objet ou texte d'un lien « mailto ». Des messageries (sur téléphone surtout) décodent le lien avant de le découper
+ * aux « & » : le mail s'arrêtait au premier « & » du texte. Hors des adresses web (laissées telles quelles), « & » devient
+ * « ＆ » (même aspect). Les liens du lieu des séances (lieux.ts) sont écrits sans « & ».
+ */
+export const pourMailto = (texte: string) => texte.replace(/(https?:\/\/\S+)|&/g, (_, url?: string) => url ?? '＆');
+
+/** Lien « mailto » : adresses, objet et texte (voir pourMailto). */
+export const lienMailto = (a: string, objet: string, texte: string) =>
+  `mailto:${a}?subject=${encodeURIComponent(pourMailto(objet))}&body=${encodeURIComponent(pourMailto(texte))}`;
+
+export const lienEmail = (objet: string, texte: string) => lienMailto('', objet, texte);
 
 /** Message qui accompagne le lien d'une tâche (modifiable avant l'envoi). */
 export function texteTache(

@@ -1,6 +1,6 @@
 import type { AppData, EmailWhen, Meeting, ScheduledEmail, Task } from './types';
 import { addDays, dateSuivante, fmtDate, fullName, isDone, localNow, uid } from './utils';
-import { lienAppli } from './lienPartage';
+import { lienAppli, lienMailto } from './lienPartage';
 
 // Emails programmés au sujet d'une tâche.
 // L'appli n'envoie pas d'email elle-même : à l'heure prévue, l'auteur reçoit une notification et
@@ -107,8 +107,7 @@ export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text:
 
 /** Lien qui ouvre l'email rempli dans la messagerie ; `to` : les adresses (voir recipients, destinataires.ts). */
 export function mailtoHref(data: AppData, task: Task, e: ScheduledEmail, to: string[], unite?: string) {
-  const q = `subject=${encodeURIComponent(fillTemplate(data, task, e, e.objet, unite))}&body=${encodeURIComponent(fillTemplate(data, task, e, e.message, unite))}`;
-  return `mailto:${to.join(',')}?${q}`;
+  return lienMailto(to.join(','), fillTemplate(data, task, e, e.objet, unite), fillTemplate(data, task, e, e.message, unite));
 }
 
 /** Emails à reconduire avec l'occurrence suivante d'une tâche récurrente. */

@@ -2,13 +2,14 @@ import type { LienLieu, Meeting, PointGeo } from './types';
 
 // Lieu des séances placé sur une carte : lien « voir sur la carte » (documents, page Séances) et lien d'itinéraire
 // (email de l'ordre du jour), qui ouvre l'application de navigation sur téléphone.
+// Liens sans « & » : des messageries coupent le texte d'un lien « mailto » au premier « & » (voir pourMailto).
 
 /** Coordonnées arrondies (6 décimales, environ 10 cm). */
 export const arrondir = (p: PointGeo): PointGeo => ({ lat: Math.round(p.lat * 1e6) / 1e6, lng: Math.round(p.lng * 1e6) / 1e6 });
 const coords = (p: PointGeo) => `${arrondir(p).lat},${arrondir(p).lng}`;
 
 /** Voir le lieu sur la carte (Google Maps : l'application sur téléphone, le site ailleurs). */
-export const lienCarte = (p: PointGeo) => `https://www.google.com/maps/search/?api=1&query=${coords(p)}`;
+export const lienCarte = (p: PointGeo) => `https://www.google.com/maps/search/${coords(p)}`;
 
 /** Lieu d'une séance en texte simple : son nom, sinon l'adresse de la carte. */
 export const texteLieu = (m: Pick<Meeting, 'lieu' | 'lieuGeo'>) => m.lieu?.trim() || (m.lieuGeo ? lienCarte(m.lieuGeo) : 'à définir');
@@ -24,8 +25,10 @@ export const LIENS_LIEU: { v: LienLieu; label: string }[] = [
 /** Lien du lieu pour l'email : itinéraire jusqu'au lieu (application de navigation sur téléphone) ou carte. */
 export function lienLieu(p: PointGeo, choix: LienLieu): string | undefined {
   const c = coords(p);
-  if (choix === 'google') return `https://www.google.com/maps/dir/?api=1&destination=${c}`;
-  if (choix === 'waze') return `https://waze.com/ul?ll=${c}&navigate=yes`;
+  // Point de départ vide : la position actuelle.
+  if (choix === 'google') return `https://www.google.com/maps/dir//${c}`;
+  // Waze montre le lieu, avec « Y aller ».
+  if (choix === 'waze') return `https://waze.com/ul?ll=${c}`;
   if (choix === 'apple') return `https://maps.apple.com/?daddr=${c}`;
   if (choix === 'carte') return lienCarte(p);
   return undefined;
