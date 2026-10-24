@@ -18,7 +18,8 @@ import { useClubOptional } from '../data/club';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf, pdfDeFeuille, usePiedImprime } from '../components/BoutonPdf';
-import { AvecLiens } from '../components/Liens';
+import { AvecLiens, LieuSeance } from '../components/Liens';
+import { texteLieu } from '../data/lieux';
 import { Icone } from '../components/icones';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
@@ -296,7 +297,7 @@ export function Minutes() {
   const plainText = () => {
     const out: string[] = [`PROCÈS-VERBAL – ${titre}`];
     if (versionLine) out.push(versionLine);
-    if (s1) out.push(`${longDate(s1.date)} · ${hm(m.heureDebut ?? s1.heure)}${m.heureFin ? ` – ${hm(m.heureFin)}` : ''} · Lieu : ${s1.lieu || 'à définir'}`);
+    if (s1) out.push(`${longDate(s1.date)} · ${hm(m.heureDebut ?? s1.heure)}${m.heureFin ? ` – ${hm(m.heureFin)}` : ''} · Lieu : ${texteLieu(s1)}`);
     out.push(`Présents : ${presentsTxt}`, `Excusés : ${excusesTxt}`);
     if (m.invites?.trim()) out.push(`Invités : ${m.invites.trim()}`);
     out.push('');
@@ -493,7 +494,7 @@ export function Minutes() {
       </header>
       <section className="odj-head">
         <p><b>Début de séance :</b> {hm(m.heureDebut ?? s1?.heure) || '—'}{m.heureFin && <> · <b>Fin :</b> {hm(m.heureFin)}</>}</p>
-        <p><b>Lieu :</b> {s1?.lieu || 'à définir'}</p>
+        <p><b>Lieu :</b> {s1 ? <LieuSeance m={s1} /> : 'à définir'}</p>
         <p><b>Présents :</b> {presentsTxt}</p>
         <p><b>Excusés :</b> {excusesTxt}</p>
         {absents.length > 0 && (m.presents.length > 0 || m.excuses.length > 0) && <p><b>Absents :</b> {absents.map((p) => fullName(p)).join(', ')}</p>}
@@ -555,7 +556,7 @@ export function Minutes() {
       )}
       {deleted.length > 0 && <p><b>Tâches supprimées :</b> {deleted.join(', ')}</p>}
       {s2 && (
-        <p className="pv-next"><b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{s2.heure && ` à ${hm(s2.heure)}`} – Lieu : {s2.lieu || 'à définir'}</p>
+        <p className="pv-next"><b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{s2.heure && ` à ${hm(s2.heure)}`} – Lieu : <LieuSeance m={s2} /></p>
       )}
       {opts.annexes && <ListeAnnexes annexes={annexes} />}
       <footer className="pv-foot">
@@ -627,7 +628,7 @@ export function Minutes() {
             <section className="panel min-session">
               <div className="min-session-row">
                 <strong>{s1.titre} · {longDate(s1.date)}</strong>
-                <span className="muted">Lieu : {s1.lieu || 'à définir'}</span>
+                <span className="muted">Lieu : <LieuSeance m={s1} /></span>
               </div>
               <div className="min-session-row">
                 <label className="inline">Début <input type="time" value={m.heureDebut ?? ''} disabled={!editable} onChange={(e) => setMinutes((x) => { x.heureDebut = e.target.value || undefined; })} /></label>

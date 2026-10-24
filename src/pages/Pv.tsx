@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useStore } from '../data/store';
 import { hasPermission, userRoles } from '../data/permissions';
-import type { AppData, ChecklistItem, Meeting, Person, PvSettings, Section, StyleDocs, Task } from '../data/types';
+import type { AppData, ChecklistItem, LienLieu, Meeting, Person, PvSettings, Section, StyleDocs, Task } from '../data/types';
 import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
@@ -17,7 +17,8 @@ import { MiseEnForme } from '../components/MiseEnForme';
 import { ProfilsOdj } from '../components/ProfilsOdj';
 import { epurer, margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
-import { AvecLiens } from '../components/Liens';
+import { AvecLiens, LieuSeance } from '../components/Liens';
+import { LIENS_LIEU, avecLienLieu, lienLieu, texteLieu } from '../data/lieux';
 import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { Icone } from '../components/icones';
 import { Modal } from '../components/ui';
@@ -260,7 +261,7 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
   const plainText = () => {
     const out: string[] = [s1 ? `${titre} – ${longDate(s1.date)}` : titre];
     if (s1 && heure(s1)) out.push(`Début de séance : ${heure(s1)}`);
-    if (s1) out.push(`Lieu : ${s1.lieu || 'à définir'}`);
+    if (s1) out.push(`Lieu : ${texteLieu(s1)}`);
     if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, `Excusés : ${excusesTxt}`);
     out.push('', 'Ordre du jour', ...outlineText(listSecs));
     if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
@@ -337,7 +338,7 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir }: {
 
       <section className="odj-head">
         {s1 && heure(s1) && <p><b>Début de séance :</b> {heure(s1)}</p>}
-        {s1 && <p><b>Lieu :</b> {s1.lieu || 'à définir'}</p>}
+        {s1 && <p><b>Lieu :</b> <LieuSeance m={s1} /></p>}
         {s.parts.presences && (
           <>
             <p><b>Convoqués :</b> {committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}</p>
@@ -360,7 +361,7 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir }: {
 
       {s2 && (
         <p className="pv-next">
-          <b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{heure(s2) && ` à ${heure(s2)}`} – Lieu : {s2.lieu || 'à définir'}
+          <b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{heure(s2) && ` à ${heure(s2)}`} – Lieu : <LieuSeance m={s2} />
         </p>
       )}
       <ListeAnnexes annexes={annexes} />
@@ -395,14 +396,17 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
   const valide = (id: string | undefined, pdf = false) => (id && (profils.some((p) => p.id === id) || (pdf && id === SANS_PDF)) ? id : '');
   const [texteId, setTexteId] = useState(() => valide(data.reglagesOdj?.envoi?.texte));
   const [pdfId, setPdfId] = useState(() => valide(data.reglagesOdj?.envoi?.pdf, true));
+  const [lieuChoix, setLieuChoix] = useState<LienLieu>(() => data.reglagesOdj?.envoi?.lieu ?? 'google');
   // Avec le droit de changer l'ordre du jour, le choix est mémorisé pour l'entité : la prochaine fois, les mêmes profils.
-  const choisir = (k: 'texte' | 'pdf', v: string) => {
-    (k === 'texte' ? setTexteId : setPdfId)(v);
+  const choisir = (k: 'texte' | 'pdf' | 'lieu', v: string) => {
+    if (k === 'lieu') setLieuChoix(v as LienLieu);
+    else (k === 'texte' ? setTexteId : setPdfId)(v);
     if (canEdit)
       updateSilent((d) => {
         const { envoi: avant, ...reste } = d.reglagesOdj ?? {};
-        const envoi = { ...avant, [k]: v || undefined };
-        d.reglagesOdj = envoi.texte || envoi.pdf ? { ...reste, envoi } : reste;
+        // Itinéraire Google Maps : le choix par défaut, pas besoin de le garder.
+        const envoi = { ...avant, [k]: v && !(k === 'lieu' && v === 'google') ? v : undefined };
+        d.reglagesOdj = envoi.texte || envoi.pdf || envoi.lieu ? { ...reste, envoi } : reste;
       });
   };
 
@@ -415,7 +419,10 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
   const pdfChoix = edite && pdfId !== SANS_PDF ? '' : pdfId;
   const avecPdf = pdfChoix !== SANS_PDF;
   const rt = reglages(texteId);
-  const texte = edite ? edite.texte : contenuOdj(c, rt.s, rt.joursApres).plainText();
+  // Lieu placé sur la carte : lien sous « Lieu : … » (sur téléphone, l'itinéraire s'ouvre dans l'application de navigation).
+  const urlLieu = c.s1?.lieuGeo && lienLieu(c.s1.lieuGeo, lieuChoix);
+  const texteOdj = edite ? edite.texte : contenuOdj(c, rt.s, rt.joursApres).plainText();
+  const texte = urlLieu ? avecLienLieu(texteOdj, urlLieu, lieuChoix) : texteOdj;
   const rp = reglages(pdfChoix);
   const contenuPdf = avecPdf && !edite ? contenuOdj(c, rp.s, rp.joursApres) : null;
   const feuillePdf = useRef<HTMLDivElement>(null);
@@ -520,6 +527,14 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
             <option value={SANS_PDF}>Pas de PDF</option>
           </select>
         </label>
+        {c.s1?.lieuGeo && (
+          <label>
+            Lien du lieu
+            <select value={lieuChoix} onChange={(e) => choisir('lieu', e.target.value)}>
+              {LIENS_LIEU.map((x) => <option key={x.v} value={x.v}>{x.label}</option>)}
+            </select>
+          </label>
+        )}
         {avecPdf && (
           <p className="small envoi-etat" aria-live="polite">
             {fichier ? (

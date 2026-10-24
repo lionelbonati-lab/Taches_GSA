@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
@@ -22,6 +22,11 @@ import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { margesArchive, policeArchive } from '../data/styleDocs';
 import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
+import { LieuSeance, Lien } from '../components/Liens';
+import { dernierPoint, lienCarte, lieuxConnus } from '../data/lieux';
+
+// Carte (Leaflet) chargée seulement quand on place un lieu.
+const CarteLieu = lazy(() => import('../components/CarteLieu'));
 
 // Onglets « Comité » (séances) et « Événements » : même principe, champs différents (fiche d'un événement : EventModal).
 
@@ -125,7 +130,7 @@ export function Meetings() {
         <div className="grow">
           <strong>{m.titre}</strong>
           <div className="muted">
-            {m.heure && `${m.heure.replace(':', 'h')} · `}{m.lieu}{!past && ` · dans ${daysUntil(m.date)} j`}
+            {m.heure && `${m.heure.replace(':', 'h')} · `}<LieuSeance m={m} vide="" />{!past && ` · dans ${daysUntil(m.date)} j`}
             {annuelle(m) ? ' · 🔁 chaque année' : ' · une seule fois'}
           </div>
           <Excuses m={m} past={past} />
@@ -279,7 +284,14 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
   const [v, setV] = useState<Meeting>(meeting);
   const [choixFait, setChoixFait] = useState(false);
   const [err, setErr] = useState('');
+  const [carte, setCarte] = useState(false);
   const set = (p: Partial<Meeting>) => setV((x) => ({ ...x, ...p }));
+  // Lieux des autres séances : proposés à la saisie ; un lieu déjà placé sur la carte reprend son épingle.
+  const connus = useMemo(() => lieuxConnus(data.meetings.filter((x) => x.id !== meeting.id)), [data.meetings, meeting.id]);
+  const setLieu = (lieu: string) => {
+    const k = connus.find((x) => x.nom.toLocaleLowerCase('fr') === lieu.trim().toLocaleLowerCase('fr'));
+    set({ lieu, ...(k?.geo ? { lieuGeo: k.geo } : {}) });
+  };
   const proposition = (date: string) => {
     const n = newMeeting(data.meetings, date, mot);
     return { titre: n.titre, unique: n.unique };
@@ -310,7 +322,7 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
     onClose();
   };
   const note = linkedTasksNote(data.tasks, v.id, 'meeting');
-  const field = (k: 'heure' | 'lieu', label: string, type: string) => (
+  const field = (k: 'heure', label: string, type: string) => (
     <label>
       {label}
       <input type={type} value={v[k] ?? ''} onChange={(e) => set({ [k]: e.target.value })} />
@@ -328,7 +340,30 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
           <input type="date" value={v.date} onChange={(e) => setDate(e.target.value)} />
         </label>
         {field('heure', 'Heure', 'time')}
-        {field('lieu', 'Lieu', 'text')}
+        <label>
+          Lieu
+          <input value={v.lieu ?? ''} onChange={(e) => setLieu(e.target.value)} list="lieux-seances" />
+          <datalist id="lieux-seances">
+            {connus.map((k) => <option key={k.nom} value={k.nom}>{k.geo ? 'placé sur la carte' : ''}</option>)}
+          </datalist>
+        </label>
+        <div className="full lieu-carte">
+          {v.lieuGeo ? (
+            <p className="row wrap">
+              <span><Icone n="lieu" /> Placé sur la carte</span>
+              <Lien href={lienCarte(v.lieuGeo)}>Voir</Lien>
+              {!carte && <button type="button" className="btn small" onClick={() => setCarte(true)}>Déplacer l’épingle</button>}
+              <button type="button" className="btn small" onClick={() => set({ lieuGeo: undefined })}>Retirer de la carte</button>
+            </p>
+          ) : (
+            !carte && <button type="button" className="btn small" onClick={() => setCarte(true)}><Icone n="lieu" /> Placer sur la carte</button>
+          )}
+          {carte && (
+            <Suspense fallback={<p className="muted small">Chargement de la carte…</p>}>
+              <CarteLieu point={v.lieuGeo} centre={dernierPoint(data.meetings)} recherche={v.lieu} onChange={(p) => set({ lieuGeo: p })} />
+            </Suspense>
+          )}
+        </div>
         <label className="inline full">
           <input type="checkbox" checked={!v.unique} onChange={(e) => { setChoixFait(true); set({ unique: e.target.checked ? undefined : true }); }} />
           🔁 Revient chaque année {/^\d{4}-\d{2}/.test(v.date) && `(séance ${duMois(v.date)})`}

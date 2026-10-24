@@ -417,6 +417,15 @@ export interface TachePartagee {
   ancienne?: { comite: string; jusqua: string };
 }
 
+/** Point sur une carte (degrés). */
+export interface PointGeo {
+  lat: number;
+  lng: number;
+}
+
+/** Lien du lieu dans l'email de l'ordre du jour : itinéraire (application de navigation), carte, ou aucun. */
+export type LienLieu = 'google' | 'waze' | 'apple' | 'carte' | 'aucun';
+
 export interface Meeting {
   id: string;
   titre: string;
@@ -424,6 +433,8 @@ export interface Meeting {
   /** Heure de début (ex. 19:30). */
   heure?: string;
   lieu: string;
+  /** Lieu placé sur la carte (épingle) : lien « voir sur la carte » dans les documents, itinéraire dans l'email. */
+  lieuGeo?: PointGeo;
   /** Anciens champs de la séance (points particuliers à l'ordre du jour, notes) : plus saisis ni affichés. */
   ordreDuJour?: string;
   notes?: string;
@@ -751,9 +762,9 @@ export interface ReglagesOdj {
   profils?: ProfilOdj[];
   /**
    * « Envoyer par email » : profil du texte du mail et profil du PDF joint (`aucun` : sans PDF) ;
-   * rien, ou un profil supprimé depuis : les réglages affichés.
+   * rien, ou un profil supprimé depuis : les réglages affichés. `lieu` : lien du lieu dans le mail (défaut : itinéraire Google Maps).
    */
-  envoi?: { texte?: string; pdf?: string };
+  envoi?: { texte?: string; pdf?: string; lieu?: LienLieu };
 }
 
 /** Profil de l'ordre du jour (« Comité ordinaire », « Assemblée générale »…), réappliqué en un clic. */

@@ -1,4 +1,6 @@
 import type { ReactNode } from 'react';
+import type { Meeting } from '../data/types';
+import { lienCarte } from '../data/lieux';
 
 // Adresses web d'un texte libre (remarque, note, point de checklist) rendues cliquables :
 // à l'écran, dans le PDF créé par l'appli et dans les archives.
@@ -34,4 +36,10 @@ export function AvecLiens({ texte }: { texte: string }) {
   if (!out.length) return <>{texte}</>;
   if (i < texte.length) out.push(texte.slice(i));
   return <>{out}</>;
+}
+
+/** Lieu d'une séance : lien « voir sur la carte » quand il y est placé (écran, PDF, archives). */
+export function LieuSeance({ m, vide = 'à définir' }: { m: Pick<Meeting, 'lieu' | 'lieuGeo'>; vide?: string }) {
+  const nom = m.lieu?.trim() || (m.lieuGeo ? 'voir sur la carte' : vide);
+  return m.lieuGeo ? <Lien href={lienCarte(m.lieuGeo)}>{nom}</Lien> : <>{nom}</>;
 }

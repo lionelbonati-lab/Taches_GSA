@@ -264,6 +264,16 @@ pre.odj { font-family: inherit; white-space: pre-wrap; margin: 6px 0; color: var
 /* Comité › Séances : les séances passées, repliées sous la liste. */
 .seances-passees { margin-top: 18px; }
 .seances-passees > .agenda { margin-top: 8px; }
+/* Fiche d'une séance : lieu placé sur une carte (épingle), recherche d'adresse. */
+.lieu-carte > p { margin: 0; gap: 10px; align-items: center; }
+.carte-lieu { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.carte-lieu p { margin: 0; }
+.carte-recherche { display: flex; flex-wrap: wrap; gap: 6px; }
+.carte-recherche input { flex: 1 1 180px; min-width: 0; }
+.carte-resultats { list-style: none; padding: 0; margin: 0; max-height: 160px; overflow: auto; }
+.carte-resultats .btn.link { padding: 4px 0; text-align: left; white-space: normal; }
+.carte-boite { height: 260px; position: relative; z-index: 0; border-radius: 10px; border: 1px solid var(--border); }
+.carte-epingle { background: none; border: none; }
 .agenda-item p { margin: 6px 0; }
 /* Séances annuelles : celles de l'année prochaine à ajouter, anciens noms à remplacer. */
 .seances-suivantes h2, .seances-noms h2 { margin: 0 0 4px; font-size: 1.05rem; }
