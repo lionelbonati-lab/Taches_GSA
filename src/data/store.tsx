@@ -247,6 +247,9 @@ interface Store {
   annulable: { action: string; at: string } | null;
   /** Annule la dernière action : les éléments qu'elle a changés reviennent comme avant (sauf modifiés depuis). */
   annuler: () => void;
+  /** Dernière action annulée, que l'on peut refaire (jusqu'à la prochaine action). */
+  refaisable: { action: string; at: string } | null;
+  refaire: () => void;
   setPrefs: (p: Partial<Prefs>) => void;
   /** Tâche partagée par une autre entité : promesse résolue une fois la modification envoyée à son entité (acceptée ou non). */
   saveTask: (t: Task, isNew: boolean) => void | Promise<void>;
@@ -469,20 +472,25 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
 
   // « Annuler » : chaque action laisse une étiquette sur les données qu'elle produit (plusieurs modifications groupées :
   // étiquettes réunies) ; une fois affichées, les éléments changés depuis l'affichage précédent sont retenus.
-  // Action qui ne s'annule pas (`bloque`) : celles groupées avec elle non plus.
-  type Etiquette = { actions: string[]; suite: boolean; bloque: boolean };
+  // Action qui ne s'annule pas (`bloque`) : celles groupées avec elle non plus. `sens` : annulation (elle va dans
+  // « Refaire ») ou action refaite (elle revient dans « Annuler »).
+  type Etiquette = { actions: string[]; suite: boolean; bloque: boolean; sens?: 'annuler' | 'refaire' };
   const etiquettes = useRef(new WeakMap<AppData, Etiquette>());
   const affichees = useRef(data);
   affichees.current = data;
-  const etiqueter = (prev: AppData, next: AppData, o: { action?: string; suite?: boolean; bloque?: boolean }) => {
+  const etiqueter = (prev: AppData, next: AppData, o: { action?: string; suite?: boolean; bloque?: boolean; sens?: Etiquette['sens'] }) => {
     const e = prev === affichees.current ? undefined : etiquettes.current.get(prev);
     etiquettes.current.set(next, {
       actions: [...(e?.actions ?? []), ...(o.action ? [o.action] : [])],
       suite: !!(e?.suite || o.suite),
       bloque: !!(e?.bloque || o.bloque),
+      sens: o.sens ?? e?.sens,
     });
   };
-  const [pile, setPile] = useState<{ id: string; action: string; at: string; items: Changement[] }[]>([]);
+  type Entree = { id: string; action: string; at: string; items: Changement[] };
+  const [pile, setPile] = useState<Entree[]>([]);
+  // Actions annulées, à refaire ; une nouvelle action les oublie.
+  const [aRefaire, setARefaire] = useState<Entree[]>([]);
   const precedentes = useRef(data);
   const derniere = useRef<AppData | null>(null);
   useEffect(() => {
@@ -499,11 +507,17 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     // Paiement, fichiers effacés : l'action ne s'annule pas, ni celles d'avant (elles ont pu en dépendre).
     if (horsAnnulation(items)) {
       derniere.current = null;
+      setARefaire([]);
       return setPile([]);
     }
+    const entree = { id: uid('a'), action: e.actions[0] ?? '', at: new Date().toISOString(), items };
+    if (e.sens === 'annuler') {
+      derniere.current = null;
+      return setARefaire((r) => [entree, ...r].slice(0, 20));
+    }
     if (e.actions.length) {
-      const entree = { id: uid('a'), action: e.actions[0], at: new Date().toISOString(), items };
       setPile((p) => [entree, ...p].slice(0, 20));
+      if (e.sens !== 'refaire') setARefaire([]);
     } else if (avant === derniere.current) {
       // Suite de l'action affichée juste avant (ex. PV : changement de tâche inscrit au PV) : annulées ensemble.
       setPile((p) => (p.length ? [{ ...p[0], items: reunir(p[0].items, items) }, ...p.slice(1)] : p));
@@ -511,7 +525,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     derniere.current = data;
   }, [data]);
   // Autre personne connectée : rien à annuler de la précédente.
-  useEffect(() => setPile([]), [userId]);
+  useEffect(() => {
+    setPile([]);
+    setARefaire([]);
+  }, [userId]);
 
   const update = useCallback(
     (fn: (d: AppData) => void, action: string, o?: { annulable?: boolean }) => {
@@ -544,22 +561,30 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [],
   );
 
-  const annuler = useCallback(() => {
-    const a = pile[0];
+  // Annuler (la dernière action revient en arrière, et passe dans « Refaire ») ou refaire (l'annulation est défaite).
+  const revenirSur = (sens: 'annuler' | 'refaire') => {
+    const a = (sens === 'annuler' ? pile : aRefaire)[0];
     if (!a) return;
     const { conflits } = annulerChangements(data, a.items);
-    setPile((p) => p.filter((x) => x.id !== a.id));
+    (sens === 'annuler' ? setPile : setARefaire)((p) => p.filter((x) => x.id !== a.id));
+    const mot = sens === 'annuler' ? 'Annulé' : 'Refait';
     setData((prev) => {
       const next = annulerChangements(prev, a.items).data;
-      next.log = [{ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `Annulé : ${a.action}` }, ...next.log].slice(0, 300);
+      next.log = [{ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `${mot} : ${a.action}` }, ...next.log].slice(0, 300);
+      etiqueter(prev, next, { action: a.action, sens });
       return next;
     });
+    const signe = sens === 'annuler' ? '↶' : '↷';
     setToast(
       conflits
-        ? `↶ Annulé en partie : ${a.action} (modifié depuis par ailleurs : ${conflits > 1 ? `${conflits} éléments gardés` : 'un élément gardé'} tel quel)`
-        : `↶ Annulé : ${a.action}`,
+        ? `${signe} ${mot} en partie : ${a.action} (modifié depuis par ailleurs : ${conflits > 1 ? `${conflits} éléments gardés` : 'un élément gardé'} tel quel)`
+        : `${signe} ${mot} : ${a.action}`,
     );
-  }, [pile, data, userId]);
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const annuler = useCallback(() => revenirSur('annuler'), [pile, data, userId]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const refaire = useCallback(() => revenirSur('refaire'), [aRefaire, data, userId]);
 
   const prefs = { ...DEFAULT_PREFS, ...(userId ? data.prefs[userId] : {}) };
 
@@ -835,6 +860,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       next.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `Données restaurées depuis ${label}` });
       setData(next);
       setPile([]);
+      setARefaire([]);
     },
     [userId],
   );
@@ -1035,6 +1061,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     updateSilent,
     annulable: pile[0] ? { action: pile[0].action, at: pile[0].at } : null,
     annuler,
+    refaisable: aRefaire[0] ? { action: aRefaire[0].action, at: aRefaire[0].at } : null,
+    refaire,
     setPrefs,
     saveTask,
     attribuerTache,

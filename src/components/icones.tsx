@@ -6,7 +6,7 @@ import {
   MailPlus, Maximize2, Menu, Merge, MessageCircle, MessageSquarePlus, Minimize2, Move, Network, NotebookPen, Palette, PartyPopper, Paperclip, Pencil, Pin,
   Play, Printer, Puzzle, RefreshCw, Repeat, RotateCcw, Save, ScrollText, Send, Settings, Share2, ShieldCheck, ShieldHalf, Signature,
   Smartphone, Sparkles, SquareCheckBig, Stamp, Undo2, Upload, UserLock, UserX, Users, Calendar, Camera, CreditCard, Receipt, FolderTree, PanelTop, History,
-  MapPin, Search, LocateFixed,
+  MapPin, Search, LocateFixed, Redo2, GripVertical, ListPlus,
 } from 'lucide-react';
 
 // Icônes des boutons, dessinées au trait (bibliothèque Lucide, licence ISC), de la couleur du texte et à sa taille.
@@ -91,6 +91,9 @@ export const ICONES = {
   recharger: RefreshCw,
   revenir: RotateCcw,
   annuler: Undo2,
+  refaire: Redo2,
+  poignee: GripVertical,
+  ajoutTache: ListPlus,
   sauvegarde: DatabaseBackup,
   fichier: Paperclip,
   dossier: FolderOpen,

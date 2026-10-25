@@ -677,6 +677,11 @@ export interface Prefs {
   aFaireToutes?: boolean;
   /** Page « Membres du club » : colonnes (ordre, masquées) et tri, propres à chacun. */
   membresColonnes?: ColonnesMembres;
+  /**
+   * Accueil, bloc « Pour info » : tâches marquées « ✓ Vu », qui n'y figurent plus (tâche d'ici : son identifiant ;
+   * d'une autre entité : « entité:tâche ») → date.
+   */
+  pourInfoVus?: Record<string, string>;
 }
 
 /** Colonnes de la page « Membres du club » : ordre, colonnes masquées, tri. */

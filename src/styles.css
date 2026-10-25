@@ -602,10 +602,32 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 /* ---------- Notifications ---------- */
 .bell-wrap { position: relative; margin-left: auto; }
 /* « Annuler » (dernière action), juste avant la cloche. */
-.annuler-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); background: var(--surface); color: inherit; font: inherit; font-size: 0.85rem; cursor: pointer; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
+.annuler-btns { margin-left: auto; display: inline-flex; gap: 4px; }
+.annuler-btns + .bell-wrap { margin-left: 0; }
+.annuler-btn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); background: var(--surface); color: inherit; font: inherit; font-size: 0.85rem; cursor: pointer; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
 .annuler-btn:hover { background: var(--surface2); }
-.annuler-btn + .bell-wrap { margin-left: 0; }
 @media (max-width: 767px) { .annuler-text { display: none; } .annuler-btn { padding: 6px 8px; } }
+/* Pilule : barre d'outils flottante en icônes (prise de notes du PV), déplaçable par sa poignée. */
+.pilule { position: fixed; z-index: 35; display: flex; align-items: center; gap: 1px; padding: 3px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); user-select: none; -webkit-user-select: none; }
+.pilule.defaut { left: 50%; bottom: 24px; transform: translateX(-50%); }
+.pilule-outil { display: inline-flex; align-items: center; }
+.pilule button { position: relative; width: 36px; height: 36px; border: none; border-radius: 999px; background: none; color: inherit; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
+.pilule button:hover:not(:disabled) { background: var(--surface2); }
+.pilule button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.pilule button:disabled { opacity: 0.35; cursor: default; }
+.pilule .poignee { width: 24px; color: var(--muted); cursor: grab; touch-action: none; }
+.pilule .poignee:active { cursor: grabbing; }
+.pilule .pilule-plier { width: 30px; color: var(--muted); font-size: 0.95rem; }
+.pilule-sep { width: 1px; height: 20px; margin: 0 3px; background: var(--border); }
+.pilule-etat { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; border: 1.5px solid var(--surface); }
+.pilule-etat.envoi { background: #f59e0b; }
+.pilule-etat.off { background: var(--late); }
+@media (max-width: 767px) {
+  .pilule.defaut { bottom: calc(150px + env(safe-area-inset-bottom)); } /* au-dessus du bouton « + » */
+  .pilule button { width: 33px; height: 33px; }
+  .pilule .poignee { width: 22px; }
+  .pilule-sep { margin: 0 1px; }
+}
 .bell { position: relative; border: none; background: none; font-size: 1.3rem; cursor: pointer; padding: 6px 8px; border-radius: 8px; line-height: 1; }
 .bell:hover { background: var(--surface2); }
 .bell-badge { position: absolute; top: 0; right: 0; background: var(--late); color: #fff; font-size: 0.65rem; font-weight: 700; min-width: 17px; height: 17px; border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--surface); }
@@ -1420,6 +1442,9 @@ body.glisse-en-cours, body.glisse-en-cours * { cursor: grabbing !important; user
 
 .badge.proposal { background: #0e7490; font-size: 0.7rem; padding: 2px 7px; vertical-align: middle; }
 .badge.pour-info { background: #6d28d9; font-size: 0.7rem; padding: 2px 7px; vertical-align: middle; }
+.pour-info-vu { display: flex; justify-content: flex-end; margin-top: 6px; }
+.pour-info-vu .btn { display: inline-flex; align-items: center; gap: 4px; }
+h2 .h2-action { align-self: auto; margin-left: 10px; font-weight: 400; vertical-align: middle; }
 .partage-banner { margin: 0; border: 1px solid #0e7490; background: color-mix(in srgb, #0e7490 10%, var(--surface)); border-radius: 8px; padding: 7px 10px; font-size: 0.9rem; }
 .partage .chips, .pour-info .chips, .a-prendre .chips { margin-top: 4px; }
 /* À prendre : tâche proposée à quelques personnes, l'une s'en charge (« 🙋 Je m'en charge »). */

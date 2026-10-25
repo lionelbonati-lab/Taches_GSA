@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { useStore } from '../data/store';
+import { useStore, useSyncStatus } from '../data/store';
 import { FULL_AGENDA, echeanceSuivante, etatTerminee, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
@@ -23,6 +23,7 @@ import { texteLieu } from '../data/lieux';
 import { lienMailto } from '../data/lienPartage';
 import { Icone } from '../components/icones';
 import { revenir } from '../data/annuler';
+import { Pilule, type OutilPilule } from '../components/Pilule';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -56,7 +57,10 @@ const letter = (i: number) => {
 };
 
 export function Minutes() {
-  const { data, user, can, canEditTask, saveTask, update, updateSilent } = useStore();
+  const { data, user, can, canEditTask, saveTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast } = useStore();
+  const sync = useSyncStatus();
+  const presencesRef = useRef<HTMLElement>(null);
+  const diversRef = useRef<HTMLDivElement>(null);
   const club = useClubOptional();
   useOuvrirDocs();
   const [params] = useSearchParams();
@@ -346,6 +350,42 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     setOpenNotes({});
     setMsg(`↺ PV remis à zéro${n ? ' : tâches remises comme avant' : ''}. « Annuler » (en haut) pour revenir en arrière.`);
   };
+
+  // Pilule flottante de la prise de notes : les gestes de la séance, en icônes, toujours à portée de main.
+  const terminer = () => s1 && setMinutes((x) => { x.heureFin = nowHM(); }, { annulable: `Séance « ${s1.titre} » terminée` });
+  const enregistrer = () => {
+    // Note en cours de frappe : enregistrée tout de suite (sinon après une courte pause), puis envoyée au serveur.
+    if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    if (!cloud) return setToast('✓ Tout est enregistré (démo : dans ce navigateur).');
+    setTimeout(() => {
+      cloud.sync
+        .flushNow()
+        .then(() => setToast(cloud.sync.status === 'horsLigne' ? '⚠ Hors ligne : enregistré sur cet appareil, envoyé dès le retour de la connexion.' : '✓ Tout est enregistré sur le serveur.'))
+        .catch((e: Error) => setToast(`⚠️ Envoi impossible pour l’instant (${e.message}) : nouvel essai automatique.`));
+    }, 50);
+  };
+  const allerA = (el: HTMLElement | null, focus?: boolean) => {
+    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (focus) setTimeout(() => el?.querySelector('textarea')?.focus({ preventScroll: true }), 350);
+  };
+  const etatEnvoi = !cloud ? 'ok' : sync.status === 'horsLigne' ? 'off' : sync.status === 'envoi' || sync.pending ? 'envoi' : 'ok';
+  const outils: OutilPilule[] = [
+    { icone: 'annuler', titre: annulable ? `Annuler : ${annulable.action}` : 'Annuler (rien à annuler)', onClick: annuler, disabled: !annulable },
+    { icone: 'refaire', titre: refaisable ? `Refaire : ${refaisable.action}` : 'Refaire (rien à refaire)', onClick: refaire, disabled: !refaisable },
+    !m.demarreLe
+      ? { icone: 'demarrer', titre: 'Démarrer la séance', onClick: start, separe: true }
+      : { icone: 'terminer', titre: m.heureFin ? `Séance terminée à ${hm(m.heureFin)}` : 'Terminer la séance', onClick: terminer, disabled: !!m.heureFin, separe: true },
+    {
+      icone: 'enregistrer',
+      titre: etatEnvoi === 'off' ? `Hors ligne${sync.pending ? ` · ${sync.pending} en attente` : ''} : enregistrer` : etatEnvoi === 'envoi' ? 'Envoi en cours… : enregistrer maintenant' : 'Tout est enregistré : enregistrer maintenant',
+      onClick: enregistrer,
+      etat: etatEnvoi,
+    },
+    { icone: 'personnes', titre: 'Présences', onClick: () => allerA(presencesRef.current), separe: true },
+    ...(data.sections.some((x) => can('tasks.createAny', x.id)) ? [{ icone: 'ajoutTache' as const, titre: 'Nouvelle tâche décidée', onClick: () => addTask('') }] : []),
+    { icone: 'note', titre: 'Note « Divers »', onClick: () => allerA(diversRef.current, true) },
+    { icone: 'pdf', titre: 'Voir le PV', onClick: () => setView('pv'), separe: true },
+  ];
 
   // ---------- Texte et document du PV ----------
   const noteOf = (key: string) => m.notes[key]?.trim() ?? '';
@@ -723,7 +763,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                 {editable && !m.valideLe && (!m.demarreLe ? (
                   <button className="btn primary" onClick={start}><Icone n="demarrer" /> Démarrer la séance</button>
                 ) : !m.heureFin ? (
-                  <button className="btn" onClick={() => setMinutes((x) => { x.heureFin = nowHM(); }, { annulable: `Séance « ${s1.titre} » terminée` })}><Icone n="terminer" /> Terminer la séance</button>
+                  <button className="btn" onClick={terminer}><Icone n="terminer" /> Terminer la séance</button>
                 ) : (
                   <span className="pbadge closed">Séance terminée – notes et points encore modifiables</span>
                 ))}
@@ -735,7 +775,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               </div>
             </section>
 
-            <section className="panel">
+            <section className="panel" ref={presencesRef}>
               <h2 className="min-h2">Présences</h2>
               <div className="min-presence">
                 {committee.map((p) => (
@@ -777,12 +817,13 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                   {orphanPolls.map(pollRow)}
                 </div>
               )}
-              <div className="panel min-section">
+              <div className="panel min-section" ref={diversRef}>
                 <h3>Divers</h3>
                 <NoteField value={m.notes.divers ?? ''} onCommit={(v) => setNote('divers', v)} placeholder="Points divers, informations, prochaine séance…" readOnly={!editable} />
               </div>
             </section>
           </div>
+          {editable && <Pilule id="pv" label="Outils de la prise de notes" outils={outils} />}
           <aside className="min-side">
             <div className="panel">
               <h2 className="min-h2">Suivi de la séance</h2>

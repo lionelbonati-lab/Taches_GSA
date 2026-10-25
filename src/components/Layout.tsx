@@ -297,30 +297,42 @@ function UnitSwitch() {
 /** Version réelle : état de l'enregistrement sur le serveur. */
 /**
  * « Annuler » : défait la dernière action faite ici (tâche enregistrée, présences, réglage…), aussi avec Ctrl+Z (⌘Z)
- * hors d'un champ de saisie, où le navigateur annule la frappe.
+ * hors d'un champ de saisie, où le navigateur annule la frappe. « Refaire » (après une annulation) : Ctrl+Y, Ctrl+Maj+Z.
  */
 function BoutonAnnuler() {
-  const { annulable, annuler } = useStore();
-  const ref = useRef(annuler);
-  ref.current = annuler;
-  const actif = !!annulable;
+  const { annulable, annuler, refaisable, refaire } = useStore();
+  const ref = useRef({ annuler, refaire });
+  ref.current = { annuler, refaire };
+  const actif = !!annulable || !!refaisable;
   useEffect(() => {
     if (!actif) return;
     const touche = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const k = e.key.toLowerCase();
+      const sens = k === 'z' && !e.shiftKey ? 'annuler' : k === 'y' || (k === 'z' && e.shiftKey) ? 'refaire' : null;
+      if (!sens) return;
       if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
       if (document.querySelector('.modal-back')) return; // fenêtre ouverte : rien en arrière-plan
       e.preventDefault();
-      ref.current();
+      ref.current[sens]();
     };
     window.addEventListener('keydown', touche);
     return () => window.removeEventListener('keydown', touche);
   }, [actif]);
-  if (!annulable) return null;
+  if (!actif) return null;
   return (
-    <button className="annuler-btn" onClick={annuler} title={`Annuler : ${annulable.action} (Ctrl+Z)`} aria-label={`Annuler : ${annulable.action}`}>
-      <Icone n="annuler" /><span className="annuler-text"> Annuler</span>
-    </button>
+    <span className="annuler-btns">
+      {annulable && (
+        <button className="annuler-btn" onClick={annuler} title={`Annuler : ${annulable.action} (Ctrl+Z)`} aria-label={`Annuler : ${annulable.action}`}>
+          <Icone n="annuler" /><span className="annuler-text"> Annuler</span>
+        </button>
+      )}
+      {refaisable && (
+        <button className="annuler-btn" onClick={refaire} title={`Refaire : ${refaisable.action} (Ctrl+Y)`} aria-label={`Refaire : ${refaisable.action}`}>
+          <Icone n="refaire" />
+        </button>
+      )}
+    </span>
   );
 }
 

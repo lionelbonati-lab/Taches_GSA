@@ -377,7 +377,17 @@ export function Tasks() {
   );
 }
 
-export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void; onStatus: (t: Task, s: string) => void }) {
+/** « ✓ Vu » d'une tâche pour info (accueil) : elle n'y figure plus. */
+export const BoutonVu = ({ onVu }: { onVu: () => void }) => (
+  <div className="pour-info-vu" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+    <button className="btn small" onClick={onVu} title="Je suis au courant : ne plus l’afficher sur l’accueil (elle reste dans les tâches)">
+      <Icone n="ok" /> Vu
+    </button>
+  </div>
+);
+
+/** `onVu` : tâche « pour info » de l'accueil, que l'on retire avec « ✓ Vu ». */
+export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () => void; onStatus: (t: Task, s: string) => void; onVu?: () => void }) {
   const { data, user, canEditTask, prendreTache, pasDispo, setToast } = useStore();
   const [prise, setPrise] = useState(false);
   const editable = canEditTask(t) && !t.paiement; // remboursement / paiement : suit son circuit
@@ -418,6 +428,7 @@ export function TaskCard({ t, onOpen, onStatus }: { t: Task; onOpen: () => void;
           {!decline && <button className="btn small" disabled={prise} onClick={() => repondre(false)}><Icone n="refuser" /> Pas dispo</button>}
         </div>
       )}
+      {onVu && <BoutonVu onVu={onVu} />}
       {editable && (
         <div className="status-tap" onClick={(e) => e.stopPropagation()}>
           {data.statuses.map((s) => (
