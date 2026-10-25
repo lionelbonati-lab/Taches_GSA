@@ -93,6 +93,25 @@ const Vtt = dessin(<>
   <path d="M1.5 10 4.5 5.5 6 7.5l1.5-2L9 7.5" />
 </>);
 
+// Cycliste couché sur un vélo de route, traits de vitesse derrière.
+const VeloRoute = dessin(<>
+  <circle cx="18.5" cy="17.5" r="3.5" />
+  <circle cx="5.5" cy="17.5" r="3.5" />
+  <circle cx="17" cy="5.5" r="1" />
+  <path d="M12 17.5 12.5 13l-4-3 6-2 2 3h1.5" />
+  <path d="M2 7h4" />
+  <path d="M1 10h4" />
+</>);
+
+// Le cycliste de Lucide (Bike) avec un éclair : assistance électrique.
+const VeloElec = dessin(<>
+  <circle cx="18.5" cy="17.5" r="3.5" />
+  <circle cx="5.5" cy="17.5" r="3.5" />
+  <circle cx="15" cy="5" r="1" />
+  <path d="M12 17.5V14l-3-3 4-3 2 3h2" />
+  <path d="M6.5 1.5 3.5 6h4L4.5 10.5" />
+</>);
+
 // Cycliste penché sur le guidon d'un vélo fixe : volant d'inertie devant (moyeu), deux pieds au sol.
 const HomeTrainer = dessin(<>
   <circle cx="15" cy="4" r="1.5" />
@@ -126,7 +145,8 @@ export const THEMES_ICONES: { titre: string; icones: Record<string, Entree> }[] 
   {
     titre: 'Sport',
     icones: {
-      velo: ['Vélo', Bike], vtt: ['VTT', Vtt, 'vélo tout terrain mountain bike'], velosalle: ['Home-trainer', HomeTrainer, 'vélo de salle spinning'],
+      velo: ['Vélo', Bike], vtt: ['VTT', Vtt, 'vélo tout terrain mountain bike'],
+      veloroute: ['Vélo de route', VeloRoute, 'cyclisme course'], veloelec: ['Vélo électrique', VeloElec, 'eVTT VAE assistance'], velosalle: ['Home-trainer', HomeTrainer, 'vélo de salle spinning'],
       coureur: ['Coureur', Coureur], nageur: ['Nageur', Nageur], triathlete: ['Triathlète', Triathlete], skifond: ['Ski de fond', SkiFond],
       route: ['Parcours', Route], montagne: ['Montagne', Mountain], neige: ['Montagne enneigée', MountainSnow], chrono: ['Chronomètre', Timer],
       vitesse: ['Compteur', Gauge], course: ['Course à pied', Footprints], natation: ['Natation', Droplets], muscu: ['Musculation', Dumbbell],
