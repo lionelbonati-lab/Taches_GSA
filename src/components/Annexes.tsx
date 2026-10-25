@@ -30,13 +30,24 @@ export const annexeVisible = (d: TaskDoc) => d.kind === 'fichier' && (!!d.mime?.
 export const annexeReproduite = (a: Annexe) => annexeVisible(a.d);
 
 /**
+ * Fichiers d'une tâche dans un document (ordre du jour, PV) : un justificatif visé (facture, ticket) n'y figure qu'une
+ * fois, en copie signée ; l'original reste dans la tâche.
+ */
+export function docsDuDocument(t: Task): TaskDoc[] {
+  const docs = t.documents ?? [];
+  const v = t.paiement?.validation;
+  const original = v?.docVise && docs.some((d) => d.id === v.docVise) ? v.sceau?.docId : undefined;
+  return original ? docs.filter((d) => d.id !== original) : docs;
+}
+
+/**
  * Annexes des tâches, dans leur ordre (un fichier lié à deux tâches ne compte qu'une fois), sans celles retirées pour ce
  * document (`exclues` : identifiants des fichiers et liens).
  */
 export function annexesDe(tasks: Task[], exclues: string[] = []): Annexe[] {
   const out: Annexe[] = [];
   tasks.forEach((t) =>
-    (t.documents ?? []).forEach((d) => !exclues.includes(d.id) && !out.some((a) => a.d.id === d.id) && out.push({ d, t, n: out.length + 1 })),
+    docsDuDocument(t).forEach((d) => !exclues.includes(d.id) && !out.some((a) => a.d.id === d.id) && out.push({ d, t, n: out.length + 1 })),
   );
   return out;
 }
@@ -99,7 +110,7 @@ export const annexeInfo = (a: Annexe) =>
 
 /** Noms des documents d'une tâche, avec leur numéro d'annexe (« Devis.pdf (annexe 2), Plan »). */
 export const docsTexte = (t: Task, annexes: Annexe[]) =>
-  (t.documents ?? []).map((d) => nomAvecAnnexe(d, annexes)).join(', ');
+  docsDuDocument(t).map((d) => nomAvecAnnexe(d, annexes)).join(', ');
 const nomAvecAnnexe = (d: TaskDoc, annexes: Annexe[]) => {
   const n = annexes.find((a) => a.d.id === d.id)?.n;
   return n ? `${d.nom} (annexe ${n})` : d.nom;
@@ -118,7 +129,7 @@ export function DocsTache({ t, annexes }: { t: Task; annexes: Annexe[] }) {
   return (
     <>
       📎{' '}
-      {(t.documents ?? []).map((d, i) => {
+      {docsDuDocument(t).map((d, i) => {
         const nom = nomAvecAnnexe(d, annexes);
         return (
           <Fragment key={d.id}>

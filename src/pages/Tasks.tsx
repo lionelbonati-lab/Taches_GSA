@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
-import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel } from '../data/utils';
+import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, parentOf, recurrenceLabel, today } from '../data/utils';
+import { sortedMeetings } from '../data/agenda';
 import { finAnticipee, versProchaineSeance } from '../data/seances';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
@@ -157,6 +158,13 @@ export function Tasks() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, user, effScope, f, sort, hideDone, view, archives, seancePassee]);
 
+  // Filtre « Toutes séances » : les séances à venir et celles qui ont encore des tâches dans la liste (archives : celles
+  // de leurs tâches) ; pas les anciennes séances, dont les tâches terminées sont archivées.
+  const seancesFiltre = useMemo(() => {
+    const liees = new Set(data.tasks.filter((t) => t.meetingId && estArchivee(data, t, seancePassee) === archives).map((t) => t.meetingId));
+    return sortedMeetings(data).filter((m) => (!archives && m.date >= today()) || liees.has(m.id) || m.id === f.meeting);
+  }, [data, seancePassee, archives, f.meeting]);
+
   if (!user) return null;
   const sec = data.sections.find((s) => s.id === f.section);
   // Sous-sections de la section, et celles de ses tâches hors de la liste (ex. section d'une entité à qui elles sont attribuées).
@@ -261,7 +269,7 @@ export function Tasks() {
         </select>
         <select value={f.meeting} onChange={(e) => setF({ ...f, meeting: e.target.value })}>
           <option value="">Toutes séances</option>
-          {data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>)}
+          {seancesFiltre.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>)}
         </select>
         <select value={f.delai} onChange={(e) => setF({ ...f, delai: e.target.value })}>
           <option value="">Tous délais</option>

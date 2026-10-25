@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import { FULL_AGENDA, echeanceSuivante, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
-import type { MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
+import type { Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
 import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
@@ -85,6 +85,24 @@ export function Minutes() {
 
   const s1 = meetings.find((m) => m.id === meetingId);
   const { s0, s2 } = meetingContext(data, s1);
+  // Choix de la séance : la dernière passée, celles du jour et à venir, et les PV commencés ou en correction ; les
+  // autres séances passées (PV validés, archivés dans Comité › Séances) dans « Reprendre un ancien PV ».
+  const jour = today();
+  const dernierePassee = [...meetings].reverse().find((x) => x.date < jour);
+  const pvEnCours = (x: Meeting) =>
+    !!x.minutes && (x.minutes.valideLe ? !!x.minutes.enCorrection : !!x.minutes.demarreLe || Object.values(x.minutes.notes ?? {}).some((n) => n.trim()));
+  const anciennes = meetings.filter((x) => x.date < jour && x.id !== dernierePassee?.id && !pvEnCours(x)).reverse();
+  const courantes = meetings.filter((x) => !anciennes.includes(x) || x.id === meetingId);
+  const choisirSeance = (id: string) => {
+    setMeetingId(id);
+    setMsg('');
+    setOpenNotes({});
+  };
+  const optionSeance = (x: Meeting) => (
+    <option key={x.id} value={x.id}>
+      {x.titre} – {fmtDate(x.date)}{x.minutes?.valideLe ? ` ✓${(x.minutes.version ?? 1) > 1 ? ` v${x.minutes.version}` : ''}` : ''}
+    </option>
+  );
   // Excuses annoncées avant la séance : reprises dans les présences tant que le PV n'est pas validé.
   const withExcuses = (mm: MeetingMinutes, pre: { personId: string }[] = []): MeetingMinutes =>
     mm.valideLe && !mm.enCorrection ? mm : { ...mm, excuses: [...new Set([...mm.excuses, ...pre.map((e) => e.personId).filter((id) => !mm.presents.includes(id))])] };
@@ -595,13 +613,15 @@ export function Minutes() {
       <div className="page-head no-print">
         <h1>PV</h1>
         <div className="actions">
-          <select value={meetingId} onChange={(e) => { setMeetingId(e.target.value); setMsg(''); setOpenNotes({}); }} aria-label="Séance">
-            {meetings.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.titre} – {fmtDate(x.date)}{x.minutes?.valideLe ? ` ✓${(x.minutes.version ?? 1) > 1 ? ` v${x.minutes.version}` : ''}` : ''}
-              </option>
-            ))}
+          <select value={meetingId} onChange={(e) => choisirSeance(e.target.value)} aria-label="Séance">
+            {courantes.map(optionSeance)}
           </select>
+          {anciennes.length > 0 && (
+            <select className="pv-ancien" value={anciennes.some((x) => x.id === meetingId) ? meetingId : ''} onChange={(e) => e.target.value && choisirSeance(e.target.value)} aria-label="Reprendre un ancien PV">
+              <option value="">Reprendre un ancien PV…</option>
+              {anciennes.map(optionSeance)}
+            </select>
+          )}
           <div className="seg">
             <button className={view === 'saisie' ? 'on' : ''} onClick={() => setView('saisie')}><Icone n="notes" /> Prise de notes</button>
             <button className={view === 'pv' ? 'on' : ''} onClick={() => setView('pv')}><Icone n="pdf" /> PV</button>
