@@ -1,5 +1,6 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Icone } from './icones';
+import { MESSAGE_MISE_A_JOUR, moduleIntrouvable } from '../pwa';
 
 // Une erreur pendant l'affichage : un message lisible (à copier pour le signaler) au lieu d'un écran blanc.
 // « page » : seule la page est remplacée, les menus restent utilisables ; le message disparaît en changeant de page.
@@ -46,10 +47,16 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="panel erreur-appli" role="alert">
         <h2>😕 Oups, un problème d’affichage</h2>
         <p>
-          {this.props.page !== undefined
-            ? 'Cette page n’a pas pu s’afficher. Les menus restent utilisables ; tu peux aussi recharger.'
-            : 'L’application n’a pas pu s’afficher. Recharge la page.'}{' '}
-          Pour qu’on corrige, copie le message ci-dessous et envoie-le.
+          {moduleIntrouvable(error) ? (
+            <>{MESSAGE_MISE_A_JOUR} Si le problème revient, copie le message ci-dessous et envoie-le.</>
+          ) : (
+            <>
+              {this.props.page !== undefined
+                ? 'Cette page n’a pas pu s’afficher. Les menus restent utilisables ; tu peux aussi recharger.'
+                : 'L’application n’a pas pu s’afficher. Recharge la page.'}{' '}
+              Pour qu’on corrige, copie le message ci-dessous et envoie-le.
+            </>
+          )}
         </p>
         <pre>{details}</pre>
         <p className="row wrap">

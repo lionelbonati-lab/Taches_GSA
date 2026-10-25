@@ -29,6 +29,15 @@ export function initPwa() {
   }
 }
 
+/**
+ * Module chargé à la demande (PDF, carte…) introuvable sur le serveur : l'appli a été mise à jour depuis son
+ * ouverture (messages de Chrome, Firefox et Safari). Recharger la page prend la nouvelle version.
+ */
+export const moduleIntrouvable = (e: unknown) =>
+  /dynamically imported module|Importing a module script failed|Unable to preload/i.test(e instanceof Error ? e.message : String(e));
+
+export const MESSAGE_MISE_A_JOUR = 'Une nouvelle version de l’appli a été publiée depuis son ouverture : recharge la page, puis recommence.';
+
 export const isStandalone = () =>
   window.matchMedia('(display-mode: standalone)').matches ||
   (navigator as Navigator & { standalone?: boolean }).standalone === true;

@@ -1,6 +1,8 @@
 // Service worker de l'application installée (PWA).
 // - Pages : réseau d'abord, repli sur la dernière version en cache (hors-ligne).
-// - Fichiers /assets/ (noms uniques à chaque build) : cache d'abord.
+// - Fichiers /assets/ (noms uniques à chaque build) : cache d'abord. Ceux des versions précédentes restent sur le site
+//   (scripts/anciens-assets.mjs) : une appli ouverte avant une publication charge encore le PDF, la carte…
+// Seules les réponses valides sont gardées (pas un fichier introuvable).
 const CACHE = 'taches-gsa-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './favicon-32.png', './icon.svg'];
 
@@ -27,8 +29,10 @@ self.addEventListener('fetch', (e) => {
         (hit) =>
           hit ||
           fetch(req).then((res) => {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
+            if (res.ok) {
+              const copy = res.clone();
+              caches.open(CACHE).then((c) => c.put(req, copy));
+            }
             return res;
           }),
       ),
@@ -39,8 +43,10 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(req)
       .then((res) => {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(req, copy));
+        if (res.ok) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(req, copy));
+        }
         return res;
       })
       .catch(() => caches.match(req).then((hit) => hit || caches.match('./index.html'))),

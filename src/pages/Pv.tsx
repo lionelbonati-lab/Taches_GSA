@@ -20,6 +20,7 @@ import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
 import { AvecLiens, LieuSeance } from '../components/Liens';
 import { LIENS_LIEU, avecLienLieu, lienLieu, texteLieu } from '../data/lieux';
 import { lienMailto } from '../data/lienPartage';
+import { moduleIntrouvable } from '../pwa';
 import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { Icone } from '../components/icones';
 import { Modal } from '../components/ui';
@@ -544,7 +545,15 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
                 <button type="button" className="btn small link" onClick={voirPdf}><Icone n="voir" /> Voir</button>
               </>
             ) : etat?.erreur ? (
-              <span className="error">Le PDF n’a pas pu être créé ({etat.erreur.slice(0, 120)}) : le mail partira sans lui.</span>
+              moduleIntrouvable(etat.erreur) ? (
+                <span className="error">
+                  Nouvelle version de l’appli publiée depuis son ouverture : le PDF n’a pas pu être créé.{' '}
+                  <button type="button" className="btn small" onClick={() => location.reload()}><Icone n="recharger" /> Recharger</button>{' '}
+                  (sinon le mail partira sans lui)
+                </span>
+              ) : (
+                <span className="error">Le PDF n’a pas pu être créé ({etat.erreur.slice(0, 120)}) : le mail partira sans lui.</span>
+              )
             ) : (
               <span><Icone n="attente" /> Préparation du PDF…</span>
             )}

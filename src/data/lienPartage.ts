@@ -4,18 +4,36 @@ import type { Person, Poll, Task } from './types';
 import { fmtDate, shortName } from './utils';
 import { echeance } from './polls';
 
-// Liens à envoyer (WhatsApp, email…) vers une tâche ou un sondage. Ils gardent :
+// Liens à envoyer (WhatsApp, email…) vers une tâche ou un sondage : …/?reel=<entité>#/taches?tache=…. Ils gardent :
 //   - la version (?reel / ?demo) : ouverts sur un appareil où l'appli n'a jamais servi, ils n'arrêtent pas sur l'écran de choix ;
-//   - l'entité (&u=<entité>) : l'appli s'ouvre dans cette entité si la personne en fait partie.
+//   - l'entité (valeur de ?reel / ?demo) : l'appli s'ouvre dans cette entité si la personne en fait partie.
+// Aucun « & » : des messageries (sur téléphone) coupent le texte d'un mail au premier « & », même dans une adresse.
+// Les liens envoyés avant (#/taches?tache=…&u=<entité>) restent valables.
 // Le lien ne donne aucun accès : il faut un compte, et voir la tâche ou le sondage dans l'entité.
 
 const PARAM = 'u';
 
 /** Adresse complète de l'appli ouverte sur `chemin` (« /taches?tache=… »), dans l'entité `unite`. */
 export function lienAppli(chemin: string, unite?: string, mode = getMode()): string {
-  const base = `${location.origin}${location.pathname}${mode ? `?${mode}` : ''}`;
-  const u = unite ? `${chemin.includes('?') ? '&' : '?'}${PARAM}=${encodeURIComponent(unite)}` : '';
-  return `${base}#${chemin}${u}`;
+  const cle = mode ?? (unite ? PARAM : '');
+  const q = cle ? `?${cle}${unite ? `=${encodeURIComponent(unite)}` : ''}` : '';
+  return `${location.origin}${location.pathname}${q}#${chemin}`;
+}
+
+/**
+ * Lien reçu : l'entité de « ?reel=<entité> » passe dans l'adresse de la page (#/taches?tache=…&u=<entité>), où
+ * uniteDuLien la lit. La version (?reel / ?demo) reste pour modeFromUrl. À appeler au lancement, avant modeFromUrl.
+ */
+export function entiteDuLienRecu() {
+  const params = new URLSearchParams(location.search);
+  const cle = ['reel', 'demo', PARAM].find((k) => params.get(k));
+  if (!cle) return;
+  const unite = params.get(cle)!;
+  if (cle === PARAM) params.delete(cle);
+  else params.set(cle, '');
+  const q = params.toString();
+  const h = location.hash.replace(/^#/, '') || '/';
+  history.replaceState(null, '', `${location.pathname}${q ? `?${q}` : ''}#${h}${h.includes('?') ? '&' : '?'}${PARAM}=${encodeURIComponent(unite)}`);
 }
 
 /** Entité demandée par le lien qui a ouvert l'appli (null sans lien). */
@@ -29,7 +47,7 @@ export const lienWhatsApp = (texte: string) => `https://wa.me/?text=${encodeURIC
 /**
  * Objet ou texte d'un lien « mailto ». Des messageries (sur téléphone surtout) décodent le lien avant de le découper
  * aux « & » : le mail s'arrêtait au premier « & » du texte. Hors des adresses web (laissées telles quelles), « & » devient
- * « ＆ » (même aspect). Les liens du lieu des séances (lieux.ts) sont écrits sans « & ».
+ * « ＆ » (même aspect). Les liens de l'appli (lienAppli) et du lieu des séances (lieux.ts) sont écrits sans « & ».
  */
 export const pourMailto = (texte: string) => texte.replace(/(https?:\/\/\S+)|&/g, (_, url?: string) => url ?? '＆');
 

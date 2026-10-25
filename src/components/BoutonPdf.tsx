@@ -4,6 +4,7 @@ import { fullName } from '../data/utils';
 import { nomAppli } from '../data/nomAppli';
 import type { StyleDocs } from '../data/types';
 import { Icone } from './icones';
+import { MESSAGE_MISE_A_JOUR, moduleIntrouvable } from '../pwa';
 
 export interface OptionsPdf {
   titre: string;
@@ -49,6 +50,7 @@ export function BoutonPdf({ feuille, titre, paysage, margesMm, police, className
       console.error(e);
       // Détail technique en fin de message : à transmettre pour trouver la cause.
       const detail = e instanceof Error ? e.message : String(e);
+      if (moduleIntrouvable(e)) return setToast(`⚠️ ${MESSAGE_MISE_A_JOUR}`);
       setToast(`⚠️ Le PDF n’a pas pu être créé : utilise « Imprimer », puis « Enregistrer en PDF ».${detail ? ` (Détail : ${detail.slice(0, 160)})` : ''}`);
     } finally {
       setEnCours(false);

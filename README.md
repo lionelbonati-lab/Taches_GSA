@@ -254,7 +254,7 @@ Droits : « Créer des sondages » (Admin, Secrétaire, Comité par défaut) et 
 **Icône de partage** (trois points reliés, « Envoyer un lien ») en haut à droite de la fiche d'une tâche et de chaque sondage de la page Sondages (à ne pas confondre avec « Partager » d'une tâche, qui la partage avec d'autres entités). La fenêtre propose un court message, modifiable (« 📋 Tâche « … » (Entité) · 📅 Pour le … · 👤 responsables » ou « 🙋 À prendre » ; « 📊 Sondage « … » · Réponds d'ici le … »), suivi du **lien** qui ouvre la tâche ou le sondage dans l'appli :
 
 - **💬 WhatsApp** (appli ou WhatsApp Web, choix du contact ou du groupe), **Autre appli…** sur téléphone (Signal, SMS, Messenger… : la feuille de partage du téléphone), **✉ Email**, **📋 Copier le message** et **Copier le lien** seul ;
-- le lien garde la **version** (`?reel` / `?demo` : pas d'écran de choix sur un appareil neuf) et l'**entité** (`&u=…`) : il ouvre l'appli **dans cette entité** si la personne en fait partie, puis la tâche ou le sondage. Appli déjà ouverte sur une autre entité : un bouton « Ouvrir « Entité » » y mène ;
+- le lien garde la **version** (`?reel` / `?demo` : pas d'écran de choix sur un appareil neuf) et l'**entité** (`?reel=<entité>`, sans « & » : des messageries sur téléphone coupent le mail au premier « & », même dans une adresse ; les anciens liens `…&u=<entité>` restent valables) : il ouvre l'appli **dans cette entité** si la personne en fait partie, puis la tâche ou le sondage. Appli déjà ouverte sur une autre entité : un bouton « Ouvrir « Entité » » y mène ;
 - le lien **ne donne aucun accès** : il faut un compte, et voir la tâche avec son rôle (ou être votant du sondage). Sinon l'appli l'indique : « une entité dont tu ne fais pas partie », « Tâche introuvable… » ou « Sondage introuvable… » ;
 - le champ **{lien}** des emails programmés mène de la même façon à la tâche, dans l'entité.
 
@@ -414,7 +414,7 @@ L'installation n'est possible que depuis une adresse **https://** : utilise la v
 
 ## Publication (GitHub Pages)
 
-Le workflow `.github/workflows/deploy-pages.yml` construit et publie l'application à chaque push sur la branche principale ; on peut aussi le relancer à la main (onglet **Actions › Publication GitHub Pages › Run workflow**). L'application installée se met à jour d'elle-même au lancement suivant.
+Le workflow `.github/workflows/deploy-pages.yml` construit et publie l'application à chaque push sur la branche principale ; on peut aussi le relancer à la main (onglet **Actions › Publication GitHub Pages › Run workflow**). L'application installée se met à jour d'elle-même au lancement suivant. Les fichiers des 20 versions précédentes (14 jours au plus) restent publiés (`scripts/anciens-assets.mjs`, liste dans `versions-assets.json`) : une appli restée ouverte pendant une publication, sur téléphone surtout, crée encore ses PDF et affiche la carte. Si un fichier manque malgré tout, l'appli demande de recharger la page.
 
 Réglages GitHub nécessaires (une seule fois) :
 1. **Settings › General › Danger Zone › Change visibility › Public** (Pages n'est pas disponible sur un dépôt privé avec un compte gratuit).

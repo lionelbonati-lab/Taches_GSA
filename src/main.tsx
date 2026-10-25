@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getMode, modeFromUrl } from './data/mode';
+import { entiteDuLienRecu } from './data/lienPartage';
 import { DemoApp } from './DemoApp';
 import { CloudApp } from './CloudApp';
 import { Welcome } from './pages/Real';
@@ -10,6 +11,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import './styles.css';
 
 initPwa();
+entiteDuLienRecu();
 modeFromUrl();
 // Dernière couleur de l'appli sur cet appareil, dès le lancement (écran de connexion).
 applyAppColor(cachedColor());

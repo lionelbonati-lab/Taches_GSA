@@ -29,7 +29,10 @@ jobs:
       - run: npm run build
       # Nom et icône de l'appli choisis dans la console admin (migration 017), sinon ceux d'origine.
       - run: node scripts/icones-club.mjs publier dist
-      - uses: actions/configure-pages@v5
+      - id: pages
+        uses: actions/configure-pages@v5
+      # Fichiers des versions précédentes gardés : une appli restée ouverte pendant la publication charge encore le PDF, la carte…
+      - run: node scripts/anciens-assets.mjs dist "${{ steps.pages.outputs.base_url }}"
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

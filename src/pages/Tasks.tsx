@@ -43,7 +43,7 @@ export function Tasks() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'delai', dir: 1 });
   const navigate = useNavigate();
   // Lien depuis une notification : /taches?tache=<id> ouvre directement la tâche.
-  // …&email=<id> ouvre en plus l'email programmé à envoyer. Lien envoyé (WhatsApp…, avec &u=<entité>) : seulement
+  // …&email=<id> ouvre en plus l'email programmé à envoyer. Lien envoyé (WhatsApp…, entité en u : lienPartage.ts) : seulement
   // une tâche que la personne voit dans sa liste.
   const lienTache = params.get('tache');
   const ouvrable = (x: Task) => x.id === lienTache && (!params.get('u') || canSeeTask(x));
