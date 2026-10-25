@@ -84,6 +84,15 @@ const Cochon = dessin(<>
   <path d="M15 11.5h.01" />
 </>);
 
+// Le cycliste de Lucide (Bike) devant une montagne.
+const Vtt = dessin(<>
+  <circle cx="18.5" cy="17.5" r="3.5" />
+  <circle cx="5.5" cy="17.5" r="3.5" />
+  <circle cx="15" cy="5" r="1" />
+  <path d="M12 17.5V14l-3-3 4-3 2 3h2" />
+  <path d="M1.5 10 4.5 5.5 6 7.5l1.5-2L9 7.5" />
+</>);
+
 // Cycliste penché sur le guidon d'un vélo fixe : volant d'inertie devant (moyeu), deux pieds au sol.
 const HomeTrainer = dessin(<>
   <circle cx="15" cy="4" r="1.5" />
@@ -117,10 +126,10 @@ export const THEMES_ICONES: { titre: string; icones: Record<string, Entree> }[] 
   {
     titre: 'Sport',
     icones: {
-      velo: ['Vélo', Bike], velosalle: ['Home-trainer', HomeTrainer, 'vélo de salle spinning'], coureur: ['Coureur', Coureur],
-      nageur: ['Nageur', Nageur], triathlete: ['Triathlète', Triathlete], skifond: ['Ski de fond', SkiFond], route: ['Parcours', Route],
-      montagne: ['Montagne', Mountain], neige: ['Montagne enneigée', MountainSnow], chrono: ['Chronomètre', Timer], vitesse: ['Compteur', Gauge],
-      course: ['Course à pied', Footprints], natation: ['Natation', Droplets], muscu: ['Musculation', Dumbbell],
+      velo: ['Vélo', Bike], vtt: ['VTT', Vtt, 'vélo tout terrain mountain bike'], velosalle: ['Home-trainer', HomeTrainer, 'vélo de salle spinning'],
+      coureur: ['Coureur', Coureur], nageur: ['Nageur', Nageur], triathlete: ['Triathlète', Triathlete], skifond: ['Ski de fond', SkiFond],
+      route: ['Parcours', Route], montagne: ['Montagne', Mountain], neige: ['Montagne enneigée', MountainSnow], chrono: ['Chronomètre', Timer],
+      vitesse: ['Compteur', Gauge], course: ['Course à pied', Footprints], natation: ['Natation', Droplets], muscu: ['Musculation', Dumbbell],
       renfo: ['Renforcement', Renfo, 'renfo musculation kettlebell squat'], forme: ['Forme', HeartPulse], effort: ['Effort', Activity],
       volley: ['Ballon', Volleyball], voile: ['Voile', Sailboat], cible: ['Objectif', Target],
     },
