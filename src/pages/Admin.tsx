@@ -450,9 +450,9 @@ function Lists() {
           <button className="btn primary" onClick={() => { if (!newStatus.trim()) return; update((d) => { d.statuses.splice(d.statuses.length - 1, 0, { id: uid('s'), label: newStatus.trim(), couleur: '#9333ea', done: false }); }, `Ajout du statut « ${newStatus.trim()} »`); setNewStatus(''); }}>Ajouter</button>
         </div>
         <p className="muted">
-          Case « Terminée » cochée : une tâche dans ce statut compte comme faite. Dans l’ordre du jour, elle passe dans le bilan
-          des tâches terminées (« ✓ fait ») ; elle n’est jamais en retard et part aux archives le lendemain de sa séance. À
-          laisser décochée pour un statut comme « À discuter ».
+          Case « Terminée » cochée : une tâche dans ce statut compte comme faite. Elle figure dans l’ordre du jour et le PV de
+          la séance suivante, parmi les tâches terminées (« ✓ fait » pour le premier statut terminé, sinon le nom du statut :
+          « À discuter », « Information »…), n’est jamais en retard et part aux archives le lendemain de cette séance.
         </p>
         <p className="muted">« En retard » n'est pas un statut : il est calculé automatiquement quand le délai est dépassé et que la tâche n'est pas terminée.</p>
       </section>

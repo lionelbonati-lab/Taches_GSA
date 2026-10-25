@@ -1,5 +1,6 @@
 import type { AppData, Meeting, Task } from './types';
 import { addDays, finLe, isDone, isLate, today } from './utils';
+import { shortDate } from './minutes';
 
 // Sélection des points de l'ordre du jour d'une séance, partagée par les onglets Ordre du jour et PV.
 
@@ -65,4 +66,14 @@ export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting
       )
     : [];
   return { late, avant1, avant2, bilan, since };
+}
+
+/**
+ * Tâche terminée de l'ordre du jour et du PV : « ✓ fait (le …) » pour le premier statut terminé (« Terminé »), sinon le
+ * nom de son statut (« A discuter », « Information », « Annulé »…). Elle part aux archives le lendemain de la séance.
+ */
+export function etatTerminee(data: AppData, t: Task, avecDate = true): string {
+  const st = data.statuses.find((x) => x.id === t.statusId);
+  if (st && st.id !== data.statuses.find((x) => x.done)?.id) return st.label;
+  return `✓ fait${avecDate && t.termineeLe ? ` le ${shortDate(t.termineeLe)}` : ''}`;
 }

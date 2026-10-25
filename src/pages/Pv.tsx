@@ -5,7 +5,7 @@ import type { AppData, ChecklistItem, LienLieu, Meeting, Person, PvSettings, Sec
 import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
-import { JOURS_APRES, echeanceSuivante, joursApresTexte, selectAgenda } from '../data/agenda';
+import { JOURS_APRES, echeanceSuivante, etatTerminee, joursApresTexte, selectAgenda } from '../data/agenda';
 import type { Poll } from '../data/types';
 import { archiveHtml, hydrateArchive, sansAnnexes } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
@@ -229,7 +229,7 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
     return [
       respText(t) !== '—' && respText(t),
       b !== 'bilan' && t.delai && shortDate(t.delai),
-      s.colonnes.echeance && (b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? `✓ fait${t.termineeLe ? ` le ${shortDate(t.termineeLe)}` : ''}` : ''),
+      s.colonnes.echeance && (b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? etatTerminee(data, t) : ''),
       s.colonnes.statut && b !== 'bilan' && t.statusId !== firstOpen && st?.label,
     ].filter(Boolean) as string[];
   };

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { FULL_AGENDA, echeanceSuivante, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
+import { FULL_AGENDA, echeanceSuivante, etatTerminee, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
 import type { Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
@@ -190,7 +190,7 @@ export function Minutes() {
     return [
       t.responsables.map((id) => initials(person(id))).join(', '),
       b !== 'bilan' && t.delai && shortDate(t.delai),
-      b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? '✓ fait' : '',
+      b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? etatTerminee(data, t, false) : '',
       isNewTask(t) && '🆕 nouvelle',
     ].filter(Boolean) as string[];
   };
