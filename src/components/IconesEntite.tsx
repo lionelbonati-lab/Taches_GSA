@@ -17,11 +17,63 @@ import { Icone } from './icones';
 
 type Svg = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string; strokeWidth?: number | string }>;
 
+/** Icône dessinée ici, au trait comme celles de Lucide (grille de 24, bouts arrondis) : Lucide n'a pas ces sports. */
+const dessin = (traits: ReactNode): Svg => {
+  const D: Svg = ({ size = 24, strokeWidth = 2, ...props }) => (
+    <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" {...props}>
+      {traits}
+    </svg>
+  );
+  return D;
+};
+
+// Vague de l'eau, sous le nageur et le triathlète.
+const vague = <path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2 1.3 0 1.9.5 2.5 1" />;
+
+const Coureur = dessin(<>
+  <circle cx="15" cy="4" r="1" />
+  <path d="m13.5 8-3 5.5" />
+  <path d="m10.5 13.5 4 2-1.5 5" />
+  <path d="M10.5 13.5 8.5 17 4.5 18" />
+  <path d="M7.5 10.5 10 8h3.5l2.5 3 2.5-1" />
+</>);
+
+// Bras levé au-dessus de l'eau, corps à fleur d'eau.
+const Nageur = dessin(<>
+  <circle cx="6" cy="11" r="1" />
+  <path d="M20 12.5 10 11.5" />
+  <path d="M10 11.5 13 6.5 8 5" />
+  {vague}
+</>);
+
+// Les trois épreuves : la roue du vélo, le coureur, l'eau.
+const Triathlete = dessin(<>
+  <circle cx="17" cy="3.5" r="1" />
+  <path d="m16 6.5-2 4" />
+  <path d="m14 10.5 3 1.5-1 3.5" />
+  <path d="m14 10.5-1.5 3-2.5.5" />
+  <path d="M12 8.5 14 6.5h2.5l1.5 2 2-.5" />
+  <circle cx="5.5" cy="10.5" r="3.5" />
+  <path d="M5.5 10.5h.01" />
+  {vague}
+</>);
+
+// Le cycliste de Lucide (Bike) sur un vélo fixe : volant d'inertie devant, pied au sol.
+const VeloSalle = dessin(<>
+  <circle cx="14" cy="3.5" r="1" />
+  <path d="M11 15.5V12l-3-3 4-3 2 3h2" />
+  <circle cx="17" cy="15" r="3" />
+  <path d="M8 9 6.5 20" />
+  <path d="m16 9 1 6" />
+  <path d="M4 20h16" />
+</>);
+
 export const THEMES_ICONES: { titre: string; icones: Record<string, [nom: string, I: Svg]> }[] = [
   {
     titre: 'Sport',
     icones: {
-      velo: ['Vélo', Bike], route: ['Parcours', Route], montagne: ['Montagne', Mountain], neige: ['Montagne enneigée', MountainSnow],
+      velo: ['Vélo', Bike], velosalle: ['Vélo de salle', VeloSalle], coureur: ['Coureur', Coureur], nageur: ['Nageur', Nageur],
+      triathlete: ['Triathlète', Triathlete], route: ['Parcours', Route], montagne: ['Montagne', Mountain], neige: ['Montagne enneigée', MountainSnow],
       chrono: ['Chronomètre', Timer], vitesse: ['Compteur', Gauge], course: ['Course à pied', Footprints], natation: ['Natation', Droplets],
       muscu: ['Musculation', Dumbbell], forme: ['Forme', HeartPulse], effort: ['Effort', Activity], volley: ['Ballon', Volleyball],
       voile: ['Voile', Sailboat], cible: ['Objectif', Target],
