@@ -31,7 +31,8 @@ import { Pilule, type OutilPilule } from '../components/Pilule';
 
 const longDate = (d: string) =>
   new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
-const nowHM = () => new Date().toTimeString().slice(0, 5);
+const nowHMde = (d: Date) => d.toTimeString().slice(0, 5);
+const nowHM = () => nowHMde(new Date());
 const hm = (h?: string) => (h ? h.replace(':', 'h') : '');
 /** Options du PV par défaut. */
 const OPTIONS: Required<PvOptions> = { details: true, misesAJour: true, documents: true, annexes: false, annexesParPage: 1, taille: 'normale' };
@@ -59,8 +60,6 @@ const letter = (i: number) => {
 export function Minutes() {
   const { data, user, can, canEditTask, saveTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast } = useStore();
   const sync = useSyncStatus();
-  const presencesRef = useRef<HTMLElement>(null);
-  const diversRef = useRef<HTMLDivElement>(null);
   const club = useClubOptional();
   useOuvrirDocs();
   const [params] = useSearchParams();
@@ -364,10 +363,6 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
         .catch((e: Error) => setToast(`⚠️ Envoi impossible pour l’instant (${e.message}) : nouvel essai automatique.`));
     }, 50);
   };
-  const allerA = (el: HTMLElement | null, focus?: boolean) => {
-    el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    if (focus) setTimeout(() => el?.querySelector('textarea')?.focus({ preventScroll: true }), 350);
-  };
   const etatEnvoi = !cloud ? 'ok' : sync.status === 'horsLigne' ? 'off' : sync.status === 'envoi' || sync.pending ? 'envoi' : 'ok';
   const outils: OutilPilule[] = [
     { icone: 'annuler', titre: annulable ? `Annuler : ${annulable.action}` : 'Annuler (rien à annuler)', onClick: annuler, disabled: !annulable },
@@ -375,16 +370,13 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     !m.demarreLe
       ? { icone: 'demarrer', titre: 'Démarrer la séance', onClick: start, separe: true }
       : { icone: 'terminer', titre: m.heureFin ? `Séance terminée à ${hm(m.heureFin)}` : 'Terminer la séance', onClick: terminer, disabled: !!m.heureFin, separe: true },
+    ...(m.demarreLe ? [{ titre: m.heureFin ? 'Durée de la séance' : 'Temps écoulé depuis le début de la séance', texte: <Chrono minutes={m} /> }] : []),
     {
       icone: 'enregistrer',
       titre: etatEnvoi === 'off' ? `Hors ligne${sync.pending ? ` · ${sync.pending} en attente` : ''} : enregistrer` : etatEnvoi === 'envoi' ? 'Envoi en cours… : enregistrer maintenant' : 'Tout est enregistré : enregistrer maintenant',
       onClick: enregistrer,
       etat: etatEnvoi,
     },
-    { icone: 'personnes', titre: 'Présences', onClick: () => allerA(presencesRef.current), separe: true },
-    ...(data.sections.some((x) => can('tasks.createAny', x.id)) ? [{ icone: 'ajoutTache' as const, titre: 'Nouvelle tâche décidée', onClick: () => addTask('') }] : []),
-    { icone: 'note', titre: 'Note « Divers »', onClick: () => allerA(diversRef.current, true) },
-    { icone: 'pdf', titre: 'Voir le PV', onClick: () => setView('pv'), separe: true },
   ];
 
   // ---------- Texte et document du PV ----------
@@ -775,7 +767,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               </div>
             </section>
 
-            <section className="panel" ref={presencesRef}>
+            <section className="panel">
               <h2 className="min-h2">Présences</h2>
               <div className="min-presence">
                 {committee.map((p) => (
@@ -817,7 +809,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                   {orphanPolls.map(pollRow)}
                 </div>
               )}
-              <div className="panel min-section" ref={diversRef}>
+              <div className="panel min-section">
                 <h3>Divers</h3>
                 <NoteField value={m.notes.divers ?? ''} onCommit={(v) => setNote('divers', v)} placeholder="Points divers, informations, prochaine séance…" readOnly={!editable} />
               </div>
@@ -950,3 +942,37 @@ function ReglageDepot() {
     </div>
   );
 }
+
+/**
+ * Chrono de la séance : temps écoulé depuis l'heure de début (celle du champ « Début », sinon le moment où elle a
+ * été démarrée), arrêté à l'heure de fin.
+ */
+function Chrono({ minutes: m }: { minutes: MeetingMinutes }) {
+  const [maintenant, setMaintenant] = useState(() => Date.now());
+  useEffect(() => {
+    if (m.heureFin) return;
+    const t = setInterval(() => setMaintenant(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [m.heureFin]);
+  const demarre = m.demarreLe ? new Date(m.demarreLe) : new Date(maintenant);
+  const aHeure = (h: string) => {
+    const [hh, mm] = h.split(':').map(Number);
+    return new Date(demarre.getFullYear(), demarre.getMonth(), demarre.getDate(), hh, mm).getTime();
+  };
+  // Heure de début corrigée à la main : elle compte ; sinon l'instant précis du démarrage (à la seconde).
+  const debut = m.heureDebut && m.heureDebut !== nowHMde(demarre) ? aHeure(m.heureDebut) : demarre.getTime();
+  let fin = m.heureFin ? aHeure(m.heureFin) : maintenant;
+  if (m.heureFin && fin < debut) fin += 86_400_000; // fin après minuit
+  const sec = Math.max(0, Math.floor((fin - debut) / 1000));
+  const h = Math.floor(sec / 3600);
+  const mn = Math.floor((sec % 3600) / 60);
+  const deux = (n: number) => String(n).padStart(2, '0');
+  const texte = m.heureFin ? (h ? `${h} h ${deux(mn)}` : `${mn} min`) : `${h ? `${h}:${deux(mn)}` : mn}:${deux(sec % 60)}`;
+  const dit = `${h ? `${h} h ` : ''}${mn} min`;
+  return (
+    <span role="timer" className={`chrono ${m.heureFin ? 'arrete' : ''}`} aria-label={m.heureFin ? `Durée de la séance : ${dit}` : `Séance en cours depuis ${dit}`}>
+      {texte}
+    </span>
+  );
+}
+

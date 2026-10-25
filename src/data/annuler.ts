@@ -73,21 +73,26 @@ export function reunir(premiers: Changement[], suivants: Changement[]): Changeme
   return out;
 }
 
+// Créés par une action puis retouchés : retirés champ par champ (ce que l'action y avait mis), le reste gardé. PV d'une
+// séance : créé par sa première action (souvent « Démarrer ») ; l'annuler laisse les notes prises depuis.
+const PARTIELS = new Set(['minutes']);
+
 /**
  * Valeur d'avant une action : remise si rien n'a changé depuis l'action ; sinon champ par champ, seulement là où
  * l'action avait changé quelque chose et que personne n'a retouché. `conflit` : un champ modifié depuis est gardé.
  */
-export function revenir(actuel: unknown, avant: unknown, apres: unknown, conflit: () => void): unknown {
+export function revenir(actuel: unknown, avant: unknown, apres: unknown, conflit: () => void, cle?: string): unknown {
   if (egal(actuel, apres) || egal(actuel, avant)) return avant;
-  if (objet(actuel) && objet(avant) && objet(apres)) {
+  const base = avant === undefined && cle && PARTIELS.has(cle) ? {} : avant;
+  if (objet(actuel) && objet(base) && objet(apres)) {
     const r: Record<string, unknown> = { ...actuel };
-    for (const k of new Set([...Object.keys(avant), ...Object.keys(apres)])) {
-      if (egal(avant[k], apres[k])) continue;
-      const v = revenir(actuel[k], avant[k], apres[k], conflit);
+    for (const k of new Set([...Object.keys(base), ...Object.keys(apres)])) {
+      if (egal(base[k], apres[k])) continue;
+      const v = revenir(actuel[k], base[k], apres[k], conflit, k);
       if (v === undefined) delete r[k];
       else r[k] = v;
     }
-    return r;
+    return avant === undefined && !Object.keys(r).length ? undefined : r;
   }
   conflit();
   return actuel;

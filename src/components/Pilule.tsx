@@ -1,15 +1,17 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { Icone, type IconeNom } from './icones';
 
 // Barre d'outils flottante (« pilule »), en icônes seulement : on la déplace en la tenant par sa poignée (souris ou
 // doigt, flèches du clavier) ; un double-clic sur la poignée la remet à sa place. Place et état (réduite ou non)
-// retenus sur l'appareil.
+// retenus sur l'appareil. Un affichage (chrono…) reste visible quand elle est réduite.
 
 export interface OutilPilule {
-  icone: IconeNom;
+  /** Bouton : son icône. Sans icône : un affichage (`texte`). */
+  icone?: IconeNom;
+  texte?: ReactNode;
   /** Bulle d'aide et nom lu par les lecteurs d'écran. */
   titre: string;
-  onClick: () => void;
+  onClick?: () => void;
   disabled?: boolean;
   /** Pastille d'état sur l'icône (enregistrement : à jour, envoi, hors ligne). */
   etat?: 'ok' | 'envoi' | 'off';
@@ -109,16 +111,21 @@ export function Pilule({ id, label, outils }: { id: string; label: string; outil
       >
         <Icone n="poignee" />
       </button>
-      {!reduite &&
-        outils.map((o) => (
-          <span key={o.icone} className="pilule-outil">
-            {o.separe && <span className="pilule-sep" aria-hidden />}
+      {(reduite ? outils.filter((o) => !o.icone) : outils).map((o) => (
+        <span key={o.icone ?? o.titre} className="pilule-outil">
+          {o.separe && !reduite && <span className="pilule-sep" aria-hidden />}
+          {o.icone ? (
             <button type="button" title={o.titre} aria-label={o.titre} disabled={o.disabled} onClick={o.onClick}>
               <Icone n={o.icone} />
               {o.etat && <span className={`pilule-etat ${o.etat}`} aria-hidden />}
             </button>
-          </span>
-        ))}
+          ) : (
+            <span className="pilule-texte" title={o.titre}>
+              {o.texte}
+            </span>
+          )}
+        </span>
+      ))}
       <button type="button" className="pilule-plier" title={reduite ? 'Afficher les outils' : 'Réduire'} aria-label={reduite ? 'Afficher les outils' : 'Réduire la barre d’outils'} aria-expanded={!reduite} onClick={basculer}>
         <Icone n={reduite ? 'pleinEcran' : 'quitterPleinEcran'} />
       </button>

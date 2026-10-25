@@ -409,6 +409,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
   max-width: min(560px, calc(100vw - 32px)); cursor: pointer; font-size: 0.95rem;
 }
 @media (max-width: 767px) { .toast { bottom: calc(80px + env(safe-area-inset-bottom)); } }
+/* Barre d'outils flottante du PV à sa place par défaut : les messages s'affichent au-dessus. */
+body:has(.pilule.defaut) .toast { bottom: 80px; }
+@media (max-width: 767px) { body:has(.pilule.defaut) .toast { bottom: calc(200px + env(safe-area-inset-bottom)); } }
 
 /* ---------- Documents joints ---------- */
 .docs .doc-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -622,6 +625,9 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .pilule-etat { position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: #16a34a; border: 1.5px solid var(--surface); }
 .pilule-etat.envoi { background: #f59e0b; }
 .pilule-etat.off { background: var(--late); }
+.pilule-texte { padding: 0 8px; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.chrono { display: inline-block; min-width: 3.2em; text-align: center; color: var(--primary); }
+.chrono.arrete { color: var(--muted); }
 @media (max-width: 767px) {
   .pilule.defaut { bottom: calc(150px + env(safe-area-inset-bottom)); } /* au-dessus du bouton « + » */
   .pilule button { width: 33px; height: 33px; }
