@@ -164,8 +164,8 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
   const note = !liees.length
     ? undefined
     : serie
-      ? `📌 ${liees.length} tâche(s) ont un délai calé sur une occurrence de cette série : si sa date change, leurs délais suivent automatiquement.`
-      : `📌 ${liees.length} tâche(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.`;
+      ? `${liees.length} tâche(s) ont un délai calé sur une occurrence de cette série : si sa date change, leurs délais suivent automatiquement.`
+      : `${liees.length} tâche(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.`;
   const origine = event.serie && data.events.find((x) => x.id === event.serie!.id);
 
   return (
@@ -308,8 +308,8 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
           <ZoneTexte rows={4} value={v.description} onChange={(e) => set({ description: e.target.value })} />
         </label>
       </div>
-      {origine && <p className="muted">🔁 Occurrence de « {origine.nom} » modifiée seule (prévue le {fmtDate(event.serie!.date)}).</p>}
-      {note && <p className="muted">{note}</p>}
+      {origine && <p className="muted"><Icone n="repetition" /> Occurrence de « {origine.nom} » modifiée seule (prévue le {fmtDate(event.serie!.date)}).</p>}
+      {note && <p className="muted"><Icone n="epingle" /> {note}</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer l’événement" aria-label="Supprimer l’événement"><Icone n="supprimer" /></button>}

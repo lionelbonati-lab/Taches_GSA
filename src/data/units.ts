@@ -2,16 +2,19 @@ import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
 import type { AppData, Carte, OrgMember, OrgUnit, PeriodeDependance, Permission, Person, Role, Section, TachesDependance, Unit, UnitType } from './types';
 import { uid } from './utils';
+import type { IconeNom } from '../components/icones';
 
 // Entités du club : comité central, sous-comités, groupes, équipes d'événement.
 // Chaque entité a ses propres données (responsables, rôles, sections, statuts, tâches, séances…).
 
-export const UNIT_TYPES: Record<UnitType, { label: string; plural: string; icon: string; chef: string; seances: string; aide: string }> = {
-  central: { label: 'Comité central', plural: 'Comité central', icon: '🏛️', chef: 'Président', seances: 'Comité', aide: 'Direction du club.' },
+// `icon` : émoji (listes déroulantes, organigramme) ; `trait` : la même chose en icône dessinée (accueil, agenda).
+export const UNIT_TYPES: Record<UnitType, { label: string; plural: string; icon: string; trait: IconeNom; chef: string; seances: string; aide: string }> = {
+  central: { label: 'Comité central', plural: 'Comité central', icon: '🏛️', trait: 'comite', chef: 'Président', seances: 'Comité', aide: 'Direction du club.' },
   'sous-comite': {
     label: 'Sous-comité',
     plural: 'Sous-comités',
     icon: '🎪',
+    trait: 'sousComite',
     chef: 'Président',
     seances: 'Comité',
     aide: 'Organisation d’un événement, avec son président et ses membres.',
@@ -20,6 +23,7 @@ export const UNIT_TYPES: Record<UnitType, { label: string; plural: string; icon:
     label: 'Groupe',
     plural: 'Groupes',
     icon: '🚴',
+    trait: 'groupe',
     chef: 'Responsable',
     seances: 'Séances',
     aide: 'Activité permanente du club (école de cyclisme, compétition…) avec ses propres membres (moniteurs…).',
@@ -28,6 +32,7 @@ export const UNIT_TYPES: Record<UnitType, { label: string; plural: string; icon:
     label: 'Équipe d’événement',
     plural: 'Équipes d’événement',
     icon: '🎉',
+    trait: 'evenements',
     chef: 'Responsable',
     seances: 'Réunions',
     aide: 'Événement sans comité : quelques personnes, souvent déjà actives ailleurs dans le club.',

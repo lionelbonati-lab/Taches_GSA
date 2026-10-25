@@ -91,10 +91,10 @@ function Excuses({ m, past }: { m: Meeting; past: boolean }) {
   if (!names.length && (past || !convoque)) return null;
   return (
     <div className="excuses">
-      {names.length > 0 && <p className="muted">🚫 Excusé{names.length > 1 ? 's' : ''} : {names.join(', ')}</p>}
+      {names.length > 0 && <p className="muted"><Icone n="absent" /> Excusé{names.length > 1 ? 's' : ''} : {names.join(', ')}</p>}
       {!past && convoque && (
         mine ? (
-          <p><span className="chip on">✓ Tu es excusé(e)</span> <button className="btn small link" onClick={() => set(false)}>Je serai finalement présent(e)</button></p>
+          <p><span className="chip on"><Icone n="ok" /> Tu es excusé(e)</span> <button className="btn small link" onClick={() => set(false)}>Je serai finalement présent(e)</button></p>
         ) : open ? (
           <div className="row wrap">
             <input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif (facultatif)" aria-label="Motif" maxLength={120} />
@@ -131,7 +131,7 @@ export function Meetings() {
           <strong>{m.titre}</strong>
           <div className="muted">
             {m.heure && `${m.heure.replace(':', 'h')} · `}<LieuSeance m={m} vide="" />{!past && ` · dans ${daysUntil(m.date)} j`}
-            {annuelle(m) ? ' · 🔁 chaque année' : ' · une seule fois'}
+            {annuelle(m) ? <> · <Icone n="repetition" /> chaque année</> : ' · une seule fois'}
           </div>
           <Excuses m={m} past={past} />
           <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
@@ -217,7 +217,7 @@ function AnneeProchaine() {
   };
   return (
     <section className="panel seances-suivantes">
-      <h2>🔁 Séances de l’année prochaine</h2>
+      <h2><Icone n="repetition" /> Séances de l’année prochaine</h2>
       <p className="muted">Chaque séance revient l’année suivante, le même mois et le même jour de la semaine. Coche celles à ajouter :</p>
       <ul>
         {liste.map(({ source, meeting }) => (
@@ -257,7 +257,7 @@ function Renommer() {
   };
   return (
     <section className="panel seances-noms">
-      <h2>✏️ Nommer les séances d’après leur mois</h2>
+      <h2><Icone n="modifier" /> Nommer les séances d’après leur mois</h2>
       <p className="muted">
         « {liste[0].meeting.titre} » deviendrait « {liste[0].titre} ». Le nom suit ensuite la date : une séance déplacée en avril s’appelle « … d’avril ».
       </p>
@@ -366,13 +366,13 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
         </div>
         <label className="inline full">
           <input type="checkbox" checked={!v.unique} onChange={(e) => { setChoixFait(true); set({ unique: e.target.checked ? undefined : true }); }} />
-          🔁 Revient chaque année {/^\d{4}-\d{2}/.test(v.date) && `(séance ${duMois(v.date)})`}
+          <Icone n="repetition" /> Revient chaque année {/^\d{4}-\d{2}/.test(v.date) && `(séance ${duMois(v.date)})`}
         </label>
         <p className="muted full serie-note">
           {v.unique
             ? 'Séance unique : elle ne sera pas proposée l’année prochaine.'
             : 'Proposée de nouveau l’année prochaine, le même mois. Les tâches annuelles rattachées à cette séance passeront à celle de l’année suivante.'}
-          {autre && ` ⚠️ « ${autre.titre} » revient déjà ce mois-là : décoche si celle-ci est exceptionnelle.`}
+          {autre && <> <Icone n="alerte" /> « {autre.titre} » revient déjà ce mois-là : décoche si celle-ci est exceptionnelle.</>}
         </p>
       </div>
       {note && <p className="muted">{note}</p>}
@@ -426,7 +426,7 @@ export function Events() {
               <div className="grow">
                 <strong>{e.nom}</strong>
                 <div className="muted">{[horaire(e), e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
-                {e.repetition && <div className="muted">🔁 {libelleRepetition(serie)}</div>}
+                {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
                 <p>{e.description}</p>
                 <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
                 <Link to={`/taches?event=${e.id}`}>Voir les tâches →</Link>
@@ -469,21 +469,22 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
     <article className={`panel agenda-item dependant ${past ? 'past' : ''}`} style={{ '--c': u.couleur } as React.CSSProperties}>
       {u.date ? <DateBlock date={u.date} fin={u.dateFin} /> : <div className="dateblock vide" title="Date à fixer"><b>?</b><span>date</span></div>}
       <div className="grow">
-        <strong>{UNIT_TYPES[u.type].icon} {u.nom}</strong> <span className="chip dependant-tag" title={`« Dépend de » : ${club.current.nom}`}>dépend de ce comité</span>
+        <strong><Icone n={UNIT_TYPES[u.type].trait} /> {u.nom}</strong> <span className="chip dependant-tag" title={`« Dépend de » : ${club.current.nom}`}>dépend de ce comité</span>
         <div className="muted">{[UNIT_TYPES[u.type].label, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
         {u.description && <p>{u.description}</p>}
         {siens.length > 0 && (
           <ul className="dependant-events">
             {siens.map((e) => (
               <li key={e.id}>
-                🎉 {e.nom} · {[fmtRange(e.date, e.dateFin), horaire(e), e.lieu, e.repetition && `🔁 ${libelleRepetition(e)}`].filter(Boolean).join(' · ')}
+                <Icone n="evenements" /> {e.nom} · {[fmtRange(e.date, e.dateFin), horaire(e), e.lieu].filter(Boolean).join(' · ')}
+                {e.repetition && <> · <Icone n="repetition" /> {libelleRepetition(e)}</>}
               </li>
             ))}
           </ul>
         )}
         {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
         <Link to={`/taches?event=${encodeURIComponent(`u:${u.id}`)}`}>Voir les tâches →</Link>
-        {!taches.length && <small className="muted"> Aucune pour l’instant : range une tâche sous « Événements » › « {u.nom} », ou rattache-la à lui (« 🧩 Rattacher à… » ou « Pour quand ? ») ; ou il partage les siennes.</small>}
+        {!taches.length && <small className="muted"> Aucune pour l’instant : range une tâche sous « Événements » › « {u.nom} », ou rattache-la à lui (« <Icone n="rattacher" /> Rattacher à… » ou « Pour quand ? ») ; ou il partage les siennes.</small>}
       </div>
       {membre && <button className="btn small" onClick={() => club.switchUnit(u.id, '#/evenements')} title={`Ouvrir « ${u.nom} »`}>Ouvrir</button>}
     </article>
@@ -513,7 +514,7 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
     <div className="pv-overlay">
       <style>{`@page { size: A4 ${pv.orientation === 'paysage' ? 'landscape' : 'portrait'}; margin: ${margesArchive(pv.html)}mm; }`}</style>
       <div className="pv-overlay-bar no-print">
-        <strong>📄 {pv.titre}</strong>
+        <strong><Icone n="pdf" /> {pv.titre}</strong>
         <small>archivé le {fmtDateTime(pv.at)} par {fullName(data.people.find((p) => p.id === pv.by))}</small>
         <span className="grow" />
         <BoutonPdf className="btn primary" feuille={doc} titre={kind === 'odj' ? `Ordre du jour ${pv.titre}` : pv.titre} paysage={pv.orientation === 'paysage'} margesMm={margesArchive(pv.html)} police={policeArchive(pv.html)} />
@@ -529,7 +530,7 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
 }
 
 const linkedNote = (n: number) =>
-  n ? `📌 ${n} tâche(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.` : undefined;
+  n ? <><Icone n="epingle" /> {n} tâche(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.</> : undefined;
 
 function DateBlock({ date, fin }: { date: string; fin?: string }) {
   const d = new Date(date + 'T12:00:00');

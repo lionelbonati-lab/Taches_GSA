@@ -6,11 +6,13 @@ import {
   MailPlus, Maximize2, Menu, Merge, MessageCircle, MessageSquarePlus, Minimize2, Move, Network, NotebookPen, Palette, PartyPopper, Paperclip, Pencil, Pin,
   Play, Printer, Puzzle, RefreshCw, Repeat, RotateCcw, Save, ScrollText, Send, Settings, Share2, ShieldCheck, ShieldHalf, Signature,
   Smartphone, Sparkles, SquareCheckBig, Stamp, Undo2, Upload, UserLock, UserX, Users, Calendar, Camera, CreditCard, Receipt, FolderTree, PanelTop, History,
-  MapPin, Search, LocateFixed, Redo2, GripVertical, ChevronUp, ChevronDown, ListPlus,
+  MapPin, Search, LocateFixed, Redo2, GripVertical, ChevronUp, ChevronDown, ListPlus, TriangleAlert, Clock, Landmark, Tent, Bike, Inbox, Hash,
+  Monitor, Flag,
 } from 'lucide-react';
 
-// Icônes des boutons, dessinées au trait (bibliothèque Lucide, licence ISC), de la couleur du texte et à sa taille.
-// Les repères de contenu (types d'entités, 🔁 🤝 📌 dans les listes, états des paiements…) restent des émojis.
+// Icônes dessinées au trait (bibliothèque Lucide, licence ISC), de la couleur du texte et à sa taille : boutons, titres,
+// repères des tâches, de l'accueil, de l'agenda et des événements, pastilles des entités. Restent des émojis : les listes
+// déroulantes (une icône n'y entre pas), les états des paiements et quelques repères de l'organigramme (⛓ ★).
 
 type Svg = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string; strokeWidth?: number | string; absoluteStrokeWidth?: boolean }>;
 
@@ -124,6 +126,17 @@ export const ICONES = {
   lieu: MapPin,
   rechercher: Search,
   position: LocateFixed,
+  alerte: TriangleAlert,
+  horloge: Clock,
+  demande: Inbox,
+  compteur: Hash,
+  telephone: Smartphone,
+  ordinateur: Monitor,
+  // Types d'entités
+  comite: Landmark,
+  sousComite: Tent,
+  groupe: Bike,
+  drapeau: Flag,
 } satisfies Record<string, Svg>;
 
 export type IconeNom = keyof typeof ICONES;

@@ -4,6 +4,7 @@ import { useClubOptional } from '../data/club';
 import { daysUntil, endOf, fmtRange, today } from '../data/utils';
 import type { OrgUnit } from '../data/types';
 import { Modal } from './ui';
+import { Icone } from './icones';
 
 // Date de la prochaine édition d'une manifestation (sous-comité, équipe d'événement), sur un ou plusieurs jours.
 // Affichée sur l'accueil et la page Événements de l'entité ; son comité la change (admins, droit « Gérer les
@@ -31,7 +32,7 @@ export function EditionCard() {
   return (
     <div className={`panel edition ${passee || !u.date ? 'todo' : ''}`}>
       <span className="grow">
-        📅 <strong>{passee ? 'Dernière édition' : 'Prochaine édition'}</strong>
+        <Icone n="date" /> <strong>{passee ? 'Dernière édition' : 'Prochaine édition'}</strong>
         {u.date && ` : ${fmtRange(u.date, u.dateFin)}`} <em className="muted">({etat})</em>
       </span>
       {allowed && <button className="btn small" onClick={() => setOpen(true)}>{u.date ? 'Changer la date' : 'Fixer la date'}</button>}
@@ -91,14 +92,14 @@ function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void })
             Déplacer aussi dans l’agenda
             <select value={ev} onChange={(e) => setEv(e.target.value)}>
               <option value="">Non, ne pas toucher aux événements</option>
-              {events.map((e) => <option key={e.id} value={e.id}>🎉 {e.nom} ({fmtRange(e.date, e.dateFin)})</option>)}
+              {events.map((e) => <option key={e.id} value={e.id}>{e.nom} ({fmtRange(e.date, e.dateFin)})</option>)}
             </select>
           </label>
         )}
       </div>
       <p className="muted small-note">
         La date est visible de tout le club (organigramme).
-        {liees > 0 && ` 📌 ${liees} tâche(s) ont un délai calé sur cet événement : leurs délais suivront.`}
+        {liees > 0 && <> <Icone n="epingle" /> {liees} tâche(s) ont un délai calé sur cet événement : leurs délais suivront.</>}
       </p>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">

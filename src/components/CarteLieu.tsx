@@ -11,11 +11,17 @@ import { Icone } from './icones';
 /** Sans lieu placé jusqu'ici : l'Ajoie. */
 const DEPART: PointGeo = { lat: 47.415, lng: 7.075 };
 
+// Épingle dessinée au trait comme les icônes de l'appli (Lucide « map-pin »), de sa couleur, détourée de blanc pour
+// rester lisible sur le fond de carte.
+const PIN = 'M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0';
 const epingle = L.divIcon({
   className: 'carte-epingle',
-  html: '<svg viewBox="0 0 24 32" width="30" height="40" aria-hidden="true"><path d="M12 31s10-11.2 10-19A10 10 0 0 0 2 12c0 7.8 10 19 10 19z" fill="#dc2626" stroke="#fff" stroke-width="1.5"/><circle cx="12" cy="12" r="4" fill="#fff"/></svg>',
-  iconSize: [30, 40],
-  iconAnchor: [15, 39],
+  html:
+    '<svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    `<path d="${PIN}" stroke="#fff" stroke-width="4.5"/><path d="${PIN}" fill="#fff" stroke="currentColor" stroke-width="2"/>` +
+    '<circle cx="12" cy="10" r="3" stroke="currentColor" stroke-width="2"/></svg>',
+  iconSize: [40, 40],
+  iconAnchor: [20, 37],
 });
 
 interface Resultat {

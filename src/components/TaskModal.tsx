@@ -547,7 +547,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               <small className="muted attribuee-note">
                 📦 À l’enregistrement, la tâche {isNew ? 'sera créée' : 'passera'} dans « {attribuee.unite.nom} »
                 {secChez && `, section « ${sectionsChez.find((x) => x.id === secChez)?.nom ?? attribuee.sousSection} »`}, qui la gérera comme ses
-                tâches ; ici, elle apparaîtra partagée 🤝 et restera modifiable.{(t.documents ?? []).some((d) => d.kind === 'fichier') && !cacheChez && ' Ses fichiers joints la suivent.'}
+                tâches ; ici, elle apparaîtra partagée <Icone n="partage" /> et restera modifiable.{(t.documents ?? []).some((d) => d.kind === 'fichier') && !cacheChez && ' Ses fichiers joints la suivent.'}
                 {cacheChez && <b> « {attribuee.unite.nom} » n’affiche aucune de ses tâches au comité (réglage « Ne rien afficher ») : elle n’apparaîtra pas ici.</b>}
               </small>
             )}

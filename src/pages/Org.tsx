@@ -363,7 +363,7 @@ export function Org() {
   return (
     <div>
       <div className="page-head">
-        <h1>🏛️ Organigramme du club</h1>
+        <h1><Icone n="organigramme" /> Organigramme du club</h1>
         {edition ? (
           <div className="row wrap">
             {club.canManage && <button className="btn" onClick={() => setEdit({})}>+ Nouvelle entité</button>}
@@ -606,7 +606,7 @@ function FonctionsAnnee({ annee, units, m, onClose }: { annee: number; units: Or
           const autres = (postes.length ? postes : fonctionsDe(x)).filter((f) => !x.admin || norm(f) !== norm(x.poste || t.chef));
           return (
             <li key={`${u.id}|${x.id}`}>
-              <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
+              <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icone={t.trait} />
               <span>
                 <b>{u.nom}</b>
                 {[titre, ...autres].filter(Boolean).length > 0 && <> · {[titre, ...autres].filter(Boolean).join(', ')}</>}

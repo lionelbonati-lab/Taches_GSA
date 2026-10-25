@@ -398,8 +398,8 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
   const repondre = (prend: boolean) => {
     setPrise(true);
     (prend ? prendreTache : pasDispo)(t)
-      .then(() => setToast(prend ? `✅ Tu t’en charges : « ${t.titre} »` : `🙅 C’est noté : pas dispo pour « ${t.titre} ». La personne qui te l’a proposée est prévenue.`))
-      .catch((e: Error) => setToast(`⚠️ ${e.message}`))
+      .then(() => setToast(prend ? `Tu t’en charges : « ${t.titre} »` : `C’est noté : pas dispo pour « ${t.titre} ». La personne qui te l’a proposée est prévenue.`))
+      .catch((e: Error) => setToast(e.message))
       .finally(() => setPrise(false));
   };
   const sectionName = data.sections.find((s) => s.id === t.sectionId)?.nom ?? '';
@@ -423,7 +423,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
       </div>
       {aPrendre && (
         <div className="a-prendre-tap" onClick={(e) => e.stopPropagation()}>
-          {decline && <small className="muted">🙅 Tu as répondu « Pas dispo ».</small>}
+          {decline && <small className="muted"><Icone n="refuser" /> Tu as répondu « Pas dispo ».</small>}
           <button className={`btn small ${decline ? '' : 'primary'}`} disabled={prise} onClick={() => repondre(true)}><Icone n="main" /> Je m’en charge{decline ? ' quand même' : ''}</button>
           {!decline && <button className="btn small" disabled={prise} onClick={() => repondre(false)}><Icone n="refuser" /> Pas dispo</button>}
         </div>
@@ -442,7 +442,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
   );
 }
 
-/** Repères : « ↳ tâche principale » pour une tâche liée, « 🔗 x/y » pour une tâche principale. */
+/** Repères : « ↳ tâche principale » pour une tâche liée, « x/y tâches rattachées » pour une tâche principale. */
 export function Linked({ t }: { t: Task }) {
   const { data } = useStore();
   const parent = parentOf(data, t);
@@ -452,7 +452,7 @@ export function Linked({ t }: { t: Task }) {
   const done = kids.filter((k) => isDone(data, k)).length;
   return (
     <small className={`linked-count ${done === kids.length ? 'all' : ''}`} title={`${kids.length} tâche(s) rattachée(s), ${done} terminée(s)`}>
-      🧩 {done}/{kids.length} tâches rattachées
+      <Icone n="rattacher" /> {done}/{kids.length} tâches rattachées
     </small>
   );
 }

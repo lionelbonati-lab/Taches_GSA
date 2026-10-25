@@ -91,7 +91,7 @@ export function Dashboard() {
     // On oublie les marques des tâches qui ne sont plus « pour info » (terminées, supprimées) depuis deux mois.
     const garde = Object.fromEntries(Object.entries(vus).filter(([k, d]) => clesInfo.has(k) || daysUntil(d) > -60));
     setPrefs({ pourInfoVus: { ...garde, [cle]: today() } });
-    setToast(`✓ « ${titre} » ne s’affiche plus sur l’accueil (toujours dans Tâches › 👁 Pour info).`);
+    setToast(`« ${titre} » ne s’affiche plus sur l’accueil (toujours dans Tâches › Pour info).`);
   };
   const reafficher = () => {
     const reste = Object.fromEntries(Object.entries(vus).filter(([k]) => !clesInfo.has(k)));
@@ -122,7 +122,7 @@ export function Dashboard() {
       case 'retard':
         return (
           <>
-            <h2>⚠ Mes tâches en retard</h2>
+            <h2><Icone n="alerte" /> Mes tâches en retard</h2>
             {late.length ? <div className="cards">{late.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Rien en retard, bravo !</Empty>}
           </>
         );
@@ -130,7 +130,7 @@ export function Dashboard() {
         return (
           <>
             <h2>
-              📅 À faire dans les{' '}
+              <Icone n="date" /> À faire dans les{' '}
               <select className="h2-select" value={jours} aria-label="Nombre de jours" title="Combien de jours à l’avance" onChange={(e) => setPrefs({ aFaireJours: Number(e.target.value) === 7 ? undefined : Number(e.target.value) })}>
                 {JOURS_A_FAIRE.includes(jours) ? null : <option value={jours}>{jours}</option>}
                 {JOURS_A_FAIRE.map((n) => <option key={n} value={n}>{n}</option>)}
@@ -143,7 +143,7 @@ export function Dashboard() {
       case 'aprendre':
         return (
           <>
-            <h2>🙋 À prendre <small className="muted">· on te les propose : l’une est pour toi ?</small></h2>
+            <h2><Icone n="main" /> À prendre <small className="muted">· on te les propose : l’une est pour toi ?</small></h2>
             <div className="cards">{aPrendre.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div>
           </>
         );
@@ -151,7 +151,7 @@ export function Dashboard() {
         return (
           <>
             <h2>
-              👁 Pour info <small className="muted">· pour que tu sois au courant</small>
+              <Icone n="voir" /> Pour info <small className="muted">· pour que tu sois au courant</small>
               {masquees > 0 && (
                 <button type="button" className="link-btn h2-action" onClick={reafficher} title="Réafficher les tâches marquées « ✓ Vu »">
                   Réafficher ({masquees})
@@ -172,7 +172,7 @@ export function Dashboard() {
                     <strong>{t.titre}</strong>
                     {t.remarque && <small className="muted clip">{t.remarque}</small>}
                     <div className="tcard-bottom">
-                      <span className="badge pour-info">👁 lecture seule</span>
+                      <span className="badge pour-info"><Icone n="voir" /> lecture seule</span>
                       <span className={retard ? 'late-text' : 'muted'}>{delaiRecu(x)}</span>
                     </div>
                     <BoutonVu onVu={() => marquerVu(clePourInfo(x), t.titre)} />
@@ -189,7 +189,7 @@ export function Dashboard() {
           <>
             {toSend.length > 0 && (
               <>
-                <h2>📧 Emails à envoyer</h2>
+                <h2><Icone n="email" /> Emails à envoyer</h2>
                 {toSend.map(({ e, t }) => (
                   <div key={e.id} className="panel email-due">
                     <strong>{fillTemplate(data, t, e, e.objet)}</strong>
@@ -201,7 +201,7 @@ export function Dashboard() {
             )}
             {upcoming.length > 0 && (
               <>
-                <h2>🕓 Prochains emails programmés</h2>
+                <h2><Icone n="horloge" /> Prochains emails programmés</h2>
                 {upcoming.map(({ e, t }) => (
                   <button key={e.id} className="panel link-panel email-next" onClick={() => setEdit(t)}>
                     <strong>{fillTemplate(data, t, e, e.objet)}</strong>
@@ -215,7 +215,7 @@ export function Dashboard() {
       case 'sondages':
         return (
           <>
-            <h2>📊 Sondages à voter</h2>
+            <h2><Icone n="sondage" /> Sondages à voter</h2>
             {toVote.map((p) => (
               <Link key={p.id} to={`/sondages?id=${p.id}`} className="panel link-panel">
                 <strong>{p.question}</strong>
@@ -227,11 +227,11 @@ export function Dashboard() {
       case 'seance':
         return (
           <>
-            <h2>{club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}</h2>
+            <h2><Icone n="seances" /> {club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}</h2>
             {nextMeeting ? (
               <Link to="/comite" className="panel link-panel">
                 <strong>{nextMeeting.titre}</strong>
-                <span>{fmtDate(nextMeeting.date)} · {nextMeeting.lieu} <em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em></span>
+                <span>{fmtDate(nextMeeting.date)} · {nextMeeting.lieu && <><Icone n="lieu" /> {nextMeeting.lieu}</>} <em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em></span>
               </Link>
             ) : <Empty>Aucune séance planifiée.</Empty>}
           </>
@@ -239,7 +239,7 @@ export function Dashboard() {
       case 'evenements':
         return (
           <>
-            <h2>Prochains événements</h2>
+            <h2><Icone n="evenements" /> Prochains événements</h2>
             {nextEvents.map(({ e, u }) => {
               // Événement qui dépend de l'entité : les tâches qui le concernent ici (et celles de l'événement du même nom).
               const tasks = data.tasks.filter((t) => (u && tacheDeLEvenement(t, u.id)) || (!!e && t.eventId === e.id));
@@ -248,8 +248,11 @@ export function Dashboard() {
               const quand = x.date <= jour ? 'en cours' : `dans ${daysUntil(x.date)} j`;
               return (
                 <Link key={u ? `u:${u.id}` : e!.id} to={`/taches?event=${encodeURIComponent(u ? `u:${u.id}` : e!.id)}`} className="panel link-panel">
-                  <strong>{u ? `${UNIT_TYPES[u.type].icon} ${u.nom}` : e!.nom}</strong>
-                  <span>{[fmtRange(x.date, x.dateFin), e && horaire(e), e?.lieu, e?.repetition && '🔁'].filter(Boolean).join(' · ')} <em className="muted">({quand})</em></span>
+                  <strong>{u ? <><Icone n={UNIT_TYPES[u.type].trait} /> {u.nom}</> : e!.nom}</strong>
+                  <span>
+                    {[fmtRange(x.date, x.dateFin), e && horaire(e), e?.lieu].filter(Boolean).join(' · ')}
+                    {e?.repetition && <> <span title="Se répète" aria-label="se répète"><Icone n="repetition" /></span></>} <em className="muted">({quand})</em>
+                  </span>
                   <Progress done={done} total={tasks.length} />
                 </Link>
               );
@@ -288,7 +291,7 @@ export function Dashboard() {
   return (
     <div>
       <div className="page-head">
-        <h1>Bonjour {user.prenom} 👋</h1>
+        <h1>Bonjour {user.prenom}</h1>
         <button className="btn small" onClick={() => setReglage(true)} aria-label="Personnaliser l’accueil" title="Choisir ce qui s’affiche sur ton accueil, et dans quel ordre"><Icone n="reglages" /><span className="hide-mobile"> Personnaliser</span></button>
       </div>
       <Bienvenue userId={user.id} />
@@ -339,7 +342,7 @@ function Bienvenue({ userId }: { userId: string }) {
   };
   return (
     <div className="panel bienvenue" role="note">
-      <span className="grow">👋 <b>Nouveau dans l’appli ?</b> En deux minutes : où trouver quoi, et les gestes courants.</span>
+      <span className="grow"><Icone n="aide" /> <b>Nouveau dans l’appli ?</b> En deux minutes : où trouver quoi, et les gestes courants.</span>
       <Link to="/aide" className="btn primary small" onClick={fermer}>Comment ça marche ?</Link>
       <button className="icon-btn" aria-label="Fermer" title="Fermer" onClick={fermer}>✕</button>
     </div>

@@ -108,7 +108,7 @@ Quatre ou cinq rubriques en haut de l'écran (barre du bas sur téléphone, « P
 
 **Icônes** : les rubriques, les pages et les boutons portent des icônes dessinées au trait, de la couleur du texte (bibliothèque [Lucide](https://lucide.dev), licence ISC ; la poubelle est dessinée pour l'appli).
 
-**Cartes** (lieu des séances) : bibliothèque [Leaflet](https://leafletjs.com) (licence BSD-2), chargée seulement à l'ouverture d'une carte ; fond de carte et recherche d'adresses [OpenStreetMap](https://www.openstreetmap.org/copyright) (© les contributeurs d'OpenStreetMap, attribution affichée sur la carte ; recherche Nominatim, seulement au clic sur « Chercher »). Les liens « voir sur la carte » et d'itinéraire ouvrent Google Maps, Waze ou Plans ; seules les coordonnées du lieu y figurent. Les émojis restent comme repères dans les listes et les textes (types d'entités, 🔁 répétition, 🤝 tâche partagée, 📌 délai calé, états des paiements…).
+**Cartes** (lieu des séances) : bibliothèque [Leaflet](https://leafletjs.com) (licence BSD-2), chargée seulement à l'ouverture d'une carte ; fond de carte et recherche d'adresses [OpenStreetMap](https://www.openstreetmap.org/copyright) (© les contributeurs d'OpenStreetMap, attribution affichée sur la carte ; recherche Nominatim, seulement au clic sur « Chercher »). Les liens « voir sur la carte » et d'itinéraire ouvrent Google Maps, Waze ou Plans ; seules les coordonnées du lieu y figurent. Les repères (types d'entités, répétition, tâche partagée, délai calé, pour info, à prendre…) et l'épingle de la carte sont dessinés au trait, comme les boutons ; restent des émojis : les listes déroulantes, les états des paiements et quelques repères de l'organigramme.
 
 | Rubrique | Pages |
 |---|---|

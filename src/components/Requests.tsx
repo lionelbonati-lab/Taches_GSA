@@ -4,6 +4,7 @@ import { useClub } from '../data/club';
 import type { MyRequest, Task } from '../data/types';
 import { fmtDate, fullName, isDone } from '../data/utils';
 import { Empty, Modal } from './ui';
+import { Icone } from './icones';
 import { TaskCard } from '../pages/Tasks';
 import { ZoneTexte } from './ZoneTexte';
 import { finAnticipee } from '../data/seances';
@@ -36,7 +37,7 @@ export function OutgoingRequests() {
   return (
     <>
       <h2 className="with-action">
-        📨 Demandes au comité central
+        <span><Icone n="demande" /> Demandes au comité central</span>
         <button className="btn small primary" onClick={() => setAsking(true)}>+ Demande</button>
       </h2>
       {err && <p className="error">{err}</p>}
@@ -67,7 +68,7 @@ export function OutgoingRequests() {
           onClose={() => setAsking(false)}
           onSent={(titre) => {
             setAsking(false);
-            setToast(`📨 Demande « ${titre} » envoyée au comité central`);
+            setToast(`Demande « ${titre} » envoyée au comité central`);
             load();
           }}
         />
@@ -145,7 +146,7 @@ export function IncomingRequests({ onOpen }: { onOpen: (t: Task) => void }) {
   if (!list.length) return null;
   return (
     <>
-      <h2>📨 Demandes reçues <span className="count">{list.length}</span></h2>
+      <h2><Icone n="demande" /> Demandes reçues <span className="count">{list.length}</span></h2>
       <p className="muted small-note">Envoyées par les sous-comités, groupes et équipes : à attribuer à un responsable.</p>
       <div className="cards">{list.map((t) => <TaskCard key={t.id} t={t} onOpen={() => onOpen(t)} onStatus={(x, s) => { const q = finAnticipee(data, x, { ...x, statusId: s }); if (!q || confirm(q)) saveTask({ ...x, statusId: s }, false); }} />)}</div>
     </>

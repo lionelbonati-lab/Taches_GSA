@@ -266,7 +266,7 @@ function UnitSwitch() {
   return (
     <div className="unit-switch">
       <button className="unit-btn" onClick={() => setOpen(!open)} aria-expanded={open} title={`${UNIT_TYPES[current.type].label} · changer d’entité`} style={{ borderColor: current.couleur }}>
-        <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icon={UNIT_TYPES[current.type].icon} />
+        <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icone={UNIT_TYPES[current.type].trait} />
         <span className="unit-name">{current.nom}</span>
         <span className="unit-caret">▾</span>
       </button>
@@ -276,13 +276,13 @@ function UnitSwitch() {
           <div className="unit-menu" role="menu">
             <small className="muted">Entité ouverte</small>
             <div className="unit-item on">
-              <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icon={UNIT_TYPES[current.type].icon} />
+              <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icone={UNIT_TYPES[current.type].trait} />
               <span><b>{current.nom}</b><small className="muted">{UNIT_TYPES[current.type].label}</small></span>
             </div>
             {others.length > 0 && <small className="muted">Mes autres entités</small>}
             {others.map((u) => (
               <button key={u.id} className="unit-item" role="menuitem" onClick={() => { setOpen(false); club.switchUnit(u.id); }}>
-                <UnitMark className="unit-dot" logo={u.logo} couleur={u.couleur} icon={UNIT_TYPES[u.type].icon} />
+                <UnitMark className="unit-dot" logo={u.logo} couleur={u.couleur} icone={UNIT_TYPES[u.type].trait} />
                 <span><b>{u.nom}</b><small className="muted">{UNIT_TYPES[u.type].label}{u.moiAdmin ? ' · ★ admin' : ''}</small></span>
               </button>
             ))}

@@ -14,6 +14,7 @@ import { aLaDate, duree, estOccurrence, fmtHeure, horaire, libelleRepetition, oc
 import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
+import { Icone, type IconeNom } from '../components/icones';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
@@ -31,11 +32,12 @@ type Item =
   /** Agenda du club : prochaine édition d'une manifestation, ou événement d'une autre entité (`e`). */
   | { kind: 'manif'; key: string; date: string; u: OrgUnit; e?: AgendaClubEvent; o?: string };
 
+const ICONE: Record<Kind, IconeNom> = { meeting: 'seances', event: 'evenements', task: 'taches', poll: 'sondage', manif: 'agendaClub' };
 const KINDS: { id: Kind; label: string }[] = [
-  { id: 'meeting', label: '🗓️ Séances' },
-  { id: 'event', label: '🎉 Événements' },
-  { id: 'task', label: '✅ Tâches' },
-  { id: 'poll', label: '📊 Sondages' },
+  { id: 'meeting', label: 'Séances' },
+  { id: 'event', label: 'Événements' },
+  { id: 'task', label: 'Tâches' },
+  { id: 'poll', label: 'Sondages' },
 ];
 const WEEKDAYS = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'];
 const MAX_CHIPS = 4;
@@ -187,9 +189,9 @@ export function Calendar() {
     else setTask({ t: newTask(user.id, { delai: date }), isNew: true });
   };
   const addChoices = [
-    addMeeting && { kind: 'meeting' as const, label: '🗓️ Séance de comité' },
-    addTask && { kind: 'task' as const, label: '✅ Tâche' },
-    addEvent && { kind: 'event' as const, label: '🎉 Événement' },
+    addMeeting && { kind: 'meeting' as const, label: 'Séance de comité' },
+    addTask && { kind: 'task' as const, label: 'Tâche' },
+    addEvent && { kind: 'event' as const, label: 'Événement' },
   ].filter(Boolean) as { kind: 'meeting' | 'task' | 'event'; label: string }[];
 
   const open = (it: Item) => {
@@ -211,18 +213,18 @@ export function Calendar() {
       // « Comité de mars 2027 » glissé en avril devient « Comité d’avril 2027 ».
       const titre = titreSelonDate(it.m.titre, date) ?? it.m.titre;
       saveMeeting({ ...it.m, date, titre });
-      setToast(`🗓️ ${titre} déplacé au ${when}${n ? ` · le délai de ${n} tâche(s) suit` : ''}`);
+      setToast(`${titre} déplacé au ${when}${n ? ` · le délai de ${n} tâche(s) suit` : ''}`);
     } else if (it.kind === 'event') {
       // Glisser un des jours déplace tout l'événement (qui se répète : on demande lesquels).
       const debut = addDays(it.o, diffDays(it.date, date));
       if (it.e.repetition) return setDeplace({ serie: it.e, jour: it.o, date: debut });
       const x = aLaDate(it.e, debut);
       saveEvent(x);
-      setToast(`🎉 ${it.e.nom} déplacé au ${fmtRange(x.date, x.dateFin)}`);
+      setToast(`${it.e.nom} déplacé au ${fmtRange(x.date, x.dateFin)}`);
     } else if (it.kind === 'task') {
       if (it.t.delaiRef && !confirm(`Le délai de « ${it.t.titre} » suit une séance ou un événement. Le fixer au ${when} retire ce lien. Continuer ?`)) return;
       saveTask({ ...it.t, delai: date, delaiRef: undefined }, false);
-      setToast(`✅ « ${it.t.titre} » : délai au ${when}`);
+      setToast(`« ${it.t.titre} » : délai au ${when}`);
     }
   };
 
@@ -240,7 +242,7 @@ export function Calendar() {
       case 'manif': {
         const n = duree(it.e ?? { date: it.u.date!, dateFin: it.u.dateFin }) + 1;
         const i = diffDays(it.o ?? it.u.date!, it.date) + 1;
-        return `${it.e ? `${i === 1 && it.e.heure ? `${fmtHeure(it.e.heure)} ` : ''}${it.e.nom}` : `🎪 ${it.u.nom}`}${n > 1 ? ` (${i}/${n})` : ''}`;
+        return `${it.e ? `${i === 1 && it.e.heure ? `${fmtHeure(it.e.heure)} ` : ''}${it.e.nom}` : it.u.nom}${n > 1 ? ` (${i}/${n})` : ''}`;
       }
     }
   };
@@ -249,7 +251,7 @@ export function Calendar() {
       case 'meeting': return `Séance : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
       case 'event': {
         const x = aLaDate(it.e, it.o);
-        return `Événement : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ')}`;
+        return `Événement : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
       }
       case 'task': {
         const p = parentOf(data, it.t);
@@ -259,7 +261,7 @@ export function Calendar() {
       case 'manif': {
         if (!it.e) return `Prochaine édition : ${it.u.nom} · ${fmtRange(it.u.date, it.u.dateFin)}`;
         const x = aLaDate(it.e, it.o ?? it.e.date);
-        return `${it.u.nom} : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ')}`;
+        return `${it.u.nom} : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
       }
     }
   };
@@ -291,7 +293,7 @@ export function Calendar() {
           )}
           {addChoices.map((c) => (
             <button key={c.kind} className={`btn ${c.kind === 'task' ? 'primary' : ''} hide-mobile`} onClick={() => create(c.kind, selected)}>
-              + {c.label.replace(/^\S+ /, '')}
+              + {c.label}
             </button>
           ))}
         </div>
@@ -307,12 +309,12 @@ export function Calendar() {
         </div>
         <div className="cal-filters">
           {KINDS.filter((k) => (k.id !== 'meeting' || seeMeetings) && (k.id !== 'event' || seeEvents)).map((k) => (
-            <button key={k.id} className={`chip small ${kinds.includes(k.id) ? 'on' : ''}`} onClick={() => toggleKind(k.id)}>{k.label}</button>
+            <button key={k.id} className={`chip small ${kinds.includes(k.id) ? 'on' : ''}`} onClick={() => toggleKind(k.id)}><Icone n={ICONE[k.id]} /> {k.label}</button>
           ))}
           {manifs.length > 0 && (
             <details className="cal-manifs">
               <summary className={`chip small ${manifs.some((x) => !masquees.includes(x.u.id)) ? 'on' : ''}`}>
-                🎪 Agenda du club {manifs.filter((x) => !masquees.includes(x.u.id)).length}/{manifs.length} ▾
+                <Icone n="agendaClub" /> Agenda du club {manifs.filter((x) => !masquees.includes(x.u.id)).length}/{manifs.length} ▾
               </summary>
               <div className="cal-manifs-panel">
                 <small className="muted">Entités dont les dates (prochaine édition, événements) sont affichées dans cet agenda :</small>
@@ -369,7 +371,7 @@ export function Calendar() {
                   {menu === d && (
                     <div className="cal-menu" ref={menuRef} onClick={(e) => e.stopPropagation()}>
                       <small>Ajouter le {fmtDate(d)}</small>
-                      {addChoices.map((c) => <button key={c.kind} onClick={() => create(c.kind, d)}>{c.label}</button>)}
+                      {addChoices.map((c) => <button key={c.kind} onClick={() => create(c.kind, d)}><Icone n={ICONE[c.kind]} /> {c.label}</button>)}
                     </div>
                   )}
                 </div>
@@ -399,7 +401,7 @@ export function Calendar() {
           <h2>{longDate(selected)}</h2>
           {addChoices.length > 0 && (
             <div className="cal-side-add">
-              {addChoices.map((c) => <button key={c.kind} className="btn small" onClick={() => create(c.kind, selected)}>+ {c.label}</button>)}
+              {addChoices.map((c) => <button key={c.kind} className="btn small" onClick={() => create(c.kind, selected)}><Icone n={ICONE[c.kind]} /> {c.label}</button>)}
             </div>
           )}
           {dayItems.length === 0 ? (
@@ -411,16 +413,20 @@ export function Calendar() {
                   <button className={`cal-row k-${it.kind}`} style={it.kind === 'manif' ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
-                        {{ meeting: '🗓️', event: '🎉', task: '✅', poll: '📊', manif: it.kind === 'manif' && it.e ? '🎉' : '' }[it.kind]} {chipText(it)}
+                        <Icone n={it.kind === 'manif' ? (it.e ? 'evenements' : UNIT_TYPES[it.u.type].trait) : ICONE[it.kind]} /> {chipText(it)}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}
-                        {it.kind === 'event' && ([horaire(it.e), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ') || 'Événement du club')}
+                        {it.kind === 'event' && ([horaire(it.e), it.e.lieu].filter(Boolean).join(' · ') || (!it.e.repetition && 'Événement du club'))}
+                        {it.kind === 'event' && it.e.repetition && <>{(horaire(it.e) || it.e.lieu) && ' · '}<Icone n="repetition" /> {libelleRepetition(it.e)}</>}
                         {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
                         {it.kind === 'poll' && `date limite pour répondre${it.p.heureLimite ? ` à ${it.p.heureLimite.replace(':', 'h')}` : ''}${it.p.clotureAuto === false ? ' (indicative)' : ', clôture automatique'}`}
                         {it.kind === 'manif' &&
                           (it.e
-                            ? [it.u.nom, fmtRange(it.o ?? it.e.date, aLaDate(it.e, it.o ?? it.e.date).dateFin), horaire(it.e), it.e.lieu, it.e.repetition && `🔁 ${libelleRepetition(it.e)}`].filter(Boolean).join(' · ')
+                            ? <>
+                                {[it.u.nom, fmtRange(it.o ?? it.e.date, aLaDate(it.e, it.o ?? it.e.date).dateFin), horaire(it.e), it.e.lieu].filter(Boolean).join(' · ')}
+                                {it.e.repetition && <> · <Icone n="repetition" /> {libelleRepetition(it.e)}</>}
+                              </>
                             : `${UNIT_TYPES[it.u.type].label}${it.u.id === club?.current.id ? ' (cette entité)' : ''} · prochaine édition ${fmtRange(it.u.date, it.u.dateFin)}`)}
                       </small>
                     </span>
@@ -444,7 +450,7 @@ export function Calendar() {
           onChoisir={(p: Portee) => {
             const { serie, jour, date } = deplace;
             saveOccurrence(serie, jour, aLaDate(serie, date), p);
-            setToast(`🎉 ${serie.nom} déplacé au ${fmtDate(date)}${p === 'une' ? '' : p === 'suivantes' ? ' (et les suivants)' : ' (toute la série)'}`);
+            setToast(`${serie.nom} déplacé au ${fmtDate(date)}${p === 'une' ? '' : p === 'suivantes' ? ' (et les suivants)' : ' (toute la série)'}`);
             setDeplace(null);
           }}
           onClose={() => setDeplace(null)}

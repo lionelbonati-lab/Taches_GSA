@@ -4,7 +4,7 @@ import { useClubOptional } from '../data/club';
 import type { Prefs, Status } from '../data/types';
 import { hasEdition } from './Edition';
 import { Modal } from './ui';
-import { Icone } from './icones';
+import { Icone, type IconeNom } from './icones';
 
 /** Écran de téléphone : même limite que la mise en page (styles.css). */
 const ETROIT = '(max-width: 767px)';
@@ -27,7 +27,7 @@ export type Appareil = 'telephone' | 'ordinateur';
 /** Bloc « À faire » : jours proposés ; 7 par défaut. */
 export const JOURS_A_FAIRE = [3, 7, 14, 21, 30, 60, 90];
 export const joursAFaire = (n?: number) => (n && Number.isInteger(n) && n > 0 && n <= 365 ? n : 7);
-type Element = { id: string; label: string; couleur?: string };
+type Element = { id: string; label: string; icone?: IconeNom; couleur?: string };
 
 /** Blocs de l'accueil que la personne peut afficher ou masquer, dans l'ordre d'origine. */
 export function useBlocsAccueil(): Element[] {
@@ -35,21 +35,20 @@ export function useBlocsAccueil(): Element[] {
   const club = useClubOptional();
   const central = club?.current.type === 'central';
   const jours = joursAFaire(prefs.aFaireJours);
-  return [
-    { id: 'edition', label: '📅 Date de l’édition', si: hasEdition(club?.current) },
-    { id: 'compteurs', label: '🔢 Compteurs de mes tâches', si: true },
-    { id: 'retard', label: '⚠ Mes tâches en retard', si: true },
-    { id: 'aprendre', label: '🙋 À prendre (tâches qu’on me propose)', si: true },
-    { id: 'semaine', label: `📅 À faire dans les ${jours} jours`, si: true },
-    { id: 'pourinfo', label: '👁 Pour info', si: true },
-    { id: 'demandes', label: central ? '📨 Demandes reçues' : '📨 Demandes au comité central', si: !!club },
-    { id: 'emails', label: '📧 Mes emails à envoyer et programmés', si: true },
-    { id: 'sondages', label: '📊 Sondages à voter', si: true },
-    { id: 'seance', label: club?.current.type === 'equipe' ? '🗓️ Prochaine réunion' : '🗓️ Prochaine séance', si: can('tab.meetings') },
-    { id: 'evenements', label: '🎪 Prochains événements', si: can('tab.events') },
-  ]
-    .filter((b) => b.si)
-    .map(({ id, label }) => ({ id, label }));
+  const l: (Element & { si: boolean })[] = [
+    { id: 'edition', icone: 'date', label: 'Date de l’édition', si: hasEdition(club?.current) },
+    { id: 'compteurs', icone: 'compteur', label: 'Compteurs de mes tâches', si: true },
+    { id: 'retard', icone: 'alerte', label: 'Mes tâches en retard', si: true },
+    { id: 'aprendre', icone: 'main', label: 'À prendre (tâches qu’on me propose)', si: true },
+    { id: 'semaine', icone: 'date', label: `À faire dans les ${jours} jours`, si: true },
+    { id: 'pourinfo', icone: 'voir', label: 'Pour info', si: true },
+    { id: 'demandes', icone: 'demande', label: central ? 'Demandes reçues' : 'Demandes au comité central', si: !!club },
+    { id: 'emails', icone: 'email', label: 'Mes emails à envoyer et programmés', si: true },
+    { id: 'sondages', icone: 'sondage', label: 'Sondages à voter', si: true },
+    { id: 'seance', icone: 'seances', label: club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance', si: can('tab.meetings') },
+    { id: 'evenements', icone: 'evenements', label: 'Prochains événements', si: can('tab.events') },
+  ];
+  return l.filter((b) => b.si).map(({ id, icone, label }) => ({ id, icone, label }));
 }
 
 /** Compteurs : un par statut de l'entité, puis « En retard ». */
@@ -92,9 +91,9 @@ export function useAccueil() {
   };
 }
 
-const COLONNES: { a: Appareil; icone: string; label: string }[] = [
-  { a: 'telephone', icone: '📱', label: 'Téléphone' },
-  { a: 'ordinateur', icone: '💻', label: 'Ordinateur' },
+const COLONNES: { a: Appareil; label: string }[] = [
+  { a: 'telephone', label: 'Téléphone' },
+  { a: 'ordinateur', label: 'Ordinateur' },
 ];
 
 /** Tableau d'éléments à cocher par appareil et à ranger (↑ ↓). */
@@ -126,7 +125,7 @@ function Rangement({ titre, elements, masque, ordre, appareil, setMasque, setOrd
             <th>{titre}</th>
             {COLONNES.map((c) => (
               <th key={c.a} className={c.a === appareil ? 'ici' : ''} title={c.label}>
-                {c.icone}<span className="hide-mobile"> {c.label}</span>
+                <Icone n={c.a} /><span className="hide-mobile"> {c.label}</span>
                 {c.a === appareil && <small className="muted"> (ici)</small>}
               </th>
             ))}
@@ -141,7 +140,7 @@ function Rangement({ titre, elements, masque, ordre, appareil, setMasque, setOrd
                   <button type="button" className="icon-btn" disabled={i === 0} aria-label={`Monter « ${e.label} »`} title="Monter" onClick={() => deplacer(i, -1)}><Icone n="monter" /></button>
                   <button type="button" className="icon-btn" disabled={i === ids.length - 1} aria-label={`Descendre « ${e.label} »`} title="Descendre" onClick={() => deplacer(i, 1)}><Icone n="descendre" /></button>
                 </td>
-                <td>{e.couleur ? <span className="compteur-nom" style={{ borderLeftColor: e.couleur }}>{e.label}</span> : e.label}</td>
+                <td>{e.couleur ? <span className="compteur-nom" style={{ borderLeftColor: e.couleur }}>{e.label}</span> : <>{e.icone && <Icone n={e.icone} />} {e.label}</>}</td>
                 {COLONNES.map((c) => (
                   <td key={c.a} className={c.a === appareil ? 'ici' : ''}>
                     <input type="checkbox" checked={!(masque?.[c.a] ?? []).includes(id)} onChange={(ev) => bascule(c.a, id, ev.target.checked)} aria-label={`${e.label} — ${c.label}`} />
@@ -165,7 +164,7 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Mon accueil" onClose={onClose}>
       <p className="muted" style={{ marginTop: 0 }}>
-        Coche ce que tu veux voir, sur 📱 téléphone et sur 💻 ordinateur (tablette comprise) séparément ; ↑ ↓ change l’ordre, le même partout. Le réglage te suit sur tous tes appareils.
+        Coche ce que tu veux voir, sur téléphone et sur ordinateur (tablette comprise) séparément ; ↑ ↓ change l’ordre, le même partout. Le réglage te suit sur tous tes appareils.
       </p>
       <Rangement
         titre="Blocs"
@@ -187,7 +186,7 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
       />
       <p className="muted small-note">Sur ordinateur, quand des tâches et d’autres blocs se suivent, les tâches vont à gauche et les autres à droite, chacun dans cet ordre.</p>
       <fieldset className="accueil-afaire">
-        <legend>📅 Bloc « À faire »</legend>
+        <legend><Icone n="date" /> Bloc « À faire »</legend>
         <label>
           Échéances des
           <select value={jours} onChange={(e) => setPrefs({ aFaireJours: Number(e.target.value) === 7 ? undefined : Number(e.target.value) })}>

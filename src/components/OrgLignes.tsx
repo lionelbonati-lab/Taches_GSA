@@ -547,7 +547,7 @@ function Carte1({
       onPointerDown={tirable ? (e) => ctx.tirer!.commencer(e, c.cle, c.titre) : undefined}
     >
       <div className="orgl-c1-titre">
-        {g && <UnitMark className="org-icon" logo={g.logo} couleur={g.couleur} icon={UNIT_TYPES[g.type].icon} />}
+        {g && <UnitMark className="org-icon" logo={g.logo} couleur={g.couleur} icone={UNIT_TYPES[g.type].trait} />}
         {c.sorte === 'titre' && <span className="org-star" title="Titre de la fiche (★)">★</span>}
         {modifier ? (
           <button type="button" className="orgl-c1-nom-poste" title="Le poste : son nom, son lien, sa suppression" onClick={modifier}>
@@ -629,7 +629,7 @@ function CarteEnt({
       onPointerDown={tirable ? (ev) => ctx.tirer!.commencer(ev, `u:${e.u.id}`, e.u.nom) : undefined}
     >
       <div className="orgl-entite-tete">
-        <UnitMark className="org-icon" logo={e.manifestation ? undefined : e.u.logo} couleur={e.u.couleur} icon={e.manifestation ? '🏁' : t.icon} />
+        <UnitMark className="org-icon" logo={e.manifestation ? undefined : e.u.logo} couleur={e.u.couleur} icone={e.manifestation ? 'drapeau' : t.trait} />
         <span className="orgl-texte">
           <b>{e.u.nom}</b>
           <small>{e.manifestation ? `Manifestation${quand ? ` · ${quand}` : ''}` : `${t.label}${quand ? ` · ${quand}` : ''}`}</small>
@@ -745,7 +745,7 @@ function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx
   const regler = c.u ? ctx.edition?.modifier?.(c.u.id) : undefined;
   return (
     <h3 className="orgl-cadre-tete">
-      {c.u ? <UnitMark className="org-icon" logo={c.u.logo} couleur={c.couleur} icon={t!.icon} /> : <span className="org-icon" style={{ background: SANS_COMITE }} aria-hidden="true">👤</span>}
+      {c.u ? <UnitMark className="org-icon" logo={c.u.logo} couleur={c.couleur} icone={t!.trait} /> : <span className="org-icon" style={{ background: SANS_COMITE }} aria-hidden="true"><Icone n="compte" /></span>}
       <span className="orgl-cadre-nom">{c.titre}</span>
       {c.u?.type === 'sous-comite' && c.u.date && <small>{fmtRange(c.u.date, c.u.dateFin)}</small>}
       {c.u && ctx.edition?.peutFiche(c.u.id) && (
@@ -1042,7 +1042,7 @@ export function ProfilOrga({
           const role = r ? `${r.etoile ? '★ ' : ''}${r.fonctions.join(', ') || (r.etoile ? t.chef : '')}` : fonctionsDe(x).join(', ') || benevolesDe(u.type).un;
           return (
             <li key={`${u.id}|${x.id}`}>
-              <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icon={t.icon} />
+              <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icone={t.trait} />
               <span>
                 <b>{u.nom}</b> <small className="muted">{t.label}</small>
                 <br />
