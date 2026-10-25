@@ -366,6 +366,8 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     }, 50);
   };
   const etatEnvoi = !cloud ? 'ok' : sync.status === 'horsLigne' ? 'off' : sync.status === 'envoi' || sync.pending ? 'envoi' : 'ok';
+  // Section à l'écran (sous l'en-tête) : nouvelle tâche décidée de la pilule rangée dedans, si on peut y en créer.
+  const secIci = sections.actuelle?.id && can('tasks.createAny', sections.actuelle.id) ? sections.actuelle.id : undefined;
   const outils: OutilPilule[] = [
     { icone: 'annuler', titre: annulable ? `Annuler : ${annulable.action}` : 'Annuler (rien à annuler)', onClick: annuler, disabled: !annulable },
     { icone: 'refaire', titre: refaisable ? `Refaire : ${refaisable.action}` : 'Refaire (rien à refaire)', onClick: refaire, disabled: !refaisable },
@@ -377,6 +379,15 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       separe: true,
     },
     { icone: 'sectionSuiv', titre: sections.suiv ? `Section suivante : ${sections.suiv.nom}` : 'Section suivante', onClick: () => sections.aller(1), disabled: !sections.suiv },
+    ...(data.sections.some((x) => can('tasks.createAny', x.id))
+      ? [
+          {
+            icone: 'ajoutTache' as const,
+            titre: secIci ? `Nouvelle tâche décidée dans « ${sections.actuelle?.nom} »` : 'Nouvelle tâche décidée (section à choisir)',
+            onClick: () => addTask(secIci ?? ''),
+          },
+        ]
+      : []),
     !m.demarreLe
       ? { icone: 'demarrer', titre: 'Démarrer la séance', onClick: start, separe: true }
       : { icone: 'terminer', titre: m.heureFin ? `Séance terminée à ${hm(m.heureFin)}` : 'Terminer la séance', onClick: terminer, disabled: !!m.heureFin, separe: true },
@@ -798,7 +809,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
 
             <section className="min-agenda" ref={agendaRef}>
               {bySection.map((g, i) => (
-                <div key={g.sec.id} className="panel min-section">
+                <div key={g.sec.id} className="panel min-section" data-section={g.sec.id}>
                   <h3>{i + 1}. {g.sec.nom}</h3>
                   {(editable || noteOf(`sec:${g.sec.id}`)) && (
                     <NoteField value={m.notes[`sec:${g.sec.id}`] ?? ''} onCommit={(v) => setNote(`sec:${g.sec.id}`, v)} placeholder={`Notes pour « ${g.sec.nom} »…`} readOnly={!editable} />
@@ -823,9 +834,11 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                 <h3>Divers</h3>
                 <NoteField value={m.notes.divers ?? ''} onCommit={(v) => setNote('divers', v)} placeholder="Points divers, informations, prochaine séance…" readOnly={!editable} />
               </div>
+              {/* Place en bas : la dernière section remonte elle aussi sous l'en-tête (titre de la pilule, section suivante). */}
+              {editable && <div className="min-fin" aria-hidden />}
             </section>
           </div>
-          {editable && <Pilule id="pv" label="Outils de la prise de notes" outils={outils} />}
+          {editable && <Pilule id="pv" label="Outils de la prise de notes" titre={sections.actuelle?.nom ?? 'Séance et présences'} outils={outils} />}
           <aside className="min-side">
             <div className="panel">
               <h2 className="min-h2">Suivi de la séance</h2>
@@ -986,13 +999,14 @@ function Chrono({ minutes: m }: { minutes: MeetingMinutes }) {
   );
 }
 
-type Cible = { i: number; nom: string };
+type Cible = { i: number; nom: string; id?: string };
 /**
- * Sections de la prise de notes (points de l'ordre du jour, sondages, Divers) : celle d'avant et celle d'après la ligne
- * de lecture (juste sous l'en-tête), et `aller` pour y défiler ; avant la première : le haut de la page (-1).
+ * Sections de la prise de notes (points de l'ordre du jour, sondages, Divers) : celle à l'écran (`actuelle`, à la ligne
+ * de lecture juste sous l'en-tête), celles d'avant et d'après, et `aller` pour y défiler ; avant la première : le haut
+ * de la page (-1).
  */
 function useSections(zone: RefObject<HTMLElement>) {
-  const [nav, setNav] = useState<{ prec?: Cible; suiv?: Cible }>({});
+  const [nav, setNav] = useState<{ prec?: Cible; suiv?: Cible; actuelle?: Cible }>({});
   const vise = useRef<{ i: number; at: number } | null>(null);
   const ligne = () => (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 8;
   const liste = () => [...(zone.current?.querySelectorAll<HTMLElement>(':scope > .min-section') ?? [])];
@@ -1005,12 +1019,15 @@ function useSections(zone: RefObject<HTMLElement>) {
       const auBas = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
       let prec: Cible | undefined = window.scrollY > 2 ? { i: -1, nom: '' } : undefined;
       let suiv: Cible | undefined;
+      let actuelle: Cible | undefined;
       liste().forEach((el, i) => {
         const t = el.getBoundingClientRect().top;
+        if (t <= l + 6) actuelle = { i, nom: nom(el), id: el.dataset.section };
         if (t < l - 6) prec = { i, nom: nom(el) };
         else if (!suiv && t > l + 6 && !auBas) suiv = { i, nom: nom(el) };
       });
-      setNav((n) => (JSON.stringify(n) === JSON.stringify({ prec, suiv }) ? n : { prec, suiv }));
+      const n2 = { prec, suiv, actuelle };
+      setNav((n) => (JSON.stringify(n) === JSON.stringify(n2) ? n : n2));
     };
     const planifier = () => {
       if (!attente) attente = requestAnimationFrame(calculer);

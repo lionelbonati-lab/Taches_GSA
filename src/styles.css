@@ -410,8 +410,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 }
 @media (max-width: 767px) { .toast { bottom: calc(80px + env(safe-area-inset-bottom)); } }
 /* Barre d'outils flottante du PV à sa place par défaut : les messages s'affichent au-dessus. */
-body:has(.pilule.defaut) .toast { bottom: 80px; }
-@media (max-width: 767px) { body:has(.pilule.defaut) .toast { bottom: calc(200px + env(safe-area-inset-bottom)); } }
+body:has(.pilule.defaut) .toast { bottom: 96px; }
+@media (max-width: 767px) { body:has(.pilule.defaut) .toast { bottom: calc(220px + env(safe-area-inset-bottom)); } }
 
 /* ---------- Documents joints ---------- */
 .docs .doc-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -540,6 +540,7 @@ body:has(.pilule.defaut) .toast { bottom: 80px; }
 .seg button.on.present { background: #16a34a; color: #fff; }
 .seg button.on.excuse { background: #d97706; color: #fff; }
 .min-section h3 { margin: 0 0 6px; font-size: 1.05rem; }
+.min-fin { height: calc(100vh - 190px); }
 .min-sub { margin: 6px 0 2px 6px; }
 .min-sub-title { font-weight: 600; margin: 8px 0 2px; }
 .min-task { border-left: 3px solid var(--border); padding: 5px 0 5px 10px; margin: 4px 0 4px 10px; }
@@ -611,9 +612,13 @@ body:has(.pilule.defaut) .toast { bottom: 80px; }
 .annuler-btn:hover { background: var(--surface2); }
 @media (max-width: 767px) { .annuler-text { display: none; } .annuler-btn { padding: 6px 8px; } }
 /* Pilule : barre d'outils flottante en icônes (prise de notes du PV), déplaçable par sa poignée. */
-.pilule { position: fixed; z-index: 35; display: flex; align-items: center; gap: 1px; padding: 3px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); user-select: none; -webkit-user-select: none; }
+.pilule { position: fixed; z-index: 35; display: flex; flex-direction: column; padding: 3px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); user-select: none; -webkit-user-select: none; }
 .pilule.defaut { left: 50%; bottom: 24px; transform: translateX(-50%); }
 .pilule-outil { display: inline-flex; align-items: center; }
+.pilule-barre { display: flex; align-items: center; gap: 1px; }
+.pilule.avec-titre { border-radius: 18px; }
+/* Largeur de la barre d'outils : un titre plus long est coupé. */
+.pilule-titre { width: 0; min-width: 100%; box-sizing: border-box; padding: 2px 14px 0; font-size: 0.75rem; font-weight: 600; color: var(--muted); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: grab; touch-action: none; }
 .pilule button { position: relative; width: 36px; height: 36px; border: none; border-radius: 999px; background: none; color: inherit; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; padding: 0; }
 .pilule button:hover:not(:disabled) { background: var(--surface2); }
 .pilule button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
@@ -634,6 +639,11 @@ body:has(.pilule.defaut) .toast { bottom: 80px; }
   .pilule .poignee { width: 22px; }
   .pilule-sep { margin: 0 1px; }
   .pilule-texte { padding: 0 5px; }
+}
+@media (max-width: 400px) {
+  .pilule button { width: 30px; height: 32px; }
+  .pilule .poignee { width: 18px; }
+  .pilule .pilule-plier { width: 26px; }
 }
 .bell { position: relative; border: none; background: none; font-size: 1.3rem; cursor: pointer; padding: 6px 8px; border-radius: 8px; line-height: 1; }
 .bell:hover { background: var(--surface2); }

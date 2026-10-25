@@ -3,7 +3,8 @@ import { Icone, type IconeNom } from './icones';
 
 // Barre d'outils flottante (« pilule »), en icônes seulement : on la déplace en la tenant par sa poignée (souris ou
 // doigt, flèches du clavier) ; un double-clic sur la poignée la remet à sa place. Place et état (réduite ou non)
-// retenus sur l'appareil. Un affichage (chrono…) reste visible quand elle est réduite.
+// retenus sur l'appareil. Un affichage (chrono…) reste visible quand elle est réduite. `titre` : une ligne au-dessus des
+// outils (coupée à leur largeur).
 
 export interface OutilPilule {
   /** Bouton : son icône. Sans icône : un affichage (`texte`). */
@@ -37,7 +38,7 @@ const ecrire = (cle: string, v: unknown) => {
   }
 };
 
-export function Pilule({ id, label, outils }: { id: string; label: string; outils: OutilPilule[] }) {
+export function Pilule({ id, label, titre, outils }: { id: string; label: string; titre?: ReactNode; outils: OutilPilule[] }) {
   const cle = `taches-gsa-pilule-${id}`;
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<Pos | null>(() => lire<Pos | null>(cle, null));
@@ -67,13 +68,13 @@ export function Pilule({ id, label, outils }: { id: string; label: string; outil
     setPos(b);
     ecrire(cle, b);
   };
-  const debut = (e: PointerEvent<HTMLButtonElement>) => {
+  const debut = (e: PointerEvent<HTMLElement>) => {
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
     glisse.current = { dx: e.clientX - r.left, dy: e.clientY - r.top };
     e.currentTarget.setPointerCapture(e.pointerId);
   };
-  const bouge = (e: PointerEvent<HTMLButtonElement>) => {
+  const bouge = (e: PointerEvent<HTMLElement>) => {
     const g = glisse.current;
     if (!g) return;
     g.arrivee = borner({ x: e.clientX - g.dx, y: e.clientY - g.dy });
@@ -96,39 +97,47 @@ export function Pilule({ id, label, outils }: { id: string; label: string; outil
   };
 
   return (
-    <div ref={ref} className={`pilule no-print ${pos ? '' : 'defaut'}`} style={pos ? { left: pos.x, top: pos.y } : undefined} role="toolbar" aria-label={label}>
-      <button
-        type="button"
-        className="poignee"
-        title="Déplacer (glisser) · double-clic : remettre en place"
-        aria-label="Déplacer la barre d’outils (flèches du clavier)"
-        onPointerDown={debut}
-        onPointerMove={bouge}
-        onPointerUp={fin}
-        onPointerCancel={fin}
-        onDoubleClick={() => placer(null)}
-        onKeyDown={clavier}
-      >
-        <Icone n="poignee" />
-      </button>
-      {(reduite ? outils.filter((o) => !o.icone) : outils).map((o) => (
-        <span key={o.icone ?? o.titre} className="pilule-outil">
-          {o.separe && !reduite && <span className="pilule-sep" aria-hidden />}
-          {o.icone ? (
-            <button type="button" title={o.titre} aria-label={o.titre} disabled={o.disabled} onClick={o.onClick}>
-              <Icone n={o.icone} />
-              {o.etat && <span className={`pilule-etat ${o.etat}`} aria-hidden />}
-            </button>
-          ) : (
-            <span className="pilule-texte" title={o.titre}>
-              {o.texte}
-            </span>
-          )}
-        </span>
-      ))}
-      <button type="button" className="pilule-plier" title={reduite ? 'Afficher les outils' : 'Réduire'} aria-label={reduite ? 'Afficher les outils' : 'Réduire la barre d’outils'} aria-expanded={!reduite} onClick={basculer}>
-        <Icone n={reduite ? 'pleinEcran' : 'quitterPleinEcran'} />
-      </button>
+    <div ref={ref} className={`pilule no-print ${pos ? '' : 'defaut'} ${titre ? 'avec-titre' : ''}`} style={pos ? { left: pos.x, top: pos.y } : undefined} role="toolbar" aria-label={label}>
+      {/* Le titre sert aussi de poignée (plus grand à saisir au doigt). */}
+      {titre && (
+        <div className="pilule-titre" onPointerDown={debut} onPointerMove={bouge} onPointerUp={fin} onPointerCancel={fin} onDoubleClick={() => placer(null)}>
+          {titre}
+        </div>
+      )}
+      <div className="pilule-barre">
+        <button
+          type="button"
+          className="poignee"
+          title="Déplacer (glisser) · double-clic : remettre en place"
+          aria-label="Déplacer la barre d’outils (flèches du clavier)"
+          onPointerDown={debut}
+          onPointerMove={bouge}
+          onPointerUp={fin}
+          onPointerCancel={fin}
+          onDoubleClick={() => placer(null)}
+          onKeyDown={clavier}
+        >
+          <Icone n="poignee" />
+        </button>
+        {(reduite ? outils.filter((o) => !o.icone) : outils).map((o) => (
+          <span key={o.icone ?? o.titre} className="pilule-outil">
+            {o.separe && !reduite && <span className="pilule-sep" aria-hidden />}
+            {o.icone ? (
+              <button type="button" title={o.titre} aria-label={o.titre} disabled={o.disabled} onClick={o.onClick}>
+                <Icone n={o.icone} />
+                {o.etat && <span className={`pilule-etat ${o.etat}`} aria-hidden />}
+              </button>
+            ) : (
+              <span className="pilule-texte" title={o.titre}>
+                {o.texte}
+              </span>
+            )}
+          </span>
+        ))}
+        <button type="button" className="pilule-plier" title={reduite ? 'Afficher les outils' : 'Réduire'} aria-label={reduite ? 'Afficher les outils' : 'Réduire la barre d’outils'} aria-expanded={!reduite} onClick={basculer}>
+          <Icone n={reduite ? 'pleinEcran' : 'quitterPleinEcran'} />
+        </button>
+      </div>
     </div>
   );
 }
