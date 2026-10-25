@@ -146,7 +146,7 @@ L'**organigramme du club** n'est pas dans les rubriques : il s'ouvre depuis le *
   - **Personnes et accès** : renvoi vers l'organigramme (postes, rôles, accès à l'appli) ;
   - **Rôles et droits** : rôles et matrice des droits ;
   - **Sections et statuts**, **Apparence** (logo, couleur ; comité central : aussi nom et icône de l'appli installée), **En-tête des documents** (voir « En-tête des documents » plus bas), **Importer un fichier** (CSV, voir plus bas), **Historique** (journal d'activité).
-  - Dans **Sections et statuts**, les sous-sections se **renomment** (les tâches suivent ; un nom déjà pris dans la section est refusé) et se **réordonnent** (▲ ▼) : cet ordre est repris dans les listes de choix, l'ordre du jour et le PV. Le nombre de tâches de chaque sous-section est affiché.
+  - Dans **Sections et statuts**, les sous-sections se **renomment** (les tâches suivent ; un nom déjà pris dans la section est refusé) et se **réordonnent** (▲ ▼) : cet ordre est repris dans les listes de choix, l'ordre du jour et le PV. Le nombre de tâches de chaque sous-section est affiché. Un statut à la case **« Terminée »** cochée compte comme fait : ses tâches sortent de l'ordre du jour (sauf le bilan des tâches terminées), ne sont jamais en retard et partent aux archives le lendemain de leur séance (à laisser décochée pour « À discuter »).
 
 ## Membres du club (annuaire) et imports CSV
 
