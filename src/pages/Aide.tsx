@@ -122,6 +122,7 @@ export function Aide() {
   if (orga && can('admin.access')) geste('Donner l’accès à l’appli à quelqu’un', orga, ' : clic sur son nom (sa fiche doit avoir son email), puis « Créer l’accès ».');
   if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ». Sans « Voir toutes les tâches », on ne voit que ses tâches ; pour une personne extérieure : « + Nouveau rôle » › modèle « Externe ». Les tickets ne se voient que de la caisse, du demandeur, de qui vise et des admins.');
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
+  if (chemin('/admin')) geste('Donner une icône à l’entité', vers('/admin'), ' › « Apparence » › « Choisir une icône… » (ou la fiche de l’entité dans l’organigramme) : elle remplace celle de son type sur sa pastille et dans l’agenda, les événements et l’accueil. « Reprendre celle du type » pour revenir à l’icône d’origine.');
   if (chemin('/admin')) geste('Changer l’en-tête de l’ordre du jour, du PV et du bon de paiement', vers('/admin'), ' › « En-tête des documents » : le même pour tous les documents de l’entité.');
 
   return (

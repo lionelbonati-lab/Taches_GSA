@@ -9,6 +9,7 @@ import { EventModal, newEvent } from '../components/EventModal';
 import { EditionCard } from '../components/Edition';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
+import { IconeEntite } from '../components/IconesEntite';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
@@ -469,7 +470,7 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
     <article className={`panel agenda-item dependant ${past ? 'past' : ''}`} style={{ '--c': u.couleur } as React.CSSProperties}>
       {u.date ? <DateBlock date={u.date} fin={u.dateFin} /> : <div className="dateblock vide" title="Date à fixer"><b>?</b><span>date</span></div>}
       <div className="grow">
-        <strong><Icone n={UNIT_TYPES[u.type].trait} /> {u.nom}</strong> <span className="chip dependant-tag" title={`« Dépend de » : ${club.current.nom}`}>dépend de ce comité</span>
+        <strong><IconeEntite u={u} /> {u.nom}</strong> <span className="chip dependant-tag" title={`« Dépend de » : ${club.current.nom}`}>dépend de ce comité</span>
         <div className="muted">{[UNIT_TYPES[u.type].label, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
         {u.description && <p>{u.description}</p>}
         {siens.length > 0 && (

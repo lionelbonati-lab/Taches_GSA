@@ -4,6 +4,7 @@ import { useClubOptional } from '../data/club';
 import { COULEUR_DEFAUT, COULEURS_APPLI } from '../data/couleur';
 import { ImagePicker } from './ImagePicker';
 import { IconePanel } from './IconePanel';
+import { ChoixIconeEntite, ICONES_ENTITE } from './IconesEntite';
 
 /** Console admin : logo et couleur de l'appli de l'entité ouverte (comité central : ceux du club, et l'icône de l'appli installée). */
 export function LogoPanel() {
@@ -18,6 +19,16 @@ export function LogoPanel() {
     await club.updateUnit(u.id, { logo });
     update(() => {}, logo ? `Logo de « ${u.nom} » changé` : `Logo de « ${u.nom} » retiré`);
     setToast(logo ? '🖼 Logo enregistré' : 'Logo retiré');
+  };
+
+  const changerIcone = async (icone: string | undefined) => {
+    try {
+      await club.updateUnit(u.id, { icone });
+      update(() => {}, icone ? `Icône de « ${u.nom} » : ${ICONES_ENTITE[icone][0]}` : `Icône de « ${u.nom} » : celle de son type`);
+      setToast(icone ? 'Icône enregistrée' : 'Icône du type rétablie');
+    } catch (e) {
+      setToast(`Icône non enregistrée : ${(e as Error).message}`);
+    }
   };
 
   // Sans choix : la couleur du club (comité central), sinon le bleu d'origine.
@@ -49,6 +60,16 @@ export function LogoPanel() {
           {central ? 'L’icône de l’appli installée se règle plus bas.' : 'L’icône de l’appli installée (écran d’accueil, accès rapides) est celle du club.'}
         </p>
         {!allowed && <p className="muted small-note">Seuls les admins (★) de l’entité et du comité central changent le logo.</p>}
+      </section>
+
+      <section className="panel icone-entite-panel">
+        <h2>{`Icône de « ${u.nom} »`}</h2>
+        <p className="muted">
+          À choisir dans la bibliothèque de l’appli : la pastille de l’entité (en-tête, menu des entités, organigramme){u.logo ? ' quand elle n’a pas de logo' : ''}, et
+          son repère dans l’agenda, les événements et l’accueil. Sans choix : l’icône de son type.
+        </p>
+        <ChoixIconeEntite type={u.type} value={u.icone} couleur={u.couleur} disabled={!allowed} onChange={(i) => void changerIcone(i)} />
+        {!allowed && <p className="muted small-note">Seuls les admins (★) de l’entité et du comité central changent l’icône.</p>}
       </section>
 
       <section className="panel couleur-panel">

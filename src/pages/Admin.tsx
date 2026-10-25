@@ -9,6 +9,7 @@ import { Modal } from '../components/ui';
 import { useClubOptional } from '../data/club';
 import { ImportsEntite } from '../components/ImportsEntite';
 import { LogoPanel } from '../components/LogoPanel';
+import { ICONES_ENTITE } from '../components/IconesEntite';
 import { PageIntro } from '../components/Nav';
 import { COULEURS_APPLI } from '../data/couleur';
 import { EnteteReglage } from '../components/Entete';
@@ -58,11 +59,11 @@ export function Admin() {
             id: 'apparence',
             icon: 'miseEnForme' as const,
             titre: 'Apparence',
-            carte: central ? 'Logo, couleur, nom et icône de l’appli.' : 'Logo de l’entité et couleur de l’appli.',
+            carte: central ? 'Logo, icône et couleur du comité ; nom et icône de l’appli.' : 'Logo et icône de l’entité, couleur de l’appli.',
             aide: central
-              ? 'Logo et couleur de l’appli pour tout le club, et le nom et l’icône de l’appli installée sur les téléphones.'
-              : 'Logo de l’entité (en-tête de l’appli, documents) et couleur de l’appli quand elle est ouverte.',
-            resume: `${u.logo ? 'Logo choisi' : central ? 'Pas de logo' : 'Logo du club'} · couleur ${nomCouleur}`,
+              ? 'Logo et couleur de l’appli pour tout le club, icône du comité (organigramme, agenda, accueil), et le nom et l’icône de l’appli installée sur les téléphones.'
+              : 'Logo de l’entité (en-tête de l’appli, documents), son icône (organigramme, agenda, événements, accueil) et couleur de l’appli quand elle est ouverte.',
+            resume: `${u.logo ? 'Logo choisi' : central ? 'Pas de logo' : 'Logo du club'} · icône ${u.icone && ICONES_ENTITE[u.icone] ? ICONES_ENTITE[u.icone][0].toLowerCase() : 'du type'} · couleur ${nomCouleur}`,
             contenu: <LogoPanel />,
           },
         ]

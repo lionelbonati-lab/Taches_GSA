@@ -15,6 +15,7 @@ import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
 import { Icone, type IconeNom } from '../components/icones';
+import { IconeEntite } from '../components/IconesEntite';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
@@ -413,7 +414,7 @@ export function Calendar() {
                   <button className={`cal-row k-${it.kind}`} style={it.kind === 'manif' ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
-                        <Icone n={it.kind === 'manif' ? (it.e ? 'evenements' : UNIT_TYPES[it.u.type].trait) : ICONE[it.kind]} /> {chipText(it)}
+                        {it.kind === 'manif' && (!it.e || it.u.icone) ? <IconeEntite u={it.u} /> : <Icone n={it.kind === 'manif' ? 'evenements' : ICONE[it.kind]} />} {chipText(it)}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}

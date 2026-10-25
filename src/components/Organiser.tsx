@@ -562,7 +562,7 @@ export function Fiche({ u, o, a }: { u: OrgUnit; o: OrgaVue; a: ActionsFiche }) 
   const texte = (
     <>
       <span className="arbre-titre">
-        <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icone={t.trait} />
+        <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icone={t.trait} perso={u.icone} />
         <span className="arbre-texte">
           <strong>{u.nom}</strong>
           <small>{t.label}{u.date && ` · ${fmtRange(u.date, u.dateFin)}`}</small>

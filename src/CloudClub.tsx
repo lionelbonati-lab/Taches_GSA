@@ -29,6 +29,7 @@ function ecrireEntite(u: OrgUnit) {
       central: u.central && u.central !== 'aucun' ? u.central : undefined,
       logo: u.logo || undefined,
       couleurAppli: u.couleurAppli || undefined,
+      icone: u.icone || undefined,
       dependDe: u.dependDe || undefined,
       tachesDependance: u.tachesDependance && u.tachesDependance !== 'partagees' ? u.tachesDependance : undefined,
       // Tenu par le serveur (030), qui n'en garde que le droit de copie de la dernière période.
@@ -139,9 +140,9 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
           rows: toRows(d),
           chefId: chef.id,
         });
-        // « Dépend de » (organigramme) : ajouté ensuite à la fiche, la création ne garde que les champs de départ.
-        const info = { couleur: n.couleur, description: n.description || undefined, date: n.date || undefined, dateFin: n.dateFin || undefined, dependDe: n.dependDe };
-        if (n.dependDe) await updateCommittee(r.unitId, { name: n.nom, type: n.type, info }).catch(() => {});
+        // « Dépend de » (organigramme) et icône : ajoutés ensuite à la fiche, la création ne garde que les champs de départ.
+        const info = { couleur: n.couleur, description: n.description || undefined, date: n.date || undefined, dateFin: n.dateFin || undefined, dependDe: n.dependDe, icone: n.icone };
+        if (n.dependDe || n.icone) await updateCommittee(r.unitId, { name: n.nom, type: n.type, info }).catch(() => {});
         refresh();
         return { unitId: r.unitId, email: r.email, password: r.password, existant: r.existant, avertissement: r.error };
       },

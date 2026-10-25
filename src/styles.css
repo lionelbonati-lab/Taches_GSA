@@ -1353,6 +1353,17 @@ body.orgl-tire-en-cours, body.orgl-tire-en-cours * { cursor: grabbing !important
 .arbre-archives { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
 .org-icon { width: 38px; height: 38px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; color: #fff; }
 .unit-dot .icone-trait, .org-icon .icone-trait { vertical-align: 0; }
+/* Choix de l'icône d'une entité (bibliothèque). */
+.choix-icone-actuelle { align-items: center; gap: 10px; }
+.unit-dot.grande { width: 34px; height: 34px; border-radius: 9px; font-size: 1.05rem; }
+.choix-icone-biblio { margin-top: 8px; border: 1px solid var(--border); border-radius: 10px; padding: 8px; max-height: 330px; overflow-y: auto; }
+.choix-icone-biblio .search { width: 100%; margin-bottom: 6px; }
+.choix-icone-theme { margin-top: 6px; }
+.icone-grille { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 4px; margin-top: 3px; }
+.icone-tuile { height: 40px; display: flex; align-items: center; justify-content: center; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); font-size: 1.1rem; cursor: pointer; padding: 0; }
+.icone-tuile:hover:not(:disabled) { border-color: var(--primary); color: var(--primary); }
+.icone-tuile.on { color: #fff; }
+.icone-tuile .icone-trait { vertical-align: 0; }
 .org-star { color: #b45309; }
 /* Organigramme à glisser-déposer (démo) : fiches à trois zones — titre (★), responsables (postes), bénévoles (repliés). */
 .arbre-noeud.fiche { gap: 6px; }

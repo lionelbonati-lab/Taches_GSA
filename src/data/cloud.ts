@@ -41,6 +41,8 @@ export interface UnitInfo {
   logo?: string;
   /** Couleur de l'appli (#rrggbb). */
   couleurAppli?: string;
+  /** Icône choisie dans la bibliothèque de l'appli (sa clé). */
+  icone?: string;
   /** Entité dont elle dépend dans l'organigramme (et ses tâches, selon tachesDependance : 027). */
   dependDe?: string;
   /** Ses tâches dans l'entité dont elle dépend : « toutes », « rien » ; sans valeur : celles partagées avec elle (027). */
@@ -477,6 +479,8 @@ export async function myMemberships(userId: string): Promise<Membership[]> {
   });
 }
 
+/** Clé d'une icône de la bibliothèque (une clé inconnue de cette version de l'appli affiche l'icône du type). */
+const lireIcone = (x: unknown) => (typeof x === 'string' && /^[a-z0-9-]{1,40}$/.test(x) ? x : undefined);
 const unitColor = (type: UnitType, info: UnitInfo) => info.couleur ?? (type === 'central' ? UNIT_COLORS[0] : UNIT_COLORS[1]);
 
 /** Entité telle que la connaît le compte sans l'organigramme (pendant le chargement, ou s'il échoue). */
@@ -494,6 +498,7 @@ export function membershipUnit(m: Membership): OrgUnit {
     central: m.info.central,
     logo: isImage(m.info.logo) ? m.info.logo : undefined,
     couleurAppli: isCouleur(m.info.couleurAppli) ? m.info.couleurAppli : undefined,
+    icone: lireIcone(m.info.icone),
     dependDe: typeof m.info.dependDe === 'string' ? m.info.dependDe : undefined,
     tachesDependance: lireTachesDependance(m.info.tachesDependance),
     historiqueDependance: lireHistorique(m.info.historiqueDependance),
@@ -535,6 +540,7 @@ function lireOrg(rows: LigneOrg[]): OrgUnit[] {
       central: info.central,
       logo: isImage(info.logo) ? info.logo : undefined,
       couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
+      icone: lireIcone(info.icone),
       dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
       tachesDependance: lireTachesDependance(info.tachesDependance),
       historiqueDependance: lireHistorique(info.historiqueDependance),

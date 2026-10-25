@@ -37,6 +37,7 @@ import { OrgLignes, type EditionLignes } from '../components/OrgLignes';
 import type { ActionOrga, PosteLie } from '../data/organigrammeLignes';
 import { ZoneTexte } from '../components/ZoneTexte';
 import { Icone } from '../components/icones';
+import { ChoixIconeEntite } from '../components/IconesEntite';
 
 // Organigramme du club, par postes (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une carte
 // par poste ; un clic sur un nom ouvre le profil de la personne, sur une entité l'ouvre. Par défaut une vue d'ensemble ;
@@ -606,7 +607,7 @@ function FonctionsAnnee({ annee, units, m, onClose }: { annee: number; units: Or
           const autres = (postes.length ? postes : fonctionsDe(x)).filter((f) => !x.admin || norm(f) !== norm(x.poste || t.chef));
           return (
             <li key={`${u.id}|${x.id}`}>
-              <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icone={t.trait} />
+              <UnitMark className="org-icon" logo={u.logo} couleur={u.couleur} icone={t.trait} perso={u.icone} />
               <span>
                 <b>{u.nom}</b>
                 {[titre, ...autres].filter(Boolean).length > 0 && <> · {[titre, ...autres].filter(Boolean).join(', ')}</>}
@@ -651,6 +652,7 @@ function UnitModal({
   const [nom, setNom] = useState(unit?.nom ?? '');
   const [type, setType] = useState<UnitType>(unit?.type ?? typeDepart ?? 'sous-comite');
   const [couleur, setCouleur] = useState(unit?.couleur ?? UNIT_COLORS[club.units.length % UNIT_COLORS.length]);
+  const [icone, setIcone] = useState(unit?.icone);
   const [date, setDate] = useState(unit?.date ?? '');
   const [dateFin, setDateFin] = useState(unit?.dateFin ?? '');
   const [description, setDescription] = useState(unit?.description ?? '');
@@ -692,7 +694,7 @@ function UnitModal({
     if (!nom.trim()) return setErr('Donne un nom à l’entité.');
     if (dated(type) && dateFin && (!date || dateFin < date)) return setErr('Le dernier jour de l’événement ne peut pas précéder le premier.');
     const jour = dated(type) && date ? date : undefined;
-    const base: Partial<Unit> = { nom: nom.trim(), couleur, description: description.trim() || undefined, date: jour, dateFin: jour && dateFin > jour ? dateFin : undefined };
+    const base: Partial<Unit> = { nom: nom.trim(), couleur, icone, description: description.trim() || undefined, date: jour, dateFin: jour && dateFin > jour ? dateFin : undefined };
     // Nouveau : le choix (rien pour le comité central) ; pas changé : tel quel (une valeur d'avant qui ne vaut plus : le choix).
     const choix = dependChoisi;
     const garder = !isNew && choix === dependInitial && (!unit.dependDe || possibles.some((u) => u.id === unit.dependDe));
@@ -707,7 +709,7 @@ function UnitModal({
         if (!chef.prenom) throw new Error(`Indique le prénom du ${info.chef.toLowerCase()}.`);
         if (!EMAIL.test(chef.email)) throw new Error(`Il faut une adresse email valable pour le ${info.chef.toLowerCase()} : c’est elle qui lui donne accès.`);
         const n: NewUnit = {
-          ...(base as Pick<Unit, 'nom' | 'couleur' | 'description' | 'date' | 'dateFin'>),
+          ...(base as Pick<Unit, 'nom' | 'couleur' | 'icone' | 'description' | 'date' | 'dateFin'>),
           type,
           dependDe: lien,
           chef,
@@ -820,6 +822,11 @@ function UnitModal({
               <button key={c} type="button" className={`swatch ${c === couleur ? 'on' : ''}`} style={{ background: c }} onClick={() => setCouleur(c)} aria-label={`Couleur ${c}`} />
             ))}
           </div>
+        </div>
+        <div className="full">
+          <span className="field-label">Icône</span>
+          <ChoixIconeEntite type={type} value={icone} couleur={couleur} onChange={setIcone} />
+          <small className="muted">Sa pastille (en-tête, organigramme) quand elle n’a pas de logo, et son repère dans l’agenda, les événements et l’accueil.</small>
         </div>
         {!isNew && (
           <div className="full">

@@ -18,9 +18,9 @@ import { useClubOptional } from '../data/club';
 import { EditionCard } from '../components/Edition';
 import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../components/Accueil';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
-import { UNIT_TYPES } from '../data/units';
 import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
+import { IconeEntite } from '../components/IconesEntite';
 
 export function Dashboard() {
   const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo, setToast } = useStore();
@@ -248,7 +248,7 @@ export function Dashboard() {
               const quand = x.date <= jour ? 'en cours' : `dans ${daysUntil(x.date)} j`;
               return (
                 <Link key={u ? `u:${u.id}` : e!.id} to={`/taches?event=${encodeURIComponent(u ? `u:${u.id}` : e!.id)}`} className="panel link-panel">
-                  <strong>{u ? <><Icone n={UNIT_TYPES[u.type].trait} /> {u.nom}</> : e!.nom}</strong>
+                  <strong>{u ? <><IconeEntite u={u} /> {u.nom}</> : e!.nom}</strong>
                   <span>
                     {[fmtRange(x.date, x.dateFin), e && horaire(e), e?.lieu].filter(Boolean).join(' · ')}
                     {e?.repetition && <> <span title="Se répète" aria-label="se répète"><Icone n="repetition" /></span></>} <em className="muted">({quand})</em>

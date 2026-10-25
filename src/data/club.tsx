@@ -36,6 +36,8 @@ export interface NewUnit {
   nom: string;
   type: UnitType;
   couleur: string;
+  /** Icône choisie dans la bibliothèque (sinon celle du type). */
+  icone?: string;
   description?: string;
   date?: string;
   dateFin?: string;
@@ -104,7 +106,7 @@ export interface Club {
   switchUnit: (id: string, hash?: string) => void;
   refresh: () => void;
   createUnit: (u: NewUnit) => Promise<CreatedUnit>;
-  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'dependDe' | 'tachesDependance' | 'historiqueDependance' | 'carte' | 'rangement'>>) => Promise<void>;
+  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'icone' | 'dependDe' | 'tachesDependance' | 'historiqueDependance' | 'carte' | 'rangement'>>) => Promise<void>;
   /** Entité archivée : ce que sa suppression définitive effacerait (admins du comité central). */
   apercuSuppression: (id: string) => Promise<ApercuSuppression>;
   /**

@@ -886,6 +886,8 @@ export interface Unit {
   logo?: string;
   /** Couleur de l'appli dans l'entité (#rrggbb). Sans choix : celle du comité central, sinon le bleu d'origine. */
   couleurAppli?: string;
+  /** Icône choisie dans la bibliothèque (IconesEntite) ; sans choix ou clé inconnue : celle de son type. */
+  icone?: string;
   /**
    * Comité dont elle dépend ; sans choix (ou une valeur inconnue, comme l'ancien « aucun ») : le comité central. Une
    * ancienne valeur vers un groupe ou un événement : le comité dont il dépend (parentDans). Les accès suivent parentId.

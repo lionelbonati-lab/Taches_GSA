@@ -156,7 +156,7 @@ export function DemoApp() {
         base.log[0].userId = chef.id;
         base.postes = (n.postes ?? []).map((nom) => ({ id: uid('po'), nom }));
         saveUnitData(id, lierFiches(id, base));
-        const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, description: n.description, date: n.date, dateFin: n.dateFin, dependDe: n.dependDe }];
+        const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, icone: n.icone, description: n.description, date: n.date, dateFin: n.dateFin, dependDe: n.dependDe }];
         saveUnits(next);
         setUnits(next);
         // Organigramme : les postes qui portent son nom (« Camp de Pentecôte » au comité central) lui sont liés.

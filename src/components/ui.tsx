@@ -2,13 +2,13 @@ import { useEffect, useRef, type ReactNode } from 'react';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { partageDe } from '../data/partage';
-import { UNIT_TYPES } from '../data/units';
 import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isDone, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
 import { ETATS, chf, genre, genreDe, peutOuvrirTicket } from '../data/paiements';
 import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
 import { Icone, type IconeNom } from './icones';
+import { ICONES_ENTITE, IconeBiblio, IconeEntite } from './IconesEntite';
 import { aPrendreOuverte, aPrendrePourMoi, ailleurs, nombreAPrendre, plusPersonne, prisAilleurs, volontaires } from '../data/aPrendre';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
@@ -43,11 +43,12 @@ export function AppLogo({ src, size }: { src?: string | null; size: number }) {
 }
 
 /** Pastille d'une entité : son logo, sinon l'icône de son type sur sa couleur. */
-export function UnitMark({ logo, couleur, icone, className }: { logo?: string; couleur: string; icone: IconeNom; className: string }) {
+/** Pastille d'une entité : son logo, sinon son icône (`perso` : celle choisie dans la bibliothèque, sinon `icone`). */
+export function UnitMark({ logo, couleur, icone, perso, className }: { logo?: string; couleur: string; icone: IconeNom; perso?: string; className: string }) {
   return isImage(logo) ? (
     <span className={`${className} has-logo`} style={{ borderColor: couleur }}><img src={logo} alt="" draggable={false} /></span>
   ) : (
-    <span className={className} style={{ background: couleur }}><Icone n={icone} /></span>
+    <span className={className} style={{ background: couleur }}>{perso && ICONES_ENTITE[perso] ? <IconeBiblio cle={perso} /> : <Icone n={icone} />}</span>
   );
 }
 
@@ -111,7 +112,7 @@ export function RecurIcon({ task }: { task: Task }) {
       )}
       {task.evenementEntite && !task.source && (
         <span className="ticon" title={`Rattachée à « ${task.evenementEntite.nom} »${task.evenementEntite.date ? ` (${fmtDate(task.evenementEntite.date)})` : ''}, qui dépend de ce comité`}>
-          <Icone n={UNIT_TYPES[club?.units.find((u) => u.id === task.evenementEntite!.uniteId)?.type ?? 'equipe'].trait} />
+          <IconeEntite u={club?.units.find((u) => u.id === task.evenementEntite!.uniteId) ?? { type: 'equipe' }} />
         </span>
       )}
       {task.source && <span className="tsource">{task.source.unite}</span>}
