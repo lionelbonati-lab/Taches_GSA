@@ -17,7 +17,7 @@ import { Icone } from './icones';
 
 type Svg = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string; strokeWidth?: number | string }>;
 
-/** Icône dessinée ici, au trait comme celles de Lucide (grille de 24, bouts arrondis) : Lucide n'a pas ces sports. */
+/** Icône dessinée ici, au trait comme celles de Lucide (grille de 24, bouts arrondis) : Lucide n'a pas ces sports, ni le cochon. */
 const dessin = (traits: ReactNode): Svg => {
   const D: Svg = ({ size = 24, strokeWidth = 2, ...props }) => (
     <svg viewBox="0 0 24 24" width={size} height={size} fill="none" stroke="currentColor" strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" {...props}>
@@ -58,6 +58,32 @@ const Triathlete = dessin(<>
   {vague}
 </>);
 
+// Pas alternatif : bâton planté devant, l'autre en arrière (rondelles au bout), skis au sol.
+const SkiFond = dessin(<>
+  <circle cx="15" cy="3.5" r="1" />
+  <path d="m14 6.5-3 5" />
+  <path d="m11 11.5 3.5 3-1 4.5" />
+  <path d="M11 11.5 5 19" />
+  <path d="M19 9.5 14 7l-5 2" />
+  <path d="m19 9.5-1 8" />
+  <path d="M17 17.5h2" />
+  <path d="M9 9 2.5 13" />
+  <path d="m2.5 11.5.8 2.6" />
+  <path d="M3 21h16a2 2 0 0 0 2-2" />
+</>);
+
+// Tête de face (la tirelire de Lucide est déjà prise par les finances).
+const Cochon = dessin(<>
+  <path d="M6.7 8.2 5 3l4.4 3.45" />
+  <path d="M17.3 8.2 19 3l-4.4 3.45" />
+  <circle cx="12" cy="13.5" r="7.5" />
+  <ellipse cx="12" cy="16" rx="3.5" ry="2.5" />
+  <path d="M10.75 16h.01" />
+  <path d="M13.25 16h.01" />
+  <path d="M9 11.5h.01" />
+  <path d="M15 11.5h.01" />
+</>);
+
 // Le cycliste de Lucide (Bike) sur un vélo fixe : volant d'inertie devant, pied au sol.
 const VeloSalle = dessin(<>
   <circle cx="14" cy="3.5" r="1" />
@@ -73,8 +99,8 @@ export const THEMES_ICONES: { titre: string; icones: Record<string, [nom: string
     titre: 'Sport',
     icones: {
       velo: ['Vélo', Bike], velosalle: ['Vélo de salle', VeloSalle], coureur: ['Coureur', Coureur], nageur: ['Nageur', Nageur],
-      triathlete: ['Triathlète', Triathlete], route: ['Parcours', Route], montagne: ['Montagne', Mountain], neige: ['Montagne enneigée', MountainSnow],
-      chrono: ['Chronomètre', Timer], vitesse: ['Compteur', Gauge], course: ['Course à pied', Footprints], natation: ['Natation', Droplets],
+      triathlete: ['Triathlète', Triathlete], skifond: ['Ski de fond', SkiFond], route: ['Parcours', Route], montagne: ['Montagne', Mountain],
+      neige: ['Montagne enneigée', MountainSnow], chrono: ['Chronomètre', Timer], vitesse: ['Compteur', Gauge], course: ['Course à pied', Footprints], natation: ['Natation', Droplets],
       muscu: ['Musculation', Dumbbell], forme: ['Forme', HeartPulse], effort: ['Effort', Activity], volley: ['Ballon', Volleyball],
       voile: ['Voile', Sailboat], cible: ['Objectif', Target],
     },
@@ -106,7 +132,7 @@ export const THEMES_ICONES: { titre: string; icones: Record<string, [nom: string
       jumelles: ['Jumelles', Binoculars], sac: ['Sac à dos', Backpack], bus: ['Car', Bus], voiture: ['Voiture', Car], camion: ['Camion', Truck],
       hotel: ['Hôtel', Hotel], lit: ['Nuitée', Bed], sapin: ['Sapin', TreePine], foret: ['Forêt', Trees], feuille: ['Feuille', Leaf],
       soleil: ['Soleil', Sun], aube: ['Lever du soleil', Sunrise], flocon: ['Hiver', Snowflake], oiseau: ['Oiseau', Bird], poisson: ['Poisson', Fish],
-      chien: ['Chien', Dog],
+      chien: ['Chien', Dog], cochon: ['Cochon', Cochon],
     },
   },
   {
