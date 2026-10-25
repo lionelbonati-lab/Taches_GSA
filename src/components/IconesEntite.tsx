@@ -84,25 +84,45 @@ const Cochon = dessin(<>
   <path d="M15 11.5h.01" />
 </>);
 
-// Le cycliste de Lucide (Bike) sur un vélo fixe : volant d'inertie devant, pied au sol.
-const VeloSalle = dessin(<>
-  <circle cx="14" cy="3.5" r="1" />
-  <path d="M11 15.5V12l-3-3 4-3 2 3h2" />
-  <circle cx="17" cy="15" r="3" />
-  <path d="M8 9 6.5 20" />
-  <path d="m16 9 1 6" />
-  <path d="M4 20h16" />
+// Cycliste penché sur le guidon d'un vélo fixe : volant d'inertie devant (moyeu), deux pieds au sol.
+const HomeTrainer = dessin(<>
+  <circle cx="15" cy="4" r="1.5" />
+  <path d="M7 11c2-2.5 4-3.5 6.5-3.5l3.5 3" />
+  <path d="M7 11l4.5 1.5-1 4" />
+  <path d="M5 11.5h3.5" />
+  <path d="M7 12l2 5h4.5" />
+  <path d="m9 17-2 4" />
+  <circle cx="16.5" cy="17" r="3" />
+  <path d="M16.5 17h.01" />
+  <path d="m17.5 14 1-4.5h1.5" />
+  <path d="M4.5 21h5" />
+  <path d="m18.5 19.5 1 1.5" />
+  <path d="M16.5 21h4" />
 </>);
 
-export const THEMES_ICONES: { titre: string; icones: Record<string, [nom: string, I: Svg]> }[] = [
+// Squat de face, kettlebell tenue à deux mains entre les jambes.
+const Renfo = dessin(<>
+  <circle cx="12" cy="3.5" r="1.5" />
+  <path d="M7.5 7.5h9" />
+  <path d="m7.5 7.5 3.5 6.5M16.5 7.5 13 14" />
+  <path d="M7.5 7.5 8 12l-3 3.5.5 5.5M16.5 7.5 16 12l3 3.5-.5 5.5" />
+  <path d="M10.5 15.8a1.5 1.5 0 0 1 3 0" />
+  <circle cx="12" cy="18.5" r="2.5" />
+</>);
+
+// Troisième valeur facultative : d'autres mots trouvés par la recherche.
+type Entree = [nom: string, I: Svg, mots?: string];
+
+export const THEMES_ICONES: { titre: string; icones: Record<string, Entree> }[] = [
   {
     titre: 'Sport',
     icones: {
-      velo: ['Vélo', Bike], velosalle: ['Vélo de salle', VeloSalle], coureur: ['Coureur', Coureur], nageur: ['Nageur', Nageur],
-      triathlete: ['Triathlète', Triathlete], skifond: ['Ski de fond', SkiFond], route: ['Parcours', Route], montagne: ['Montagne', Mountain],
-      neige: ['Montagne enneigée', MountainSnow], chrono: ['Chronomètre', Timer], vitesse: ['Compteur', Gauge], course: ['Course à pied', Footprints], natation: ['Natation', Droplets],
-      muscu: ['Musculation', Dumbbell], forme: ['Forme', HeartPulse], effort: ['Effort', Activity], volley: ['Ballon', Volleyball],
-      voile: ['Voile', Sailboat], cible: ['Objectif', Target],
+      velo: ['Vélo', Bike], velosalle: ['Home-trainer', HomeTrainer, 'vélo de salle spinning'], coureur: ['Coureur', Coureur],
+      nageur: ['Nageur', Nageur], triathlete: ['Triathlète', Triathlete], skifond: ['Ski de fond', SkiFond], route: ['Parcours', Route],
+      montagne: ['Montagne', Mountain], neige: ['Montagne enneigée', MountainSnow], chrono: ['Chronomètre', Timer], vitesse: ['Compteur', Gauge],
+      course: ['Course à pied', Footprints], natation: ['Natation', Droplets], muscu: ['Musculation', Dumbbell],
+      renfo: ['Renforcement', Renfo, 'renfo musculation kettlebell squat'], forme: ['Forme', HeartPulse], effort: ['Effort', Activity],
+      volley: ['Ballon', Volleyball], voile: ['Voile', Sailboat], cible: ['Objectif', Target],
     },
   },
   {
@@ -152,7 +172,7 @@ export const THEMES_ICONES: { titre: string; icones: Record<string, [nom: string
 ];
 
 /** Toutes les icônes de la bibliothèque, par clé. */
-export const ICONES_ENTITE: Record<string, [nom: string, I: Svg]> = Object.assign({}, ...THEMES_ICONES.map((t) => t.icones));
+export const ICONES_ENTITE: Record<string, Entree> = Object.assign({}, ...THEMES_ICONES.map((t) => t.icones));
 
 /** Une icône de la bibliothèque (rien pour une clé inconnue), comme `Icone`. */
 export function IconeBiblio({ cle }: { cle: string }) {
@@ -212,7 +232,7 @@ export function ChoixIconeEntite({ type, value, couleur, disabled, onChange }: {
       {contenu}
     </button>
   );
-  const themes = THEMES_ICONES.map((t) => ({ titre: t.titre, icones: Object.entries(t.icones).filter(([, [n]]) => garde(n)) })).filter((t) => t.icones.length);
+  const themes = THEMES_ICONES.map((t) => ({ titre: t.titre, icones: Object.entries(t.icones).filter(([, [n, , mots]]) => garde(mots ? `${n} ${mots}` : n)) })).filter((t) => t.icones.length);
   return (
     <div className="choix-icone">
       <div className="row wrap choix-icone-actuelle">
