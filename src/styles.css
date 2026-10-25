@@ -633,6 +633,7 @@ body:has(.pilule.defaut) .toast { bottom: 80px; }
   .pilule button { width: 33px; height: 33px; }
   .pilule .poignee { width: 22px; }
   .pilule-sep { margin: 0 1px; }
+  .pilule-texte { padding: 0 5px; }
 }
 .bell { position: relative; border: none; background: none; font-size: 1.3rem; cursor: pointer; padding: 6px 8px; border-radius: 8px; line-height: 1; }
 .bell:hover { background: var(--surface2); }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
 import { FULL_AGENDA, echeanceSuivante, etatTerminee, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
@@ -60,6 +60,8 @@ const letter = (i: number) => {
 export function Minutes() {
   const { data, user, can, canEditTask, saveTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast } = useStore();
   const sync = useSyncStatus();
+  const agendaRef = useRef<HTMLElement>(null);
+  const sections = useSections(agendaRef);
   const club = useClubOptional();
   useOuvrirDocs();
   const [params] = useSearchParams();
@@ -367,6 +369,14 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
   const outils: OutilPilule[] = [
     { icone: 'annuler', titre: annulable ? `Annuler : ${annulable.action}` : 'Annuler (rien à annuler)', onClick: annuler, disabled: !annulable },
     { icone: 'refaire', titre: refaisable ? `Refaire : ${refaisable.action}` : 'Refaire (rien à refaire)', onClick: refaire, disabled: !refaisable },
+    {
+      icone: 'sectionPrec',
+      titre: !sections.prec ? 'Section précédente' : sections.prec.i < 0 ? 'Haut de la page (séance, présences)' : `Section précédente : ${sections.prec.nom}`,
+      onClick: () => sections.aller(-1),
+      disabled: !sections.prec,
+      separe: true,
+    },
+    { icone: 'sectionSuiv', titre: sections.suiv ? `Section suivante : ${sections.suiv.nom}` : 'Section suivante', onClick: () => sections.aller(1), disabled: !sections.suiv },
     !m.demarreLe
       ? { icone: 'demarrer', titre: 'Démarrer la séance', onClick: start, separe: true }
       : { icone: 'terminer', titre: m.heureFin ? `Séance terminée à ${hm(m.heureFin)}` : 'Terminer la séance', onClick: terminer, disabled: !!m.heureFin, separe: true },
@@ -786,7 +796,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               </div>
             </section>
 
-            <section className="min-agenda">
+            <section className="min-agenda" ref={agendaRef}>
               {bySection.map((g, i) => (
                 <div key={g.sec.id} className="panel min-section">
                   <h3>{i + 1}. {g.sec.nom}</h3>
@@ -974,5 +984,62 @@ function Chrono({ minutes: m }: { minutes: MeetingMinutes }) {
       {texte}
     </span>
   );
+}
+
+type Cible = { i: number; nom: string };
+/**
+ * Sections de la prise de notes (points de l'ordre du jour, sondages, Divers) : celle d'avant et celle d'après la ligne
+ * de lecture (juste sous l'en-tête), et `aller` pour y défiler ; avant la première : le haut de la page (-1).
+ */
+function useSections(zone: RefObject<HTMLElement>) {
+  const [nav, setNav] = useState<{ prec?: Cible; suiv?: Cible }>({});
+  const vise = useRef<{ i: number; at: number } | null>(null);
+  const ligne = () => (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 8;
+  const liste = () => [...(zone.current?.querySelectorAll<HTMLElement>(':scope > .min-section') ?? [])];
+  const nom = (el: HTMLElement) => el.querySelector('h3')?.textContent?.trim() ?? '';
+  useEffect(() => {
+    let attente = 0;
+    const calculer = () => {
+      attente = 0;
+      const l = ligne();
+      const auBas = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
+      let prec: Cible | undefined = window.scrollY > 2 ? { i: -1, nom: '' } : undefined;
+      let suiv: Cible | undefined;
+      liste().forEach((el, i) => {
+        const t = el.getBoundingClientRect().top;
+        if (t < l - 6) prec = { i, nom: nom(el) };
+        else if (!suiv && t > l + 6 && !auBas) suiv = { i, nom: nom(el) };
+      });
+      setNav((n) => (JSON.stringify(n) === JSON.stringify({ prec, suiv }) ? n : { prec, suiv }));
+    };
+    const planifier = () => {
+      if (!attente) attente = requestAnimationFrame(calculer);
+    };
+    calculer();
+    window.addEventListener('scroll', planifier, { passive: true });
+    window.addEventListener('resize', planifier);
+    // Notes qui s'allongent, vue du PV et retour : la page change de hauteur.
+    const obs = new ResizeObserver(planifier);
+    obs.observe(document.body);
+    return () => {
+      cancelAnimationFrame(attente);
+      window.removeEventListener('scroll', planifier);
+      window.removeEventListener('resize', planifier);
+      obs.disconnect();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const aller = (sens: 1 | -1) => {
+    const els = liste();
+    let i = (sens > 0 ? nav.suiv : nav.prec)?.i;
+    // Clics rapprochés, en plein défilement : depuis la section visée juste avant.
+    const v = vise.current;
+    if (v && Date.now() - v.at < 700) i = Math.min(els.length - 1, Math.max(-1, v.i + sens));
+    if (i === undefined) return;
+    vise.current = { i, at: Date.now() };
+    const top = i < 0 ? 0 : els[i].getBoundingClientRect().top + window.scrollY - ligne();
+    window.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  };
+  return { ...nav, aller };
 }
 
