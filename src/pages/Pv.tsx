@@ -594,6 +594,8 @@ export function Pv() {
   const upcoming = meetings.filter((m) => m.date >= today());
   const [s1Id, setS1Id] = useState(upcoming[0]?.id ?? meetings[meetings.length - 1]?.id ?? '');
   const s1 = meetings.find((m) => m.id === s1Id);
+  // Séances à préparer : celles à venir (et celle affichée, passée faute de séance à venir).
+  const aPreparer = meetings.filter((m) => m.date >= today() || m.id === s1Id);
   const after = meetings.filter((m) => s1 && m.date > s1.date);
   const [s2Choice, setS2Choice] = useState<string>('auto');
   const s2 = s2Choice === 'auto' ? after[0] : after.find((m) => m.id === s2Choice);
@@ -739,7 +741,7 @@ export function Pv() {
             <label>
               Séance à préparer
               <select value={s1Id} onChange={(e) => { setS1Id(e.target.value); setS2Choice('auto'); }}>
-                {meetings.map((m) => <option key={m.id} value={m.id}>{m.titre} – {fmtDate(m.date)}{m.date < today() ? ' (passée)' : ''}</option>)}
+                {aPreparer.map((m) => <option key={m.id} value={m.id}>{m.titre} – {fmtDate(m.date)}{m.date < today() ? ' (passée)' : ''}</option>)}
               </select>
             </label>
             <label>

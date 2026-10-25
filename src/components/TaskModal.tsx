@@ -1073,7 +1073,7 @@ function SeanceLiee({ t, setT, disabled }: { t: Task; setT: SetT; disabled: bool
       applyDelaiRef(data, v.startsWith('c:') ? avecSeance(x, choix[Number(v.slice(2))], club?.central?.id) : { ...x, meetingId: v || undefined, seanceComite: undefined }),
     );
 
-  const locales = data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>);
+  const locales = aVenir(data.meetings, t.meetingId).map((m) => <option key={m.id} value={m.id}>{m.titre}</option>);
   return (
     <label className={parent ? 'full' : undefined}>
       Séance de comité
@@ -1117,7 +1117,7 @@ function SeanceIci({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boole
       ) : (
         <select value={t.meetingId ?? ''} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, meetingId: e.target.value || undefined }))}>
           <option value="">—</option>
-          {data.meetings.map((m) => <option key={m.id} value={m.id}>{m.titre} ({fmtDate(m.date)})</option>)}
+          {aVenir(data.meetings, t.meetingId).map((m) => <option key={m.id} value={m.id}>{m.titre} ({fmtDate(m.date)})</option>)}
         </select>
       )}
       <small className="muted">
@@ -1131,6 +1131,10 @@ function SeanceIci({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boole
   );
 }
 
+/** Séances et événements à venir (ou en cours), par date ; plus celui déjà choisi, même passé. */
+const aVenir = <T extends { id: string; date: string; dateFin?: string }>(list: T[], current?: string) =>
+  list.filter((x) => endOf(x) >= today() || x.id === current).sort((a, b) => a.date.localeCompare(b.date));
+
 /**
  * Pour quand ? Une date, ou une date calculée à partir d'un événement / d'une séance (« 1 semaine avant le Tournoi
  * d'automne ») qui suit ensuite ses changements de date. Aussi : une séance du comité dont l'entité dépend, un événement
@@ -1140,11 +1144,9 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
   const { data } = useStore();
   const { club, comite, seances: xm, evenements, unite, ici } = useExternes(t);
   const [choisir, setChoisir] = useState(false);
-  const upcoming = <T extends { id: string; date: string; dateFin?: string }>(list: T[], current?: string) =>
-    list.filter((x) => endOf(x) >= today() || x.id === current).sort((a, b) => a.date.localeCompare(b.date));
   // Événement qui se répète : à sa prochaine occurrence (tant qu'il en reste).
-  const events = upcoming(data.events.map((e) => (e.repetition ? aLaDate(e, occurrenceDu(e, today()) ?? derniereOccurrence(e) ?? e.date) : e)), t.eventId);
-  const meetings = upcoming(data.meetings, t.meetingId);
+  const events = aVenir(data.events.map((e) => (e.repetition ? aLaDate(e, occurrenceDu(e, today()) ?? derniereOccurrence(e) ?? e.date) : e)), t.eventId);
+  const meetings = aVenir(data.meetings, t.meetingId);
   // Édition pas encore datée : pas de repère pour un délai.
   const xe = evenements.filter((x) => x.date);
   const ref = t.delaiRef;
