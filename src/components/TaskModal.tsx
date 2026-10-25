@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
@@ -12,7 +12,7 @@ import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE }
 import { ciblesPourInfo, nbPourInfo } from '../data/pourInfo';
 import { personnesDuRole } from '../data/permissions';
 import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as aDecline, peutPrendre, plusPersonne, prisAilleurs, reponsesAilleurs, volontaires } from '../data/aPrendre';
-import { auComiteEntier, parentDans, reglageTaches, UNIT_TYPES } from '../data/units';
+import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
 import type { DelaiUnite, EvenementEntite, OrgMember, OrgUnit, Person, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
@@ -20,6 +20,8 @@ import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtR
 import { finAnticipee, motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
 import { Icone, type IconeNom } from './icones';
+import { Deroulante } from './Deroulante';
+import { IconeEntite, PastilleEntite } from './IconesEntite';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteTache } from '../data/lienPartage';
 import { ZoneTexte } from './ZoneTexte';
@@ -389,7 +391,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const cibles = ciblesPourInfo(t.pourInfo, data.people, club?.units ?? []).filter((c) => c.genre !== 'personne' || !t.responsables.includes(c.id));
   const infoIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !info.personnes?.includes(p.id));
   const autresUnites = club ? club.units.filter((u) => u.id !== club.current.id && !u.archive) : [];
-  const iconeUnite = (id: string) => { const u = club?.units.find((x) => x.id === id); return u ? `${UNIT_TYPES[u.type].icon} ` : ''; };
+  const iconeUnite = (id: string) => { const u = club?.units.find((x) => x.id === id); return u ? <><IconeEntite u={u} />{' '}</> : null; };
   // Tâche partagée : son entité la voit déjà.
   const infoUnites = autresUnites.filter((u) => !info.unites?.includes(u.id) && u.id !== t.source?.uniteId);
   const infoAutres = autresUnites
@@ -534,15 +536,20 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         {(sousSections.length > 0 || att.choix.length > 0 || attendSections) && (
           <label>
             Sous-section
-            <select value={attribuee?.cle ?? (t.sousSection && `s:${t.sousSection}`)} disabled={dis || !section} onChange={(e) => changerSous(e.target.value)}>
-              <option value="">—</option>
-              {sousSections.map((s) => <option key={s} value={`s:${s}`}>{s}</option>)}
-              {att.choix.length > 0 && (
-                <optgroup label={att.unite ? `🤝 Sections de « ${att.unite.nom} »` : `🤝 Événements qui dépendent de « ${club?.current.nom ?? ''} »`}>
-                  {att.choix.map((c) => <option key={c.cle} value={c.cle}>{c.sectionId ? c.sousSection : `${UNIT_TYPES[c.unite.type].icon} ${c.unite.nom}`}</option>)}
-                </optgroup>
-              )}
-            </select>
+            <Deroulante
+              value={attribuee?.cle ?? (t.sousSection ? `s:${t.sousSection}` : '')}
+              disabled={dis || !section}
+              onChange={changerSous}
+              options={[
+                { value: '', label: '—' },
+                ...sousSections.map((s) => ({ value: `s:${s}`, label: s })),
+                {
+                  groupe: att.unite ? `Sections de « ${att.unite.nom} »` : `Événements qui dépendent de « ${club?.current.nom ?? ''} »`,
+                  icone: <Icone n="partage" />,
+                  options: att.choix.map((c) => (c.sectionId ? { value: c.cle, label: c.sousSection } : { value: c.cle, label: c.unite.nom, icone: <PastilleEntite u={c.unite} /> })),
+                },
+              ]}
+            />
             {attribuee && (
               <small className="muted attribuee-note">
                 📦 À l’enregistrement, la tâche {isNew ? 'sera créée' : 'passera'} dans « {attribuee.unite.nom} »
@@ -591,31 +598,27 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             })}
             {choisisChez.map((m) => (
               <span key={m.id} className="chip on" title={`Personne de « ${entite!.nom} »`}>
-                {UNIT_TYPES[entite!.type].icon} {m.prenom} {m.nom}
+                <IconeEntite u={entite!} /> {m.prenom} {m.nom}
                 {!dis && canAssignOthers && <button type="button" className="chip-x" aria-label={`Retirer ${m.prenom} ${m.nom}`} onClick={() => toggleChez(m.id)}>✕</button>}
               </span>
             ))}
             {!t.responsables.length && !choisisChez.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
             {!dis && (aAjouter.length > 0 || membresChez.length > 0) && (
-              <select className="chip-add" value="" aria-label="Ajouter une personne" onChange={(e) => e.target.value && (e.target.value.startsWith('chez:') ? toggleChez(e.target.value.slice(5)) : toggleResp(e.target.value))}>
-                <option value="">＋ Ajouter…</option>
-                {entite ? (
-                  <>
-                    {membresChez.length > 0 && (
-                      <optgroup label={`${UNIT_TYPES[entite.type].icon} ${entite.nom}`}>
-                        {membresChez.map((m) => <option key={m.id} value={`chez:${m.id}`}>{nomPoste(m)}</option>)}
-                      </optgroup>
-                    )}
-                    {aAjouter.length > 0 && (
-                      <optgroup label={club?.current.nom ?? 'Ici'}>
-                        {aAjouter.map((p) => <option key={p.id} value={p.id}>{nomPoste(p, user.id)}</option>)}
-                      </optgroup>
-                    )}
-                  </>
-                ) : (
-                  aAjouter.map((p) => <option key={p.id} value={p.id}>{nomPoste(p, user.id)}</option>)
-                )}
-              </select>
+              <Deroulante
+                puce
+                value=""
+                libelle="＋ Ajouter…"
+                aria-label="Ajouter une personne"
+                onChange={(v) => v && (v.startsWith('chez:') ? toggleChez(v.slice(5)) : toggleResp(v))}
+                options={[
+                  ...(entite
+                    ? [
+                        { groupe: entite.nom, icone: <PastilleEntite u={entite} />, options: membresChez.map((m) => ({ value: `chez:${m.id}`, label: nomPoste(m) })) },
+                        { groupe: club?.current.nom ?? 'Ici', options: aAjouter.map((p) => ({ value: p.id, label: nomPoste(p, user.id) })) },
+                      ]
+                    : aAjouter.map((p) => ({ value: p.id, label: nomPoste(p, user.id) }))),
+                ]}
+              />
             )}
           </div>
           {entite && canAssignOthers && !dis && !entite.membres.length && <small className="muted">« {entite.nom} » n’a encore personne dans l’appli : ajoute ses membres dans l’organigramme pour leur confier la tâche.</small>}
@@ -730,31 +733,30 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               ))}
               {!cibles.length && <span className="muted">Personne pour l’instant.</span>}
               {!dis && (infoIci.length > 0 || infoUnites.length > 0 || infoAutres.length > 0) && (
-                <select className="chip-add" value="" aria-label="Mettre au courant" onChange={(e) => e.target.value && changerInfo(e.target.value, true)}>
-                  <option value="">＋ Ajouter…</option>
-                  {(infoIci.length > 1 || infoRoles.length > 0 || infoAutres.some((g) => g.l.length > 1)) && (
-                    <optgroup label="Tout un groupe d’un coup">
-                      {infoIci.length > 1 && <option value="tous">👥 Toutes les personnes{club ? ` de « ${club.current.nom} »` : ''} ({infoIci.length})</option>}
-                      {infoRoles.map(({ r, l }) => <option key={r.id} value={`r:${r.id}`}>👥 {r.label} ({l.length})</option>)}
-                      {infoAutres.filter((g) => g.l.length > 1).map(({ u, l }) => <option key={u.id} value={`ta:${u.id}`}>👥 Toutes les personnes de « {u.nom} » ({l.length})</option>)}
-                    </optgroup>
-                  )}
-                  {infoIci.length > 0 && (
-                    <optgroup label={`Personnes${club ? ` de « ${club.current.nom} »` : ''}`}>
-                      {infoIci.map((p) => <option key={p.id} value={`p:${p.id}`}>{nomPoste(p, user.id)}</option>)}
-                    </optgroup>
-                  )}
-                  {infoUnites.length > 0 && (
-                    <optgroup label="Entités du club">
-                      {infoUnites.map((u) => <option key={u.id} value={`u:${u.id}`}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
-                    </optgroup>
-                  )}
-                  {infoAutres.map(({ u, l }) => (
-                    <optgroup key={u.id} label={`Personnes de « ${u.nom} »`}>
-                      {l.map((m) => <option key={m.id} value={`a:${u.id}:${m.id}`}>{`${m.prenom} ${m.nom}`.trim()}{m.poste ? ` · ${m.poste}` : ''}</option>)}
-                    </optgroup>
-                  ))}
-                </select>
+                <Deroulante
+                  puce
+                  value=""
+                  libelle="＋ Ajouter…"
+                  aria-label="Mettre au courant"
+                  onChange={(v) => v && changerInfo(v, true)}
+                  options={[
+                    {
+                      groupe: 'Tout un groupe d’un coup',
+                      options: [
+                        ...(infoIci.length > 1 ? [{ value: 'tous', label: `Toutes les personnes${club ? ` de « ${club.current.nom} »` : ''} (${infoIci.length})`, icone: <Icone n="personnes" /> }] : []),
+                        ...infoRoles.map(({ r, l }) => ({ value: `r:${r.id}`, label: `${r.label} (${l.length})`, icone: <Icone n="personnes" /> })),
+                        ...infoAutres.filter((g) => g.l.length > 1).map(({ u, l }) => ({ value: `ta:${u.id}`, label: `Toutes les personnes de « ${u.nom} » (${l.length})`, icone: <PastilleEntite u={u} /> })),
+                      ],
+                    },
+                    { groupe: `Personnes${club ? ` de « ${club.current.nom} »` : ''}`, options: infoIci.map((p) => ({ value: `p:${p.id}`, label: nomPoste(p, user.id) })) },
+                    { groupe: 'Entités du club', options: infoUnites.map((u) => ({ value: `u:${u.id}`, label: u.nom, icone: <PastilleEntite u={u} /> })) },
+                    ...infoAutres.map(({ u, l }) => ({
+                      groupe: `Personnes de « ${u.nom} »`,
+                      icone: <PastilleEntite u={u} />,
+                      options: l.map((m) => ({ value: `a:${u.id}:${m.id}`, label: `${`${m.prenom} ${m.nom}`.trim()}${m.poste ? ` · ${m.poste}` : ''}` })),
+                    })),
+                  ]}
+                />
               )}
             </div>
             <small className="muted">
@@ -994,9 +996,10 @@ function avecSeance(x: Task, s: SeanceComite, centralId?: string): Task {
  * « Soirée (28.11.2026) · prochaine édition » : édition d'un événement du club (distincte d'un événement du comité du même
  * nom), ou l'un de ses événements (avec le nom de l'entité).
  */
-function libelleEvenement(x: EvenementEntite, u?: OrgUnit) {
-  if (x.id) return `🎉 ${x.nom} (${fmtRange(x.date, x.dateFin)})${u ? ` · ${u.nom}` : ''}`;
-  return `${u ? UNIT_TYPES[u.type].icon : '🎉'} ${x.nom} (${x.date ? fmtRange(x.date, x.dateFin) : 'date à fixer'}) · prochaine édition`;
+function libelleEvenement(x: EvenementEntite, u?: OrgUnit): { label: string; icone: ReactNode } {
+  const icone = u ? <PastilleEntite u={u} /> : <Icone n="evenements" />;
+  if (x.id) return { label: `${x.nom} (${fmtRange(x.date, x.dateFin)})${u ? ` · ${u.nom}` : ''}`, icone };
+  return { label: `${x.nom} (${x.date ? fmtRange(x.date, x.dateFin) : 'date à fixer'}) · prochaine édition`, icone };
 }
 
 /**
@@ -1030,25 +1033,32 @@ function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disabled: bo
       applyDelaiRef(data, sansOccurrence(v.startsWith('x:') ? { ...x, eventId: undefined, evenementEntite: evenements[Number(v.slice(2))] } : { ...x, eventId: v || undefined, evenementEntite: undefined })),
     );
   const locales = data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}{e.repetition ? ' 🔁' : ''}</option>);
+  const localesChoix = data.events.map((e) => ({ value: e.id, label: e.nom, icone: <Icone n={e.repetition ? 'repetition' : 'evenements'} /> }));
   const u = lie && unite(lie.uniteId);
   const partagee = !!lie && partageDe(t, club?.central?.id).includes(lie.uniteId);
   return (
     <label className={evenements.length ? 'full' : undefined}>
       Événement
-      <select value={value} disabled={disabled} onChange={(e) => choisir(e.target.value)}>
-        <option value="">—</option>
-        {evenements.length > 0 ? (
-          <>
-            {locales.length > 0 && <optgroup label={`Événements de « ${ici} »`}>{locales}</optgroup>}
-            <optgroup label={`Événements qui dépendent de « ${ici} »`}>
-              {evenements.map((x, i) => <option key={`${x.uniteId}:${x.id ?? ''}:${x.date}`} value={`x:${i}`}>{libelleEvenement(x, unite(x.uniteId))}</option>)}
-            </optgroup>
-          </>
-        ) : locales}
-      </select>
+      {evenements.length > 0 ? (
+        <Deroulante
+          value={value}
+          disabled={disabled}
+          onChange={choisir}
+          options={[
+            { value: '', label: '—' },
+            { groupe: `Événements de « ${ici} »`, options: localesChoix },
+            { groupe: `Événements qui dépendent de « ${ici} »`, options: evenements.map((x, i) => ({ value: `x:${i}`, ...libelleEvenement(x, unite(x.uniteId)) })) },
+          ]}
+        />
+      ) : (
+        <select value={value} disabled={disabled} onChange={(e) => choisir(e.target.value)}>
+          <option value="">—</option>
+          {locales}
+        </select>
+      )}
       {lie && (
         <small className="muted">
-          {u ? UNIT_TYPES[u.type].icon : '🎉'} {lie.id ? `Événement de « ${u?.nom ?? '?'} »` : 'Prochaine édition'}, qui dépend de « {ici} » : son nom et sa date sont suivis (délai calé dessus compris).
+          {u ? <IconeEntite u={u} /> : <Icone n="evenements" />} {lie.id ? `Événement de « ${u?.nom ?? '?'} »` : 'Prochaine édition'}, qui dépend de « {ici} » : son nom et sa date sont suivis (délai calé dessus compris).
           {!partagee && !disabled && u && ` Pour que « ${u.nom} » voie aussi la tâche : 🤝 Partager.`}
         </small>
       )}
@@ -1177,29 +1187,36 @@ function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; dis
   };
 
   const choix = (
-    <select value={mode} disabled={disabled} aria-label="Date fixe, ou selon un événement / une séance" title="Changer : une autre séance, un événement ou une date fixe" onChange={(e) => onMode(e.target.value)}>
-      <option value="fixe">📆 Date fixe</option>
-      {events.length > 0 && (
-        <optgroup label="Selon un événement">
-          {events.map((e) => <option key={e.id} value={`event:${e.id}`}>🎉 {e.nom} ({e.repetition ? `🔁 ${libelleRegle(e.repetition, e.date).toLowerCase()}` : fmtRange(e.date, e.dateFin)})</option>)}
-        </optgroup>
-      )}
-      {xe.length > 0 && (
-        <optgroup label={`Selon un événement qui dépend de « ${ici} »`}>
-          {xe.map((x, i) => <option key={`${x.uniteId}:${x.id ?? ''}:${x.date}`} value={`xe:${i}`}>{libelleEvenement(x, unite(x.uniteId))}</option>)}
-        </optgroup>
-      )}
-      {meetings.length > 0 && (
-        <optgroup label={xm.length ? `Selon une séance de « ${ici} »` : 'Selon une séance de comité'}>
-          {meetings.map((m) => <option key={m.id} value={`meeting:${m.id}`}>🗓️ {m.titre} ({fmtDate(m.date)})</option>)}
-        </optgroup>
-      )}
-      {xm.length > 0 && (
-        <optgroup label={`Selon une séance de « ${unite(comite)?.nom ?? 'comité'} » (comité dont dépend « ${ici} »)`}>
-          {xm.map((s, i) => <option key={`${s.uniteId}:${s.id}`} value={`xm:${i}`}>🏛️ {s.titre} ({fmtDate(s.date)})</option>)}
-        </optgroup>
-      )}
-    </select>
+    <Deroulante
+      value={mode}
+      disabled={disabled}
+      aria-label="Date fixe, ou selon un événement / une séance"
+      title="Changer : une autre séance, un événement ou une date fixe"
+      onChange={onMode}
+      options={[
+        { value: 'fixe', label: 'Date fixe', icone: <Icone n="date" /> },
+        {
+          groupe: 'Selon un événement',
+          options: events.map((e) => ({
+            value: `event:${e.id}`,
+            label: `${e.nom} (${e.repetition ? libelleRegle(e.repetition, e.date).toLowerCase() : fmtRange(e.date, e.dateFin)})`,
+            icone: <Icone n={e.repetition ? 'repetition' : 'evenements'} />,
+          })),
+        },
+        { groupe: `Selon un événement qui dépend de « ${ici} »`, options: xe.map((x, i) => ({ value: `xe:${i}`, ...libelleEvenement(x, unite(x.uniteId)) })) },
+        {
+          groupe: xm.length ? `Selon une séance de « ${ici} »` : 'Selon une séance de comité',
+          options: meetings.map((m) => ({ value: `meeting:${m.id}`, label: `${m.titre} (${fmtDate(m.date)})`, icone: <Icone n="seances" /> })),
+        },
+        {
+          groupe: `Selon une séance de « ${unite(comite)?.nom ?? 'comité'} » (comité dont dépend « ${ici} »)`,
+          options: xm.map((x, i) => {
+            const c = unite(x.uniteId);
+            return { value: `xm:${i}`, label: `${x.titre} (${fmtDate(x.date)})`, icone: c ? <PastilleEntite u={c} /> : <Icone n="comite" /> };
+          }),
+        },
+      ]}
+    />
   );
 
   return (

@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { caisseDe, UNIT_TYPES } from '../data/units';
+import { caisseDe } from '../data/units';
 import type { AppData, MonRegistre, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre, VisaVerifie } from '../data/types';
 import { compactIban, formatIban, ibanValide } from '../data/membres';
 import {
@@ -21,6 +21,8 @@ import { Modal } from './ui';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from './Entete';
 import { ZoneTexte } from './ZoneTexte';
 import { Icone } from './icones';
+import { Deroulante } from './Deroulante';
+import { PastilleEntite } from './IconesEntite';
 
 // Remboursements et paiements de factures : des tâches de la section des finances, ouvertes dans cette fenêtre
 // (circuit caisse → visa → virement) au lieu du formulaire de tâche.
@@ -868,11 +870,15 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
         {club && (choix > 1 || (choix === 1 && bloque)) && (
           <label className="full">
             Envoyer à la caisse de
-            <select value={versCentrale ? CENTRALE : ici ? club.current.id : ''} onChange={(e) => choisirCaisse(e.target.value)}>
-              {bloque && <option value="" disabled>Choisir la caisse…</option>}
-              {options.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
-              {centrale && <option value={CENTRALE}>{UNIT_TYPES[central!.type].icon} {nomCentrale}</option>}
-            </select>
+            <Deroulante
+              value={versCentrale ? CENTRALE : ici ? club.current.id : ''}
+              onChange={choisirCaisse}
+              options={[
+                bloque && { value: '', label: 'Choisir la caisse…', disabled: true },
+                ...options.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> })),
+                centrale && { value: CENTRALE, label: nomCentrale, icone: <PastilleEntite u={central!} /> },
+              ]}
+            />
             {choix > 1 && <small className="muted">À choisir avant d’ajouter la photo.</small>}
           </label>
         )}

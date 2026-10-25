@@ -14,6 +14,7 @@ import type { AppData, Person } from '../data/types';
 import { nomAppli } from '../data/nomAppli';
 import { sortUnits, UNIT_TYPES } from '../data/units';
 import { Icone } from '../components/icones';
+import { IconeEntite } from '../components/IconesEntite';
 
 // Écrans de la version réelle (avant d'entrer dans l'appli) et écran d'accueil (choix démo / version réelle).
 
@@ -246,7 +247,7 @@ export function ChooseCommittee({ list, onChoose, onSignOut }: { list: Membershi
       <div className="login-list">
         {sortUnits(list.map((m) => ({ ...m, nom: m.committeeName, date: m.info.date }))).map((m) => (
           <button key={m.committeeId} className="login-user" onClick={() => onChoose(m)}>
-            <span className="unit-dot" style={{ background: m.info.couleur ?? '#1d4ed8' }}>{UNIT_TYPES[m.type].icon}</span>
+            <span className="unit-dot" style={{ background: m.info.couleur ?? '#1d4ed8' }}><IconeEntite u={{ type: m.type, icone: m.info.icone }} /></span>
             <span><strong>{m.committeeName}</strong><small>{UNIT_TYPES[m.type].label}{m.owner ? ' · propriétaire' : ''}</small></span>
           </button>
         ))}

@@ -6,8 +6,8 @@ import { fullName, nomPoste, today, uid } from '../data/utils';
 import { Modal } from './ui';
 import { estPartagee } from '../data/partage';
 import { useClubOptional } from '../data/club';
-import { UNIT_TYPES } from '../data/units';
 import { ZoneTexte } from './ZoneTexte';
+import { IconeEntite } from './IconesEntite';
 
 const emptyOptions = (type: PollType): Poll['options'] =>
   type === 'ouinon' ? OUINON : type === 'dates'
@@ -178,7 +178,7 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
             <div className="chips">
               {entites.map((u) => (
                 <button type="button" key={u.id} className={`chip ${p.entites?.includes(u.id) ? 'on' : ''}`} onClick={() => basculeEntite(u.id)}>
-                  {UNIT_TYPES[u.type].icon} {u.nom} <small>({u.membres.filter((m) => !m.viaEntite).length})</small>
+                  <IconeEntite u={u} /> {u.nom} <small>({u.membres.filter((m) => !m.viaEntite).length})</small>
                 </button>
               ))}
             </div>

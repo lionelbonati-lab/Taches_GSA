@@ -87,6 +87,15 @@ export function IconeEntite({ u }: { u: Pick<Unit, 'type' | 'icone'> }) {
   return u.icone && ICONES_ENTITE[u.icone] ? <IconeBiblio cle={u.icone} /> : <Icone n={UNIT_TYPES[u.type].trait} />;
 }
 
+/** Icône de l'entité dans une petite pastille de sa couleur (listes déroulantes, puces). */
+export function PastilleEntite({ u }: { u: Pick<Unit, 'type' | 'icone' | 'couleur'> }) {
+  return (
+    <span className="unit-dot petite" style={{ background: u.couleur }} aria-hidden>
+      <IconeEntite u={u} />
+    </span>
+  );
+}
+
 /**
  * Choix de l'icône d'une entité : l'actuelle dans sa couleur, et la bibliothèque (par thème, avec recherche) à déplier.
  * `value` absent : l'icône de son type.

@@ -6,13 +6,15 @@ import { downloadCsv, norm } from '../data/csv';
 import { COLS_REGISTRE, analyserRegistre, derniers } from '../data/imports';
 import { compactIban, emailKey, formatIban, groupesClub, nomMembre, nouveauMembre, postesDe } from '../data/membres';
 import { ADMIN_ROLE_ID } from '../data/permissions';
-import { defaultRoleId, UNIT_TYPES } from '../data/units';
+import { defaultRoleId } from '../data/units';
 import { uid } from '../data/utils';
 import type { ClubMembre, ColonnesMembres, FichesEntite, OrgUnit, Person } from '../data/types';
 import { Initials, Modal } from '../components/ui';
 import { ImportCsv } from '../components/ImportCsv';
 import { AccessCell, CredentialsModal, type Shown } from '../components/Acces';
 import { Icone } from '../components/icones';
+import { Deroulante } from '../components/Deroulante';
+import { IconeEntite, PastilleEntite } from '../components/IconesEntite';
 
 // Membres du club : registre commun à toutes les entités (une fiche par personne, avec ou sans accès à l'appli).
 // Réservé au droit « Membres du club » (Admin, Secrétaire…) et aux admins des entités ; les caissiers la lisent, avec les
@@ -159,7 +161,13 @@ export function MembresClub() {
     if (k === 'email' || k === 'telephone') return m[k];
     if (k === 'iban') return <span className="mono">{ibanCourt(m.iban)}</span>;
     if (k === 'groupes') return groupesDe(m).map((u) => <span key={u.id} className="badge" style={{ background: u.couleur }}>{u.nom}</span>);
-    return <small>{(postes.get(m.id) ?? []).map((p) => `${UNIT_TYPES[p.unit.type].icon} ${p.unit.nom}${p.member.poste ? ` · ${p.member.poste}` : ''}`).join('  ')}</small>;
+    return (
+      <small className="postes-entites">
+        {(postes.get(m.id) ?? []).map((p, i) => (
+          <span key={i}><IconeEntite u={p.unit} /> {p.unit.nom}{p.member.poste ? ` · ${p.member.poste}` : ''}</span>
+        ))}
+      </small>
+    );
   };
 
   return (
@@ -514,7 +522,7 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
         const fiche = f && typeof f !== 'string' ? ficheDe(f, membre) : undefined;
         const tete = (
           <div className="acces-tete">
-            <strong>{UNIT_TYPES[u.type].icon} {u.nom}</strong>
+            <strong><IconeEntite u={u} /> {u.nom}</strong>
             {om.poste && <small className="muted"> · {om.poste}</small>}
           </div>
         );
@@ -580,10 +588,7 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
       })}
       {possibles.length > 0 && (
         <div className="acces-ajout row wrap">
-          <select value={ajout} onChange={(e) => setAjout(e.target.value)} aria-label="Ajouter à une entité">
-            <option value="">Ajouter à une entité…</option>
-            {possibles.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
-          </select>
+          <Deroulante value={ajout} onChange={setAjout} aria-label="Ajouter à une entité" options={[{ value: '', label: 'Ajouter à une entité…' }, ...possibles.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))]} />
           {ajout && typeof fiches[ajout] === 'object' && (
             <>
               <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Rôle">

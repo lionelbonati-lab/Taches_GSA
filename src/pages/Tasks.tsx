@@ -18,8 +18,9 @@ import { PageIntro } from '../components/Nav';
 import { AvisLien } from '../components/EnvoyerLien';
 import { useClubOptional } from '../data/club';
 import { editionDe, evenementsDependants, tacheDeLEvenement } from '../data/externes';
-import { UNIT_TYPES } from '../data/units';
 import { Icone } from '../components/icones';
+import { Deroulante } from '../components/Deroulante';
+import { PastilleEntite } from '../components/IconesEntite';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
@@ -258,15 +259,23 @@ export function Tasks() {
           {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           <option value="retard">⚠ En retard</option>
         </select>
-        <select value={f.event} onChange={(e) => setF({ ...f, event: e.target.value })}>
-          <option value="">Tous événements</option>
-          {dependants.length > 0 ? (
-            <>
-              <optgroup label={`Événements de « ${club?.current.nom ?? ''} »`}>{data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</optgroup>
-              <optgroup label="Qui dépendent de ce comité">{dependants.map((u) => <option key={u.id} value={`u:${u.id}`}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}</optgroup>
-            </>
-          ) : data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
-        </select>
+        {dependants.length > 0 ? (
+          <Deroulante
+            value={f.event}
+            onChange={(v) => setF({ ...f, event: v })}
+            aria-label="Événement"
+            options={[
+              { value: '', label: 'Tous événements' },
+              { groupe: `Événements de « ${club?.current.nom ?? ''} »`, options: data.events.map((e) => ({ value: e.id, label: e.nom })) },
+              { groupe: 'Qui dépendent de ce comité', options: dependants.map((u) => ({ value: `u:${u.id}`, label: u.nom, icone: <PastilleEntite u={u} /> })) },
+            ]}
+          />
+        ) : (
+          <select value={f.event} onChange={(e) => setF({ ...f, event: e.target.value })}>
+            <option value="">Tous événements</option>
+            {data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+          </select>
+        )}
         <select value={f.meeting} onChange={(e) => setF({ ...f, meeting: e.target.value })}>
           <option value="">Toutes séances</option>
           {seancesFiltre.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>)}

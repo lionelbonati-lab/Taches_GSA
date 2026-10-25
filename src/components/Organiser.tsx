@@ -9,6 +9,8 @@ import { fmtRange, posteBesideName } from '../data/utils';
 import type { ClubMembre, OrgMember, OrgUnit, Poste } from '../data/types';
 import { Initials, Modal, UnitMark } from './ui';
 import { Icone } from './icones';
+import { Deroulante } from './Deroulante';
+import { PastilleEntite } from './IconesEntite';
 
 // Ce que l'organigramme par postes (OrgLignes.tsx) partage : glisser une personne (souris ; au doigt : la toucher,
 // elle est « en main », puis toucher où la poser), la recherche en haut à gauche (pilules), les fiches de poste et la
@@ -832,10 +834,7 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
         </div>
         <label className="full">
           ⛓ Lié au ★ de
-          <select value={lien} onChange={(e) => setLien(e.target.value)}>
-            <option value="">— Aucune entité —</option>
-            {autres.map((x) => <option key={x.id} value={x.id}>{UNIT_TYPES[x.type].icon} {x.nom}</option>)}
-          </select>
+          <Deroulante value={lien} onChange={setLien} options={[{ value: '', label: '— Aucune entité —' }, ...autres.map((x) => ({ value: x.id, label: x.nom, icone: <PastilleEntite u={x} /> }))]} />
           <small className="muted">Le titulaire de ce poste est ★ de cette entité : changer l’un change l’autre, automatiquement. Fait tout seul quand le poste porte le nom d’une entité.</small>
         </label>
       </div>

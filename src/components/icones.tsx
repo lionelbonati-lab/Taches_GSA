@@ -11,8 +11,9 @@ import {
 } from 'lucide-react';
 
 // Icônes dessinées au trait (bibliothèque Lucide, licence ISC), de la couleur du texte et à sa taille : boutons, titres,
-// repères des tâches, de l'accueil, de l'agenda et des événements, pastilles des entités. Restent des émojis : les listes
-// déroulantes (une icône n'y entre pas), les états des paiements et quelques repères de l'organigramme (⛓ ★).
+// repères des tâches, de l'accueil, de l'agenda et des événements, pastilles des entités, listes déroulantes qui proposent
+// des entités (Deroulante). Restent des émojis : les autres listes déroulantes (natives : une icône n'y entre pas), les
+// états des paiements et quelques repères de l'organigramme (⛓ ★).
 
 type Svg = ComponentType<SVGProps<SVGSVGElement> & { size?: number | string; strokeWidth?: number | string; absoluteStrokeWidth?: boolean }>;
 

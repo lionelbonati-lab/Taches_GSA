@@ -37,7 +37,8 @@ import { OrgLignes, type EditionLignes } from '../components/OrgLignes';
 import type { ActionOrga, PosteLie } from '../data/organigrammeLignes';
 import { ZoneTexte } from '../components/ZoneTexte';
 import { Icone } from '../components/icones';
-import { ChoixIconeEntite } from '../components/IconesEntite';
+import { ChoixIconeEntite, PastilleEntite } from '../components/IconesEntite';
+import { Deroulante } from '../components/Deroulante';
 
 // Organigramme du club, par postes (components/OrgLignes.tsx) : comités, groupes et événements en lignes, une carte
 // par poste ; un clic sur un nom ouvre le profil de la personne, sur une entité l'ouvre. Par défaut une vue d'ensemble ;
@@ -742,17 +743,18 @@ function UnitModal({
         {!isCentral && (
           <label>
             Type
-            <select value={type} disabled={!isNew && !manage} onChange={(e) => setType(e.target.value as UnitType)}>
-              {SUB_TYPES.map((t) => <option key={t} value={t}>{UNIT_TYPES[t].icon} {UNIT_TYPES[t].label}</option>)}
-            </select>
+            <Deroulante
+              value={type}
+              disabled={!isNew && !manage}
+              onChange={(v) => setType(v as UnitType)}
+              options={SUB_TYPES.map((t) => ({ value: t, label: UNIT_TYPES[t].label, icone: <Icone n={UNIT_TYPES[t].trait} /> }))}
+            />
           </label>
         )}
         {!isCentral && (isNew || manage) && possibles.length > 1 && (
           <label>
             Dépend de <small className="muted">(un comité)</small>
-            <select value={dependChoisi} onChange={(e) => setDependDe(e.target.value)}>
-              {possibles.map((u) => <option key={u.id} value={u.id}>{UNIT_TYPES[u.type].icon} {u.nom}</option>)}
-            </select>
+            <Deroulante value={dependChoisi} onChange={setDependDe} options={possibles.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))} />
           </label>
         )}
         {!isNew && !isCentral && dependChoisi !== dependInitial && (

@@ -7,10 +7,12 @@ import { accessAction, type AccessInfo } from '../data/cloud';
 import { emailKey, nomMembre } from '../data/membres';
 import { norm } from '../data/csv';
 import { defaultRoleId, directory, personKey, UNIT_TYPES } from '../data/units';
-import type { OrgMember, OrgUnit, Person } from '../data/types';
+import type { OrgMember, OrgUnit, Person, Unit } from '../data/types';
 import { fullName, isDone, uid } from '../data/utils';
 import { Avatar, Initials, Modal } from './ui';
 import { AccessCell, CredentialsModal, type Shown } from './Acces';
+import { Icone } from './icones';
+import { IconeEntite } from './IconesEntite';
 
 // Les personnes d'une entité, ouvertes depuis l'organigramme : ajouter quelqu'un (« + » sous l'entité),
 // voir ou modifier sa fiche (clic sur son nom) : poste, rôles, accès à l'appli, retrait.
@@ -60,7 +62,7 @@ export function FichePersonne({ id, onClose }: { id: string; onClose: () => void
     <FicheLecture
       titre={fullName(p)}
       avatar={<Avatar id={p.id} size={56} />}
-      entite={via ? `👥 Avec les membres de « ${via} »` : undefined}
+      entite={via ? <><Icone n="personnes" /> Avec les membres de « {via} »</> : undefined}
       poste={p.poste}
       autresPostes={p.autresPostes}
       email={contact ? p.email : undefined}
@@ -81,7 +83,7 @@ export function FicheMembre({ u, m, onModifier, onClose }: { u: OrgUnit; m: OrgM
     <FicheLecture
       titre={nomMembre(m) || m.poste}
       avatar={<Initials prenom={m.prenom} nom={m.nom} couleur={m.couleur} size={56} />}
-      entite={`${UNIT_TYPES[u.type].icon} ${u.nom}${via ? ` · avec les membres de « ${via} »` : ''}`}
+      entite={<><IconeEntite u={u} /> {u.nom}{via ? ` · avec les membres de « ${via} »` : ''}</>}
       poste={m.poste || (m.admin ? UNIT_TYPES[u.type].chef : '')}
       autresPostes={m.autresPostes}
       email={m.email}
@@ -96,7 +98,7 @@ export function FicheMembre({ u, m, onModifier, onClose }: { u: OrgUnit; m: OrgM
 function FicheLecture(f: {
   titre: string;
   avatar: ReactNode;
-  entite?: string;
+  entite?: ReactNode;
   poste: string;
   autresPostes?: string;
   email?: string;
@@ -302,6 +304,8 @@ interface Candidat {
   /** Personne retirée de l'entité (à réactiver). */
   personId?: string;
   info: string;
+  /** Ses entités (annuaire), affichées avec leur icône. */
+  postes?: { unit: Pick<Unit, 'type' | 'icone'>; texte: string }[];
 }
 
 /** Ajouter une personne : quelqu'un du club (registre « Membres du club », sinon annuaire des entités) ou une nouvelle personne. */
@@ -340,7 +344,8 @@ function AjouterPersonne({ onPick, onClose }: { onPick: (p: Person | null) => vo
     telephone: e.telephone ?? '',
     couleur: e.couleur,
     membreId: e.postes.find((x) => x.member.membreId)?.member.membreId,
-    info: e.postes.map((p) => `${UNIT_TYPES[p.unit.type].icon} ${p.unit.nom}${p.member.poste ? ` · ${p.member.poste}` : ''}`).join('  '),
+    info: e.postes.map((p) => `${p.unit.nom}${p.member.poste ? ` · ${p.member.poste}` : ''}`).join(', '),
+    postes: e.postes.map((p) => ({ unit: p.unit, texte: `${p.unit.nom}${p.member.poste ? ` · ${p.member.poste}` : ''}` })),
   }));
   // Sa fiche dans l'entité (active d'abord : une fiche liée active passe avant une ancienne fiche retirée).
   const fiche = (c: Candidat) => {
@@ -389,7 +394,14 @@ function AjouterPersonne({ onPick, onClose }: { onPick: (p: Person | null) => vo
             <Initials prenom={c.prenom} nom={c.nom} couleur={c.couleur} size={36} />
             <span>
               <strong>{nomMembre(c)}{fiche(c) && <small className="muted"> · retiré, à réactiver</small>}</strong>
-              <small>{[c.email, c.info].filter(Boolean).join(' · ')}</small>
+              <small>
+                {c.postes ? (
+                  <span className="postes-entites">
+                    {c.email && <span>{c.email}</span>}
+                    {c.postes.map((p, i) => <span key={i}><IconeEntite u={p.unit} /> {p.texte}</span>)}
+                  </span>
+                ) : [c.email, c.info].filter(Boolean).join(' · ')}
+              </small>
             </span>
           </button>
         ))}
