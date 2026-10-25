@@ -601,6 +601,11 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 
 /* ---------- Notifications ---------- */
 .bell-wrap { position: relative; margin-left: auto; }
+/* « Annuler » (dernière action), juste avant la cloche. */
+.annuler-btn { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); background: var(--surface); color: inherit; font: inherit; font-size: 0.85rem; cursor: pointer; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
+.annuler-btn:hover { background: var(--surface2); }
+.annuler-btn + .bell-wrap { margin-left: 0; }
+@media (max-width: 767px) { .annuler-text { display: none; } .annuler-btn { padding: 6px 8px; } }
 .bell { position: relative; border: none; background: none; font-size: 1.3rem; cursor: pointer; padding: 6px 8px; border-radius: 8px; line-height: 1; }
 .bell:hover { background: var(--surface2); }
 .bell-badge { position: absolute; top: 0; right: 0; background: var(--late); color: #fff; font-size: 0.65rem; font-weight: 700; min-width: 17px; height: 17px; border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0 4px; border: 2px solid var(--surface); }

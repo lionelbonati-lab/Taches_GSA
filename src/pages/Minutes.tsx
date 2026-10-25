@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import { FULL_AGENDA, echeanceSuivante, etatTerminee, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
-import type { Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
+import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
 import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
 import { NoteField } from '../components/NoteField';
 import { TaskModal, newTask } from '../components/TaskModal';
@@ -22,6 +22,7 @@ import { AvecLiens, LieuSeance } from '../components/Liens';
 import { texteLieu } from '../data/lieux';
 import { lienMailto } from '../data/lienPartage';
 import { Icone } from '../components/icones';
+import { revenir } from '../data/annuler';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -72,7 +73,7 @@ export function Minutes() {
   const [view, setView] = useState<'saisie' | 'pv'>('saisie');
   const [edit, setEdit] = useState<{ task: Task; isNew: boolean } | null>(null);
   // Tâche ouverte depuis le PV : on compare avant / après pour l'inscrire au PV.
-  const [pending, setPending] = useState<{ id: string; before?: TaskSnapshot; isNew: boolean } | null>(null);
+  const [pending, setPending] = useState<{ id: string; before?: TaskSnapshot; tache?: Task; isNew: boolean } | null>(null);
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState('');
   // Après « Valider et archiver » : page de dépôt ouverte (ou bloquée par le navigateur) et PDF en cours, créé ou raté.
@@ -120,7 +121,7 @@ export function Minutes() {
   // Options du PV de la séance ; non réglées : celles du PV précédent.
   const opts: Required<PvOptions> = { ...OPTIONS, ...s0?.minutes?.options, ...m.options };
   const depot = urlDepot(data.reglagesOdj?.depotPv);
-  const setOpt = (patch: PvOptions) => setMinutes((x) => { x.options = { ...opts, ...patch }; });
+  const setOpt = (patch: PvOptions) => setMinutes((x) => { x.options = { ...opts, ...patch }; }, { annulable: 'Options du PV' });
 
   useEffect(() => {
     if (view !== 'pv') return;
@@ -131,37 +132,50 @@ export function Minutes() {
     };
   }, [view, titre, draftVersion]);
 
-  const setMinutes = (fn: (x: MeetingMinutes) => void) =>
+  // `annulable` : action que « Annuler » peut défaire (présences, début de séance…) ; pas la frappe des notes.
+  const setMinutes = (fn: (x: MeetingMinutes, d: AppData) => void, o?: { annulable?: string; suite?: boolean }) =>
     s1 &&
     updateSilent((d) => {
       const x = d.meetings.find((y) => y.id === s1.id)!;
       const mm: MeetingMinutes = structuredClone(withExcuses({ ...EMPTY_MINUTES, ...x.minutes }, x.excuses));
-      fn(mm);
+      fn(mm, d);
       x.minutes = mm;
       // Excusé retiré (ou finalement présent) dans le PV : l'excuse annoncée tombe aussi.
       if (x.excuses) x.excuses = x.excuses.filter((e) => mm.excuses.includes(e.personId));
-    });
+    }, o);
+  // Tâche modifiée, créée (avant : null) ou supprimée depuis le PV : son état d'avant (la première fois) et d'après,
+  // pour « Remettre à zéro » ; terminer une tâche répétée crée l'occurrence suivante, retenue comme créée.
+  const retenir = (x: MeetingMinutes, d: AppData, id: string, avant: Task | null) => {
+    const r = (x.tachesAvant = { ...x.tachesAvant });
+    const apres = d.tasks.find((y) => y.id === id) ?? null;
+    r[id] = { avant: r[id] ? r[id].avant : avant && structuredClone(avant), apres: apres && structuredClone(apres) };
+    const suite = apres?.suivanteId && apres.suivanteId !== avant?.suivanteId ? d.tasks.find((y) => y.id === apres.suivanteId) : undefined;
+    if (suite && !r[suite.id]) r[suite.id] = { avant: null, apres: structuredClone(suite) };
+  };
   const setNote = (key: string, v: string) =>
     setMinutes((x) => {
       if (v.trim()) x.notes[key] = v;
       else delete x.notes[key];
     });
-  const record = (t: Task, changes: string[]) =>
+  const record = (t: Task, changes: string[], avant?: Task, suite?: boolean) =>
     changes.length &&
-    setMinutes((x) => {
+    setMinutes((x, d) => {
       x.journal = [...(x.journal ?? []), { taskId: t.id, titre: t.titre, changes, at: new Date().toISOString() }];
-    });
+      if (avant && !avant.source) retenir(x, d, t.id, avant);
+    }, { suite });
 
   // Modifications faites dans la fiche tâche ouverte depuis le PV : enregistrées une fois la tâche sauvegardée.
   useEffect(() => {
     if (!pending || edit) return;
     const t = data.tasks.find((x) => x.id === pending.id);
+    // Inscrit au PV avec la modification de la tâche : « Annuler » les défait ensemble.
+    const tache = pending.tache;
     if (pending.isNew) {
-      if (t) setMinutes((x) => { x.nouvelles = [...(x.nouvelles ?? []), t.id]; });
+      if (t) setMinutes((x, d) => { x.nouvelles = [...(x.nouvelles ?? []), t.id]; if (!t.source) retenir(x, d, t.id, null); }, { suite: true });
     } else if (!t && pending.before) {
-      setMinutes((x) => { x.supprimees = [...(x.supprimees ?? []), pending.before!.titre]; });
+      setMinutes((x, d) => { x.supprimees = [...(x.supprimees ?? []), pending.before!.titre]; if (tache && !tache.source) retenir(x, d, tache.id, tache); }, { suite: true });
     } else if (t && pending.before) {
-      record(t, diffTask(data, pending.before, t));
+      record(t, diffTask(data, pending.before, t), tache, true);
     }
     setPending(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -229,7 +243,7 @@ export function Minutes() {
       x.heureDebut = x.heureDebut ?? nowHM();
       x.demarreLe = new Date().toISOString();
       x.pointIds = [...bucket.keys()];
-    });
+    }, { annulable: `Séance « ${s1?.titre} » démarrée` });
   const setPresence = (id: string, kind: 'present' | 'excuse') =>
     setMinutes((x) => {
       const inP = x.presents.includes(id);
@@ -238,18 +252,18 @@ export function Minutes() {
       x.excuses = x.excuses.filter((v) => v !== id);
       if (kind === 'present' && !inP) x.presents.push(id);
       if (kind === 'excuse' && !inE) x.excuses.push(id);
-    });
+    }, { annulable: `Présences : ${fullName(person(id))}` });
 
   const quickChange = (t: Task, patch: Partial<Task>) => {
     const after = { ...t, ...patch };
     const q = finAnticipee(data, t, after);
     if (q && !confirm(q)) return;
     saveTask(after, false);
-    record(t, diffTask(data, stateOf(t), after));
+    record(t, diffTask(data, stateOf(t), after), t);
   };
   const openTask = (t: Task) => {
     setEdit({ task: t, isNew: false });
-    setPending({ id: t.id, before: stateOf(t), isNew: false });
+    setPending({ id: t.id, before: stateOf(t), tache: structuredClone(t), isNew: false });
   };
   const addTask = (sectionId: string) => {
     if (!user) return;
@@ -280,6 +294,57 @@ export function Minutes() {
       x.minutes = { ...structuredClone(m.derniereValidee!), derniereValidee: m.derniereValidee, enCorrection: false };
     }, `Correction du PV du ${s1.titre} annulée`);
     setMsg('Corrections annulées : retour à la version validée.');
+  };
+
+  // Remise à zéro d'un PV pas encore validé (commencé ou modifié par erreur) : notes, présences, heures effacées ; tâches
+  // modifiées, créées ou supprimées depuis le PV comme avant (sauf ce qui a changé depuis ailleurs). Excuses annoncées gardées.
+  const retour = Object.entries(m.tachesAvant ?? {});
+  const annoncees = new Set((s1?.excuses ?? []).map((e) => e.personId));
+  const pvTouche =
+    !m.valideLe &&
+    !!(m.demarreLe || m.heureDebut || m.heureFin || m.presents.length || m.excuses.some((id) => !annoncees.has(id)) || m.invites?.trim() ||
+      Object.values(m.notes).some((n) => n.trim()) || journal.length || nouvelles.size || deleted.length || m.tousLesPoints || m.pointIds?.length || retour.length);
+  const remettreTaches = (tasks: Task[], conflit: () => void) => {
+    const out = [...tasks];
+    for (const [id, { avant, apres }] of retour) {
+      const i = out.findIndex((t) => t.id === id);
+      const r = revenir(i >= 0 ? out[i] : undefined, avant ?? undefined, apres ?? undefined, conflit) as Task | undefined;
+      // Fichiers joints retirés depuis (tâche supprimée, fichier enlevé) : effacés, pas remis.
+      const gardes = new Set((i >= 0 ? out[i].documents ?? [] : []).map((x) => x.id));
+      const v = r?.documents?.some((x) => x.kind === 'fichier' && !gardes.has(x.id))
+        ? { ...r, documents: r.documents.filter((x) => x.kind !== 'fichier' || gardes.has(x.id)) }
+        : r;
+      if (!v) {
+        if (i >= 0) out.splice(i, 1);
+      } else if (i >= 0) out[i] = structuredClone(v);
+      else out.unshift(structuredClone(v));
+    }
+    return out;
+  };
+  const remettreAZero = () => {
+    if (!s1) return;
+    const n = retour.length;
+    const gardees = new Set<string>();
+    remettreTaches(data.tasks.filter((t) => !t.source), () => gardees.add('x'));
+    if (
+      !confirm(
+        `Remettre le PV du ${s1.titre} à zéro ?
+
+Notes, présences, invités, heures et début de séance sont effacés.` +
+          (n ? `
+Les tâches modifiées, créées ou supprimées depuis le PV (${n}) reviennent comme avant${gardees.size ? ' (sauf ce qui a été changé depuis ailleurs)' : ''}.` : '') +
+          `
+Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arrière.`,
+      )
+    )
+      return;
+    update((d) => {
+      const x = d.meetings.find((y) => y.id === s1.id)!;
+      d.tasks = remettreTaches(d.tasks, () => {});
+      x.minutes = { ...EMPTY_MINUTES, options: x.minutes?.options };
+    }, `PV du ${s1.titre} remis à zéro`);
+    setOpenNotes({});
+    setMsg(`↺ PV remis à zéro${n ? ' : tâches remises comme avant' : ''}. « Annuler » (en haut) pour revenir en arrière.`);
   };
 
   // ---------- Texte et document du PV ----------
@@ -388,6 +453,7 @@ export function Minutes() {
       const x = d.meetings.find((y) => y.id === s1.id)!;
       // Excusés annoncés (ordre du jour, « Je m'excuse ») : enregistrés dans le PV validé, comme affichés.
       const mm: MeetingMinutes = { ...withExcuses({ ...EMPTY_MINUTES, ...x.minutes }, x.excuses), valideLe: now, validePar: user.id, version: n, enCorrection: false };
+      delete mm.tachesAvant;
       // Fichiers joints : le choix du moment est fixé (l'ordre du jour peut encore changer).
       mm.annexesExclues = mm.annexesExclues ?? x.odjAnnexesExclues ?? [];
       const { derniereValidee: _old, ...copyOf } = mm;
@@ -657,10 +723,15 @@ export function Minutes() {
                 {editable && !m.valideLe && (!m.demarreLe ? (
                   <button className="btn primary" onClick={start}><Icone n="demarrer" /> Démarrer la séance</button>
                 ) : !m.heureFin ? (
-                  <button className="btn" onClick={() => setMinutes((x) => { x.heureFin = nowHM(); })}><Icone n="terminer" /> Terminer la séance</button>
+                  <button className="btn" onClick={() => setMinutes((x) => { x.heureFin = nowHM(); }, { annulable: `Séance « ${s1.titre} » terminée` })}><Icone n="terminer" /> Terminer la séance</button>
                 ) : (
                   <span className="pbadge closed">Séance terminée – notes et points encore modifiables</span>
                 ))}
+                {editable && pvTouche && (
+                  <button className="btn small" onClick={remettreAZero} title="Effacer notes, présences et heures ; tâches modifiées depuis le PV remises comme avant">
+                    <Icone n="revenir" /> Remettre à zéro
+                  </button>
+                )}
               </div>
             </section>
 
@@ -678,7 +749,7 @@ export function Minutes() {
                 ))}
               </div>
               <div className="row">
-                {editable && <button className="btn small" onClick={() => setMinutes((x) => { x.presents = committee.map((p) => p.id).filter((id) => !x.excuses.includes(id)); })}>Tous présents (sauf excusés)</button>}
+                {editable && <button className="btn small" onClick={() => setMinutes((x) => { x.presents = committee.map((p) => p.id).filter((id) => !x.excuses.includes(id)); }, { annulable: 'Présences : tous présents' })}>Tous présents (sauf excusés)</button>}
                 <input className="grow" placeholder="Invités / autres personnes présentes" value={m.invites ?? ''} readOnly={!editable} onChange={(e) => setMinutes((x) => { x.invites = e.target.value; })} />
               </div>
             </section>
@@ -728,7 +799,7 @@ export function Minutes() {
         <>
           <div className="panel min-pv-options no-print">
             <strong>Options du PV</strong>
-            <label className="inline"><input type="checkbox" checked={!!m.tousLesPoints} disabled={!editable} onChange={(e) => setMinutes((x) => { x.tousLesPoints = e.target.checked; })} /> Inclure tous les points de l’ordre du jour</label>
+            <label className="inline"><input type="checkbox" checked={!!m.tousLesPoints} disabled={!editable} onChange={(e) => setMinutes((x) => { x.tousLesPoints = e.target.checked; }, { annulable: 'Options du PV' })} /> Inclure tous les points de l’ordre du jour</label>
             <label className="inline"><input type="checkbox" checked={opts.details} disabled={!editable} onChange={(e) => setOpt({ details: e.target.checked })} /> Responsables, délais et échéances</label>
             <label className="inline"><input type="checkbox" checked={opts.misesAJour} disabled={!editable} onChange={(e) => setOpt({ misesAJour: e.target.checked })} /> Mises à jour des tâches (↻)</label>
             <label className="inline" title="Fichiers et liens de chaque point, nommés ; un clic les ouvre">

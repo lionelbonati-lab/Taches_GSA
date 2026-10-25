@@ -140,6 +140,7 @@ export function Layout() {
             </NavLink>
           ))}
         </nav>
+        <BoutonAnnuler />
         <Bell />
         <div className="who">
           <InstallButton variant="compact" hideWhenUnavailable />
@@ -294,6 +295,35 @@ function UnitSwitch() {
 }
 
 /** Version réelle : état de l'enregistrement sur le serveur. */
+/**
+ * « Annuler » : défait la dernière action faite ici (tâche enregistrée, présences, réglage…), aussi avec Ctrl+Z (⌘Z)
+ * hors d'un champ de saisie, où le navigateur annule la frappe.
+ */
+function BoutonAnnuler() {
+  const { annulable, annuler } = useStore();
+  const ref = useRef(annuler);
+  ref.current = annuler;
+  const actif = !!annulable;
+  useEffect(() => {
+    if (!actif) return;
+    const touche = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.altKey || e.key.toLowerCase() !== 'z') return;
+      if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]')) return;
+      if (document.querySelector('.modal-back')) return; // fenêtre ouverte : rien en arrière-plan
+      e.preventDefault();
+      ref.current();
+    };
+    window.addEventListener('keydown', touche);
+    return () => window.removeEventListener('keydown', touche);
+  }, [actif]);
+  if (!annulable) return null;
+  return (
+    <button className="annuler-btn" onClick={annuler} title={`Annuler : ${annulable.action} (Ctrl+Z)`} aria-label={`Annuler : ${annulable.action}`}>
+      <Icone n="annuler" /><span className="annuler-text"> Annuler</span>
+    </button>
+  );
+}
+
 function SyncBadge() {
   const { status, pending } = useSyncStatus();
   if (status === 'horsLigne')

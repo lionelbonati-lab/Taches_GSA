@@ -9,6 +9,7 @@ import { clearFiles, deleteFiles, getFile, saveFile } from './files';
 import { avecSondages, avecVote, finSondage, sondageEnregistre } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
+import { annulerChangements, changements, horsAnnulation, reunir, type Changement } from './annuler';
 import { applyRows, pasDispoTache, prendreTache as prendreServeur, rattraper, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
@@ -232,10 +233,20 @@ interface Store {
   creatableSections: () => Section[];
   prefs: Prefs;
   login: (id: string | null) => void;
-  /** Applique une modification et l'inscrit au journal d'activité. */
-  update: (fn: (d: AppData) => void, action: string) => void;
-  /** Modification sans entrée au journal (prise de notes, présences…). */
-  updateSilent: (fn: (d: AppData) => void) => void;
+  /**
+   * Applique une modification et l'inscrit au journal d'activité. `annulable: false` : « Annuler » ne la défait pas
+   * (enregistrée aussi ailleurs : serveur, autre entité).
+   */
+  update: (fn: (d: AppData) => void, action: string, o?: { annulable?: boolean }) => void;
+  /**
+   * Modification sans entrée au journal (prise de notes, présences…). `annulable` : action que « Annuler » peut défaire ;
+   * `suite` : complète l'action précédente (annulées ensemble).
+   */
+  updateSilent: (fn: (d: AppData) => void, o?: { annulable?: string; suite?: boolean }) => void;
+  /** Dernière action de cette session que l'on peut annuler (actions faites ici, depuis l'ouverture de l'appli). */
+  annulable: { action: string; at: string } | null;
+  /** Annule la dernière action : les éléments qu'elle a changés reviennent comme avant (sauf modifiés depuis). */
+  annuler: () => void;
   setPrefs: (p: Partial<Prefs>) => void;
   /** Tâche partagée par une autre entité : promesse résolue une fois la modification envoyée à son entité (acceptée ou non). */
   saveTask: (t: Task, isNew: boolean) => void | Promise<void>;
@@ -456,11 +467,58 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloud]);
 
+  // « Annuler » : chaque action laisse une étiquette sur les données qu'elle produit (plusieurs modifications groupées :
+  // étiquettes réunies) ; une fois affichées, les éléments changés depuis l'affichage précédent sont retenus.
+  // Action qui ne s'annule pas (`bloque`) : celles groupées avec elle non plus.
+  type Etiquette = { actions: string[]; suite: boolean; bloque: boolean };
+  const etiquettes = useRef(new WeakMap<AppData, Etiquette>());
+  const affichees = useRef(data);
+  affichees.current = data;
+  const etiqueter = (prev: AppData, next: AppData, o: { action?: string; suite?: boolean; bloque?: boolean }) => {
+    const e = prev === affichees.current ? undefined : etiquettes.current.get(prev);
+    etiquettes.current.set(next, {
+      actions: [...(e?.actions ?? []), ...(o.action ? [o.action] : [])],
+      suite: !!(e?.suite || o.suite),
+      bloque: !!(e?.bloque || o.bloque),
+    });
+  };
+  const [pile, setPile] = useState<{ id: string; action: string; at: string; items: Changement[] }[]>([]);
+  const precedentes = useRef(data);
+  const derniere = useRef<AppData | null>(null);
+  useEffect(() => {
+    const avant = precedentes.current;
+    precedentes.current = data;
+    const e = etiquettes.current.get(data);
+    if (avant === data || !e || (!e.actions.length && !e.suite && !e.bloque)) return;
+    const items = changements(avant, data);
+    if (!items.length) return;
+    if (e.bloque) {
+      derniere.current = null;
+      return;
+    }
+    // Paiement, fichiers effacés : l'action ne s'annule pas, ni celles d'avant (elles ont pu en dépendre).
+    if (horsAnnulation(items)) {
+      derniere.current = null;
+      return setPile([]);
+    }
+    if (e.actions.length) {
+      const entree = { id: uid('a'), action: e.actions[0], at: new Date().toISOString(), items };
+      setPile((p) => [entree, ...p].slice(0, 20));
+    } else if (avant === derniere.current) {
+      // Suite de l'action affichée juste avant (ex. PV : changement de tâche inscrit au PV) : annulées ensemble.
+      setPile((p) => (p.length ? [{ ...p[0], items: reunir(p[0].items, items) }, ...p.slice(1)] : p));
+    } else return;
+    derniere.current = data;
+  }, [data]);
+  // Autre personne connectée : rien à annuler de la précédente.
+  useEffect(() => setPile([]), [userId]);
+
   const update = useCallback(
-    (fn: (d: AppData) => void, action: string) => {
+    (fn: (d: AppData) => void, action: string, o?: { annulable?: boolean }) => {
       setData((prev) => {
         const next = structuredClone(prev);
         fn(next);
+        etiqueter(prev, next, o?.annulable === false ? { bloque: true } : { action });
         sansPartagees(next);
         // Les délais liés suivent automatiquement la date de leur événement / séance.
         next.tasks = next.tasks.map((t) => applyDelaiRef(next, t));
@@ -473,16 +531,35 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   );
 
   const updateSilent = useCallback(
-    (fn: (d: AppData) => void) => {
+    (fn: (d: AppData) => void, o?: { annulable?: string; suite?: boolean }) => {
       setData((prev) => {
         const next = structuredClone(prev);
         fn(next);
         sansPartagees(next);
+        etiqueter(prev, next, { action: o?.annulable, suite: o?.suite });
         return next;
       });
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
+
+  const annuler = useCallback(() => {
+    const a = pile[0];
+    if (!a) return;
+    const { conflits } = annulerChangements(data, a.items);
+    setPile((p) => p.filter((x) => x.id !== a.id));
+    setData((prev) => {
+      const next = annulerChangements(prev, a.items).data;
+      next.log = [{ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `Annulé : ${a.action}` }, ...next.log].slice(0, 300);
+      return next;
+    });
+    setToast(
+      conflits
+        ? `↶ Annulé en partie : ${a.action} (modifié depuis par ailleurs : ${conflits > 1 ? `${conflits} éléments gardés` : 'un élément gardé'} tel quel)`
+        : `↶ Annulé : ${a.action}`,
+    );
+  }, [pile, data, userId]);
 
   const prefs = { ...DEFAULT_PREFS, ...(userId ? data.prefs[userId] : {}) };
 
@@ -520,7 +597,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (aPrendreOuverte(t) && !isDone(data, t)) proposees.filter((id) => !t.responsables.includes(id)).forEach((id) => push(id, 'propose'));
       update((d) => {
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
-      }, `Modification de la tâche « ${t.titre} » (partagée par ${x.unite})`);
+      }, `Modification de la tâche « ${t.titre} » (partagée par ${x.unite})`, { annulable: false });
       // Tâche récurrente terminée ici (041) : son entité crée l'occurrence suivante.
       if (next.recurrence && !next.suivanteId && isDone(data, t) && !(before && isDone(data, before)))
         setToast(`🔁 « ${x.unite} » créera l’occurrence suivante (dès que l’un de ses membres ouvrira l’appli).`);
@@ -591,7 +668,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           });
         }
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
-      }, `Tâche « ${x.titre} » ${isNew ? 'créée et ' : ''}enregistrée dans « ${cible.nom} » (partagée avec ${c.current.nom})`);
+      }, `Tâche « ${x.titre} » ${isNew ? 'créée et ' : ''}enregistrée dans « ${cible.nom} » (partagée avec ${c.current.nom})`, { annulable: false });
       chargerPartagees();
       return { fichiers: erreur ? 0 : copies.length, erreur };
     },
@@ -699,7 +776,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         }
         update((d) => {
           if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
-        }, `${action} (partagée par ${src.unite})`);
+        }, `${action} (partagée par ${src.unite})`, { annulable: false });
         return;
       }
       if (cloud && c) {
@@ -712,7 +789,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         setData((prev) => applyRows(prev, fresh, cloud.sync.posOf));
         update((d) => {
           if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
-        }, action);
+        }, action, { annulable: false });
         return;
       }
       update((d) => {
@@ -724,7 +801,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           return { ...y, responsables: prend ? [...y.responsables, user.id] : y.responsables, aPrendre, updatedAt: at };
         });
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
-      }, action);
+      }, action, { annulable: false });
     },
     [user, data, view.tasks, cloud, update, chargerPartagees],
   );
@@ -757,6 +834,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const next = migrate(structuredClone(d));
       next.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `Données restaurées depuis ${label}` });
       setData(next);
+      setPile([]);
     },
     [userId],
   );
@@ -955,6 +1033,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     login,
     update,
     updateSilent,
+    annulable: pile[0] ? { action: pile[0].action, at: pile[0].at } : null,
+    annuler,
     setPrefs,
     saveTask,
     attribuerTache,

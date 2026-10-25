@@ -498,6 +498,11 @@ export interface MeetingMinutes {
   nouvelles?: string[];
   /** Intitulés des tâches supprimées depuis l'onglet PV. */
   supprimees?: string[];
+  /**
+   * Tâches modifiées, créées (avant : null) ou supprimées (après : null) depuis l'onglet PV : état avant la première
+   * modification et après la dernière, pour « Remettre le PV à zéro ». Retiré à la validation.
+   */
+  tachesAvant?: Record<string, { avant: Task | null; apres: Task | null }>;
   valideLe?: string;
   validePar?: string;
   /** Numéro de la dernière version validée (1, 2…). */
