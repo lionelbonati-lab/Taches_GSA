@@ -1,5 +1,5 @@
 import type { AppData, Meeting, Task } from './types';
-import { addDays, isDone, isLate, today } from './utils';
+import { addDays, finLe, isDone, isLate, today } from './utils';
 
 // Sélection des points de l'ordre du jour d'une séance, partagée par les onglets Ordre du jour et PV.
 
@@ -61,7 +61,7 @@ export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting
   const since = s0?.date ?? addDays(today(), -60);
   const bilan = o.bilan
     ? data.tasks.filter(
-        (t) => isDone(data, t) && eligible(t) && !!t.termineeLe && t.termineeLe >= since && data.statuses.find((x) => x.id === t.statusId)?.label !== 'Info',
+        (t) => isDone(data, t) && eligible(t) && finLe(t) >= since && data.statuses.find((x) => x.id === t.statusId)?.label !== 'Info',
       )
     : [];
   return { late, avant1, avant2, bilan, since };

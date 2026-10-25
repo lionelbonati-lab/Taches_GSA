@@ -73,11 +73,17 @@ export const derniereSeancePassee = (data: AppData): Meeting | undefined =>
   data.meetings.filter((m) => m.date < today()).sort((a, b) => b.date.localeCompare(a.date))[0];
 
 /**
+ * Jour où la tâche a été terminée. Sans date de fin (statut devenu « terminé » après coup, dans la console admin) :
+ * le jour de sa dernière modification.
+ */
+export const finLe = (t: Task) => t.termineeLe ?? t.updatedAt?.slice(0, 10) ?? '';
+
+/**
  * Tâche archivée : terminée au plus tard le jour de la dernière séance passée (elle a pu y être présentée). Retirée de
  * la liste des tâches et des compteurs, consultable dans « 🗄 Archives » ; rien n'est effacé. Sans séance passée : aucune.
  */
 export const estArchivee = (data: AppData, t: Task, seance = derniereSeancePassee(data)) =>
-  !!seance && isDone(data, t) && (t.termineeLe ?? t.updatedAt?.slice(0, 10) ?? '') <= seance.date;
+  !!seance && isDone(data, t) && finLe(t) <= seance.date;
 
 // ---------- Tâches liées ----------
 
