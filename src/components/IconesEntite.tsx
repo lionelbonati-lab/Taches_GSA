@@ -84,13 +84,13 @@ const Cochon = dessin(<>
   <path d="M15 11.5h.01" />
 </>);
 
-// Le cycliste de Lucide (Bike) devant une montagne.
+// Le cycliste de Lucide (Bike) incliné, qui grimpe une pente.
 const Vtt = dessin(<>
-  <circle cx="18.5" cy="17.5" r="3.5" />
-  <circle cx="5.5" cy="17.5" r="3.5" />
-  <circle cx="15" cy="5" r="1" />
-  <path d="M12 17.5V14l-3-3 4-3 2 3h2" />
-  <path d="M1.5 10 4.5 5.5 6 7.5l1.5-2L9 7.5" />
+  <circle cx="5.75" cy="17.5" r="3.5" />
+  <circle cx="18.25" cy="14.5" r="3.5" />
+  <circle cx="12" cy="3.25" r="1" />
+  <path d="M12 16 11.25 12.5 7.5 10.5l3.25-4 2.5 2.5 2-.5" />
+  <path d="M1.5 22.1 22.5 17.1" />
 </>);
 
 // Cycliste couché sur un vélo de route, traits de vitesse derrière.
@@ -112,20 +112,14 @@ const VeloElec = dessin(<>
   <path d="M6.5 1.5 3.5 6h4L4.5 10.5" />
 </>);
 
-// Cycliste penché sur le guidon d'un vélo fixe : volant d'inertie devant (moyeu), deux pieds au sol.
+// Le cycliste de Lucide (Bike), roue arrière posée sur le pied du home-trainer.
 const HomeTrainer = dessin(<>
-  <circle cx="15" cy="4" r="1.5" />
-  <path d="M7 11c2-2.5 4-3.5 6.5-3.5l3.5 3" />
-  <path d="M7 11l4.5 1.5-1 4" />
-  <path d="M5 11.5h3.5" />
-  <path d="M7 12l2 5h4.5" />
-  <path d="m9 17-2 4" />
-  <circle cx="16.5" cy="17" r="3" />
-  <path d="M16.5 17h.01" />
-  <path d="m17.5 14 1-4.5h1.5" />
-  <path d="M4.5 21h5" />
-  <path d="m18.5 19.5 1 1.5" />
-  <path d="M16.5 21h4" />
+  <circle cx="5.5" cy="16.5" r="3.5" />
+  <circle cx="18.5" cy="16.5" r="3.5" />
+  <circle cx="15" cy="4" r="1" />
+  <path d="M12 16.5V13l-3-3 4-3 2 3h2" />
+  <path d="m5.5 16.5-4 5.5h8z" />
+  <path d="M18.5 16.5h.01" />
 </>);
 
 // Squat de face, kettlebell tenue à deux mains entre les jambes.
