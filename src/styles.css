@@ -253,6 +253,11 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
 .link-panel { display: flex; flex-direction: column; gap: 4px; color: var(--text); }
 .link-panel:hover { text-decoration: none; border-color: var(--primary); }
+/* Export de l'agenda (.ics) : choix les uns sous les autres. */
+.export-agenda { display: flex; flex-direction: column; gap: 8px; }
+.export-agenda .row { align-items: center; gap: 8px; flex-wrap: wrap; }
+.export-agenda-aide { padding-left: 18px; margin: 12px 0 0; }
+.export-agenda-aide li { margin: 2px 0; }
 /* Carte entière cliquable par son premier lien, étendu sur toute la carte ; les autres liens (lieu d'une séance) restent au-dessus. */
 .lien-etendu { position: relative; }
 .lien-etendu > a:first-child { color: inherit; }

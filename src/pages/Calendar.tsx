@@ -16,6 +16,7 @@ import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
 import { Icone, type IconeNom } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
+import { ExportAgenda } from '../components/ExportAgenda';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
@@ -76,6 +77,7 @@ export function Calendar() {
   const [event, setEvent] = useState<{ e: ClubEvent; jour?: string } | null>(null);
   // Occurrence d'un événement qui se répète glissée sur un autre jour : celle-ci, les suivantes ou toutes ?
   const [deplace, setDeplace] = useState<{ serie: ClubEvent; jour: string; date: string } | null>(null);
+  const [exporter, setExporter] = useState(false);
 
   // Ferme le petit menu « + » au clic ailleurs.
   const menuRef = useRef<HTMLDivElement>(null);
@@ -297,6 +299,7 @@ export function Calendar() {
               + {c.label}
             </button>
           ))}
+          <button className="btn" onClick={() => setExporter(true)} title="Exporter vers mon agenda (fichier .ics)"><Icone n="exporter" /> Exporter</button>
         </div>
       </div>
       <PageIntro />
@@ -445,6 +448,13 @@ export function Calendar() {
       {task && <TaskModal task={task.t} isNew={task.isNew} onClose={() => setTask(null)} />}
       {meeting && <MeetingModal meeting={meeting} onClose={() => setMeeting(null)} />}
       {event && <EventModal event={event.e} jour={event.jour} onClose={() => setEvent(null)} />}
+      {exporter && (
+        <ExportAgenda
+          manifs={manifs.filter((x) => !masquees.includes(x.u.id))}
+          defauts={{ seances: kinds.includes('meeting'), evenements: kinds.includes('event'), taches: kinds.includes('task') ? effScope : 'non', sondages: kinds.includes('poll') }}
+          onClose={() => setExporter(false)}
+        />
+      )}
       {deplace && (
         <ChoixPortee
           action="deplacer"
