@@ -97,6 +97,20 @@ test('historique : création puis changement de titre', async ({ page }) => {
   await expect(historique.locator('.historique-liste > li').last()).toContainText('a créé la tâche');
 });
 
+test('rapport d’erreurs : erreur d’essai reçue, réglée puis effacée', async ({ page }) => {
+  await page.goto('./?demo#/admin/erreurs');
+  await expect(page.getByText('Aucune erreur signalée.')).toBeVisible();
+  await page.getByRole('button', { name: 'Envoyer une erreur d’essai' }).click();
+  const ligne = page.locator('.erreurs-liste > li').first();
+  await expect(ligne).toContainText('Erreur d’essai envoyée depuis la console admin');
+  await expect(ligne).toContainText('1 fois · 1 personne');
+  await ligne.getByRole('button', { name: 'Réglée' }).click();
+  await expect(ligne).toHaveClass(/reglee/);
+  page.once('dialog', (d) => void d.accept());
+  await page.getByRole('button', { name: 'Effacer les réglées' }).click();
+  await expect(page.getByText('Aucune erreur signalée.')).toBeVisible();
+});
+
 test('nouvelle tâche : À prendre et Pour info s’ajoutent', async ({ page }) => {
   const fiche = await nouvelleTache(page, 'Tenir le stand');
   await fiche.locator('.chip', { hasText: 'À prendre' }).click();

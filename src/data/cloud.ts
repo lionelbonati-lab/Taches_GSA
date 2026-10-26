@@ -7,6 +7,7 @@ import { isCouleur } from './couleur';
 import type { OpOrga } from './organigramme';
 import type { OptionsAbonnement } from './agendaIcs';
 import type { HistoriqueTache } from './historique';
+import type { ErreurAppli, RapportErreur } from './rapportErreurs';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -925,6 +926,42 @@ export async function historiqueTache(unite: string, tache: string, depuis: stri
   if (error) throw new Error(absente(error) ? 'Le serveur ne note pas encore l’historique des tâches (mise à jour 050 à appliquer).' : error.message);
   const h = (data ?? {}) as Partial<HistoriqueTache>;
   return { entrees: Array.isArray(h.entrees) ? h.entrees : [], noms: h.noms && typeof h.noms === 'object' ? h.noms : {} };
+}
+
+/** Erreur de l'appli signalée aux admins du comité central (051) ; sans 051 ou en cas d'échec : rien (pas de boucle). */
+export async function signalerErreur(entite: string, r: RapportErreur) {
+  await sb().rpc('gsa_signaler_erreur', {
+    entite,
+    empreinte: r.empreinte,
+    message: r.message,
+    origine: r.origine,
+    pile: r.pile ?? null,
+    page: r.page,
+    version: r.version,
+    navigateur: r.navigateur,
+  });
+}
+
+const sans051 = (e: { code?: string; message: string }) =>
+  new Error(absente(e) ? 'Le serveur ne reçoit pas encore les erreurs de l’appli (mise à jour 051 à appliquer).' : e.message);
+
+/** Erreurs de l'appli signalées dans le club de l'entité (admins du comité central, super-admins). */
+export async function erreursAppli(entite: string): Promise<ErreurAppli[]> {
+  const { data, error } = await sb().rpc('gsa_erreurs_liste', { entite });
+  if (error) throw sans051(error);
+  return Array.isArray(data) ? (data as ErreurAppli[]) : [];
+}
+
+export async function reglerErreurAppli(entite: string, id: string, reglee: boolean) {
+  const { error } = await sb().rpc('gsa_erreur_reglee', { entite, id: Number(id), reglee });
+  if (error) throw sans051(error);
+}
+
+/** Efface les erreurs marquées réglées ; renvoie leur nombre. */
+export async function effacerErreursAppli(entite: string) {
+  const { data, error } = await sb().rpc('gsa_erreurs_effacer', { entite });
+  if (error) throw sans051(error);
+  return Number(data) || 0;
 }
 
 /** Personnes qui reçoivent la tâche au titre des entités mentionnées en entier : entité → fiches ; null sans 046. */

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, ecrireBrut, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, lireHistoriqueDemo, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
+import { CENTRAL_ID, deleteMembre, ecrireBrut, effacerErreursDemo, erreursDemo, reglerErreurDemo, signalerErreurDemo, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, lireHistoriqueDemo, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData } from './data/units';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { compactIban, emailKey, fusionMembre, ibanValide, nouveauMembre, vueMembre } from './data/membres';
@@ -513,6 +513,22 @@ export function DemoApp() {
       },
       // Historique d'une tâche (version réelle : gsa_historique_tache, 050 ; la démo ne vérifie pas qui la lit).
       historique: async (uniteId, tacheId) => lireHistoriqueDemo(uniteId, tacheId),
+      // Rapport d'erreurs (version réelle : gsa_signaler_erreur, gsa_erreurs_liste…, 051), gardé dans ce navigateur.
+      signalerErreur: async (r) => {
+        if (me) signalerErreurDemo(current.nom, me, r);
+      },
+      erreurs: async () => {
+        if (!central?.moiAdmin) throw new Error('Réservé aux admins du comité central.');
+        return erreursDemo();
+      },
+      reglerErreur: async (id, reglee) => {
+        if (!central?.moiAdmin) throw new Error('Réservé aux admins du comité central.');
+        reglerErreurDemo(id, reglee);
+      },
+      effacerErreurs: async () => {
+        if (!central?.moiAdmin) throw new Error('Réservé aux admins du comité central.');
+        return effacerErreursDemo();
+      },
       // Discussion sur une tâche d'une autre entité, partagée avec l'entité ouverte ou reçue pour info (version réelle :
       // gsa_commenter, 049). Les personnes prévenues dans les autres entités le sont ici ; celles d'ici, par le store.
       async commenter(uniteId, tacheId, a) {

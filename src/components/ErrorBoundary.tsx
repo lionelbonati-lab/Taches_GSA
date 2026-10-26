@@ -1,20 +1,14 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
 import { Icone } from './icones';
 import { MESSAGE_MISE_A_JOUR, moduleIntrouvable } from '../pwa';
+import { noterErreur, pileCourte, rapportBranche } from '../data/rapportErreurs';
 
 // Une erreur pendant l'affichage : un message lisible (à copier pour le signaler) au lieu d'un écran blanc.
 // « page » : seule la page est remplacée, les menus restent utilisables ; le message disparaît en changeant de page.
+// L'erreur est aussi signalée d'elle-même aux admins du comité central (rapport d'erreurs, 051).
 
 type Props = { children: ReactNode; page?: string };
-type State = { error: Error | null; where: string; page?: string };
-
-const court = (s: string) =>
-  s
-    .split('\n')
-    .map((l) => l.trim().replace(/https?:\/\/[^\s)]*\/assets\//g, ''))
-    .filter(Boolean)
-    .slice(0, 8)
-    .join('\n');
+type State = { error: Error | null; where: string; page?: string; signalee?: boolean };
 
 export class ErrorBoundary extends Component<Props, State> {
   state: State = { error: null, where: '', page: this.props.page };
@@ -24,23 +18,24 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromProps(props: Props, state: State): Partial<State> | null {
-    return props.page !== state.page ? { error: null, where: '', page: props.page } : null;
+    return props.page !== state.page ? { error: null, where: '', page: props.page, signalee: false } : null;
   }
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error(error, info.componentStack);
-    this.setState({ where: info.componentStack ?? '' });
+    const signalee = noterErreur(error, 'affichage', info.componentStack ?? '') && rapportBranche();
+    this.setState({ where: info.componentStack ?? '', signalee });
   }
 
   render() {
-    const { error, where } = this.state;
+    const { error, where, signalee } = this.state;
     if (!error) return this.props.children;
     const details = [
       `${error.name}: ${error.message}`,
       `Page : ${location.hash || '#/'}`,
       `Appareil : ${navigator.userAgent}`,
-      court(error.stack ?? ''),
-      court(where),
+      pileCourte(error.stack ?? ''),
+      pileCourte(where),
     ].join('\n\n');
     const copier = () => void navigator.clipboard?.writeText(details).catch(() => {});
     return (
@@ -56,7 +51,7 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.props.page !== undefined
                 ? 'Cette page n’a pas pu s’afficher. Les menus restent utilisables ; tu peux aussi recharger.'
                 : 'L’application n’a pas pu s’afficher. Recharge la page.'}{' '}
-              Pour qu’on corrige, copie le message ci-dessous et envoie-le.
+              {signalee ? 'Le problème a été signalé aux admins du club.' : 'Pour qu’on corrige, copie le message ci-dessous et envoie-le.'}
             </>
           )}
         </p>

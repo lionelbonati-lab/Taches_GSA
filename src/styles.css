@@ -444,6 +444,13 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .historique-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 0.85rem; }
 .historique-liste > li { border-left: 3px solid var(--border); padding: 2px 0 2px 10px; }
 .historique-liste ul { margin: 2px 0 0; padding-left: 18px; overflow-wrap: anywhere; }
+.erreurs-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.erreurs-liste > li { display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
+.erreurs-liste > li.reglee { opacity: 0.6; }
+.erreurs-tete { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.erreurs-liste details summary { cursor: pointer; color: var(--muted); font-size: 0.85rem; }
+.erreurs-liste pre { white-space: pre-wrap; word-break: break-word; font-size: 0.78rem; background: var(--surface2); padding: 8px; border-radius: 8px; max-height: 30vh; overflow: auto; margin: 4px 0 0; }
+.erreurs-liste .row { margin-top: 2px; }
 
 .task-plus > span { font-size: 0.85rem; color: var(--muted); margin-right: 2px; }
 .liens > .form { gap: 10px; }

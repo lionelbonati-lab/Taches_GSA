@@ -12,6 +12,7 @@ import { Recherche } from './Recherche';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { rafraichirPush } from '../data/push';
 import { useClubOptional } from '../data/club';
+import { brancherRapport } from '../data/rapportErreurs';
 import { nomAppli } from '../data/nomAppli';
 import { UNIT_TYPES } from '../data/units';
 import { SousOnglets, useNavigation } from './Nav';
@@ -36,6 +37,9 @@ export function Layout() {
     setMenu(false);
     setCompte(false);
   }, [loc.pathname]);
+  // Rapport d'erreurs : les erreurs de l'appli partent aux admins du comité central, au nom de l'entité ouverte.
+  const signalerErreur = club?.signalerErreur;
+  useEffect(() => (signalerErreur ? brancherRapport(signalerErreur) : undefined), [signalerErreur]);
   // Raccourcis de l'application installée (appui long sur l'icône) : « Nouvelle tâche », « Remboursement », « Paiement ».
   useEffect(() => {
     const q = new URLSearchParams(loc.search);

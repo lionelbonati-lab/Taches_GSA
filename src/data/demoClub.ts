@@ -7,6 +7,7 @@ import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, n
 import { membresPropres, synchroLiens } from './liens';
 import { convertirPostes, lierEntite, suivre } from './organigramme';
 import { ajouterHistorique, changementsTache, nomsCites, type EntreeHistorique, type HistoriqueTache } from './historique';
+import type { ErreurAppli, RapportErreur } from './rapportErreurs';
 import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUnit, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
@@ -21,6 +22,7 @@ const MEMBRES_KEY = 'taches-gsa-demo-membres';
 const ORGAS_KEY = 'taches-gsa-demo-organigrammes';
 /** Historique des tâches (version réelle : gsa_historique, 050) : entité → tâche → entrées, de la plus récente à la plus ancienne. */
 const HISTO_KEY = 'taches-gsa-demo-historique';
+const ERREURS_KEY = 'taches-gsa-demo-erreurs';
 /** Ancienne connexion de la démo (fiche du comité central). */
 const OLD_USER_KEY = 'taches-gsa-user';
 
@@ -222,6 +224,39 @@ export function lireHistoriqueDemo(unite: string, tache: string): HistoriqueTach
   return { entrees, noms: nomsCites(loadUnitData(unite), entrees) };
 }
 
+// ---------- Rapport d'erreurs (version réelle : table gsa_erreurs, 051) ----------
+
+type ErreurDemo = Omit<ErreurAppli, 'personnes'> & { empreinte: string; comptes: string[] };
+const lireErreurs = () => read<ErreurDemo[]>(ERREURS_KEY) ?? [];
+
+/** Erreur de l'appli notée pour les admins : une erreur déjà connue est comptée (et rouverte), 300 au plus. */
+export function signalerErreurDemo(entite: string, qui: string, r: RapportErreur) {
+  const liste = lireErreurs();
+  const le = new Date().toISOString();
+  const x = liste.find((e) => e.empreinte === r.empreinte);
+  const champs = { message: r.message.slice(0, 500), origine: r.origine, page: r.page, version: r.version, navigateur: r.navigateur, entite };
+  if (x) Object.assign(x, champs, { pile: r.pile ?? x.pile, derniere: le, nombre: x.nombre + 1, comptes: x.comptes.includes(qui) || x.comptes.length >= 50 ? x.comptes : [...x.comptes, qui], reglee: false });
+  else liste.push({ id: String(Date.now()), empreinte: r.empreinte, ...champs, pile: r.pile, premiere: le, derniere: le, nombre: 1, comptes: [qui], reglee: false });
+  write(ERREURS_KEY, liste.sort((a, b) => b.derniere.localeCompare(a.derniere)).slice(0, 300));
+}
+
+/** Erreurs à regarder d'abord, puis les plus récentes. */
+export const erreursDemo = (): ErreurAppli[] =>
+  lireErreurs()
+    .map(({ empreinte: _e, comptes, ...e }) => ({ ...e, personnes: comptes.length }))
+    .sort((a, b) => +a.reglee - +b.reglee || b.derniere.localeCompare(a.derniere));
+
+export function reglerErreurDemo(id: string, reglee: boolean) {
+  write(ERREURS_KEY, lireErreurs().map((e) => (e.id === id ? { ...e, reglee } : e)));
+}
+
+export function effacerErreursDemo() {
+  const liste = lireErreurs();
+  const reste = liste.filter((e) => !e.reglee);
+  write(ERREURS_KEY, reste);
+  return liste.length - reste.length;
+}
+
 /** Données d'une entité telles qu'enregistrées (pour annuler une modification de l'organigramme). */
 export const lireBrut = (id: string) => {
   try {
@@ -338,7 +373,7 @@ export function resetDemo() {
     const units = read<Unit[]>(CLUB_KEY) ?? SEED_UNITS;
     units.forEach((u) => localStorage.removeItem(unitStorageKey(u.id)));
     // Avec le dernier logo et la dernière couleur affichés (écran de connexion).
-    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, ORGAS_KEY, HISTO_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
+    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, ORGAS_KEY, HISTO_KEY, ERREURS_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }

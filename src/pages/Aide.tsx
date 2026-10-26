@@ -132,6 +132,8 @@ export function Aide() {
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
   if (chemin('/admin')) geste('Donner une icône à l’entité', vers('/admin'), ' › « Apparence » › « Choisir une icône… » (ou la fiche de l’entité dans l’organigramme) : elle remplace celle de son type sur sa pastille et dans l’agenda, les événements et l’accueil. « Reprendre celle du type » pour revenir à l’icône d’origine.');
   if (chemin('/admin')) geste('Changer l’en-tête de l’ordre du jour, du PV et du bon de paiement', vers('/admin'), ' › « En-tête des documents » : le même pour tous les documents de l’entité.');
+  if (club && club.current.type === 'central' && chemin('/admin'))
+    geste('Voir les erreurs rencontrées par les membres', vers('/admin'), ' › « Erreurs de l’appli » : l’appli les signale d’elle-même (une même erreur est comptée, pas répétée). « Copier » pour la faire corriger, puis « Réglée ».');
 
   return (
     <div className="narrow aide-page">

@@ -5,6 +5,7 @@ import type { OpOrga } from './organigramme';
 import type { DemandeMdp } from './cloud';
 import type { ActionCommentaire } from './commentaires';
 import type { HistoriqueTache } from './historique';
+import type { ErreurAppli, RapportErreur } from './rapportErreurs';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
 // L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
@@ -188,6 +189,14 @@ export interface Club {
    * ou reçue pour info) : de la modification la plus récente à la plus ancienne.
    */
   historique: (uniteId: string, tacheId: string) => Promise<HistoriqueTache>;
+  /** Rapport d'erreurs (051) : erreur de l'appli signalée aux admins du comité central (sans réponse ni échec). */
+  signalerErreur: (r: RapportErreur) => Promise<void>;
+  /** Erreurs signalées dans le club, à regarder d'abord (admins du comité central). */
+  erreurs: () => Promise<ErreurAppli[]>;
+  /** Erreur marquée réglée (ou rouverte). */
+  reglerErreur: (id: string, reglee: boolean) => Promise<void>;
+  /** Efface les erreurs réglées ; renvoie leur nombre. */
+  effacerErreurs: () => Promise<number>;
   /**
    * Personnes qui reçoivent une tâche de l'entité `uniteId` au titre des entités mentionnées en entier pour info (leurs
    * admins et rôles « Voir toutes les tâches », avec un compte) : entité → fiches ; null : le serveur ne le dit pas

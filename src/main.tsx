@@ -8,9 +8,12 @@ import { Welcome } from './pages/Real';
 import { initPwa } from './pwa';
 import { applyAppColor, cachedColor } from './data/couleur';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { installerRapport } from './data/rapportErreurs';
 import './styles.css';
 
 initPwa();
+// Erreurs de script signalées aux admins du club, une fois l'appli connectée (Layout).
+installerRapport();
 entiteDuLienRecu();
 modeFromUrl();
 // Dernière couleur de l'appli sur cet appareil, dès le lancement (écran de connexion).

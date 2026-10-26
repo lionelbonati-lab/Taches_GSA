@@ -15,6 +15,7 @@ import { COULEURS_APPLI } from '../data/couleur';
 import { EnteteReglage } from '../components/Entete';
 import { defaultTexte, enteteDe, enteteRegle } from '../data/entete';
 import { Icone, type IconeNom } from '../components/icones';
+import { ErreursAppli } from '../components/ErreursAppli';
 
 type Partie = { id: string; icon: IconeNom; titre: string; carte: string; aide: string; resume: string; contenu: ReactNode };
 
@@ -95,6 +96,19 @@ export function Admin() {
       resume: data.log[0] ? `Dernière : ${fmtDateTime(data.log[0].at)}` : 'Aucune modification',
       contenu: <Log />,
     },
+    ...(club && central
+      ? [
+          {
+            id: 'erreurs',
+            icon: 'alerte' as const,
+            titre: 'Erreurs de l’appli',
+            carte: 'Les problèmes que l’appli a rencontrés chez les membres du club, signalés d’eux-mêmes.',
+            aide: 'Quand une page ne s’affiche pas ou qu’une erreur survient, l’appli la signale d’elle-même ici : le message, l’endroit dans le code, la page, la version et l’appareil, sans noms ni données. Une même erreur est comptée au lieu d’être répétée. Copie-la pour la faire corriger, puis marque-la réglée.',
+            resume: 'Rapport d’erreurs automatique',
+            contenu: <ErreursAppli />,
+          },
+        ]
+      : []),
   ];
   const ouverte = parties.find((x) => x.id === partie);
   if (partie && !ouverte) return <Navigate to="/admin" replace />;
