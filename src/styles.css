@@ -400,6 +400,7 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .quand-row select { flex: 1 1 0; min-width: 0; }
 /* Formulaire de tâche : l'essentiel, puis « Ajouter : » pour le reste. */
 .delai-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.tache-colonne { display: flex; flex-direction: column; gap: 12px; }
 .delai-field .field-label { margin-bottom: 0; }
 .occurrence-field { display: flex; flex-direction: column; gap: 4px; }
 .link-btn { align-self: flex-start; background: none; border: none; padding: 2px 0; color: var(--primary); font-size: 0.85rem; cursor: pointer; text-align: left; }

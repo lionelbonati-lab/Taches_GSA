@@ -23,7 +23,6 @@ import { IconeEntite, PastilleEntite } from './IconesEntite';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteTache } from '../data/lienPartage';
 import { ZoneTexte } from './ZoneTexte';
-import { useTelephone } from './Accueil';
 import { DelaiField } from './tache/Quand';
 import { APrendreChamp, placesAPrendre } from './tache/APrendre';
 import { PourInfoChamp } from './tache/PourInfo';
@@ -46,7 +45,6 @@ type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage
 
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, vuPourInfo, update, autresResp, externes, setToast } = useStore();
-  const tel = useTelephone();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   // Statut inconnu de l'entité (statuts personnalisés) : le premier statut ouvert.
   const [t, setT] = useState<Task>(() =>
@@ -466,66 +464,67 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           Tâche
           <input autoFocus={isNew} value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ?" />
         </label>
-        <label>
-          Section
-          <select value={t.sectionId} disabled={dis} onChange={(e) => changerSection(e.target.value)}>
-            <option value="">— Choisir —</option>
-            {sectionChoices.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
-          </select>
-        </label>
-        {/* Téléphone (une colonne) : Sous-section et Statut d'abord, « Pour quand ? » ensuite. */}
-        {!tel && <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />}
-        {(sousSections.length > 0 || att.choix.length > 0 || attendSections) && (
+        {/* Section, Sous-section et Statut l'un sous l'autre, « Pour quand ? » à côté ; sur téléphone (une colonne), après eux. */}
+        <div className="tache-colonne">
           <label>
-            Sous-section
-            <Deroulante
-              value={attribuee?.cle ?? (t.sousSection ? `s:${t.sousSection}` : '')}
-              disabled={dis || !section}
-              onChange={changerSous}
-              options={[
-                { value: '', label: '—' },
-                ...sousSections.map((s) => ({ value: `s:${s}`, label: s })),
-                {
-                  groupe: att.unite ? `Sections de « ${att.unite.nom} »` : `Événements qui dépendent de « ${club?.current.nom ?? ''} »`,
-                  icone: <Icone n="partage" />,
-                  options: att.choix.map((c) => (c.sectionId ? { value: c.cle, label: c.sousSection } : { value: c.cle, label: c.unite.nom, icone: <PastilleEntite u={c.unite} /> })),
-                },
-              ]}
-            />
-            {attribuee && (
-              <small className="muted attribuee-note">
-                📦 À l’enregistrement, la tâche {isNew ? 'sera créée' : 'passera'} dans « {attribuee.unite.nom} »
-                {secChez && `, section « ${sectionsChez.find((x) => x.id === secChez)?.nom ?? attribuee.sousSection} »`}, qui la gérera comme ses
-                tâches ; ici, elle apparaîtra partagée <Icone n="partage" /> et restera modifiable.{(t.documents ?? []).some((d) => d.kind === 'fichier') && !cacheChez && ' Ses fichiers joints la suivent.'}
-                {cacheChez && <b> « {attribuee.unite.nom} » n’affiche aucune de ses tâches au comité (réglage « Ne rien afficher ») : elle n’apparaîtra pas ici.</b>}
-              </small>
-            )}
-            {attendSections && <small className="muted">Les sections de « {att.unite?.nom} » seront proposées ici après la mise à jour du serveur (migration 033).</small>}
-          </label>
-        )}
-        {attribuee && !attribuee.sectionId && (
-          <label>
-            Section chez « {attribuee.unite.nom} »
-            <select value={secChez} disabled={dis} onChange={(e) => choisirSectionChez(e.target.value)}>
-              {!secChez && <option value="">—</option>}
-              {sectionsChez.map((x) => <option key={x.id} value={x.id}>{x.nom}</option>)}
+            Section
+            <select value={t.sectionId} disabled={dis} onChange={(e) => changerSection(e.target.value)}>
+              <option value="">— Choisir —</option>
+              {sectionChoices.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
             </select>
-            {!sectionsChez.length && (
-              <small className="muted">
-                {externes.sections === null
-                  ? `Les sections de « ${attribuee.unite.nom} » seront lues après la mise à jour du serveur (migration 033).`
-                  : externes.sections ? `« ${attribuee.unite.nom} » n’a encore aucune section : demande-lui d’en créer une.` : 'Lecture de ses sections…'}
-              </small>
-            )}
           </label>
-        )}
-        <label>
-          Statut
-          <select value={t.statusId} disabled={dis} onChange={(e) => set('statusId', e.target.value)}>
-            {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-          </select>
-        </label>
-        {tel && <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />}
+          {(sousSections.length > 0 || att.choix.length > 0 || attendSections) && (
+            <label>
+              Sous-section
+              <Deroulante
+                value={attribuee?.cle ?? (t.sousSection ? `s:${t.sousSection}` : '')}
+                disabled={dis || !section}
+                onChange={changerSous}
+                options={[
+                  { value: '', label: '—' },
+                  ...sousSections.map((s) => ({ value: `s:${s}`, label: s })),
+                  {
+                    groupe: att.unite ? `Sections de « ${att.unite.nom} »` : `Événements qui dépendent de « ${club?.current.nom ?? ''} »`,
+                    icone: <Icone n="partage" />,
+                    options: att.choix.map((c) => (c.sectionId ? { value: c.cle, label: c.sousSection } : { value: c.cle, label: c.unite.nom, icone: <PastilleEntite u={c.unite} /> })),
+                  },
+                ]}
+              />
+              {attribuee && (
+                <small className="muted attribuee-note">
+                  📦 À l’enregistrement, la tâche {isNew ? 'sera créée' : 'passera'} dans « {attribuee.unite.nom} »
+                  {secChez && `, section « ${sectionsChez.find((x) => x.id === secChez)?.nom ?? attribuee.sousSection} »`}, qui la gérera comme ses
+                  tâches ; ici, elle apparaîtra partagée <Icone n="partage" /> et restera modifiable.{(t.documents ?? []).some((d) => d.kind === 'fichier') && !cacheChez && ' Ses fichiers joints la suivent.'}
+                  {cacheChez && <b> « {attribuee.unite.nom} » n’affiche aucune de ses tâches au comité (réglage « Ne rien afficher ») : elle n’apparaîtra pas ici.</b>}
+                </small>
+              )}
+              {attendSections && <small className="muted">Les sections de « {att.unite?.nom} » seront proposées ici après la mise à jour du serveur (migration 033).</small>}
+            </label>
+          )}
+          {attribuee && !attribuee.sectionId && (
+            <label>
+              Section chez « {attribuee.unite.nom} »
+              <select value={secChez} disabled={dis} onChange={(e) => choisirSectionChez(e.target.value)}>
+                {!secChez && <option value="">—</option>}
+                {sectionsChez.map((x) => <option key={x.id} value={x.id}>{x.nom}</option>)}
+              </select>
+              {!sectionsChez.length && (
+                <small className="muted">
+                  {externes.sections === null
+                    ? `Les sections de « ${attribuee.unite.nom} » seront lues après la mise à jour du serveur (migration 033).`
+                    : externes.sections ? `« ${attribuee.unite.nom} » n’a encore aucune section : demande-lui d’en créer une.` : 'Lecture de ses sections…'}
+                </small>
+              )}
+            </label>
+          )}
+          <label>
+            Statut
+            <select value={t.statusId} disabled={dis} onChange={(e) => set('statusId', e.target.value)}>
+              {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </select>
+          </label>
+        </div>
+        <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />
         <div className="full qui">
           <span className="field-label">Qui s’en occupe ?</span>
           <div className="chips">
