@@ -426,8 +426,8 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 }
 @media (max-width: 767px) { .toast { bottom: calc(80px + env(safe-area-inset-bottom)); } }
 /* Barre d'outils flottante du PV à sa place par défaut : les messages s'affichent au-dessus. */
-body:has(.pilule.defaut) .toast { bottom: 96px; }
-@media (max-width: 767px) { body:has(.pilule.defaut) .toast { bottom: calc(220px + env(safe-area-inset-bottom)); } }
+body:has(.pilule.defaut) .toast { bottom: 140px; }
+@media (max-width: 767px) { body:has(.pilule.defaut) .toast { bottom: calc(270px + env(safe-area-inset-bottom)); } }
 
 /* ---------- Documents joints ---------- */
 .docs .doc-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
@@ -601,6 +601,11 @@ body:has(.pilule.defaut) .toast { bottom: 96px; }
 :root[data-theme='dark'] .min-banner.editing { background: #3b2a0a; color: #fde68a; }
 .pv-version { margin: 2px 0 0; font-weight: 600; color: #b45309; }
 .note-field[readonly] { background: transparent; border-style: solid; border-color: transparent; padding-left: 0; }
+/* Notes du PV : zone mise en forme (contentEditable), comme une zone de texte. */
+.note-riche { position: relative; padding: 8px 10px; border: 1px dashed var(--border); border-radius: 8px; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.note-riche:focus { border-style: solid; outline: 2px solid var(--primary); outline-offset: -1px; }
+.note-riche.vide::before { content: attr(data-placeholder); position: absolute; left: 11px; right: 11px; top: 9px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; pointer-events: none; }
+.note-riche:not([contenteditable='true']) { background: transparent; border-style: solid; border-color: transparent; padding-left: 0; cursor: auto; }
 .min-pv-note {
   margin: 2px 0 4px; white-space: pre-wrap; font-size: calc(var(--doc-base, 10.5pt) * var(--e-note-t, 1));
   font-weight: var(--e-note-g, 400); font-style: var(--e-note-i, normal); text-transform: var(--e-note-m, none); color: var(--e-note-c, #111);
@@ -647,6 +652,15 @@ body:has(.pilule.defaut) .toast { bottom: 96px; }
 .pilule-etat.envoi { background: #f59e0b; }
 .pilule-etat.off { background: var(--late); }
 .pilule-texte { padding: 0 8px; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* 2e ligne : mise en forme des notes (couleur, gras, italique, souligné, barré) ; palette de couleurs en dessous. */
+.pilule-ligne2 { justify-content: center; flex-wrap: wrap; margin: 2px 12px 0; padding-top: 2px; border-top: 1px solid var(--border); }
+.pilule button.on { background: var(--primary-soft); color: var(--primary); }
+.pilule-couleur-trait { position: absolute; left: calc(50% - 0.4em); width: 0.8em; bottom: calc(50% - 0.4em - 1.5px); height: 3px; border-radius: 1px; pointer-events: none; }
+.pilule-couleur-trait:not([style]) { display: none; }
+.pilule-palette { flex-basis: 100%; display: flex; justify-content: center; align-items: center; gap: 6px; padding: 4px 0 3px; }
+.pilule .pilule-palette button { width: 26px; height: 26px; border: 2px solid var(--surface); box-shadow: 0 0 0 1px var(--border); }
+.pilule .pilule-palette button.on { box-shadow: 0 0 0 2px var(--text); }
+.pilule .pilule-palette .pilule-auto { font-size: 0.8rem; font-weight: 700; background: var(--surface2); color: var(--text); }
 .chrono { display: inline-block; min-width: 3.2em; text-align: center; color: var(--primary); }
 .chrono.arrete { color: var(--muted); }
 @media (max-width: 767px) {

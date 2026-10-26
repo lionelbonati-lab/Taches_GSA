@@ -6,7 +6,8 @@ import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
 import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
 import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
-import { NoteField } from '../components/NoteField';
+import { NoteField, TexteNote } from '../components/NoteField';
+import { texteDe } from '../data/noteRiche';
 import { TaskModal, newTask } from '../components/TaskModal';
 import { finAnticipee, versProchaineSeance } from '../data/seances';
 import { nomAppli } from '../data/nomAppli';
@@ -24,6 +25,7 @@ import { lienMailto } from '../data/lienPartage';
 import { Icone } from '../components/icones';
 import { revenir } from '../data/annuler';
 import { Pilule, type OutilPilule } from '../components/Pilule';
+import { OutilsTexte } from '../components/OutilsTexte';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -402,6 +404,8 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
 
   // ---------- Texte et document du PV ----------
   const noteOf = (key: string) => m.notes[key]?.trim() ?? '';
+  // Texte seul (copie, email) : sans la mise en forme.
+  const texteNote = (key: string) => texteDe(noteOf(key)).trim();
   const taskInPv = (t: Task) => m.tousLesPoints || !!noteOf(`task:${t.id}`) || changesOf(t).length > 0 || isNewTask(t);
   const pollInPv = (p: Poll) => m.tousLesPoints || !!noteOf(`poll:${p.id}`) || !isOpen(p);
   const pvSections = bySection
@@ -440,25 +444,25 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     out.push('');
     pvSections.forEach((g, i) => {
       out.push(`${i + 1}. ${g.sec.nom}`);
-      if (noteOf(`sec:${g.sec.id}`)) out.push(...noteOf(`sec:${g.sec.id}`).split('\n').map((l) => `   ${l}`));
+      if (noteOf(`sec:${g.sec.id}`)) out.push(...texteNote(`sec:${g.sec.id}`).split('\n').map((l) => `   ${l}`));
       let j = 0;
       g.subs.forEach((s) => {
         const pad = s.label ? '      ' : '   ';
         if (s.label) out.push(`   ${letter(j++)}. ${s.label}`);
         s.tasks.forEach((t) => {
           out.push(`${pad}${s.label ? '■' : `${letter(j++)}.`} ${taskLine(t)}`);
-          noteOf(`task:${t.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}   → ${l}`));
+          texteNote(`task:${t.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}   → ${l}`));
           if (opts.misesAJour) changesOf(t).forEach((c) => out.push(`${pad}   ↻ ${c}`));
         });
       });
       g.polls.forEach((p) => {
         out.push(`   ${letter(j++)}. Sondage : ${p.question} — ${pollSummary(p)}`);
-        noteOf(`poll:${p.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`      → ${l}`));
+        texteNote(`poll:${p.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`      → ${l}`));
       });
     });
     let n = pvSections.length;
     others.forEach((p) => out.push(`${++n}. Sondage : ${p.question} — ${pollSummary(p)}`));
-    if (noteOf('divers')) out.push(`${++n}. Divers`, ...noteOf('divers').split('\n').map((l) => `   ${l}`));
+    if (noteOf('divers')) out.push(`${++n}. Divers`, ...texteNote('divers').split('\n').map((l) => `   ${l}`));
     if (newTasks.length) {
       out.push('', 'NOUVELLES TÂCHES DÉCIDÉES');
       newTasks.forEach((t) => out.push(`   ■ ${t.titre} (${nouvelleInfo(t)})${docs(t)}`));
@@ -615,7 +619,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
         {opts.details && meta(t).length > 0 && <span className="odj-meta"> ({meta(t).join(' · ')})</span>}
         {numeros(t).length > 0 && <span className="odj-meta"> 📎 annexe {numeros(t).join(', ')}</span>}
         {opts.documents && !!t.documents?.length && <p className="min-pv-docs"><DocsTache t={t} annexes={joints} /></p>}
-        {noteOf(`task:${t.id}`) && <p className="min-pv-note">→ <AvecLiens texte={noteOf(`task:${t.id}`)} /></p>}
+        {noteOf(`task:${t.id}`) && <p className="min-pv-note">→ <TexteNote note={noteOf(`task:${t.id}`)} /></p>}
         {opts.misesAJour && changesOf(t).length > 0 && <p className="min-pv-change">↻ {changesOf(t).join(' · ')}</p>}
       </>
     );
@@ -647,7 +651,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
             {pvSections.map((g) => (
               <li key={g.sec.id}>
                 <span className="odj-sec">{g.sec.nom}</span>
-                {noteOf(`sec:${g.sec.id}`) && <p className="min-pv-note"><AvecLiens texte={noteOf(`sec:${g.sec.id}`)} /></p>}
+                {noteOf(`sec:${g.sec.id}`) && <p className="min-pv-note"><TexteNote note={noteOf(`sec:${g.sec.id}`)} /></p>}
                 {(g.subs.length > 0 || g.polls.length > 0) && (
                   <ol className="odj-l1">
                     {g.subs.map((s) =>
@@ -663,7 +667,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                     {g.polls.map((p) => (
                       <li key={p.id}>
                         <span className="odj-poll">Sondage : {p.question} — {pollSummary(p)}</span>
-                        {noteOf(`poll:${p.id}`) && <p className="min-pv-note"><AvecLiens texte={noteOf(`poll:${p.id}`)} /></p>}
+                        {noteOf(`poll:${p.id}`) && <p className="min-pv-note"><TexteNote note={noteOf(`poll:${p.id}`)} /></p>}
                       </li>
                     ))}
                   </ol>
@@ -674,7 +678,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               <li key={p.id}><span className="odj-sec">Sondage : {p.question}</span> — {pollSummary(p)}</li>
             ))}
             {noteOf('divers') && (
-              <li><span className="odj-sec">Divers</span><p className="min-pv-note"><AvecLiens texte={noteOf('divers')} /></p></li>
+              <li><span className="odj-sec">Divers</span><p className="min-pv-note"><TexteNote note={noteOf('divers')} /></p></li>
             )}
           </ol>
         )}
@@ -838,7 +842,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               {editable && <div className="min-fin" aria-hidden />}
             </section>
           </div>
-          {editable && <Pilule id="pv" label="Outils de la prise de notes" titre={sections.actuelle?.nom ?? 'Séance et présences'} outils={outils} />}
+          {editable && <Pilule id="pv" label="Outils de la prise de notes" titre={sections.actuelle?.nom ?? 'Séance et présences'} outils={outils} ligne2={<OutilsTexte />} />}
           <aside className="min-side">
             <div className="panel">
               <h2 className="min-h2">Suivi de la séance</h2>

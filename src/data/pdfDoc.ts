@@ -121,6 +121,8 @@ interface Morceau extends Bloc {
   c: Couleur;
   espacement: number;
   souligne: boolean;
+  /** Texte barré (notes du PV). */
+  barre: boolean;
   /** Avance attendue dans le PDF pour le caractère suivant. */
   suite: number;
 }
@@ -389,6 +391,7 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
       const style = styleDe(Number(cs.fontWeight) >= 600, cs.fontStyle !== 'normal');
       const espacement = parseFloat(cs.letterSpacing) || 0;
       const souligne = /underline/.test(cs.textDecorationLine) || !!el.closest('a[href], u');
+      const barre = /line-through/.test(cs.textDecorationLine) || !!el.closest('s, strike, del');
       const casse = cs.textTransform;
       let m: Morceau | null = null;
       let debutMot = true;
@@ -420,7 +423,7 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
         }
         const x = X(r.left);
         if (!m || m.repli !== repli || Math.abs(m.haut - haut) > 1 || Math.abs(m.suite - x) > 0.4) {
-          m = { x, haut, bas: Y(r.bottom), base: haut + baseDe(style) * taille, texte: '', taille, style, repli, c, espacement, souligne, suite: x };
+          m = { x, haut, bas: Y(r.bottom), base: haut + baseDe(style) * taille, texte: '', taille, style, repli, c, espacement, souligne, barre, suite: x };
           morceaux.push(m);
         }
         const f = mesure(repli, style);
@@ -565,6 +568,10 @@ export async function creerPdf(feuille: HTMLElement, o: OptionsPdf): Promise<Blo
       if (m.espacement) p.pushOperators(popGraphicsState());
       if (m.souligne && m.texte.trim()) {
         const y = py(k, m.base + m.taille * 0.11);
+        p.drawLine({ start: { x: px(m.x), y }, end: { x: px(m.suite - m.espacement), y }, thickness: Math.max(0.5, m.taille * 0.06 * PT), color: coul(m.c) });
+      }
+      if (m.barre && m.texte.trim()) {
+        const y = py(k, m.base - m.taille * 0.28);
         p.drawLine({ start: { x: px(m.x), y }, end: { x: px(m.suite - m.espacement), y }, thickness: Math.max(0.5, m.taille * 0.06 * PT), color: coul(m.c) });
       }
     }

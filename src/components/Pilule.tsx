@@ -4,7 +4,7 @@ import { Icone, type IconeNom } from './icones';
 // Barre d'outils flottante (« pilule »), en icônes seulement : on la déplace en la tenant par sa poignée (souris ou
 // doigt, flèches du clavier) ; un double-clic sur la poignée la remet à sa place. Place et état (réduite ou non)
 // retenus sur l'appareil. Un affichage (chrono…) reste visible quand elle est réduite. `titre` : une ligne au-dessus des
-// outils (coupée à leur largeur).
+// outils (coupée à leur largeur) ; `ligne2` : une 2e ligne d'outils (mise en forme du texte), cachée quand elle est réduite.
 
 export interface OutilPilule {
   /** Bouton : son icône. Sans icône : un affichage (`texte`). */
@@ -38,7 +38,7 @@ const ecrire = (cle: string, v: unknown) => {
   }
 };
 
-export function Pilule({ id, label, titre, outils }: { id: string; label: string; titre?: ReactNode; outils: OutilPilule[] }) {
+export function Pilule({ id, label, titre, outils, ligne2 }: { id: string; label: string; titre?: ReactNode; outils: OutilPilule[]; ligne2?: ReactNode }) {
   const cle = `taches-gsa-pilule-${id}`;
   const ref = useRef<HTMLDivElement>(null);
   const [pos, setPos] = useState<Pos | null>(() => lire<Pos | null>(cle, null));
@@ -59,7 +59,13 @@ export function Pilule({ id, label, titre, outils }: { id: string; label: string
   useEffect(() => {
     const f = () => setPos((p) => (p ? borner(p) : p));
     window.addEventListener('resize', f);
-    return () => window.removeEventListener('resize', f);
+    // Pilule agrandie (palette de couleurs ouverte…) : toujours à l'écran.
+    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(f);
+    if (ref.current) ro?.observe(ref.current);
+    return () => {
+      window.removeEventListener('resize', f);
+      ro?.disconnect();
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -97,7 +103,7 @@ export function Pilule({ id, label, titre, outils }: { id: string; label: string
   };
 
   return (
-    <div ref={ref} className={`pilule no-print ${pos ? '' : 'defaut'} ${titre ? 'avec-titre' : ''}`} style={pos ? { left: pos.x, top: pos.y } : undefined} role="toolbar" aria-label={label}>
+    <div ref={ref} className={`pilule no-print ${pos ? '' : 'defaut'} ${titre || (ligne2 && !reduite) ? 'avec-titre' : ''}`} style={pos ? { left: pos.x, top: pos.y } : undefined} role="toolbar" aria-label={label}>
       {/* Le titre sert aussi de poignée (plus grand à saisir au doigt). */}
       {titre && (
         <div className="pilule-titre" onPointerDown={debut} onPointerMove={bouge} onPointerUp={fin} onPointerCancel={fin} onDoubleClick={() => placer(null)}>
@@ -138,6 +144,7 @@ export function Pilule({ id, label, titre, outils }: { id: string; label: string
           <Icone n={reduite ? 'pleinEcran' : 'quitterPleinEcran'} />
         </button>
       </div>
+      {ligne2 && !reduite && <div className="pilule-barre pilule-ligne2">{ligne2}</div>}
     </div>
   );
 }
