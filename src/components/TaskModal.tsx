@@ -31,6 +31,7 @@ import { Checklist } from './tache/Checklist';
 import { Repetition } from './tache/Repetition';
 import { Rattachements } from './tache/Rattachements';
 import { Discussion } from './tache/Discussion';
+import { Historique } from './tache/Historique';
 
 export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string };
 
@@ -653,6 +654,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             {task.source ? `tâche de ${task.source.unite}` : `créée par ${task.parCentral ? `${task.parCentral} (comité central)` : fullName(data.people.find((p) => p.id === task.createdBy))}`}
           </small>
         )}
+        {!isNew && <Historique className="full" tacheId={task.source?.id ?? task.id} uniteId={task.source?.uniteId} version={(data.tasks.find((x) => x.id === task.id) ?? task).updatedAt} />}
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">

@@ -4,6 +4,7 @@ import { uid } from './utils';
 import type { OpOrga } from './organigramme';
 import type { DemandeMdp } from './cloud';
 import type { ActionCommentaire } from './commentaires';
+import type { HistoriqueTache } from './historique';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
 // L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
@@ -182,6 +183,11 @@ export interface Club {
    * ajouté, corrigé ou retiré dans l'entité de la tâche ; ses personnes concernées sont prévenues.
    */
   commenter: (uniteId: string, tacheId: string, a: ActionCommentaire) => Promise<void>;
+  /**
+   * Historique (050) d'une tâche de l'entité `uniteId` (l'entité ouverte, ou une autre dont la tâche est partagée avec elle
+   * ou reçue pour info) : de la modification la plus récente à la plus ancienne.
+   */
+  historique: (uniteId: string, tacheId: string) => Promise<HistoriqueTache>;
   /**
    * Personnes qui reçoivent une tâche de l'entité `uniteId` au titre des entités mentionnées en entier pour info (leurs
    * admins et rôles « Voir toutes les tâches », avec un compte) : entité → fiches ; null : le serveur ne le dit pas

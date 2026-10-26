@@ -6,6 +6,7 @@ import { isImage } from './logo';
 import { isCouleur } from './couleur';
 import type { OpOrga } from './organigramme';
 import type { OptionsAbonnement } from './agendaIcs';
+import type { HistoriqueTache } from './historique';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -913,6 +914,17 @@ export async function pourInfoVu(unite: string, tache: string, depuis: string) {
 export async function commenterTache(unite: string, tache: string, depuis: string, a: { texte?: string; cle?: string; supprimer?: boolean }) {
   const { error } = await sb().rpc('gsa_commenter', { unite, tache, depuis, texte: a.texte ?? null, cle: a.cle ?? null, supprimer: !!a.supprimer });
   if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore la discussion sur les tâches (mise à jour 049 à appliquer).' : error.message);
+}
+
+/**
+ * Historique (050) de la tâche `tache` de l'entité `unite`, vue depuis l'entité ouverte `depuis` (la même, ou une entité du
+ * partage, ou mentionnée pour info) : de la modification la plus récente à la plus ancienne, avec les noms cités.
+ */
+export async function historiqueTache(unite: string, tache: string, depuis: string): Promise<HistoriqueTache> {
+  const { data, error } = await sb().rpc('gsa_historique_tache', { unite, tache, depuis });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne note pas encore l’historique des tâches (mise à jour 050 à appliquer).' : error.message);
+  const h = (data ?? {}) as Partial<HistoriqueTache>;
+  return { entrees: Array.isArray(h.entrees) ? h.entrees : [], noms: h.noms && typeof h.noms === 'object' ? h.noms : {} };
 }
 
 /** Personnes qui reçoivent la tâche au titre des entités mentionnées en entier : entité → fiches ; null sans 046. */

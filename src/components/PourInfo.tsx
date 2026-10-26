@@ -7,6 +7,7 @@ import { daysUntil, fmtDate } from '../data/utils';
 import { AvecLiens, Lien } from './Liens';
 import { Modal } from './ui';
 import { Discussion } from './tache/Discussion';
+import { Historique } from './tache/Historique';
 
 // Tâches d'autres entités du club mises « pour info » de l'entité ouverte (ses admins, « Voir toutes les tâches ») ou de
 // la personne connectée : à suivre ici, en lecture seule ; elles se modifient dans leur entité.
@@ -93,6 +94,7 @@ export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee
                         {!!t.pieces && <p className="muted small">📎 {t.pieces} fichier(s) joint(s), consultables chez {x.unite} seulement.</p>}
                         {aussi.length > 0 && <p className="muted small">👁 Pour info : {aussi.join(', ')}</p>}
                         <Discussion liste={t.commentaires} tacheId={t.id} uniteId={x.uniteId} />
+                        <Historique tacheId={t.id} uniteId={x.uniteId} version={t.updatedAt} />
                         {aVoir && (
                           <p>
                             <button

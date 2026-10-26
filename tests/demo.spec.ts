@@ -78,6 +78,25 @@ test('discussion : commenter, corriger puis retirer un commentaire', async ({ pa
   await expect(discussion.locator('.discussion-liste li')).toHaveCount(0);
 });
 
+test('historique : création puis changement de titre', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Tâche suivie');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  await page.locator('main').getByText('Tâche suivie').filter({ visible: true }).first().click();
+  await page.getByPlaceholder('Que faut-il faire ?').fill('Tâche suivie de près');
+  await page.locator('.modal').first().getByRole('button', { name: /^Enregistrer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  await page.locator('main').getByText('Tâche suivie de près').filter({ visible: true }).first().click();
+  const historique = page.locator('.modal').first().locator('details.historique');
+  await historique.locator('summary').click();
+  await expect(historique.locator('.historique-liste > li')).toHaveCount(2);
+  await expect(historique.locator('.historique-liste > li').first()).toContainText('Titre : « Tâche suivie » → « Tâche suivie de près »');
+  await expect(historique.locator('.historique-liste > li').last()).toContainText('a créé la tâche');
+});
+
 test('nouvelle tâche : À prendre et Pour info s’ajoutent', async ({ page }) => {
   const fiche = await nouvelleTache(page, 'Tenir le stand');
   await fiche.locator('.chip', { hasText: 'À prendre' }).click();

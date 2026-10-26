@@ -6,6 +6,7 @@ import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
 import { membresPropres, synchroLiens } from './liens';
 import { convertirPostes, lierEntite, suivre } from './organigramme';
+import { ajouterHistorique, changementsTache, nomsCites, type EntreeHistorique, type HistoriqueTache } from './historique';
 import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUnit, Person, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
@@ -18,6 +19,8 @@ export const ME_KEY = 'taches-gsa-demo-moi';
 export const UNIT_KEY = 'taches-gsa-demo-unite';
 const MEMBRES_KEY = 'taches-gsa-demo-membres';
 const ORGAS_KEY = 'taches-gsa-demo-organigrammes';
+/** Historique des tâches (version réelle : gsa_historique, 050) : entité → tâche → entrées, de la plus récente à la plus ancienne. */
+const HISTO_KEY = 'taches-gsa-demo-historique';
 /** Ancienne connexion de la démo (fiche du comité central). */
 const OLD_USER_KEY = 'taches-gsa-user';
 
@@ -176,7 +179,48 @@ export function loadUnitData(id: string): AppData {
   return u ? seedUnit(u) : unitData('groupe', [], 'p1', id);
 }
 
-export const saveUnitData = (id: string, d: AppData) => write(unitStorageKey(id), d);
+export function saveUnitData(id: string, d: AppData) {
+  noterHistorique(id, read<AppData>(unitStorageKey(id)), d);
+  write(unitStorageKey(id), d);
+}
+
+/**
+ * Historique des tâches (comme le déclencheur gsa_historique_noter, 050) : ce qui change dans les tâches d'une entité à
+ * chaque enregistrement, au nom de la personne connectée ; depuis une autre entité, le nom laissé sur la tâche
+ * (« Nom (Entité) »). Rien avant le premier enregistrement de l'entité.
+ */
+function noterHistorique(id: string, avant: AppData | null, apres: AppData) {
+  if (!avant?.tasks) return;
+  const moi = loadMe();
+  const fiche = moi ? apres.people.find((p) => p.email?.toLowerCase() === moi) : undefined;
+  const le = new Date().toISOString();
+  const tout = read<Record<string, Record<string, EntreeHistorique[]>>>(HISTO_KEY) ?? {};
+  const ici = { ...tout[id] };
+  let change = false;
+  const anciennes = new Map(avant.tasks.map((t) => [t.id, t]));
+  const ids = new Set([...anciennes.keys(), ...apres.tasks.map((t) => t.id)]);
+  for (const t of ids) {
+    const a = anciennes.get(t);
+    const b = apres.tasks.find((x) => x.id === t);
+    if (a === b) continue;
+    const c = changementsTache(a, b);
+    if (!c) continue;
+    const liste = ici[t] ?? [];
+    const quoi = c.quoi === 'creee' && liste.length ? 'retablie' : c.quoi;
+    const nom = fiche ? `${fiche.prenom} ${fiche.nom}`.trim() : (b ?? a)?.modifiePar || 'Quelqu’un';
+    ici[t] = ajouterHistorique(liste, { le, par: moi ?? '?', nom, ...(quoi ? { quoi } : {}), champs: c.champs });
+    change = true;
+  }
+  if (!change) return;
+  tout[id] = ici;
+  write(HISTO_KEY, tout);
+}
+
+/** Historique d'une tâche de la démo, de la modification la plus récente à la plus ancienne. */
+export function lireHistoriqueDemo(unite: string, tache: string): HistoriqueTache {
+  const entrees = read<Record<string, Record<string, EntreeHistorique[]>>>(HISTO_KEY)?.[unite]?.[tache] ?? [];
+  return { entrees, noms: nomsCites(loadUnitData(unite), entrees) };
+}
 
 /** Données d'une entité telles qu'enregistrées (pour annuler une modification de l'organigramme). */
 export const lireBrut = (id: string) => {
@@ -294,7 +338,7 @@ export function resetDemo() {
     const units = read<Unit[]>(CLUB_KEY) ?? SEED_UNITS;
     units.forEach((u) => localStorage.removeItem(unitStorageKey(u.id)));
     // Avec le dernier logo et la dernière couleur affichés (écran de connexion).
-    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, ORGAS_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
+    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, ORGAS_KEY, HISTO_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }

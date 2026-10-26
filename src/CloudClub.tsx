@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, historiqueTache, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
@@ -240,6 +240,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       repondreTachePartagee: (uniteId, tacheId, prend) => repondreTachePartagee(m.committeeId, uniteId, tacheId, prend),
       vuPourInfo: (uniteId, tacheId) => pourInfoVu(uniteId, tacheId, m.committeeId),
       commenter: (uniteId, tacheId, a) => commenterTache(uniteId, tacheId, m.committeeId, a),
+      historique: (uniteId, tacheId) => historiqueTache(uniteId, tacheId, m.committeeId),
       destinatairesPourInfo: (uniteId, tacheId) => pourInfoDestinataires(uniteId, tacheId),
       attribuerTache: (uniteId, task, statut) => attribuerTache(m.committeeId, uniteId, task, statut),
       sondagesPartages: () => fetchSondagesPartages(m.committeeId),
