@@ -14,7 +14,7 @@ import { nomAppli } from '../data/nomAppli';
 import { archiveHtml } from '../data/entete';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
-import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, docsTexte, numerosDe, useOuvrirDocs } from '../components/Annexes';
+import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, avecFormat, type ParPage, docsTexte, numerosDe, useOuvrirDocs } from '../components/Annexes';
 import { useClubOptional } from '../data/club';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { margesMm, styleVars } from '../data/styleDocs';
@@ -37,7 +37,7 @@ const nowHMde = (d: Date) => d.toTimeString().slice(0, 5);
 const nowHM = () => nowHMde(new Date());
 const hm = (h?: string) => (h ? h.replace(':', 'h') : '');
 /** Options du PV par défaut. */
-const OPTIONS: Required<PvOptions> = { details: true, misesAJour: true, documents: true, annexes: false, annexesParPage: 1, taille: 'normale' };
+const OPTIONS: Required<PvOptions> = { details: true, misesAJour: true, documents: true, annexes: false, annexesParPage: 1, annexesPdfParPage: 1, taille: 'normale' };
 
 /** Adresse de la page de dépôt du PV : http(s) seulement (« www… » complété en https), sinon null. */
 const urlDepot = (s?: string): string | null => {
@@ -417,6 +417,9 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
   // Sauf ceux retirés pour ce PV ; tant que le PV n'a pas son choix, ceux retirés de l'ordre du jour de la séance.
   const exclues = m.annexesExclues ?? s1?.odjAnnexesExclues ?? [];
   const annexes = annexesDe(tachesPv, exclues);
+  // Mise en page : photos et PDF selon les options du PV ; un fichier réglé à part, comme dans l'ordre du jour tant que
+  // le PV n'a pas son propre choix.
+  const miseEnPage = { photos: opts.annexesParPage, pdf: opts.annexesPdfParPage, fichiers: m.annexesFormats ?? s1?.odjAnnexesFormats };
   const joints = opts.annexes ? annexes : [];
   // Numéros d'annexe à côté du titre, quand les documents ne sont pas nommés (sinon : avec leur nom).
   const numeros = (t: Task) => (opts.documents && t.documents?.length ? [] : numerosDe(joints, t));
@@ -513,6 +516,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       delete mm.tachesAvant;
       // Fichiers joints : le choix du moment est fixé (l'ordre du jour peut encore changer).
       mm.annexesExclues = mm.annexesExclues ?? x.odjAnnexesExclues ?? [];
+      mm.annexesFormats = mm.annexesFormats ?? x.odjAnnexesFormats;
       const { derniereValidee: _old, ...copyOf } = mm;
       void _old;
       mm.derniereValidee = structuredClone(copyOf);
@@ -706,7 +710,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
         {m.valideLe && !m.enCorrection && ` · version ${version} validée le ${fmtDate(m.valideLe.slice(0, 10))}`} · {nomAppli()}
       </footer>
       {/* Fichiers joints : à la suite du PV, sur des pages à part à l'impression. */}
-      {opts.annexes && <PagesAnnexes annexes={annexes} parPage={opts.annexesParPage} />}
+      {opts.annexes && <PagesAnnexes annexes={annexes} miseEnPage={miseEnPage} />}
     </div>
   );
 
@@ -865,23 +869,33 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
             <label className="inline" title="Fichiers et liens de chaque point, nommés ; un clic les ouvre">
               <input type="checkbox" checked={opts.documents} disabled={!editable} onChange={(e) => setOpt({ documents: e.target.checked })} /> 📎 Documents des points
             </label>
-            <label className="inline" title="Les fichiers et liens des tâches du PV : liste des annexes, puis les photos et les pages des PDF (1, 2 ou 4 par page)">
+            <label className="inline" title="Les fichiers et liens des tâches du PV : liste des annexes, puis les photos et les pages des PDF (photos et PDF mis en page à part)">
               <input type="checkbox" checked={opts.annexes} disabled={!editable} onChange={(e) => setOpt({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin de PV
               <span className="muted">{annexes.length ? ` (${annexes.length})` : annexesDe(tachesPv).length ? ' (aucun choisi)' : ' (aucun pour l’instant)'}</span>
             </label>
             {opts.annexes && (
-              <label className="inline" title="Photos ou pages de PDF sur une même page imprimée">
-                Par page
-                <select value={opts.annexesParPage} disabled={!editable} onChange={(e) => setOpt({ annexesParPage: Number(e.target.value) as PvOptions['annexesParPage'] })}>
-                  {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 fichier (pleine page)' : `${n} fichiers`}</option>)}
-                </select>
-              </label>
+              <>
+                <label className="inline" title="Photos (tickets, factures photographiées…) sur une même page imprimée">
+                  Photos par page
+                  <select value={opts.annexesParPage} disabled={!editable} onChange={(e) => setOpt({ annexesParPage: Number(e.target.value) as ParPage })}>
+                    {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 (pleine page)' : n}</option>)}
+                  </select>
+                </label>
+                <label className="inline" title="Pages des PDF sur une même page imprimée : en pleine page, elles restent lisibles">
+                  Pages de PDF par page
+                  <select value={opts.annexesPdfParPage} disabled={!editable} onChange={(e) => setOpt({ annexesPdfParPage: Number(e.target.value) as ParPage })}>
+                    {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 (pleine page)' : n}</option>)}
+                  </select>
+                </label>
+              </>
             )}
             {opts.annexes && (
               <ChoixAnnexes
                 tasks={tachesPv}
                 exclues={exclues}
                 onChange={(ids) => setMinutes((x) => { x.annexesExclues = ids; })}
+                miseEnPage={miseEnPage}
+                onFormat={(id, n) => setMinutes((x) => { x.annexesFormats = avecFormat(x.annexesFormats ?? s1?.odjAnnexesFormats, id, n) ?? {}; })}
                 disabled={!editable}
                 note={m.annexesExclues ? undefined : s1?.odjAnnexesExclues?.length ? 'Choix repris de l’ordre du jour de la séance.' : undefined}
               />

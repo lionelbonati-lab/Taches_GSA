@@ -7,14 +7,36 @@ import { DocThumb } from './DocsField';
 import { Lien } from './Liens';
 
 // Fichiers liés aux tâches d'un document (PV, ordre du jour), joints à la fin (option « Joindre les fichiers liés ») :
-// la liste des annexes, puis les photos et chaque page des PDF en image, 1, 2 ou 4 par page imprimée. Les archives ne
-// copient pas ces images (seulement data-annexe et data-page) : elles sont relues à l'affichage (useAnnexesArchive).
+// la liste des annexes, puis les photos et chaque page des PDF en image, 1, 2 ou 4 par page imprimée (photos et PDF
+// réglés à part, et au besoin fichier par fichier). Les archives ne copient pas ces images (seulement data-annexe et
+// data-page) : elles sont relues à l'affichage (useAnnexesArchive).
 
 /** Pages d'un PDF reproduites au plus (les suivantes : voir le fichier). */
 const MAX_PAGES = 30;
 
 export type ParPage = 1 | 2 | 4;
 export const PAR_PAGE: ParPage[] = [1, 2, 4];
+export const parPageTexte = (n: ParPage) => (n === 1 ? 'pleine page' : `${n} par page`);
+
+/**
+ * Mise en page des fichiers joints : photos par page imprimée, pages de PDF par page (lisibles en pleine page ; une
+ * photo de ticket tient à 4 par page) et, pour certains fichiers, un autre choix (identifiant → nombre par page).
+ */
+export interface MiseEnPageAnnexes {
+  photos: ParPage;
+  pdf: ParPage;
+  fichiers?: Record<string, ParPage>;
+}
+/** Nombre par page d'un fichier : son propre choix, sinon celui des photos ou des PDF. */
+export const parPageDe = (mp: MiseEnPageAnnexes, d: TaskDoc): ParPage => mp.fichiers?.[d.id] ?? (estPdf(d) ? mp.pdf : mp.photos);
+
+/** Choix fait pour un fichier (undefined : comme les autres photos ou PDF) ; undefined s'il n'en reste aucun. */
+export function avecFormat(fichiers: Record<string, ParPage> | undefined, id: string, n: ParPage | undefined) {
+  const f = { ...fichiers };
+  if (n) f[id] = n;
+  else delete f[id];
+  return Object.keys(f).length ? f : undefined;
+}
 
 export interface Annexe {
   d: TaskDoc;
@@ -54,12 +76,15 @@ export function annexesDe(tasks: Task[], exclues: string[] = []): Annexe[] {
 
 /**
  * Choix des fichiers liés joints au document (ordre du jour ou PV d'une séance) : une case par photo, PDF ou lien des
- * tâches du document, cochée s'il est joint. `exclues` : ceux retirés ; `note` : précision sous la liste.
+ * tâches du document, cochée s'il est joint, et pour une photo ou un PDF, sa mise en page (comme les autres, ou pleine
+ * page, 2 ou 4 par page). `exclues` : ceux retirés ; `note` : précision sous la liste.
  */
-export function ChoixAnnexes({ tasks, exclues, onChange, disabled, note }: {
+export function ChoixAnnexes({ tasks, exclues, onChange, miseEnPage, onFormat, disabled, note }: {
   tasks: Task[];
   exclues: string[];
   onChange: (exclues: string[]) => void;
+  miseEnPage?: MiseEnPageAnnexes;
+  onFormat?: (id: string, n: ParPage | undefined) => void;
   disabled?: boolean;
   note?: string;
 }) {
@@ -88,6 +113,18 @@ export function ChoixAnnexes({ tasks, exclues, onChange, disabled, note }: {
                 <small className="muted">{a.t.titre}</small>
               </span>
             </label>
+            {miseEnPage && onFormat && annexeReproduite(a) && (
+              <select
+                className="choix-annexe-format"
+                aria-label={`Mise en page de « ${a.d.nom} »`}
+                value={miseEnPage.fichiers?.[a.d.id] ?? ''}
+                disabled={disabled || exclues.includes(a.d.id)}
+                onChange={(e) => onFormat(a.d.id, e.target.value ? (Number(e.target.value) as ParPage) : undefined)}
+              >
+                <option value="">Comme les {estPdf(a.d) ? 'PDF' : 'photos'} ({parPageTexte(estPdf(a.d) ? miseEnPage.pdf : miseEnPage.photos)})</option>
+                {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? 'Pleine page' : `${n} par page`}</option>)}
+              </select>
+            )}
           </li>
         ))}
       </ul>
@@ -205,8 +242,11 @@ function ImageAnnexe({ d, page, alt }: { d: TaskDoc; page?: number; alt: string 
   return <img className="pv-annexe-img" data-annexe={d.id} data-page={page} src={url} alt={alt} />;
 }
 
-/** Fichiers joints à la fin du document : `parPage` photos ou pages de PDF par page imprimée. */
-export function PagesAnnexes({ annexes, parPage }: { annexes: Annexe[]; parPage: ParPage }) {
+/**
+ * Fichiers joints à la fin du document : photos et pages de PDF, autant par page imprimée que le dit `miseEnPage`
+ * (une page ne mélange pas deux mises en page : un fichier en pleine page commence une nouvelle page).
+ */
+export function PagesAnnexes({ annexes, miseEnPage }: { annexes: Annexe[]; miseEnPage: MiseEnPageAnnexes }) {
   const fichiers = annexes.filter(annexeReproduite);
   // Nombre de pages de chaque PDF (null : illisible ou introuvable).
   const [pages, setPages] = useState<Record<string, number | null>>({});
@@ -236,14 +276,19 @@ export function PagesAnnexes({ annexes, parPage }: { annexes: Annexe[]; parPage:
       if (total > MAX_PAGES) cases.push({ key: `${a.d.id}:suite`, a, note: `Pages ${MAX_PAGES + 1} à ${total} : voir le fichier.` });
     }
   }
-  const feuilles: Case[][] = [];
-  for (let i = 0; i < cases.length; i += parPage) feuilles.push(cases.slice(i, i + parPage));
+  const feuilles: { n: ParPage; cases: Case[] }[] = [];
+  for (const c of cases) {
+    const n = parPageDe(miseEnPage, c.a.d);
+    const f = feuilles[feuilles.length - 1];
+    if (f && f.n === n && f.cases.length < n) f.cases.push(c);
+    else feuilles.push({ n, cases: [c] });
+  }
 
   return (
     <>
       {feuilles.map((f) => (
-        <section key={f[0].key} className={`pv-annexes-page par-${parPage}`}>
-          {f.map((c) => {
+        <section key={f.cases[0].key} className={`pv-annexes-page par-${f.n}`}>
+          {f.cases.map((c) => {
             const titre = `Annexe ${c.a.n} – ${c.a.d.nom}${c.total && c.total > 1 ? ` (page ${c.page}/${c.total})` : ''}`;
             return (
               <figure key={c.key} className="pv-annexe">

@@ -481,6 +481,8 @@ export interface Meeting {
   odjEdite?: { html: string; le: string; par: string };
   /** Fichiers liés (identifiants des documents) retirés des annexes de l'ordre du jour de la séance ; les autres y sont. */
   odjAnnexesExclues?: string[];
+  /** Mise en page choisie pour certains fichiers joints à l'ordre du jour (identifiant → photos ou pages par page). */
+  odjAnnexesFormats?: Record<string, 1 | 2 | 4>;
   /** Séance ponctuelle : ne revient pas l'année suivante (par défaut, une séance revient chaque année le même mois). */
   unique?: boolean;
 }
@@ -523,6 +525,8 @@ export interface MeetingMinutes {
    * l'ordre du jour de la séance (fixé à la validation).
    */
   annexesExclues?: string[];
+  /** Mise en page choisie pour certains fichiers joints au PV ; absent : celle de l'ordre du jour (fixée à la validation). */
+  annexesFormats?: Record<string, 1 | 2 | 4>;
   /** Changements de tâches faits depuis l'onglet PV (seuls ceux-ci figurent dans le PV). */
   journal?: MinutesChange[];
   /** Tâches créées pendant la séance (« nouvelle tâche décidée »). */
@@ -557,8 +561,10 @@ export interface PvOptions {
    * des PDF reproduites (1, 2 ou 4 par page) ; les liens et les autres fichiers sont nommés.
    */
   annexes?: boolean;
-  /** Photos ou pages de PDF par page imprimée (défaut : 1). */
+  /** Photos par page imprimée (défaut : 1). */
   annexesParPage?: 1 | 2 | 4;
+  /** Pages de PDF par page imprimée (défaut : 1, lisibles). */
+  annexesPdfParPage?: 1 | 2 | 4;
   taille?: 'petite' | 'normale' | 'grande';
 }
 
@@ -605,8 +611,10 @@ export interface PvSettings {
   taille: 'petite' | 'normale' | 'grande';
   /** Fichiers liés aux tâches joints en fin d'ordre du jour (liste, puis photos et pages des PDF). */
   annexes: boolean;
-  /** Photos ou pages de PDF par page imprimée. */
+  /** Photos par page imprimée. */
   annexesParPage: 1 | 2 | 4;
+  /** Pages de PDF par page imprimée (défaut : 1, lisibles). */
+  annexesPdfParPage: 1 | 2 | 4;
 }
 
 /** Événement d'une entité, partagé avec tout le club pour l'agenda (sans sa description). */

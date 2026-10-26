@@ -21,7 +21,7 @@ import { AvecLiens, LieuSeance } from '../components/Liens';
 import { LIENS_LIEU, avecLienLieu, lienLieu, texteLieu } from '../data/lieux';
 import { lienMailto } from '../data/lienPartage';
 import { moduleIntrouvable } from '../pwa';
-import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
+import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, avecFormat, type ParPage, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { Icone } from '../components/icones';
 import { Modal } from '../components/ui';
 
@@ -44,6 +44,7 @@ export const DEFAULT_PV: PvSettings = {
   taille: 'normale',
   annexes: false,
   annexesParPage: 1,
+  annexesPdfParPage: 1,
 };
 
 export function withDefaults(p?: Partial<PvSettings>): PvSettings {
@@ -368,7 +369,7 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir }: {
       )}
       <ListeAnnexes annexes={annexes} />
       <footer className="pv-foot">Document généré le {fmtDate(today())} par {fullName(user ?? undefined)} · {nomAppli()}</footer>
-      <PagesAnnexes annexes={annexes} parPage={s.annexesParPage} />
+      <PagesAnnexes annexes={annexes} miseEnPage={{ photos: s.annexesParPage, pdf: s.annexesPdfParPage, fichiers: s1?.odjAnnexesFormats }} />
     </div>
   );
 }
@@ -669,6 +670,13 @@ export function Pv() {
     updateSilent((d) => {
       d.meetings.find((x) => x.id === s1.id)!.odjAnnexesExclues = ids.length ? ids : undefined;
     });
+  // Mise en page d'un fichier joint (choix commun au comité, pour cette séance).
+  const setFormat = (id: string, n: ParPage | undefined) =>
+    s1 &&
+    updateSilent((d) => {
+      const x = d.meetings.find((y) => y.id === s1.id)!;
+      x.odjAnnexesFormats = avecFormat(x.odjAnnexesFormats, id, n);
+    });
   // Nom proposé à l'enregistrement en PDF (le navigateur reprend le titre de la page).
   useEffect(() => {
     const before = document.title;
@@ -859,23 +867,33 @@ export function Pv() {
               <label key={k} className="inline"><input type="checkbox" checked={s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
             ))}
             <span className="field-label pv-sous-titre">Annexes</span>
-            <label className="inline" title="Les fichiers et liens des tâches de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (1, 2 ou 4 par page)">
+            <label className="inline" title="Les fichiers et liens des tâches de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (photos et PDF mis en page à part)">
               <input type="checkbox" checked={s.annexes} onChange={(e) => set({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin d’ordre du jour
               {s.annexes && <span className="muted">{annexes.length ? ` (${annexes.length})` : annexesDe(tachesOdj).length ? ' (aucun choisi)' : ' (aucun pour l’instant)'}</span>}
             </label>
             {s.annexes && (
-              <label>
-                Fichiers par page
-                <select value={s.annexesParPage} onChange={(e) => set({ annexesParPage: Number(e.target.value) as PvSettings['annexesParPage'] })}>
-                  {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 fichier (pleine page)' : `${n} fichiers`}</option>)}
-                </select>
-              </label>
+              <>
+                <label title="Photos (tickets, factures photographiées…) sur une même page imprimée">
+                  Photos par page
+                  <select value={s.annexesParPage} onChange={(e) => set({ annexesParPage: Number(e.target.value) as ParPage })}>
+                    {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 (pleine page)' : n}</option>)}
+                  </select>
+                </label>
+                <label title="Pages des PDF sur une même page imprimée : en pleine page, elles restent lisibles">
+                  Pages de PDF par page
+                  <select value={s.annexesPdfParPage} onChange={(e) => set({ annexesPdfParPage: Number(e.target.value) as ParPage })}>
+                    {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? '1 (pleine page)' : n}</option>)}
+                  </select>
+                </label>
+              </>
             )}
             {s.annexes && s1 && (
               <ChoixAnnexes
                 tasks={tachesOdj}
                 exclues={exclues}
                 onChange={setExclues}
+                miseEnPage={{ photos: s.annexesParPage, pdf: s.annexesPdfParPage, fichiers: s1.odjAnnexesFormats }}
+                onFormat={setFormat}
                 disabled={!canEdit}
                 note={edite ? 'Ordre du jour modifié à la main : le choix s’appliquera en revenant à la version générée.' : 'Choix commun au comité, pour cette séance.'}
               />
