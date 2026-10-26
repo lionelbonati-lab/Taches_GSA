@@ -21,7 +21,7 @@ import { AvecLiens, LieuSeance } from '../components/Liens';
 import { LIENS_LIEU, avecLienLieu, lienLieu, texteLieu } from '../data/lieux';
 import { lienMailto } from '../data/lienPartage';
 import { moduleIntrouvable } from '../pwa';
-import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, avecFormat, type ParPage, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
+import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, avecChoix, type ParPage, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { Icone } from '../components/icones';
 import { Modal } from '../components/ui';
 
@@ -268,7 +268,7 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
     if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, `Excusés : ${excusesTxt}`);
     out.push('', 'Ordre du jour', ...outlineText(listSecs));
     if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
-    if (annexes.length) out.push('', 'Annexes', ...annexes.map((a) => `   ${a.n}. ${a.d.nom} (${annexeInfo(a)})`));
+    if (annexes.length) out.push('', 'Annexes', ...annexes.map((a) => `   ${a.n}. ${a.d.nom} (${annexeInfo(a, s1?.odjAnnexesPages)})`));
     return out.join('\n');
   };
 
@@ -367,9 +367,9 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir }: {
           <b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{heure(s2) && ` à ${heure(s2)}`} – Lieu : <LieuSeance m={s2} />
         </p>
       )}
-      <ListeAnnexes annexes={annexes} />
+      <ListeAnnexes annexes={annexes} pages={s1?.odjAnnexesPages} />
       <footer className="pv-foot">Document généré le {fmtDate(today())} par {fullName(user ?? undefined)} · {nomAppli()}</footer>
-      <PagesAnnexes annexes={annexes} miseEnPage={{ photos: s.annexesParPage, pdf: s.annexesPdfParPage, fichiers: s1?.odjAnnexesFormats }} />
+      <PagesAnnexes annexes={annexes} miseEnPage={{ photos: s.annexesParPage, pdf: s.annexesPdfParPage, fichiers: s1?.odjAnnexesFormats, pages: s1?.odjAnnexesPages }} />
     </div>
   );
 }
@@ -675,7 +675,14 @@ export function Pv() {
     s1 &&
     updateSilent((d) => {
       const x = d.meetings.find((y) => y.id === s1.id)!;
-      x.odjAnnexesFormats = avecFormat(x.odjAnnexesFormats, id, n);
+      x.odjAnnexesFormats = avecChoix(x.odjAnnexesFormats, id, n);
+    });
+  // Pages à imprimer d'un PDF joint (même portée).
+  const setPages = (id: string, pages: string | undefined) =>
+    s1 &&
+    updateSilent((d) => {
+      const x = d.meetings.find((y) => y.id === s1.id)!;
+      x.odjAnnexesPages = avecChoix(x.odjAnnexesPages, id, pages);
     });
   // Nom proposé à l'enregistrement en PDF (le navigateur reprend le titre de la page).
   useEffect(() => {
@@ -892,8 +899,9 @@ export function Pv() {
                 tasks={tachesOdj}
                 exclues={exclues}
                 onChange={setExclues}
-                miseEnPage={{ photos: s.annexesParPage, pdf: s.annexesPdfParPage, fichiers: s1.odjAnnexesFormats }}
+                miseEnPage={{ photos: s.annexesParPage, pdf: s.annexesPdfParPage, fichiers: s1.odjAnnexesFormats, pages: s1.odjAnnexesPages }}
                 onFormat={setFormat}
+                onPages={setPages}
                 disabled={!canEdit}
                 note={edite ? 'Ordre du jour modifié à la main : le choix s’appliquera en revenant à la version générée.' : 'Choix commun au comité, pour cette séance.'}
               />

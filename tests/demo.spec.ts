@@ -119,18 +119,17 @@ test('rapport d’erreurs : erreur d’essai reçue, réglée puis effacée', as
   await expect(page.getByText('Aucune erreur signalée.')).toBeVisible();
 });
 
-test('fichiers joints à l’ordre du jour : photos 4 par page, PDF en pleine page, choix par fichier', async ({ page }) => {
+test('fichiers joints à l’ordre du jour : regroupés par mise en page, pages de PDF choisies, choix par fichier', async ({ page }) => {
   const pdf = await PDFDocument.create();
-  pdf.addPage([595, 842]);
-  pdf.addPage([595, 842]);
+  for (let i = 0; i < 3; i++) pdf.addPage([595, 842]);
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche avec annexes');
   await fiche.getByRole('button', { name: /Document/ }).first().click();
   await fiche.locator('fieldset.docs input[type=file]').first().setInputFiles([
     { name: 'ticket1.png', mimeType: 'image/png', buffer: png },
-    { name: 'ticket2.png', mimeType: 'image/png', buffer: png },
     { name: 'rapport.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) },
+    { name: 'ticket2.png', mimeType: 'image/png', buffer: png },
   ]);
   await expect(fiche.locator('.doc-list li')).toHaveCount(3);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
@@ -141,22 +140,29 @@ test('fichiers joints à l’ordre du jour : photos 4 par page, PDF en pleine pa
   await reglages.getByText('Joindre les fichiers liés en fin d’ordre du jour').click();
   await reglages.getByLabel('Photos par page').selectOption('4');
   const pages = page.locator('.pv-annexes-page');
-  // Les deux photos sur une page, chaque page du PDF sur la sienne.
-  await expect(pages).toHaveCount(3);
+  // Les deux photos ensemble sur une page malgré le PDF entre elles, chaque page du PDF sur la sienne.
+  await expect(pages).toHaveCount(4);
   await expect(pages.nth(0)).toHaveClass(/par-4/);
   await expect(pages.nth(0).locator('figure')).toHaveCount(2);
   await expect(pages.nth(1)).toHaveClass(/par-1/);
-  await expect(pages.nth(1)).toContainText('rapport.pdf (page 1/2)');
+  await expect(pages.nth(1)).toContainText('rapport.pdf (page 1/3)');
 
+  // Seulement les pages 1 et 3 du PDF.
   await reglages.locator('.choix-annexes summary').click();
+  await reglages.getByLabel('Pages à imprimer de « rapport.pdf »').fill('1, 3');
+  await reglages.getByLabel('Pages à imprimer de « rapport.pdf »').press('Enter');
+  await expect(pages).toHaveCount(3);
+  await expect(pages.nth(2)).toContainText('rapport.pdf (page 3/3)');
+  await expect(page.locator('.pv-annexes')).toContainText('pages 1, 3 jointes');
+
   await reglages.getByLabel('Mise en page de « rapport.pdf »').selectOption('2');
   await reglages.getByLabel('Mise en page de « ticket2.png »').selectOption('1');
   await expect(pages).toHaveCount(3);
   await expect(pages.nth(0).locator('figure')).toHaveCount(1);
-  await expect(pages.nth(1)).toHaveClass(/par-1/);
-  await expect(pages.nth(1)).toContainText('ticket2.png');
-  await expect(pages.nth(2)).toHaveClass(/par-2/);
-  await expect(pages.nth(2).locator('figure')).toHaveCount(2);
+  await expect(pages.nth(1)).toHaveClass(/par-2/);
+  await expect(pages.nth(1).locator('figure')).toHaveCount(2);
+  await expect(pages.nth(2)).toHaveClass(/par-1/);
+  await expect(pages.nth(2)).toContainText('ticket2.png');
 });
 
 test('nouvelle tâche : À prendre et Pour info s’ajoutent', async ({ page }) => {

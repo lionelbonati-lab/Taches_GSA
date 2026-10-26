@@ -7,9 +7,9 @@ import { DocThumb } from './DocsField';
 import { Lien } from './Liens';
 
 // Fichiers liés aux tâches d'un document (PV, ordre du jour), joints à la fin (option « Joindre les fichiers liés ») :
-// la liste des annexes, puis les photos et chaque page des PDF en image, 1, 2 ou 4 par page imprimée (photos et PDF
-// réglés à part, et au besoin fichier par fichier). Les archives ne copient pas ces images (seulement data-annexe et
-// data-page) : elles sont relues à l'affichage (useAnnexesArchive).
+// la liste des annexes, puis les photos et les pages des PDF (toutes, ou celles choisies) en image, 1, 2 ou 4 par page
+// imprimée (photos et PDF réglés à part, et au besoin fichier par fichier), regroupées par mise en page. Les archives ne
+// copient pas ces images (seulement data-annexe et data-page) : elles sont relues à l'affichage (useAnnexesArchive).
 
 /** Pages d'un PDF reproduites au plus (les suivantes : voir le fichier). */
 const MAX_PAGES = 30;
@@ -20,22 +20,41 @@ export const parPageTexte = (n: ParPage) => (n === 1 ? 'pleine page' : `${n} par
 
 /**
  * Mise en page des fichiers joints : photos par page imprimée, pages de PDF par page (lisibles en pleine page ; une
- * photo de ticket tient à 4 par page) et, pour certains fichiers, un autre choix (identifiant → nombre par page).
+ * photo de ticket tient à 4 par page) et, pour certains fichiers, un autre choix (identifiant → nombre par page) ;
+ * `pages` : pages à imprimer de certains PDF (identifiant → « 1-3, 5 »), les autres en entier.
  */
 export interface MiseEnPageAnnexes {
   photos: ParPage;
   pdf: ParPage;
   fichiers?: Record<string, ParPage>;
+  pages?: Record<string, string>;
 }
 /** Nombre par page d'un fichier : son propre choix, sinon celui des photos ou des PDF. */
 export const parPageDe = (mp: MiseEnPageAnnexes, d: TaskDoc): ParPage => mp.fichiers?.[d.id] ?? (estPdf(d) ? mp.pdf : mp.photos);
 
-/** Choix fait pour un fichier (undefined : comme les autres photos ou PDF) ; undefined s'il n'en reste aucun. */
-export function avecFormat(fichiers: Record<string, ParPage> | undefined, id: string, n: ParPage | undefined) {
+/** Choix fait pour un fichier (mise en page, pages ; vide : comme les autres) ; undefined s'il n'en reste aucun. */
+export function avecChoix<T extends string | number>(fichiers: Record<string, T> | undefined, id: string, v: T | undefined) {
   const f = { ...fichiers };
-  if (n) f[id] = n;
+  if (v) f[id] = v;
   else delete f[id];
   return Object.keys(f).length ? f : undefined;
+}
+
+// Pages d'un PDF à imprimer, comme dans une fenêtre d'impression : « 1-3, 5 », « 4- » (jusqu'à la fin), « -2 ».
+const BOUT_PAGES = /^(\d+)?-(\d+)?$|^\d+$/;
+const boutsPages = (spec: string) => spec.replace(/\s*[-–]\s*/g, '-').split(/[\s,;]+/).filter(Boolean);
+/** Texte de pages lisible (vide compris : toutes) ? */
+export const pagesValides = (spec: string) => boutsPages(spec).every((b) => BOUT_PAGES.test(b) && b !== '-');
+/** Pages choisies d'un PDF de `total` pages, dans l'ordre ; toutes si rien (de lisible) n'est choisi. */
+export function pagesChoisies(spec: string | undefined, total: number): number[] {
+  const choisies = new Set<number>();
+  if (spec && pagesValides(spec)) {
+    for (const b of boutsPages(spec)) {
+      const [de, a] = b.includes('-') ? b.split('-').map((x, i) => (x ? Number(x) : i ? total : 1)) : [Number(b), Number(b)];
+      for (let p = Math.max(1, de); p <= Math.min(total, a); p++) choisies.add(p);
+    }
+  }
+  return choisies.size ? [...choisies].sort((x, y) => x - y) : Array.from({ length: total }, (_, i) => i + 1);
 }
 
 export interface Annexe {
@@ -79,12 +98,14 @@ export function annexesDe(tasks: Task[], exclues: string[] = []): Annexe[] {
  * tâches du document, cochée s'il est joint, et pour une photo ou un PDF, sa mise en page (comme les autres, ou pleine
  * page, 2 ou 4 par page). `exclues` : ceux retirés ; `note` : précision sous la liste.
  */
-export function ChoixAnnexes({ tasks, exclues, onChange, miseEnPage, onFormat, disabled, note }: {
+export function ChoixAnnexes({ tasks, exclues, onChange, miseEnPage, onFormat, onPages, disabled, note }: {
   tasks: Task[];
   exclues: string[];
   onChange: (exclues: string[]) => void;
   miseEnPage?: MiseEnPageAnnexes;
   onFormat?: (id: string, n: ParPage | undefined) => void;
+  /** Pages à imprimer d'un PDF (undefined : toutes). */
+  onPages?: (id: string, pages: string | undefined) => void;
   disabled?: boolean;
   note?: string;
 }) {
@@ -125,6 +146,9 @@ export function ChoixAnnexes({ tasks, exclues, onChange, miseEnPage, onFormat, d
                 {PAR_PAGE.map((n) => <option key={n} value={n}>{n === 1 ? 'Pleine page' : `${n} par page`}</option>)}
               </select>
             )}
+            {onPages && estPdf(a.d) && (
+              <PagesPdf d={a.d} valeur={miseEnPage?.pages?.[a.d.id] ?? ''} disabled={disabled || exclues.includes(a.d.id)} onValider={(v) => onPages(a.d.id, v || undefined)} />
+            )}
           </li>
         ))}
       </ul>
@@ -139,9 +163,59 @@ export function ChoixAnnexes({ tasks, exclues, onChange, miseEnPage, onFormat, d
   );
 }
 
-/** Précision de la liste des annexes : la tâche, l'adresse d'un lien, où trouver un fichier non reproduit. */
-export const annexeInfo = (a: Annexe) =>
-  [a.t.titre, a.d.kind === 'lien' ? a.d.url : a.t.source ? `fichier de « ${a.t.source.unite} »` : !annexeVisible(a.d) ? 'fichier à part' : '']
+/**
+ * Champ « Pages » d'un PDF joint : celles à imprimer (« 1-3, 5 » ; vide : toutes), enregistrées en quittant le champ ou
+ * avec Entrée (pas à chaque touche : le choix est commun et partagé).
+ */
+function PagesPdf({ d, valeur, disabled, onValider }: { d: TaskDoc; valeur: string; disabled?: boolean; onValider: (v: string) => void }) {
+  const [texte, setTexte] = useState(valeur);
+  const [total, setTotal] = useState<number>();
+  useEffect(() => setTexte(valeur), [valeur]);
+  useEffect(() => {
+    let actif = true;
+    void apercuPdf(d.id).then((p) => actif && p?.pages && setTotal(p.pages));
+    return () => {
+      actif = false;
+    };
+  }, [d.id]);
+  const valide = pagesValides(texte);
+  const valider = () => {
+    const v = texte.trim();
+    if (valide && v !== valeur) onValider(v);
+  };
+  if (total === 1 && !valeur) return null;
+  return (
+    <label className="choix-annexe-pages">
+      Pages
+      <input
+        value={texte}
+        disabled={disabled}
+        placeholder="toutes"
+        aria-label={`Pages à imprimer de « ${d.nom} »`}
+        aria-invalid={!valide || undefined}
+        title="Pages à imprimer, ex. 1-3, 5 (vide : toutes)"
+        onChange={(e) => setTexte(e.target.value)}
+        onBlur={valider}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            valider();
+          }
+        }}
+      />
+      {total && <small className="muted">sur {total}</small>}
+      {!valide && <small className="error">ex. 1-3, 5</small>}
+    </label>
+  );
+}
+
+/** Précision de la liste des annexes : la tâche, l'adresse d'un lien, où trouver un fichier non reproduit, les pages imprimées d'un PDF. */
+export const annexeInfo = (a: Annexe, pages?: Record<string, string>) =>
+  [
+    a.t.titre,
+    a.d.kind === 'lien' ? a.d.url : a.t.source ? `fichier de « ${a.t.source.unite} »` : !annexeVisible(a.d) ? 'fichier à part' : '',
+    pages?.[a.d.id] && pagesValides(pages[a.d.id]) ? `pages ${pages[a.d.id]} jointes` : '',
+  ]
     .filter(Boolean)
     .join(' · ');
 
@@ -206,8 +280,8 @@ export function useOuvrirDocs() {
 /** Numéros des annexes d'une tâche. */
 export const numerosDe = (annexes: Annexe[], t: Task) => annexes.filter((a) => a.t.id === t.id).map((a) => a.n);
 
-/** Liste des annexes (partie « Annexes » du document). */
-export function ListeAnnexes({ annexes }: { annexes: Annexe[] }) {
+/** Liste des annexes (partie « Annexes » du document). `pages` : pages jointes de certains PDF. */
+export function ListeAnnexes({ annexes, pages }: { annexes: Annexe[]; pages?: Record<string, string> }) {
   if (!annexes.length) return null;
   return (
     <section className="pv-part">
@@ -216,7 +290,7 @@ export function ListeAnnexes({ annexes }: { annexes: Annexe[] }) {
         {annexes.map((a) => (
           <li key={a.d.id}>
             {a.d.kind === 'lien' ? <a href={a.d.url} target="_blank" rel="noreferrer">{a.d.nom}</a> : <NomFichier d={a.d}>{a.d.nom}</NomFichier>}
-            <span className="odj-meta"> ({annexeInfo(a)})</span>
+            <span className="odj-meta"> ({annexeInfo(a, pages)})</span>
           </li>
         ))}
       </ol>
@@ -243,8 +317,9 @@ function ImageAnnexe({ d, page, alt }: { d: TaskDoc; page?: number; alt: string 
 }
 
 /**
- * Fichiers joints à la fin du document : photos et pages de PDF, autant par page imprimée que le dit `miseEnPage`
- * (une page ne mélange pas deux mises en page : un fichier en pleine page commence une nouvelle page).
+ * Fichiers joints à la fin du document : photos et pages de PDF (celles choisies), autant par page imprimée que le dit
+ * `miseEnPage`. Une page ne mélange pas deux mises en page ; elles sont regroupées (dans l'ordre où chacune apparaît)
+ * pour ne pas laisser de pages à moitié vides : les tickets à 4 par page ensemble, puis les PDF en pleine page…
  */
 export function PagesAnnexes({ annexes, miseEnPage }: { annexes: Annexe[]; miseEnPage: MiseEnPageAnnexes }) {
   const fichiers = annexes.filter(annexeReproduite);
@@ -263,7 +338,7 @@ export function PagesAnnexes({ annexes, miseEnPage }: { annexes: Annexe[]; miseE
   }, [cle]);
   if (!fichiers.length) return null;
 
-  // Une case par photo et par page de PDF, dans l'ordre des annexes.
+  // Une case par photo et par page de PDF choisie, dans l'ordre des annexes.
   type Case = { key: string; a: Annexe; page?: number; total?: number; note?: string };
   const cases: Case[] = [];
   for (const a of fichiers) {
@@ -272,17 +347,17 @@ export function PagesAnnexes({ annexes, miseEnPage }: { annexes: Annexe[]; miseE
     else if (pages[a.d.id] === null) cases.push({ key: a.d.id, a, note: 'PDF illisible ou introuvable : voir le fichier.' });
     else {
       const total = pages[a.d.id]!;
-      for (let p = 1; p <= Math.min(total, MAX_PAGES); p++) cases.push({ key: `${a.d.id}:${p}`, a, page: p, total });
-      if (total > MAX_PAGES) cases.push({ key: `${a.d.id}:suite`, a, note: `Pages ${MAX_PAGES + 1} à ${total} : voir le fichier.` });
+      const choisies = pagesChoisies(miseEnPage.pages?.[a.d.id], total);
+      choisies.slice(0, MAX_PAGES).forEach((p) => cases.push({ key: `${a.d.id}:${p}`, a, page: p, total }));
+      if (choisies.length > MAX_PAGES) cases.push({ key: `${a.d.id}:suite`, a, note: `Pages ${choisies[MAX_PAGES]} et suivantes : voir le fichier.` });
     }
   }
-  const feuilles: { n: ParPage; cases: Case[] }[] = [];
+  const groupes = new Map<ParPage, Case[]>();
   for (const c of cases) {
     const n = parPageDe(miseEnPage, c.a.d);
-    const f = feuilles[feuilles.length - 1];
-    if (f && f.n === n && f.cases.length < n) f.cases.push(c);
-    else feuilles.push({ n, cases: [c] });
+    groupes.set(n, [...(groupes.get(n) ?? []), c]);
   }
+  const feuilles = [...groupes].flatMap(([n, cs]) => Array.from({ length: Math.ceil(cs.length / n) }, (_, i) => ({ n, cases: cs.slice(i * n, i * n + n) })));
 
   return (
     <>

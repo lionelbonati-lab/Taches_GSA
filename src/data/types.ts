@@ -483,6 +483,8 @@ export interface Meeting {
   odjAnnexesExclues?: string[];
   /** Mise en page choisie pour certains fichiers joints à l'ordre du jour (identifiant → photos ou pages par page). */
   odjAnnexesFormats?: Record<string, 1 | 2 | 4>;
+  /** Pages à imprimer de certains PDF joints à l'ordre du jour (identifiant → « 1-3, 5 ») ; les autres en entier. */
+  odjAnnexesPages?: Record<string, string>;
   /** Séance ponctuelle : ne revient pas l'année suivante (par défaut, une séance revient chaque année le même mois). */
   unique?: boolean;
 }
@@ -527,6 +529,8 @@ export interface MeetingMinutes {
   annexesExclues?: string[];
   /** Mise en page choisie pour certains fichiers joints au PV ; absent : celle de l'ordre du jour (fixée à la validation). */
   annexesFormats?: Record<string, 1 | 2 | 4>;
+  /** Pages à imprimer de certains PDF joints au PV ; absent : celles de l'ordre du jour (fixées à la validation). */
+  annexesPages?: Record<string, string>;
   /** Changements de tâches faits depuis l'onglet PV (seuls ceux-ci figurent dans le PV). */
   journal?: MinutesChange[];
   /** Tâches créées pendant la séance (« nouvelle tâche décidée »). */

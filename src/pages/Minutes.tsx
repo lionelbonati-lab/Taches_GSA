@@ -14,7 +14,7 @@ import { nomAppli } from '../data/nomAppli';
 import { archiveHtml } from '../data/entete';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
-import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, avecFormat, type ParPage, docsTexte, numerosDe, useOuvrirDocs } from '../components/Annexes';
+import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, avecChoix, type ParPage, docsTexte, numerosDe, useOuvrirDocs } from '../components/Annexes';
 import { useClubOptional } from '../data/club';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { margesMm, styleVars } from '../data/styleDocs';
@@ -419,7 +419,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
   const annexes = annexesDe(tachesPv, exclues);
   // Mise en page : photos et PDF selon les options du PV ; un fichier réglé à part, comme dans l'ordre du jour tant que
   // le PV n'a pas son propre choix.
-  const miseEnPage = { photos: opts.annexesParPage, pdf: opts.annexesPdfParPage, fichiers: m.annexesFormats ?? s1?.odjAnnexesFormats };
+  const miseEnPage = { photos: opts.annexesParPage, pdf: opts.annexesPdfParPage, fichiers: m.annexesFormats ?? s1?.odjAnnexesFormats, pages: m.annexesPages ?? s1?.odjAnnexesPages };
   const joints = opts.annexes ? annexes : [];
   // Numéros d'annexe à côté du titre, quand les documents ne sont pas nommés (sinon : avec leur nom).
   const numeros = (t: Task) => (opts.documents && t.documents?.length ? [] : numerosDe(joints, t));
@@ -472,7 +472,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     }
     if (opts.annexes && annexes.length) {
       out.push('', 'ANNEXES');
-      annexes.forEach((a) => out.push(`   ${a.n}. ${a.d.nom} (${annexeInfo(a)})`));
+      annexes.forEach((a) => out.push(`   ${a.n}. ${a.d.nom} (${annexeInfo(a, miseEnPage.pages)})`));
     }
     if (deleted.length) out.push('', `Tâches supprimées : ${deleted.join(', ')}`);
     if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${s2.heure ? ` à ${hm(s2.heure)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
@@ -517,6 +517,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       // Fichiers joints : le choix du moment est fixé (l'ordre du jour peut encore changer).
       mm.annexesExclues = mm.annexesExclues ?? x.odjAnnexesExclues ?? [];
       mm.annexesFormats = mm.annexesFormats ?? x.odjAnnexesFormats;
+      mm.annexesPages = mm.annexesPages ?? x.odjAnnexesPages;
       const { derniereValidee: _old, ...copyOf } = mm;
       void _old;
       mm.derniereValidee = structuredClone(copyOf);
@@ -704,7 +705,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       {s2 && (
         <p className="pv-next"><b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{s2.heure && ` à ${hm(s2.heure)}`} – Lieu : <LieuSeance m={s2} /></p>
       )}
-      {opts.annexes && <ListeAnnexes annexes={annexes} />}
+      {opts.annexes && <ListeAnnexes annexes={annexes} pages={miseEnPage.pages} />}
       <footer className="pv-foot">
         PV établi par {fullName(secretaire ?? user ?? undefined)} le {fmtDate(today())}
         {m.valideLe && !m.enCorrection && ` · version ${version} validée le ${fmtDate(m.valideLe.slice(0, 10))}`} · {nomAppli()}
@@ -895,7 +896,8 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                 exclues={exclues}
                 onChange={(ids) => setMinutes((x) => { x.annexesExclues = ids; })}
                 miseEnPage={miseEnPage}
-                onFormat={(id, n) => setMinutes((x) => { x.annexesFormats = avecFormat(x.annexesFormats ?? s1?.odjAnnexesFormats, id, n) ?? {}; })}
+                onFormat={(id, n) => setMinutes((x) => { x.annexesFormats = avecChoix(x.annexesFormats ?? s1?.odjAnnexesFormats, id, n) ?? {}; })}
+                onPages={(id, p) => setMinutes((x) => { x.annexesPages = avecChoix(x.annexesPages ?? s1?.odjAnnexesPages, id, p) ?? {}; })}
                 disabled={!editable}
                 note={m.annexesExclues ? undefined : s1?.odjAnnexesExclues?.length ? 'Choix repris de l’ordre du jour de la séance.' : undefined}
               />

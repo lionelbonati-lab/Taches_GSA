@@ -1738,12 +1738,16 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .choix-annexes .doc-icon { width: 40px; text-align: center; flex: none; }
 .choix-annexe-nom { display: flex; flex-direction: column; min-width: 0; overflow-wrap: anywhere; font-size: .85rem; }
 .choix-annexe-nom small { font-size: .75rem; }
-.choix-annexes li:has(input:not(:checked)) .choix-annexe-nom, .choix-annexes li:has(input:not(:checked)) img { opacity: .5; }
+.choix-annexes li:has(input[type=checkbox]:not(:checked)) .choix-annexe-nom, .choix-annexes li:has(input[type=checkbox]:not(:checked)) img { opacity: .5; }
 .choix-annexes .row { gap: 6px; margin: 2px 0 4px; }
 .choix-annexes li { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; }
 .choix-annexes li > label { flex: 1 1 100%; min-width: 0; }
 .choix-annexes .choix-annexe-format, .min-pv-options .choix-annexes .choix-annexe-format { box-sizing: border-box; width: auto; min-width: 0; max-width: calc(100% - 26px); margin: 0 0 4px 26px; padding: 2px 6px; font-size: .8rem; }
-.choix-annexes li:has(input:not(:checked)) .choix-annexe-format { display: none; }
+.choix-annexes li:has(input[type=checkbox]:not(:checked)) :is(.choix-annexe-format, .choix-annexe-pages) { display: none; }
+.choix-annexes li > label.choix-annexe-pages, .pv-settings .choix-annexes li > label.choix-annexe-pages { flex: 0 1 auto; flex-wrap: wrap; gap: 4px 6px; margin: 0 0 4px 26px; font-size: .8rem; color: var(--muted); cursor: default; }
+.choix-annexe-pages input { box-sizing: border-box; width: 90px; min-width: 0; margin: 0; padding: 2px 6px; font-size: .8rem; }
+.choix-annexe-pages input[aria-invalid] { border-color: var(--danger); }
+.choix-annexe-pages .error { margin: 0; }
 .btn.link.danger-link { color: var(--danger); }
 
 /* ---------- PDF créé dans l'appli (pdfDoc.ts) : copie de la feuille hors de l'écran, règles de l'impression ---------- */
