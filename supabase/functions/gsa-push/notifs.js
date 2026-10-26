@@ -485,6 +485,22 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
     if (n.userId !== user.id) continue;
     const nouvelle = ["assign", "info", "propose", "pris", "refus"].includes(n.type);
     if (nouvelle && !p.assign || !nouvelle && !p.modif) continue;
+    if (n.type === "comment") {
+      const ici = data.tasks.find((x) => x.id === n.taskId);
+      const recue = ici ? void 0 : pourInfo.find((x) => `x:${x.uniteId}:${x.task.id}` === n.taskId);
+      const titre = ici?.titre ?? recue?.task.titre ?? n.titre;
+      if (titre === void 0) continue;
+      items.push({
+        key: n.id,
+        icon: "💬",
+        text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} a commenté « ${titre} »`,
+        sub: n.detail,
+        link: recue ? `/taches?pourinfo=${recue.uniteId}:${recue.task.id}` : `/taches?tache=${n.taskId}`,
+        at: n.at,
+        kind: "activite"
+      });
+      continue;
+    }
     const t = data.tasks.find((x) => x.id === n.taskId);
     if (!t || t.paiement && n.type === "assign") continue;
     if (n.type === "propose" && (!aPrendrePourMoi(t, user.id) || isDone(data, t))) continue;

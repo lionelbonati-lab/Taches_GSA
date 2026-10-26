@@ -427,6 +427,18 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .grid2 + .bloc-compteurs, .accueil-bloc:not(.bloc-edition) + .bloc-compteurs { margin-top: 16px; }
 .chip-add { width: auto; max-width: 100%; border-radius: 999px; padding: 5px 10px; font-size: 0.85rem; }
 .task-plus { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--border); }
+/* Discussion sur une tâche (049) : commentaires, puis le champ pour en écrire un. */
+.discussion { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px dashed var(--border); }
+.discussion .field-label { margin-bottom: 0; }
+.discussion-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.discussion-liste li { background: var(--surface2); border-radius: var(--radius); padding: 6px 10px; }
+.discussion-liste li.discussion-mien { background: var(--primary-soft); }
+.discussion-tete { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px; font-size: 0.85rem; }
+.discussion-tete .btn.link { margin-left: auto; padding: 0 4px; }
+.discussion-tete .btn.link + .btn.link { margin-left: 0; }
+.discussion-texte { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.discussion-saisie { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 6px; }
+.discussion-saisie textarea { flex: 1 1 220px; min-width: 0; resize: vertical; }
 .task-plus > span { font-size: 0.85rem; color: var(--muted); margin-right: 2px; }
 .liens > .form { gap: 10px; }
 .linked .field-label { margin-bottom: 6px; }

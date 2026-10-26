@@ -5,7 +5,7 @@ import { applyDelaiRef, fmtDate, fullName, isDone, postesFor, today, uid } from 
 import type { ActivityNotif, AppData, OrgUnit, Permission, Person, Poll, Prefs, ScheduledEmail, Task, TaskDoc } from './types';
 import { clearFiles, deleteFiles, getFile, saveFile } from './files';
 import { avecSondages, avecVote, finSondage, sondageEnregistre } from './polls';
-import { applyRows, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
+import { applyRows, commenterTache, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
 import { ajouterVus, clesVu, encoreMontree, epurerPourInfo, pourMoi, recuePourMoi } from './pourInfo';
@@ -15,6 +15,7 @@ import { migrate } from './migrate';
 import { ajouterSuivante, idDe, preparerSuivante } from './suivante';
 import type { CloudMode, DemoMode, Store } from './storeTypes';
 import { useRecus } from './recus';
+import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
 import { usePileAnnulation } from './pileAnnulation';
 
 export type { CloudMode, DemoMode } from './storeTypes';
@@ -316,6 +317,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       task.pourInfo = task.paiement ? undefined : epurerPourInfo(task.pourInfo, task.responsables);
       task.aPrendre = task.paiement ? undefined : epurerAPrendre(task.aPrendre, task.responsables, task.respPartage);
       const before = data.tasks.find((x) => x.id === task.id);
+      // Écrits par le serveur (discussion, « Vu ») : ceux de la tâche enregistrée, pas ceux de la fenêtre ouverte plus tôt.
+      task.commentaires = isNew ? undefined : before?.commentaires;
+      task.pourInfoVus = isNew ? undefined : before?.pourInfoVus;
       // Proposée à d'autres personnes : c'est la personne connectée qui est prévenue des réponses.
       if (task.aPrendre && userId && task.aPrendre.personnes.some((id) => !before?.aPrendre?.personnes.includes(id))) task.aPrendre.par = userId;
       // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
@@ -475,6 +479,51 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       }, `${fullName(user)} a vu la tâche « ${x.titre} » (pour info)`, { annulable: false });
     },
     [user, userId, data, cloud, update, chargerPartagees],
+  );
+
+  // Discussion (049) : version réelle, le serveur écrit le commentaire et prévient les personnes concernées, puis la tâche
+  // est relue ; démo : ici. Tâche d'une autre entité : enregistré dans son entité.
+  const commenter = useCallback(
+    async (tacheId: string, a: ActionCommentaire, uniteId?: string) => {
+      if (!user) throw new Error('Connecte-toi d’abord.');
+      const c = clubRef.current;
+      const ici = c?.current.id ?? '';
+      const le = new Date().toISOString();
+      if (c && uniteId && uniteId !== ici) {
+        // Démo : la tâche dans son entité avant le commentaire, pour prévenir les personnes d'ici.
+        const avant = [...partagees, ...pourInfoRecus].find((x) => x.uniteId === uniteId && x.task.id === tacheId)?.task;
+        try {
+          await c.commenter(uniteId, tacheId, a);
+        } finally {
+          chargerPartagees();
+        }
+        if (cloud || a.cle || !avant) return;
+        const notifs = notifsCommentaire(destinatairesCommentaire(avant, uniteId, user.id, ici)[ici] ?? [], { entite: ici, unite: uniteId, tache: tacheId, titre: avant.titre, moi: user.id, depuis: ici, nom: fullName(user), nomDepuis: c.current.nom, texte: a.texte ?? '', le });
+        if (notifs.length) update((d) => { d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300); }, `${fullName(user)} a commenté la tâche « ${avant.titre} » (${c.units.find((u) => u.id === uniteId)?.nom ?? 'autre entité'})`, { annulable: false });
+        return;
+      }
+      const x = data.tasks.find((y) => y.id === tacheId);
+      if (!x) throw new Error('Tâche introuvable');
+      if (cloud) {
+        if (!c) throw new Error('Club introuvable');
+        await cloud.sync.flushNow();
+        await commenterTache(ici, x.id, ici, a);
+        const fresh = await cloud.sync.fetchRows([{ kind: 'tasks', id: x.id }]);
+        setData((prev) => applyRows(prev, fresh, cloud.sync.posOf));
+        return;
+      }
+      if (x.paiement) throw new Error('Pas de discussion sur un ticket de paiement');
+      const commentaires = appliquerCommentaire(x.commentaires, a, { moi: user.id, nom: fullName(user), depuis: ici, unite: ici, admin: hasPermission(myRoles, 'admin.access'), le });
+      const notifs = a.cle ? [] : notifsCommentaire(
+        (destinatairesCommentaire(x, ici, user.id, ici)[ici] ?? []).filter((id) => data.people.some((p) => p.id === id && p.actif)),
+        { entite: ici, unite: ici, tache: x.id, titre: x.titre, moi: user.id, depuis: ici, nom: fullName(user), nomDepuis: c?.current.nom ?? '', texte: a.texte ?? '', le },
+      );
+      update((d) => {
+        d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, commentaires: commentaires.length ? commentaires : undefined } : y));
+        if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
+      }, `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} la tâche « ${x.titre} »`, { annulable: false });
+    },
+    [user, data, cloud, update, chargerPartagees, partagees, pourInfoRecus, myRoles],
   );
 
   const markNotifsRead = useCallback(
@@ -724,6 +773,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     prendreTache,
     pasDispo,
     vuPourInfo,
+    commenter,
     toast,
     setToast,
     markNotifsRead,

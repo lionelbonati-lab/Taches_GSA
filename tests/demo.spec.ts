@@ -51,6 +51,33 @@ test('tâche créée avec checklist et répétition, retrouvée à la réouvertu
   await expect(rouverte.locator('.recur-note').first()).toBeVisible();
 });
 
+test('discussion : commenter, corriger puis retirer un commentaire', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Tâche discutée');
+  await expect(fiche.getByLabel('Nouveau commentaire')).toHaveCount(0);
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  await page.locator('main').getByText('Tâche discutée').filter({ visible: true }).first().click();
+  const rouverte = page.locator('.modal').first();
+  const discussion = rouverte.getByRole('region', { name: 'Discussion' });
+  await discussion.getByLabel('Nouveau commentaire').fill('Qui apporte la rallonge ?');
+  await discussion.getByRole('button', { name: 'Envoyer' }).click();
+  await expect(discussion.locator('.discussion-liste li')).toHaveCount(1);
+  await expect(discussion.locator('.discussion-liste li')).toContainText('Qui apporte la rallonge ?');
+  await expect(discussion.getByLabel('Nouveau commentaire')).toHaveValue('');
+
+  await discussion.getByRole('button', { name: 'Corriger' }).click();
+  await discussion.getByLabel('Corriger le commentaire').fill('Qui apporte les rallonges ?');
+  await discussion.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(discussion.locator('.discussion-liste li')).toContainText('Qui apporte les rallonges ?');
+  await expect(discussion.locator('.discussion-liste li')).toContainText('corrigé');
+
+  page.once('dialog', (d) => void d.accept());
+  await discussion.getByRole('button', { name: 'Retirer' }).click();
+  await expect(discussion.locator('.discussion-liste li')).toHaveCount(0);
+});
+
 test('nouvelle tâche : À prendre et Pour info s’ajoutent', async ({ page }) => {
   const fiche = await nouvelleTache(page, 'Tenir le stand');
   await fiche.locator('.chip', { hasText: 'À prendre' }).click();

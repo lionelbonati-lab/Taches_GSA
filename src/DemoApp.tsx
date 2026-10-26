@@ -14,6 +14,7 @@ import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
 import { ajouterVus, clesVu } from './data/pourInfo';
+import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire } from './data/commentaires';
 import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
 import { App } from './App';
@@ -509,6 +510,35 @@ export function DemoApp() {
         if (vus === old.pourInfoVus) return;
         d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, pourInfoVus: vus } : x));
         saveUnitData(uniteId, d);
+      },
+      // Discussion sur une tâche d'une autre entité, partagée avec l'entité ouverte ou reçue pour info (version réelle :
+      // gsa_commenter, 049). Les personnes prévenues dans les autres entités le sont ici ; celles d'ici, par le store.
+      async commenter(uniteId, tacheId, a) {
+        const u = units.find((x) => x.id === uniteId);
+        const d = loadUnitData(uniteId);
+        const old = d.tasks.find((t) => t.id === tacheId);
+        const ici = loadUnitData(current.id);
+        const fiche = ici.people.find((x) => x.actif && personKey(x, current.id) === me);
+        if (!fiche) throw new Error('Réservé aux membres de l’entité.');
+        if (!u || u.archive || !old) throw new Error('Tâche introuvable');
+        if (old.paiement) throw new Error('Pas de discussion sur un ticket de paiement');
+        const partagee = tacheDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)) === 'modifiable';
+        if (!partagee && !clesVu(old, uniteId, current.id, fiche.id, hasPermission(userRoles(ici.roles, fiche), 'tasks.viewAll')).length)
+          throw new Error('Tu ne vois pas cette tâche');
+        const nom = `${fiche.prenom} ${fiche.nom}`.trim();
+        const le = new Date().toISOString();
+        const commentaires = appliquerCommentaire(old.commentaires, a, { moi: fiche.id, nom, depuis: current.id, unite: uniteId, admin: false, le });
+        d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, commentaires: commentaires.length ? commentaires : undefined } : x));
+        saveUnitData(uniteId, d);
+        if (a.cle) return;
+        for (const [e, fiches] of Object.entries(destinatairesCommentaire(old, uniteId, fiche.id, current.id))) {
+          if (e === current.id || !units.some((x) => x.id === e && !x.archive)) continue;
+          const de = e === uniteId ? d : loadUnitData(e);
+          const notifs = notifsCommentaire(fiches.filter((f) => de.people.some((p) => p.id === f && p.actif)), { entite: e, unite: uniteId, tache: old.id, titre: old.titre, moi: fiche.id, depuis: current.id, nom, nomDepuis: current.nom, texte: a.texte ?? '', le });
+          if (!notifs.length) continue;
+          de.notifications = [...notifs, ...(de.notifications ?? [])].slice(0, 300);
+          saveUnitData(e, de);
+        }
       },
       async destinatairesPourInfo(uniteId, tacheId) {
         const t = loadUnitData(uniteId).tasks.find((x) => x.id === tacheId);

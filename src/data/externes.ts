@@ -163,6 +163,7 @@ export function versEntite(
     pourInfo,
     // Les « ✓ Vu » (clés d'ici) ne suivent pas : la tâche repart chez l'entité.
     pourInfoVus: undefined,
+    commentaires: undefined,
     aPrendre,
     attribueePar: { uniteId: comite.id, unite: comite.nom, par: ctx.par, le: ctx.aujourdhui },
     updatedAt: new Date().toISOString(),

@@ -1,6 +1,7 @@
 import type { Mode } from './mode';
 import type { CloudSync, Membership } from './cloud';
 import type { Externes } from './externes';
+import type { ActionCommentaire } from './commentaires';
 import type { AppData, OrgUnit, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, TachePartagee, Task } from './types';
 
 // Ce que la couche de données (store.tsx) donne aux écrans, et ses deux modes : démo et version réelle.
@@ -85,6 +86,12 @@ export interface Store {
    * info, partagée ; `tacheId` : son identifiant là-bas).
    */
   vuPourInfo: (cle: string, tacheId: string, uniteId?: string) => Promise<void>;
+  /**
+   * Discussion sur une tâche (049) : ajoute, corrige ou retire un commentaire ; les personnes concernées sont prévenues.
+   * `uniteId` : entité de la tâche quand ce n'est pas l'entité ouverte (partagée, reçue pour info ; `tacheId` : son
+   * identifiant là-bas).
+   */
+  commenter: (tacheId: string, a: ActionCommentaire, uniteId?: string) => Promise<void>;
   /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
   toast: string | null;
   setToast: (msg: string | null) => void;

@@ -290,6 +290,11 @@ export interface Task {
    * seulement (gsa_pour_info_vu, 046) ; l'appli ne fait que le lire.
    */
   pourInfoVus?: Record<string, VuPourInfo>;
+  /**
+   * Discussion sur la tâche (du plus ancien au plus récent). Écrite par le serveur seulement (gsa_commenter, 049) ;
+   * démo : par l'appli.
+   */
+  commentaires?: Commentaire[];
   /** À prendre : tâche proposée à quelques personnes ; l'une d'elles s'en charge elle-même (« 🙋 Je m'en charge »). */
   aPrendre?: APrendre;
   /** Section choisie par les entités du partage (par entité ; sinon rangée automatiquement). */
@@ -382,6 +387,21 @@ export interface PourInfo {
 /** « ✓ Vu » d'une tâche pour info : quand. */
 export interface VuPourInfo {
   le: string;
+}
+
+/** Commentaire de la discussion d'une tâche. */
+export interface Commentaire {
+  id: string;
+  /** Fiche de l'auteur, dans son entité (`u`, sinon celle de la tâche). */
+  par: string;
+  /** Entité de l'auteur, quand ce n'est pas celle de la tâche (tâche partagée ou reçue pour info). */
+  u?: string;
+  /** Nom de l'auteur au moment du commentaire. */
+  nom: string;
+  le: string;
+  texte: string;
+  /** Corrigé par son auteur. */
+  modifieLe?: string;
 }
 
 /**
@@ -715,15 +735,18 @@ export interface ActivityNotif {
   userId: string;
   /**
    * info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge, refus : quelqu'un
-   * n'est pas dispo (à l'auteur de la tâche).
+   * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur ;
+   * tâche d'une autre entité : taskId « x:<entité>:<tâche> »).
    */
-  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus';
+  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus' | 'comment';
   taskId: string;
   by: string;
   /** Auteur hors de l'entité (membre du comité central) : son nom, à afficher tel quel. */
   byName?: string;
   at: string;
   detail?: string;
+  /** Titre de la tâche au moment de la notification (commentaire : la tâche peut être d'une autre entité). */
+  titre?: string;
 }
 
 export interface AppData {

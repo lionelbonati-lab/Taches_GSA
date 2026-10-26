@@ -229,6 +229,23 @@ export function computeNotifications(
     if (n.userId !== user.id) continue;
     const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus'].includes(n.type);
     if ((nouvelle && !p.assign) || (!nouvelle && !p.modif)) continue;
+    if (n.type === 'comment') {
+      // Tâche d'ici, partagée (affichée ici) ou reçue pour info ; sinon (serveur : tâches partagées non lues), son titre.
+      const ici = data.tasks.find((x) => x.id === n.taskId);
+      const recue = ici ? undefined : pourInfo.find((x) => `x:${x.uniteId}:${x.task.id}` === n.taskId);
+      const titre = ici?.titre ?? recue?.task.titre ?? n.titre;
+      if (titre === undefined) continue;
+      items.push({
+        key: n.id,
+        icon: '💬',
+        text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} a commenté « ${titre} »`,
+        sub: n.detail,
+        link: recue ? `/taches?pourinfo=${recue.uniteId}:${recue.task.id}` : `/taches?tache=${n.taskId}`,
+        at: n.at,
+        kind: 'activite',
+      });
+      continue;
+    }
     const t = data.tasks.find((x) => x.id === n.taskId);
     if (!t || (t.paiement && n.type === 'assign')) continue; // les tickets ont leur propre alerte
     // Tâche à prendre : plus rien à faire si quelqu'un s'en charge déjà (ou si elle est terminée).

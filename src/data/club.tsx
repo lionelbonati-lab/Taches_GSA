@@ -3,6 +3,7 @@ import type { Carte, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleP
 import { uid } from './utils';
 import type { OpOrga } from './organigramme';
 import type { DemandeMdp } from './cloud';
+import type { ActionCommentaire } from './commentaires';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
 // L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
@@ -176,6 +177,11 @@ export interface Club {
    * pour son auteur (version réelle : gsa_pour_info_vu, 046).
    */
   vuPourInfo: (uniteId: string, tacheId: string) => Promise<void>;
+  /**
+   * Discussion (049) sur une tâche de l'entité `uniteId` partagée avec l'entité ouverte ou reçue pour info : commentaire
+   * ajouté, corrigé ou retiré dans l'entité de la tâche ; ses personnes concernées sont prévenues.
+   */
+  commenter: (uniteId: string, tacheId: string, a: ActionCommentaire) => Promise<void>;
   /**
    * Personnes qui reçoivent une tâche de l'entité `uniteId` au titre des entités mentionnées en entier pour info (leurs
    * admins et rôles « Voir toutes les tâches », avec un compte) : entité → fiches ; null : le serveur ne le dit pas

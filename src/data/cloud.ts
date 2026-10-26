@@ -906,6 +906,15 @@ export async function pourInfoVu(unite: string, tache: string, depuis: string) {
   if (error) throw new Error(absente(error) ? 'Le serveur n’enregistre pas encore les « Vu » sur les tâches (mise à jour 046 à appliquer).' : error.message);
 }
 
+/**
+ * Discussion (049) : ajoute un commentaire sur la tâche `tache` de l'entité `unite`, depuis l'entité ouverte `depuis` (la
+ * même ou une autre du club), ou corrige / retire le commentaire `cle`. Le serveur prévient les personnes concernées.
+ */
+export async function commenterTache(unite: string, tache: string, depuis: string, a: { texte?: string; cle?: string; supprimer?: boolean }) {
+  const { error } = await sb().rpc('gsa_commenter', { unite, tache, depuis, texte: a.texte ?? null, cle: a.cle ?? null, supprimer: !!a.supprimer });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore la discussion sur les tâches (mise à jour 049 à appliquer).' : error.message);
+}
+
 /** Personnes qui reçoivent la tâche au titre des entités mentionnées en entier : entité → fiches ; null sans 046. */
 export async function pourInfoDestinataires(unite: string, tache: string) {
   const { data, error } = await sb().rpc('gsa_pour_info_destinataires', { unite, tache });

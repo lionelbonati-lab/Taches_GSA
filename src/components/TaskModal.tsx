@@ -30,6 +30,7 @@ import { PourInfoChamp } from './tache/PourInfo';
 import { Checklist } from './tache/Checklist';
 import { Repetition } from './tache/Repetition';
 import { Rattachements } from './tache/Rattachements';
+import { Discussion } from './tache/Discussion';
 
 export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string };
 
@@ -261,7 +262,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const peutDupliquer = !isNew && !task.source && !task.paiement && creatableSections().some((s) => s.id === task.sectionId);
   const dupliquer = () => {
     const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
-    const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, pourInfoVus, ...reste } = task;
+    const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, pourInfoVus, commentaires, ...reste } = task;
     setOther({
       task: {
         ...reste,
@@ -644,6 +645,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             )}
           </small>
         )}
+        {/* Discussion : celle de la tâche enregistrée (relue en direct), pas celle de la fenêtre. */}
+        {!isNew && <Discussion className="full" liste={(data.tasks.find((x) => x.id === task.id) ?? task).commentaires} tacheId={task.source?.id ?? task.id} uniteId={task.source?.uniteId} />}
         {!isNew && (
           <small className="muted full">
             Dernière modification : {fmtDateTime(task.updatedAt)}{task.modifiePar ? ` par ${task.modifiePar}` : ''} ·{' '}

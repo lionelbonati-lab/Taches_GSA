@@ -314,6 +314,7 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     aPrendre: aPrendreSuivante(t.aPrendre),
     // Les « ✓ Vu » concernaient cette occurrence-ci.
     pourInfoVus: undefined,
+    commentaires: undefined,
     checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
     parentId: nextParent(data, t),
     // L'événement de cette année ne concerne pas l'occurrence suivante (sauf un événement qui se répète : son occurrence
