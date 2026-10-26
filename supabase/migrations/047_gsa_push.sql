@@ -12,7 +12,7 @@
 -- public.gsa_push_abonner(text, text, text, text), public.gsa_push_desabonner(text), public.gsa_push_etat(text);
 -- drop table public.gsa_push_envois, public.gsa_push_abonnements, public.gsa_push_reglages.
 
-create extension if not exists pg_net;
+create extension if not exists pg_net with schema extensions;
 
 -- Une seule ligne. cle_lancement : jeton que la planification envoie à la fonction (64 caractères hexadécimaux tirés au
 -- hasard). vapid_* : clés d'identité du serveur auprès des services de notification (Google, Apple, Mozilla…),
