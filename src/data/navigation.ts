@@ -4,9 +4,11 @@ import { UNIT_TYPES } from './units';
 
 // Navigation : quelques rubriques, chacune avec ses pages (sous-onglets). Les adresses des pages ne changent pas
 // (liens déjà envoyés, raccourcis installés). Le texte « aide » s'affiche en haut de la page et dans « Comment ça marche ? ».
+// Sur téléphone, la barre du bas montre jusqu'à BARRE_MAX rubriques au choix de chacun (`mobile` : celles d'origine), les
+// autres sont dans « Plus ».
 
 export type NavPage = { to: string; label: string; icon: IconeNom; aide: string; perm?: Permission; club?: boolean; registre?: boolean; demandes?: boolean; superAdmin?: boolean };
-export type NavRubrique = { id: string; label: string; icon: IconeNom; mobile?: boolean; pages: NavPage[] };
+export type NavRubrique = { id: string; label: string; court?: string; icon: IconeNom; mobile?: boolean; pages: NavPage[] };
 
 const RUBRIQUES: NavRubrique[] = [
   {
@@ -27,6 +29,20 @@ const RUBRIQUES: NavRubrique[] = [
         label: 'Tâches',
         icon: 'taches',
         aide: 'Toutes les tâches, remboursements et paiements de factures. Clique sur une tâche pour l’ouvrir ; le bouton « + » en ajoute une.',
+      },
+    ],
+  },
+  {
+    id: 'messages',
+    label: 'Messages',
+    icon: 'message',
+    mobile: true,
+    pages: [
+      {
+        to: '/messages',
+        label: 'Messages',
+        icon: 'message',
+        aide: 'Les discussions des tâches, comme une messagerie : la plus récente en haut, les non lues en gras avec leur nombre. Touche une discussion pour l’ouvrir ; « Nouvelle discussion » en lance une sur une tâche.',
       },
     ],
   },
@@ -61,13 +77,19 @@ const RUBRIQUES: NavRubrique[] = [
         perm: 'tab.minutes',
         aide: 'Pendant la séance : présences, notes sous chaque point, nouvelles tâches. Ensuite : valider et envoyer le PV.',
       },
-      { to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli.' },
     ],
+  },
+  {
+    id: 'sondages',
+    label: 'Sondages',
+    icon: 'sondage',
+    pages: [{ to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli.' }],
   },
   {
     // L'organigramme du club n'est pas une rubrique : il s'ouvre depuis le menu des entités (en haut à gauche).
     id: 'personnes',
     label: 'Membres du club',
+    court: 'Membres',
     icon: 'membres',
     pages: [{ to: '/membres-club', label: 'Membres du club', icon: 'membres', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli ; on y gère aussi les accès de chacun aux entités.' }],
   },
@@ -129,6 +151,17 @@ export function navigation({ can, club, registre, type, demandes = false, superA
     return { ...r, label, icon: seule ? seule.icon : r.icon, pages };
   }).filter((r) => r.pages.length > 0);
   return { rubriques, compte: PAGES_COMPTE.filter(visible) };
+}
+
+/** Barre du bas (téléphone) : nombre de rubriques à côté de « Plus ». */
+export const BARRE_MAX = 5;
+export const BARRE_DEFAUT = RUBRIQUES.filter((r) => r.mobile).map((r) => r.id);
+
+/** Rubriques de la barre du bas, dans l'ordre choisi (`choix` : identifiants), sinon celles d'origine. */
+export function barreDuBas<R extends { id: string }>(rubriques: R[], choix?: string[]) {
+  const prendre = (ids: string[]) => ids.map((id) => rubriques.find((r) => r.id === id)).filter((r): r is R => !!r).slice(0, BARRE_MAX);
+  const barre = choix?.length ? prendre(choix) : [];
+  return barre.length ? barre : prendre(BARRE_DEFAUT);
 }
 
 /** Rubrique et page de l'adresse ouverte. */

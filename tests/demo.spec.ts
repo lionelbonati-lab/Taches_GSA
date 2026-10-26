@@ -8,7 +8,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('toutes les pages s’ouvrent sans erreur', async ({ page }) => {
-  const pages = ['/', '/taches', '/agenda', '/comite', '/evenements', '/ordre-du-jour', '/pv', '/sondages', '/organigramme', '/membres-club', '/reglages', '/admin', '/admin/droits', '/propositions', '/mots-de-passe', '/aide'];
+  const pages = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/ordre-du-jour', '/pv', '/sondages', '/organigramme', '/membres-club', '/reglages', '/admin', '/admin/droits', '/propositions', '/mots-de-passe', '/aide'];
   for (const h of pages) {
     await test.step(h, async () => {
       await page.goto('./?demo#' + h);
@@ -65,7 +65,7 @@ test('discussion : commenter, corriger puis retirer un commentaire', async ({ pa
   await page.locator('main').getByText('Tâche discutée').filter({ visible: true }).first().click();
   // La bulle en haut de la fiche ouvre la discussion dans sa fenêtre, curseur dans le champ.
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
-  const chat = page.getByRole('dialog', { name: '💬 Tâche discutée' });
+  const chat = page.getByRole('dialog', { name: 'Tâche discutée' });
   const discussion = chat.getByRole('region', { name: 'Discussion' });
   await expect(discussion.getByLabel('Nouveau commentaire')).toBeFocused();
   await discussion.getByLabel('Nouveau commentaire').fill('Qui apporte la rallonge ?');
@@ -88,6 +88,43 @@ test('discussion : commenter, corriger puis retirer un commentaire', async ({ pa
   await page.keyboard.press('Escape');
   await expect(chat).toHaveCount(0);
   await expect(page.locator('.modal')).toHaveCount(1);
+});
+
+test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Tâche de la messagerie');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // « Nouvelle discussion » : choisir la tâche, écrire, la discussion apparaît dans la liste.
+  await page.locator('.tabs').getByRole('link', { name: 'Messages' }).click();
+  await page.getByRole('button', { name: 'Nouvelle discussion' }).click();
+  await page.getByLabel('Chercher une tâche').fill('messagerie');
+  await page.locator('.messages-choix button', { hasText: 'Tâche de la messagerie' }).click();
+  const chat = page.getByRole('dialog', { name: 'Tâche de la messagerie' });
+  await chat.getByLabel('Nouveau commentaire').fill('On en parle ici ?');
+  await chat.getByRole('button', { name: 'Envoyer', exact: true }).click();
+  await expect(chat.locator('.discussion-message.mien')).toHaveCount(1);
+  await chat.getByRole('button', { name: 'Fermer' }).click();
+  const ligne = page.locator('.messages-ligne', { hasText: 'Tâche de la messagerie' });
+  await expect(ligne).toContainText('On en parle ici ?');
+  await expect(ligne).not.toHaveClass(/nonlu/);
+
+  // Une autre personne : pastille sur l'onglet, discussion en gras, lue une fois ouverte.
+  await page.locator('.who-btn').click();
+  await page.getByText('Changer d’utilisateur').click();
+  await page.locator('.login-user').nth(1).click();
+  await expect(page.locator('.unit-btn')).toBeVisible();
+  await page.goto('./?demo#/messages');
+  await expect(page.locator('.tabs .onglet-nb')).toHaveText('1');
+  await expect(ligne).toHaveClass(/nonlu/);
+  await page.getByRole('button', { name: /^Non lues/ }).click();
+  await ligne.click();
+  await expect(page.getByRole('dialog', { name: 'Tâche de la messagerie' }).locator('.discussion-nouveaux')).toHaveText('Nouveau message');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.tabs .onglet-nb')).toHaveCount(0);
+  await expect(page.locator('main')).toContainText('Tout est lu');
 });
 
 test('discussion : messages non lus sur la carte et la bulle, ouverte depuis la notification', async ({ page }) => {
@@ -124,7 +161,7 @@ test('discussion : messages non lus sur la carte et la bulle, ouverte depuis la 
   await page.goto('./?demo#/');
   await page.getByRole('button', { name: /^Notifications/ }).click();
   await page.locator('.bell-item', { hasText: 'a commenté « Tâche à discuter »' }).click();
-  const chat = page.getByRole('dialog', { name: '💬 Tâche à discuter' });
+  const chat = page.getByRole('dialog', { name: 'Tâche à discuter' });
   await expect(chat.locator('.discussion-nouveaux')).toHaveText('Nouveau message');
   await expect(chat.locator('.discussion-message:not(.mien)')).toContainText('Je peux m’en occuper samedi.');
   await chat.getByRole('button', { name: 'Fermer' }).click();

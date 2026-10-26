@@ -11,6 +11,7 @@ import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
 import { PageIntro } from '../components/Nav';
 import { AccueilModal, accueilPerso } from '../components/Accueil';
+import { BarreBasModal } from '../components/BarreBas';
 import { MesDonnees } from '../components/MesDonnees';
 import { CopiesAuto } from '../components/CopiesAuto';
 import { copierMaintenant } from '../data/cloud';
@@ -24,6 +25,7 @@ export function Settings() {
   const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [last, setLast] = useState(lastBackupAt());
   const [accueil, setAccueil] = useState(false);
+  const [barreBas, setBarreBas] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const exportAll = async () => {
@@ -131,6 +133,14 @@ export function Settings() {
           <button type="button" className="btn small" onClick={() => setAccueil(true)}><Icone n="reglages" /> Choisir les blocs et leur ordre</button>
         </div>
         {accueil && <AccueilModal onClose={() => setAccueil(false)} />}
+        <div className="full row">
+          <span className="grow">
+            Barre du bas (téléphone){' '}
+            <small className="muted">{prefs.barreBas ? '(personnalisée)' : '(onglets d’origine)'}</small>
+          </span>
+          <button type="button" className="btn small" onClick={() => setBarreBas(true)}><Icone n="reglages" /> Choisir les onglets</button>
+        </div>
+        {barreBas && <BarreBasModal onClose={() => setBarreBas(false)} />}
       </section>
       <section className="panel form">
         <h2 className="full">Notifications</h2>

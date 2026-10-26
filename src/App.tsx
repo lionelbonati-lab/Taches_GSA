@@ -15,6 +15,7 @@ import { useClubOptional } from './data/club';
 // pour le hors-ligne).
 const charger = {
   ficheTache: chargerFicheTache,
+  messages: () => import('./pages/Messages'),
   agenda: () => import('./pages/Agenda'),
   calendrier: () => import('./pages/Calendar'),
   reglages: () => import('./pages/Settings'),
@@ -28,6 +29,7 @@ const charger = {
   propositions: () => import('./pages/Propositions'),
   motsDePasse: () => import('./pages/MotsDePasse'),
 };
+const Messages = lazy(() => charger.messages().then((m) => ({ default: m.Messages })));
 const Meetings = lazy(() => charger.agenda().then((m) => ({ default: m.Meetings })));
 const Events = lazy(() => charger.agenda().then((m) => ({ default: m.Events })));
 const Calendar = lazy(() => charger.calendrier().then((m) => ({ default: m.Calendar })));
@@ -86,6 +88,7 @@ export function App() {
           <Route index element={<Dashboard />} />
           {/* La clé force la remise à zéro des filtres quand on arrive via un lien ?event=… */}
           <Route path="taches" element={<TasksRoute />} />
+          <Route path="messages" element={<Messages />} />
           <Route path="agenda" element={<Calendar />} />
           {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
           {can('tab.events') && <Route path="evenements" element={<Events />} />}

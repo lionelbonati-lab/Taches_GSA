@@ -81,7 +81,7 @@ export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: T
                         {' '}· {termineeChezElle(x) ? '✓ ' : ''}{st?.label ?? '?'} · {delaiRecu(x)}
                         {liste.length > 0 && ` · ☑ ${liste.filter((c) => c.done).length}/${liste.length}`}
                         {pourToi ? ' · pour toi' : ` · pour « ${ici} »`}
-                        {nl > 0 && ` · 💬 ${nl} non lu${nl > 1 ? 's' : ''}`}
+                        {nl > 0 && <> · <Icone n="message" /> {nl} non lu{nl > 1 ? 's' : ''}</>}
                       </small>
                     </span>
                     <button type="button" className="btn link small" aria-expanded={vue === k} onClick={() => setVue(vue === k ? null : k)}>{vue === k ? 'Masquer' : 'Voir'}</button>

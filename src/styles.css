@@ -119,16 +119,23 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .app-logo { width: auto; object-fit: contain; display: block; flex-shrink: 0; }
 .login-card .app-logo { margin: 0 auto; }
 .tabs { display: flex; gap: 4px; flex: 1; overflow-x: auto; }
-.tabs a { padding: 8px 14px; border-radius: 8px; color: var(--muted); white-space: nowrap; font-weight: 500; font-size: 0.95rem; }
-/* Écrans moyens : nom de l'utilisateur masqué (il reste dans le menu du compte), rubriques resserrées. */
-@media (max-width: 1360px) { .topbar .who-text { display: none; } .topbar { gap: 12px; } }
-@media (max-width: 1100px) {
+.tabs a { position: relative; display: flex; align-items: center; padding: 8px 10px; border-radius: 8px; color: var(--muted); white-space: nowrap; font-weight: 500; font-size: 0.95rem; }
+.tabs a .icone-trait { display: none; }
+/* Rubriques en haut, selon la largeur : leur nom (grand écran) ; l'icône et le nom en petit dessous (écran moyen) ;
+   l'icône seule, le nom au survol (petit écran). Le nom de l'utilisateur et celui de l'appli laissent la place
+   (ils restent dans le menu du compte et l'onglet du navigateur). */
+@media (max-width: 1600px) { .topbar .who-text { display: none; } .topbar { gap: 12px; } }
+@media (max-width: 1360px) {
   .topbar .brand-name, .topbar .demo-tag { display: none; }
-  .topbar .tabs a { padding: 7px 9px; font-size: 0.9rem; }
+  .topbar .tabs a { flex-direction: column; justify-content: center; gap: 2px; padding: 3px 8px; font-size: 0.72rem; }
+  .topbar .tabs a .icone-trait { display: inline-block; font-size: 1.15rem; vertical-align: 0; }
+  .topbar .tabs .onglet-nb { position: absolute; top: 0; left: calc(50% + 6px); margin: 0; }
 }
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
   .topbar { gap: 8px; padding: 10px 12px; }
-  .topbar .tabs a { padding: 6px 6px; font-size: 0.84rem; }
+  .topbar .tabs a { padding: 7px; }
+  .topbar .tabs .onglet-nom { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .topbar .tabs .onglet-nb { top: 1px; left: calc(50% + 4px); }
 }
 .tabs a:hover { background: var(--surface2); text-decoration: none; }
 .tabs a.active { background: var(--primary-soft); color: var(--primary); }
@@ -691,7 +698,7 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .annuler-btns + .bell-wrap { margin-left: 0; }
 .annuler-btn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--border); background: var(--surface); color: inherit; font: inherit; font-size: 0.85rem; cursor: pointer; padding: 5px 10px; border-radius: 999px; white-space: nowrap; }
 .annuler-btn:hover { background: var(--surface2); }
-@media (max-width: 767px) { .annuler-text { display: none; } .annuler-btn { padding: 6px 8px; } }
+@media (max-width: 1360px) { .annuler-text { display: none; } .annuler-btn { padding: 6px 8px; } }
 /* Pilule : barre d'outils flottante en icônes (prise de notes du PV), déplaçable par sa poignée. */
 .pilule { position: fixed; z-index: 35; display: flex; flex-direction: column; padding: 3px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); user-select: none; -webkit-user-select: none; }
 .pilule.defaut { left: 50%; bottom: 24px; transform: translateX(-50%); }
@@ -1006,11 +1013,14 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
     background: var(--surface); border-top: 1px solid var(--border);
     padding-bottom: env(safe-area-inset-bottom);
   }
+  /* Jusqu'à 5 onglets + « Plus » : resserrés, nom coupé s'il est trop long. */
   .bottomnav a, .bottomnav button {
-    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-    padding: 8px 0 6px; font-size: 0.68rem; color: var(--muted); border: none; background: none; cursor: pointer;
+    flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 7px 1px 5px; font-size: 0.64rem; color: var(--muted); border: none; background: none; cursor: pointer;
   }
-  .bottomnav span { font-size: 1.25rem; line-height: 1; }
+  .bottomnav .onglet-icone { position: relative; font-size: 1.2rem; line-height: 1; }
+  .bottomnav .onglet-nom { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bottomnav .onglet-nb { position: absolute; top: -5px; left: calc(100% - 7px); margin: 0; }
   .bottomnav .icone-trait { vertical-align: 0; }
   .bottomnav a.active, .bottomnav button.active { color: var(--primary); font-weight: 600; text-decoration: none; }
   .sheet-back { display: block; position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 25; }
@@ -1021,6 +1031,9 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
   .sheet-user { display: flex; gap: 12px; align-items: center; padding: 8px 8px 14px; border-bottom: 1px solid var(--border); margin-bottom: 6px; }
   .sheet-link { padding: 12px 10px; border-radius: 8px; color: var(--text); text-align: left; border: none; background: none; font-size: 1rem; cursor: pointer; }
   .sheet-link.active { background: var(--primary-soft); color: var(--primary); }
+  .sheet-link .onglet-nb { margin-left: 8px; }
+  .sheet-link.sheet-discret { color: var(--muted); font-size: 0.9rem; padding: 10px; }
+  .topbar .sync-tag { padding: 1px 5px; }
 }
 
 /* ---------- Paiements (tickets à rembourser) ---------- */
@@ -1254,8 +1267,8 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .sync-tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; background: #dcfce7; color: #166534; white-space: nowrap; }
 .sync-tag.busy { background: #e0f2fe; color: #075985; }
 .sync-tag.off { background: #fee2e2; color: #991b1b; }
-/* Écrans moyens (onglets serrés) : icône seule, sauf hors ligne. */
-@media (min-width: 768px) and (max-width: 1100px) { .topbar .sync-tag:not(.off) .sync-text { display: none; } }
+/* Écrans moyens et téléphone (onglets serrés) : ☁ / ⏳ en icône seule, le texte au survol ; « Hors ligne » reste écrit. */
+@media (max-width: 1360px) { .topbar .sync-tag:not(.off) .sync-text { display: none; } }
 .access { display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
 .access .row { margin-top: 4px; }
 code.password { font-size: 1.1rem; padding: 2px 8px; border-radius: 6px; background: var(--primary-soft); user-select: all; }
@@ -1846,3 +1859,40 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .agenda-item.cible { outline: 2px solid var(--primary); outline-offset: 2px; animation: cible 1.6s ease-out 2; }
 @keyframes cible { 0% { box-shadow: 0 0 0 6px var(--primary-soft); } 100% { box-shadow: none; } }
 .chargement-page { padding: 24px 4px; }
+
+/* ---------- Messages (discussions des tâches) ---------- */
+.onglet-nb {
+  display: inline-flex; align-items: center; justify-content: center; min-width: 17px; height: 17px; padding: 0 4px; margin-left: 6px;
+  border-radius: 999px; background: var(--danger); color: #fff; font-size: 0.66rem; font-weight: 700; line-height: 1; vertical-align: 1px;
+}
+.count.nonlus { background: var(--danger); color: #fff; }
+.messages-outils { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.messages-outils input[type='search'] { flex: 1 1 220px; min-width: 0; }
+.messages-liste { list-style: none; margin: 0; padding: 0; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+.messages-liste li + li { border-top: 1px solid var(--border); }
+.messages-ligne { display: flex; gap: 12px; align-items: center; width: 100%; padding: 12px 14px; border: none; background: none; color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.messages-ligne:hover { background: var(--surface2); }
+.messages-avatar { flex: 0 0 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; background: var(--primary-soft); color: var(--primary); font-weight: 700; font-size: 1.1rem; }
+.messages-corps { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.messages-haut, .messages-bas { display: flex; gap: 8px; align-items: center; min-width: 0; }
+.messages-titre { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.messages-quand { flex-shrink: 0; color: var(--muted); font-size: 0.78rem; }
+.messages-apercu { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 0.9rem; }
+.messages-apercu b { font-weight: 600; }
+.messages-apercu .tsource { margin-right: 2px; }
+.messages-nb { flex-shrink: 0; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--danger); color: #fff; font-size: 0.72rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; }
+.messages-ligne.nonlu .messages-titre { font-weight: 800; }
+.messages-ligne.nonlu .messages-apercu { color: var(--text); }
+.messages-ligne.nonlu .messages-quand { color: var(--danger); font-weight: 600; }
+.messages-choix { list-style: none; margin: 10px 0 0; padding: 0; max-height: 55vh; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.messages-choix button { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); text-align: left; cursor: pointer; font: inherit; }
+.messages-choix button:hover { border-color: var(--primary); }
+.messages-choix button > span:first-child { flex: 1; min-width: 0; }
+.messages-choix > li.muted { padding: 10px 4px; }
+
+/* ---------- Barre du bas (réglage) ---------- */
+.barre-choix { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.barre-choix li { display: flex; align-items: center; gap: 8px; padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px; }
+.barre-choix li.on { border-color: var(--primary); background: var(--primary-soft); }
+.barre-choix label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; }
+.barre-ordre { display: flex; gap: 2px; }

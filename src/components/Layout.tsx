@@ -16,6 +16,9 @@ import { brancherRapport } from '../data/rapportErreurs';
 import { nomAppli } from '../data/nomAppli';
 import { UNIT_TYPES } from '../data/units';
 import { SousOnglets, useNavigation } from './Nav';
+import { BarreBasModal } from './BarreBas';
+import { barreDuBas } from '../data/navigation';
+import { useDiscussions } from '../data/discussions';
 import { ErrorBoundary } from './ErrorBoundary';
 import { applyTabIcon, cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
@@ -30,9 +33,11 @@ export function Layout() {
   const [fab, setFab] = useState(false);
   const [menu, setMenu] = useState(false);
   const [compte, setCompte] = useState(false);
+  const [reglerBarre, setReglerBarre] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
   const { rubriques, compte: pagesCompte, ouverte } = useNavigation();
+  const { nonLus } = useDiscussions();
   useEffect(() => {
     setMenu(false);
     setCompte(false);
@@ -132,8 +137,11 @@ export function Layout() {
   ];
   // Rubrique ouverte (sous-onglets) ; sur téléphone, « Plus » regroupe les rubriques hors de la barre du bas et le compte.
   const rubriqueOuverte = ouverte?.rubrique?.id;
-  const barre = rubriques.filter((r) => r.mobile);
-  const horsBarre = rubriques.filter((r) => !r.mobile);
+  const barre = barreDuBas(rubriques, prefs.barreBas);
+  const horsBarre = rubriques.filter((r) => !barre.includes(r));
+  // Messages pas encore lus : pastille sur l'onglet « Messages ».
+  const pastille = (id: string) =>
+    id === 'messages' && nonLus > 0 ? <span className="onglet-nb" aria-label={`${nonLus} message${nonLus > 1 ? 's' : ''} non lu${nonLus > 1 ? 's' : ''}`}>{nonLus > 99 ? '99+' : nonLus}</span> : null;
   const dansPlus = !!ouverte && !barre.some((r) => r.id === rubriqueOuverte);
   const sortir = () => login(null);
   const sortirLabel = <><Icone n={cloud ? 'sortir' : 'changer'} /> {cloud ? 'Se déconnecter' : 'Changer d’utilisateur'}</>;
@@ -149,8 +157,10 @@ export function Layout() {
         {club && <UnitSwitch />}
         <nav className="tabs">
           {rubriques.map((r) => (
-            <NavLink key={r.id} to={r.pages[0].to} end className={() => (r.id === rubriqueOuverte ? 'active' : '')} title={r.pages.map((p) => p.label).join(' · ')}>
-              {r.label}
+            <NavLink key={r.id} to={r.pages[0].to} end className={() => (r.id === rubriqueOuverte ? 'active' : '')} title={r.pages.length > 1 ? `${r.label} : ${r.pages.map((p) => p.label).join(' · ')}` : r.label}>
+              <Icone n={r.icon} />
+              <span className="onglet-nom">{r.court ?? r.label}</span>
+              {pastille(r.id)}
             </NavLink>
           ))}
         </nav>
@@ -225,12 +235,13 @@ export function Layout() {
       <nav className="bottomnav">
         {barre.map((r) => (
           <NavLink key={r.id} to={r.pages[0].to} end className={() => (r.id === rubriqueOuverte ? 'active' : '')}>
-            <span><Icone n={r.icon} /></span>
-            {r.label}
+            <span className="onglet-icone"><Icone n={r.icon} />{pastille(r.id)}</span>
+            <span className="onglet-nom">{r.label}</span>
           </NavLink>
         ))}
         <button className={menu || dansPlus ? 'active' : ''} onClick={() => setMenu(!menu)}>
-          <span><Icone n="menu" /></span>Plus
+          <span className="onglet-icone"><Icone n="menu" />{!barre.some((r) => r.id === 'messages') && pastille('messages')}</span>
+          <span className="onglet-nom">Plus</span>
         </button>
       </nav>
       {menu && (
@@ -248,10 +259,11 @@ export function Layout() {
               <div key={r.id} className="sheet-group">
                 <small className="sheet-titre">{r.label}</small>
                 {r.pages.map((p) => (
-                  <NavLink key={p.to} to={p.to} className="sheet-link"><Icone n={p.icon} /> {p.label}</NavLink>
+                  <NavLink key={p.to} to={p.to} className="sheet-link"><Icone n={p.icon} /> {p.label}{pastille(r.id)}</NavLink>
                 ))}
               </div>
             ))}
+            <button className="sheet-link sheet-discret" onClick={() => { setMenu(false); setReglerBarre(true); }}><Icone n="reglages" /> Modifier la barre du bas</button>
             <div className="sheet-group">
               <small className="sheet-titre">Mon compte</small>
               {pagesCompte.map((p) => (
@@ -267,6 +279,7 @@ export function Layout() {
       <Toast />
       {quick && canCreate && <TaskModal isNew task={newTask(user.id, versProchaineSeance(data.meetings, undefined, club?.current.type))} onClose={() => setQuick(false)} />}
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
+      {reglerBarre && <BarreBasModal onClose={() => setReglerBarre(false)} />}
     </div>
   );
 }

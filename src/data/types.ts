@@ -732,6 +732,8 @@ export interface Prefs {
    * d'une autre entité : « entité:tâche ») → date.
    */
   pourInfoVus?: Record<string, string>;
+  /** Téléphone : rubriques de la barre du bas, dans l'ordre (5 au plus ; sans réglage : celles d'origine). */
+  barreBas?: string[];
 }
 
 /** Colonnes de la page « Membres du club » : ordre, colonnes masquées, tri. */

@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from '../../data/store';
 import { useClubOptional } from '../../data/club';
 import { COMMENTAIRE_MAX, deMoi, dernierMessage, type ActionCommentaire } from '../../data/commentaires';
@@ -23,6 +23,11 @@ const nomDuJour = (jour: string) => {
   const auj = localNow().slice(0, 10);
   return jour === auj ? 'Aujourd’hui' : jour === addDays(auj, -1) ? 'Hier' : fmtDate(jour);
 };
+/** Moment d'un message dans une liste : l'heure aujourd'hui, sinon « Hier » ou la date. */
+export const quandMessage = (iso: string) => {
+  const jour = jourDe(iso);
+  return jour === localNow().slice(0, 10) ? heureDe(iso) : nomDuJour(jour);
+};
 
 /**
  * Discussion sur une tâche (049), dans sa propre fenêtre, comme une messagerie : les messages en bulles (les miens à
@@ -30,9 +35,9 @@ const nomDuJour = (jour: string) => {
  * les siens ; un admin de l'entité de la tâche retire n'importe lequel. Les personnes concernées sont prévenues (🔔).
  * Ouverte, elle est lue (pastille des cartes) ; les messages arrivés depuis la dernière lecture suivent un repère.
  * `cle` : la tâche vue d'ici (lecture, notifications) ; `uniteId` : entité de la tâche quand ce n'est pas l'entité
- * ouverte (`tacheId` : son identifiant là-bas).
+ * ouverte (`tacheId` : son identifiant là-bas). `actions` : boutons de plus dans l'en-tête (ex. ouvrir la tâche).
  */
-export function Discussion({ titre, liste = [], cle, tacheId, uniteId, onClose }: { titre: string; liste?: Commentaire[]; cle: string; tacheId: string; uniteId?: string; onClose: () => void }) {
+export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, onClose }: { titre: string; liste?: Commentaire[]; cle: string; tacheId: string; uniteId?: string; actions?: ReactNode; onClose: () => void }) {
   const { data, user, can, commenter, discussionLue } = useStore();
   const club = useClubOptional();
   const [texte, setTexte] = useState('');
@@ -94,7 +99,7 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, onClose }
   };
 
   return (
-    <Modal title={`💬 ${titre}`} onClose={onClose} className="chat">
+    <Modal title={titre} icone="message" onClose={onClose} className="chat" actions={actions}>
       <section className="discussion" aria-label="Discussion">
         <div ref={fil} className="discussion-fil">
           {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par la tâche sont prévenues 🔔.</p>}
