@@ -253,6 +253,12 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .grid2 { display: grid; grid-template-columns: 2fr 1fr; gap: 24px; }
 .link-panel { display: flex; flex-direction: column; gap: 4px; color: var(--text); }
 .link-panel:hover { text-decoration: none; border-color: var(--primary); }
+/* Carte entière cliquable par son premier lien, étendu sur toute la carte ; les autres liens (lieu d'une séance) restent au-dessus. */
+.lien-etendu { position: relative; }
+.lien-etendu > a:first-child { color: inherit; }
+.lien-etendu > a:first-child:hover { text-decoration: none; }
+.lien-etendu > a:first-child::after { content: ''; position: absolute; inset: 0; }
+.lien-etendu > * a { position: relative; z-index: 1; }
 pre.odj { font-family: inherit; white-space: pre-wrap; margin: 6px 0; color: var(--muted); font-size: 0.9rem; }
 .progress-wrap { margin: 6px 0; }
 .progress { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }

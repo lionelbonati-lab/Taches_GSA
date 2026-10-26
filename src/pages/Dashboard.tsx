@@ -21,6 +21,7 @@ import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
+import { LieuSeance } from '../components/Liens';
 
 export function Dashboard() {
   const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo, setToast } = useStore();
@@ -229,10 +230,15 @@ export function Dashboard() {
           <>
             <h2><Icone n="seances" /> {club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}</h2>
             {nextMeeting ? (
-              <Link to="/comite" className="panel link-panel">
-                <strong>{nextMeeting.titre}</strong>
-                <span>{fmtDate(nextMeeting.date)} · {nextMeeting.lieu && <><Icone n="lieu" /> {nextMeeting.lieu}</>} <em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em></span>
-              </Link>
+              // Toute la carte mène au comité ; le lieu placé sur la carte garde son propre lien.
+              <div className="panel link-panel lien-etendu">
+                <Link to="/comite"><strong>{nextMeeting.titre}</strong></Link>
+                <span>
+                  {fmtDate(nextMeeting.date)}
+                  {(nextMeeting.lieu?.trim() || nextMeeting.lieuGeo) && <> · <Icone n="lieu" /> <LieuSeance m={nextMeeting} /></>}
+                  {' '}<em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em>
+                </span>
+              </div>
             ) : <Empty>Aucune séance planifiée.</Empty>}
           </>
         );
