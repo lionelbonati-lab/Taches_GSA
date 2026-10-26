@@ -7,7 +7,7 @@
     "dev": "vite --host",
     "build": "tsc && vite build",
     "preview": "vite preview --host",
-    "fonction": "esbuild src/data/organigrammeServeur.ts --bundle --format=esm --platform=neutral --target=es2022 --charset=utf8 --banner:js=\"// Généré par « npm run fonction » depuis src/data/organigrammeServeur.ts (règles de l'organigramme) : ne pas modifier à la main.\" --outfile=supabase/functions/gsa-acces/organigramme.js"
+    "fonction": "esbuild src/data/organigrammeServeur.ts --bundle --format=esm --platform=neutral --target=es2022 --charset=utf8 --banner:js=\"// Généré par « npm run fonction » depuis src/data/organigrammeServeur.ts (règles de l'organigramme) : ne pas modifier à la main.\" --outfile=supabase/functions/gsa-acces/organigramme.js && esbuild src/data/agendaServeur.ts --bundle --format=esm --platform=neutral --target=es2022 --charset=utf8 --banner:js=\"// Généré par « npm run fonction » depuis src/data/agendaServeur.ts (contenu de l'agenda) : ne pas modifier à la main.\" --outfile=supabase/functions/gsa-agenda/agenda.js"
   },
   "dependencies": {
     "@pdf-lib/fontkit": "1.1.1",

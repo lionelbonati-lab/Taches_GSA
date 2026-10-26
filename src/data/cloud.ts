@@ -1,10 +1,11 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
-import { supabase } from '../lib/supabase';
+import { supabase, supabaseUrl } from '../lib/supabase';
 import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, TachePartagee, Task, TicketCentral, UnitType, VisaVerifie, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
 import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
 import type { OpOrga } from './organigramme';
+import type { OptionsAbonnement } from './agendaIcs';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -623,6 +624,39 @@ export async function fetchAgendaClub(club: string): Promise<AgendaClubEvent[]> 
   if (error) throw new Error(error.message);
   return (data ?? []) as AgendaClubEvent[];
 }
+
+// ---------- Abonnement à l'agenda par lien privé (migration 045, fonction gsa-agenda) ----------
+
+/** Lien privé de la personne connectée pour une entité : jeton, choix, dernière lecture par un agenda. */
+export interface AbonnementAgenda { jeton: string; options: OptionsAbonnement; luLe: string | null }
+
+/** Erreur lisible : abonnement pas encore installé sur le serveur (migration 045). */
+function abonnementErreur(e: { message: string; code?: string }): Error {
+  return new Error(['42P01', '42883', 'PGRST202', 'PGRST205'].includes(e.code ?? '') || (/gsa_agenda_abonnements|gsa_abonnement_agenda/.test(e.message) && /exist|find|schema cache/i.test(e.message))
+    ? 'L’abonnement à l’agenda n’est pas encore installé sur le serveur (mise à jour 045).'
+    : e.message);
+}
+
+export async function fetchAbonnementAgenda(c: string): Promise<AbonnementAgenda | null> {
+  const { data, error } = await sb().from('gsa_agenda_abonnements').select('jeton, options, lu_le').eq('committee_id', c).maybeSingle();
+  if (error) throw abonnementErreur(error);
+  return data ? { jeton: data.jeton as string, options: (data.options ?? {}) as OptionsAbonnement, luLe: (data.lu_le as string | null) ?? null } : null;
+}
+
+/** Crée le lien ou change ses choix ; `nouveau` : nouveau jeton, l'ancien lien ne marche plus. Renvoie le jeton. */
+export async function abonnerAgenda(c: string, options: OptionsAbonnement, nouveau = false): Promise<string> {
+  const { data, error } = await sb().rpc('gsa_abonnement_agenda', { c, options, nouveau });
+  if (error) throw abonnementErreur(error);
+  return data as string;
+}
+
+export async function supprimerAbonnementAgenda(c: string) {
+  const { error } = await sb().rpc('gsa_abonnement_agenda_supprimer', { c });
+  if (error) throw abonnementErreur(error);
+}
+
+/** Adresse que l'agenda relit (https ; « webcal: » pour l'ouvrir directement dans Calendrier d'Apple). */
+export const lienAbonnementAgenda = (jeton: string) => `${supabaseUrl}/functions/v1/gsa-agenda/${jeton}.ics`;
 
 // ---------- Membres du club (registre commun, migration 016) ----------
 

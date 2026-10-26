@@ -1,4 +1,6 @@
-import type { Permission, Person, Role } from './types';
+import type { Permission, Person, Role, Task } from './types';
+import { pourMoi } from './pourInfo';
+import { proposeeA } from './aPrendre';
 
 export const PERMISSION_GROUPS = ['Tâches', 'Pages visibles', 'Gestion', 'Administration'] as const;
 
@@ -58,4 +60,16 @@ export function personnesDuRole<P extends Pick<Person, 'roles'>>(roles: Role[], 
     const siens = roles.filter((x) => p.roles.includes(x.id));
     return hasPermission(siens, 'tab.meetings') && r.permissions.every((x) => hasPermission(siens, x));
   });
+}
+
+/**
+ * Tâche que la personne voit, comme le serveur (migrations 029, 037, 038) : ses tâches (responsable, créées par soi,
+ * pour info, à prendre) et celles des sections « Voir toutes » ; les tickets (remboursements, factures) à part : la
+ * caisse, le demandeur et la personne qui vise (ou a visé).
+ */
+export function voitTache(t: Task, userId: string | undefined, roles: Role[]) {
+  if ((!!userId && (t.responsables.includes(userId) || t.createdBy === userId)) || pourMoi(t, userId) || proposeeA(t, userId)) return true;
+  const p = t.paiement;
+  if (!p) return hasPermission(roles, 'tasks.viewAll', t.sectionId);
+  return (!!userId && [p.demandePar, p.visa?.a, p.validation?.par].includes(userId)) || hasPermission(roles, 'paiements.payer');
 }

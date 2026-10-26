@@ -6,6 +6,8 @@ const url = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || 'https:
 const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || 'sb_publishable_icIPpSMPG-2wb56636HMXw_thnJIEzW';
 
 export const hasSupabase = Boolean(url && anonKey);
+/** Adresse du projet (fonctions : …/functions/v1/<nom>). */
+export const supabaseUrl = url;
 // Lien « mot de passe oublié » (modèle d'e-mail par défaut) : lu par supabase-js dès sa création, on le note avant.
 noterLienRecuperation();
 

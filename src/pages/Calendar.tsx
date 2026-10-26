@@ -10,13 +10,14 @@ import { TaskModal, newTask } from '../components/TaskModal';
 import { Avatar, StatusBadge } from '../components/ui';
 import { MeetingModal, newMeeting, useAgendaActions, useMotSeance } from './Agenda';
 import { ChoixPortee, EventModal, newEvent, useEventActions } from '../components/EventModal';
-import { aLaDate, duree, estOccurrence, fmtHeure, horaire, libelleRepetition, occurrencesEntre } from '../data/repetition';
+import { aLaDate, duree, fmtHeure, horaire, libelleRepetition, occurrencesEntre } from '../data/repetition';
 import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
 import { Icone, type IconeNom } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
 import { ExportAgenda } from '../components/ExportAgenda';
+import { manifsAgenda } from '../data/agendaIcs';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
@@ -107,16 +108,7 @@ export function Calendar() {
   // Par entité : ses événements (ceux de l'entité ouverte sont déjà dans son agenda) et sa prochaine édition,
   // sauf si l'un de ses événements tombe déjà à cette date.
   const manifs = useMemo(
-    () =>
-      (club?.units ?? [])
-        .filter((u) => !u.archive)
-        .map((u) => {
-          const own = u.id === club?.current.id;
-          const events = own ? [] : clubEvents.filter((e) => e.uniteId === u.id);
-          const edition = (u.type === 'sous-comite' || u.type === 'equipe') && !!u.date && !(own ? data.events : events).some((e) => e.date === u.date || (!!e.repetition && estOccurrence(e, u.date!)));
-          return { u, events, edition, own };
-        })
-        .filter((x) => x.events.length > 0 || x.edition),
+    () => manifsAgenda(club?.units ?? [], club?.current.id, clubEvents, data.events),
     [club?.units, club?.current.id, clubEvents, data.events],
   );
   const masquees = prefs.manifsMasquees ?? [];

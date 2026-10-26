@@ -77,6 +77,8 @@ export function Aide() {
   }
   if (chemin('/agenda'))
     geste('Mettre l’agenda dans mon agenda personnel (Google, Apple, Outlook)', vers('/agenda'), ' › « Exporter » : coche ce qu’il faut (séances, événements, agenda du club, fins de sondage, délais de tes tâches ou de toutes), à venir ou passé compris, puis « Télécharger le fichier ». Sur iPhone ou Mac, ouvre le fichier puis « Ajouter tout » ; dans Google Agenda, importe-le depuis un ordinateur (Paramètres › Importer et exporter). C’est une copie : importe-la dans un agenda à part pour pouvoir le vider et importer une version à jour.');
+  if (chemin('/agenda') && cloud)
+    geste('Abonner mon agenda personnel (mise à jour automatique)', vers('/agenda'), ' › « Exporter » › « Créer mon lien privé » (avec les choix cochés au-dessus). Sur iPhone ou Mac : « Ouvrir dans Calendrier », puis « S’abonner ». Google Agenda : « Ajouter à Google Agenda » sur un ordinateur, ou Autres agendas › ＋ › À partir de l’URL, et colle le lien. Outlook : Ajouter un calendrier › S’abonner à partir du web. Ton agenda relit le lien tout seul (après quelques heures selon l’agenda). Garde-le pour toi ; « Nouveau lien » remplace l’ancien, « Supprimer le lien » l’arrête.');
   if (club && chemin('/evenements'))
     geste('Voir les événements qui dépendent du comité', vers('/evenements'), ' : les sous-comités et équipes d’événement qui en dépendent y sont à la date de leur prochaine édition, marqués « dépend de ce comité », avec l’avancement de leurs tâches partagées et des tâches du comité rattachées à eux (« Voir les tâches → »).');
   if (club && entitesDependantes(club.units, club.current).length)

@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { makeSeed } from './seed';
 import { statuses as STATUSES } from './seedData';
-import { hasPermission, userRoles } from './permissions';
+import { hasPermission, userRoles, voitTache } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, today, uid } from './utils';
 import { seancePourSuivante } from './seances';
 import type { ActivityNotif, AppData, ChecklistItem, OrgUnit, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task, TaskDoc } from './types';
@@ -14,7 +14,7 @@ import { applyRows, pasDispoTache, prendreTache as prendreServeur, rattraper, ty
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
-import { encoreMontree, epurerPourInfo, pourMoi, recuePourMoi } from './pourInfo';
+import { encoreMontree, epurerPourInfo, recuePourMoi } from './pourInfo';
 import { aPrendreOuverte, auteurAPrendre, epurerAPrendre, proposeeA } from './aPrendre';
 import { entitesDependantes, evenementsDependants, suivreExternes, versEntite, type Externes } from './externes';
 import { parentDans } from './units';
@@ -1042,14 +1042,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     user,
     myRoles,
     can,
-    // Comme le serveur (migrations 029, 037, 038) : ses tâches (responsable, créées par soi, pour info, à prendre) et celles
-    // des sections « Voir toutes » ; les tickets (remboursements, factures) à part : la caisse, le demandeur et la personne qui vise (ou a visé).
-    canSeeTask: (t) => {
-      if (isOwn(t) || pourMoi(t, user?.id) || proposeeA(t, user?.id)) return true;
-      const p = t.paiement;
-      if (!p) return can('tasks.viewAll', t.sectionId);
-      return (!!user && [p.demandePar, p.visa?.a, p.validation?.par].includes(user.id)) || can('paiements.payer');
-    },
+    canSeeTask: (t) => voitTache(t, user?.id, myRoles),
     canEditTask,
     canDeleteTask: (t) => !t.source && can('tasks.delete', t.sectionId),
     autresResp: (t) => (moi && units ? texteAutres(autresResponsables(t, moi, data.people, units)) : ''),

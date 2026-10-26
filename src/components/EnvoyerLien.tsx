@@ -11,7 +11,8 @@ import { Icone } from './icones';
 
 const partageSysteme = () => typeof navigator !== 'undefined' && typeof navigator.share === 'function';
 
-async function copier(texte: string, zone: HTMLTextAreaElement | HTMLInputElement | null) {
+/** Copie dans le presse-papiers (sinon : la zone sélectionnée, copiée à l'ancienne). */
+export async function copier(texte: string, zone: HTMLTextAreaElement | HTMLInputElement | null) {
   try {
     await navigator.clipboard.writeText(texte);
     return true;

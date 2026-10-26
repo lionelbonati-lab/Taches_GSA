@@ -256,8 +256,12 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 /* Export de l'agenda (.ics) : choix les uns sous les autres. */
 .export-agenda { display: flex; flex-direction: column; gap: 8px; }
 .export-agenda .row { align-items: center; gap: 8px; flex-wrap: wrap; }
-.export-agenda-aide { padding-left: 18px; margin: 12px 0 0; }
+.export-agenda-aide { padding-left: 18px; margin: 4px 0 0; }
 .export-agenda-aide li { margin: 2px 0; }
+/* Lien d'abonnement : champ sur toute la largeur, bouton Copier à côté. */
+.export-agenda .lien-abonnement { flex-wrap: nowrap; }
+.export-agenda .lien-abonnement input { flex: 1; min-width: 0; font-size: 0.85rem; }
+.export-agenda + .export-agenda { margin-top: 12px; }
 /* Carte entière cliquable par son premier lien, étendu sur toute la carte ; les autres liens (lieu d'une séance) restent au-dessus. */
 .lien-etendu { position: relative; }
 .lien-etendu > a:first-child { color: inherit; }
