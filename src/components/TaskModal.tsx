@@ -30,9 +30,11 @@ import { Checklist } from './tache/Checklist';
 import { Repetition } from './tache/Repetition';
 import { Rattachements } from './tache/Rattachements';
 import { Discussion } from './tache/Discussion';
+import { nonLus } from '../data/commentaires';
 import { Historique } from './tache/Historique';
 
-export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string };
+/** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
+export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string; ouvrirDiscussion?: boolean };
 
 /** Fenêtre d'une tâche ; un remboursement ou un paiement de facture s'ouvre dans la sienne (circuit caisse → visa → virement). */
 export function TaskModal(props: TaskModalProps) {
@@ -43,7 +45,7 @@ export function TaskModal(props: TaskModalProps) {
 /** Parties facultatives : affichées si elles sont remplies, sinon ajoutées à la demande (« Ajouter : »). */
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage' | 'info' | 'prendre';
 
-function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
+function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: TaskModalProps) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, vuPourInfo, update, autresResp, externes, setToast } = useStore();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   // Statut inconnu de l'entité (statuts personnalisés) : le premier statut ouvert.
@@ -61,7 +63,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const track = useRef<DocTracking>({ added: [], removed: [] });
-  const discussion = useRef<HTMLElement>(null);
+  const [chat, setChat] = useState(!!ouvrirDiscussion && !isNew);
   const [newPoll, setNewPoll] = useState(false);
   // Liens et partage déjà remplis : ils restent affichés si on les vide (ex. partage retiré : plus de séance du comité).
   const [ouverts, setOuverts] = useState<Extra[]>(() => [
@@ -256,13 +258,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     setBusy(false);
   };
 
-  // Discussion de la tâche enregistrée (relue en direct, pas celle de la fenêtre). La bulle en haut y mène : derniers
-  // messages et champ de saisie en vue, le curseur dans le champ s'il n'y a encore rien.
+  // Discussion de la tâche enregistrée (relue en direct, pas celle de la fenêtre), dans sa propre fenêtre : la bulle en
+  // haut l'ouvre et compte les messages pas encore lus.
   const commentaires = (data.tasks.find((x) => x.id === task.id) ?? task).commentaires ?? [];
-  const allerDiscussion = () => {
-    discussion.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    if (!commentaires.length) discussion.current?.querySelector('textarea')?.focus({ preventScroll: true });
-  };
+  const nl = user ? nonLus(commentaires, data.discussionsLues?.[user.id]?.[task.id], user.id, club?.current.id ?? '', task.source?.uniteId ?? club?.current.id ?? '') : 0;
 
   // Dupliquer : une nouvelle tâche pré-remplie d'après la tâche enregistrée, à compléter puis créer (« À faire », checklist
   // décochée). Ses fichiers restent communs avec l'original (gardés tant que l'une des deux les utilise) ; emails et
@@ -404,12 +403,12 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           <button
             type="button"
             className="icon-btn discussion-btn"
-            onClick={allerDiscussion}
-            title={commentaires.length ? `Discussion : ${commentaires.length} message${commentaires.length > 1 ? 's' : ''}` : 'Discussion : écrire un message'}
-            aria-label={`Discussion${commentaires.length ? ` (${commentaires.length})` : ''}`}
+            onClick={() => setChat(true)}
+            title={commentaires.length ? `Discussion : ${commentaires.length} message${commentaires.length > 1 ? 's' : ''}${nl ? `, ${nl} non lu${nl > 1 ? 's' : ''}` : ''}` : 'Discussion : écrire un message'}
+            aria-label={`Discussion${nl ? ` (${nl} non lu${nl > 1 ? 's' : ''})` : ''}`}
           >
             <Icone n="message" />
-            {commentaires.length > 0 && <span className="discussion-nb">{commentaires.length}</span>}
+            {nl > 0 && <span className="discussion-nb">{nl}</span>}
           </button>
           {peutDupliquer && (
             <button type="button" className="icon-btn dupliquer" onClick={dupliquer} title="Dupliquer : créer une nouvelle tâche à partir de celle-ci" aria-label="Dupliquer la tâche">
@@ -669,7 +668,6 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             )}
           </small>
         )}
-        {!isNew && <Discussion className="full" ancre={discussion} liste={commentaires} tacheId={task.source?.id ?? task.id} uniteId={task.source?.uniteId} />}
         {!isNew && (
           <small className="muted full">
             Dernière modification : {fmtDateTime(task.updatedAt)}{task.modifiePar ? ` par ${task.modifiePar}` : ''} ·{' '}
@@ -686,6 +684,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         {editable && <button className="btn primary" disabled={busy} onClick={() => void submit()}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}
       </div>
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
+      {chat && !isNew && (
+        <Discussion titre={task.titre} liste={commentaires} cle={task.id} tacheId={task.source?.id ?? task.id} uniteId={task.source?.uniteId} onClose={() => setChat(false)} />
+      )}
       {other && <TaskModal task={other.task} isNew={other.isNew} onClose={() => setOther(null)} />}
     </Modal>
   );

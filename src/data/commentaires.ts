@@ -27,6 +27,13 @@ export interface ContexteCommentaire {
 /** Le commentaire est-il de la personne `moi` de l'entité `depuis` (tâche de l'entité `unite`) ? */
 export const deMoi = (c: Commentaire, moi: string, depuis: string, unite: string) => c.par === moi && (c.u ?? unite) === depuis;
 
+/** Messages pas encore lus : ceux des autres, arrivés après le dernier vu (`lu`, sa date). */
+export const nonLus = (liste: Commentaire[] = [], lu: string | undefined, moi: string, depuis: string, unite: string) =>
+  liste.filter((c) => !deMoi(c, moi, depuis, unite) && (!lu || c.le > lu)).length;
+
+/** Date du dernier message de la discussion. */
+export const dernierMessage = (liste: Commentaire[] = []) => liste.reduce((m, c) => (c.le > m ? c.le : m), '');
+
 /** Applique l'action à la discussion (démo) ; mêmes refus que le serveur. */
 export function appliquerCommentaire(liste: Commentaire[] = [], a: ActionCommentaire, o: ContexteCommentaire): Commentaire[] {
   const texte = (a.texte ?? '').trim();

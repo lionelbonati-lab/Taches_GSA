@@ -44,13 +44,14 @@ export function Tasks() {
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'delai', dir: 1 });
   const navigate = useNavigate();
   // Lien depuis une notification : /taches?tache=<id> ouvre directement la tâche.
-  // …&email=<id> ouvre en plus l'email programmé à envoyer. Lien envoyé (WhatsApp…, entité en u : lienPartage.ts) : seulement
+  // …&email=<id> ouvre en plus l'email programmé à envoyer, …&discussion=1 sa discussion (💬). Lien envoyé (WhatsApp…, entité en u : lienPartage.ts) : seulement
   // une tâche que la personne voit dans sa liste.
   const lienTache = params.get('tache');
   const ouvrable = (x: Task) => x.id === lienTache && (!params.get('u') || canSeeTask(x));
-  const [edit, setEdit] = useState<{ task: Task; isNew: boolean; email?: string } | null>(() => {
+  const depuisLien = () => ({ isNew: false, email: params.get('email') ?? undefined, discussion: params.has('discussion') });
+  const [edit, setEdit] = useState<{ task: Task; isNew: boolean; email?: string; discussion?: boolean } | null>(() => {
     const t = data.tasks.find(ouvrable);
-    return t ? { task: t, isNew: false, email: params.get('email') ?? undefined } : null;
+    return t ? { task: t, ...depuisLien() } : null;
   });
   // Tâche partagée par une autre entité : elle arrive un peu après l'ouverture de l'appli ; on l'ouvre alors.
   const attendue = useRef(edit ? null : lienTache);
@@ -58,7 +59,7 @@ export function Tasks() {
     const t = attendue.current ? data.tasks.find(ouvrable) : undefined;
     if (!t) return;
     attendue.current = null;
-    setEdit((e) => e ?? { task: t, isNew: false, email: params.get('email') ?? undefined });
+    setEdit((e) => e ?? { task: t, ...depuisLien() });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.tasks, params]);
   const closeEdit = () => {
@@ -380,9 +381,9 @@ export function Tasks() {
       )}
 
       {effScope === 'mes' && <SuiviCentral />}
-      {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} onClose={closeEdit} />}
+      {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} ouvrirDiscussion={edit.discussion} onClose={closeEdit} />}
       {voirAnciennes && anciennes && <AnciennesTaches list={anciennes} onClose={() => setVoirAnciennes(false)} />}
-      {voirPourInfo && <PourInfoRecues list={pourInfo} ouverte={params.get('pourinfo') ?? undefined} onClose={fermerPourInfo} />}
+      {voirPourInfo && <PourInfoRecues list={pourInfo} ouverte={params.get('pourinfo') ?? undefined} discussion={params.has('discussion')} onClose={fermerPourInfo} />}
     </div>
   );
 }

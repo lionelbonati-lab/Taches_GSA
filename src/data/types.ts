@@ -778,6 +778,8 @@ export interface AppData {
   emails?: ScheduledEmail[];
   /** Clés des notifications déjà vues, par utilisateur. */
   notifLues?: Record<string, string[]>;
+  /** Discussions lues, par utilisateur : tâche (son identifiant ici) → date du dernier message vu. */
+  discussionsLues?: Record<string, Record<string, string>>;
   /** En-tête de tous les documents imprimés de l'entité (ordre du jour, PV, bon de paiement) ; sans réglage : logo et nom de l'entité. */
   entete?: Entete;
   /** Ancien réglage, un en-tête par document : repris tant que « entete » n'est pas réglé (archives : leurs images). */

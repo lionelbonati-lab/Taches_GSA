@@ -7,6 +7,7 @@ import { delaiTarget, fmtDate, fullName, initials, isDone, isLate, offsetLabel, 
 import { cachedLogo, isImage } from '../data/logo';
 import { ETATS, chf, genre, genreDe, peutOuvrirTicket } from '../data/paiements';
 import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
+import { nonLus } from '../data/commentaires';
 import { Icone, type IconeNom } from './icones';
 import { ICONES_ENTITE, IconeBiblio, IconeEntite } from './IconesEntite';
 import { aPrendreOuverte, aPrendrePourMoi, ailleurs, nombreAPrendre, plusPersonne, prisAilleurs, volontaires } from '../data/aPrendre';
@@ -63,7 +64,7 @@ export function StatusBadge({ task }: { task: Task }) {
   );
 }
 
-export function Modal({ title, onClose, children, wide, actions }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; actions?: ReactNode }) {
+export function Modal({ title, onClose, children, wide, actions, className }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean; actions?: ReactNode; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const k = (e: KeyboardEvent) => {
@@ -77,7 +78,7 @@ export function Modal({ title, onClose, children, wide, actions }: { title: stri
   return (
     // Un appui à côté de la fenêtre ne la ferme pas (on perdrait la saisie) : ✕, Annuler / Fermer ou Échap.
     <div ref={ref} className="modal-back">
-      <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-label={title}>
+      <div className={`modal ${wide ? 'wide' : ''} ${className ?? ''}`} role="dialog" aria-label={title}>
         <div className="modal-head">
           <h2>{title}</h2>
           {actions && <span className="modal-actions">{actions}</span>}
@@ -128,12 +129,23 @@ export function LinkIcon({ task }: { task: Task }) {
 }
 
 export function DocPollIcons({ task }: { task: Task }) {
-  const { data } = useStore();
+  const { data, user } = useStore();
+  const club = useClubOptional();
   const n = task.documents?.length ?? 0;
   const polls = (data.polls ?? []).filter((p) => p.taskId === task.id).length;
   const emails = (data.emails ?? []).filter((e) => e.taskId === task.id && e.statut === 'programme').length;
+  // Discussion : bulle s'il y a des messages, avec le nombre de ceux pas encore lus.
+  const msgs = task.commentaires?.length ?? 0;
+  const ici = club?.current.id ?? '';
+  const nl = user && msgs ? nonLus(task.commentaires, data.discussionsLues?.[user.id]?.[task.id], user.id, ici, task.source?.uniteId ?? ici) : 0;
   return (
     <>
+      {msgs > 0 && (
+        <span className={`ticon discussion-tag${nl ? ' nonlu' : ''}`} title={`Discussion : ${msgs} message${msgs > 1 ? 's' : ''}${nl ? `, ${nl} non lu${nl > 1 ? 's' : ''}` : ''}`}>
+          <Icone n="message" />
+          {nl > 0 && <span className="pastille-nonlu">{nl}</span>}
+        </span>
+      )}
       {task.paiement && <span className="ticon" title={genre(task.paiement).nom}><Icone n={genreDe(task.paiement)} /></span>}
       {n > 0 && <span className="ticon" title={`${n} document(s)`}><Icone n="fichier" />{n > 1 ? n : ''}</span>}
       {polls > 0 && <span className="ticon" title="Sondage rattaché"><Icone n="sondage" /></span>}

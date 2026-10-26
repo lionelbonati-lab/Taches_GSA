@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { nonLus } from '../data/commentaires';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { ciblesPourInfo, clesVu, termineeChezElle, vusDeLEntite } from '../data/pourInfo';
@@ -6,6 +7,7 @@ import type { TachePartagee } from '../data/types';
 import { daysUntil, fmtDate } from '../data/utils';
 import { AvecLiens, Lien } from './Liens';
 import { Modal } from './ui';
+import { Icone } from './icones';
 import { Discussion } from './tache/Discussion';
 import { Historique } from './tache/Historique';
 
@@ -21,13 +23,16 @@ export function delaiRecu(x: TachePartagee) {
   return `${fmtDate(x.task.delai)}${!termineeChezElle(x) && n < 0 ? ` (${-n} j de retard)` : ''}`;
 }
 
-export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee[]; ouverte?: string; onClose: () => void }) {
-  const { user, can, vuPourInfo, setToast } = useStore();
+/** `ouverte` : la tâche dépliée d'emblée (lien d'une notification), avec sa discussion si `discussion`. */
+export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: TachePartagee[]; ouverte?: string; discussion?: boolean; onClose: () => void }) {
+  const { data, user, can, vuPourInfo, setToast } = useStore();
   // « ✓ Vu » noté pendant que la fenêtre est ouverte (la liste se relit ensuite).
   const [vuIci, setVuIci] = useState<string[]>([]);
   const club = useClubOptional();
   const ici = club?.current.nom ?? 'cette entité';
   const [vue, setVue] = useState<string | null>(() => ouverte ?? (list.length === 1 ? clePourInfo(list[0]) : null));
+  // Discussion ouverte (sa fenêtre) : clé de la tâche.
+  const [chat, setChat] = useState<string | null>(() => (discussion && ouverte) || null);
   // Par entité ; en cours d'abord, par délai.
   const groupes = useMemo(() => {
     const m = new Map<string, TachePartagee[]>();
@@ -64,6 +69,10 @@ export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee
                 });
                 const miennes = user && club ? clesVu(t, x.uniteId, club.current.id, user.id, can('tasks.viewAll')) : [];
                 const aVoir = miennes.length > 0 && !vuIci.includes(k) && miennes.some((c) => !t.pourInfoVus?.[c]);
+                // Comme les notifications : la tâche vue d'ici (« x:<entité>:<tâche> »).
+                const cle = `x:${k}`;
+                const msgs = t.commentaires?.length ?? 0;
+                const nl = user ? nonLus(t.commentaires, data.discussionsLues?.[user.id]?.[cle], user.id, club?.current.id ?? '', x.uniteId) : 0;
                 return (
                   <li key={k} className={termineeChezElle(x) ? 'pour-info-finie' : ''}>
                     <span className="pour-info-titre">
@@ -72,6 +81,7 @@ export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee
                         {' '}· {termineeChezElle(x) ? '✓ ' : ''}{st?.label ?? '?'} · {delaiRecu(x)}
                         {liste.length > 0 && ` · ☑ ${liste.filter((c) => c.done).length}/${liste.length}`}
                         {pourToi ? ' · pour toi' : ` · pour « ${ici} »`}
+                        {nl > 0 && ` · 💬 ${nl} non lu${nl > 1 ? 's' : ''}`}
                       </small>
                     </span>
                     <button type="button" className="btn link small" aria-expanded={vue === k} onClick={() => setVue(vue === k ? null : k)}>{vue === k ? 'Masquer' : 'Voir'}</button>
@@ -93,7 +103,12 @@ export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee
                         )}
                         {!!t.pieces && <p className="muted small">📎 {t.pieces} fichier(s) joint(s), consultables chez {x.unite} seulement.</p>}
                         {aussi.length > 0 && <p className="muted small">👁 Pour info : {aussi.join(', ')}</p>}
-                        <Discussion liste={t.commentaires} tacheId={t.id} uniteId={x.uniteId} />
+                        <p>
+                          <button type="button" className="btn small" onClick={() => setChat(k)}>
+                            <Icone n="message" /> Discussion{msgs ? ` (${msgs} message${msgs > 1 ? 's' : ''}${nl ? `, ${nl} non lu${nl > 1 ? 's' : ''}` : ''})` : ''}
+                          </button>
+                        </p>
+                        {chat === k && <Discussion titre={t.titre || '(sans titre)'} liste={t.commentaires} cle={cle} tacheId={t.id} uniteId={x.uniteId} onClose={() => setChat(null)} />}
                         <Historique tacheId={t.id} uniteId={x.uniteId} version={t.updatedAt} />
                         {aVoir && (
                           <p>

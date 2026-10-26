@@ -15,8 +15,8 @@ export interface Changement {
   apres?: unknown;
 }
 
-// Jamais annulés : le journal d'activité, les préférences et les notifications lues de chacun.
-const HORS = new Set(['log', 'prefs', 'notifLues']);
+// Jamais annulés : le journal d'activité, les préférences, les notifications et discussions lues de chacun.
+const HORS = new Set(['log', 'prefs', 'notifLues', 'discussionsLues']);
 
 type Fiche = { id: string };
 const enListe = (v: unknown): v is Fiche[] => Array.isArray(v) && v.every((x) => !!x && typeof x === 'object' && 'id' in x);

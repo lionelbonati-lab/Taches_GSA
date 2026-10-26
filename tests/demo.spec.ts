@@ -58,32 +58,82 @@ test('tâche créée avec checklist, répétition et statut, retrouvée à la r�
 test('discussion : commenter, corriger puis retirer un commentaire', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche discutée');
-  await expect(fiche.getByLabel('Nouveau commentaire')).toHaveCount(0);
+  await expect(fiche.getByRole('button', { name: 'Discussion', exact: true })).toHaveCount(0);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
   await page.locator('main').getByText('Tâche discutée').filter({ visible: true }).first().click();
-  const rouverte = page.locator('.modal').first();
-  const discussion = rouverte.getByRole('region', { name: 'Discussion' });
-  // La bulle en haut de la fiche mène au champ de saisie, puis compte les messages.
-  await rouverte.getByRole('button', { name: 'Discussion', exact: true }).click();
+  // La bulle en haut de la fiche ouvre la discussion dans sa fenêtre, curseur dans le champ.
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
+  const chat = page.getByRole('dialog', { name: '💬 Tâche discutée' });
+  const discussion = chat.getByRole('region', { name: 'Discussion' });
   await expect(discussion.getByLabel('Nouveau commentaire')).toBeFocused();
   await discussion.getByLabel('Nouveau commentaire').fill('Qui apporte la rallonge ?');
-  await discussion.getByRole('button', { name: 'Envoyer' }).click();
-  await expect(discussion.locator('.discussion-liste li')).toHaveCount(1);
-  await expect(rouverte.getByRole('button', { name: 'Discussion (1)' })).toBeVisible();
-  await expect(discussion.locator('.discussion-liste li')).toContainText('Qui apporte la rallonge ?');
+  await discussion.getByLabel('Nouveau commentaire').press('Enter');
+  await expect(discussion.locator('.discussion-message')).toHaveCount(1);
+  await expect(discussion.locator('.discussion-message.mien')).toContainText('Qui apporte la rallonge ?');
+  await expect(discussion.getByRole('separator')).toHaveText('Aujourd’hui');
   await expect(discussion.getByLabel('Nouveau commentaire')).toHaveValue('');
 
   await discussion.getByRole('button', { name: 'Corriger' }).click();
   await discussion.getByLabel('Corriger le commentaire').fill('Qui apporte les rallonges ?');
   await discussion.getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(discussion.locator('.discussion-liste li')).toContainText('Qui apporte les rallonges ?');
-  await expect(discussion.locator('.discussion-liste li')).toContainText('corrigé');
+  await expect(discussion.locator('.discussion-message')).toContainText('Qui apporte les rallonges ?');
+  await expect(discussion.locator('.discussion-message')).toContainText('corrigé');
 
   page.once('dialog', (d) => void d.accept());
   await discussion.getByRole('button', { name: 'Retirer' }).click();
-  await expect(discussion.locator('.discussion-liste li')).toHaveCount(0);
+  await expect(discussion.locator('.discussion-message')).toHaveCount(0);
+  // Échap ferme la discussion, pas la fiche.
+  await page.keyboard.press('Escape');
+  await expect(chat).toHaveCount(0);
+  await expect(page.locator('.modal')).toHaveCount(1);
+});
+
+test('discussion : messages non lus sur la carte et la bulle, ouverte depuis la notification', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Tâche à discuter');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const changerDePersonne = async (n: number) => {
+    await page.locator('.who-btn').click();
+    await page.getByText('Changer d’utilisateur').click();
+    await page.locator('.login-user').nth(n).click();
+    await expect(page.locator('.unit-btn')).toBeVisible();
+  };
+
+  // Une autre personne écrit dans la discussion.
+  await changerDePersonne(1);
+  await page.goto('./?demo#/taches');
+  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await page.locator('main').getByText('Tâche à discuter').filter({ visible: true }).first().click();
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
+  const champ = page.getByLabel('Nouveau commentaire');
+  await champ.fill('Je peux m’en occuper samedi.');
+  await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
+  await expect(page.locator('.discussion-message.mien')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // L'auteur de la tâche : pastille « 1 » sur la tâche, puis la notification 💬 ouvre la discussion.
+  await changerDePersonne(0);
+  await page.goto('./?demo#/taches');
+  const ligne = page.locator('main tr', { hasText: 'Tâche à discuter' });
+  await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveText('1');
+  await page.goto('./?demo#/');
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  await page.locator('.bell-item', { hasText: 'a commenté « Tâche à discuter »' }).click();
+  const chat = page.getByRole('dialog', { name: '💬 Tâche à discuter' });
+  await expect(chat.locator('.discussion-nouveaux')).toHaveText('Nouveau message');
+  await expect(chat.locator('.discussion-message:not(.mien)')).toContainText('Je peux m’en occuper samedi.');
+  await chat.getByRole('button', { name: 'Fermer' }).click();
+  // Lue : plus de pastille, la bulle reste pour dire qu'il y a une discussion.
+  await expect(page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true })).toBeVisible();
+  await page.locator('.modal').first().getByRole('button', { name: 'Fermer' }).first().click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(ligne.locator('.discussion-tag')).toBeVisible();
+  await expect(ligne.locator('.pastille-nonlu')).toHaveCount(0);
 });
 
 test('historique : création puis changement de titre', async ({ page }) => {

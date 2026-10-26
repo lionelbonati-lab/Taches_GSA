@@ -60,8 +60,8 @@ export interface UnitInfo {
 
 /** Collections de l'appli enregistrées élément par élément. */
 const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions'] as const;
-/** Tables personne → valeur (réglages, notifications vues). */
-const MAP_KINDS = ['prefs', 'notifLues'] as const;
+/** Tables personne → valeur (réglages, notifications vues, discussions lues). */
+const MAP_KINDS = ['prefs', 'notifLues', 'discussionsLues'] as const;
 /** Listes dont l'ordre est choisi par l'utilisateur (sinon l'ordre d'ajout est conservé). */
 const ORDERED = new Set<string>(['people', 'statuses', 'sections', 'roles']);
 
@@ -122,7 +122,8 @@ export function toRows(d: AppData): Row[] {
 
 /** Reconstruit les données de l'appli à partir des lignes du serveur. */
 export function fromRows(rows: Row[]): AppData {
-  const d: Record<string, unknown> = { prefs: {}, notifLues: {} };
+  const d: Record<string, unknown> = {};
+  MAP_KINDS.forEach((k) => (d[k] = {}));
   ARRAY_KINDS.forEach((k) => (d[k] = []));
   const sorted = [...rows].sort((a, b) => a.pos - b.pos || (a.id < b.id ? -1 : 1));
   for (const r of sorted) {

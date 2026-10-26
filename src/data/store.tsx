@@ -539,6 +539,28 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [userId],
   );
 
+  const discussionLue = useCallback(
+    (cle: string, dernier: string) => {
+      if (!userId || !dernier) return;
+      setData((prev) => {
+        const lues = prev.discussionsLues?.[userId] ?? {};
+        // Ses notifications 💬 sont lues du même coup.
+        const seen = new Set(prev.notifLues?.[userId] ?? []);
+        const notifs = (prev.notifications ?? []).filter((n) => n.userId === userId && n.type === 'comment' && n.taskId === cle && !seen.has(n.id));
+        if ((lues[cle] ?? '') >= dernier && !notifs.length) return prev;
+        notifs.forEach((n) => seen.add(n.id));
+        // Les 400 discussions lues le plus récemment suffisent.
+        const garder = Object.entries({ ...lues, [cle]: dernier > (lues[cle] ?? '') ? dernier : lues[cle] }).sort((a, b) => b[1].localeCompare(a[1])).slice(0, 400);
+        return {
+          ...prev,
+          discussionsLues: { ...prev.discussionsLues, [userId]: Object.fromEntries(garder) },
+          notifLues: notifs.length ? { ...prev.notifLues, [userId]: [...seen].slice(-800) } : prev.notifLues,
+        };
+      });
+    },
+    [userId],
+  );
+
   const reset = useCallback(() => {
     if (cloud) return;
     clearFiles();
@@ -777,6 +799,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     toast,
     setToast,
     markNotifsRead,
+    discussionLue,
     savePoll,
     votePoll,
     closePoll,
