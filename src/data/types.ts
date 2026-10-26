@@ -669,6 +669,13 @@ export interface Prefs {
   /** Tâches : masquer les terminées pas encore archivées (vue Tableau ; défaut : non). */
   masquerTerminees?: boolean;
   pv?: Partial<PvSettings>;
+  /**
+   * Profils de l'ordre du jour, à soi (jeux de réglages enregistrés sous un nom). Pas encore de liste à soi : les
+   * anciens profils communs de l'entité (ReglagesOdj.profils), qui deviennent les siens dès qu'on en change un.
+   */
+  profilsOdj?: ProfilOdj[];
+  /** « Envoyer par email » : profil du texte du mail et profil du PDF joint (`aucun` : sans PDF), parmi ses profils. */
+  envoiOdj?: { texte?: string; pdf?: string };
   notif?: Partial<NotifPrefs>;
   /** Agenda : entités du club dont les dates (édition, événements) ne sont pas affichées. */
   manifsMasquees?: string[];
@@ -779,11 +786,14 @@ export interface ReglagesOdj {
    * « Valider et archiver » l'ouvre dans une nouvelle fenêtre et crée le PDF du PV, à y déposer.
    */
   depotPv?: string;
-  /** Profils de l'ordre du jour : jeux de réglages enregistrés sous un nom, communs à l'entité. */
+  /**
+   * Anciens profils de l'ordre du jour, communs à l'entité : les profils sont maintenant à chacun (Prefs.profilsOdj) ;
+   * ceux-ci restent le point de départ de qui n'a pas encore les siens.
+   */
   profils?: ProfilOdj[];
   /**
-   * « Envoyer par email » : profil du texte du mail et profil du PDF joint (`aucun` : sans PDF) ;
-   * rien, ou un profil supprimé depuis : les réglages affichés. `lieu` : lien du lieu dans le mail (défaut : itinéraire Google Maps).
+   * « Envoyer par email » : `lieu`, lien du lieu dans le mail (défaut : itinéraire Google Maps), commun à l'entité.
+   * `texte` et `pdf` : anciens choix communs de profils (maintenant Prefs.envoiOdj), repris par qui n'a pas encore les siens.
    */
   envoi?: { texte?: string; pdf?: string; lieu?: LienLieu };
 }

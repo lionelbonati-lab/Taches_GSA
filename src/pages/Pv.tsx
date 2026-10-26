@@ -14,7 +14,7 @@ import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
 import { TaskModal } from '../components/TaskModal';
 import { MiseEnForme } from '../components/MiseEnForme';
-import { ProfilsOdj } from '../components/ProfilsOdj';
+import { ProfilsOdj, profilsDe } from '../components/ProfilsOdj';
 import { epurer, margesMm, styleVars } from '../data/styleDocs';
 import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
 import { AvecLiens, LieuSeance } from '../components/Liens';
@@ -391,23 +391,30 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
   canEdit: boolean;
   onClose: () => void;
 }) {
-  const { data, user, updateSilent, setToast } = useStore();
-  const profils = data.reglagesOdj?.profils ?? [];
+  const { data, prefs, setPrefs, user, updateSilent, setToast } = useStore();
+  const profils = profilsDe(prefs, data);
   const style = data.reglagesOdj?.style;
   // Choix enregistré : un profil qui existe encore (ou « Pas de PDF ») ; sinon les réglages affichés.
   const valide = (id: string | undefined, pdf = false) => (id && (profils.some((p) => p.id === id) || (pdf && id === SANS_PDF)) ? id : '');
-  const [texteId, setTexteId] = useState(() => valide(data.reglagesOdj?.envoi?.texte));
-  const [pdfId, setPdfId] = useState(() => valide(data.reglagesOdj?.envoi?.pdf, true));
+  // Pas encore ses propres choix : ceux d'avant, communs à l'entité, s'ils désignent des profils repris.
+  const choixEnvoi = prefs.envoiOdj ?? data.reglagesOdj?.envoi;
+  const [texteId, setTexteId] = useState(() => valide(choixEnvoi?.texte));
+  const [pdfId, setPdfId] = useState(() => valide(choixEnvoi?.pdf, true));
   const [lieuChoix, setLieuChoix] = useState<LienLieu>(() => data.reglagesOdj?.envoi?.lieu ?? 'google');
-  // Avec le droit de changer l'ordre du jour, le choix est mémorisé pour l'entité : la prochaine fois, les mêmes profils.
+  // Profils choisis : mémorisés pour soi (ce sont ses profils) ; lien du lieu : pour l'entité, avec le droit de changer
+  // l'ordre du jour. La prochaine fois, les mêmes choix.
   const choisir = (k: 'texte' | 'pdf' | 'lieu', v: string) => {
-    if (k === 'lieu') setLieuChoix(v as LienLieu);
-    else (k === 'texte' ? setTexteId : setPdfId)(v);
+    if (k !== 'lieu') {
+      (k === 'texte' ? setTexteId : setPdfId)(v);
+      setPrefs({ envoiOdj: { texte: texteId || undefined, pdf: pdfId || undefined, [k]: v || undefined } });
+      return;
+    }
+    setLieuChoix(v as LienLieu);
     if (canEdit)
       updateSilent((d) => {
         const { envoi: avant, ...reste } = d.reglagesOdj ?? {};
         // Itinéraire Google Maps : le choix par défaut, pas besoin de le garder.
-        const envoi = { ...avant, [k]: v && !(k === 'lieu' && v === 'google') ? v : undefined };
+        const envoi = { ...avant, lieu: v && v !== 'google' ? (v as LienLieu) : undefined };
         d.reglagesOdj = envoi.texte || envoi.pdf || envoi.lieu ? { ...reste, envoi } : reste;
       });
   };
