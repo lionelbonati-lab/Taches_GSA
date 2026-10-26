@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { ciblesPourInfo, clesVu, termineeChezElle } from '../data/pourInfo';
+import { ciblesPourInfo, clesVu, termineeChezElle, vusDeLEntite } from '../data/pourInfo';
 import type { TachePartagee } from '../data/types';
 import { daysUntil, fmtDate } from '../data/utils';
 import { AvecLiens, Lien } from './Liens';
@@ -55,8 +55,11 @@ export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee
                 const liens = (t.documents ?? []).filter((d) => d.kind === 'lien' && d.url);
                 const resp = (t.responsables ?? []).map((id) => membres.find((m) => m.id === id)).filter((m) => !!m).map((m) => `${m.prenom} ${m.nom}`.trim());
                 const pourToi = !!user && !!t.pourInfo?.autres?.[club?.current.id ?? '']?.includes(user.id);
-                // « ✓ Vu » enregistrés sur la tâche (046) : à côté des noms ; le mien, à donner s'il manque.
-                const aussi = ciblesPourInfo(t.pourInfo, membres, club?.units ?? []).map((c) => `${c.texte}${t.pourInfoVus?.[c.cle] ? ' ✓' : ''}`);
+                // « ✓ Vu » enregistrés sur la tâche (046) : à côté des noms (entité : combien de ses personnes) ; le mien, à donner s'il manque.
+                const aussi = ciblesPourInfo(t.pourInfo, membres, club?.units ?? []).map((c) => {
+                  const n = c.genre === 'unite' ? Object.keys(vusDeLEntite(t.pourInfoVus, c.id)).length : 0;
+                  return `${c.texte}${c.genre === 'unite' ? (n ? ` (✓ ${n})` : '') : t.pourInfoVus?.[c.cle] ? ' ✓' : ''}`;
+                });
                 const miennes = user && club ? clesVu(t, x.uniteId, club.current.id, user.id, can('tasks.viewAll')) : [];
                 const aVoir = miennes.length > 0 && !vuIci.includes(k) && miennes.some((c) => !t.pourInfoVus?.[c]);
                 return (

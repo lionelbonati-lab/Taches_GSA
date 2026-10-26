@@ -49,7 +49,7 @@ export function pourInfoVersOrigine(orig: PourInfo | undefined, vu: PourInfo | u
 
 type Vus = Record<string, VuPourInfo>;
 
-/** « ✓ Vu » vus depuis l'entité `moi` (tâche partagée de l'entité `src`) : mêmes clés que pourInfoVu. */
+/** « ✓ Vu » vus depuis l'entité `moi` (tâche partagée de l'entité `src`) : mêmes clés que pourInfoVu ; ceux de `moi` mentionnée en entier, retirés. */
 export function vusVu(v: Vus | undefined, src: string, moi: string): Vus | undefined {
   if (!v) return undefined;
   const out: Vus = {};
@@ -64,20 +64,39 @@ export function vusVu(v: Vus | undefined, src: string, moi: string): Vus | undef
 
 /**
  * Clés « Pour info » de la personne connectée (fiche `fiche` dans l'entité ouverte `depuis`) sur une tâche de l'entité
- * `unite` : elle-même, et son entité si elle en voit toutes les tâches (`voitTout`). Même règle que gsa_pour_info_vu (046).
+ * `unite` : elle-même, et elle au titre de son entité si elle en voit toutes les tâches (`voitTout`). Même règle que
+ * gsa_pour_info_vu (046).
  */
 export function clesVu(t: Pick<Task, 'pourInfo' | 'paiement'>, unite: string, depuis: string, fiche: string, voitTout: boolean): string[] {
   const p = t.paiement ? undefined : t.pourInfo;
   if (!p) return [];
   if (unite === depuis) return p.personnes?.includes(fiche) ? [`p:${fiche}`] : [];
-  return [...(p.autres?.[depuis]?.includes(fiche) ? [`a:${depuis}:${fiche}`] : []), ...(voitTout && p.unites?.includes(depuis) ? [`u:${depuis}`] : [])];
+  return [...(p.autres?.[depuis]?.includes(fiche) ? [`a:${depuis}:${fiche}`] : []), ...(voitTout && p.unites?.includes(depuis) ? [`u:${depuis}:${fiche}`] : [])];
 }
 
 /** « ✓ Vu » ajoutés (démo ; version réelle : gsa_pour_info_vu) : la première fois compte. Rien de nouveau : `v` tel quel. */
-export function ajouterVus(v: Vus | undefined, cles: string[], le: string, par: string): Vus | undefined {
+export function ajouterVus(v: Vus | undefined, cles: string[], le: string): Vus | undefined {
   const nouvelles = cles.filter((k) => !v?.[k]);
   if (!nouvelles.length) return v;
-  return { ...v, ...Object.fromEntries(nouvelles.map((k) => [k, k.startsWith('u:') ? { le, par } : { le }])) };
+  return { ...v, ...Object.fromEntries(nouvelles.map((k) => [k, { le }])) };
+}
+
+/** « ✓ Vu » des personnes d'une entité mentionnée en entier (« u:entité:fiche ») : fiche → vu. */
+export function vusDeLEntite(v: Vus | undefined, entite: string): Vus {
+  const pre = `u:${entite}:`;
+  return Object.fromEntries(Object.entries(v ?? {}).filter(([k]) => k.startsWith(pre)).map(([k, x]) => [k.slice(pre.length), x]));
+}
+
+/**
+ * Où en est une pastille : « vu », « partiel » (entité : une partie de ses personnes), « pas-vu ». Entité : celles qui
+ * la reçoivent (`recoivent`, fiches ; inconnues : celles qui l'ont vue), toutes doivent l'avoir vue.
+ */
+export function etatVu(cle: string, v: Vus | undefined, recoivent?: string[]): { etat: 'vu' | 'partiel' | 'pas-vu'; n: number; total: number } {
+  if (!cle.startsWith('u:')) return { etat: v?.[cle] ? 'vu' : 'pas-vu', n: v?.[cle] ? 1 : 0, total: 1 };
+  const vus = vusDeLEntite(v, cle.slice(2));
+  const qui = [...new Set([...(recoivent ?? []), ...Object.keys(vus)])];
+  const n = qui.filter((f) => vus[f]).length;
+  return { etat: n === 0 ? 'pas-vu' : recoivent && n === qui.length ? 'vu' : 'partiel', n, total: qui.length };
 }
 
 /**

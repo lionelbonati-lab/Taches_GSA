@@ -19,6 +19,8 @@
   --vu-fg: #15803d;
   --pas-vu-bg: #fee2e2;
   --pas-vu-fg: #b91c1c;
+  --partiel-bg: #ffedd5;
+  --partiel-fg: #c2410c;
   --radius: 10px;
   --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 2px 8px rgba(15, 23, 42, 0.05);
   color-scheme: light;
@@ -41,6 +43,8 @@
   --vu-fg: #86efac;
   --pas-vu-bg: #3a1420;
   --pas-vu-fg: #fda4af;
+  --partiel-bg: #3b2410;
+  --partiel-fg: #fdba74;
   color-scheme: dark;
 }
 
@@ -1741,6 +1745,10 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .pour-info .chip.vu, .pour-info .chip.pas-vu { opacity: 1; }
 .pour-info .chip.vu { background: var(--vu-bg); border-color: var(--vu-fg); color: var(--vu-fg); }
 .pour-info .chip.pas-vu { background: var(--pas-vu-bg); border-color: var(--pas-vu-fg); color: var(--pas-vu-fg); }
+.pour-info .chip.partiel { opacity: 1; background: var(--partiel-bg); border-color: var(--partiel-fg); color: var(--partiel-fg); }
+.pour-info-entite-vus { display: block; margin-top: 2px; font-size: 0.82rem; }
+.pour-info-entite-vus .vu-oui { color: var(--vu-fg); }
+.pour-info-entite-vus .vu-non { color: var(--pas-vu-fg); }
 .chip-vu { font-size: 0.72rem; opacity: 0.8; margin-left: 2px; }
 .pour-info-bilan { display: block; margin-top: 4px; font-weight: 600; color: var(--primary); }
 .pour-info-banner { margin: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #6d28d9; background: color-mix(in srgb, #6d28d9 10%, var(--surface)); border-radius: 8px; padding: 8px 10px; font-size: 0.92rem; }

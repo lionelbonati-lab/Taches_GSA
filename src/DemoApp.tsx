@@ -505,10 +505,19 @@ export function DemoApp() {
         if (!u || u.archive || !old) throw new Error('Tâche introuvable');
         const cles = clesVu(old, uniteId, current.id, fiche.id, hasPermission(userRoles(ici.roles, fiche), 'tasks.viewAll'));
         if (!cles.length) throw new Error('Cette tâche n’est pas « pour info » pour toi');
-        const vus = ajouterVus(old.pourInfoVus, cles, new Date().toISOString(), fiche.id);
+        const vus = ajouterVus(old.pourInfoVus, cles, new Date().toISOString());
         if (vus === old.pourInfoVus) return;
         d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, pourInfoVus: vus } : x));
         saveUnitData(uniteId, d);
+      },
+      async destinatairesPourInfo(uniteId, tacheId) {
+        const t = loadUnitData(uniteId).tasks.find((x) => x.id === tacheId);
+        const r: Record<string, string[]> = {};
+        for (const e of t && !t.paiement ? (t.pourInfo?.unites ?? []) : []) {
+          const d = units.some((x) => x.id === e && !x.archive) ? loadUnitData(e) : undefined;
+          r[e] = d ? d.people.filter((p) => p.actif && hasPermission(userRoles(d.roles, p), 'tasks.viewAll')).map((p) => p.id) : [];
+        }
+        return r;
       },
       // Tâche attribuée à une entité qui dépend de l'entité ouverte : enregistrée chez elle (version réelle :
       // gsa_attribuer_tache, 035).

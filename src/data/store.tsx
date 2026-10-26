@@ -869,7 +869,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       }
       const le = new Date().toISOString();
       update((d) => {
-        d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, pourInfoVus: ajouterVus(y.pourInfoVus, [`p:${user.id}`], le, user.id) } : y));
+        d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, pourInfoVus: ajouterVus(y.pourInfoVus, [`p:${user.id}`], le) } : y));
       }, `${fullName(user)} a vu la tâche « ${x.titre} » (pour info)`, { annulable: false });
     },
     [user, userId, data, cloud, update, chargerPartagees],

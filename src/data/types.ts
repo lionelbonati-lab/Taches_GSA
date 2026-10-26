@@ -285,8 +285,9 @@ export interface Task {
   /** Pour info : personnes et entités qui voient la tâche sans s'en occuper. */
   pourInfo?: PourInfo;
   /**
-   * « ✓ Vu » des personnes et entités mentionnées pour info, par clé de « Pour info » (« p:fiche », « u:entité »,
-   * « a:entité:fiche »). Écrit par le serveur seulement (gsa_pour_info_vu, 046) ; l'appli ne fait que le lire.
+   * « ✓ Vu » des personnes mentionnées pour info, par clé de « Pour info » (« p:fiche », « a:entité:fiche ») ; pour une
+   * entité mentionnée en entier, chacune de ses personnes qui la reçoit (« u:entité:fiche »). Écrit par le serveur
+   * seulement (gsa_pour_info_vu, 046) ; l'appli ne fait que le lire.
    */
   pourInfoVus?: Record<string, VuPourInfo>;
   /** À prendre : tâche proposée à quelques personnes ; l'une d'elles s'en charge elle-même (« 🙋 Je m'en charge »). */
@@ -378,10 +379,9 @@ export interface PourInfo {
   autres?: Record<string, string[]>;
 }
 
-/** « ✓ Vu » d'une tâche pour info : quand ; pour une entité, qui l'a vue (sa fiche dans cette entité). */
+/** « ✓ Vu » d'une tâche pour info : quand. */
 export interface VuPourInfo {
   le: string;
-  par?: string;
 }
 
 /**

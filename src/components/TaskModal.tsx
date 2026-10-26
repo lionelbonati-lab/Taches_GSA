@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
@@ -9,7 +9,7 @@ import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE } from '../data/partage';
-import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
+import { ciblesPourInfo, etatVu, nbPourInfo, pourMoi, vusDeLEntite } from '../data/pourInfo';
 import { personnesDuRole } from '../data/permissions';
 import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as aDecline, peutPrendre, plusPersonne, prisAilleurs, reponsesAilleurs, volontaires } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
@@ -259,6 +259,16 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   };
   // Pour info : « ✓ Vu » de la personne connectée (la tâche quitte son accueil ; l'auteur voit qu'elle l'a vue).
   const [vuIci, setVuIci] = useState<VuPourInfo | null>(null);
+  // Entités mentionnées en entier : les personnes qui reçoivent la tâche (entité → fiches ; null : pas encore connues).
+  const [recoivent, setRecoivent] = useState<Record<string, string[]> | null>(null);
+  const entitesInfo = isNew || task.paiement ? '' : (task.pourInfo?.unites ?? []).join(',');
+  useEffect(() => {
+    if (!club || !entitesInfo) return;
+    let fini = false;
+    club.destinatairesPourInfo(task.source?.uniteId ?? club.current.id, task.source?.id ?? task.id).then((r) => !fini && setRecoivent(r), () => {});
+    return () => { fini = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- relu quand la tâche ou ses entités changent
+  }, [club?.current.id, entitesInfo, task.id, task.source?.id, task.source?.uniteId]);
   const marquerVu = async () => {
     setBusy(true);
     setErr('');
@@ -405,16 +415,31 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   // Pour info : personnes d'ici (sauf responsables), autres entités du club, personnes d'autres entités (« a:entité:fiche »).
   const info = t.pourInfo ?? {};
   const cibles = ciblesPourInfo(t.pourInfo, data.people, club?.units ?? []).filter((c) => c.genre !== 'personne' || !t.responsables.includes(c.id));
-  // « ✓ Vu » enregistrés sur la tâche (046) : sur les pastilles, avec leur date.
+  // « ✓ Vu » enregistrés sur la tâche (046) : sur les pastilles, avec leur date ; une entité mentionnée en entier est
+  // vue quand chacune des personnes qui la reçoivent (`recoivent`) l'a vue.
   const vus: Record<string, VuPourInfo> = isNew ? {} : { ...task.pourInfoVus, ...(vuIci ? { [`p:${user.id}`]: vuIci } : {}) };
-  const nbVus = cibles.filter((c) => vus[c.cle]).length;
+  const etats = Object.fromEntries(cibles.map((c) => [c.cle, etatVu(c.cle, vus, c.genre === 'unite' ? recoivent?.[c.id] : undefined)]));
+  // Bilan en personnes : une entité compte celles qui la reçoivent.
+  const toutVu = cibles.every((c) => etats[c.cle].etat === 'vu');
+  const nbVus = cibles.reduce((n, c) => n + etats[c.cle].n, 0);
+  const nbRecoivent = cibles.reduce((n, c) => n + etats[c.cle].total, 0);
   const infoPourMoi = !isNew && pourMoi(task, user.id) && !vus[`p:${user.id}`];
   const auteurInfo = data.people.find((p) => p.id === task.createdBy && p.id !== user.id);
   const jourCourt = (s: string) => new Date(s).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit' });
-  const quandVu = (c: (typeof cibles)[number], v: VuPourInfo) => {
-    const par = v.par && c.genre === 'unite' ? club?.units.find((u) => u.id === c.id)?.membres.find((m) => m.id === v.par) : undefined;
+  const quandVu = (v: VuPourInfo) => {
     const d = new Date(v.le);
-    return `Vu${par ? ` par ${`${par.prenom} ${par.nom}`.trim()}` : ''} le ${d.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`;
+    return `Vu le ${d.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  // Entité mentionnée en entier : qui l'a vue (avec la date), qui pas encore.
+  const vusEntite = (id: string) => {
+    const membres = club?.units.find((u) => u.id === id)?.membres ?? [];
+    const nomDe = (f: string) => { const m = membres.find((x) => x.id === f); return m ? `${m.prenom} ${m.nom}`.trim() : '?'; };
+    const v = vusDeLEntite(vus, id);
+    return {
+      vues: Object.entries(v).sort((a, b) => a[1].le.localeCompare(b[1].le)).map(([f, x]) => `${nomDe(f)} (${jourCourt(x.le)})`),
+      pasEncore: (recoivent?.[id] ?? []).filter((f) => !v[f]).map(nomDe).sort((a, b) => a.localeCompare(b, 'fr')),
+      connu: !!recoivent?.[id],
+    };
   };
   const infoIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !info.personnes?.includes(p.id));
   const autresUnites = club ? club.units.filter((u) => u.id !== club.current.id && !u.archive) : [];
@@ -763,12 +788,16 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             <span className="field-label">👁 Pour info</span>
             <div className="chips">
               {cibles.map((c) => {
-                const v = vus[c.cle];
+                const e = etats[c.cle];
+                const v = c.genre === 'unite' ? undefined : vus[c.cle];
+                const ve = !isNew && c.genre === 'unite' ? vusEntite(c.id) : undefined;
+                const titre = isNew ? undefined : v ? quandVu(v) : ve ? `Vue par ${e.n}${ve.connu ? ` sur ${e.total}` : ''}${ve.pasEncore.length ? ` ; pas encore : ${ve.pasEncore.join(', ')}` : ''}` : 'Pas encore « ✓ Vu »';
                 return (
-                  <span key={c.cle} className={`chip on ${dis ? 'locked' : ''} ${isNew ? '' : v ? 'vu' : 'pas-vu'}`} title={v ? quandVu(c, v) : isNew ? undefined : 'Pas encore « ✓ Vu »'}>
-                    {v && <Icone n="ok" />}
+                  <span key={c.cle} className={`chip on ${dis ? 'locked' : ''} ${isNew ? '' : e.etat}`} title={titre}>
+                    {!isNew && e.etat === 'vu' && <Icone n="ok" />}
                     {c.genre === 'unite' && iconeUnite(c.id)}{c.texte}
-                    {v && <small className="chip-vu"><span className="sr-only">{quandVu(c, v)} : </span>{jourCourt(v.le)}</small>}
+                    {v && <small className="chip-vu"><span className="sr-only">{quandVu(v)} : </span>{jourCourt(v.le)}</small>}
+                    {ve && (ve.connu || e.n > 0) && <small className="chip-vu"><span className="sr-only">{titre} : </span>{ve.connu ? `${e.n}/${e.total}` : `✓ ${e.n}`}</small>}
                     {!dis && <button type="button" className="chip-x" aria-label={`Retirer ${c.texte}`} onClick={() => changerInfo(c.cle, false)}>✕</button>}
                   </span>
                 );
@@ -803,13 +832,36 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             </div>
             {!isNew && cibles.length > 0 && (
               <small className="pour-info-bilan">
-                {nbVus === 0 ? 'Personne ne l’a encore marquée « ✓ Vu ».' : nbVus === cibles.length ? '✓ Vue par tout le monde.' : `✓ Vue par ${nbVus} sur ${cibles.length} (date sur la pastille).`}
+                {toutVu
+                  ? '✓ Vue par tout le monde.'
+                  : nbVus === 0
+                    ? 'Personne ne l’a encore marquée « ✓ Vu ».'
+                    : `✓ Vue par ${nbVus} personne${nbVus > 1 ? 's' : ''} sur ${nbRecoivent}.`}
               </small>
             )}
+            {!isNew &&
+              cibles
+                .filter((c) => c.genre === 'unite')
+                .map((c) => {
+                  const ve = vusEntite(c.id);
+                  return (
+                    <small key={c.cle} className="pour-info-entite-vus">
+                      {iconeUnite(c.id)}<b>{c.texte}</b> :{' '}
+                      {ve.connu && !ve.vues.length && !ve.pasEncore.length
+                        ? 'personne ne la reçoit (ni admin ni rôle « Voir toutes les tâches » avec un compte).'
+                        : <>
+                            {ve.vues.length > 0 && <span className="vu-oui">✓ {ve.vues.join(', ')}</span>}
+                            {ve.vues.length > 0 && ve.pasEncore.length > 0 && ' · '}
+                            {ve.pasEncore.length > 0 && <span className="vu-non">pas encore : {ve.pasEncore.join(', ')}</span>}
+                            {!ve.vues.length && !ve.pasEncore.length && 'personne ne l’a encore vue.'}
+                          </>}
+                    </small>
+                  );
+                })}
             <small className="muted">
               Elles voient la tâche sans s’en occuper : les personnes d’ici dans « Mes tâches » (👁) avec une notification 🔔 ; les autres entités (leurs
               admins et les rôles « Voir toutes les tâches ») et leurs personnes, en lecture seule, à l’accueil et dans Tâches › 👁 Pour info. Quand
-              elles la marquent « ✓ Vu », leur pastille passe du rouge au vert (✓ et la date).
+              elles la marquent « ✓ Vu », leur pastille passe du rouge au vert (✓ et la date) ; une entité compte chacune des personnes qui la reçoivent (orange : une partie l’a vue).
             </small>
           </div>
         )}

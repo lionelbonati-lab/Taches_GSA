@@ -176,6 +176,12 @@ export interface Club {
    * pour son auteur (version réelle : gsa_pour_info_vu, 046).
    */
   vuPourInfo: (uniteId: string, tacheId: string) => Promise<void>;
+  /**
+   * Personnes qui reçoivent une tâche de l'entité `uniteId` au titre des entités mentionnées en entier pour info (leurs
+   * admins et rôles « Voir toutes les tâches », avec un compte) : entité → fiches ; null : le serveur ne le dit pas
+   * encore (046).
+   */
+  destinatairesPourInfo: (uniteId: string, tacheId: string) => Promise<Record<string, string[]> | null>;
   /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */
   sondagesPartages: () => Promise<SondagePartage[] | null>;
   /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */
