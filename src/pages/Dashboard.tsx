@@ -24,7 +24,7 @@ import { IconeEntite } from '../components/IconesEntite';
 import { LieuSeance } from '../components/Liens';
 
 export function Dashboard() {
-  const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo, setToast } = useStore();
+  const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo, setToast, vuPourInfo } = useStore();
   const club = useClubOptional();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
@@ -88,11 +88,14 @@ export function Dashboard() {
   const infoRecues = recuesTout.filter((x) => !vus[clePourInfo(x)]);
   const clesInfo = new Set([...infoTout.map((t) => t.id), ...recuesTout.map(clePourInfo)]);
   const masquees = [...clesInfo].filter((k) => vus[k]).length;
-  const marquerVu = (cle: string, titre: string) => {
+  // « ✓ Vu » : la tâche quitte l'accueil, et son auteur voit que je l'ai vue (enregistré sur la tâche). `uniteId` : tâche
+  // d'une autre entité (reçue pour info, partagée).
+  const marquerVu = (cle: string, titre: string, tacheId: string, uniteId?: string) => {
     // On oublie les marques des tâches qui ne sont plus « pour info » (terminées, supprimées) depuis deux mois.
     const garde = Object.fromEntries(Object.entries(vus).filter(([k, d]) => clesInfo.has(k) || daysUntil(d) > -60));
     setPrefs({ pourInfoVus: { ...garde, [cle]: today() } });
-    setToast(`« ${titre} » ne s’affiche plus sur l’accueil (toujours dans Tâches › Pour info).`);
+    setToast(`« ${titre} » ne s’affiche plus sur l’accueil (toujours dans Tâches › Pour info) ; son auteur voit que tu l’as vue.`);
+    vuPourInfo(cle, tacheId, uniteId).catch((e) => setToast(`⚠️ ${e instanceof Error ? e.message : e}`));
   };
   const reafficher = () => {
     const reste = Object.fromEntries(Object.entries(vus).filter(([k]) => !clesInfo.has(k)));
@@ -160,7 +163,7 @@ export function Dashboard() {
               )}
             </h2>
             <div className="cards">
-              {infoIci.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} onVu={() => marquerVu(t.id, t.titre)} />)}
+              {infoIci.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} onVu={() => marquerVu(t.id, t.titre, t.source?.id ?? t.id, t.source?.uniteId)} />)}
               {infoRecues.map((x) => {
                 const t = x.task;
                 const retard = !!t.delai && daysUntil(t.delai) < 0;
@@ -176,7 +179,7 @@ export function Dashboard() {
                       <span className="badge pour-info"><Icone n="voir" /> lecture seule</span>
                       <span className={retard ? 'late-text' : 'muted'}>{delaiRecu(x)}</span>
                     </div>
-                    <BoutonVu onVu={() => marquerVu(clePourInfo(x), t.titre)} />
+                    <BoutonVu onVu={() => marquerVu(clePourInfo(x), t.titre, t.id, x.uniteId)} />
                   </div>
                 );
               })}

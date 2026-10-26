@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { ciblesPourInfo, termineeChezElle } from '../data/pourInfo';
+import { ciblesPourInfo, clesVu, termineeChezElle } from '../data/pourInfo';
 import type { TachePartagee } from '../data/types';
 import { daysUntil, fmtDate } from '../data/utils';
 import { AvecLiens, Lien } from './Liens';
@@ -20,7 +20,9 @@ export function delaiRecu(x: TachePartagee) {
 }
 
 export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee[]; ouverte?: string; onClose: () => void }) {
-  const { user } = useStore();
+  const { user, can, vuPourInfo, setToast } = useStore();
+  // « ✓ Vu » noté pendant que la fenêtre est ouverte (la liste se relit ensuite).
+  const [vuIci, setVuIci] = useState<string[]>([]);
   const club = useClubOptional();
   const ici = club?.current.nom ?? 'cette entité';
   const [vue, setVue] = useState<string | null>(() => ouverte ?? (list.length === 1 ? clePourInfo(list[0]) : null));
@@ -53,7 +55,10 @@ export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee
                 const liens = (t.documents ?? []).filter((d) => d.kind === 'lien' && d.url);
                 const resp = (t.responsables ?? []).map((id) => membres.find((m) => m.id === id)).filter((m) => !!m).map((m) => `${m.prenom} ${m.nom}`.trim());
                 const pourToi = !!user && !!t.pourInfo?.autres?.[club?.current.id ?? '']?.includes(user.id);
-                const aussi = ciblesPourInfo(t.pourInfo, membres, club?.units ?? []).map((c) => c.texte);
+                // « ✓ Vu » enregistrés sur la tâche (046) : à côté des noms ; le mien, à donner s'il manque.
+                const aussi = ciblesPourInfo(t.pourInfo, membres, club?.units ?? []).map((c) => `${c.texte}${t.pourInfoVus?.[c.cle] ? ' ✓' : ''}`);
+                const miennes = user && club ? clesVu(t, x.uniteId, club.current.id, user.id, can('tasks.viewAll')) : [];
+                const aVoir = miennes.length > 0 && !vuIci.includes(k) && miennes.some((c) => !t.pourInfoVus?.[c]);
                 return (
                   <li key={k} className={termineeChezElle(x) ? 'pour-info-finie' : ''}>
                     <span className="pour-info-titre">
@@ -83,6 +88,26 @@ export function PourInfoRecues({ list, ouverte, onClose }: { list: TachePartagee
                         )}
                         {!!t.pieces && <p className="muted small">📎 {t.pieces} fichier(s) joint(s), consultables chez {x.unite} seulement.</p>}
                         {aussi.length > 0 && <p className="muted small">👁 Pour info : {aussi.join(', ')}</p>}
+                        {aVoir && (
+                          <p>
+                            <button
+                              type="button"
+                              className="btn small"
+                              title="Je suis au courant : son auteur le voit, et elle quitte mon accueil"
+                              onClick={() => {
+                                setVuIci([...vuIci, k]);
+                                vuPourInfo(k, t.id, x.uniteId)
+                                  .then(() => setToast(`« ${t.titre || '(sans titre)'} » : ton « ✓ Vu » est noté ; son auteur le voit.`))
+                                  .catch((e) => {
+                                    setVuIci((l) => l.filter((y) => y !== k));
+                                    setToast(`⚠️ ${e instanceof Error ? e.message : e}`);
+                                  });
+                              }}
+                            >
+                              ✓ Vu
+                            </button>
+                          </p>
+                        )}
                       </div>
                     )}
                   </li>

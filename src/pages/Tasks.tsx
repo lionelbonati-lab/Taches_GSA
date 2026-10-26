@@ -389,7 +389,7 @@ export function Tasks() {
 /** « ✓ Vu » d'une tâche pour info (accueil) : elle n'y figure plus. */
 export const BoutonVu = ({ onVu }: { onVu: () => void }) => (
   <div className="pour-info-vu" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-    <button className="btn small" onClick={onVu} title="Je suis au courant : ne plus l’afficher sur l’accueil (elle reste dans les tâches)">
+    <button className="btn small" onClick={onVu} title="Je suis au courant : son auteur le voit, et elle quitte l’accueil (elle reste dans les tâches)">
       <Icone n="ok" /> Vu
     </button>
   </div>

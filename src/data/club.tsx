@@ -170,6 +170,12 @@ export interface Club {
    * ouverte et proposée ici à la personne connectée (040) : réponse enregistrée dans l'entité de la tâche.
    */
   repondreTachePartagee: (uniteId: string, tacheId: string, prend: boolean) => Promise<void>;
+  /**
+   * « ✓ Vu » de la personne connectée sur une tâche de l'entité `uniteId` pour info de l'entité ouverte (elle-même, ou
+   * l'entité pour ses admins et les rôles « Voir toutes les tâches ») ou partagée avec elle : enregistré sur la tâche,
+   * pour son auteur (version réelle : gsa_pour_info_vu, 046).
+   */
+  vuPourInfo: (uniteId: string, tacheId: string) => Promise<void>;
   /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */
   sondagesPartages: () => Promise<SondagePartage[] | null>;
   /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */

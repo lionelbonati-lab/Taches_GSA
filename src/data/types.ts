@@ -284,6 +284,11 @@ export interface Task {
   respPartage?: Record<string, string[]>;
   /** Pour info : personnes et entités qui voient la tâche sans s'en occuper. */
   pourInfo?: PourInfo;
+  /**
+   * « ✓ Vu » des personnes et entités mentionnées pour info, par clé de « Pour info » (« p:fiche », « u:entité »,
+   * « a:entité:fiche »). Écrit par le serveur seulement (gsa_pour_info_vu, 046) ; l'appli ne fait que le lire.
+   */
+  pourInfoVus?: Record<string, VuPourInfo>;
   /** À prendre : tâche proposée à quelques personnes ; l'une d'elles s'en charge elle-même (« 🙋 Je m'en charge »). */
   aPrendre?: APrendre;
   /** Section choisie par les entités du partage (par entité ; sinon rangée automatiquement). */
@@ -371,6 +376,12 @@ export interface PourInfo {
   unites?: string[];
   /** Personnes d'autres entités : leur fiche dans leur entité, par entité. */
   autres?: Record<string, string[]>;
+}
+
+/** « ✓ Vu » d'une tâche pour info : quand ; pour une entité, qui l'a vue (sa fiche dans cette entité). */
+export interface VuPourInfo {
+  le: string;
+  par?: string;
 }
 
 /**

@@ -9,12 +9,12 @@ import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE } from '../data/partage';
-import { ciblesPourInfo, nbPourInfo } from '../data/pourInfo';
+import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
 import { personnesDuRole } from '../data/permissions';
 import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as aDecline, peutPrendre, plusPersonne, prisAilleurs, reponsesAilleurs, volontaires } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
-import type { DelaiUnite, EvenementEntite, OrgMember, OrgUnit, Person, PourInfo, Recurrence, SeanceComite, Task } from '../data/types';
+import type { DelaiUnite, EvenementEntite, OrgMember, OrgUnit, Person, PourInfo, Recurrence, SeanceComite, Task, VuPourInfo } from '../data/types';
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
 import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { finAnticipee, motSeance, seanceApres, seancePourSuivante } from '../data/seances';
@@ -25,6 +25,7 @@ import { IconeEntite, PastilleEntite } from './IconesEntite';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteTache } from '../data/lienPartage';
 import { ZoneTexte } from './ZoneTexte';
+import { useTelephone } from './Accueil';
 
 export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
   return {
@@ -55,7 +56,8 @@ export function TaskModal(props: TaskModalProps) {
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage' | 'info' | 'prendre';
 
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, update, linkTask, autresResp, externes, setToast } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, vuPourInfo, update, linkTask, autresResp, externes, setToast } = useStore();
+  const tel = useTelephone();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   // Statut inconnu de l'entité (statuts personnalisés) : le premier statut ouvert.
   const [t, setT] = useState<Task>(() =>
@@ -255,6 +257,20 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     deleteFiles(track.current.added);
     onClose();
   };
+  // Pour info : « ✓ Vu » de la personne connectée (la tâche quitte son accueil ; l'auteur voit qu'elle l'a vue).
+  const [vuIci, setVuIci] = useState<VuPourInfo | null>(null);
+  const marquerVu = async () => {
+    setBusy(true);
+    setErr('');
+    try {
+      await vuPourInfo(task.id, task.source?.id ?? task.id, task.source?.uniteId);
+      setVuIci({ le: new Date().toISOString() });
+      setToast(`« ${task.titre} » : ton « ✓ Vu » est noté ; son auteur le voit.`);
+    } catch (e) {
+      setErr((e as Error).message);
+    }
+    setBusy(false);
+  };
 
   // Dupliquer : une nouvelle tâche pré-remplie d'après la tâche enregistrée, à compléter puis créer (« À faire », checklist
   // décochée). Ses fichiers restent communs avec l'original (gardés tant que l'une des deux les utilise) ; emails et
@@ -263,7 +279,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const dupliquer = () => {
     const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, ...reste } = task;
+    const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, pourInfoVus, ...reste } = task;
     setOther({
       task: {
         ...reste,
@@ -389,6 +405,17 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   // Pour info : personnes d'ici (sauf responsables), autres entités du club, personnes d'autres entités (« a:entité:fiche »).
   const info = t.pourInfo ?? {};
   const cibles = ciblesPourInfo(t.pourInfo, data.people, club?.units ?? []).filter((c) => c.genre !== 'personne' || !t.responsables.includes(c.id));
+  // « ✓ Vu » enregistrés sur la tâche (046) : sur les pastilles, avec leur date.
+  const vus: Record<string, VuPourInfo> = isNew ? {} : { ...task.pourInfoVus, ...(vuIci ? { [`p:${user.id}`]: vuIci } : {}) };
+  const nbVus = cibles.filter((c) => vus[c.cle]).length;
+  const infoPourMoi = !isNew && pourMoi(task, user.id) && !vus[`p:${user.id}`];
+  const auteurInfo = data.people.find((p) => p.id === task.createdBy && p.id !== user.id);
+  const jourCourt = (s: string) => new Date(s).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit' });
+  const quandVu = (c: (typeof cibles)[number], v: VuPourInfo) => {
+    const par = v.par && c.genre === 'unite' ? club?.units.find((u) => u.id === c.id)?.membres.find((m) => m.id === v.par) : undefined;
+    const d = new Date(v.le);
+    return `Vu${par ? ` par ${`${par.prenom} ${par.nom}`.trim()}` : ''} le ${d.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`;
+  };
   const infoIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !info.personnes?.includes(p.id));
   const autresUnites = club ? club.units.filter((u) => u.id !== club.current.id && !u.archive) : [];
   const iconeUnite = (id: string) => { const u = club?.units.find((x) => x.id === id); return u ? <><IconeEntite u={u} />{' '}</> : null; };
@@ -521,6 +548,14 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             </span>
           </div>
         )}
+        {infoPourMoi && (
+          <div className="full pour-info-banner">
+            <span>👁 Pour info{auteurInfo ? <> de <b>{fullName(auteurInfo)}</b></> : ''} : tu es au courant de cette tâche, sans t’en occuper. Tu l’as vue ?</span>
+            <button type="button" className="btn" disabled={busy} onClick={marquerVu} title="Je suis au courant : son auteur le voit, et elle quitte mon accueil">
+              <Icone n="ok" /> Vu
+            </button>
+          </div>
+        )}
         <label className="full">
           Tâche
           <input autoFocus={isNew} value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ?" />
@@ -532,7 +567,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             {sectionChoices.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
           </select>
         </label>
-        <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />
+        {/* Téléphone (une colonne) : Sous-section et Statut d'abord, « Pour quand ? » ensuite. */}
+        {!tel && <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />}
         {(sousSections.length > 0 || att.choix.length > 0 || attendSections) && (
           <label>
             Sous-section
@@ -583,6 +619,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           </select>
         </label>
+        {tel && <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />}
         <div className="full qui">
           <span className="field-label">Qui s’en occupe ?</span>
           <div className="chips">
@@ -725,12 +762,17 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           <div className="full pour-info">
             <span className="field-label">👁 Pour info</span>
             <div className="chips">
-              {cibles.map((c) => (
-                <span key={c.cle} className={`chip on ${dis ? 'locked' : ''}`}>
-                  {c.genre === 'unite' && iconeUnite(c.id)}{c.texte}
-                  {!dis && <button type="button" className="chip-x" aria-label={`Retirer ${c.texte}`} onClick={() => changerInfo(c.cle, false)}>✕</button>}
-                </span>
-              ))}
+              {cibles.map((c) => {
+                const v = vus[c.cle];
+                return (
+                  <span key={c.cle} className={`chip on ${dis ? 'locked' : ''} ${v ? 'vu' : ''}`} title={v ? quandVu(c, v) : isNew ? undefined : 'Pas encore « ✓ Vu »'}>
+                    {v && <Icone n="ok" />}
+                    {c.genre === 'unite' && iconeUnite(c.id)}{c.texte}
+                    {v && <small className="chip-vu"><span className="sr-only">{quandVu(c, v)} : </span>{jourCourt(v.le)}</small>}
+                    {!dis && <button type="button" className="chip-x" aria-label={`Retirer ${c.texte}`} onClick={() => changerInfo(c.cle, false)}>✕</button>}
+                  </span>
+                );
+              })}
               {!cibles.length && <span className="muted">Personne pour l’instant.</span>}
               {!dis && (infoIci.length > 0 || infoUnites.length > 0 || infoAutres.length > 0) && (
                 <Deroulante
@@ -759,9 +801,15 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
                 />
               )}
             </div>
+            {!isNew && cibles.length > 0 && (
+              <small className="pour-info-bilan">
+                {nbVus === 0 ? 'Personne ne l’a encore marquée « ✓ Vu ».' : nbVus === cibles.length ? '✓ Vue par tout le monde.' : `✓ Vue par ${nbVus} sur ${cibles.length} (date sur la pastille).`}
+              </small>
+            )}
             <small className="muted">
               Elles voient la tâche sans s’en occuper : les personnes d’ici dans « Mes tâches » (👁) avec une notification 🔔 ; les autres entités (leurs
-              admins et les rôles « Voir toutes les tâches ») et leurs personnes, en lecture seule, à l’accueil et dans Tâches › 👁 Pour info.
+              admins et les rôles « Voir toutes les tâches ») et leurs personnes, en lecture seule, à l’accueil et dans Tâches › 👁 Pour info. Quand
+              elles la marquent « ✓ Vu », leur pastille le montre (✓ et la date).
             </small>
           </div>
         )}

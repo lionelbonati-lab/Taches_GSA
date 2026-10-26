@@ -898,6 +898,15 @@ export async function pasDispoTache(unite: string, tache: string) {
   if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore « Pas dispo » (mise à jour 039 à appliquer).' : error.message);
 }
 
+/**
+ * « ✓ Vu » sur une tâche pour info de l'entité `unite`, depuis l'entité ouverte `depuis` (la même ou une autre du club) :
+ * enregistré sur la tâche, pour son auteur (046).
+ */
+export async function pourInfoVu(unite: string, tache: string, depuis: string) {
+  const { error } = await sb().rpc('gsa_pour_info_vu', { unite, tache, depuis });
+  if (error) throw new Error(absente(error) ? 'Le serveur n’enregistre pas encore les « Vu » sur les tâches (mise à jour 046 à appliquer).' : error.message);
+}
+
 /** Proposition d'amélioration de l'appli, enregistrée au comité central (le serveur y met le nom et l'entité de l'auteur). */
 export async function proposerAmelioration(club: string, source: string, p: NouvelleProposition) {
   const { data, error } = await sb().rpc('gsa_proposer_amelioration', { club, source, proposition: p });

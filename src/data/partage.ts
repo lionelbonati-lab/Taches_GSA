@@ -1,6 +1,6 @@
 import { uid } from './utils';
 import { aPrendreVersOrigine, aPrendreVu } from './aPrendre';
-import { pourInfoVersOrigine, pourInfoVu } from './pourInfo';
+import { pourInfoVersOrigine, pourInfoVu, vusVu } from './pourInfo';
 import type { AppData, Meeting, OrgMember, OrgUnit, PeriodeDependance, Person, Section, Status, TachePartagee, TachesDependance, Task, TaskDoc, Unit, UnitType } from './types';
 
 // Tâches partagées entre les entités du club. Une tâche reste dans son entité ; celle-ci peut la partager
@@ -263,6 +263,7 @@ export function avecPartagees(data: AppData, list: TachePartagee[], moi: string,
       // À prendre et Pour info (040) : ceux de l'entité ouverte comme les siens ; les autres, à part.
       aPrendre: aPrendreVu(t.aPrendre, x.uniteId, moi),
       pourInfo: pourInfoVu(t.pourInfo, x.uniteId, moi),
+      pourInfoVus: vusVu(t.pourInfoVus, x.uniteId, moi),
       // Documents et répétition (041).
       documents: docsVus(t.documents, x, units),
       recurrence: t.recurrence,

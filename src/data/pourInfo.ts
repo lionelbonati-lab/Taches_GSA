@@ -1,4 +1,4 @@
-import type { OrgUnit, Person, PourInfo, TachePartagee, Task } from './types';
+import type { OrgUnit, Person, PourInfo, TachePartagee, Task, VuPourInfo } from './types';
 
 // « Pour info » : des personnes et des entités voient une tâche sans s'en occuper.
 //   - personnes de l'entité de la tâche : elle leur est lisible (serveur : 037, même sans « Voir toutes les tâches »),
@@ -45,6 +45,39 @@ export function pourInfoVersOrigine(orig: PourInfo | undefined, vu: PourInfo | u
   if (vu?.personnes?.length) autres[moi] = vu.personnes;
   const unites = [...(vu?.unites ?? []).filter((u) => u !== src && u !== moi), ...(orig?.unites?.includes(moi) ? [moi] : [])];
   return epurerPourInfo({ personnes, unites, autres });
+}
+
+type Vus = Record<string, VuPourInfo>;
+
+/** « ✓ Vu » vus depuis l'entité `moi` (tâche partagée de l'entité `src`) : mêmes clés que pourInfoVu. */
+export function vusVu(v: Vus | undefined, src: string, moi: string): Vus | undefined {
+  if (!v) return undefined;
+  const out: Vus = {};
+  for (const [k, x] of Object.entries(v)) {
+    const [g, a, b] = k.split(':');
+    if (g === 'p') out[`a:${src}:${a}`] = x;
+    else if (g === 'a' && a === moi) out[`p:${b}`] = x;
+    else if (g !== 'u' || a !== moi) out[k] = x;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/**
+ * Clés « Pour info » de la personne connectée (fiche `fiche` dans l'entité ouverte `depuis`) sur une tâche de l'entité
+ * `unite` : elle-même, et son entité si elle en voit toutes les tâches (`voitTout`). Même règle que gsa_pour_info_vu (046).
+ */
+export function clesVu(t: Pick<Task, 'pourInfo' | 'paiement'>, unite: string, depuis: string, fiche: string, voitTout: boolean): string[] {
+  const p = t.paiement ? undefined : t.pourInfo;
+  if (!p) return [];
+  if (unite === depuis) return p.personnes?.includes(fiche) ? [`p:${fiche}`] : [];
+  return [...(p.autres?.[depuis]?.includes(fiche) ? [`a:${depuis}:${fiche}`] : []), ...(voitTout && p.unites?.includes(depuis) ? [`u:${depuis}`] : [])];
+}
+
+/** « ✓ Vu » ajoutés (démo ; version réelle : gsa_pour_info_vu) : la première fois compte. Rien de nouveau : `v` tel quel. */
+export function ajouterVus(v: Vus | undefined, cles: string[], le: string, par: string): Vus | undefined {
+  const nouvelles = cles.filter((k) => !v?.[k]);
+  if (!nouvelles.length) return v;
+  return { ...v, ...Object.fromEntries(nouvelles.map((k) => [k, k.startsWith('u:') ? { le, par } : { le }])) };
 }
 
 /**

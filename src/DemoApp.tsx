@@ -13,6 +13,7 @@ import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Person, Proposition,
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
+import { ajouterVus, clesVu } from './data/pourInfo';
 import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
 import { App } from './App';
@@ -491,6 +492,22 @@ export function DemoApp() {
         const t = reponseAilleurs(old, current.id, fiche.id, prend, terminee);
         if (t === old) return;
         d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...t, modifiePar: `${fiche.prenom} ${fiche.nom} (${current.nom})`.trim() } : x));
+        saveUnitData(uniteId, d);
+      },
+      // « ✓ Vu » sur une tâche d'une autre entité, pour info d'ici ou partagée (version réelle : gsa_pour_info_vu, 046).
+      async vuPourInfo(uniteId, tacheId) {
+        const u = units.find((x) => x.id === uniteId);
+        const d = loadUnitData(uniteId);
+        const old = d.tasks.find((t) => t.id === tacheId);
+        const ici = loadUnitData(current.id);
+        const fiche = ici.people.find((x) => x.actif && personKey(x, current.id) === me);
+        if (!fiche) throw new Error('Réservé aux membres de l’entité.');
+        if (!u || u.archive || !old) throw new Error('Tâche introuvable');
+        const cles = clesVu(old, uniteId, current.id, fiche.id, hasPermission(userRoles(ici.roles, fiche), 'tasks.viewAll'));
+        if (!cles.length) throw new Error('Cette tâche n’est pas « pour info » pour toi');
+        const vus = ajouterVus(old.pourInfoVus, cles, new Date().toISOString(), fiche.id);
+        if (vus === old.pourInfoVus) return;
+        d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, pourInfoVus: vus } : x));
         saveUnitData(uniteId, d);
       },
       // Tâche attribuée à une entité qui dépend de l'entité ouverte : enregistrée chez elle (version réelle :

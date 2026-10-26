@@ -10,11 +10,11 @@ import { avecSondages, avecVote, finSondage, sondageEnregistre } from './polls';
 import { snapshotToJournal } from './minutes';
 import { emailsForNext } from './emails';
 import { annulerChangements, changements, horsAnnulation, reunir, type Changement } from './annuler';
-import { applyRows, pasDispoTache, prendreTache as prendreServeur, rattraper, type CloudSync, type Membership } from './cloud';
+import { applyRows, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync, type Membership } from './cloud';
 import type { Mode } from './mode';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
-import { encoreMontree, epurerPourInfo, recuePourMoi } from './pourInfo';
+import { ajouterVus, clesVu, encoreMontree, epurerPourInfo, pourMoi, recuePourMoi } from './pourInfo';
 import { aPrendreOuverte, auteurAPrendre, epurerAPrendre, proposeeA } from './aPrendre';
 import { entitesDependantes, evenementsDependants, suivreExternes, versEntite, type Externes } from './externes';
 import { parentDans } from './units';
@@ -264,6 +264,12 @@ interface Store {
   prendreTache: (t: Task) => Promise<void>;
   /** « Pas dispo » : la personne connectée décline une tâche à prendre qui lui est proposée (l'auteur est prévenu). */
   pasDispo: (t: Task) => Promise<void>;
+  /**
+   * « ✓ Vu » d'une tâche pour info : elle quitte l'accueil (préférence `cle`) et le « Vu » est enregistré sur la tâche,
+   * pour son auteur et ses responsables. `uniteId` : entité de la tâche quand ce n'est pas l'entité ouverte (reçue pour
+   * info, partagée ; `tacheId` : son identifiant là-bas).
+   */
+  vuPourInfo: (cle: string, tacheId: string, uniteId?: string) => Promise<void>;
   /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
   toast: string | null;
   setToast: (msg: string | null) => void;
@@ -833,6 +839,42 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const prendreTache = useCallback((t: Task) => repondre(t, true), [repondre]);
   const pasDispo = useCallback((t: Task) => repondre(t, false), [repondre]);
 
+  // « ✓ Vu » : version réelle, le serveur l'écrit sur la tâche (046 ; l'appli ne peut pas l'écrire elle-même), puis la
+  // tâche est relue ; démo : ici. Tâche d'une autre entité : enregistré dans son entité.
+  const vuPourInfo = useCallback(
+    async (cle: string, tacheId: string, uniteId?: string) => {
+      if (!user || !userId) return;
+      setData((prev) => {
+        const p = { ...DEFAULT_PREFS, ...prev.prefs[userId] };
+        return p.pourInfoVus?.[cle] ? prev : { ...prev, prefs: { ...prev.prefs, [userId]: { ...p, pourInfoVus: { ...p.pourInfoVus, [cle]: today() } } } };
+      });
+      const c = clubRef.current;
+      if (c && uniteId && uniteId !== c.current.id) {
+        try {
+          await c.vuPourInfo(uniteId, tacheId);
+        } finally {
+          chargerPartagees();
+        }
+        return;
+      }
+      const x = data.tasks.find((y) => y.id === tacheId);
+      if (!x || !pourMoi(x, user.id) || x.pourInfoVus?.[`p:${user.id}`]) return;
+      if (cloud) {
+        if (!c) return;
+        await cloud.sync.flushNow();
+        await vuServeur(c.current.id, x.id, c.current.id);
+        const fresh = await cloud.sync.fetchRows([{ kind: 'tasks', id: x.id }]);
+        setData((prev) => applyRows(prev, fresh, cloud.sync.posOf));
+        return;
+      }
+      const le = new Date().toISOString();
+      update((d) => {
+        d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, pourInfoVus: ajouterVus(y.pourInfoVus, [`p:${user.id}`], le, user.id) } : y));
+      }, `${fullName(user)} a vu la tâche « ${x.titre} » (pour info)`, { annulable: false });
+    },
+    [user, userId, data, cloud, update, chargerPartagees],
+  );
+
   const markNotifsRead = useCallback(
     (keys: string[]) => {
       if (!userId || !keys.length) return;
@@ -981,6 +1023,25 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
   const canEditTask = (t: Task) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t));
 
+  // « ✓ Vu » donnés avant que le serveur ne les enregistre sur la tâche (046) : reportés sur la tâche, une fois par
+  // ouverture de l'appli (refusé, par exemple serveur pas encore à jour : pas retenté).
+  const vusReportes = useRef(new Set<string>());
+  const voitTout = can('tasks.viewAll');
+  useEffect(() => {
+    const vus = userId ? data.prefs[userId]?.pourInfoVus : undefined;
+    if (!user || !moi || !vus) return;
+    const aReporter = [
+      ...view.tasks.filter((t) => vus[t.id] && pourMoi(t, user.id) && !t.pourInfoVus?.[`p:${user.id}`]).map((t) => ({ cle: t.id, tache: t.source?.id ?? t.id, unite: t.source?.uniteId })),
+      ...pourInfoRecus
+        .filter((x) => vus[`${x.uniteId}:${x.task.id}`] && clesVu(x.task, x.uniteId, moi, user.id, voitTout).some((k) => !x.task.pourInfoVus?.[k]))
+        .map((x) => ({ cle: `${x.uniteId}:${x.task.id}`, tache: x.task.id, unite: x.uniteId })),
+    ].filter((r) => !vusReportes.current.has(r.cle));
+    for (const r of aReporter) {
+      vusReportes.current.add(r.cle);
+      vuPourInfo(r.cle, r.tache, r.unite).catch(() => {});
+    }
+  }, [user, userId, moi, data.prefs, view.tasks, pourInfoRecus, voitTout, vuPourInfo]);
+
   // Séance du comité dont l'entité dépend, événement d'une entité qui dépend d'elle : changé de nom ou de date → la copie
   // dans la tâche suit, et son délai lié aussi (update). Tâches en cours que l'on peut modifier ; une mise à jour refusée
   // par le serveur n'est pas retentée.
@@ -1061,6 +1122,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     attribuerTache,
     prendreTache,
     pasDispo,
+    vuPourInfo,
     toast,
     setToast,
     markNotifsRead,

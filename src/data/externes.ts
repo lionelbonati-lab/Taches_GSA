@@ -162,6 +162,8 @@ export function versEntite(
     documents: t.documents?.filter((d) => d.kind !== 'fichier'),
     createdBy: createur?.id ?? '',
     pourInfo,
+    // Les « ✓ Vu » (clés d'ici) ne suivent pas : la tâche repart chez l'entité.
+    pourInfoVus: undefined,
     aPrendre,
     attribueePar: { uniteId: comite.id, unite: comite.nom, par: ctx.par, le: ctx.aujourdhui },
     updatedAt: new Date().toISOString(),
