@@ -53,6 +53,26 @@ self.addEventListener('fetch', (e) => {
   );
 });
 
+// Notification envoyée par le serveur (version réelle, fonction gsa-push), même l'appli fermée. Contenu : { titre,
+// corps, url, tag } ; une notification de même tag remplace la précédente.
+self.addEventListener('push', (e) => {
+  let m = {};
+  try {
+    m = e.data ? e.data.json() : {};
+  } catch {
+    m = { corps: e.data ? e.data.text() : '' };
+  }
+  e.waitUntil(
+    self.registration.showNotification(m.titre || 'Nouvelle notification', {
+      body: m.corps || '',
+      icon: './icon-192.png',
+      badge: './badge-96.png',
+      tag: m.tag || 'taches-gsa',
+      data: { url: m.url || './' },
+    }),
+  );
+});
+
 // Clic sur une notification : ouvre (ou ramène au premier plan) l'application sur la bonne page.
 self.addEventListener('notificationclick', (e) => {
   e.notification.close();

@@ -32,7 +32,7 @@ async function lire(jeton: string): Promise<Lu | null> {
     const [c] = await tx`select coalesce(parent_id, id) as club from public.committees where id = ${a.committee_id}`;
     if (!u || !m || !c) return null;
     // Entités du club : nom, type, dates d'édition (ce que tout membre du club voit dans l'organigramme).
-    const unites = await tx`select id, nom, type, jsonb_build_object('date', info -> 'date', 'dateFin', info -> 'dateFin', 'archive', info -> 'archive') as info
+    const unites = await tx`select id, name as nom, type, jsonb_build_object('date', info -> 'date', 'dateFin', info -> 'dateFin', 'archive', info -> 'archive') as info
       from public.committees where id = ${c.club} or parent_id = ${c.club}`;
     // La suite : comme la personne (auth.uid(), auth.jwt() et les règles d'accès de la base).
     const claims = { sub: a.user_id, role: 'authenticated', aud: 'authenticated', email: u.email, app_metadata: u.app };

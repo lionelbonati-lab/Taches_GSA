@@ -9,6 +9,7 @@ import { AppLogo, Avatar, Toast, UnitMark } from './ui';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
 import { showSystemNotification, useNotifications } from '../notifications';
+import { rafraichirPush } from '../data/push';
 import { useClubOptional } from '../data/club';
 import { nomAppli } from '../data/nomAppli';
 import { UNIT_TYPES } from '../data/units';
@@ -51,7 +52,7 @@ export function Layout() {
   // Démo : à l'ouverture (ou au changement d'utilisateur), résumé envoyé en notification de l'appareil.
   const { unread, prefs: notifPrefs } = useNotifications();
   useEffect(() => {
-    if (!user || !notifPrefs.systeme || !unread.length) return;
+    if (cloud || !user || !notifPrefs.systeme || !unread.length) return;
     const flag = `taches-gsa-notif-${user.id}`;
     try {
       if (sessionStorage.getItem(flag)) return;
@@ -67,6 +68,12 @@ export function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // Version réelle : si cet appareil reçoit les notifications appli fermée, son inscription est tenue à jour.
+  useEffect(() => {
+    if (cloud) void rafraichirPush();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cloud?.email]);
+
   // Un email programmé arrive à son heure pendant que l'appli est ouverte : message + notification de l'appareil.
   const emailKeys = useRef<{ user?: string; keys: Set<string> }>({ keys: new Set() });
   const dueEmails = unread.filter((n) => n.key.startsWith('email:'));
@@ -80,7 +87,8 @@ export function Layout() {
     if (!fresh.length) return;
     fresh.forEach((n) => ref.keys.add(n.key));
     setToast(`📧 ${fresh[0].text}${fresh.length > 1 ? ` (+${fresh.length - 1})` : ''} — voir la cloche 🔔`);
-    if (notifPrefs.systeme) showSystemNotification(`${nomAppli()} · email à envoyer`, fresh.map((n) => n.text).join('\n'), fresh[0].link);
+    // Version réelle : le serveur l'envoie aux appareils inscrits (gsa-push).
+    if (notifPrefs.systeme && !cloud) showSystemNotification(`${nomAppli()} · email à envoyer`, fresh.map((n) => n.text).join('\n'), fresh[0].link);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 

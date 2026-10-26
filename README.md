@@ -373,7 +373,7 @@ Le virement ne se fait pas dans l'appli : elle sert à **demander, viser et suiv
 
 **Accès** : seules la caisse, la personne qui a fait la demande et celle qui doit la viser (tant que le visa est demandé) peuvent ouvrir la demande, admins compris ; la personne qui a visé et les admins la voient dans la liste avec un 🔒, sans pouvoir l'ouvrir ; les autres membres ne la voient pas du tout, même avec « Voir toutes les tâches » (en version réelle, le serveur ne la leur envoie pas, ni ses justificatifs : migration 029). La tâche passe de la caisse à la personne qui vise, revient à la caisse puis se clôt une fois payée ; la liste affiche le montant et l'étape (« CHF 42,50 · ✍️ Visa demandé »). « Mes tâches » montre aussi les demandes qu'on a envoyées, pour en suivre l'état. Filtre « Tâches et paiements » : paiements et remboursements, remboursements seuls ou factures seules (avec le total). Notifications : demande à traiter et virement à faire (caisse), visa demandé (signataire), « visé / remboursé / payé / refusé » (demandeur) ; elles ouvrent directement la demande. **🖨 Bon de paiement** imprime la demande visée : l'en-tête de l'entité, le justificatif d'origine (sans la copie visée) et, en bas, le sceau signé (seule la fenêtre est imprimée). **En-tête du bon** : celui de l'entité, le même que l'ordre du jour et le PV (console admin › En-tête des documents). Les anciens liens `#/paiements` mènent aux tâches. En version réelle, le serveur applique les mêmes règles, admins compris (voir SUPABASE_SETUP.md, migrations 009 et 010).
 
-## Notifications (démo)
+## Notifications
 
 Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de notifications non lues :
 
@@ -386,7 +386,9 @@ Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de n
 
 Un clic ouvre directement la tâche (ou la liste filtrée / Comité › Séances). Réglages → Notifications : choix des types, délais de prévenance, et **notifications de l'appareil** (téléphone / ordinateur, après autorisation) avec un bouton de test.
 
-Limite de la démo : sans serveur, les notifications sont calculées dans le navigateur et celles de l'appareil ne partent qu'à l'ouverture de l'appli. La version réelle (base partagée + serveur) pourra les envoyer application fermée, y compris sur iPhone une fois l'appli installée.
+Démo : sans serveur, les notifications sont calculées dans le navigateur et celles de l'appareil ne partent qu'à l'ouverture de l'appli.
+
+**Version réelle : sur le téléphone, même l'appli fermée.** Réglages › Notifications › **« 📲 Recevoir ces notifications sur cet appareil, même l'appli fermée »** (à cocher sur chaque appareil : téléphone, ordinateur ; le navigateur demande l'autorisation), puis « Envoyer une notification d'essai ». Toutes les 5 minutes, le serveur envoie ce qui est nouveau dans la cloche 🔔 de **toutes tes entités** (selon les choix cochés au-dessus) ; ce que tu as déjà vu dans l'appli n'est pas envoyé, et au-delà de trois nouveautés d'un coup, un seul message les résume. Rien entre 22 h et 7 h : ce qui arrive la nuit part le matin. Un clic sur la notification ouvre l'appli sur la tâche, dans la bonne entité. Sur **iPhone et iPad**, installe d'abord l'appli sur l'écran d'accueil (iOS 16.4 ou plus récent) et active-les depuis l'appli installée. Les sondages ouverts par d'autres entités restent dans la cloche de l'appli seulement. Serveur : migration 047 et fonction `gsa-push` (voir SUPABASE_SETUP.md).
 
 ## Sauvegarde des données
 

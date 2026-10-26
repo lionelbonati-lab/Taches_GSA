@@ -91,6 +91,7 @@ export function Aide() {
   geste('Installer l’appli sur le téléphone ou l’ordinateur', '« Installer l’application » dans le menu du compte (« Plus » sur téléphone).');
   geste('Choisir ce qui s’affiche sur mon accueil, et dans quel ordre', vers('/'), ' : le bouton « Personnaliser » à côté de « Bonjour » (la roue dentée seule sur téléphone). Coche les blocs et les compteurs à voir, séparément sur téléphone et sur ordinateur ; ↑ ↓ change leur ordre. Le bloc « À faire » se règle aussi : nombre de jours (directement dans son titre) et, si tu vois toutes les tâches, les tiennes ou toutes.');
   geste('Thème sombre, notifications', vers('/reglages'), '.');
+  if (cloud) geste('Recevoir les notifications sur mon téléphone, même l’appli fermée', vers('/reglages'), ' › Notifications : coche « Recevoir ces notifications sur cet appareil » (sur chaque appareil), autorise-les, puis « Envoyer une notification d’essai ». Sur iPhone, installe d’abord l’appli sur l’écran d’accueil et coche-la depuis l’appli installée. Rien entre 22 h et 7 h.');
   if (club) {
     geste('Enregistrer mon IBAN pour mes remboursements', vers('/reglages'), ' › « Mes données au club » : « Enregistrer mon IBAN » ; ou, en demandant un remboursement, coche « Enregistrer mon IBAN ». Toi seul peux le saisir ou le modifier ; seuls les caissiers le voient.');
     geste('Masquer mes coordonnées dans la liste des membres du club', vers('/reglages'), ' › « Mes données au club » : « Masquer mes données personnelles ». Ton email, ton téléphone et ton IBAN n’y apparaissent plus (« 🔒 masqué »).');

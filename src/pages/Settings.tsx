@@ -15,6 +15,7 @@ import { MesDonnees } from '../components/MesDonnees';
 import { CopiesAuto } from '../components/CopiesAuto';
 import { copierMaintenant } from '../data/cloud';
 import { Icone } from '../components/icones';
+import { NotifsPush } from '../components/NotifsPush';
 
 export function Settings() {
   const { dataLocale: data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
@@ -157,17 +158,21 @@ export function Settings() {
             </label>
           </>
         )}
-        <div className="full notif-device">
-          <label className="inline">
-            <input type="checkbox" checked={n.systeme && perm === 'granted'} disabled={!supported || perm === 'denied'} onChange={(e) => toggleSystem(e.target.checked)} />
-            📲 Notifications de l’appareil (téléphone / ordinateur)
-          </label>
-          {!supported && <small className="muted">Ce navigateur ne gère pas les notifications. Sur iPhone, installe d’abord l’application sur l’écran d’accueil.</small>}
-          {perm === 'denied' && <small className="muted">Notifications bloquées pour ce site : réautorise-les dans les réglages du navigateur.</small>}
-          {n.systeme && perm === 'granted' && <button className="btn small" onClick={test}>Envoyer une notification de test</button>}
-          {testMsg && <small>{testMsg}</small>}
-          <small className="muted">Les notifications de l’appareil s’affichent à l’ouverture de l’application.</small>
-        </div>
+        {cloud ? (
+          <NotifsPush />
+        ) : (
+          <div className="full notif-device">
+            <label className="inline">
+              <input type="checkbox" checked={n.systeme && perm === 'granted'} disabled={!supported || perm === 'denied'} onChange={(e) => toggleSystem(e.target.checked)} />
+              📲 Notifications de l’appareil (téléphone / ordinateur)
+            </label>
+            {!supported && <small className="muted">Ce navigateur ne gère pas les notifications. Sur iPhone, installe d’abord l’application sur l’écran d’accueil.</small>}
+            {perm === 'denied' && <small className="muted">Notifications bloquées pour ce site : réautorise-les dans les réglages du navigateur.</small>}
+            {n.systeme && perm === 'granted' && <button className="btn small" onClick={test}>Envoyer une notification de test</button>}
+            {testMsg && <small>{testMsg}</small>}
+            <small className="muted">Démo : les notifications de l’appareil s’affichent à l’ouverture de l’application. Dans la version réelle, elles arrivent même l’appli fermée.</small>
+          </div>
+        )}
       </section>
       <section className="panel">
         <h2>Application</h2>
