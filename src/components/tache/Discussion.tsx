@@ -1,4 +1,4 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useState, type KeyboardEvent, type Ref } from 'react';
 import { useStore } from '../../data/store';
 import { useClubOptional } from '../../data/club';
 import { COMMENTAIRE_MAX, deMoi, type ActionCommentaire } from '../../data/commentaires';
@@ -15,8 +15,9 @@ const quand = (iso: string) => (Date.now() - Date.parse(iso) < 6 * 864e5 ? ago(i
  * Discussion sur une tâche (049) : ses commentaires, du plus ancien au plus récent, et un champ pour en écrire un. Chacun
  * corrige ou retire les siens ; un admin de l'entité de la tâche retire n'importe lequel. Les personnes concernées sont
  * prévenues (🔔). `uniteId` : entité de la tâche quand ce n'est pas l'entité ouverte (`tacheId` : son identifiant là-bas).
+ * `ancre` : pour y mener depuis la bulle en haut de la fiche.
  */
-export function Discussion({ liste = [], tacheId, uniteId, className = '' }: { liste?: Commentaire[]; tacheId: string; uniteId?: string; className?: string }) {
+export function Discussion({ liste = [], tacheId, uniteId, className = '', ancre }: { liste?: Commentaire[]; tacheId: string; uniteId?: string; className?: string; ancre?: Ref<HTMLElement> }) {
   const { user, can, commenter } = useStore();
   const club = useClubOptional();
   const [texte, setTexte] = useState('');
@@ -54,7 +55,7 @@ export function Discussion({ liste = [], tacheId, uniteId, className = '' }: { l
   };
 
   return (
-    <section className={`discussion ${className}`} aria-label="Discussion">
+    <section ref={ancre} className={`discussion ${className}`} aria-label="Discussion">
       <span className="field-label">💬 Discussion{liste.length ? ` (${liste.length})` : ''}</span>
       {liste.length > 0 && (
         <ul className="discussion-liste">

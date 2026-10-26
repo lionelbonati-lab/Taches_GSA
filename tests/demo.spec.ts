@@ -31,7 +31,7 @@ test('page lourde ouverte directement par son adresse', async ({ page, context }
   await page.close();
 });
 
-test('tâche créée avec checklist et répétition, retrouvée à la réouverture', async ({ page }) => {
+test('tâche créée avec checklist, répétition et statut, retrouvée à la réouverture', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Préparer le matériel');
   await fiche.locator('.chip', { hasText: 'Checklist' }).click();
@@ -39,6 +39,7 @@ test('tâche créée avec checklist et répétition, retrouvée à la réouvertu
   await liste.getByPlaceholder('Ajouter une étape…').fill('Compter les cordes');
   await liste.getByRole('button', { name: 'Ajouter' }).click();
   await expect(liste.locator('.check-row')).toHaveCount(1);
+  await fiche.getByRole('radio', { name: 'En cours' }).click();
   await fiche.locator('.chip', { hasText: 'Répétition' }).click();
   await fiche.locator('label.full', { hasText: 'Répétition' }).locator('select').selectOption({ index: 1 });
   await expect(fiche.locator('.recur-note').first()).toBeVisible();
@@ -50,6 +51,7 @@ test('tâche créée avec checklist et répétition, retrouvée à la réouvertu
   await expect(rouverte.locator('.check-row')).toHaveCount(1);
   await expect(rouverte.locator('.check-row')).toContainText('Compter les cordes');
   await expect(rouverte.locator('.recur-note').first()).toBeVisible();
+  await expect(rouverte.getByRole('radio', { name: 'En cours' })).toBeChecked();
 });
 
 test('discussion : commenter, corriger puis retirer un commentaire', async ({ page }) => {
@@ -62,9 +64,13 @@ test('discussion : commenter, corriger puis retirer un commentaire', async ({ pa
   await page.locator('main').getByText('Tâche discutée').filter({ visible: true }).first().click();
   const rouverte = page.locator('.modal').first();
   const discussion = rouverte.getByRole('region', { name: 'Discussion' });
+  // La bulle en haut de la fiche mène au champ de saisie, puis compte les messages.
+  await rouverte.getByRole('button', { name: 'Discussion', exact: true }).click();
+  await expect(discussion.getByLabel('Nouveau commentaire')).toBeFocused();
   await discussion.getByLabel('Nouveau commentaire').fill('Qui apporte la rallonge ?');
   await discussion.getByRole('button', { name: 'Envoyer' }).click();
   await expect(discussion.locator('.discussion-liste li')).toHaveCount(1);
+  await expect(rouverte.getByRole('button', { name: 'Discussion (1)' })).toBeVisible();
   await expect(discussion.locator('.discussion-liste li')).toContainText('Qui apporte la rallonge ?');
   await expect(discussion.getByLabel('Nouveau commentaire')).toHaveValue('');
 

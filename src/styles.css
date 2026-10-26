@@ -401,6 +401,14 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 /* Formulaire de tâche : l'essentiel, puis « Ajouter : » pour le reste. */
 .delai-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .tache-colonne { display: flex; flex-direction: column; gap: 12px; }
+.statut-boutons { display: flex; flex-wrap: wrap; gap: 6px; }
+.statut-boutons button { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px; border: 1px solid var(--border); border-radius: 999px; background: var(--surface); color: var(--text); font-size: 0.9rem; cursor: pointer; }
+.statut-boutons button::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--c); flex: none; }
+.statut-boutons button:hover:not(:disabled) { border-color: var(--c); }
+.statut-boutons button.on { background: var(--c); border-color: var(--c); color: #fff; font-weight: 600; }
+.statut-boutons button.on::before { background: #fff; }
+.statut-boutons button:disabled { cursor: default; }
+.statut-boutons button:disabled:not(.on) { opacity: 0.55; }
 .delai-field .field-label { margin-bottom: 0; }
 .occurrence-field { display: flex; flex-direction: column; gap: 4px; }
 .link-btn { align-self: flex-start; background: none; border: none; padding: 2px 0; color: var(--primary); font-size: 0.85rem; cursor: pointer; text-align: left; }
@@ -1759,7 +1767,10 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .icone-trait.tourne { animation: tourne 1s linear infinite; }
 @keyframes tourne { to { transform: rotate(360deg); } }
 .icon-btn.envoyer-lien,
-.icon-btn.dupliquer { font-size: 1.05rem; color: var(--text); }
+.icon-btn.dupliquer,
+.icon-btn.discussion-btn { font-size: 1.05rem; color: var(--text); }
+.icon-btn.discussion-btn { position: relative; }
+.discussion-nb { position: absolute; top: -3px; right: -1px; min-width: 16px; height: 16px; padding: 0 4px; box-sizing: border-box; border-radius: 8px; background: var(--primary); color: #fff; font-size: 0.65rem; font-weight: 700; line-height: 16px; text-align: center; }
 .poll-badges { align-items: center; }
 .poll-badges .envoyer-lien { padding: 2px 6px; }
 .envoyer textarea { width: 100%; resize: vertical; }

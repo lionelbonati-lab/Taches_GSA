@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
@@ -61,6 +61,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const track = useRef<DocTracking>({ added: [], removed: [] });
+  const discussion = useRef<HTMLElement>(null);
   const [newPoll, setNewPoll] = useState(false);
   // Liens et partage déjà remplis : ils restent affichés si on les vide (ex. partage retiré : plus de séance du comité).
   const [ouverts, setOuverts] = useState<Extra[]>(() => [
@@ -255,6 +256,14 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     setBusy(false);
   };
 
+  // Discussion de la tâche enregistrée (relue en direct, pas celle de la fenêtre). La bulle en haut y mène : derniers
+  // messages et champ de saisie en vue, le curseur dans le champ s'il n'y a encore rien.
+  const commentaires = (data.tasks.find((x) => x.id === task.id) ?? task).commentaires ?? [];
+  const allerDiscussion = () => {
+    discussion.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    if (!commentaires.length) discussion.current?.querySelector('textarea')?.focus({ preventScroll: true });
+  };
+
   // Dupliquer : une nouvelle tâche pré-remplie d'après la tâche enregistrée, à compléter puis créer (« À faire », checklist
   // décochée). Ses fichiers restent communs avec l'original (gardés tant que l'une des deux les utilise) ; emails et
   // sondages ne suivent pas.
@@ -392,6 +401,16 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       actions={
         !isNew && (
           <>
+          <button
+            type="button"
+            className="icon-btn discussion-btn"
+            onClick={allerDiscussion}
+            title={commentaires.length ? `Discussion : ${commentaires.length} message${commentaires.length > 1 ? 's' : ''}` : 'Discussion : écrire un message'}
+            aria-label={`Discussion${commentaires.length ? ` (${commentaires.length})` : ''}`}
+          >
+            <Icone n="message" />
+            {commentaires.length > 0 && <span className="discussion-nb">{commentaires.length}</span>}
+          </button>
           {peutDupliquer && (
             <button type="button" className="icon-btn dupliquer" onClick={dupliquer} title="Dupliquer : créer une nouvelle tâche à partir de celle-ci" aria-label="Dupliquer la tâche">
               <Icone n="dupliquer" />
@@ -517,12 +536,26 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               )}
             </label>
           )}
-          <label>
-            Statut
-            <select value={t.statusId} disabled={dis} onChange={(e) => set('statusId', e.target.value)}>
-              {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-            </select>
-          </label>
+          {/* Statut : ce qu'on change le plus souvent, en boutons de sa couleur plutôt qu'une liste. */}
+          <div>
+            <span className="field-label">Statut</span>
+            <div className="statut-boutons" role="radiogroup" aria-label="Statut">
+              {data.statuses.map((s) => (
+                <button
+                  key={s.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={t.statusId === s.id}
+                  className={t.statusId === s.id ? 'on' : undefined}
+                  style={{ '--c': s.couleur } as CSSProperties}
+                  disabled={dis}
+                  onClick={() => set('statusId', s.id)}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
         <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />
         <div className="full qui">
@@ -645,8 +678,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             )}
           </small>
         )}
-        {/* Discussion : celle de la tâche enregistrée (relue en direct), pas celle de la fenêtre. */}
-        {!isNew && <Discussion className="full" liste={(data.tasks.find((x) => x.id === task.id) ?? task).commentaires} tacheId={task.source?.id ?? task.id} uniteId={task.source?.uniteId} />}
+        {!isNew && <Discussion className="full" ancre={discussion} liste={commentaires} tacheId={task.source?.id ?? task.id} uniteId={task.source?.uniteId} />}
         {!isNew && (
           <small className="muted full">
             Dernière modification : {fmtDateTime(task.updatedAt)}{task.modifiePar ? ` par ${task.modifiePar}` : ''} ·{' '}
