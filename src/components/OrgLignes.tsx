@@ -827,7 +827,9 @@ function Plan({
       if (ajuste(x) > ajuste(mieux) + 0.001) mieux = x;
     }
     return mieux;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [plan, replies, hauteurs, cible?.l, cible?.h]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useLayoutEffect(() => {
     const n = new Map<string, number>();
     for (const [k, el] of elements.current) if (d.positions.has(k)) n.set(k, el.offsetHeight);

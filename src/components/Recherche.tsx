@@ -98,6 +98,7 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
             texteArchive,
           })
         : [],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [q, data, user, can, canSeeTask, club?.current, club?.mine],
   );
   const termes = useMemo(() => termesDe(q), [q]);

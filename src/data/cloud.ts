@@ -699,7 +699,6 @@ export async function fetchMembres(club: string): Promise<ClubMembre[]> {
  */
 export async function saveMembres(club: string, list: ClubMembre[]) {
   for (let i = 0; i < list.length; i += 200) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const rows = list.slice(i, i + 200).map(({ id, masque, moi, prive, ...data }) => ({ club_id: club, id, data }));
     const { error } = await sb().from('gsa_club_membres').upsert(rows, { onConflict: 'club_id,id' });
     if (error) throw registreErreur(error);

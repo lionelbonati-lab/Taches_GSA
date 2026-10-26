@@ -1,6 +1,6 @@
 import { makeSeed } from './seed';
 import { people as centralPeople } from './seedData';
-import { migrate } from './store';
+import { migrate } from './migrate';
 import { parentDans, unitData } from './units';
 import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';

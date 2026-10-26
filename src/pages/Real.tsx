@@ -7,7 +7,7 @@ import { backupSummary, readBackup, restoreFiles, type Backup } from '../data/ba
 import { demanderMdp, linkMyPerson, type CloudSync, type Membership } from '../data/cloud';
 import { lienInvalide } from '../data/recuperation';
 import { makeSeed } from '../data/seed';
-import { migrate, SCHEMA } from '../data/store';
+import { migrate, SCHEMA } from '../data/migrate';
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { fmtDateTime, fullName, posteBesideName, uid } from '../data/utils';
 import type { AppData, Person } from '../data/types';

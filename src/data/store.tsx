@@ -1,23 +1,23 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { makeSeed } from './seed';
-import { statuses as STATUSES } from './seedData';
 import { hasPermission, userRoles, voitTache } from './permissions';
-import { applyDelaiRef, fmtDate, fullName, isDone, nextOccurrence, postesFor, today, uid } from './utils';
-import { seancePourSuivante } from './seances';
-import type { ActivityNotif, AppData, ChecklistItem, OrgUnit, Permission, Person, Poll, Prefs, Role, ScheduledEmail, Section, SondagePartage, TachePartagee, Task, TaskDoc } from './types';
+import { applyDelaiRef, fmtDate, fullName, isDone, postesFor, today, uid } from './utils';
+import type { ActivityNotif, AppData, OrgUnit, Permission, Person, Poll, Prefs, ScheduledEmail, Task, TaskDoc } from './types';
 import { clearFiles, deleteFiles, getFile, saveFile } from './files';
 import { avecSondages, avecVote, finSondage, sondageEnregistre } from './polls';
-import { snapshotToJournal } from './minutes';
-import { emailsForNext } from './emails';
-import { annulerChangements, changements, horsAnnulation, reunir, type Changement } from './annuler';
-import { applyRows, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync, type Membership } from './cloud';
-import type { Mode } from './mode';
+import { applyRows, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
 import { ajouterVus, clesVu, encoreMontree, epurerPourInfo, pourMoi, recuePourMoi } from './pourInfo';
 import { aPrendreOuverte, auteurAPrendre, epurerAPrendre, proposeeA } from './aPrendre';
-import { entitesDependantes, evenementsDependants, suivreExternes, versEntite, type Externes } from './externes';
-import { parentDans } from './units';
+import { suivreExternes, versEntite } from './externes';
+import { migrate } from './migrate';
+import { ajouterSuivante, idDe, preparerSuivante } from './suivante';
+import type { CloudMode, DemoMode, Store } from './storeTypes';
+import { useRecus } from './recus';
+import { usePileAnnulation } from './pileAnnulation';
+
+export type { CloudMode, DemoMode } from './storeTypes';
 
 // Couche de données. Démo : tout vit en mémoire et dans le localStorage du navigateur.
 // Version réelle : mêmes données, synchronisées avec le serveur par CloudSync (voir cloud.ts).
@@ -26,158 +26,11 @@ const USER_KEY = 'taches-gsa-user';
 
 const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
-export const SCHEMA = 16;
-
-/**
- * Mises à niveau des données déjà enregistrées (évite de tout réinitialiser).
- * Les étapes v8 à v12 ne concernent que la démo : les données réelles partent du format v12.
- */
-export function migrate(d: AppData): AppData {
-  if ((d.schema ?? 7) < 8) {
-    // v8 : onglet PV, donné par défaut au Secrétaire.
-    const sec = d.roles.find((r) => r.id === 'secretaire');
-    if (sec && !sec.permissions.includes('tab.minutes')) sec.permissions.push('tab.minutes');
-  }
-  if ((d.schema ?? 7) < 9) {
-    // v9 : le PV garde un journal des changements faits depuis l'onglet PV (au lieu d'un état de départ).
-    d.meetings.forEach((m) => m.minutes && snapshotToJournal(d, m.minutes));
-  }
-  if ((d.schema ?? 7) < 10) {
-    // v10 : emails programmés.
-    if (!d.emails) d.emails = [];
-  }
-  if ((d.schema ?? 7) < 11) simplifyStatuses(d);
-  if ((d.schema ?? 7) < 12) linkSubtasks(d);
-  if ((d.schema ?? 7) < 13) {
-    // v13 : tickets à rembourser ; la caisse reçoit le droit de faire les virements (validation : admins).
-    if (!d.roles.some((r) => r.permissions.includes('paiements.payer')))
-      d.roles.filter((r) => r.id === 'caissier' || /caiss|trésor|tresor|financ/i.test(r.label)).forEach((r) => r.permissions.push('paiements.payer'));
-  }
-  // v14 : circuit caisse → visa ; les tickets « à valider » de la première version sont « reçus » par la caisse.
-  if ((d.schema ?? 7) < 14) d.tasks.forEach((t) => { if (t.paiement && (t.paiement.etat as string) === 'a_valider') t.paiement.etat = 'recu'; });
-  // v15 : chaque entité a sa caisse ; à défaut, un rôle « Caissier » (droits d'un membre du comité + caisse) à attribuer.
-  if ((d.schema ?? 7) < 15 && !d.roles.some((r) => !r.locked && r.permissions.includes('paiements.payer'))) {
-    const existant = d.roles.find((r) => r.id === 'caissier');
-    if (existant) existant.permissions.push('paiements.payer');
-    else {
-      const membre = d.roles.find((r) => !r.locked && r.permissions.includes('tab.meetings'));
-      const base: Permission[] = membre?.permissions.filter((p) => !p.startsWith('paiements.')) ?? ['tasks.viewAll', 'tasks.editOwn', 'tab.meetings', 'tab.events', 'tab.people'];
-      d.roles.push({ id: 'caissier', label: 'Caissier', couleur: '#047857', permissions: [...base, 'paiements.payer'], sections: [] });
-    }
-  }
-  // v16 : registre « Membres du club » ; le Secrétaire y a accès par défaut (les admins l'ont déjà).
-  if ((d.schema ?? 7) < 16) d.roles.filter((r) => r.id === 'secretaire' && !r.permissions.includes('club.membres')).forEach((r) => r.permissions.push('club.membres'));
-  d.schema = SCHEMA;
-  return d;
-}
-
-/** Anciens statuts → statuts simplifiés (A valider → En cours, A discuter → À faire, Sans nouvelles → En attente, Info → Terminé). */
-const STATUS_MAP: Record<string, string> = { s4: 's2', s5: 's1', s6: 's3', s8: 's7' };
-
-/** v11 : statuts simplifiés (À faire, En cours, En attente, Terminé, Annulé) ; les tâches gardent leur avancement. */
-function simplifyStatuses(d: AppData) {
-  const known = new Set(STATUSES.map((s) => s.id));
-  const sid = (id: string) => (known.has(id) ? id : STATUS_MAP[id] ?? STATUSES[0].id);
-  d.tasks = d.tasks.map((t) => ({ ...t, statusId: sid(t.statusId) }));
-  d.statuses = structuredClone(STATUSES);
-  // Statuts exclus de l'ordre du jour : on retire ceux qui n'existent plus (exclure « Info » ne doit pas exclure « Terminé »).
-  Object.values(d.prefs).forEach((p) => p.pv?.statutsExclus && (p.pv.statutsExclus = p.pv.statutsExclus.filter((id) => known.has(id))));
-  d.log.unshift({ id: `l${Date.now()}v11`, at: new Date().toISOString(), userId: 'p1', action: 'Statuts simplifiés : À faire, En cours, En attente, Terminé, Annulé' });
-}
-
-/** Ancien format des sous-tâches (v10-v11) : personne chargée et délai propre. */
-type OldItem = ChecklistItem & { assigneeId?: string; delai?: string; ref?: { type: 'event' | 'meeting'; id: string; joursAvant: number } };
-
-/** v12 : une sous-tâche avec personne chargée ou délai devient une tâche liée ; les autres restent de simples cases à cocher. */
-function linkSubtasks(d: AppData) {
-  const doneId = d.statuses.find((s) => s.done)?.id ?? 's7';
-  const openId = d.statuses.find((s) => !s.done)?.id ?? 's1';
-  const now = new Date().toISOString();
-  const strip = (c: OldItem): ChecklistItem => ({ id: c.id, label: c.label, done: c.done });
-  const out: Task[] = [];
-  for (const t of d.tasks) {
-    const items = t.checklist as OldItem[];
-    const toTask = items.filter((c) => c.assigneeId || c.delai);
-    out.push({ ...t, checklist: items.filter((c) => !toTask.includes(c)).map(strip) });
-    for (const c of toTask)
-      out.push(
-        applyDelaiRef(d, {
-          id: uid('t'),
-          sectionId: t.sectionId,
-          sousSection: t.sousSection,
-          titre: c.label,
-          responsables: c.assigneeId ? [c.assigneeId] : [...t.responsables],
-          statusId: c.done ? doneId : openId,
-          delai: c.delai || t.delai,
-          remarque: '',
-          checklist: [],
-          parentId: t.id,
-          ...(c.ref ? { [c.ref.type === 'meeting' ? 'meetingId' : 'eventId']: c.ref.id, delaiRef: { type: c.ref.type, joursAvant: c.ref.joursAvant } } : {}),
-          termineeLe: c.done ? now.slice(0, 10) : undefined,
-          createdBy: t.createdBy,
-          updatedAt: now,
-        }),
-      );
-  }
-  if (out.length !== d.tasks.length)
-    d.log.unshift({ id: `l${Date.now()}v12`, at: now, userId: 'p1', action: 'Sous-tâches transformées en tâches liées à leur tâche principale' });
-  d.tasks = out;
-  d.notifications = (d.notifications ?? []).filter((n) => (n.type as string) !== 'subtask');
-}
-
 /** Tâches et sondages partagés par d'autres entités, sections ajoutées pour eux : affichés, jamais enregistrés ici. */
 function sansPartagees(d: AppData) {
   d.tasks = d.tasks.filter((t) => !estPartagee(t.id));
   d.sections = d.sections.filter((s) => !estPartagee(s.id));
   if (d.polls) d.polls = d.polls.filter((p) => !estPartagee(p.id)).map(sondageEnregistre);
-}
-
-/**
- * Occurrence suivante d'une tâche récurrente terminée : la tâche, sa séance (à ajouter à l'agenda si `nouvelle`) et les
- * emails reconduits. `ids` : identifiants fixes, les mêmes sur chaque appareil (rattrapage : une seule occurrence).
- */
-function preparerSuivante(data: AppData, task: Task, ids?: { tache: string; seance: string }) {
-  let seance = seancePourSuivante(data, task);
-  if (seance?.nouvelle && ids) seance = { ...seance, meeting: { ...seance.meeting, id: ids.seance } };
-  const next = nextOccurrence(data, task, seance?.meeting);
-  if (ids) next.id = ids.tache;
-  let emails = emailsForNext(data, task, next, seance?.meeting);
-  if (ids) emails = emails.map((e, i) => ({ ...e, id: idDe('e', `${ids.tache}:${i}`) }));
-  return { next, seance, emails };
-}
-
-/** Ajoute l'occurrence suivante préparée (séance ajoutée au besoin, tâches liées rattachées, emails reconduits). */
-function ajouterSuivante(d: AppData, task: Task, { next, seance, emails }: ReturnType<typeof preparerSuivante>) {
-  if (d.tasks.some((x) => x.id === next.id)) return;
-  let suivante = next;
-  if (seance?.nouvelle) {
-    // Ajoutée entre-temps (deux tâches clôturées d'affilée) : la tâche rejoint celle-ci.
-    const deja = d.meetings.find((m) => !m.unique && m.date.slice(0, 7) === seance.meeting.date.slice(0, 7));
-    if (!deja) d.meetings.push(seance.meeting);
-    else suivante = applyDelaiRef(d, { ...next, meetingId: deja.id });
-  }
-  d.tasks.unshift(suivante);
-  // Tâche principale reconduite : les occurrences suivantes de ses tâches liées la rejoignent.
-  d.tasks
-    .filter((x) => x.parentId === task.id)
-    .forEach((c) => {
-      let x = c;
-      for (let y = d.tasks.find((z) => z.id === x.suivanteId); y; y = d.tasks.find((z) => z.id === x.suivanteId)) x = y;
-      if (x !== c && !x.parentId) x.parentId = next.id;
-    });
-  if (emails.length) d.emails = [...(d.emails ?? []), ...emails];
-}
-
-/** Identifiant tiré d'un texte, le même sur chaque appareil. */
-function idDe(prefix: string, texte: string) {
-  let a = 0x811c9dc5;
-  let b = 0x9747b28c;
-  for (let i = 0; i < texte.length; i++) {
-    const k = texte.charCodeAt(i);
-    a = Math.imul(a ^ k, 0x01000193) >>> 0;
-    b = Math.imul(b ^ k, 0x5bd1e995) >>> 0;
-  }
-  return `${prefix}${a.toString(36)}${b.toString(36)}`;
 }
 
 function load(): AppData {
@@ -188,113 +41,6 @@ function load(): AppData {
     /* stockage indisponible : on repart des données fictives */
   }
   return makeSeed();
-}
-
-/** Démo : données de l'entité ouverte, gardées dans ce navigateur (voir demoClub.ts). */
-export interface DemoMode {
-  load: () => AppData;
-  save: (d: AppData) => void;
-  personId: string | null;
-  logout: () => void;
-  reset: () => void;
-  /** Change quand les données de l'entité ont été modifiées hors de l'écran (registre des membres du club) : relues. */
-  epoch?: number;
-}
-
-/** Version réelle : connexion au serveur et données du comité chargées. */
-export interface CloudMode {
-  sync: CloudSync;
-  initial: AppData;
-  personId: string;
-  membership: Membership;
-  email: string;
-  signOut: () => void;
-}
-
-interface Store {
-  mode: Mode;
-  /** Version réelle (null en démo). */
-  cloud: CloudMode | null;
-  data: AppData;
-  /** Données de l'entité seules, sans les tâches partagées par d'autres entités (réglages, console admin). */
-  dataLocale: AppData;
-  user: Person | null;
-  /** Rôles de l'utilisateur connecté. */
-  myRoles: Role[];
-  /** Droit accordé par au moins un rôle, éventuellement pour une section donnée. */
-  can: (p: Permission, sectionId?: string) => boolean;
-  canSeeTask: (t: Task) => boolean;
-  canEditTask: (t: Task) => boolean;
-  canDeleteTask: (t: Task) => boolean;
-  /** Responsables d'autres entités (tâche partagée) : « Prénom Nom (Entité) », vide sinon. */
-  autresResp: (t: Task) => string;
-  canAssignOthers: (sectionId: string) => boolean;
-  /** Sections dans lesquelles l'utilisateur peut créer une tâche. */
-  creatableSections: () => Section[];
-  prefs: Prefs;
-  login: (id: string | null) => void;
-  /**
-   * Applique une modification et l'inscrit au journal d'activité. `annulable: false` : « Annuler » ne la défait pas
-   * (enregistrée aussi ailleurs : serveur, autre entité).
-   */
-  update: (fn: (d: AppData) => void, action: string, o?: { annulable?: boolean }) => void;
-  /**
-   * Modification sans entrée au journal (prise de notes, présences…). `annulable` : action que « Annuler » peut défaire ;
-   * `suite` : complète l'action précédente (annulées ensemble).
-   */
-  updateSilent: (fn: (d: AppData) => void, o?: { annulable?: string; suite?: boolean }) => void;
-  /** Dernière action de cette session que l'on peut annuler (actions faites ici, depuis l'ouverture de l'appli). */
-  annulable: { action: string; at: string } | null;
-  /** Annule la dernière action : les éléments qu'elle a changés reviennent comme avant (sauf modifiés depuis). */
-  annuler: () => void;
-  /** Dernière action annulée, que l'on peut refaire (jusqu'à la prochaine action). */
-  refaisable: { action: string; at: string } | null;
-  refaire: () => void;
-  setPrefs: (p: Partial<Prefs>) => void;
-  /** Tâche partagée par une autre entité : promesse résolue une fois la modification envoyée à son entité (acceptée ou non). */
-  saveTask: (t: Task, isNew: boolean) => void | Promise<void>;
-  /**
-   * Tâche attribuée à l'entité `cible` qui dépend de l'entité ouverte (sous-section du formulaire) : enregistrée chez elle,
-   * dans sa section `sectionId`, partagée avec l'entité ouverte ; une tâche existante est retirée d'ici (elle y revient
-   * partagée). Ses fichiers joints sont copiés chez l'entité et y suivent la tâche ; `erreur` : la tâche est enregistrée,
-   * mais pas ses fichiers. Erreur : rien n'est changé.
-   */
-  attribuerTache: (t: Task, cible: OrgUnit, sectionId: string, isNew: boolean) => Promise<{ fichiers: number; erreur?: string }>;
-  /** « 🙋 Je m'en charge » : la personne connectée devient responsable d'une tâche à prendre qui lui est proposée. */
-  prendreTache: (t: Task) => Promise<void>;
-  /** « Pas dispo » : la personne connectée décline une tâche à prendre qui lui est proposée (l'auteur est prévenu). */
-  pasDispo: (t: Task) => Promise<void>;
-  /**
-   * « ✓ Vu » d'une tâche pour info : elle quitte l'accueil (préférence `cle`) et le « Vu » est enregistré sur la tâche,
-   * pour son auteur et ses responsables. `uniteId` : entité de la tâche quand ce n'est pas l'entité ouverte (reçue pour
-   * info, partagée ; `tacheId` : son identifiant là-bas).
-   */
-  vuPourInfo: (cle: string, tacheId: string, uniteId?: string) => Promise<void>;
-  /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
-  toast: string | null;
-  setToast: (msg: string | null) => void;
-  /** Marque des notifications comme vues (sans entrée au journal). */
-  markNotifsRead: (keys: string[]) => void;
-  savePoll: (p: Poll, isNew: boolean) => void;
-  /** `texte` : réponse écrite avec « Autre ». */
-  votePoll: (pollId: string, optionIds: string[], texte?: string) => void;
-  closePoll: (pollId: string, closed: boolean) => void;
-  deletePoll: (pollId: string) => void;
-  canManagePoll: (p: Poll) => boolean;
-  /** Sondages : on peut les ouvrir à d'autres entités du club (démo, ou serveur à jour : migration 021). */
-  sondagesEntites: boolean;
-  /** Séances du comité dont l'entité dépend, agenda du club (entités qui dépendent d'elle) : pour y lier des tâches. */
-  externes: Externes;
-  /** Tâches d'autres entités « pour info » de la personne connectée (elle, ou son entité), en lecture seule. */
-  pourInfo: TachePartagee[];
-  /** Lie une tâche à une tâche principale (ou la délie avec undefined). */
-  linkTask: (taskId: string, parentId: string | undefined) => void;
-  saveEmail: (e: ScheduledEmail, isNew: boolean) => void;
-  setEmailStatus: (id: string, statut: ScheduledEmail['statut']) => void;
-  deleteEmail: (id: string) => void;
-  reset: () => void;
-  /** Remplace toutes les données par celles d'une sauvegarde (mise à niveau du format comprise). */
-  restore: (d: AppData, label: string) => void;
 }
 
 const Ctx = createContext<Store | null>(null);
@@ -351,8 +97,6 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     });
   }, [cloud]);
 
-  // Tâches que d'autres entités du club partagent avec celle-ci : relues à l'ouverture, au retour sur l'appli
-  // et chaque minute (leurs modifications ne passent pas par la synchronisation de l'entité).
   const club = useClubOptional();
   const clubRef = useRef(club);
   clubRef.current = club;
@@ -387,69 +131,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.people]);
   const moi = club?.current.id;
-  const [partagees, setPartagees] = useState<TachePartagee[]>([]);
-  const lecture = useRef(0);
-  // Tâches d'autres entités pour info de celle-ci ou de l'une de ses personnes (lecture seule).
-  const [pourInfoRecus, setPourInfoRecus] = useState<TachePartagee[]>([]);
-  const lecturePourInfo = useRef(0);
-  // Sondages des autres entités ouverts à celle-ci (null : le serveur ne les gère pas encore).
-  const [sondagesRecus, setSondagesRecus] = useState<SondagePartage[]>([]);
-  const [sondagesEntites, setSondagesEntites] = useState(false);
-  const lectureSondages = useRef(0);
-  // Séances du comité dont l'entité dépend ; agenda du club, si des événements dépendent d'elle (tâches liées : externes.ts) ;
-  // sections des entités qui dépendent d'elle (tâche attribuée à l'une d'elles).
-  const [externes, setExternes] = useState<Externes>({});
-  const lectureExternes = useRef(0);
-  const chargerPartagees = useCallback(() => {
-    const c = clubRef.current;
-    if (!c) return;
-    const n = ++lecture.current;
-    c.tachesPartagees()
-      .then((l) => n === lecture.current && setPartagees(l))
-      .catch(() => {});
-    const i = ++lecturePourInfo.current;
-    c.tachesPourInfo()
-      .then((l) => i === lecturePourInfo.current && setPourInfoRecus(l ?? []))
-      .catch(() => {});
-    const s = ++lectureSondages.current;
-    c.sondagesPartages()
-      .then((l) => {
-        if (s !== lectureSondages.current) return;
-        setSondagesEntites(l !== null);
-        setSondagesRecus(l ?? []);
-      })
-      .catch(() => {});
-    const x = ++lectureExternes.current;
-    const actives = c.units.filter((u) => !u.archive);
-    const parent = c.current.type !== 'central' && parentDans(actives, c.current);
-    if (parent) {
-      c.seancesComite()
-        .then((seances) => x === lectureExternes.current && setExternes((e) => ({ ...e, seances })))
-        .catch(() => {});
-    }
-    if (evenementsDependants(c.units, c.current).length) {
-      c.agendaClub()
-        .then((agenda) => x === lectureExternes.current && setExternes((e) => ({ ...e, agenda })))
-        .catch(() => {});
-    }
-    if (entitesDependantes(c.units, c.current).length) {
-      c.sectionsDependantes()
-        .then((sections) => x === lectureExternes.current && setExternes((e) => ({ ...e, sections })))
-        .catch(() => {});
-    }
-  }, []);
-  useEffect(() => {
-    chargerPartagees();
-    const vis = () => document.visibilityState === 'visible' && chargerPartagees();
-    const timer = setInterval(chargerPartagees, 60_000);
-    window.addEventListener('focus', chargerPartagees);
-    document.addEventListener('visibilitychange', vis);
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', chargerPartagees);
-      document.removeEventListener('visibilitychange', vis);
-    };
-  }, [chargerPartagees, moi]);
+  // Tâches, « pour info », sondages et séances que d'autres entités du club partagent avec celle-ci (recus.ts).
+  const { partagees, setPartagees, pourInfoRecus, sondagesRecus, setSondagesRecus, sondagesEntites, externes, chargerPartagees } = useRecus(club);
 
   const user = data.people.find((p) => p.id === userId && p.actif) ?? null;
   const myRoles = useMemo(() => userRoles(data.roles, user), [data.roles, user]);
@@ -476,65 +159,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cloud]);
 
-  // « Annuler » : chaque action laisse une étiquette sur les données qu'elle produit (plusieurs modifications groupées :
-  // étiquettes réunies) ; une fois affichées, les éléments changés depuis l'affichage précédent sont retenus.
-  // Action qui ne s'annule pas (`bloque`) : celles groupées avec elle non plus. `sens` : annulation (elle va dans
-  // « Refaire ») ou action refaite (elle revient dans « Annuler »).
-  type Etiquette = { actions: string[]; suite: boolean; bloque: boolean; sens?: 'annuler' | 'refaire' };
-  const etiquettes = useRef(new WeakMap<AppData, Etiquette>());
-  const affichees = useRef(data);
-  affichees.current = data;
-  const etiqueter = (prev: AppData, next: AppData, o: { action?: string; suite?: boolean; bloque?: boolean; sens?: Etiquette['sens'] }) => {
-    const e = prev === affichees.current ? undefined : etiquettes.current.get(prev);
-    etiquettes.current.set(next, {
-      actions: [...(e?.actions ?? []), ...(o.action ? [o.action] : [])],
-      suite: !!(e?.suite || o.suite),
-      bloque: !!(e?.bloque || o.bloque),
-      sens: o.sens ?? e?.sens,
-    });
-  };
-  type Entree = { id: string; action: string; at: string; items: Changement[] };
-  const [pile, setPile] = useState<Entree[]>([]);
-  // Actions annulées, à refaire ; une nouvelle action les oublie.
-  const [aRefaire, setARefaire] = useState<Entree[]>([]);
-  const precedentes = useRef(data);
-  const derniere = useRef<AppData | null>(null);
-  useEffect(() => {
-    const avant = precedentes.current;
-    precedentes.current = data;
-    const e = etiquettes.current.get(data);
-    if (avant === data || !e || (!e.actions.length && !e.suite && !e.bloque)) return;
-    const items = changements(avant, data);
-    if (!items.length) return;
-    if (e.bloque) {
-      derniere.current = null;
-      return;
-    }
-    // Paiement, fichiers effacés : l'action ne s'annule pas, ni celles d'avant (elles ont pu en dépendre).
-    if (horsAnnulation(items)) {
-      derniere.current = null;
-      setARefaire([]);
-      return setPile([]);
-    }
-    const entree = { id: uid('a'), action: e.actions[0] ?? '', at: new Date().toISOString(), items };
-    if (e.sens === 'annuler') {
-      derniere.current = null;
-      return setARefaire((r) => [entree, ...r].slice(0, 20));
-    }
-    if (e.actions.length) {
-      setPile((p) => [entree, ...p].slice(0, 20));
-      if (e.sens !== 'refaire') setARefaire([]);
-    } else if (avant === derniere.current) {
-      // Suite de l'action affichée juste avant (ex. PV : changement de tâche inscrit au PV) : annulées ensemble.
-      setPile((p) => (p.length ? [{ ...p[0], items: reunir(p[0].items, items) }, ...p.slice(1)] : p));
-    } else return;
-    derniere.current = data;
-  }, [data]);
-  // Autre personne connectée : rien à annuler de la précédente.
-  useEffect(() => {
-    setPile([]);
-    setARefaire([]);
-  }, [userId]);
+  // « Annuler » / « Refaire » : chaque modification passe par etiqueter (pileAnnulation.ts).
+  const { etiqueter, pile, aRefaire, annuler, refaire, oublier } = usePileAnnulation(data, setData, userId, setToast);
 
   const update = useCallback(
     (fn: (d: AppData) => void, action: string, o?: { annulable?: boolean }) => {
@@ -550,7 +176,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         return next;
       });
     },
-    [userId],
+    [userId, etiqueter],
   );
 
   const updateSilent = useCallback(
@@ -567,30 +193,6 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [],
   );
 
-  // Annuler (la dernière action revient en arrière, et passe dans « Refaire ») ou refaire (l'annulation est défaite).
-  const revenirSur = (sens: 'annuler' | 'refaire') => {
-    const a = (sens === 'annuler' ? pile : aRefaire)[0];
-    if (!a) return;
-    const { conflits } = annulerChangements(data, a.items);
-    (sens === 'annuler' ? setPile : setARefaire)((p) => p.filter((x) => x.id !== a.id));
-    const mot = sens === 'annuler' ? 'Annulé' : 'Refait';
-    setData((prev) => {
-      const next = annulerChangements(prev, a.items).data;
-      next.log = [{ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `${mot} : ${a.action}` }, ...next.log].slice(0, 300);
-      etiqueter(prev, next, { action: a.action, sens });
-      return next;
-    });
-    const signe = sens === 'annuler' ? '↶' : '↷';
-    setToast(
-      conflits
-        ? `${signe} ${mot} en partie : ${a.action} (modifié depuis par ailleurs : ${conflits > 1 ? `${conflits} éléments gardés` : 'un élément gardé'} tel quel)`
-        : `${signe} ${mot} : ${a.action}`,
-    );
-  };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const annuler = useCallback(() => revenirSur('annuler'), [pile, data, userId]);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const refaire = useCallback(() => revenirSur('refaire'), [aRefaire, data, userId]);
 
   const prefs = { ...DEFAULT_PREFS, ...(userId ? data.prefs[userId] : {}) };
 
@@ -637,7 +239,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         .catch((e: Error) => setToast(`⚠️ Modification non enregistrée dans « ${x.unite} » : ${e.message}`))
         .finally(chargerPartagees);
     },
-    [partagees, moi, view.tasks, user, data, userId, update, chargerPartagees],
+    [partagees, setPartagees, moi, view.tasks, user, data, userId, update, chargerPartagees],
   );
 
   const attribuerTache = useCallback(
@@ -901,10 +503,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const next = migrate(structuredClone(d));
       next.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: userId ?? '?', action: `Données restaurées depuis ${label}` });
       setData(next);
-      setPile([]);
-      setARefaire([]);
+      oublier();
     },
-    [userId],
+    [userId, oublier],
   );
 
   const savePoll = useCallback(
@@ -938,7 +539,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         if (x) Object.assign(x, avecVote(x, cle, optionIds, texte));
       }, `Réponse au sondage « ${p.question} »`);
     },
-    [update, view.polls, chargerPartagees],
+    [update, view.polls, setSondagesRecus, chargerPartagees],
   );
   const closePoll = useCallback(
     (pollId: string, closed: boolean) => {

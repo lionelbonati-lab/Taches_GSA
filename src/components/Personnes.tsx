@@ -153,7 +153,6 @@ function ModifierPersonne({ person, onClose }: { person: Person; onClose: () => 
       })
       .catch((e: Error) => setAccessErr(`Accès : ${e.message}`));
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(loadAccess, [committeeId]);
   return (
     <>

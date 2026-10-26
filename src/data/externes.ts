@@ -147,7 +147,6 @@ export function versEntite(
   delete ailleurs[comite.id];
   if (a?.personnes.length) ailleurs[comite.id] = { personnes: a.personnes, refus: a.refus, par: a.par || t.createdBy || undefined };
   const aPrendre = a && epurerAPrendre({ personnes: ici?.personnes ?? [], nombre: a.nombre, refus: ici?.refus, par: ici?.par, partage: ailleurs }, responsables, respPartage);
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { meetingId, eventId, parentId, suivanteId, postesResp, proposee, parCentral, auCentral, evenementEntite, modifiePar, source, pieces, ...reste } = t;
   return {
     ...reste,

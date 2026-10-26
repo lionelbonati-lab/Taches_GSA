@@ -59,6 +59,7 @@ export function Tasks() {
     if (!t) return;
     attendue.current = null;
     setEdit((e) => e ?? { task: t, isNew: false, email: params.get('email') ?? undefined });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.tasks, params]);
   const closeEdit = () => {
     setEdit(null);

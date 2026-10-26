@@ -89,7 +89,6 @@ export function Deroulante({ value, onChange, options, libelle, disabled, puce, 
   // Première mesure (largeur, hauteur de la liste) avant l'affichage, puis à chaque défilement / redimensionnement.
   useLayoutEffect(() => {
     if (ouvert) placer();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ouvert]);
   useEffect(() => {
     if (!ouvert) return;
@@ -109,7 +108,6 @@ export function Deroulante({ value, onChange, options, libelle, disabled, puce, 
       window.removeEventListener('resize', suivre);
       document.removeEventListener('pointerdown', dehors, true);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ouvert]);
   useEffect(() => {
     if (ouvert && pos && actif >= 0) document.getElementById(`${id}-${actif}`)?.scrollIntoView({ block: 'nearest' });

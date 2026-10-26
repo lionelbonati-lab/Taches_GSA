@@ -10,8 +10,11 @@ Application de démonstration pour gérer les tâches du comité du club.
 ```bash
 npm install
 npm run dev        # http://localhost:5173 (accessible aussi depuis un téléphone du même réseau)
-npm run build      # version statique dans dist/
+npm run build      # version statique dans dist/ (vérifie aussi les types)
+npm run lint       # contrôle automatique du code (ESLint : règles des hooks React, erreurs courantes)
 ```
+
+**Organisation du code.** `src/data/store.tsx` est la couche de données partagée par les écrans ; autour d'elle : `storeTypes.ts` (ce qu'elle offre), `migrate.ts` (mise à niveau des anciennes données), `suivante.ts` (occurrence suivante d'une tâche récurrente), `recus.ts` (tâches, sondages et séances venus des autres entités), `pileAnnulation.ts` (Annuler / Refaire). La fiche d'une tâche (`src/components/TaskModal.tsx`) s'appuie sur ses parties dans `src/components/tache/` : « Pour quand ? », à prendre, pour info, checklist, répétition, rattachements.
 
 ## Données et comptes de démo
 

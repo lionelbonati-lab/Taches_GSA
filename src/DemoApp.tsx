@@ -652,6 +652,7 @@ export function DemoApp() {
       refuserMdp: () => Promise.resolve(),
       superAdmin: false,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [org, current, central, mineAll, switchUnit, refresh, units, me, membresAcces, caissier]);
 
   const personId = useMemo(() => {

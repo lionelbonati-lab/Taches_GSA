@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
@@ -9,16 +9,14 @@ import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE } from '../data/partage';
-import { ciblesPourInfo, etatVu, nbPourInfo, pourMoi, vusDeLEntite } from '../data/pourInfo';
-import { personnesDuRole } from '../data/permissions';
-import { ailleurs, aPrendreOuverte, auteurAPrendre, nombreAPrendre, pasDispo as aDecline, peutPrendre, plusPersonne, prisAilleurs, reponsesAilleurs, volontaires } from '../data/aPrendre';
+import { nbPourInfo, pourMoi } from '../data/pourInfo';
+import { ailleurs, aPrendreOuverte, auteurAPrendre, pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
-import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
-import type { DelaiUnite, EvenementEntite, OrgMember, OrgUnit, Person, PourInfo, Recurrence, SeanceComite, Task, VuPourInfo } from '../data/types';
-import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
-import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, newTask, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
-import { finAnticipee, motSeance, seanceApres, seancePourSuivante } from '../data/seances';
-import { Avatar, Modal, StatusBadge } from './ui';
+import { attributionDe, attributions, entitesDependantes, sectionChez } from '../data/externes';
+import type { OrgMember, Person, Task, VuPourInfo } from '../data/types';
+import { applyDelaiRef, childrenOf, fmtDate, fmtDateTime, fullName, isDone, nomPoste, parentOf, uid } from '../data/utils';
+import { finAnticipee, motSeance } from '../data/seances';
+import { Modal } from './ui';
 import { Icone, type IconeNom } from './icones';
 import { Deroulante } from './Deroulante';
 import { IconeEntite, PastilleEntite } from './IconesEntite';
@@ -26,6 +24,12 @@ import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteTache } from '../data/lienPartage';
 import { ZoneTexte } from './ZoneTexte';
 import { useTelephone } from './Accueil';
+import { DelaiField } from './tache/Quand';
+import { APrendreChamp, placesAPrendre } from './tache/APrendre';
+import { PourInfoChamp } from './tache/PourInfo';
+import { Checklist } from './tache/Checklist';
+import { Repetition } from './tache/Repetition';
+import { Rattachements } from './tache/Rattachements';
 
 export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string };
 
@@ -39,7 +43,7 @@ export function TaskModal(props: TaskModalProps) {
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage' | 'info' | 'prendre';
 
 function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, vuPourInfo, update, linkTask, autresResp, externes, setToast } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, vuPourInfo, update, autresResp, externes, setToast } = useStore();
   const tel = useTelephone();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   // Statut inconnu de l'entité (statuts personnalisés) : le premier statut ouvert.
@@ -52,10 +56,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
         }
       : task,
   );
-  const [newItem, setNewItem] = useState('');
   // Tâche liée (ou principale) ouverte par-dessus cette fenêtre.
   const [other, setOther] = useState<{ task: Task; isNew: boolean } | null>(null);
-  const [linking, setLinking] = useState(false);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const track = useRef<DocTracking>({ added: [], removed: [] });
@@ -69,6 +71,18 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   ]);
   const [nouvelEmail, setNouvelEmail] = useState(false);
   const club = useClubOptional();
+  // Pour info : « ✓ Vu » de la personne connectée (la tâche quitte son accueil ; l'auteur voit qu'elle l'a vue).
+  const [vuIci, setVuIci] = useState<VuPourInfo | null>(null);
+  // Entités mentionnées en entier : les personnes qui reçoivent la tâche (entité → fiches ; null : pas encore connues).
+  const [recoivent, setRecoivent] = useState<Record<string, string[]> | null>(null);
+  const entitesInfo = isNew || task.paiement ? '' : (task.pourInfo?.unites ?? []).join(',');
+  useEffect(() => {
+    if (!club || !entitesInfo) return;
+    let fini = false;
+    club.destinatairesPourInfo(task.source?.uniteId ?? club.current.id, task.source?.id ?? task.id).then((r) => !fini && setRecoivent(r), () => {});
+    return () => { fini = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- relu quand la tâche ou ses entités changent
+  }, [club?.current.id, entitesInfo, task.id, task.source?.id, task.source?.uniteId]);
   if (!user) return null;
   // Partage avec d'autres entités du club (tâche de l'entité ouverte) ; tâche partagée par une autre entité : t.source.
   // Serveur à jour (041) : documents, répétition, séance d'ici et partage se modifient aussi depuis une entité du partage.
@@ -160,22 +174,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   // Responsables des autres entités (tâche partagée), sauf ceux de l'entité de la tâche (choisis ci-dessus).
   const autres = autresResp(!entite ? t : attribuee ? { ...t, respPartage: { ...t.respPartage, [chezId]: [] } } : { ...t, source: { ...t.source!, responsables: [] } });
 
-  const addItem = () => {
-    if (!newItem.trim()) return;
-    set('checklist', [...t.checklist, { id: uid('c'), label: newItem.trim(), done: false }]);
-    setNewItem('');
-  };
-
   // Tâches liées : un seul niveau (une tâche principale n'est pas elle-même liée à une autre).
   const kids = isNew ? [] : childrenOf(data, task.id).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   const parent = parentOf(data, t);
-  const parentChoices = data.tasks
-    .filter((x) => !x.source && (x.id === t.parentId || (x.id !== task.id && !x.parentId && !isDone(data, x))))
-    .sort((a, b) => a.titre.localeCompare(b.titre));
-  const linkable = data.tasks.filter((x) => !x.source && x.id !== task.id && !x.parentId && !childrenOf(data, x.id).length && !isDone(data, x));
   const secName = (id: string) => data.sections.find((s) => s.id === id)?.nom ?? '';
-  const bySection = <T extends Task>(list: T[]) =>
-    data.sections.map((sec) => ({ sec, list: list.filter((x) => x.sectionId === sec.id) })).filter((g) => g.list.length);
 
   const toggleResp = (id: string) =>
     set('responsables', t.responsables.includes(id) ? t.responsables.filter((x) => x !== id) : [...t.responsables, id]);
@@ -240,18 +242,6 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
     deleteFiles(track.current.added);
     onClose();
   };
-  // Pour info : « ✓ Vu » de la personne connectée (la tâche quitte son accueil ; l'auteur voit qu'elle l'a vue).
-  const [vuIci, setVuIci] = useState<VuPourInfo | null>(null);
-  // Entités mentionnées en entier : les personnes qui reçoivent la tâche (entité → fiches ; null : pas encore connues).
-  const [recoivent, setRecoivent] = useState<Record<string, string[]> | null>(null);
-  const entitesInfo = isNew || task.paiement ? '' : (task.pourInfo?.unites ?? []).join(',');
-  useEffect(() => {
-    if (!club || !entitesInfo) return;
-    let fini = false;
-    club.destinatairesPourInfo(task.source?.uniteId ?? club.current.id, task.source?.id ?? task.id).then((r) => !fini && setRecoivent(r), () => {});
-    return () => { fini = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- relu quand la tâche ou ses entités changent
-  }, [club?.current.id, entitesInfo, task.id, task.source?.id, task.source?.uniteId]);
   const marquerVu = async () => {
     setBusy(true);
     setErr('');
@@ -271,7 +261,6 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const peutDupliquer = !isNew && !task.source && !task.paiement && creatableSections().some((s) => s.id === task.sectionId);
   const dupliquer = () => {
     const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, pourInfoVus, ...reste } = task;
     setOther({
       task: {
@@ -314,20 +303,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
 
   const dis = !editable;
   const seanceIci = t.source && t.meetingId ? data.meetings.find((m) => m.id === t.meetingId) : undefined;
-  const postes = postesFor(data, t, isNew ? undefined : task) ?? [];
-  // Répétition : « à chaque comité » (le mot des séances de l'entité) ; séance et délai de l'occurrence suivante.
+  // Répétition : « à chaque comité » (le mot des séances de l'entité).
   const mot = motSeance(club?.current.type).toLowerCase();
-  // Tâche partagée : c'est son entité qui crée l'occurrence suivante (selon ses séances, ses postes).
-  const prochaine = t.recurrence && !t.source ? seancePourSuivante(data, t) : undefined;
-  const seanceLiee = data.meetings.find((m) => m.id === t.meetingId);
-  const delaiSuivant = t.recurrence && !t.source ? nextOccurrence(data, t, prochaine?.meeting).delai : t.recurrence && t.recurrence !== 'seance' && t.delai ? nextDate(t.delai, t.recurrence) : '';
-  const repeter = (r: Recurrence | undefined) =>
-    setT((x) => {
-      if (r !== 'seance' || x.source || x.meetingId || x.seanceComite) return { ...x, recurrence: r };
-      // À chaque séance : la tâche va d'abord à la prochaine séance prévue.
-      const s = seanceApres(data.meetings, addDays(today(), -1));
-      return s && !s.nouvelle ? applyDelaiRef(data, { ...x, recurrence: r, meetingId: s.meeting.id }) : { ...x, recurrence: r };
-    });
   const polls = (data.polls ?? []).filter((p) => p.taskId === task.id);
   const rempli: Record<Extra, boolean> = {
     checklist: t.checklist.length > 0,
@@ -395,98 +372,17 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
   const aAjouter = assignable
     .filter((p) => !t.responsables.includes(p.id) && ![...choisisChez, ...membresChez].some((m) => memePersonne(p, m)))
     .sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
-  // Pour info : personnes d'ici (sauf responsables), autres entités du club, personnes d'autres entités (« a:entité:fiche »).
-  const info = t.pourInfo ?? {};
-  const cibles = ciblesPourInfo(t.pourInfo, data.people, club?.units ?? []).filter((c) => c.genre !== 'personne' || !t.responsables.includes(c.id));
-  // « ✓ Vu » enregistrés sur la tâche (046) : sur les pastilles, avec leur date ; une entité mentionnée en entier est
-  // vue quand chacune des personnes qui la reçoivent (`recoivent`) l'a vue.
+  // Pour info : « ✓ Vu » enregistrés sur la tâche (046), avec celui que la personne vient de donner ici.
   const vus: Record<string, VuPourInfo> = isNew ? {} : { ...task.pourInfoVus, ...(vuIci ? { [`p:${user.id}`]: vuIci } : {}) };
-  const etats = Object.fromEntries(cibles.map((c) => [c.cle, etatVu(c.cle, vus, c.genre === 'unite' ? recoivent?.[c.id] : undefined)]));
-  // Bilan en personnes : une entité compte celles qui la reçoivent.
-  const toutVu = cibles.every((c) => etats[c.cle].etat === 'vu');
-  const nbVus = cibles.reduce((n, c) => n + etats[c.cle].n, 0);
-  const nbRecoivent = cibles.reduce((n, c) => n + etats[c.cle].total, 0);
   const infoPourMoi = !isNew && pourMoi(task, user.id) && !vus[`p:${user.id}`];
   const auteurInfo = data.people.find((p) => p.id === task.createdBy && p.id !== user.id);
-  const jourCourt = (s: string) => new Date(s).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit' });
-  const quandVu = (v: VuPourInfo) => {
-    const d = new Date(v.le);
-    return `Vu le ${d.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`;
-  };
-  // Entité mentionnée en entier : qui l'a vue (avec la date), qui pas encore.
-  const vusEntite = (id: string) => {
-    const membres = club?.units.find((u) => u.id === id)?.membres ?? [];
-    const nomDe = (f: string) => { const m = membres.find((x) => x.id === f); return m ? `${m.prenom} ${m.nom}`.trim() : '?'; };
-    const v = vusDeLEntite(vus, id);
-    return {
-      vues: Object.entries(v).sort((a, b) => a[1].le.localeCompare(b[1].le)).map(([f, x]) => `${nomDe(f)} (${jourCourt(x.le)})`),
-      pasEncore: (recoivent?.[id] ?? []).filter((f) => !v[f]).map(nomDe).sort((a, b) => a.localeCompare(b, 'fr')),
-      connu: !!recoivent?.[id],
-    };
-  };
-  const infoIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !info.personnes?.includes(p.id));
-  const autresUnites = club ? club.units.filter((u) => u.id !== club.current.id && !u.archive) : [];
-  const iconeUnite = (id: string) => { const u = club?.units.find((x) => x.id === id); return u ? <><IconeEntite u={u} />{' '}</> : null; };
-  // Tâche partagée : son entité la voit déjà.
-  const infoUnites = autresUnites.filter((u) => !info.unites?.includes(u.id) && u.id !== t.source?.uniteId);
-  const infoAutres = autresUnites
-    .map((u) => ({ u, l: u.membres.filter((m) => !m.viaEntite && !info.autres?.[u.id]?.includes(m.id) && !data.people.some((p) => p.actif && memePersonne(p, m))) }))
-    .filter((g) => g.l.length);
-  // Tout un groupe d'un coup : les personnes d'ici, celles d'un rôle (« Comité »…), celles d'une autre entité.
-  const infoRoles = data.roles.map((r) => ({ r, l: personnesDuRole(data.roles, infoIci, r) })).filter((g) => g.l.length > 1);
-  // À prendre : personnes d'ici à qui la tâche est proposée (ajoutées une à une, par rôle ou toutes) ; places prises.
-  const candidats = t.aPrendre?.personnes ?? [];
-  const proposable = !dis && canAssignOthers;
-  const prendreIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !candidats.includes(p.id));
-  // « Comité » : tout le comité, président et secrétaire compris (personnesDuRole).
-  const prendreRoles = data.roles
-    .map((r) => ({ r, l: personnesDuRole(data.roles, prendreIci, r) }))
-    .filter((g) => g.l.length > 1);
-  const nPrendre = nombreAPrendre(t.aPrendre);
-  const vol = volontaires(t);
-  const nomsDe = (ids: string[]) => ids.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
-  // Tâche partagée ou partagée avec d'autres entités : proposée aussi à leurs personnes (040), places comptées ensemble.
-  const prisLa = prisAilleurs(t);
-  const nPris = vol.length + prisLa;
-  const quiPrend = [vol.length ? nomsDe(vol) : '', prisLa ? `${prisLa} personne${prisLa > 1 ? 's' : ''} d’une autre entité` : ''].filter(Boolean).join(' et ');
-  const nomAilleurs = (u: string, id: string) => {
-    const m = club?.units.find((x) => x.id === u)?.membres.find((x) => x.id === id);
-    return m ? `${m.prenom} ${m.nom}`.trim() : '?';
-  };
-  const propAilleurs = reponsesAilleurs(t);
-  const proposer = (v: string) =>
-    setT((x) => {
-      const ids = v === 'tous' ? prendreIci.map((p) => p.id) : v.startsWith('r:') ? (prendreRoles.find((g) => g.r.id === v.slice(2))?.l ?? []).map((p) => p.id) : [v.slice(2)];
-      return { ...x, aPrendre: { ...x.aPrendre, personnes: [...(x.aPrendre?.personnes ?? []), ...ids] } };
-    });
-  const retirerPropose = (id: string) => setT((x) => ({ ...x, aPrendre: x.aPrendre && { ...x.aPrendre, personnes: x.aPrendre.personnes.filter((y) => y !== id) } }));
-  const setNombre = (n: number) => setT((x) => ({ ...x, aPrendre: { ...x.aPrendre, personnes: x.aPrendre?.personnes ?? [], nombre: n > 1 ? n : undefined } }));
-  // « Pas dispo » (encore proposées, pas responsables) ; personnes qui n'ont pas encore répondu.
-  const refusIci = (t.aPrendre?.refus ?? []).filter((id) => candidats.includes(id) && !t.responsables.includes(id));
+  // À prendre : places prises (bandeau de la personne à qui la tâche est proposée).
+  const { nPrendre, nPris, quiPrend } = placesAPrendre(data, t);
   const auteur = data.people.find((p) => p.id === auteurAPrendre(task));
   const pourMoiAPrendre = !isNew && peutPrendre(task, user.id) && !isDone(data, task);
   // Tâche partagée : ce qui se gère dans son entité, et de quoi l'y ouvrir si on en fait partie.
   const chezSource = t.source && club?.units.find((u) => u.id === t.source!.uniteId && u.moi && !u.archive);
   const jeDecline = aDecline(task, user.id);
-
-  const changerInfo = (v: string, oui: boolean) =>
-    setT((x) => {
-      const p: PourInfo = { ...x.pourInfo };
-      // Groupes : chacune de leurs personnes, ajoutée comme si on l'avait choisie (et retirable une à une).
-      const cles =
-        v === 'tous' ? infoIci.map((y) => `p:${y.id}`)
-        : v.startsWith('r:') ? (infoRoles.find((g) => g.r.id === v.slice(2))?.l ?? []).map((y) => `p:${y.id}`)
-        : v.startsWith('ta:') ? (infoAutres.find((g) => g.u.id === v.slice(3))?.l ?? []).map((m) => `a:${v.slice(3)}:${m.id}`)
-        : [v];
-      for (const c of cles) {
-        const [g, a, b] = c.split(':');
-        const maj = (l: string[] | undefined, id: string) => (oui ? [...new Set([...(l ?? []), id])] : (l ?? []).filter((y) => y !== id));
-        if (g === 'p') p.personnes = maj(p.personnes, a);
-        else if (g === 'u') p.unites = maj(p.unites, a);
-        else p.autres = { ...p.autres, [a]: maj(p.autres?.[a], b) };
-      }
-      return { ...x, pourInfo: p };
-    });
 
   return (
     <Modal
@@ -670,70 +566,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
           {autres && <small className="muted autres-resp">Aussi : {autres}</small>}
           {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </div>
-        {!t.paiement && voit('prendre') && (proposable || candidats.length > 0 || propAilleurs.length > 0) && (
-          <div className="full a-prendre">
-            <span className="field-label">🙋 À prendre</span>
-            <div className="chips">
-              {candidats.map((id) => {
-                const p = data.people.find((x) => x.id === id);
-                const non = refusIci.includes(id);
-                return (
-                  <span key={id} className={`chip on ${proposable ? '' : 'locked'} ${non ? 'refus' : ''}`} title={non ? 'Pas dispo' : t.responsables.includes(id) ? 'S’en charge' : 'Pas encore de réponse'}>
-                    {fullName(p)}{t.responsables.includes(id) && ' ✓'}{non && ' 🙅'}
-                    {proposable && <button type="button" className="chip-x" aria-label={`Ne plus proposer à ${fullName(p)}`} onClick={() => retirerPropose(id)}>✕</button>}
-                  </span>
-                );
-              })}
-              {!candidats.length && <span className="muted">{propAilleurs.length ? `Personne de « ${club?.current.nom ?? 'cette entité'} » pour l’instant.` : 'Personne pour l’instant.'}</span>}
-              {proposable && prendreIci.length > 0 && (
-                <select className="chip-add" value="" aria-label="Proposer à" onChange={(e) => e.target.value && proposer(e.target.value)}>
-                  <option value="">＋ Proposer à…</option>
-                  {prendreIci.length > 1 && <option value="tous">Tout le monde ({prendreIci.length})</option>}
-                  {prendreRoles.length > 0 && (
-                    <optgroup label="Tout un rôle">
-                      {prendreRoles.map(({ r, l }) => <option key={r.id} value={`r:${r.id}`}>{r.label} ({l.length})</option>)}
-                    </optgroup>
-                  )}
-                  <optgroup label="Personnes">
-                    {prendreIci.map((p) => <option key={p.id} value={`p:${p.id}`}>{nomPoste(p, user.id)}</option>)}
-                  </optgroup>
-                </select>
-              )}
-            </div>
-            {propAilleurs.length > 0 && (
-              <small className="muted a-prendre-ailleurs">
-                Aussi proposée à :{' '}
-                {propAilleurs.map((g, i) => (
-                  <span key={g.unite}>
-                    {i > 0 && ' · '}
-                    {g.personnes.map((x) => `${nomAilleurs(g.unite, x.id)}${x.pris ? ' ✓' : x.refus ? ' 🙅' : ''}`).join(', ')} ({nomUnite(g.unite) || '?'})
-                  </span>
-                ))}
-              </small>
-            )}
-            {(nPrendre > 1 || (proposable && candidats.length + propAilleurs.reduce((n, g) => n + g.personnes.length, 0) > 1)) && (
-              <label className="inline a-prendre-nombre">
-                Il faut
-                <select value={nPrendre} disabled={!proposable} onChange={(e) => setNombre(Number(e.target.value))}>
-                  {Array.from({ length: Math.max(10, nPrendre) }, (_, i) => i + 1).map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-                {nPrendre > 1 ? 'personnes' : 'personne'}
-              </label>
-            )}
-            <small className="muted">
-              {!candidats.length && !propAilleurs.length
-                ? 'Choisis à qui la proposer : '
-                : aPrendreOuverte(t)
-                  ? `${nPris ? `${quiPrend} s’en charge${nPris > 1 ? 'nt' : ''} ; encore ${nPrendre - nPris} place${nPrendre - nPris > 1 ? 's' : ''}. ` : 'Personne ne s’en charge encore. '}`
-                  : `✓ ${quiPrend} s’en charge${nPris > 1 ? 'nt' : ''} : elle n’est plus proposée. `}
-              {refusIci.length > 0 && `🙅 Pas dispo : ${nomsDe(refusIci)}. `}
-              {(candidats.length > 0 || propAilleurs.length > 0) && aPrendreOuverte(t) && plusPersonne(t) && <b>Toutes les personnes proposées ont répondu : propose-la à d’autres. </b>}
-              {(!candidats.length || aPrendreOuverte(t)) &&
-                'Ces personnes la voient dans « Mes tâches » et à l’accueil, avec une notification 🔔 ; la première qui clique « 🙋 Je m’en charge » en devient responsable ; « 🙅 Pas dispo » prévient qui la propose.'}
-              {t.source && ' Chaque entité du partage la propose à ses personnes ; les places se comptent ensemble.'}
-            </small>
-          </div>
-        )}
+        {!t.paiement && voit('prendre') && <APrendreChamp t={t} setT={setT} dis={dis} canAssignOthers={canAssignOthers} />}
         {(!dis || !!t.remarque) && (
           <label className="full">
             Remarque
@@ -766,120 +599,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             )}
           </div>
         )}
-        {!t.paiement && voit('info') && (!dis || cibles.length > 0) && (
-          <div className="full pour-info">
-            <span className="field-label">👁 Pour info</span>
-            <div className="chips">
-              {cibles.map((c) => {
-                const e = etats[c.cle];
-                const v = c.genre === 'unite' ? undefined : vus[c.cle];
-                const ve = !isNew && c.genre === 'unite' ? vusEntite(c.id) : undefined;
-                const titre = isNew ? undefined : v ? quandVu(v) : ve ? `Vue par ${e.n}${ve.connu ? ` sur ${e.total}` : ''}${ve.pasEncore.length ? ` ; pas encore : ${ve.pasEncore.join(', ')}` : ''}` : 'Pas encore « ✓ Vu »';
-                return (
-                  <span key={c.cle} className={`chip on ${dis ? 'locked' : ''} ${isNew ? '' : e.etat}`} title={titre}>
-                    {!isNew && e.etat === 'vu' && <Icone n="ok" />}
-                    {c.genre === 'unite' && iconeUnite(c.id)}{c.texte}
-                    {v && <small className="chip-vu"><span className="sr-only">{quandVu(v)} : </span>{jourCourt(v.le)}</small>}
-                    {ve && (ve.connu || e.n > 0) && <small className="chip-vu"><span className="sr-only">{titre} : </span>{ve.connu ? `${e.n}/${e.total}` : `✓ ${e.n}`}</small>}
-                    {!dis && <button type="button" className="chip-x" aria-label={`Retirer ${c.texte}`} onClick={() => changerInfo(c.cle, false)}>✕</button>}
-                  </span>
-                );
-              })}
-              {!cibles.length && <span className="muted">Personne pour l’instant.</span>}
-              {!dis && (infoIci.length > 0 || infoUnites.length > 0 || infoAutres.length > 0) && (
-                <Deroulante
-                  puce
-                  value=""
-                  libelle="＋ Ajouter…"
-                  aria-label="Mettre au courant"
-                  onChange={(v) => v && changerInfo(v, true)}
-                  options={[
-                    {
-                      groupe: 'Tout un groupe d’un coup',
-                      options: [
-                        ...(infoIci.length > 1 ? [{ value: 'tous', label: `Toutes les personnes${club ? ` de « ${club.current.nom} »` : ''} (${infoIci.length})`, icone: <Icone n="personnes" /> }] : []),
-                        ...infoRoles.map(({ r, l }) => ({ value: `r:${r.id}`, label: `${r.label} (${l.length})`, icone: <Icone n="personnes" /> })),
-                        ...infoAutres.filter((g) => g.l.length > 1).map(({ u, l }) => ({ value: `ta:${u.id}`, label: `Toutes les personnes de « ${u.nom} » (${l.length})`, icone: <PastilleEntite u={u} /> })),
-                      ],
-                    },
-                    { groupe: `Personnes${club ? ` de « ${club.current.nom} »` : ''}`, options: infoIci.map((p) => ({ value: `p:${p.id}`, label: nomPoste(p, user.id) })) },
-                    { groupe: 'Entités du club', options: infoUnites.map((u) => ({ value: `u:${u.id}`, label: u.nom, icone: <PastilleEntite u={u} /> })) },
-                    ...infoAutres.map(({ u, l }) => ({
-                      groupe: `Personnes de « ${u.nom} »`,
-                      icone: <PastilleEntite u={u} />,
-                      options: l.map((m) => ({ value: `a:${u.id}:${m.id}`, label: `${`${m.prenom} ${m.nom}`.trim()}${m.poste ? ` · ${m.poste}` : ''}` })),
-                    })),
-                  ]}
-                />
-              )}
-            </div>
-            {!isNew && cibles.length > 0 && (
-              <small className="pour-info-bilan">
-                {toutVu
-                  ? '✓ Vue par tout le monde.'
-                  : nbVus === 0
-                    ? 'Personne ne l’a encore marquée « ✓ Vu ».'
-                    : `✓ Vue par ${nbVus} personne${nbVus > 1 ? 's' : ''} sur ${nbRecoivent}.`}
-              </small>
-            )}
-            {!isNew &&
-              cibles
-                .filter((c) => c.genre === 'unite')
-                .map((c) => {
-                  const ve = vusEntite(c.id);
-                  return (
-                    <small key={c.cle} className="pour-info-entite-vus">
-                      {iconeUnite(c.id)}<b>{c.texte}</b> :{' '}
-                      {ve.connu && !ve.vues.length && !ve.pasEncore.length
-                        ? 'personne ne la reçoit (ni admin ni rôle « Voir toutes les tâches » avec un compte).'
-                        : <>
-                            {ve.vues.length > 0 && <span className="vu-oui">✓ {ve.vues.join(', ')}</span>}
-                            {ve.vues.length > 0 && ve.pasEncore.length > 0 && ' · '}
-                            {ve.pasEncore.length > 0 && <span className="vu-non">pas encore : {ve.pasEncore.join(', ')}</span>}
-                            {!ve.vues.length && !ve.pasEncore.length && 'personne ne l’a encore vue.'}
-                          </>}
-                    </small>
-                  );
-                })}
-            <small className="muted">
-              Elles voient la tâche sans s’en occuper : les personnes d’ici dans « Mes tâches » (👁) avec une notification 🔔 ; les autres entités (leurs
-              admins et les rôles « Voir toutes les tâches ») et leurs personnes, en lecture seule, à l’accueil et dans Tâches › 👁 Pour info. Quand
-              elles la marquent « ✓ Vu », leur pastille passe du rouge au vert (✓ et la date) ; une entité compte chacune des personnes qui la reçoivent (orange : une partie l’a vue).
-            </small>
-          </div>
-        )}
+        {!t.paiement && voit('info') && <PourInfoChamp t={t} setT={setT} isNew={isNew} dis={dis} vus={vus} recoivent={recoivent} />}
 
-        {voit('checklist') && (
-          <fieldset className="full">
-            <legend>☑️ Checklist{t.checklist.length > 0 && ` · ${t.checklist.filter((c) => c.done).length}/${t.checklist.length}`}</legend>
-            {t.checklist.map((c) => (
-              <div key={c.id} className="check-row">
-                <label className="inline">
-                  <input type="checkbox" checked={c.done} disabled={dis} onChange={() => set('checklist', t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)))} />
-                  <span className={c.done ? 'strike' : ''}>{c.label}</span>
-                </label>
-                {!dis && <button type="button" className="icon-btn" onClick={() => set('checklist', t.checklist.filter((x) => x.id !== c.id))} aria-label="Retirer">✕</button>}
-              </div>
-            ))}
-            {!dis && (
-              <div className="row">
-                <input
-                  autoFocus={!t.checklist.length}
-                  value={newItem}
-                  placeholder="Ajouter une étape…"
-                  onChange={(e) => setNewItem(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newItem.trim()) {
-                      e.preventDefault();
-                      addItem();
-                    }
-                  }}
-                />
-                <button type="button" className="btn" onClick={addItem}>Ajouter</button>
-              </div>
-            )}
-          </fieldset>
-        )}
+        {voit('checklist') && <Checklist t={t} setT={setT} dis={dis} />}
         {voit('docs') && (
           <DocsField
             docs={t.documents ?? []}
@@ -891,120 +613,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             liens
           />
         )}
-        {voit('repetition') && (
-          <label className="full">
-            🔁 Répétition
-            <select value={t.recurrence ?? ''} disabled={dis || !complet} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
-              <option value="">Aucune (tâche unique)</option>
-              {/* Tâche partagée : « à chaque séance » (celles de son entité), seulement si elle l'est déjà. */}
-              {RECURRENCES.filter((r) => r.id !== 'seance' || !t.source || t.recurrence === 'seance').map((r) => (
-                <option key={r.id} value={r.id}>🔁 {r.id !== 'seance' ? r.label : t.source ? `À chaque séance de « ${t.source.unite} »` : `À chaque ${mot}`}</option>
-              ))}
-            </select>
-          </label>
-        )}
-        {t.recurrence && t.source && (
-          <p className="full recur-note">
-            🔁 Quand cette tâche sera terminée, « {t.source.unite} » créera automatiquement la suivante
-            {delaiSuivant ? <> pour le <b>{fmtDate(delaiSuivant)}</b></> : t.recurrence === 'seance' ? ' pour sa séance suivante' : ' (sans délai)'}, dès que l’un de ses membres ouvrira l’appli.
-          </p>
-        )}
-        {t.recurrence && !t.source && (
-          <p className="full recur-note">
-            🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement
-            {t.recurrence !== 'seance' ? (
-              delaiSuivant ? <> pour le <b>{fmtDate(delaiSuivant)}</b></> : ' (sans délai)'
-            ) : prochaine ? (
-              <>
-                {' '}pour la séance suivante, <b>{prochaine.meeting.titre}</b> ({fmtDate(prochaine.meeting.date)}{prochaine.nouvelle ? ', ajoutée à l’agenda à ce moment-là' : ''})
-                {delaiSuivant && <>, délai le <b>{fmtDate(delaiSuivant)}</b></>}
-              </>
-            ) : (
-              <>, sans séance ni délai : aucune séance n’est prévue après {seanceLiee ? `« ${seanceLiee.titre} »` : 'aujourd’hui'} (si une séance est ajoutée dans l’Agenda d’ici là, la suivante y sera rattachée)</>
-            )}
-            {postes.length > 0 && <> et attribuée au poste <b>{postes.join(', ')}</b></>}
-            {' '}(aujourd’hui : {nextResponsables(data, { ...t, postesResp: postes }).map((id) => fullName(data.people.find((p) => p.id === id))).join(', ')}).
-            {task.suivanteId && <><br />Occurrence suivante déjà créée.</>}
-          </p>
-        )}
-        {voit('liens') && (
-          <fieldset className="full liens">
-            <legend>🧩 Rattachements</legend>
-            <div className="form">
-              {t.source && <SeanceIci t={t} setT={setT} disabled={dis || !complet} />}
-              {!t.source && <EvenementLie t={t} setT={setT} disabled={dis} />}
-              {!t.source && <SeanceLiee t={t} setT={setT} disabled={dis} />}
-              {!t.source && !kids.length && (
-                <label className="full">
-                  Tâche principale
-                  <select
-                    value={t.parentId ?? ''}
-                    disabled={dis}
-                    onChange={(e) => {
-                      const p = data.tasks.find((x) => x.id === e.target.value);
-                      setT((x) => ({ ...x, parentId: p?.id, ...(p && !x.sectionId ? { sectionId: p.sectionId, sousSection: p.sousSection } : {}) }));
-                    }}
-                  >
-                    <option value="">Aucune (tâche indépendante)</option>
-                    {bySection(parentChoices).map((g) => (
-                      <optgroup key={g.sec.id} label={g.sec.nom}>
-                        {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
-                      </optgroup>
-                    ))}
-                  </select>
-                </label>
-              )}
-              {!t.source && !t.parentId && !isNew && (
-                <div className="full linked">
-                  <span className="field-label">Tâches rattachées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</span>
-                  {kids.length > 0 && (
-                    <>
-                      <div className="progress"><div style={{ width: `${Math.round((kids.filter((k) => isDone(data, k)).length / kids.length) * 100)}%` }} /></div>
-                      <ul className="linked-list">
-                        {kids.map((k) => (
-                          <li key={k.id} className={isDone(data, k) ? 'done' : ''}>
-                            <button type="button" className="linked-row" onClick={() => setOther({ task: k, isNew: false })}>
-                              <span className="linked-title">{k.titre}</span>
-                              <span className="avatars">{k.responsables.slice(0, 3).map((id) => <Avatar key={id} id={id} size={20} />)}</span>
-                              <span className={`linked-date ${isLate(data, k) ? 'late-text' : 'muted'}`}>{k.delai ? fmtDate(k.delai) : '—'}</span>
-                              <StatusBadge task={k} />
-                            </button>
-                            {editable && <button type="button" className="icon-btn" title="Détacher (la tâche reste, sans tâche principale)" onClick={() => linkTask(k.id, undefined)}>✕</button>}
-                          </li>
-                        ))}
-                      </ul>
-                    </>
-                  )}
-                  {!kids.length && <small className="muted">Aucune. Une tâche rattachée a son propre responsable, délai et statut.</small>}
-                  {editable && (
-                    <div className="row wrap">
-                      <button
-                        type="button"
-                        className="btn small"
-                        onClick={() => setOther({ task: newTask(user.id, { parentId: task.id, sectionId: task.sectionId, sousSection: task.sousSection, delai: task.delai }), isNew: true })}
-                      >
-                        + Nouvelle tâche rattachée
-                      </button>
-                      {!linking ? (
-                        linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}><Icone n="rattacher" /> Rattacher une tâche existante</button>
-                      ) : (
-                        <select autoFocus defaultValue="" onChange={(e) => { if (e.target.value) linkTask(e.target.value, task.id); setLinking(false); }} onBlur={() => setLinking(false)}>
-                          <option value="">— Choisir la tâche à rattacher —</option>
-                          {bySection(linkable).map((g) => (
-                            <optgroup key={g.sec.id} label={g.sec.nom}>
-                              {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
-                            </optgroup>
-                          ))}
-                        </select>
-                      )}
-                      {kids.length > 0 && <a className="small-link" href={`#/taches?parent=${task.id}`}>Voir dans la liste →</a>}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </fieldset>
-        )}
+        <Repetition t={t} setT={setT} task={task} isNew={isNew} dis={dis} complet={complet} ouverte={voit('repetition')} />
+        {voit('liens') && <Rattachements t={t} setT={setT} task={task} isNew={isNew} dis={dis} editable={editable} complet={complet} kids={kids} ouvrir={(x, nouvelle) => setOther({ task: x, isNew: nouvelle })} />}
         {polls.length > 0 && (
           <fieldset className="full">
             <legend>📊 Sondages</legend>
@@ -1051,360 +661,5 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
       {other && <TaskModal task={other.task} isNew={other.isNew} onClose={() => setOther(null)} />}
     </Modal>
-  );
-}
-
-type SetT = (fn: (x: Task) => Task) => void;
-
-/** Sans l'occurrence suivie (autre événement : sa prochaine occurrence, s'il se répète). */
-const sansOccurrence = (t: Task): Task => {
-  if (!t.delaiRef?.occurrence) return t;
-  const { occurrence: _, ...ref } = t.delaiRef;
-  return { ...t, delaiRef: ref };
-};
-
-/** Tâche liée à une séance du comité dont l'entité dépend : partagée avec ce comité (ses tâches, son ordre du jour, son PV). */
-function avecSeance(x: Task, s: SeanceComite, centralId?: string): Task {
-  const l = partageDe(x, centralId);
-  return {
-    ...x,
-    meetingId: undefined,
-    seanceComite: { uniteId: s.uniteId, id: s.id, titre: s.titre, date: s.date },
-    partage: l.includes(s.uniteId) ? l : [...l, s.uniteId],
-    auCentral: undefined,
-  };
-}
-
-/**
- * « Soirée (28.11.2026) · prochaine édition » : édition d'un événement du club (distincte d'un événement du comité du même
- * nom), ou l'un de ses événements (avec le nom de l'entité).
- */
-function libelleEvenement(x: EvenementEntite, u?: OrgUnit): { label: string; icone: ReactNode } {
-  const icone = u ? <PastilleEntite u={u} /> : <Icone n="evenements" />;
-  if (x.id) return { label: `${x.nom} (${fmtRange(x.date, x.dateFin)})${u ? ` · ${u.nom}` : ''}`, icone };
-  return { label: `${x.nom} (${x.date ? fmtRange(x.date, x.dateFin) : 'date à fixer'}) · prochaine édition`, icone };
-}
-
-/**
- * Ce que la tâche peut lier hors de l'entité (lu par le store, externes.ts) : les séances du comité dont elle dépend, et
- * les événements du club qui dépendent d'elle (prochaine édition, événements de leur agenda).
- */
-function useExternes(t: Task) {
-  const { externes } = useStore();
-  const club = useClubOptional();
-  const jour = today();
-  const parent = club && club.current.type !== 'central' && !t.source ? parentDans(club.units.filter((u) => !u.archive), club.current) : undefined;
-  const comite = externes.seances?.comite || parent?.id || '';
-  const seances = parent || t.seanceComite ? choixSeances(externes.seances, comite, t.seanceComite, jour) : [];
-  const dependants = club && !t.source ? evenementsDependants(club.units, club.current) : [];
-  const evenements = dependants.length || t.evenementEntite ? choixEvenements(dependants, externes.agenda ?? [], t.evenementEntite, jour) : [];
-  const unite = (id: string) => club?.units.find((u) => u.id === id);
-  return { club, parent, comite, lu: externes.seances, seances, evenements, unite, ici: club?.current.nom ?? '' };
-}
-
-/**
- * « Événement lié » : un événement de l'entité ; pour un comité, aussi un événement qui dépend de lui (sa prochaine
- * édition ou l'un de ses événements), dont le nom et la date suivent les changements.
- */
-function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
-  const { data } = useStore();
-  const { club, evenements, unite, ici } = useExternes(t);
-  const lie = t.evenementEntite;
-  const value = lie ? `x:${evenements.findIndex((x) => memeEvenement(x, lie))}` : (t.eventId ?? '');
-  const choisir = (v: string) =>
-    setT((x) =>
-      applyDelaiRef(data, sansOccurrence(v.startsWith('x:') ? { ...x, eventId: undefined, evenementEntite: evenements[Number(v.slice(2))] } : { ...x, eventId: v || undefined, evenementEntite: undefined })),
-    );
-  const locales = data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}{e.repetition ? ' 🔁' : ''}</option>);
-  const localesChoix = data.events.map((e) => ({ value: e.id, label: e.nom, icone: <Icone n={e.repetition ? 'repetition' : 'evenements'} /> }));
-  const u = lie && unite(lie.uniteId);
-  const partagee = !!lie && partageDe(t, club?.central?.id).includes(lie.uniteId);
-  return (
-    <label className={evenements.length ? 'full' : undefined}>
-      Événement
-      {evenements.length > 0 ? (
-        <Deroulante
-          value={value}
-          disabled={disabled}
-          onChange={choisir}
-          options={[
-            { value: '', label: '—' },
-            { groupe: `Événements de « ${ici} »`, options: localesChoix },
-            { groupe: `Événements qui dépendent de « ${ici} »`, options: evenements.map((x, i) => ({ value: `x:${i}`, ...libelleEvenement(x, unite(x.uniteId)) })) },
-          ]}
-        />
-      ) : (
-        <select value={value} disabled={disabled} onChange={(e) => choisir(e.target.value)}>
-          <option value="">—</option>
-          {locales}
-        </select>
-      )}
-      {lie && (
-        <small className="muted">
-          {u ? <IconeEntite u={u} /> : <Icone n="evenements" />} {lie.id ? `Événement de « ${u?.nom ?? '?'} »` : 'Prochaine édition'}, qui dépend de « {ici} » : son nom et sa date sont suivis (délai calé dessus compris).
-          {!partagee && !disabled && u && ` Pour que « ${u.nom} » voie aussi la tâche : 🤝 Partager.`}
-        </small>
-      )}
-    </label>
-  );
-}
-
-/**
- * « Séance de comité liée » : une séance de l'entité, ou une séance du comité dont elle dépend. Dans ce cas, la tâche
- * est partagée avec ce comité et figure à l'ordre du jour et au PV de cette séance (partage.ts : avecPartagees).
- */
-function SeanceLiee({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
-  const { data } = useStore();
-  const { club, parent, comite, lu, seances: choix, unite, ici } = useExternes(t);
-  const nomComite = (id: string) => unite(id)?.nom ?? 'comité';
-  const lie = t.seanceComite;
-  const value = lie ? `c:${choix.findIndex((s) => memeSeance(s, lie))}` : (t.meetingId ?? '');
-  const reglage = club ? reglageTaches(club.units, club.current) : undefined;
-
-  const choisir = (v: string) =>
-    setT((x) =>
-      applyDelaiRef(data, v.startsWith('c:') ? avecSeance(x, choix[Number(v.slice(2))], club?.central?.id) : { ...x, meetingId: v || undefined, seanceComite: undefined }),
-    );
-
-  const locales = aVenir(data.meetings, t.meetingId).map((m) => <option key={m.id} value={m.id}>{m.titre}</option>);
-  return (
-    <label className={parent ? 'full' : undefined}>
-      Séance de comité
-      <select value={value} disabled={disabled} onChange={(e) => choisir(e.target.value)}>
-        <option value="">—</option>
-        {choix.length > 0 ? (
-          <>
-            {locales.length > 0 && <optgroup label={`Séances de « ${ici} »`}>{locales}</optgroup>}
-            <optgroup label={`Séances de « ${nomComite(comite)} » (comité dont dépend « ${ici} »)`}>
-              {choix.map((s, i) => <option key={`${s.uniteId}:${s.id}`} value={`c:${i}`}>🏛️ {s.titre} ({fmtDate(s.date)}){s.uniteId !== comite ? ` · ${nomComite(s.uniteId)}` : ''}</option>)}
-            </optgroup>
-          </>
-        ) : locales}
-      </select>
-      {lie ? (
-        <small className="muted">
-          🏛️ À l’ordre du jour et au PV de « {lie.titre} » ({nomComite(lie.uniteId)}) : la tâche est partagée avec ce comité, qui la modifie comme les siennes.
-          {reglage === 'rien' && lie.uniteId === parent?.id && ` ⚠️ Réglage de « ${ici} » : « ${TACHES_DEPENDANCE.rien.label} » ; elle n’y apparaîtra pas tant qu’il reste ainsi.`}
-        </small>
-      ) : parent && lu === null ? (
-        <small className="muted">Les séances de « {parent.nom} » seront proposées ici après la mise à jour du serveur (migration 032).</small>
-      ) : null}
-    </label>
-  );
-}
-
-/**
- * Tâche partagée par une autre entité (041) : une séance de l'entité ouverte (son ordre du jour et son PV), si la tâche
- * n'est pas déjà liée à une séance de son entité ou d'une autre (seanceAilleurs, en lecture).
- */
-function SeanceIci({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
-  const { data } = useStore();
-  const club = useClubOptional();
-  const ailleurs = t.source?.seanceAilleurs;
-  const ici = club?.current.nom ?? 'cette entité';
-  return (
-    <label className="full">
-      Séance de comité
-      {ailleurs ? (
-        <input value={ailleurs.replace(/^./, (c) => c.toUpperCase())} disabled readOnly />
-      ) : (
-        <select value={t.meetingId ?? ''} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, meetingId: e.target.value || undefined }))}>
-          <option value="">—</option>
-          {aVenir(data.meetings, t.meetingId).map((m) => <option key={m.id} value={m.id}>{m.titre} ({fmtDate(m.date)})</option>)}
-        </select>
-      )}
-      <small className="muted">
-        {ailleurs
-          ? `Elle se change dans « ${t.source!.unite} », l’entité de la tâche.`
-          : t.meetingId
-            ? `🗓️ À l’ordre du jour et au PV de cette séance de « ${ici} ».`
-            : `Une séance de « ${ici} » : la tâche figure alors à son ordre du jour et à son PV.`}
-      </small>
-    </label>
-  );
-}
-
-/** Séances et événements à venir (ou en cours), par date ; plus celui déjà choisi, même passé. */
-const aVenir = <T extends { id: string; date: string; dateFin?: string }>(list: T[], current?: string) =>
-  list.filter((x) => endOf(x) >= today() || x.id === current).sort((a, b) => a.date.localeCompare(b.date));
-
-/**
- * Pour quand ? Une date, ou une date calculée à partir d'un événement / d'une séance (« 1 semaine avant le Tournoi
- * d'automne ») qui suit ensuite ses changements de date. Aussi : une séance du comité dont l'entité dépend, un événement
- * qui dépend du comité ouvert.
- */
-function DelaiField({ t, setT, disabled, dateSeule }: { t: Task; setT: SetT; disabled: boolean; dateSeule?: boolean }) {
-  const { data } = useStore();
-  const { club, comite, seances: xm, evenements, unite, ici } = useExternes(t);
-  const [choisir, setChoisir] = useState(false);
-  // Événement qui se répète : à sa prochaine occurrence (tant qu'il en reste).
-  const events = aVenir(data.events.map((e) => (e.repetition ? aLaDate(e, occurrenceDu(e, today()) ?? derniereOccurrence(e) ?? e.date) : e)), t.eventId);
-  const meetings = aVenir(data.meetings, t.meetingId);
-  // Édition pas encore datée : pas de repère pour un délai.
-  const xe = evenements.filter((x) => x.date);
-  const ref = t.delaiRef;
-  const mode = !ref
-    ? 'fixe'
-    : ref.type === 'event'
-      ? t.eventId ? `event:${t.eventId}` : t.evenementEntite ? `xe:${xe.findIndex((x) => memeEvenement(x, t.evenementEntite))}` : 'fixe'
-      : t.meetingId ? `meeting:${t.meetingId}` : t.seanceComite ? `xm:${xm.findIndex((s) => memeSeance(s, t.seanceComite))}` : 'fixe';
-
-  const onMode = (v: string) => {
-    if (v === 'fixe') {
-      setChoisir(false);
-      return setT((x) => ({ ...x, delaiRef: undefined }));
-    }
-    const i = v.indexOf(':');
-    const cle = v.slice(0, i);
-    const id = v.slice(i + 1);
-    setT((x) => {
-      const y =
-        cle === 'event' ? { ...x, eventId: id, evenementEntite: undefined }
-        : cle === 'xe' ? { ...x, eventId: undefined, evenementEntite: xe[Number(id)] }
-        : cle === 'meeting' ? { ...x, meetingId: id, seanceComite: undefined }
-        : avecSeance(x, xm[Number(id)], club?.central?.id);
-      const type = cle === 'event' || cle === 'xe' ? 'event' : 'meeting';
-      // Par défaut le jour même ; autre événement : sa prochaine occurrence (s'il se répète).
-      return applyDelaiRef(data, sansOccurrence({ ...y, delaiRef: { ...(x.delaiRef ?? makeDelai(0, 'jours', false)), type } }));
-    });
-  };
-
-  const choix = (
-    <Deroulante
-      value={mode}
-      disabled={disabled}
-      aria-label="Date fixe, ou selon un événement / une séance"
-      title="Changer : une autre séance, un événement ou une date fixe"
-      onChange={onMode}
-      options={[
-        { value: 'fixe', label: 'Date fixe', icone: <Icone n="date" /> },
-        {
-          groupe: 'Selon un événement',
-          options: events.map((e) => ({
-            value: `event:${e.id}`,
-            label: `${e.nom} (${e.repetition ? libelleRegle(e.repetition, e.date).toLowerCase() : fmtRange(e.date, e.dateFin)})`,
-            icone: <Icone n={e.repetition ? 'repetition' : 'evenements'} />,
-          })),
-        },
-        { groupe: `Selon un événement qui dépend de « ${ici} »`, options: xe.map((x, i) => ({ value: `xe:${i}`, ...libelleEvenement(x, unite(x.uniteId)) })) },
-        {
-          groupe: xm.length ? `Selon une séance de « ${ici} »` : 'Selon une séance de comité',
-          options: meetings.map((m) => ({ value: `meeting:${m.id}`, label: `${m.titre} (${fmtDate(m.date)})`, icone: <Icone n="seances" /> })),
-        },
-        {
-          groupe: `Selon une séance de « ${unite(comite)?.nom ?? 'comité'} » (comité dont dépend « ${ici} »)`,
-          options: xm.map((x, i) => {
-            const c = unite(x.uniteId);
-            return { value: `xm:${i}`, label: `${x.titre} (${fmtDate(x.date)})`, icone: c ? <PastilleEntite u={c} /> : <Icone n="comite" /> };
-          }),
-        },
-      ]}
-    />
-  );
-
-  return (
-    <div className="delai-field">
-      <span className="field-label">Pour quand ?</span>
-      {mode === 'fixe' ? (
-        <>
-          <input type="date" aria-label="Pour quand ?" value={t.delai} disabled={disabled} onChange={(e) => setT((x) => ({ ...x, delai: e.target.value }))} />
-          {!t.delai && <small className="muted">Aucun délai</small>}
-          {choisir && choix}
-          {!disabled && (
-            <div className="delai-liens">
-              {!choisir && !dateSeule && events.length + meetings.length + xe.length + xm.length > 0 && (
-                <button type="button" className="link-btn" onClick={() => setChoisir(true)}><Icone n="epingle" /> ou selon un événement / une séance</button>
-              )}
-              {t.delai && <button type="button" className="link-btn" onClick={() => setT((x) => ({ ...x, delai: '' }))}>✕ Aucun délai</button>}
-            </div>
-          )}
-        </>
-      ) : (
-        <>
-          {choix}
-          <OccurrenceField t={t} setT={setT} disabled={disabled} />
-          <QuandField t={t} setT={setT} disabled={disabled} />
-          {!disabled && (
-            <div className="delai-liens">
-              <button type="button" className="link-btn" onClick={() => onMode('fixe')}><Icone n="date" /> ou une date fixe</button>
-              <button type="button" className="link-btn" onClick={() => { setChoisir(false); setT((x) => ({ ...x, delaiRef: undefined, delai: '' })); }}>✕ Aucun délai</button>
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-/** Délai selon un événement qui se répète : l'occurrence qu'il suit (les prochaines, et celle choisie). */
-function OccurrenceField({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
-  const { data } = useStore();
-  const e = t.delaiRef?.type === 'event' ? data.events.find((x) => x.id === t.eventId) : undefined;
-  if (!e?.repetition) return null;
-  const jour = today();
-  const cur = t.delaiRef?.occurrence;
-  const prochaines = occurrencesEntre(e, jour, addDays(jour, 3 * 366), 12);
-  const liste = [...new Set([...(cur ? [cur] : []), ...prochaines])].sort();
-  return (
-    <label className="occurrence-field">
-      <span className="field-label">Occurrence</span>
-      <select
-        value={cur ?? ''}
-        disabled={disabled}
-        onChange={(ev) => setT((x) => applyDelaiRef(data, { ...x, delaiRef: { ...x.delaiRef!, occurrence: ev.target.value } }))}
-      >
-        {liste.map((o) => <option key={o} value={o}>{longDate(o)}{horaire(e) ? ` · ${horaire(e)}` : ''}</option>)}
-      </select>
-    </label>
-  );
-}
-
-/** « jeudi 22.10.2026 ». */
-const longDate = (d: string) => `${new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'long' })} ${fmtDate(d)}`;
-
-const UNITES: { id: DelaiUnite; un: string; plusieurs: string }[] = [
-  { id: 'jours', un: 'jour', plusieurs: 'jours' },
-  { id: 'semaines', un: 'semaine', plusieurs: 'semaines' },
-  { id: 'mois', un: 'mois', plusieurs: 'mois' },
-];
-
-/** « Quand ? » : nombre libre de jours, semaines ou mois, avant ou après l'événement / la séance. */
-function QuandField({ t, setT, disabled }: { t: Task; setT: (fn: (x: Task) => Task) => void; disabled: boolean }) {
-  const { data } = useStore();
-  const cur = splitDelai(t.delaiRef!);
-  // Texte du nombre : on peut l'effacer le temps d'en écrire un autre.
-  const [txt, setTxt] = useState(String(cur.n));
-  const shown = txt === '' || Number(txt) === cur.n ? txt : String(cur.n);
-  const change = (patch: Partial<typeof cur>) => {
-    const next = { ...cur, ...patch };
-    setT((x) => applyDelaiRef(data, { ...x, delaiRef: { ...x.delaiRef!, ...makeDelai(next.n, next.unite, next.apres) } }));
-  };
-  return (
-    <div className="quand">
-      <div className="quand-row">
-        <input
-          type="number"
-          inputMode="numeric"
-          min={0}
-          max={DELAI_MAX}
-          value={shown}
-          disabled={disabled}
-          aria-label="Nombre"
-          onChange={(e) => {
-            setTxt(e.target.value);
-            if (e.target.value !== '') change({ n: Number(e.target.value) });
-          }}
-          onBlur={() => setTxt(String(cur.n))}
-        />
-        <select value={cur.unite} disabled={disabled} aria-label="Unité" onChange={(e) => change({ unite: e.target.value as DelaiUnite })}>
-          {UNITES.map((u) => <option key={u.id} value={u.id}>{cur.n > 1 ? u.plusieurs : u.un}</option>)}
-        </select>
-        <select value={cur.apres ? 'apres' : 'avant'} disabled={disabled} aria-label="Avant ou après" onChange={(e) => change({ apres: e.target.value === 'apres' })}>
-          <option value="avant">avant</option>
-          <option value="apres">après</option>
-        </select>
-      </div>
-      <small className="delai-calc">→ {fmtDate(t.delai)}{cur.n === 0 || (cur.n === 1 && cur.unite === 'jours') ? ` (${offsetLabel(t.delaiRef!).toLowerCase()})` : ''} · suit la date automatiquement</small>
-    </div>
   );
 }

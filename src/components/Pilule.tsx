@@ -54,7 +54,6 @@ export function Pilule({ id, label, titre, outils, ligne2 }: { id: string; label
   };
   useLayoutEffect(() => {
     setPos((p) => (p ? borner(p) : p));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [reduite, outils.length]);
   useEffect(() => {
     const f = () => setPos((p) => (p ? borner(p) : p));
@@ -66,7 +65,6 @@ export function Pilule({ id, label, titre, outils, ligne2 }: { id: string; label
       window.removeEventListener('resize', f);
       ro?.disconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const placer = (p: Pos | null) => {

@@ -48,6 +48,7 @@ export function TicketModal({ task, onClose }: { task: Task; onClose: () => void
   useEffect(() => {
     if (!autorise) setToast(`🔒 « ${task.titre} » : seules la caisse, la personne qui a fait la demande et celle qui doit la viser peuvent l’ouvrir.`);
     if (!t || !autorise) onClose(); // supprimé, ou pas le droit de l'ouvrir
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [!t]);
   if (!t || !autorise) return null;
   if (edit) return <TicketForm ticket={t} onClose={() => setEdit(false)} />;
@@ -109,6 +110,7 @@ export function SuiviCentral() {
     return () => {
       actif = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [version, club?.current.id]);
   if (!list.length) return null;
   return (
@@ -185,6 +187,7 @@ function SceauImg({ c }: { c: SceauContenu }) {
     let alive = true;
     renderSceau(c).then((s) => alive && setSrc(s)).catch(() => {});
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
   return src ? <img className="sceau" src={src} alt={`Sceau : ${c.texte}`} draggable={false} /> : null;
 }
@@ -522,6 +525,7 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
     setSigne(undefined);
     if (png) marquerSignature(png, `${code} · ${date}`, modele.couleur).then((x) => alive && setSigne(x)).catch(() => {});
     return () => { alive = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [png]);
   const [pose, setPose] = useState({ x: 0.5, y: 0.6, largeur: 0.45 });
   const [aspect, setAspect] = useState(1.4); // hauteur / largeur de l'image
@@ -750,6 +754,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
   // Organigramme chargé après l'ouverture du formulaire : la caisse du comité reste le choix d'office d'une entité sans caissier.
   useEffect(() => {
     if (!ici && centrale && vers === 'ici' && !docs.length) setVers('centrale');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ici, centrale]);
 
   const cancel = () => {

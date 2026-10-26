@@ -86,6 +86,7 @@ export default function CarteLieu({ point, centre, recherche, onChange }: {
       marqueur.current = mk;
     } else marqueur.current.setLatLng(ll);
     if (!m.getBounds().contains(ll)) m.setView(ll, Math.max(m.getZoom(), 16));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [point?.lat, point?.lng]);
 
   const choisir = (r: Resultat) => {

@@ -109,6 +109,7 @@ export function Calendar() {
   // sauf si l'un de ses événements tombe déjà à cette date.
   const manifs = useMemo(
     () => manifsAgenda(club?.units ?? [], club?.current.id, clubEvents, data.events),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [club?.units, club?.current.id, clubEvents, data.events],
   );
   const masquees = prefs.manifsMasquees ?? [];

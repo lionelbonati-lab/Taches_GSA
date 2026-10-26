@@ -74,6 +74,7 @@ export function Org() {
     if (params.has('modifier')) setModeModifier(true);
     if (personne) setFiche({ unitId: entite, personId: personne });
     if (lie) setLien({ unitId: entite, id: lie });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entite, club.current.id, params, setParams]);
   // ?modifier (console admin › Personnes et accès) : directement en mode « Modifier ».
   useEffect(() => {
@@ -84,9 +85,9 @@ export function Org() {
     setParams(reste, { replace: true });
   }, [params, setParams]);
   // Relire l'organigramme à l'ouverture (changements faits dans d'autres entités).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     club.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   // Historique : organigrammes des années passées (l'année en cours est celle d'aujourd'hui).
   const [annees, setAnnees] = useState<OrganigrammeAnnuel[]>([]);
@@ -109,6 +110,7 @@ export function Org() {
   // L'entité ouverte : ses membres tels qu'ils sont maintenant (modifications pas encore relues).
   const units = useMemo(
     () => club.units.map((u) => (u.id === club.current.id ? { ...u, membres: orgMembers(data), liens: data.membresDe?.map((l) => l.uniteId), postes: data.postes ?? u.postes } : u)),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [club.units, club.current.id, data],
   );
   const active = units.filter((u) => !u.archive);

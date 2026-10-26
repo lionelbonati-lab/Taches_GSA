@@ -73,7 +73,6 @@ export function appliquerMembres(d: AppData, list: ClubMembre[]): boolean {
  * vides (sauf pour elle), IBAN aux caissiers et à elle seulement.
  */
 export function vueMembre(m: ClubMembre, moi: boolean, caisse: boolean): ClubMembre {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { iban, masque, ...v } = m;
   const out: ClubMembre = { ...v, prive: !!m.prive, moi };
   if (m.prive && !moi) return { ...out, email: '', telephone: '', masque: true };
@@ -85,7 +84,6 @@ export function vueMembre(m: ClubMembre, moi: boolean, caisse: boolean): ClubMem
  * changent pas (la personne elle-même les règle), ni les coordonnées masquées, sauf par elle.
  */
 export function fusionMembre(avant: ClubMembre | undefined, m: ClubMembre, mien: boolean): ClubMembre {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const { masque, moi, iban, prive, ...v } = m;
   const out: ClubMembre = { ...v, iban: avant?.iban || undefined, prive: !!avant?.prive };
   return avant?.prive && !mien ? { ...out, email: avant.email, telephone: avant.telephone } : out;

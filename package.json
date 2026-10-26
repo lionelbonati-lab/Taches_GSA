@@ -7,6 +7,7 @@
     "dev": "vite --host",
     "build": "tsc && vite build",
     "preview": "vite preview --host",
+    "lint": "eslint src",
     "fonction": "esbuild src/data/organigrammeServeur.ts --bundle --format=esm --platform=neutral --target=es2022 --charset=utf8 --banner:js=\"// Généré par « npm run fonction » depuis src/data/organigrammeServeur.ts (règles de l'organigramme) : ne pas modifier à la main.\" --outfile=supabase/functions/gsa-acces/organigramme.js && esbuild src/data/agendaServeur.ts --bundle --format=esm --platform=neutral --target=es2022 --charset=utf8 --banner:js=\"// Généré par « npm run fonction » depuis src/data/agendaServeur.ts (contenu de l'agenda) : ne pas modifier à la main.\" --outfile=supabase/functions/gsa-agenda/agenda.js && esbuild src/data/pushServeur.ts --bundle --format=esm --platform=neutral --target=es2022 --charset=utf8 --banner:js=\"// Généré par « npm run fonction » depuis src/data/pushServeur.ts (notifications appli fermée) : ne pas modifier à la main.\" --outfile=supabase/functions/gsa-push/notifs.js"
   },
   "dependencies": {
@@ -25,7 +26,10 @@
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "eslint": "9.39.5",
+    "eslint-plugin-react-hooks": "5.2.0",
     "typescript": "^5.5.4",
+    "typescript-eslint": "8.71.2",
     "vite": "^5.4.8"
   }
 }
