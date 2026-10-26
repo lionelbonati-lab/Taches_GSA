@@ -411,6 +411,8 @@ L'application peut s'installer comme une vraie appli (icône, fenêtre dédiée,
 | Android – Chrome | Bouton « Installer l'application » ou menu ⋮ › Installer l'application |
 | iPhone / iPad – Safari | Bouton Partager › Sur l'écran d'accueil |
 
+**Ouverture rapide** : au lancement, l'appli ne charge que l'accueil et la liste des tâches (environ 270 Ko compressés au lieu de 410). Les autres pages (organigramme, séances, ordre du jour, PV, sondages, agenda, membres, réglages, console admin, aide) et la fiche d'une tâche se chargent ensuite en arrière-plan, une à une, quand le navigateur a le temps : elles sont prêtes au premier clic et gardées pour le hors-ligne. Une page encore en route affiche « Chargement de la page… » un instant. Hors connexion juste après une mise à jour, une page pas encore chargée le dit : se reconnecter puis recharger.
+
 Un appui long (ou clic droit) sur l'icône installée propose les raccourcis **Nouvelle tâche**, **Remboursement**, **Paiement** (ouvrent directement le formulaire) et **Mes tâches**. Sur Android, Chrome ajoute « Paramètres des sites » et le lanceur n'affiche que 4 raccourcis : « Mes tâches », placé en dernier, n'y apparaît pas. Une appli déjà installée prend les nouveaux raccourcis à sa prochaine mise à jour (Android la fait de lui-même, en général dans la journée où l'appli est ouverte) ou en la réinstallant.
 
 **Nom et icône de l'appli** : par défaut « Tâches GSA » et le **logo du G.S. Ajoie** (écran d'accueil, raccourcis, notifications ; les raccourcis ont chacun leur icône). Les admins du comité central les changent dans **Console admin › Apparence** (version réelle), section « Nom et icône de l'appli installée » :

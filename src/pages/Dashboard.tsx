@@ -5,7 +5,7 @@ import type { ClubEvent, ScheduledEmail, Task } from '../data/types';
 import { daysUntil, derniereSeancePassee, endOf, estArchivee, fmtDate, fmtRange, isDone, isLate, today } from '../data/utils';
 import { aLaDate, horaire, occurrenceDu } from '../data/repetition';
 import { BoutonVu, TaskCard } from './Tasks';
-import { TaskModal } from '../components/TaskModal';
+import { TaskModal } from '../components/FicheTache';
 import { Empty } from '../components/ui';
 import { PourInfoRecues, clePourInfo, delaiRecu } from '../components/PourInfo';
 import { pourMoi, termineeChezElle } from '../data/pourInfo';

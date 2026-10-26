@@ -47,7 +47,9 @@ export class ErrorBoundary extends Component<Props, State> {
       <div className="panel erreur-appli" role="alert">
         <h2>😕 Oups, un problème d’affichage</h2>
         <p>
-          {moduleIntrouvable(error) ? (
+          {moduleIntrouvable(error) && !navigator.onLine ? (
+            <>Hors connexion : cette page n’a pas encore été chargée sur cet appareil. Reconnecte-toi, puis recharge.</>
+          ) : moduleIntrouvable(error) ? (
             <>{MESSAGE_MISE_A_JOUR} Si le problème revient, copie le message ci-dessous et envoie-le.</>
           ) : (
             <>

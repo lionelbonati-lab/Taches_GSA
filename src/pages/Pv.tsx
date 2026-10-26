@@ -12,7 +12,7 @@ import { nomAppli } from '../data/nomAppli';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
-import { TaskModal } from '../components/TaskModal';
+import { TaskModal } from '../components/FicheTache';
 import { MiseEnForme } from '../components/MiseEnForme';
 import { ProfilsOdj, profilsDe } from '../components/ProfilsOdj';
 import { epurer, margesMm, styleVars } from '../data/styleDocs';

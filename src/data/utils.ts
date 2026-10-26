@@ -58,6 +58,24 @@ export const postesDe = (p: Person) => [p.poste, ...(p.autresPostes ?? '').split
 
 export const uid = (prefix: string) => `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
+/** Nouvelle tâche vide de la personne (à compléter par `defaults`). */
+export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
+  return {
+    id: uid('t'),
+    sectionId: '',
+    sousSection: '',
+    titre: '',
+    responsables: [userId],
+    statusId: 's1',
+    delai: today(),
+    remarque: '',
+    checklist: [],
+    createdBy: userId,
+    updatedAt: new Date().toISOString(),
+    ...defaults,
+  };
+}
+
 export function isDone(data: AppData, t: Task) {
   return data.statuses.find((s) => s.id === t.statusId)?.done ?? false;
 }

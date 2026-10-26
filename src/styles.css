@@ -1782,3 +1782,4 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 }
 .agenda-item.cible { outline: 2px solid var(--primary); outline-offset: 2px; animation: cible 1.6s ease-out 2; }
 @keyframes cible { 0% { box-shadow: 0 0 0 6px var(--primary-soft); } 100% { box-shadow: none; } }
+.chargement-page { padding: 24px 4px; }

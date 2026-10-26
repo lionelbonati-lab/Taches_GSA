@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
-import { TaskModal, newTask } from './TaskModal';
+import { TaskModal } from './FicheTache';
 import { versProchaineSeance } from '../data/seances';
 import { TicketForm } from './Tickets';
 import { GENRES, type GenreTicket } from '../data/paiements';
@@ -19,6 +19,7 @@ import { ErrorBoundary } from './ErrorBoundary';
 import { applyTabIcon, cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 import { Icone, type IconeNom } from './icones';
+import { newTask } from '../data/utils';
 
 export function Layout() {
   const { data, user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
@@ -190,7 +191,9 @@ export function Layout() {
       <main className="content">
         <SousOnglets />
         <ErrorBoundary page={loc.pathname}>
-          <Outlet />
+          <Suspense fallback={<ChargementPage />}>
+            <Outlet />
+          </Suspense>
         </ErrorBoundary>
       </main>
 
@@ -352,4 +355,14 @@ function SyncBadge() {
     return <span className="sync-tag off" title="Les modifications seront envoyées dès le retour de la connexion">⚠<span className="sync-text"> Hors ligne{pending ? ` · ${pending} en attente` : ''}</span></span>;
   if (status === 'envoi') return <span className="sync-tag busy" title="Envoi au serveur">⏳<span className="sync-text"> Envoi…</span></span>;
   return <span className="sync-tag" title="Tout est enregistré sur le serveur">☁<span className="sync-text"> À jour</span></span>;
+}
+
+/** Page pas encore chargée (premier clic juste après l'ouverture) : rien pendant un instant, puis un mot d'attente. */
+function ChargementPage() {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    const t = window.setTimeout(() => setVisible(true), 300);
+    return () => clearTimeout(t);
+  }, []);
+  return visible ? <p className="muted chargement-page">Chargement de la page…</p> : null;
 }

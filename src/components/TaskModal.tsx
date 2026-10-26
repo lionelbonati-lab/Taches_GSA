@@ -16,7 +16,7 @@ import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
 import { attributionDe, attributions, choixEvenements, choixSeances, entitesDependantes, evenementsDependants, memeEvenement, memeSeance, sectionChez } from '../data/externes';
 import type { DelaiUnite, EvenementEntite, OrgMember, OrgUnit, Person, PourInfo, Recurrence, SeanceComite, Task, VuPourInfo } from '../data/types';
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../data/repetition';
-import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
+import { DELAI_MAX, RECURRENCES, addDays, applyDelaiRef, childrenOf, endOf, fmtRange, fmtDate, fmtDateTime, fullName, isDone, isLate, makeDelai, nextDate, nextOccurrence, newTask, nomPoste, offsetLabel, parentOf, nextResponsables, postesFor, splitDelai, today, uid } from '../data/utils';
 import { finAnticipee, motSeance, seanceApres, seancePourSuivante } from '../data/seances';
 import { Avatar, Modal, StatusBadge } from './ui';
 import { Icone, type IconeNom } from './icones';
@@ -27,24 +27,7 @@ import { lienAppli, texteTache } from '../data/lienPartage';
 import { ZoneTexte } from './ZoneTexte';
 import { useTelephone } from './Accueil';
 
-export function newTask(userId: string, defaults: Partial<Task> = {}): Task {
-  return {
-    id: uid('t'),
-    sectionId: '',
-    sousSection: '',
-    titre: '',
-    responsables: [userId],
-    statusId: 's1',
-    delai: today(),
-    remarque: '',
-    checklist: [],
-    createdBy: userId,
-    updatedAt: new Date().toISOString(),
-    ...defaults,
-  };
-}
-
-type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string };
+export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string };
 
 /** Fenêtre d'une tâche ; un remboursement ou un paiement de facture s'ouvre dans la sienne (circuit caisse → visa → virement). */
 export function TaskModal(props: TaskModalProps) {

@@ -1,28 +1,70 @@
+import { lazy, useEffect } from 'react';
 import { HashRouter, Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom';
 import { useStore } from './data/store';
 import { Layout } from './components/Layout';
 import { Message } from './pages/Real';
 import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
-import { Events, Meetings } from './pages/Agenda';
-import { Settings } from './pages/Settings';
-import { Admin } from './pages/Admin';
-import { Pv } from './pages/Pv';
-import { Polls } from './pages/Polls';
-import { Minutes } from './pages/Minutes';
-import { Calendar } from './pages/Calendar';
-import { Org } from './pages/Org';
-import { MembresClub } from './pages/MembresClub';
-import { Aide } from './pages/Aide';
-import { Propositions } from './pages/Propositions';
-import { MotsDePasse } from './pages/MotsDePasse';
 import { Comptes } from './pages/Comptes';
 import { PageIntro } from './components/Nav';
+import { chargerFicheTache } from './components/FicheTache';
 import { useClubOptional } from './data/club';
+
+// Pages chargées à la demande : l'ouverture ne charge que l'accueil et la liste des tâches. Les autres pages et la fiche
+// d'une tâche suivent en arrière-plan une fois l'appli affichée (prêtes au premier clic, et gardées par le service worker
+// pour le hors-ligne).
+const charger = {
+  ficheTache: chargerFicheTache,
+  agenda: () => import('./pages/Agenda'),
+  calendrier: () => import('./pages/Calendar'),
+  reglages: () => import('./pages/Settings'),
+  admin: () => import('./pages/Admin'),
+  odj: () => import('./pages/Pv'),
+  sondages: () => import('./pages/Polls'),
+  pv: () => import('./pages/Minutes'),
+  organigramme: () => import('./pages/Org'),
+  membres: () => import('./pages/MembresClub'),
+  aide: () => import('./pages/Aide'),
+  propositions: () => import('./pages/Propositions'),
+  motsDePasse: () => import('./pages/MotsDePasse'),
+};
+const Meetings = lazy(() => charger.agenda().then((m) => ({ default: m.Meetings })));
+const Events = lazy(() => charger.agenda().then((m) => ({ default: m.Events })));
+const Calendar = lazy(() => charger.calendrier().then((m) => ({ default: m.Calendar })));
+const Settings = lazy(() => charger.reglages().then((m) => ({ default: m.Settings })));
+const Admin = lazy(() => charger.admin().then((m) => ({ default: m.Admin })));
+const Pv = lazy(() => charger.odj().then((m) => ({ default: m.Pv })));
+const Polls = lazy(() => charger.sondages().then((m) => ({ default: m.Polls })));
+const Minutes = lazy(() => charger.pv().then((m) => ({ default: m.Minutes })));
+const Org = lazy(() => charger.organigramme().then((m) => ({ default: m.Org })));
+const MembresClub = lazy(() => charger.membres().then((m) => ({ default: m.MembresClub })));
+const Aide = lazy(() => charger.aide().then((m) => ({ default: m.Aide })));
+const Propositions = lazy(() => charger.propositions().then((m) => ({ default: m.Propositions })));
+const MotsDePasse = lazy(() => charger.motsDePasse().then((m) => ({ default: m.MotsDePasse })));
+
+/** Les autres pages, une à une, quand le navigateur a le temps (hors connexion : à la prochaine ouverture). */
+function usePrechargement() {
+  useEffect(() => {
+    const suite = Object.values(charger);
+    let fin = false;
+    const attendre = (f: () => void) =>
+      typeof window.requestIdleCallback === 'function' ? window.requestIdleCallback(f, { timeout: 3000 }) : window.setTimeout(f, 200);
+    const suivante = () => {
+      const c = suite.shift();
+      if (!fin && c && navigator.onLine !== false) void c().catch(() => undefined).then(() => attendre(suivante));
+    };
+    const t = window.setTimeout(() => attendre(suivante), 1500);
+    return () => {
+      fin = true;
+      clearTimeout(t);
+    };
+  }, []);
+}
 
 export function App() {
   const { user, can, cloud, login } = useStore();
   const club = useClubOptional();
+  usePrechargement();
   if (!user) {
     const others = club?.mine.filter((u) => u.id !== club.current.id) ?? [];
     return (

@@ -5,10 +5,10 @@ import { FULL_AGENDA, echeanceSuivante, etatTerminee, meetingContext, selectAgen
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
 import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
-import { fmtDate, fmtDateTime, fullName, initials, isDone, today, uid } from '../data/utils';
+import { fmtDate, fmtDateTime, fullName, initials, isDone, newTask, today, uid } from '../data/utils';
 import { NoteField, TexteNote } from '../components/NoteField';
 import { texteDe } from '../data/noteRiche';
-import { TaskModal, newTask } from '../components/TaskModal';
+import { TaskModal } from '../components/FicheTache';
 import { finAnticipee, versProchaineSeance } from '../data/seances';
 import { nomAppli } from '../data/nomAppli';
 import { archiveHtml } from '../data/entete';
