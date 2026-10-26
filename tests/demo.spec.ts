@@ -39,7 +39,8 @@ test('tâche créée avec checklist, répétition et statut, retrouvée à la r�
   await liste.getByPlaceholder('Ajouter une étape…').fill('Compter les cordes');
   await liste.getByRole('button', { name: 'Ajouter' }).click();
   await expect(liste.locator('.check-row')).toHaveCount(1);
-  await fiche.getByRole('radio', { name: 'En cours' }).click();
+  await fiche.getByRole('combobox', { name: 'Statut' }).click();
+  await page.getByRole('option', { name: 'En cours' }).click();
   await fiche.locator('.chip', { hasText: 'Répétition' }).click();
   await fiche.locator('label.full', { hasText: 'Répétition' }).locator('select').selectOption({ index: 1 });
   await expect(fiche.locator('.recur-note').first()).toBeVisible();
@@ -51,7 +52,7 @@ test('tâche créée avec checklist, répétition et statut, retrouvée à la r�
   await expect(rouverte.locator('.check-row')).toHaveCount(1);
   await expect(rouverte.locator('.check-row')).toContainText('Compter les cordes');
   await expect(rouverte.locator('.recur-note').first()).toBeVisible();
-  await expect(rouverte.getByRole('radio', { name: 'En cours' })).toBeChecked();
+  await expect(rouverte.getByRole('combobox', { name: 'Statut' })).toHaveText('En cours');
 });
 
 test('discussion : commenter, corriger puis retirer un commentaire', async ({ page }) => {

@@ -536,26 +536,17 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               )}
             </label>
           )}
-          {/* Statut : ce qu'on change le plus souvent, en boutons de sa couleur plutôt qu'une liste. */}
-          <div>
-            <span className="field-label">Statut</span>
-            <div className="statut-boutons" role="radiogroup" aria-label="Statut">
-              {data.statuses.map((s) => (
-                <button
-                  key={s.id}
-                  type="button"
-                  role="radio"
-                  aria-checked={t.statusId === s.id}
-                  className={t.statusId === s.id ? 'on' : undefined}
-                  style={{ '--c': s.couleur } as CSSProperties}
-                  disabled={dis}
-                  onClick={() => set('statusId', s.id)}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
+          {/* Statut : ce qu'on change le plus souvent ; le champ prend la couleur du statut choisi, chaque choix a sa pastille. */}
+          <label className="statut-choix" style={{ '--c': data.statuses.find((s) => s.id === t.statusId)?.couleur } as CSSProperties}>
+            Statut
+            <Deroulante
+              aria-label="Statut"
+              value={t.statusId}
+              disabled={dis}
+              onChange={(v) => set('statusId', v)}
+              options={data.statuses.map((s) => ({ value: s.id, label: s.label, icone: <span className="statut-jeton" style={{ background: s.couleur }} /> }))}
+            />
+          </label>
         </div>
         <DelaiField t={t} setT={setT} disabled={dis} dateSeule={!!t.source} />
         <div className="full qui">
