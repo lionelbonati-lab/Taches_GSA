@@ -248,7 +248,7 @@ export function Layout() {
       )}
 
       <Toast />
-      {quick && canCreate && <TaskModal isNew task={newTask(user.id, versProchaineSeance(data.meetings))} onClose={() => setQuick(false)} />}
+      {quick && canCreate && <TaskModal isNew task={newTask(user.id, versProchaineSeance(data.meetings, undefined, club?.current.type))} onClose={() => setQuick(false)} />}
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
     </div>
   );

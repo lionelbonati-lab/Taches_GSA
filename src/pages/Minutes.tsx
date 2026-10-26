@@ -278,7 +278,7 @@ export function Minutes() {
       sectionId,
       responsables: [],
       // Pour la séance suivante (pas encore passée), le jour même : elle figure à son ordre du jour.
-      ...versProchaineSeance(data.meetings, s1?.date),
+      ...versProchaineSeance(data.meetings, s1?.date, club?.current.type),
     });
     setEdit({ task: t, isNew: true });
     setPending({ id: t.id, isNew: true });

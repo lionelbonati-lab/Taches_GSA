@@ -91,7 +91,7 @@ export function Tasks() {
         user!.id,
         f.meeting
           ? { ...lienEvenement(f.event), meetingId: f.meeting, delaiRef: { type: 'meeting', joursAvant: 0 } }
-          : f.event ? lienEvenement(f.event) : versProchaineSeance(data.meetings),
+          : f.event ? lienEvenement(f.event) : versProchaineSeance(data.meetings, undefined, club?.current.type),
       ),
     );
   const [voirAnciennes, setVoirAnciennes] = useState(false);

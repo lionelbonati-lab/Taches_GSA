@@ -102,14 +102,15 @@ export function finAnticipee(data: AppData, avant: Task | undefined, apres: Task
 
 /**
  * « Pour quand ? » d'une nouvelle tâche : la prochaine séance de l'entité pas encore commencée (après `apres` : la séance
- * dont on rédige le PV), le jour même ; elle figure aussi à son ordre du jour. Rien sans séance prévue dans l'Agenda.
+ * dont on rédige le PV), le jour même ; elle figure aussi à son ordre du jour. Sans séance prévue dans l'Agenda : rien
+ * (aujourd'hui) pour un comité, aucun délai pour un groupe ou une équipe d'événement (`type`).
  */
-export function versProchaineSeance(meetings: Meeting[], apres?: string): Partial<Task> {
+export function versProchaineSeance(meetings: Meeting[], apres?: string, type?: UnitType): Partial<Task> {
   const maintenant = localNow();
   const m = meetings
     .filter((x) => (!apres || x.date > apres) && `${x.date}T${x.heure || '23:59'}` > maintenant)
     .sort((a, b) => parDate(a, b) || (a.heure ?? '').localeCompare(b.heure ?? ''))[0];
-  return m ? { meetingId: m.id, delaiRef: { type: 'meeting', joursAvant: 0 }, delai: m.date } : {};
+  return m ? { meetingId: m.id, delaiRef: { type: 'meeting', joursAvant: 0 }, delai: m.date } : type === 'groupe' || type === 'equipe' ? { delai: '' } : {};
 }
 
 /**

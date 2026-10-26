@@ -149,7 +149,7 @@ function MotDePasseOublie({ email, setEmail, invalide }: { email: string; setEma
       </label>
       <div className="mdp-oublie-actions">
         <button className="btn" disabled={!valide || !!busy} onClick={lien}>{busy === 'lien' ? 'Envoi…' : <><Icone n="email" /> Recevoir un lien par email</>}</button>
-        <button className="btn" disabled={!valide || !!busy} onClick={admins}>{busy === 'admins' ? 'Envoi…' : <><Icone n="personnes" /> Demander aux admins de mes entités</>}</button>
+        <button className="btn" disabled={!valide || !!busy} onClick={admins}>{busy === 'admins' ? 'Envoi…' : <><Icone n="email" /> Demander aux admins de mes entités</>}</button>
       </div>
       {msg && <p className={msg.ok ? 'ok-note' : 'error'} role="status">{msg.text}</p>}
       <p className="muted small-note">
