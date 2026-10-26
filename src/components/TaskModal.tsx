@@ -765,7 +765,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
               {cibles.map((c) => {
                 const v = vus[c.cle];
                 return (
-                  <span key={c.cle} className={`chip on ${dis ? 'locked' : ''} ${v ? 'vu' : ''}`} title={v ? quandVu(c, v) : isNew ? undefined : 'Pas encore « ✓ Vu »'}>
+                  <span key={c.cle} className={`chip on ${dis ? 'locked' : ''} ${isNew ? '' : v ? 'vu' : 'pas-vu'}`} title={v ? quandVu(c, v) : isNew ? undefined : 'Pas encore « ✓ Vu »'}>
                     {v && <Icone n="ok" />}
                     {c.genre === 'unite' && iconeUnite(c.id)}{c.texte}
                     {v && <small className="chip-vu"><span className="sr-only">{quandVu(c, v)} : </span>{jourCourt(v.le)}</small>}
@@ -809,7 +809,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId }: TaskModalProps) {
             <small className="muted">
               Elles voient la tâche sans s’en occuper : les personnes d’ici dans « Mes tâches » (👁) avec une notification 🔔 ; les autres entités (leurs
               admins et les rôles « Voir toutes les tâches ») et leurs personnes, en lecture seule, à l’accueil et dans Tâches › 👁 Pour info. Quand
-              elles la marquent « ✓ Vu », leur pastille le montre (✓ et la date).
+              elles la marquent « ✓ Vu », leur pastille passe du rouge au vert (✓ et la date).
             </small>
           </div>
         )}
