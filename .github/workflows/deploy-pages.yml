@@ -26,7 +26,22 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Contrôle du code (ESLint), puis construction (vérifie aussi les types).
+      - run: npm run lint
       - run: npm run build
+      # Tests automatiques de la démo (dossier tests/) : si l'un d'eux échoue, rien n'est publié.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npx playwright install --with-deps chromium
+      - run: npm test
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: resultats-tests
+          path: test-results/
+          retention-days: 7
       # Nom et icône de l'appli choisis dans la console admin (migration 017), sinon ceux d'origine.
       - run: node scripts/icones-club.mjs publier dist
       - id: pages

@@ -12,6 +12,7 @@ npm install
 npm run dev        # http://localhost:5173 (accessible aussi depuis un téléphone du même réseau)
 npm run build      # version statique dans dist/ (vérifie aussi les types)
 npm run lint       # contrôle automatique du code (ESLint : règles des hooks React, erreurs courantes)
+npm test           # tests automatiques de la démo sur la version construite (après npm run build)
 ```
 
 **Organisation du code.** `src/data/store.tsx` est la couche de données partagée par les écrans ; autour d'elle : `storeTypes.ts` (ce qu'elle offre), `migrate.ts` (mise à niveau des anciennes données), `suivante.ts` (occurrence suivante d'une tâche récurrente), `recus.ts` (tâches, sondages et séances venus des autres entités), `pileAnnulation.ts` (Annuler / Refaire). La fiche d'une tâche (`src/components/TaskModal.tsx`) s'appuie sur ses parties dans `src/components/tache/` : « Pour quand ? », à prendre, pour info, checklist, répétition, rattachements.
@@ -431,6 +432,8 @@ L'installation n'est possible que depuis une adresse **https://** : utilise la v
 ## Publication (GitHub Pages)
 
 Le workflow `.github/workflows/deploy-pages.yml` construit et publie l'application à chaque push sur la branche principale ; on peut aussi le relancer à la main (onglet **Actions › Publication GitHub Pages › Run workflow**). L'application installée se met à jour d'elle-même au lancement suivant. Les fichiers des 20 versions précédentes (14 jours au plus) restent publiés (`scripts/anciens-assets.mjs`, liste dans `versions-assets.json`) : une appli restée ouverte pendant une publication, sur téléphone surtout, crée encore ses PDF et affiche la carte. Si un fichier manque malgré tout, l'appli demande de recharger la page.
+
+**Contrôles avant publication.** Le workflow vérifie d'abord le code (`npm run lint`, types à la construction), puis lance les tests automatiques de la démo (`tests/`, Playwright) sur la version construite : toutes les pages s'ouvrent sans erreur, création d'une tâche (checklist, répétition, à prendre, pour info), Annuler / Refaire, données gardées après rechargement, recherche globale, affichage sur téléphone. Si un contrôle échoue, rien n'est publié : la version en ligne reste la précédente, et les captures du test en échec sont jointes à l'exécution (onglet **Actions**, « resultats-tests »). En local : `npm run build && npm test`.
 
 Réglages GitHub nécessaires (une seule fois) :
 1. **Settings › General › Danger Zone › Change visibility › Public** (Pages n'est pas disponible sur un dépôt privé avec un compte gratuit).
