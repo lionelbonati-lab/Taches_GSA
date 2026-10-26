@@ -1754,3 +1754,31 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .pour-info-banner { margin: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #6d28d9; background: color-mix(in srgb, #6d28d9 10%, var(--surface)); border-radius: 8px; padding: 8px 10px; font-size: 0.92rem; }
 .pour-info-banner .btn { display: inline-flex; align-items: center; gap: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* ---------- Recherche globale (loupe de l'en-tête, Ctrl+K) ---------- */
+.recherche-btn { margin-left: auto; }
+.annuler-btns + .recherche-btn, .recherche-btn ~ .bell-wrap { margin-left: 0; }
+.modal-back.recherche-back { align-items: flex-start; padding: 10vh 16px 16px; }
+.modal.recherche { max-width: 640px; padding: 0; display: flex; flex-direction: column; overflow: hidden; max-height: 80vh; }
+.recherche-champ { display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border-bottom: 1px solid var(--border); }
+.recherche-champ > .icone-trait { color: var(--muted); flex-shrink: 0; }
+.recherche-champ input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; display: none; }
+.recherche-champ input { flex: 1; min-width: 0; border: none; outline: none; background: none; box-shadow: none; font-size: 1.05rem; padding: 8px 0; color: inherit; }
+.recherche-liste { overflow-y: auto; padding: 4px 6px 10px; }
+.recherche-liste h3 { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); margin: 12px 10px 4px; }
+.recherche-liste h3 small { font-weight: 400; margin-left: 4px; }
+.recherche-liste .btn.link { margin: 0 0 4px 38px; }
+.recherche-item { display: flex; gap: 10px; width: 100%; text-align: left; border: none; background: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; align-items: flex-start; color: inherit; font: inherit; }
+.recherche-item.sel { background: var(--primary-soft); }
+.recherche-item > .icone-trait { margin-top: 2px; flex-shrink: 0; color: var(--muted); }
+.recherche-texte { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.recherche-texte small { color: var(--muted); overflow-wrap: anywhere; }
+.recherche-extrait { font-style: italic; }
+.recherche mark { background: color-mix(in srgb, #facc15 50%, transparent); color: inherit; border-radius: 2px; padding: 0 1px; }
+.recherche-vide { padding: 22px 18px; text-align: center; color: var(--muted); margin: 0; }
+@media (max-width: 767px) {
+  .modal-back.recherche-back { padding: 0; align-items: stretch; }
+  .modal.recherche { max-height: none; height: 100%; border-radius: 0; padding-top: env(safe-area-inset-top); }
+}
+.agenda-item.cible { outline: 2px solid var(--primary); outline-offset: 2px; animation: cible 1.6s ease-out 2; }
+@keyframes cible { 0% { box-shadow: 0 0 0 6px var(--primary-soft); } 100% { box-shadow: none; } }

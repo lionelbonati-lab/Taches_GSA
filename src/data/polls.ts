@@ -31,6 +31,10 @@ export function finSondage(p: Pick<Poll, 'dateLimite' | 'heureLimite' | 'cloture
 export const isOpen = (p: Poll) => !p.clotureLe && (finSondage(p) ?? Infinity) > Date.now();
 
 /** Date limite lisible : « 22.10.2026 à 18h00 », « 22.10.2026 » sans heure. */
+/** Sondages de la page Sondages : ceux où la personne vote, et ceux de l'entité qu'elle a créés ou qu'elle gère. */
+export const sondagesVisibles = (polls: Poll[], moi: string | undefined, gere: boolean) =>
+  polls.filter((p) => moi && (p.cleMoi || (!p.source && (p.creePar === moi || gere))));
+
 export const echeance = (p: Pick<Poll, 'dateLimite' | 'heureLimite'>) =>
   p.dateLimite ? `${fmtDate(p.dateLimite)}${p.heureLimite ? ` à ${p.heureLimite.replace(':', 'h')}` : ''}` : '';
 

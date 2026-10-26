@@ -8,6 +8,7 @@ import { GENRES, type GenreTicket } from '../data/paiements';
 import { AppLogo, Avatar, Toast, UnitMark } from './ui';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
+import { Recherche } from './Recherche';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { rafraichirPush } from '../data/push';
 import { useClubOptional } from '../data/club';
@@ -149,6 +150,7 @@ export function Layout() {
           ))}
         </nav>
         <BoutonAnnuler />
+        <Recherche />
         <Bell />
         <div className="who">
           <InstallButton variant="compact" hideWhenUnavailable />

@@ -1,6 +1,6 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, PvArchive, Task } from '../data/types';
 import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
@@ -50,6 +50,25 @@ export function useAgendaActions() {
 
 /** Mot des séances de l'entité ouverte : « Comité », « Séance », « Réunion ». */
 export const useMotSeance = () => motSeance(useClubOptional()?.current.type);
+
+/**
+ * Arrivée depuis la recherche (« ?seance=… », « ?id=… ») : la carte visée, mise en évidence et amenée à l'écran.
+ * `archive` : PV ou ordre du jour archivé à ouvrir directement (séances).
+ */
+function useCible(param: string) {
+  const [params, setParams] = useSearchParams();
+  const [cible, setCible] = useState<{ id: string; archive?: boolean } | null>(null);
+  useEffect(() => {
+    const id = params.get(param) ?? params.get('archive');
+    if (!id) return;
+    setCible({ id, archive: !params.get(param) });
+    setParams({}, { replace: true });
+  }, [params, param, setParams]);
+  useEffect(() => {
+    if (cible && !cible.archive) document.getElementById(`cible-${cible.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+  }, [cible]);
+  return cible;
+}
 
 /**
  * Nouvelle séance, nommée d'après son mois (« Comité de mars 2027 ») et qui revient chaque année.
@@ -121,12 +140,22 @@ export function Meetings() {
   const jour = today();
   const aVenir = sorted.filter((m) => m.date >= jour);
   const passees = sorted.filter((m) => m.date < jour).reverse();
+  const cible = useCible('seance');
+  useEffect(() => {
+    if (!cible?.archive) return;
+    for (const m of data.meetings) {
+      const pv = m.minutesArchives?.find((x) => x.id === cible.id);
+      const odj = m.pvArchives?.find((x) => x.id === cible.id);
+      if (pv || odj) return setViewPv({ meeting: m, pv: (pv ?? odj)!, kind: pv ? 'pv' : 'odj' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cible]);
 
   const carte = (m: Meeting) => {
     const tasks = data.tasks.filter((t) => t.meetingId === m.id);
     const past = m.date < jour;
     return (
-      <article key={m.id} className={`panel agenda-item ${past ? 'past' : ''}`}>
+      <article key={m.id} id={`cible-${m.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible?.id === m.id ? 'cible' : ''}`}>
         <DateBlock date={m.date} />
         <div className="grow">
           <strong>{m.titre}</strong>
@@ -171,7 +200,7 @@ export function Meetings() {
         {!aVenir.length && <Empty>{passees.length ? 'Aucune séance à venir.' : 'Aucune séance.'}</Empty>}
       </div>
       {passees.length > 0 && (
-        <details className="seances-passees">
+        <details className="seances-passees" open={passees.some((m) => m.id === cible?.id) || undefined}>
           <summary><Icone n="archives" /> Séances passées ({passees.length})</summary>
           <div className="agenda">{passees.map(carte)}</div>
         </details>
@@ -392,6 +421,7 @@ export function Events() {
   const { data, can } = useStore();
   const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string } | null>(null);
   const manage = can('events.manage');
+  const cible = useCible('id');
   // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
   const jour = today();
   const affiche = (e: ClubEvent) => (e.repetition ? (occurrenceDu(e, jour) ?? derniereOccurrence(e) ?? e.date) : e.date);
@@ -422,7 +452,7 @@ export function Events() {
           const jours = diffDays(e.date, fin) + 1;
           const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
           return (
-            <article key={e.id} className={`panel agenda-item ${past ? 'past' : ''}`}>
+            <article key={e.id} id={`cible-${serie.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible?.id === serie.id ? 'cible' : ''}`}>
               <DateBlock date={e.date} fin={e.dateFin} />
               <div className="grow">
                 <strong>{e.nom}</strong>
