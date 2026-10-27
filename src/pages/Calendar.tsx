@@ -7,13 +7,14 @@ import { UNIT_TYPES } from '../data/units';
 import { addDays, diffDays, fmtDate, fmtRange, isDone, isLate, newTask, parentOf, today } from '../data/utils';
 import { isOpen } from '../data/polls';
 import { TaskModal, useAutresCreation } from '../components/FicheTache';
-import { Avatar, StatusBadge } from '../components/ui';
+import { Avatar, EntiteTag, StatusBadge, usePlusieursEntites } from '../components/ui';
 import { MeetingModal, newMeeting, useAgendaActions, useMotSeance } from './Agenda';
 import { ChoixPortee, EventModal, newEvent, useEventActions } from '../components/EventModal';
 import { aLaDate, duree, fmtHeure, horaire, libelleRepetition, occurrencesEntre } from '../data/repetition';
 import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
+import { useSeancesMoi } from '../data/entites';
 import { Icone, type IconeNom } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
 import { ExportAgenda } from '../components/ExportAgenda';
@@ -27,7 +28,8 @@ import { manifsAgenda } from '../data/agendaIcs';
 
 type Kind = 'meeting' | 'event' | 'task' | 'poll' | 'manif';
 type Item =
-  | { kind: 'meeting'; key: string; date: string; m: Meeting }
+  /** `u` : séance de l'une de mes autres entités (vue « moi »), ouverte dans la sienne. */
+  | { kind: 'meeting'; key: string; date: string; m: Meeting; u?: OrgUnit }
   /** `o` : premier jour de l'occurrence (événement qui se répète : l'une d'elles). */
   | { kind: 'event'; key: string; date: string; e: ClubEvent; o: string }
   | { kind: 'task'; key: string; date: string; t: Task }
@@ -90,7 +92,10 @@ export function Calendar() {
     return () => document.removeEventListener('mousedown', close);
   }, [menu]);
 
-  const seeMeetings = can('tab.meetings');
+  // Vue « moi » : avec les séances de mes autres entités (où je vois les séances).
+  const seances = useSeancesMoi();
+  const plusieurs = usePlusieursEntites();
+  const seeMeetings = can('tab.meetings') || seances.some((x) => !x.ici);
   const seeEvents = can('tab.events');
   const addMeeting = can('meetings.manage');
   const addEvent = can('events.manage');
@@ -141,7 +146,8 @@ export function Calendar() {
     };
     const mine = (t: Task) => t.responsables.includes(user.id);
     const visible = (t: Task) => (effScope === 'mes' ? mine(t) : canSeeTask(t)) && (showDone || !isDone(data, t));
-    if (seeMeetings && kinds.includes('meeting')) data.meetings.forEach((m) => push({ kind: 'meeting', key: m.id, date: m.date, m }));
+    if (kinds.includes('meeting'))
+      seances.forEach(({ m, u, ici }) => (ici ? can('tab.meetings') && push({ kind: 'meeting', key: m.id, date: m.date, m }) : push({ kind: 'meeting', key: `x:${u!.id}:${m.id}`, date: m.date, m, u })));
     // Événement sur plusieurs jours : une case par jour (31 au plus) ; qui se répète : chaque occurrence du mois affiché.
     if (seeEvents && kinds.includes('event'))
       data.events.forEach((e) => {
@@ -170,7 +176,7 @@ export function Calendar() {
     map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind] || heure(a).localeCompare(heure(b))));
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, user, days, kinds, effScope, showDone, seeMeetings, seeEvents, canSeeTask, manifs, masquees.join()]);
+  }, [data, user, days, kinds, effScope, showDone, seances, seeEvents, canSeeTask, manifs, masquees.join()]);
 
   if (!user) return null;
 
@@ -195,7 +201,7 @@ export function Calendar() {
 
   const open = (it: Item) => {
     if (it.kind === 'task') setTask({ t: it.t, isNew: false });
-    else if (it.kind === 'meeting') (addMeeting ? setMeeting(it.m) : navigate('/comite'));
+    else if (it.kind === 'meeting') (it.u ? club?.switchUnit(it.u.id, '#/comite') : addMeeting ? setMeeting(it.m) : navigate('/comite'));
     else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : navigate('/evenements'));
     else if (it.kind === 'manif') navigate(it.u.id === club?.current.id && seeEvents ? '/evenements' : '/organigramme');
     else navigate(`/sondages?id=${it.p.id}`);
@@ -203,7 +209,7 @@ export function Calendar() {
 
   // ---------- Glisser-déposer : changer la date ----------
   const canMove = (it: Item) =>
-    it.kind === 'meeting' ? addMeeting : it.kind === 'event' ? addEvent : it.kind === 'task' ? canEditTask(it.t) : false;
+    it.kind === 'meeting' ? addMeeting && !it.u : it.kind === 'event' ? addEvent : it.kind === 'task' ? canEditTask(it.t) : false;
   const move = (it: Item, date: string) => {
     if (it.date === date) return;
     const when = fmtDate(date);
@@ -247,7 +253,7 @@ export function Calendar() {
   };
   const chipTitle = (it: Item) => {
     switch (it.kind) {
-      case 'meeting': return `Séance : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
+      case 'meeting': return `Séance${it.u ? ` de « ${it.u.nom} »` : ''} : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
       case 'event': {
         const x = aLaDate(it.e, it.o);
         return `Événement : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
@@ -267,13 +273,13 @@ export function Calendar() {
   const chipClass = (it: Item) => {
     const late = it.kind === 'task' && isLate(data, it.t);
     const done = it.kind === 'task' && isDone(data, it.t);
-    return `cal-chip k-${it.kind}${late ? ' late' : ''}${done ? ' done' : ''}`;
+    return `cal-chip k-${it.kind}${it.kind === 'meeting' && it.u ? ' autre' : ''}${late ? ' late' : ''}${done ? ' done' : ''}`;
   };
   const chipStyle = (it: Item) =>
     it.kind === 'task'
       ? { borderLeftColor: data.statuses.find((s) => s.id === it.t.statusId)?.couleur }
-      : it.kind === 'manif'
-        ? ({ '--c': it.u.couleur } as React.CSSProperties)
+      : it.kind === 'manif' || (it.kind === 'meeting' && it.u)
+        ? ({ '--c': it.u!.couleur } as React.CSSProperties)
         : undefined;
 
   const dayItems = byDay.get(selected) ?? [];
@@ -410,10 +416,12 @@ export function Calendar() {
             <ul className="cal-list">
               {dayItems.map((it) => (
                 <li key={it.key}>
-                  <button className={`cal-row k-${it.kind}`} style={it.kind === 'manif' ? chipStyle(it) : undefined} onClick={() => open(it)}>
+                  <button className={`cal-row k-${it.kind}`} style={it.kind === 'manif' || (it.kind === 'meeting' && it.u) ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
                         {it.kind === 'manif' && (!it.e || it.u.icone) ? <IconeEntite u={it.u} /> : <Icone n={it.kind === 'manif' ? 'evenements' : ICONE[it.kind]} />} {chipText(it)}
+                        {it.kind === 'meeting' && (it.u || plusieurs) && <> <span className="tsource">{(it.u ?? club?.current)?.nom}</span></>}
+                        {it.kind === 'task' && <> <EntiteTag task={it.t} /></>}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}

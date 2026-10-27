@@ -6,7 +6,7 @@ import { daysUntil, derniereSeancePassee, endOf, estArchivee, fmtDate, fmtRange,
 import { aLaDate, horaire, occurrenceDu } from '../data/repetition';
 import { BoutonVu, TaskCard } from './Tasks';
 import { TaskModal } from '../components/FicheTache';
-import { Empty } from '../components/ui';
+import { Empty, usePlusieursEntites } from '../components/ui';
 import { PourInfoRecues, clePourInfo, delaiRecu } from '../components/PourInfo';
 import { attendDesVus, bilanVu, clesVu, modifieeDepuisMonVu, pourMoi, termineeChezElle, vuAvantModif } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
@@ -22,6 +22,7 @@ import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
+import { useSeancesMoi } from '../data/entites';
 import { LieuSeance } from '../components/Liens';
 
 export function Dashboard() {
@@ -38,6 +39,9 @@ export function Dashboard() {
   // Mes tâches « Pour info » (auteur ou responsable), en cours : qui doit encore les voir (052 : personnes avec un compte).
   const miennesInfo = data.tasks.filter((t) => !!user && t.pourInfo && !t.paiement && !t.source && !isDone(data, t) && (t.createdBy === user.id || t.responsables.includes(user.id)));
   const suivi = useSuiviPourInfo(miennesInfo);
+  // Vue « moi » : les séances de toutes mes entités, chacune avec la pilule de son entité (comme les tâches).
+  const seances = useSeancesMoi();
+  const plusieurs = usePlusieursEntites();
   if (!user) return null;
 
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
@@ -52,7 +56,9 @@ export function Dashboard() {
   const soon = (toutes ? data.tasks.filter((t) => canSeeTask(t) && !isDone(data, t)) : open)
     .filter((t) => { const n = t.delai ? daysUntil(t.delai) : -1; return n >= 0 && n <= jours; })
     .sort((a, b) => a.delai.localeCompare(b.delai));
-  const nextMeeting = [...data.meetings].filter((m) => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
+  // Prochaine séance de chacune de mes entités, dans l'ordre chronologique (à date égale, celle de l'entité ouverte d'abord).
+  const seancesAVenir = seances.filter((x) => x.m.date >= today()).sort((a, b) => a.m.date.localeCompare(b.m.date) || Number(b.ici) - Number(a.ici));
+  const prochaines = seancesAVenir.filter((x, i) => seancesAVenir.findIndex((y) => y.u?.id === x.u?.id) === i);
   // Prochains événements : ceux de l'agenda de l'entité et ceux du club qui dépendent d'elle (leur prochaine édition,
   // comme dans Agenda › Événements) ; le même dans l'agenda (même date, nom pareil ou contenu dans l'autre, ex.
   // « Bruntrutaine » et « CO Bruntrutaine ») ne compte qu'une fois.
@@ -254,18 +260,28 @@ export function Dashboard() {
       case 'seance':
         return (
           <>
-            <h2><Icone n="seances" /> {club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}</h2>
-            {nextMeeting ? (
-              // Toute la carte mène au comité ; le lieu placé sur la carte garde son propre lien.
-              <div className="panel link-panel lien-etendu">
-                <Link to="/comite"><strong>{nextMeeting.titre}</strong></Link>
+            <h2>
+              <Icone n="seances" />{' '}
+              {prochaines.length > 1 ? 'Prochaines séances' : (prochaines[0]?.u ?? club?.current)?.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}
+            </h2>
+            {prochaines.map(({ m, u, ici }) => (
+              // Toute la carte mène au comité (d'une autre entité : il s'ouvre) ; le lieu placé sur la carte garde son propre lien.
+              <div key={`${u?.id ?? ''}:${m.id}`} className="panel link-panel lien-etendu">
+                {ici || !u ? (
+                  <Link to="/comite"><strong>{m.titre}</strong>{plusieurs && u && <> <span className="tsource">{u.nom}</span></>}</Link>
+                ) : (
+                  <a href="#/comite" title={`Ouvrir « ${u.nom} » : ses séances`} onClick={(e) => { e.preventDefault(); club?.switchUnit(u.id, '#/comite'); }}>
+                    <strong>{m.titre}</strong> <span className="tsource">{u.nom}</span>
+                  </a>
+                )}
                 <span>
-                  {fmtDate(nextMeeting.date)}
-                  {(nextMeeting.lieu?.trim() || nextMeeting.lieuGeo) && <> · <Icone n="lieu" /> <LieuSeance m={nextMeeting} /></>}
-                  {' '}<em className="muted">(dans {daysUntil(nextMeeting.date)} j)</em>
+                  {fmtDate(m.date)}
+                  {(m.lieu?.trim() || m.lieuGeo) && <> · <Icone n="lieu" /> <LieuSeance m={m} /></>}
+                  {' '}<em className="muted">(dans {daysUntil(m.date)} j)</em>
                 </span>
               </div>
-            ) : <Empty>Aucune séance planifiée.</Empty>}
+            ))}
+            {!prochaines.length && <Empty>Aucune séance planifiée.</Empty>}
           </>
         );
       case 'evenements':

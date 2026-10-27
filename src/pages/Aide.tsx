@@ -22,7 +22,7 @@ export function Aide() {
   const gestes: [string, ReactNode][] = [];
   const geste = (titre: string, ...texte: ReactNode[]) => gestes.push([titre, texte.map((t, i) => <Fragment key={i}>{t}</Fragment>)]);
 
-  geste('Voir ce que j’ai à faire', vers('/'), ' : mes tâches en retard et celles de la semaine. La cloche en haut signale ce qui m’attend.');
+  geste('Voir ce que j’ai à faire', vers('/'), ' : mes tâches en retard et celles de la semaine, et la prochaine séance' + (club ? ' de chacune de mes entités (dans plusieurs entités : la pilule de son entité sur chaque tâche et chaque séance)' : '') + '. La cloche en haut signale ce qui m’attend.');
   geste('Ajouter une tâche, demander un remboursement, payer une facture', 'Le bouton rond « + » en bas à droite, depuis n’importe quelle page. Une nouvelle tâche est pour la prochaine séance de comité (le jour même, à son ordre du jour) ; dans un PV, pour la séance suivante ; dans un groupe ou une équipe d’événement sans séance prévue, sans délai. « Pour quand ? » se change à volonté, ou s’efface avec « ✕ Aucun délai ».');
   geste('Retrouver une tâche, un PV, une personne…', 'La loupe en haut (ou Ctrl+K, ou « / ») : tape quelques lettres, sans te soucier des accents. Elle cherche dans l’entité ouverte : tâches (remarques et checklists comprises), séances, texte des PV et ordres du jour archivés, sondages, événements, personnes' + (club ? ' et tes autres entités' : '') + '. ↑ ↓ puis Entrée, ou un clic, pour ouvrir.');
   geste('Modifier une tâche ou changer son statut', vers('/taches'), ' : clique sur la tâche. « Mes tâches » / « Toutes » choisit la liste.');

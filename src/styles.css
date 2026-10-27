@@ -1210,6 +1210,7 @@ html.clavier :is(.fab, .fab-menu, .fab-back, .bottomnav) { display: none; }
 .cal-chip.k-event { background: var(--event-bg); border-left-color: var(--event-fg); color: var(--event-fg); font-weight: 600; }
 .cal-chip.k-poll { background: var(--poll-bg); border-left-color: var(--poll-fg); color: var(--poll-fg); }
 .cal-chip.k-manif { background: color-mix(in srgb, var(--c) 16%, var(--surface)); border-left-color: var(--c); color: var(--text); font-weight: 600; cursor: pointer; }
+.cal-chip.k-meeting.autre { background: var(--c); border-left-color: var(--c); }
 .cal-chip.k-sub { background: none; color: var(--muted); border-left-color: var(--border); }
 .cal-chip.k-sub::before { content: '↳ '; }
 .cal-chip.late { color: var(--late); background: var(--late-soft); }
@@ -1225,6 +1226,8 @@ html.clavier :is(.fab, .fab-menu, .fab-back, .bottomnav) { display: none; }
 .cal-row.k-event { border-left-color: var(--event-fg); }
 .cal-row.k-poll { border-left-color: var(--poll-fg); }
 .cal-row.k-manif { border-left-color: var(--c); }
+/* Séance de l'une de mes autres entités : à sa couleur. */
+.cal-row.k-meeting[style] { border-left-color: var(--c); }
 .cal-manifs { position: relative; }
 .cal-manifs > summary { list-style: none; cursor: pointer; }
 .cal-manifs > summary::-webkit-details-marker { display: none; }
@@ -1251,6 +1254,7 @@ html.clavier :is(.fab, .fab-menu, .fab-back, .bottomnav) { display: none; }
   .cal-chip { font-size: 0; width: 7px; height: 7px; padding: 0; border: none; border-radius: 50%; pointer-events: none; background: var(--muted); }
   .cal-chip.k-sub::before { content: none; }
   .cal-chip.k-meeting { background: var(--primary); }
+  .cal-chip.k-meeting.autre { background: var(--c); }
   .cal-chip.k-event { background: var(--event-fg); }
   .cal-chip.k-poll { background: var(--poll-fg); }
   .cal-chip.k-manif { background: var(--c); }

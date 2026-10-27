@@ -117,9 +117,26 @@ export function RecurIcon({ task }: { task: Task }) {
           <IconeEntite u={club?.units.find((u) => u.id === task.evenementEntite!.uniteId) ?? { type: 'equipe' }} />
         </span>
       )}
-      {task.source && <span className="tsource">{task.source.unite}</span>}
+      <EntiteTag task={task} />
     </>
   );
+}
+
+/** Membre de plusieurs entités du club (vue « moi ») : chaque tâche, chaque séance porte le nom de son entité. */
+export function usePlusieursEntites() {
+  const club = useClubOptional();
+  return !!club && club.mine.length > 1;
+}
+
+/**
+ * Pilule de l'entité d'une tâche : celle d'où elle vient (partagée, ou de l'une de mes autres entités) ; pour qui fait
+ * partie de plusieurs entités, aussi celle de l'entité ouverte.
+ */
+export function EntiteTag({ task }: { task: Task }) {
+  const club = useClubOptional();
+  const plusieurs = usePlusieursEntites();
+  const nom = task.source?.unite ?? (plusieurs ? club?.current.nom : undefined);
+  return nom ? <span className="tsource" title={`Tâche de « ${nom} »`}>{nom}</span> : null;
 }
 
 export function LinkIcon({ task }: { task: Task }) {

@@ -1,8 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { ClubCtx, type Club } from './club';
 import { StoreCtx } from './storeCtx';
 import type { Store } from './storeTypes';
 import { computeNotifications, DEFAULT_NOTIF, type NotifItem } from './notifs';
+import type { Meeting, OrgUnit } from './types';
 
 // Vue « moi » : mes autres entités sont ouvertes en arrière-plan, chacune avec sa couche de données (sans écran). Leurs
 // tâches, discussions et notifications s'ajoutent à celles de l'entité ouverte (vueMoi.ts) ; une tâche de l'une d'elles
@@ -90,6 +91,32 @@ export function useAutres(actif: boolean): Entite[] {
   const registre = useContext(RegistreCtx);
   const on = !!registre && actif;
   return useSyncExternalStore(on ? registre.ecouter : rien, () => (on ? registre.toutes() : aucune));
+}
+
+/** Une séance de l'une de mes entités : `u` son entité (absente hors club), `ici` : celle de l'entité ouverte. */
+export interface SeanceMoi {
+  m: Meeting;
+  u?: OrgUnit;
+  ici: boolean;
+}
+
+/**
+ * Vue « moi » : les séances de l'entité ouverte et celles de mes autres entités où je vois les séances (droit « Séances »).
+ * Celles d'une autre entité s'ouvrent dans la sienne (son ordre du jour, son PV).
+ */
+export function useSeancesMoi(): SeanceMoi[] {
+  const store = useContext(StoreCtx);
+  const club = useContext(ClubCtx);
+  const autres = useAutres(!club?.arrierePlan);
+  const meetings = store?.data.meetings;
+  const ici = club?.current;
+  return useMemo(
+    () => [
+      ...(meetings ?? []).map((m) => ({ m, u: ici, ici: true })),
+      ...autres.filter((e) => e.store.user && e.store.can('tab.meetings')).flatMap((e) => e.store.data.meetings.map((m) => ({ m, u: e.club.current, ici: false }))),
+    ],
+    [meetings, ici, autres],
+  );
 }
 
 /** Dans une entité en arrière-plan : l'annonce à l'entité ouverte (sa couche de données, son club, ses notifications). */

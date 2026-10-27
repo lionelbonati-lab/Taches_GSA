@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
-import { compter, expect, nouvelleTache, ouvrirDemo, ouvrirEntite, test, verifierEntite } from './outils';
+import { allerA, compter, expect, nouvelleTache, ouvrirDemo, ouvrirEntite, test, verifierEntite } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
 
@@ -277,7 +277,8 @@ test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées
   await entite('Soirée récréative');
   const chezElle = page.locator('main tr', { hasText: 'Louer les tables et les bancs' });
   await expect(chezElle).toHaveCount(1);
-  await expect(chezElle.locator('.tsource')).toHaveCount(0);
+  // Sa pilule : la Soirée elle-même (membre de plusieurs entités, chaque tâche porte celle de son entité).
+  await expect(chezElle.locator('.tsource')).toHaveText('Soirée récréative');
   await chezElle.getByText('Louer les tables et les bancs').first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
   await expect(page.locator('.discussion-message.mien')).toContainText('Combien de bancs ?');
@@ -304,7 +305,8 @@ test('vue « moi » : nouvelle tâche créée dans une autre de mes entités, sa
   await page.goto('./?demo#/taches');
   const chezElle = page.locator('main tr', { hasText: 'Commander les boissons' });
   await expect(chezElle).toHaveCount(1);
-  await expect(chezElle.locator('.tsource')).toHaveCount(0);
+  // Sa pilule : la Soirée elle-même (membre de plusieurs entités, chaque tâche porte celle de son entité).
+  await expect(chezElle.locator('.tsource')).toHaveText('Soirée récréative');
 });
 
 test('vue « moi » : mon profil, le même dans toutes mes entités', async ({ page }) => {
@@ -320,6 +322,51 @@ test('vue « moi » : mon profil, le même dans toutes mes entités', async ({ p
   await expect(page.locator('.who-text strong')).toHaveText('Jules Moreau');
   await page.goto('./?demo#/reglages');
   await expect(page.locator('section.mon-profil').getByLabel('Prénom')).toHaveValue('Jules');
+});
+
+test('vue « moi » : les séances de toutes mes entités, sur l’accueil et dans l’agenda', async ({ page }) => {
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
+  };
+  // Une réunion aujourd'hui dans la Soirée récréative, posée par son responsable (ses pages Comité commencent par son nom).
+  await changer('Pierre Favre');
+  await ouvrirEntite(page, 'Soirée récréative');
+  await allerA(page, '/comite');
+  await expect(page.locator('.subtabs-entite')).toContainText('Soirée récréative');
+  await page.getByRole('button', { name: '+ Nouvelle séance' }).click();
+  const fen = page.getByRole('dialog', { name: 'Nouvelle séance' });
+  await fen.getByLabel('Titre').fill('Séance de la Soirée');
+  await fen.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Julien, au comité central : sur l'accueil, la prochaine séance de chacune de ses entités.
+  await changer('Julien Moreau');
+  await ouvrirEntite(page, 'Comité central');
+  await allerA(page, '/');
+  const bloc = page.locator('.bloc-seance');
+  await expect(bloc.locator('h2')).toHaveText(/Prochaines séances/);
+  // Dans l'ordre chronologique, chacune avec la pilule de son entité (comme les tâches).
+  const cartes = bloc.locator('.link-panel');
+  await expect(cartes).toHaveCount(2);
+  await expect(cartes.first()).toContainText('Séance de la Soirée');
+  await expect(cartes.first().locator('.tsource')).toHaveText('Soirée récréative');
+  await expect(cartes.nth(1).locator('.tsource')).toHaveText('Comité central');
+  // Les tâches aussi : celles du comité central portent son nom.
+  await allerA(page, '/taches');
+  const fiche = await nouvelleTache(page, 'Réserver la salle');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('main tr', { hasText: 'Réserver la salle' }).locator('.tsource')).toHaveText('Comité central');
+
+  // Dans l'agenda aussi, avec le nom de son entité ; ouverte, elle mène aux séances de la Soirée.
+  await allerA(page, '/agenda');
+  const ligne = page.locator('.cal-side .cal-row', { hasText: 'Séance de la Soirée' });
+  await expect(ligne.locator('.tsource')).toHaveText('Soirée récréative');
+  await ligne.click();
+  await expect(page.locator('.subtabs-entite')).toContainText('Soirée récréative');
+  await expect(page.locator('main')).toContainText('Séance de la Soirée');
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
