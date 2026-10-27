@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { navigation, pageOuverte } from '../data/navigation';
@@ -38,13 +38,16 @@ export function useChemin() {
       if (p) return r.pages.length > 1 ? `${r.label} › ${p.label}` : p.label;
     }
     const p = compte.find((x) => x.to === to);
-    return p ? p.label : null;
+    if (!p) return null;
+    // Console admin, mots de passe oubliés : depuis les Réglages (« Réglages › Console admin »).
+    const dans = p.dans && compte.find((x) => x.to === p.dans);
+    return dans ? `${dans.label} › ${p.label}` : p.label;
   };
 }
 
 /**
  * Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV). Ordre du jour et PV : d'abord le comité dont ce
- * sont l'ordre du jour et le PV, à choisir parmi les miens ; console admin : l'entité, parmi celles dont je suis admin
+ * sont l'ordre du jour et le PV, à choisir parmi les miens ; console admin : l'entité réglée, choisie dans les Réglages
  * (vue « moi » : sans changer d'entité).
  */
 export function SousOnglets() {
@@ -70,7 +73,7 @@ export function SousOnglets() {
   if (!entite && (!r || r.pages.length < 2)) return null;
   return (
     <nav ref={barre} className="subtabs no-print" aria-label={r?.label ?? page}>
-      {entite && comites && liste.length > 1 ? (
+      {entite && comites && liste.length > 1 && choix!.libelle === 'Comité' ? (
         <span className="subtabs-entite subtabs-choix">
           <Deroulante
             aria-label={choix!.libelle}
@@ -82,9 +85,16 @@ export function SousOnglets() {
         </span>
       ) : (
         entite && (
-          <span className="subtabs-entite" title={`${page} de « ${entite.nom} »`}>
-            <PastilleEntite u={entite} /> {entite.nom}
-          </span>
+          <>
+            <span className="subtabs-entite" title={`${page} de « ${entite.nom} »`}>
+              <PastilleEntite u={entite} /> {entite.nom}
+            </span>
+            {liste.length > 1 && (
+              <Link to="/reglages" className="subtabs-changer" title="L’entité de la console admin se choisit dans les Réglages (« Administration »)">
+                Changer d’entité
+              </Link>
+            )}
+          </>
         )
       )}
       {r && r.pages.length > 1 &&

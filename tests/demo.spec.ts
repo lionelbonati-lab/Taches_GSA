@@ -408,7 +408,7 @@ test('vue « moi » : les séances de toutes mes entités, réunies (page Séanc
   await verifierEntite(page, 'Comité central');
 });
 
-test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut de la page', async ({ page }) => {
+test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut de la page ; console admin choisie dans les Réglages', async ({ page }) => {
   // Julien Moreau, président du comité central (ouvert), est ici aussi admin de la Soirée récréative.
   const cle = 'taches-gsa-demo-u-u-soiree';
   await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
@@ -451,29 +451,44 @@ test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut 
   await expect(comite).toHaveText(/Comité central/);
   await expect(page.getByLabel('Séance', { exact: true })).not.toContainText('Réunion de la soirée');
 
-  // Console admin : celle de l'une de mes entités, choisie de même en haut de la page.
-  await allerA(page, '/admin');
-  const entite = page.locator('.subtabs').getByRole('combobox', { name: 'Entité' });
+  // Console admin : seulement depuis les Réglages (plus dans le menu du compte), pour l'entité choisie là.
+  await page.locator('.who-btn').click();
+  await expect(page.getByRole('menuitem', { name: 'Console admin' })).toHaveCount(0);
+  await page.getByRole('menuitem', { name: 'Réglages' }).click();
+  const admin = page.locator('.administration');
+  const entite = admin.getByRole('combobox', { name: 'Entité' });
   await expect(entite).toHaveText(/Comité central/);
+  await admin.getByRole('link', { name: 'Console admin de « Comité central »' }).click();
+  const affichee = page.locator('.subtabs .subtabs-entite');
+  await expect(affichee).toHaveText(/Comité central/);
+  await expect(page.locator('.subtabs').getByRole('combobox')).toHaveCount(0);
   await expect(page.locator('main')).toContainText('Logo, icône et couleur du comité');
+  // « Changer d'entité » ramène aux Réglages, où l'on choisit la Soirée.
+  await page.locator('.subtabs').getByRole('link', { name: 'Changer d’entité' }).click();
   await entite.click();
   await page.getByRole('option', { name: /Soirée récréative/ }).click();
   await expect(entite).toHaveText(/Soirée récréative/);
+  await admin.getByRole('link', { name: 'Console admin de « Soirée récréative »' }).click();
+  await expect(affichee).toHaveText(/Soirée récréative/);
   await expect(page.locator('main')).toContainText('Logo et icône de l’entité, couleur de l’appli.');
   await page.getByRole('link', { name: /Rôles et droits/ }).click();
   await expect(page.locator('main h1')).toContainText('Rôles et droits');
-  await expect(entite).toHaveText(/Soirée récréative/);
+  await expect(affichee).toHaveText(/Soirée récréative/);
   await verifierEntite(page, 'Comité central');
 });
 
-test('vue « moi » : console admin de mon entité, sans l’ouvrir', async ({ page }) => {
+test('vue « moi » : console admin de mon entité, depuis les Réglages, sans l’ouvrir', async ({ page }) => {
   // Pierre Favre : membre du comité central (ouvert), admin de la Soirée récréative seulement.
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
   await ouvrirEntite(page, 'Comité central');
   await page.locator('.who-btn').click();
-  await page.getByRole('menuitem', { name: 'Console admin' }).click();
+  await page.getByRole('menuitem', { name: 'Réglages' }).click();
+  // Seule entité dont il est admin : pas de choix, elle est nommée.
+  await expect(page.locator('.administration').getByRole('combobox')).toHaveCount(0);
+  await page.locator('.administration').getByRole('link', { name: 'Console admin de « Soirée récréative »' }).click();
   await expect(page.locator('.subtabs .subtabs-entite')).toHaveText(/Soirée récréative/);
+  await expect(page.locator('.subtabs').getByRole('link', { name: 'Changer d’entité' })).toHaveCount(0);
   await expect(page.locator('main')).toContainText('Logo et icône de l’entité, couleur de l’appli.');
   await verifierEntite(page, 'Comité central');
 });

@@ -7,7 +7,8 @@ import { UNIT_TYPES } from './units';
 // Sur téléphone, la barre du bas montre jusqu'à BARRE_MAX rubriques au choix de chacun (`mobile` : celles d'origine), les
 // autres sont dans « Plus ».
 
-export type NavPage = { to: string; label: string; icon: IconeNom; aide: string; perm?: Permission; club?: boolean; registre?: boolean; demandes?: boolean; superAdmin?: boolean };
+/** `dans` : page qui s'ouvre depuis une autre (ex. la console admin, depuis les Réglages), pas depuis les menus. */
+export type NavPage = { to: string; label: string; icon: IconeNom; aide: string; perm?: Permission; club?: boolean; registre?: boolean; demandes?: boolean; superAdmin?: boolean; dans?: string };
 export type NavRubrique = { id: string; label: string; court?: string; icon: IconeNom; mobile?: boolean; pages: NavPage[] };
 
 const RUBRIQUES: NavRubrique[] = [
@@ -105,15 +106,28 @@ const RUBRIQUES: NavRubrique[] = [
 
 /** Menu du compte (en haut à droite ; « Plus » sur téléphone). */
 export const PAGES_COMPTE: NavPage[] = [
-  { to: '/reglages', label: 'Réglages', icon: 'reglages', aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage et les notifications (les mêmes dans toutes tes entités), et la sauvegarde.' },
-  { to: '/admin', label: 'Console admin', icon: 'admin', perm: 'admin.access', aide: 'Les réglages de l’une de tes entités, réservés à ses admins (choisis-la en haut de la page). Choisis ce que tu veux régler.' },
+  {
+    to: '/reglages',
+    label: 'Réglages',
+    icon: 'reglages',
+    aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage et les notifications (les mêmes dans toutes tes entités), la sauvegarde et, pour les admins, la console admin de leurs entités.',
+  },
+  {
+    to: '/admin',
+    label: 'Console admin',
+    icon: 'admin',
+    perm: 'admin.access',
+    dans: '/reglages',
+    aide: 'Les réglages de l’une de tes entités, réservés à ses admins (choisie dans Réglages › « Administration »). Choisis ce que tu veux régler.',
+  },
   {
     to: '/mots-de-passe',
     label: 'Mots de passe oubliés',
     icon: 'cle',
     perm: 'admin.access',
     demandes: true,
-    aide: 'Des membres de l’entité choisie en haut de la page ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
+    dans: '/reglages',
+    aide: 'Des membres de l’entité choisie dans Réglages › « Administration » ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
   },
   {
     to: '/comptes',
@@ -133,13 +147,13 @@ export const PAGES_COMPTE: NavPage[] = [
 ];
 
 /** Nom d'une page de l'appli (« Comité › PV »), quels que soient les droits ; l'adresse elle-même si inconnue. */
-export function libellePage(to: string) {
+export function libellePage(to: string): string {
   for (const r of RUBRIQUES) {
     const p = r.pages.find((x) => x.to === to);
     if (p) return r.pages.length > 1 ? `${r.label} › ${p.label}` : p.label;
   }
   const p = PAGES_COMPTE.find((x) => x.to === to);
-  return p ? p.label : to;
+  return p ? (p.dans ? `${libellePage(p.dans)} › ${p.label}` : p.label) : to;
 }
 
 type Acces = { can: (p: Permission) => boolean; club: boolean; registre: boolean; type: UnitType; demandes?: boolean; superAdmin?: boolean };

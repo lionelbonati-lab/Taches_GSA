@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClub } from '../data/club';
 import type { DemandeMdp } from '../data/cloud';
@@ -59,6 +59,9 @@ export function MotsDePasse() {
 
   return (
     <div className="narrow">
+      <p className="admin-retour no-print">
+        <Link to="/reglages">‹ Réglages</Link>
+      </p>
       <h1>Mots de passe oubliés</h1>
       <PageIntro />
       {err && <p className="error">{err}</p>}

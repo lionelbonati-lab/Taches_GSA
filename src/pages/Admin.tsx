@@ -19,7 +19,10 @@ import { ErreursAppli } from '../components/ErreursAppli';
 
 type Partie = { id: string; icon: IconeNom; titre: string; carte: string; aide: string; resume: string; contenu: ReactNode };
 
-/** Console admin : une page d'accueil qui explique chaque partie, puis une adresse par partie (/admin/droits…). */
+/**
+ * Console admin (depuis les Réglages, pour l'entité choisie là) : une page d'accueil qui explique chaque partie, puis une
+ * adresse par partie (/admin/droits…).
+ */
 export function Admin() {
   const { partie } = useParams();
   const { dataLocale: data, prefs } = useStore();
@@ -28,7 +31,7 @@ export function Admin() {
   const central = !u || u.type === 'central';
   // Sous-comité, groupe ou équipe : couleur héritée du comité central.
   const sub = !!u && !central;
-  // Personnes de l'entité : dans l'organigramme du club (bouton « Organigramme », en haut à gauche).
+  // Personnes de l'entité : dans l'organigramme du club (« Club › Organigramme »).
   const personnes = !!club;
 
   const couleur = u?.couleurAppli ?? (sub ? club?.central?.couleurAppli : undefined);
@@ -127,6 +130,9 @@ export function Admin() {
 
   return (
     <div>
+      <p className="admin-retour no-print">
+        <Link to="/reglages">‹ Réglages</Link>
+      </p>
       <h1>Console admin</h1>
       <PageIntro />
       <div className="admin-cartes">
@@ -136,7 +142,7 @@ export function Admin() {
             <span>
               <b>Personnes et accès</b>
               <span className="muted">« + Ajouter une personne » sous l’entité ; un clic sur une personne ouvre la fiche : poste, rôle, accès à l’appli.</span>
-              <small>Organigramme du club (bouton « Organigramme », en haut à gauche) · {data.people.filter((x) => x.actif).length} personnes</small>
+              <small>Organigramme du club (« Club › Organigramme ») · {data.people.filter((x) => x.actif).length} personnes</small>
             </span>
           </Link>
         )}

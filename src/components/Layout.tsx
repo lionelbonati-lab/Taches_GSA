@@ -37,7 +37,10 @@ export function Layout() {
   const [reglerBarre, setReglerBarre] = useState(false);
   const loc = useLocation();
   const navigate = useNavigate();
-  const { rubriques, compte: pagesCompte, ouverte } = useNavigation();
+  const nav = useNavigation();
+  const { rubriques, ouverte } = nav;
+  // Console admin, mots de passe oubliés : depuis les Réglages seulement.
+  const pagesCompte = nav.compte.filter((p) => !p.dans);
   const { nonLus } = useDiscussions();
   useEffect(() => {
     setMenu(false);
@@ -178,7 +181,7 @@ export function Layout() {
             onClick={() => setCompte(!compte)}
             aria-expanded={compte}
             aria-haspopup="menu"
-            title="Mon compte : réglages, console admin, aide"
+            title="Mon compte : réglages, aide"
           >
             <Avatar id={user.id} size={32} />
             <span className="who-text">
