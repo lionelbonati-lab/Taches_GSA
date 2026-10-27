@@ -289,6 +289,32 @@ test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées
   await expect(page.locator('.discussion-message.mien')).toContainText('Combien de bancs ?');
 });
 
+test('vue « moi » : nouvelle tâche créée dans une autre de mes entités, sans changer d’entité', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Commander les boissons');
+  const choix = fiche.getByRole('combobox', { name: 'Entité' });
+  await expect(choix).toHaveText(/Comité central/);
+  await choix.click();
+  await page.getByRole('option', { name: /Soirée récréative/ }).click();
+  // La fenêtre passe dans la Soirée : le titre suit, la section se choisit parmi les siennes.
+  await expect(choix).toHaveText(/Soirée récréative/);
+  await expect(fiche.getByPlaceholder('Que faut-il faire ?')).toHaveValue('Commander les boissons');
+  await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ index: 1 });
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.unit-btn')).toContainText('Comité central');
+  await expect(page.locator('main tr', { hasText: 'Commander les boissons' }).locator('.tsource')).toHaveText('Soirée récréative');
+
+  // Enregistrée dans la Soirée, comme une tâche à elle.
+  await page.locator('.unit-btn').click();
+  await page.locator('.unit-menu .unit-item', { hasText: 'Soirée récréative' }).click();
+  await expect(page.locator('.unit-btn')).toContainText('Soirée récréative');
+  await page.goto('./?demo#/taches');
+  const chezElle = page.locator('main tr', { hasText: 'Commander les boissons' });
+  await expect(chezElle).toHaveCount(1);
+  await expect(chezElle.locator('.tsource')).toHaveCount(0);
+});
+
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche de la messagerie');

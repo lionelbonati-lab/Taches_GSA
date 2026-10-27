@@ -6,7 +6,7 @@ import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee
 import { finDeSemaine } from '../data/repetition';
 import { sortedMeetings } from '../data/agenda';
 import { finAnticipee, versProchaineSeance } from '../data/seances';
-import { TaskModal } from '../components/FicheTache';
+import { TaskModal, useAutresCreation } from '../components/FicheTache';
 import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
 import { GENRES, genreDe } from '../data/paiements';
@@ -31,6 +31,8 @@ const EMPTY_FILTERS = { q: '', entite: '', section: '', sous: '', resp: '', stat
 export function Tasks() {
   // Vue « moi » : avec les tâches de mes autres entités (pastille de leur entité ; filtre « Entité »).
   const { dataMoi: data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, pourInfo } = useStore();
+  // Nouvelle tâche : aussi dans l'une de mes autres entités (choisie dans la fenêtre).
+  const autresCreation = useAutresCreation();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
     params.get('statut') || params.get('delai') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
@@ -241,7 +243,7 @@ export function Tasks() {
           {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}><Icone n="anciennes" /> Anciennes tâches ({anciennes.length})</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
-          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouvelle tâche</button>}
+          {(creatableSections().length > 0 || autresCreation.length > 0) && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouvelle tâche</button>}
         </div>
       </div>
       <PageIntro />
@@ -403,7 +405,7 @@ export function Tasks() {
       )}
 
       {effScope === 'mes' && <SuiviCentral />}
-      {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} ouvrirDiscussion={edit.discussion} onClose={closeEdit} />}
+      {edit && <TaskModal task={edit.task} isNew={edit.isNew} choixEntite={edit.isNew} openEmailId={edit.email} ouvrirDiscussion={edit.discussion} onClose={closeEdit} />}
       {voirAnciennes && anciennes && <AnciennesTaches list={anciennes} onClose={() => setVoirAnciennes(false)} />}
       {voirPourInfo && <PourInfoRecues list={pourInfo} ouverte={params.get('pourinfo') ?? undefined} discussion={params.has('discussion')} onClose={fermerPourInfo} />}
     </div>

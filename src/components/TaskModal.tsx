@@ -14,7 +14,7 @@ import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { ailleurs, aPrendreOuverte, auteurAPrendre, pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
 import { attributionDe, attributions, entitesDependantes, sectionChez } from '../data/externes';
-import type { OrgMember, Person, Task, VuPourInfo } from '../data/types';
+import type { OrgMember, OrgUnit, Person, Task, VuPourInfo } from '../data/types';
 import { applyDelaiRef, childrenOf, fmtDate, fmtDateTime, fullName, isDone, nomPoste, parentOf, uid } from '../data/utils';
 import { finAnticipee, motSeance } from '../data/seances';
 import { Modal } from './ui';
@@ -34,8 +34,10 @@ import { Discussion } from './tache/Discussion';
 import { nonLus } from '../data/commentaires';
 import { Historique } from './tache/Historique';
 
+/** Nouvelle tâche (vue « moi ») : les entités où la créer ; `changer` rouvre la fenêtre dans celle choisie. */
+export type ChoixEntite = { liste: OrgUnit[]; valeur: string; changer: (id: string, t: Task) => void };
 /** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
-export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string; ouvrirDiscussion?: boolean };
+export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string; ouvrirDiscussion?: boolean; entite?: ChoixEntite };
 
 /** Fenêtre d'une tâche ; un remboursement ou un paiement de facture s'ouvre dans la sienne (circuit caisse → visa → virement). */
 export function TaskModal(props: TaskModalProps) {
@@ -46,7 +48,7 @@ export function TaskModal(props: TaskModalProps) {
 /** Parties facultatives : affichées si elles sont remplies, sinon ajoutées à la demande (« Ajouter : »). */
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage' | 'info' | 'prendre';
 
-function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: TaskModalProps) {
+function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entite: choixEntite }: TaskModalProps) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, vuPourInfo, update, autresResp, externes, setToast, discussionLueLe } = useStore();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   // Statut inconnu de l'entité (statuts personnalisés) : le premier statut ouvert.
@@ -495,6 +497,23 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         </label>
         {/* Section, Sous-section et Statut l'un sous l'autre, « Pour quand ? » à côté ; sur téléphone (une colonne), après eux. */}
         <div className="tache-colonne">
+          {choixEntite && (
+            <label>
+              Entité
+              <Deroulante
+                aria-label="Entité"
+                value={choixEntite.valeur}
+                disabled={dis}
+                onChange={(id) => {
+                  if (id === choixEntite.valeur) return;
+                  // La fenêtre se rouvre dans l'entité choisie : les fichiers déjà ajoutés ici n'y suivent pas.
+                  deleteFiles(track.current.added);
+                  choixEntite.changer(id, t);
+                }}
+                options={choixEntite.liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))}
+              />
+            </label>
+          )}
           <label>
             Section
             <select value={t.sectionId} disabled={dis} onChange={(e) => changerSection(e.target.value)}>

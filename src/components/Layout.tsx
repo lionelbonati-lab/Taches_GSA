@@ -1,7 +1,7 @@
 import { Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
-import { TaskModal } from './FicheTache';
+import { TaskModal, useAutresCreation } from './FicheTache';
 import { versProchaineSeance } from '../data/seances';
 import { TicketForm } from './Tickets';
 import { GENRES, type GenreTicket } from '../data/paiements';
@@ -122,9 +122,12 @@ export function Layout() {
     applyAppColor(couleur);
   }, [couleur, couleurReady]);
 
+  // Vue « moi » : nouvelle tâche aussi dans l'une de mes autres entités (choisie dans la fenêtre).
+  const autresCreation = useAutresCreation();
+
   if (!user) return null;
   const rolesText = myRoles.map((r) => r.label).join(' + ') || 'Aucun rôle';
-  const canCreate = creatableSections().length > 0;
+  const canCreate = creatableSections().length > 0 || autresCreation.length > 0;
   // Bouton flottant « + » : tâche (ajout rapide), remboursement, paiement de facture.
   const ajouts = [
     ...(canCreate ? [{ label: 'Nouvelle tâche', icone: 'taches' as IconeNom, title: 'Ajout rapide d’une tâche', run: () => setQuick(true) }] : []),
@@ -277,7 +280,7 @@ export function Layout() {
       )}
 
       <Toast />
-      {quick && canCreate && <TaskModal isNew task={newTask(user.id, versProchaineSeance(data.meetings, undefined, club?.current.type))} onClose={() => setQuick(false)} />}
+      {quick && canCreate && <TaskModal isNew choixEntite task={newTask(user.id, versProchaineSeance(data.meetings, undefined, club?.current.type))} onClose={() => setQuick(false)} />}
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
       {reglerBarre && <BarreBasModal onClose={() => setReglerBarre(false)} />}
     </div>

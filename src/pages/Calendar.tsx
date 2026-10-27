@@ -6,7 +6,7 @@ import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
 import { addDays, diffDays, fmtDate, fmtRange, isDone, isLate, newTask, parentOf, today } from '../data/utils';
 import { isOpen } from '../data/polls';
-import { TaskModal } from '../components/FicheTache';
+import { TaskModal, useAutresCreation } from '../components/FicheTache';
 import { Avatar, StatusBadge } from '../components/ui';
 import { MeetingModal, newMeeting, useAgendaActions, useMotSeance } from './Agenda';
 import { ChoixPortee, EventModal, newEvent, useEventActions } from '../components/EventModal';
@@ -94,7 +94,9 @@ export function Calendar() {
   const seeEvents = can('tab.events');
   const addMeeting = can('meetings.manage');
   const addEvent = can('events.manage');
-  const addTask = creatableSections().length > 0;
+  // Vue « moi » : aussi dans l'une de mes autres entités (choisie dans la fenêtre).
+  const autresCreation = useAutresCreation();
+  const addTask = creatableSections().length > 0 || autresCreation.length > 0;
   const viewAll = can('tasks.viewAll');
   // Agenda du club : événements de toutes les entités, lus sur le serveur (relus si une date d'édition change).
   const [clubEvents, setClubEvents] = useState<AgendaClubEvent[]>([]);
@@ -439,7 +441,7 @@ export function Calendar() {
         </aside>
       </div>
 
-      {task && <TaskModal task={task.t} isNew={task.isNew} onClose={() => setTask(null)} />}
+      {task && <TaskModal task={task.t} isNew={task.isNew} choixEntite onClose={() => setTask(null)} />}
       {meeting && <MeetingModal meeting={meeting} onClose={() => setMeeting(null)} />}
       {event && <EventModal event={event.e} jour={event.jour} onClose={() => setEvent(null)} />}
       {exporter && (
