@@ -24,6 +24,8 @@ import { moduleIntrouvable } from '../pwa';
 import { ChoixAnnexes, DocsTache, ListeAnnexes, PAR_PAGE, PagesAnnexes, annexeInfo, annexesDe, avecChoix, type ParPage, docsTexte, numerosDe, useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { Icone } from '../components/icones';
 import { Modal } from '../components/ui';
+import { bilanVu, texteVu } from '../data/pourInfo';
+import { useSuiviPourInfo } from '../data/suiviPourInfo';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête (le nom du comité), convoqués, liste numérotée
@@ -37,7 +39,7 @@ export const DEFAULT_PV: PvSettings = {
   parts: { presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true, partagees: true },
   tri: 'delai',
   sectionsVides: true,
-  colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, documents: true },
+  colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, documents: true, pourInfo: true },
   statutsExclus: [],
   sectionsExclues: [],
   orientation: 'portrait',
@@ -76,6 +78,8 @@ interface ContexteOdj {
   committee: Person[];
   excusesTxt: string;
   autresResp: (t: Task) => string;
+  /** Personnes attendues des tâches « Pour info » (052), pour « vue par 3 sur 4 ». */
+  attendus?: Record<string, string[]>;
 }
 
 // ---------- Liste numérotée (1. section / a. sous-section / ■ point) ----------
@@ -105,7 +109,7 @@ const letter = (i: number) => {
  * liste numérotée, annexes, version texte.
  */
 function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
-  const { data, s0, s1, s2, titre, committee, excusesTxt, autresResp } = c;
+  const { data, s0, s1, s2, titre, committee, excusesTxt, autresResp, attendus } = c;
   // Tâches partagées par d'autres entités : dans l'ordre du jour comme les autres (rangées sous leur événement,
   // la section qui porte le nom de l'entité, ou la section choisie), sauf si on les retire.
   const odj = s.parts.partagees ? data : { ...data, tasks: data.tasks.filter((t) => !t.source) };
@@ -227,11 +231,14 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
   const taskMeta = (t: Task) => {
     const b = bucketOf.get(t.id);
     const st = data.statuses.find((x) => x.id === t.statusId);
+    const vus = s.colonnes.pourInfo && t.pourInfo && !t.paiement && texteVu(bilanVu(t, attendus?.[t.id]));
     return [
       respText(t) !== '—' && respText(t),
       b !== 'bilan' && t.delai && shortDate(t.delai),
       s.colonnes.echeance && (b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? etatTerminee(data, t) : ''),
       s.colonnes.statut && b !== 'bilan' && t.statusId !== firstOpen && st?.label,
+      // Pour info : qui l'a vue (« 👁 vue par 3 sur 4 »).
+      vus && `👁 ${vus}`,
     ].filter(Boolean) as string[];
   };
   const itemText = (it: OItem) =>
@@ -602,6 +609,7 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
 export function Pv() {
   const { data, user, prefs, setPrefs, update, updateSilent, can, autresResp } = useStore();
   const club = useClubOptional();
+  const attendus = useSuiviPourInfo(data.tasks);
   const s = withDefaults(prefs.pv);
   const set = (patch: Partial<PvSettings>) => setPrefs({ pv: { ...s, ...patch } });
   const setPart = (k: keyof PvSettings['parts'], v: boolean) => set({ parts: { ...s.parts, [k]: v } });
@@ -661,7 +669,7 @@ export function Pv() {
   // Titre : le nom du comité ; avec la date de la séance pour nommer le document (PDF, archive, email).
   const titre = club?.current.nom ?? 'Comité';
   const nomDoc = s1 ? `${titre} ${shortDate(s1.date)}` : titre;
-  const ctx: ContexteOdj = { data, s0, s1, s2, titre, committee, excusesTxt, autresResp };
+  const ctx: ContexteOdj = { data, s0, s1, s2, titre, committee, excusesTxt, autresResp, attendus };
   const contenu = contenuOdj(ctx, s, joursApres);
   const { odj, tachesOdj, annexes } = contenu;
   const exclues = s1?.odjAnnexesExclues ?? [];
@@ -870,8 +878,9 @@ export function Pv() {
               ['remarque', 'Remarque'],
               ['checklist', 'Checklist'],
               ['documents', 'Noms de ses documents'],
+              ['pourInfo', '👁 Pour info : qui l’a vue (« vue par 3 sur 4 »)'],
             ] as [keyof PvSettings['colonnes'], string][]).map(([k, label]) => (
-              <label key={k} className="inline"><input type="checkbox" checked={s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
+              <label key={k} className="inline"><input type="checkbox" checked={!!s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
             ))}
             <span className="field-label pv-sous-titre">Annexes</span>
             <label className="inline" title="Les fichiers et liens des tâches de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (photos et PDF mis en page à part)">

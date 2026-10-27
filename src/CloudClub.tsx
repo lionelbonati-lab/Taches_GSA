@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
@@ -246,6 +246,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       reglerErreur: (id, reglee) => reglerErreurAppli(m.committeeId, id, reglee),
       effacerErreurs: () => effacerErreursAppli(m.committeeId),
       destinatairesPourInfo: (uniteId, tacheId) => pourInfoDestinataires(uniteId, tacheId),
+      suiviPourInfo: (uniteId, tacheIds) => pourInfoSuivi(uniteId, tacheIds),
+      relancerPourInfo: async (tacheId) => ({ n: await pourInfoRelancer(m.committeeId, tacheId, m.committeeId), ici: [] }),
       attribuerTache: (uniteId, task, statut) => attribuerTache(m.committeeId, uniteId, task, statut),
       sondagesPartages: () => fetchSondagesPartages(m.committeeId),
       voterSondagePartage: (uniteId, pollId, choix, texte) => voterSondagePartage(m.committeeId, uniteId, pollId, choix, texte),

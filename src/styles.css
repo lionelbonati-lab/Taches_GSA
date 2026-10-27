@@ -1844,6 +1844,13 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .pour-info-entite-vus .vu-non { color: var(--pas-vu-fg); }
 .chip-vu { font-size: 0.72rem; opacity: 0.8; margin-left: 2px; }
 .pour-info-bilan { display: block; margin-top: 4px; font-weight: 600; color: var(--primary); }
+/* Suivi (052) : gris = sans compte (ne reçoit rien) ; ✏️ = vue avant la dernière modification ; 🔔 Relancer. */
+.pour-info .chip.sans-compte { opacity: 1; background: var(--surface); border-style: dashed; border-color: var(--border); color: var(--muted); }
+.pour-info .chip.revoir { opacity: 1; background: var(--partiel-bg); border-color: var(--partiel-fg); color: var(--partiel-fg); }
+.pour-info-attente { margin: 0 0 8px; }
+.pour-info-suivi { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.pour-info-suivi .pour-info-bilan { margin-top: 0; }
+.badge.pour-info.revoir { background: var(--partiel-bg); color: var(--partiel-fg); }
 .pour-info-banner { margin: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; border: 1px solid #6d28d9; background: color-mix(in srgb, #6d28d9 10%, var(--surface)); border-radius: 8px; padding: 8px 10px; font-size: 0.92rem; }
 .pour-info-banner .btn { display: inline-flex; align-items: center; gap: 4px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }

@@ -26,6 +26,8 @@ import { Icone } from '../components/icones';
 import { revenir } from '../data/annuler';
 import { Pilule, type OutilPilule } from '../components/Pilule';
 import { OutilsTexte } from '../components/OutilsTexte';
+import { bilanVu, texteVu } from '../data/pourInfo';
+import { useSuiviPourInfo } from '../data/suiviPourInfo';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -60,8 +62,11 @@ const letter = (i: number) => {
 };
 
 export function Minutes() {
-  const { data, user, can, canEditTask, saveTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast } = useStore();
+  const { data, user, can, canEditTask, saveTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast, prefs } = useStore();
   const sync = useSyncStatus();
+  // Pour info (052) : « vue par 3 sur 4 », comme l'ordre du jour (même réglage).
+  const attendus = useSuiviPourInfo(data.tasks);
+  const avecVus = prefs.pv?.colonnes?.pourInfo ?? true;
   const agendaRef = useRef<HTMLElement>(null);
   const sections = useSections(agendaRef);
   const club = useClubOptional();
@@ -208,11 +213,14 @@ export function Minutes() {
 
   const meta = (t: Task) => {
     const b = bucket.get(t.id);
+    const vus = avecVus && t.pourInfo && !t.paiement && texteVu(bilanVu(t, attendus[t.id]));
     return [
       t.responsables.map((id) => initials(person(id))).join(', '),
       b !== 'bilan' && t.delai && shortDate(t.delai),
       b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? etatTerminee(data, t, false) : '',
       isNewTask(t) && '🆕 nouvelle',
+      // Pour info : qui l'a vue (réglage de l'ordre du jour).
+      vus && `👁 ${vus}`,
     ].filter(Boolean) as string[];
   };
 

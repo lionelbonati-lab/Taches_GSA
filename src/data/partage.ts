@@ -264,6 +264,7 @@ export function avecPartagees(data: AppData, list: TachePartagee[], moi: string,
       aPrendre: aPrendreVu(t.aPrendre, x.uniteId, moi),
       pourInfo: pourInfoVu(t.pourInfo, x.uniteId, moi),
       pourInfoVus: vusVu(t.pourInfoVus, x.uniteId, moi),
+      contenuLe: t.contenuLe,
       commentaires: t.commentaires,
       // Documents et répétition (041).
       documents: docsVus(t.documents, x, units),

@@ -13,7 +13,8 @@ import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { APrendreTag, Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 import { PourInfoRecues } from '../components/PourInfo';
-import { pourMoi } from '../data/pourInfo';
+import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
+import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { PageIntro } from '../components/Nav';
 import { AvisLien } from '../components/EnvoyerLien';
@@ -44,6 +45,8 @@ export function Tasks() {
     type: params.get('type') ?? '',
   });
   const [sort, setSort] = useState<{ key: SortKey; dir: 1 | -1 }>({ key: 'delai', dir: 1 });
+  // Suivi des « Pour info » (052) : qui doit encore voir les tâches (filtre « Mes Pour info pas encore vus », pastilles).
+  const suivi = useSuiviPourInfo(data.tasks);
   const navigate = useNavigate();
   // Lien depuis une notification : /taches?tache=<id> ouvre directement la tâche.
   // …&email=<id> ouvre en plus l'email programmé à envoyer, …&discussion=1 sa discussion (💬). Lien envoyé (WhatsApp…, entité en u : lienPartage.ts) : seulement
@@ -119,7 +122,10 @@ export function Tasks() {
     const res = data.tasks.filter((t) => {
       // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état, les tâches pour info et celles
       // qu'on me propose (à prendre, tant qu'il reste une place).
-      if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
+      // Mes « Pour info » pas encore vus : les tâches dont je suis l'auteur ou responsable, que des personnes doivent encore voir.
+      if (f.delai === 'pourinfo') {
+        if (!(t.createdBy === user.id || t.responsables.includes(user.id)) || !canSeeTask(t) || t.source || t.paiement || !t.pourInfo || !attendDesVus(bilanVu(t, suivi[t.id]))) return false;
+      } else if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
@@ -163,7 +169,7 @@ export function Tasks() {
     };
     return { list: res.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir), nArchivees };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, user, effScope, f, sort, hideDone, view, archives, seancePassee]);
+  }, [data, user, effScope, f, sort, hideDone, view, archives, seancePassee, suivi]);
 
   // Filtre « Toutes séances » : les séances à venir et celles qui ont encore des tâches dans la liste (archives : celles
   // de leurs tâches) ; pas les anciennes séances, dont les tâches terminées sont archivées.
@@ -297,6 +303,7 @@ export function Tasks() {
           <option value="email">📧 Avec email programmé</option>
           <option value="principale">🧩 Tâches principales</option>
           <option value="liee">↳ Tâches rattachées</option>
+          <option value="pourinfo">👁 Mes « Pour info » pas encore vus</option>
         </select>
         <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
           <option value="">Tâches et paiements</option>

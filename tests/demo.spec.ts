@@ -261,6 +261,93 @@ test('nouvelle tâche : À prendre et Pour info s’ajoutent', async ({ page }) 
   await expect(fiche.locator('.chip', { hasText: 'Pour info' })).toHaveCount(0);
 });
 
+test('Pour info : sans compte, relance, « ✓ Vu », tout le monde a vu, à revoir', async ({ page }) => {
+  // Une personne sans adresse email (démo : sans compte) ne reçoit rien et ne compte pas.
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
+    d.people.find((p: { prenom: string }) => p.prenom === 'Sophie').email = '';
+    localStorage.setItem('taches-gsa-demo-v7', JSON.stringify(d));
+  });
+  await page.reload();
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
+    await expect(page.locator('.unit-btn')).toBeVisible();
+  };
+  const ouvrir = async () => {
+    await page.goto('./?demo#/taches');
+    await page.locator('main').getByText('Prévenir les moniteurs').filter({ visible: true }).first().click();
+    return page.locator('.modal').first();
+  };
+  const notifications = async () => {
+    await page.getByRole('button', { name: /^Notifications/ }).click();
+    const panneau = page.getByRole('dialog', { name: 'Notifications' });
+    await expect(panneau).toBeVisible();
+    return panneau;
+  };
+
+  const fiche = await nouvelleTache(page, 'Prévenir les moniteurs');
+  await fiche.locator('.chip', { hasText: 'Pour info' }).click();
+  const ajouter = fiche.getByRole('combobox', { name: 'Mettre au courant' });
+  for (const nom of [/^Marc Lambert/, /^Sophie Girard/]) {
+    await ajouter.click();
+    await page.getByRole('option', { name: nom }).click();
+  }
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Auteur : la personne sans compte en gris, le bilan sans elle, 🔔 Relancer (une fois par heure).
+  let ouverte = await ouvrir();
+  let suivi = ouverte.locator('.pour-info');
+  await expect(suivi.locator('.chip.sans-compte')).toContainText('Sophie Girard');
+  await expect(suivi.locator('.pour-info-bilan')).toContainText('Personne ne l’a encore marquée « ✓ Vu ». 1 sans compte');
+  await suivi.getByRole('button', { name: /Relancer/ }).click();
+  await expect(suivi.getByRole('status')).toHaveText('🔔 1 personne relancée.');
+  await suivi.getByRole('button', { name: /Relancer/ }).click();
+  await expect(page.locator('.toast')).toContainText('Déjà relancée');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Mes « Pour info » pas encore vus.
+  await page.goto('./?demo#/taches?delai=pourinfo');
+  await expect(page.locator('main').getByText('Prévenir les moniteurs').filter({ visible: true }).first()).toBeVisible();
+
+  // La personne mentionnée est relancée, puis marque « ✓ Vu ».
+  await changer('Marc Lambert');
+  await expect(await notifications()).toContainText('te rappelle « Prévenir les moniteurs »');
+  await page.keyboard.press('Escape');
+  ouverte = await ouvrir();
+  await ouverte.locator('.pour-info-banner').getByRole('button', { name: 'Vu' }).click();
+  await expect(ouverte.locator('.pour-info-banner')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  // L'auteur est prévenu que tout le monde l'a vue, puis la modifie.
+  await changer('Julien Moreau');
+  await expect(await notifications()).toContainText('Tout le monde a vu « Prévenir les moniteurs »');
+  await page.keyboard.press('Escape');
+  await page.goto('./?demo#/ordre-du-jour');
+  await expect(page.locator('main').getByText(/vue par tout le monde/).first()).toBeVisible();
+  ouverte = await ouvrir();
+  suivi = ouverte.locator('.pour-info');
+  await expect(suivi.locator('.pour-info-bilan')).toContainText('✓ Vue par tout le monde.');
+  await expect(suivi.getByRole('button', { name: /Relancer/ })).toHaveCount(0);
+  await ouverte.locator('textarea').first().fill('Rendez-vous à 18 h devant la salle');
+  await ouverte.getByRole('button', { name: /^Enregistrer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  ouverte = await ouvrir();
+  await expect(ouverte.locator('.pour-info .chip.revoir')).toContainText('Marc Lambert');
+  await page.keyboard.press('Escape');
+
+  // Modifiée depuis son « ✓ Vu » : elle revient à l'accueil (✏️ À revoir), et se revoit.
+  await changer('Marc Lambert');
+  await page.goto('./?demo#/');
+  await expect(page.locator('main .badge.pour-info.revoir').filter({ visible: true }).first()).toBeVisible();
+  ouverte = await ouvrir();
+  await expect(ouverte.locator('.pour-info-banner')).toContainText('Elle a changé depuis ton « ✓ Vu »');
+  await ouverte.locator('.pour-info-banner').getByRole('button', { name: 'Vu' }).click();
+  await expect(ouverte.locator('.pour-info-banner')).toHaveCount(0);
+});
+
 test('Annuler puis Refaire une création de tâche', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Réserver la salle');

@@ -6,7 +6,8 @@ import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isDone, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
 import { ETATS, chf, genre, genreDe, peutOuvrirTicket } from '../data/paiements';
-import { ciblesPourInfo, nbPourInfo, pourMoi } from '../data/pourInfo';
+import { bilanVu, ciblesPourInfo, nbPourInfo, pourMoi, texteVu, vuAvantModif } from '../data/pourInfo';
+import { attendusLus } from '../data/suiviPourInfo';
 import { nonLus } from '../data/commentaires';
 import { Icone, type IconeNom } from './icones';
 import { ICONES_ENTITE, IconeBiblio, IconeEntite } from './IconesEntite';
@@ -178,15 +179,28 @@ export function ProposalTag({ task }: { task: Task }) {
   return <span className="badge proposal" title={`Demande de « ${p.unite} », envoyée par ${p.par} le ${fmtDate(p.le.slice(0, 10))}`}><Icone n="demande" /> {p.unite}</span>;
 }
 
-/** « Pour info » : la tâche est montrée à la personne connectée, ou à n personnes et entités (noms au survol). */
+/**
+ * « Pour info » : la tâche est montrée à la personne connectée (✏️ À revoir : modifiée depuis son « ✓ Vu »), ou à des
+ * personnes et entités : combien l'ont vue sur combien (noms au survol ; personnes attendues, 052, si la page les a lues).
+ */
 export function PourInfoTag({ task }: { task: Task }) {
   const { data, user } = useStore();
   const club = useClubOptional();
   const n = nbPourInfo(task.pourInfo);
   if (!n || task.paiement) return null;
   const noms = ciblesPourInfo(task.pourInfo, data.people, club?.units ?? []).map((c) => c.texte).join(', ');
-  if (pourMoi(task, user?.id)) return <span className="badge pour-info" title={`On te tient au courant, sans que tu t'en occupes · pour info : ${noms}`}><Icone n="voir" /> Pour info</span>;
-  return <span className="badge pour-info" title={`Pour info : ${noms}`}><Icone n="voir" /> {n}</span>;
+  if (pourMoi(task, user?.id)) {
+    if (user && vuAvantModif(task.pourInfoVus?.[`p:${user.id}`], task))
+      return <span className="badge pour-info revoir" title={`Elle a changé depuis ton « ✓ Vu » · pour info : ${noms}`}>✏️ À revoir</span>;
+    return <span className="badge pour-info" title={`On te tient au courant, sans que tu t'en occupes · pour info : ${noms}`}><Icone n="voir" /> Pour info</span>;
+  }
+  const b = bilanVu(task, club ? attendusLus(task, club.current.id) : undefined);
+  const vu = texteVu(b);
+  return (
+    <span className="badge pour-info" title={`Pour info : ${noms}${vu ? ` · ${vu}` : ''}`}>
+      <Icone n="voir" /> {b.complet && b.total ? `${b.n}/${b.total}` : n}
+    </span>
+  );
 }
 
 /** Tâche à prendre, encore ouverte : « À prendre » (avec les places prises s'il faut plusieurs personnes). */

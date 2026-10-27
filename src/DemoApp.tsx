@@ -13,8 +13,9 @@ import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Person, Proposition,
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
-import { ajouterVus, clesVu } from './data/pourInfo';
+import { ajouterVus, attendusDe, clesVu, dernierAttendu } from './data/pourInfo';
 import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire } from './data/commentaires';
+import { changementsTache } from './data/historique';
 import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
 import { App } from './App';
@@ -26,6 +27,27 @@ import { uniteDuLien } from './data/lienPartage';
 // et, membre du comité central, celles qui lui sont ouvertes (consulter, ou aussi modifier / ajouter).
 
 // Entité d'un lien reçu (WhatsApp…), sinon la dernière ouverte.
+// Relances « Pour info » de la démo (entité:tâche → heure) : une par heure, dans ce navigateur.
+const relancesDemo = new Map<string, number>();
+
+/**
+ * Personnes attendues sur une tâche « Pour info » de l'entité `uniteId` (démo ; version réelle : 052) : une personne « a un
+ * compte » si sa fiche est active et a un email ; une entité mentionnée en entier, ses rôles « Voir toutes les tâches ».
+ */
+function attendusDemo(t: Task, uniteId: string, units: Unit[]) {
+  const lues = new Map<string, AppData | undefined>();
+  const de = (e: string) => {
+    if (!lues.has(e)) lues.set(e, units.some((x) => x.id === e && !x.archive) ? loadUnitData(e) : undefined);
+    return lues.get(e);
+  };
+  return attendusDe(
+    t,
+    uniteId,
+    (e, f) => !!de(e)?.people.some((p) => p.id === f && p.actif && !!p.email),
+    (e) => { const d = de(e); return d ? d.people.filter((p) => p.actif && !!p.email && hasPermission(userRoles(d.roles, p), 'tasks.viewAll')).map((p) => p.id) : []; },
+  );
+}
+
 const readUnit = () => {
   try {
     return uniteDuLien() ?? localStorage.getItem(UNIT_KEY);
@@ -477,6 +499,9 @@ export function DemoApp() {
         if (vue === 'ancienne') throw new Error(`Ancienne tâche de « ${u!.nom} » : elle se consulte et se copie, sans modification`);
         if (!u || !old || vue !== 'modifiable') throw new Error('Cette tâche n’est plus partagée avec cette entité.');
         const t = fusionPartagee(old, task, current.id, uniteId, { entites: units, centralId: central?.id, meetings: loadUnitData(current.id).meetings });
+        // Contenu modifié : date posée comme le fait le serveur (052).
+        const ch = changementsTache(old, t);
+        if (ch && Object.keys(ch.champs).some((k) => k !== 'pourInfo')) t.contenuLe = new Date().toISOString();
         d.tasks = d.tasks.map((x) => (x.id === old.id ? t : x));
         saveUnitData(uniteId, d);
       },
@@ -492,7 +517,7 @@ export function DemoApp() {
         const terminee = !!d.statuses.find((s) => s.id === old.statusId)?.done;
         const t = reponseAilleurs(old, current.id, fiche.id, prend, terminee);
         if (t === old) return;
-        d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...t, modifiePar: `${fiche.prenom} ${fiche.nom} (${current.nom})`.trim() } : x));
+        d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...t, modifiePar: `${fiche.prenom} ${fiche.nom} (${current.nom})`.trim(), contenuLe: new Date().toISOString() } : x));
         saveUnitData(uniteId, d);
       },
       // « ✓ Vu » sur une tâche d'une autre entité, pour info d'ici ou partagée (version réelle : gsa_pour_info_vu, 046).
@@ -506,9 +531,16 @@ export function DemoApp() {
         if (!u || u.archive || !old) throw new Error('Tâche introuvable');
         const cles = clesVu(old, uniteId, current.id, fiche.id, hasPermission(userRoles(ici.roles, fiche), 'tasks.viewAll'));
         if (!cles.length) throw new Error('Cette tâche n’est pas « pour info » pour toi');
-        const vus = ajouterVus(old.pourInfoVus, cles, new Date().toISOString());
+        const le = new Date().toISOString();
+        const vus = ajouterVus(old.pourInfoVus, cles, le, old.contenuLe);
         if (vus === old.pourInfoVus) return;
         d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, pourInfoVus: vus } : x));
+        // Dernier « ✓ Vu » attendu : l'auteur est prévenu, dans l'entité de la tâche (version réelle : 052).
+        if (old.createdBy && d.people.some((p) => p.id === old.createdBy && p.actif) && dernierAttendu(old.pourInfoVus, vus, attendusDemo(old, uniteId, units)))
+          d.notifications = [
+            { id: uid('n'), userId: old.createdBy, type: 'toutVu' as const, taskId: old.id, by: `x:${current.id}:${fiche.id}`, byName: `${`${fiche.prenom} ${fiche.nom}`.trim()} (${current.nom})`, at: le, titre: old.titre },
+            ...(d.notifications ?? []),
+          ].slice(0, 300);
         saveUnitData(uniteId, d);
       },
       // Historique d'une tâche (version réelle : gsa_historique_tache, 050 ; la démo ne vérifie pas qui la lit).
@@ -557,6 +589,36 @@ export function DemoApp() {
           de.notifications = [...notifs, ...(de.notifications ?? [])].slice(0, 300);
           saveUnitData(e, de);
         }
+      },
+      async suiviPourInfo(uniteId, tacheIds) {
+        const d = loadUnitData(uniteId);
+        return Object.fromEntries(d.tasks.filter((t) => tacheIds.includes(t.id) && t.pourInfo && !t.paiement).map((t) => [t.id, attendusDemo(t, uniteId, units)]));
+      },
+      // Relance (version réelle : gsa_pour_info_relancer, 052) : les personnes des autres entités prévenues dans leur entité,
+      // celles d'ici par le store.
+      async relancerPourInfo(tacheId, t) {
+        const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
+        if (!fiche) throw new Error('Réservé aux membres de l’entité.');
+        if (t.paiement || !t.pourInfo) throw new Error('Tâche introuvable');
+        const cle = `${current.id}:${tacheId}`;
+        if (Date.now() - (relancesDemo.get(cle) ?? 0) < 3600e3) throw new Error('Déjà relancée il y a moins d’une heure');
+        const le = new Date().toISOString();
+        const nom = `${`${fiche.prenom} ${fiche.nom}`.trim()} (${current.nom})`;
+        const parEntite = new Map<string, string[]>();
+        for (const k of attendusDemo(t, current.id, units).filter((x) => !t.pourInfoVus?.[x])) {
+          const [g, a, b] = k.split(':');
+          const [e, f] = g === 'p' ? [current.id, a] : [a, b];
+          if (!parEntite.get(e)?.includes(f)) parEntite.set(e, [...(parEntite.get(e) ?? []), f]);
+        }
+        for (const [e, fiches] of parEntite) {
+          if (e === current.id) continue;
+          const de = loadUnitData(e);
+          const notifs = fiches.map((f) => ({ id: uid('n'), userId: f, type: 'relance' as const, taskId: `x:${cle}`, by: `x:${current.id}:${fiche.id}`, byName: nom, at: le, titre: t.titre }));
+          de.notifications = [...notifs, ...(de.notifications ?? [])].slice(0, 300);
+          saveUnitData(e, de);
+        }
+        relancesDemo.set(cle, Date.now());
+        return { n: [...parEntite.values()].reduce((n, l) => n + l.length, 0), ici: parEntite.get(current.id) ?? [] };
       },
       async destinatairesPourInfo(uniteId, tacheId) {
         const t = loadUnitData(uniteId).tasks.find((x) => x.id === tacheId);

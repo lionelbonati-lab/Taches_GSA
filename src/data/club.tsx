@@ -203,6 +203,17 @@ export interface Club {
    * encore (046).
    */
   destinatairesPourInfo: (uniteId: string, tacheId: string) => Promise<Record<string, string[]> | null>;
+  /**
+   * Suivi des « Pour info » (052) de tâches de l'entité `uniteId` : tâche → personnes attendues (clés « p:… », « a:… »,
+   * « u:… » ; voir Attendus). null : le serveur ne le dit pas encore.
+   */
+  suiviPourInfo: (uniteId: string, tacheIds: string[]) => Promise<Record<string, string[]> | null>;
+  /**
+   * Relance (052) d'une tâche « Pour info » de l'entité ouverte (`tache` : celle de la fenêtre, pour la démo) : les personnes
+   * attendues qui ne l'ont pas vue sont prévenues. `n` : combien ; `ici` (démo) : celles de l'entité ouverte, que l'appli
+   * prévient elle-même.
+   */
+  relancerPourInfo: (tacheId: string, tache: Task) => Promise<{ n: number; ici: string[] }>;
   /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */
   sondagesPartages: () => Promise<SondagePartage[] | null>;
   /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */

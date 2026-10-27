@@ -1,7 +1,8 @@
+import { useState } from 'react';
 import { useStore } from '../../data/store';
 import { useClubOptional } from '../../data/club';
 import { memePersonne } from '../../data/partage';
-import { ciblesPourInfo, etatVu, vusDeLEntite } from '../../data/pourInfo';
+import { ciblesPourInfo, dernierVu, etatVu, vuAvantModif, vusDeLEntite, type Attendus } from '../../data/pourInfo';
 import { personnesDuRole } from '../../data/permissions';
 import type { PourInfo, Task, VuPourInfo } from '../../data/types';
 import { nomPoste } from '../../data/utils';
@@ -21,11 +22,17 @@ type Props = {
   vus: Record<string, VuPourInfo>;
   /** Entités mentionnées en entier : les personnes qui reçoivent la tâche (null : pas encore connues). */
   recoivent: Record<string, string[]> | null;
+  /** Personnes attendues (052 : avec un compte ; null : pas connues). */
+  attendus: Attendus | null;
+  /** La tâche telle qu'enregistrée (relance, personnes sans compte) ; null : nouvelle. */
+  enregistree: Task | null;
 };
 
-export function PourInfoChamp({ t, setT, isNew, dis, vus, recoivent }: Props) {
-  const { data, user } = useStore();
+export function PourInfoChamp({ t, setT, isNew, dis, vus, recoivent, attendus, enregistree }: Props) {
+  const { data, user, peutRelancer, relancerPourInfo, setToast } = useStore();
   const club = useClubOptional();
+  // Relance (052) : en cours, puis ce qu'elle a donné.
+  const [relance, setRelance] = useState('');
   if (!user) return null;
   // Pour info : personnes d'ici (sauf responsables), autres entités du club, personnes d'autres entités (« a:entité:fiche »).
   const info = t.pourInfo ?? {};
@@ -33,15 +40,38 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, recoivent }: Props) {
   // « ✓ Vu » (046) sur les pastilles, avec leur date ; une entité mentionnée en entier est vue quand chacune des personnes
   // qui la reçoivent (`recoivent`) l'a vue.
   const etats = Object.fromEntries(cibles.map((c) => [c.cle, etatVu(c.cle, vus, c.genre === 'unite' ? recoivent?.[c.id] : undefined)]));
+  // Personnes sans compte (052) : mentionnées dans la tâche enregistrée, mais pas attendues ; elles ne reçoivent rien et ne
+  // comptent pas.
+  const mentionnees = new Set(ciblesPourInfo(enregistree?.pourInfo, [], []).map((c) => c.cle));
+  const sansCompte = (c: (typeof cibles)[number]) => !isNew && !!attendus && c.genre !== 'unite' && mentionnees.has(c.cle) && !attendus.includes(c.cle);
+  const comptees = cibles.filter((c) => !sansCompte(c));
+  const nbSansCompte = cibles.length - comptees.length;
   // Bilan en personnes : une entité compte celles qui la reçoivent.
-  const toutVu = cibles.every((c) => etats[c.cle].etat === 'vu');
-  const nbVus = cibles.reduce((n, c) => n + etats[c.cle].n, 0);
-  const nbRecoivent = cibles.reduce((n, c) => n + etats[c.cle].total, 0);
-  const jourCourt = (s: string) => new Date(s).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit' });
-  const quandVu = (v: VuPourInfo) => {
-    const d = new Date(v.le);
-    return `Vu le ${d.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`;
+  const toutVu = comptees.length > 0 && comptees.every((c) => etats[c.cle].etat === 'vu');
+  const nbVus = comptees.reduce((n, c) => n + etats[c.cle].n, 0);
+  const nbRecoivent = comptees.reduce((n, c) => n + etats[c.cle].total, 0);
+  // Vue avant la dernière modification de la tâche (052) : une personne, ou des personnes d'une entité.
+  const avantModif = (c: (typeof cibles)[number]) =>
+    c.genre === 'unite' ? Object.values(vusDeLEntite(vus, c.id)).filter((v) => vuAvantModif(v, t)).length : vuAvantModif(vus[c.cle], t) ? 1 : 0;
+  const nbAvantModif = isNew ? 0 : comptees.reduce((n, c) => n + avantModif(c), 0);
+  const aRelancer = !isNew && !!enregistree && peutRelancer(enregistree) && nbVus < nbRecoivent;
+  const relancer = async () => {
+    if (!enregistree) return;
+    setRelance('…');
+    try {
+      const n = await relancerPourInfo(enregistree);
+      setRelance(n ? `🔔 ${n} personne${n > 1 ? 's' : ''} relancée${n > 1 ? 's' : ''}.` : 'Personne à relancer.');
+    } catch (e) {
+      setRelance('');
+      setToast(`⚠️ ${e instanceof Error ? e.message : e}`);
+    }
   };
+  const jourCourt = (s: string) => new Date(s).toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit' });
+  const date = (s: string) => {
+    const d = new Date(s);
+    return `${d.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`;
+  };
+  const quandVu = (v: VuPourInfo) => `Vu le ${date(v.le)}${v.revu ? `, revue le ${date(v.revu)}` : ''}`;
   // Entité mentionnée en entier : qui l'a vue (avec la date), qui pas encore.
   const vusEntite = (id: string) => {
     const membres = club?.units.find((u) => u.id === id)?.membres ?? [];
@@ -90,12 +120,21 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, recoivent }: Props) {
           const e = etats[c.cle];
           const v = c.genre === 'unite' ? undefined : vus[c.cle];
           const ve = !isNew && c.genre === 'unite' ? vusEntite(c.id) : undefined;
-          const titre = isNew ? undefined : v ? quandVu(v) : ve ? `Vue par ${e.n}${ve.connu ? ` sur ${e.total}` : ''}${ve.pasEncore.length ? ` ; pas encore : ${ve.pasEncore.join(', ')}` : ''}` : 'Pas encore « ✓ Vu »';
+          const gris = sansCompte(c);
+          const revoir = !isNew && !!v && vuAvantModif(v, t);
+          const nAvant = ve ? avantModif(c) : 0;
+          const titre = isNew ? undefined
+            : gris ? 'Sans compte (ou fiche inactive) : ne reçoit pas la tâche et ne compte pas dans « Vue par… »'
+            : v ? `${quandVu(v)}${revoir ? ` ; avant la dernière modification (${date(t.contenuLe!)})` : ''}`
+            : ve ? `Vue par ${e.n}${ve.connu ? ` sur ${e.total}` : ''}${ve.pasEncore.length ? ` ; pas encore : ${ve.pasEncore.join(', ')}` : ''}${nAvant ? ` ; ${nAvant} avant la dernière modification` : ''}`
+            : 'Pas encore « ✓ Vu »';
           return (
-            <span key={c.cle} className={`chip on ${dis ? 'locked' : ''} ${isNew ? '' : e.etat}`} title={titre}>
-              {!isNew && e.etat === 'vu' && <Icone n="ok" />}
+            <span key={c.cle} className={`chip on ${dis ? 'locked' : ''} ${isNew ? '' : gris ? 'sans-compte' : revoir ? 'revoir' : e.etat}`} title={titre}>
+              {!isNew && !gris && !revoir && e.etat === 'vu' && <Icone n="ok" />}
+              {revoir && <span aria-hidden="true">✏️</span>}
               {c.genre === 'unite' && iconeUnite(c.id)}{c.texte}
-              {v && <small className="chip-vu"><span className="sr-only">{quandVu(v)} : </span>{jourCourt(v.le)}</small>}
+              {gris && <small className="chip-vu">sans compte</small>}
+              {v && <small className="chip-vu"><span className="sr-only">{titre} : </span>{jourCourt(dernierVu(v))}</small>}
               {ve && (ve.connu || e.n > 0) && <small className="chip-vu"><span className="sr-only">{titre} : </span>{ve.connu ? `${e.n}/${e.total}` : `✓ ${e.n}`}</small>}
               {!dis && <button type="button" className="chip-x" aria-label={`Retirer ${c.texte}`} onClick={() => changerInfo(c.cle, false)}>✕</button>}
             </span>
@@ -130,13 +169,25 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, recoivent }: Props) {
         )}
       </div>
       {!isNew && cibles.length > 0 && (
-        <small className="pour-info-bilan">
-          {toutVu
-            ? '✓ Vue par tout le monde.'
-            : nbVus === 0
-              ? 'Personne ne l’a encore marquée « ✓ Vu ».'
-              : `✓ Vue par ${nbVus} personne${nbVus > 1 ? 's' : ''} sur ${nbRecoivent}.`}
-        </small>
+        <div className="pour-info-suivi">
+          <small className="pour-info-bilan">
+            {!comptees.length
+              ? 'Personne ne la reçoit : les personnes mentionnées n’ont pas de compte.'
+              : toutVu
+                ? '✓ Vue par tout le monde.'
+                : nbVus === 0
+                  ? 'Personne ne l’a encore marquée « ✓ Vu ».'
+                  : `✓ Vue par ${nbVus} personne${nbVus > 1 ? 's' : ''} sur ${nbRecoivent}.`}
+            {nbAvantModif > 0 && ` ✏️ ${nbAvantModif} l’${nbAvantModif > 1 ? 'ont' : 'a'} vue avant sa dernière modification.`}
+            {nbSansCompte > 0 && comptees.length > 0 && ` ${nbSansCompte} sans compte, pas comptée${nbSansCompte > 1 ? 's' : ''}.`}
+          </small>
+          {aRelancer && (
+            <button type="button" className="btn small" disabled={relance === '…'} onClick={relancer} title="Renvoyer une notification 🔔 aux personnes qui ne l’ont pas encore vue (une fois par heure)">
+              🔔 Relancer
+            </button>
+          )}
+          {relance && relance !== '…' && <small className="muted" role="status">{relance}</small>}
+        </div>
       )}
       {!isNew &&
         cibles
@@ -161,6 +212,7 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, recoivent }: Props) {
         Elles voient la tâche sans s’en occuper : les personnes d’ici dans « Mes tâches » (👁) avec une notification 🔔 ; les autres entités (leurs
         admins et les rôles « Voir toutes les tâches ») et leurs personnes, en lecture seule, à l’accueil et dans Tâches › 👁 Pour info. Quand
         elles la marquent « ✓ Vu », leur pastille passe du rouge au vert (✓ et la date) ; une entité compte chacune des personnes qui la reçoivent (orange : une partie l’a vue).
+        ✏️ : vue avant sa dernière modification. En gris : sans compte, elle ne reçoit rien. 🔔 Relancer renvoie une notification à celles qui ne l’ont pas encore vue.
       </small>
     </div>
   );

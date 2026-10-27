@@ -291,6 +291,12 @@ export interface Task {
    */
   pourInfoVus?: Record<string, VuPourInfo>;
   /**
+   * Dernière modification du contenu de la tâche (pas de « Pour info », ni discussion, ni « Vu ») : ceux qui l'avaient
+   * marquée « ✓ Vu » avant voient qu'elle a changé. Posée par l'appli à l'enregistrement ; le serveur la garde honnête et la
+   * pose lui-même pour les modifications faites depuis une entité du partage (052).
+   */
+  contenuLe?: string;
+  /**
    * Discussion sur la tâche (du plus ancien au plus récent). Écrite par le serveur seulement (gsa_commenter, 049) ;
    * démo : par l'appli.
    */
@@ -387,6 +393,8 @@ export interface PourInfo {
 /** « ✓ Vu » d'une tâche pour info : quand. */
 export interface VuPourInfo {
   le: string;
+  /** Revue après une modification de la tâche (contenuLe plus récent que le « Vu » précédent) : la dernière fois (052). */
+  revu?: string;
 }
 
 /** Commentaire de la discussion d'une tâche. */
@@ -608,7 +616,7 @@ export interface PvSettings {
   tri: 'delai' | 'statut' | 'titre';
   /** Afficher aussi les sections sans tâche (« Rien à signaler »), comme l'ordre du jour. */
   sectionsVides: boolean;
-  colonnes: { sousSection: boolean; echeance: boolean; statut: boolean; remarque: boolean; checklist: boolean; documents: boolean };
+  colonnes: { sousSection: boolean; echeance: boolean; statut: boolean; remarque: boolean; checklist: boolean; documents: boolean; pourInfo?: boolean };
   statutsExclus: string[];
   sectionsExclues: string[];
   orientation: 'portrait' | 'paysage';
@@ -755,9 +763,11 @@ export interface ActivityNotif {
    * info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge, refus : quelqu'un
    * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur ;
    * tâche d'une autre entité : taskId « x:<entité>:<tâche> ») ; mention : « @Prénom Nom » dans un commentaire (mentions.ts,
-   * écrit par l'appli de l'auteur ; detail : l'aperçu du message, comme le 💬 qu'il remplace).
+   * écrit par l'appli de l'auteur ; detail : l'aperçu du message, comme le 💬 qu'il remplace) ; relance : rappel d'une tâche
+   * « Pour info » pas encore vue (052 ; tâche d'une autre entité : taskId « x:<entité>:<tâche> ») ; toutVu : à l'auteur, tout
+   * le monde l'a marquée « ✓ Vu » (052).
    */
-  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus' | 'comment' | 'mention';
+  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus' | 'comment' | 'mention' | 'relance' | 'toutVu';
   taskId: string;
   by: string;
   /** Auteur hors de l'entité (membre du comité central) : son nom, à afficher tel quel. */

@@ -975,6 +975,30 @@ export async function pourInfoDestinataires(unite: string, tache: string) {
   return (data ?? {}) as Record<string, string[]>;
 }
 
+/**
+ * Personnes attendues (052) sur les tâches « Pour info » `taches` de l'entité `unite` : tâche → clés qui attendent un
+ * « ✓ Vu » (avec un compte ; entités : qui les reçoit). null sans 052.
+ */
+export async function pourInfoSuivi(unite: string, taches: string[]): Promise<Record<string, string[]> | null> {
+  const out: Record<string, string[]> = {};
+  for (let i = 0; i < taches.length; i += 500) {
+    const { data, error } = await sb().rpc('gsa_pour_info_suivi', { unite, taches: taches.slice(i, i + 500) });
+    if (error) {
+      if (absente(error)) return null;
+      throw new Error(error.message);
+    }
+    for (const [k, v] of Object.entries((data ?? {}) as Record<string, unknown>)) if (Array.isArray(v)) out[k] = v.map(String);
+  }
+  return out;
+}
+
+/** Relance (052) des personnes attendues qui n'ont pas encore vu la tâche `tache` de l'entité ouverte `unite` : combien. */
+export async function pourInfoRelancer(unite: string, tache: string, depuis: string) {
+  const { data, error } = await sb().rpc('gsa_pour_info_relancer', { unite, tache, depuis });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne relance pas encore les tâches « Pour info » (mise à jour 052 à appliquer).' : error.message);
+  return Number((data as { n?: number } | null)?.n) || 0;
+}
+
 /** Proposition d'amélioration de l'appli, enregistrée au comité central (le serveur y met le nom et l'entité de l'auteur). */
 export async function proposerAmelioration(club: string, source: string, p: NouvelleProposition) {
   const { data, error } = await sb().rpc('gsa_proposer_amelioration', { club, source, proposition: p });

@@ -92,6 +92,14 @@ export interface Store {
    * identifiant là-bas).
    */
   commenter: (tacheId: string, a: ActionCommentaire, uniteId?: string) => Promise<void>;
+  /**
+   * Relance (052) d'une tâche « Pour info » de l'entité ouverte : les personnes attendues qui ne l'ont pas encore vue
+   * reçoivent une notification 🔔, chacune dans son entité. Auteur, responsables, « Modifier toutes les tâches » ; une fois
+   * par heure au plus. Renvoie le nombre de personnes relancées.
+   */
+  relancerPourInfo: (t: Task) => Promise<number>;
+  /** La personne connectée peut relancer cette tâche (auteur, responsable, « Modifier toutes les tâches ») ; tâche d'ici. */
+  peutRelancer: (t: Task) => boolean;
   /** Message de confirmation affiché quelques secondes (ex. tâche récurrente reconduite). */
   toast: string | null;
   setToast: (msg: string | null) => void;

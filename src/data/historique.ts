@@ -23,7 +23,7 @@ export interface EntreeHistorique {
 /** Champs non suivis : notés ailleurs (discussion, « Vu »), techniques, ou recalculés par l'appli. */
 export const CHAMPS_IGNORES = [
   'updatedAt', 'commentaires', 'pourInfoVus', 'modifiePar', 'source', 'pieces', 'suivanteId', 'termineeLe', 'postesResp',
-  'createdBy', 'placePartage', 'parCentral', 'copieDe', 'attribueePar', 'proposee', 'id',
+  'createdBy', 'placePartage', 'parCentral', 'copieDe', 'attribueePar', 'proposee', 'id', 'contenuLe',
 ];
 /** Valeur trop longue pour l'historique : seul le changement est noté. */
 export const TROP_LONG = '(trop long)';
@@ -222,5 +222,6 @@ export function decrireEntree(e: EntreeHistorique, ctx: ContexteHistorique): str
   if (e.quoi === 'creee') return ['a créé la tâche'];
   if (e.quoi === 'supprimee') return ['a supprimé la tâche'];
   if (e.quoi === 'retablie') return ['a rétabli la tâche'];
-  return Object.entries(e.champs).map(([k, v]) => decrireChamp(k, v, ctx));
+  // Date de modification du contenu (052) : notée par le serveur avec le reste, pas un changement en soi.
+  return Object.entries(e.champs).filter(([k]) => !CHAMPS_IGNORES.includes(k)).map(([k, v]) => decrireChamp(k, v, ctx));
 }

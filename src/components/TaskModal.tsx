@@ -9,7 +9,8 @@ import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE } from '../data/partage';
-import { nbPourInfo, pourMoi } from '../data/pourInfo';
+import { nbPourInfo, pourMoi, recoiventDe, vuAvantModif } from '../data/pourInfo';
+import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { ailleurs, aPrendreOuverte, auteurAPrendre, pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
 import { attributionDe, attributions, entitesDependantes, sectionChez } from '../data/externes';
@@ -86,6 +87,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     return () => { fini = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- relu quand la tâche ou ses entités changent
   }, [club?.current.id, entitesInfo, task.id, task.source?.id, task.source?.uniteId]);
+  // Suivi (052) : les personnes attendues (avec un compte ; entités : qui les reçoit). Sans 052 : `recoivent` (046).
+  const attendus = useSuiviPourInfo(isNew ? [] : [task])[task.id] ?? null;
   if (!user) return null;
   // Partage avec d'autres entités du club (tâche de l'entité ouverte) ; tâche partagée par une autre entité : t.source.
   // Serveur à jour (041) : documents, répétition, séance d'ici et partage se modifient aussi depuis une entité du partage.
@@ -250,7 +253,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     setErr('');
     try {
       await vuPourInfo(task.id, task.source?.id ?? task.id, task.source?.uniteId);
-      setVuIci({ le: new Date().toISOString() });
+      const le = new Date().toISOString();
+      const avant = task.pourInfoVus?.[`p:${user!.id}`];
+      setVuIci(avant ? { ...avant, revu: le } : { le });
       setToast(`« ${task.titre} » : ton « ✓ Vu » est noté ; son auteur le voit.`);
     } catch (e) {
       setErr((e as Error).message);
@@ -269,7 +274,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const peutDupliquer = !isNew && !task.source && !task.paiement && creatableSections().some((s) => s.id === task.sectionId);
   const dupliquer = () => {
     const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
-    const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, pourInfoVus, commentaires, ...reste } = task;
+    const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, pourInfoVus, contenuLe, commentaires, ...reste } = task;
     setOther({
       task: {
         ...reste,
@@ -382,7 +387,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     .sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
   // Pour info : « ✓ Vu » enregistrés sur la tâche (046), avec celui que la personne vient de donner ici.
   const vus: Record<string, VuPourInfo> = isNew ? {} : { ...task.pourInfoVus, ...(vuIci ? { [`p:${user.id}`]: vuIci } : {}) };
-  const infoPourMoi = !isNew && pourMoi(task, user.id) && !vus[`p:${user.id}`];
+  // Pas encore vue, ou modifiée depuis mon « ✓ Vu » (052).
+  const monVu = vus[`p:${user.id}`];
+  const infoPourMoi = !isNew && pourMoi(task, user.id) && (!monVu || vuAvantModif(monVu, task));
   const auteurInfo = data.people.find((p) => p.id === task.createdBy && p.id !== user.id);
   // À prendre : places prises (bandeau de la personne à qui la tâche est proposée).
   const { nPrendre, nPris, quiPrend } = placesAPrendre(data, t);
@@ -472,7 +479,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         )}
         {infoPourMoi && (
           <div className="full pour-info-banner">
-            <span>👁 Pour info{auteurInfo ? <> de <b>{fullName(auteurInfo)}</b></> : ''} : tu es au courant de cette tâche, sans t’en occuper. Tu l’as vue ?</span>
+            {monVu ? (
+              <span>✏️ Elle a changé depuis ton « ✓ Vu » (modifiée le {fmtDateTime(task.contenuLe!)}) : tu as vu la nouvelle version ?</span>
+            ) : (
+              <span>👁 Pour info{auteurInfo ? <> de <b>{fullName(auteurInfo)}</b></> : ''} : tu es au courant de cette tâche, sans t’en occuper. Tu l’as vue ?</span>
+            )}
             <button type="button" className="btn" disabled={busy} onClick={marquerVu} title="Je suis au courant : son auteur le voit, et elle quitte mon accueil">
               <Icone n="ok" /> Vu
             </button>
@@ -623,7 +634,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
             )}
           </div>
         )}
-        {!t.paiement && voit('info') && <PourInfoChamp t={t} setT={setT} isNew={isNew} dis={dis} vus={vus} recoivent={recoivent} />}
+        {!t.paiement && voit('info') && <PourInfoChamp t={t} setT={setT} isNew={isNew} dis={dis} vus={vus} recoivent={attendus ? recoiventDe(attendus, task.pourInfo?.unites) : recoivent} attendus={attendus} enregistree={isNew ? null : task} />}
 
         {voit('checklist') && <Checklist t={t} setT={setT} dis={dis} />}
         {voit('docs') && (

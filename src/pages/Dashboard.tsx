@@ -1,14 +1,15 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, ScheduledEmail, Task } from '../data/types';
+import type { ClubEvent, ScheduledEmail, TachePartagee, Task } from '../data/types';
 import { daysUntil, derniereSeancePassee, endOf, estArchivee, fmtDate, fmtRange, isDone, isLate, today } from '../data/utils';
 import { aLaDate, horaire, occurrenceDu } from '../data/repetition';
 import { BoutonVu, TaskCard } from './Tasks';
 import { TaskModal } from '../components/FicheTache';
 import { Empty } from '../components/ui';
 import { PourInfoRecues, clePourInfo, delaiRecu } from '../components/PourInfo';
-import { pourMoi, termineeChezElle } from '../data/pourInfo';
+import { attendDesVus, bilanVu, clesVu, modifieeDepuisMonVu, pourMoi, termineeChezElle, vuAvantModif } from '../data/pourInfo';
+import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { aPrendrePourMoi } from '../data/aPrendre';
 import { echeance, isOpen } from '../data/polls';
 import { dueAt, emailState, fillTemplate, whenLabel } from '../data/emails';
@@ -33,6 +34,9 @@ export function Dashboard() {
   const [recue, setRecue] = useState<string | null>(null);
   // Blocs et compteurs que la personne a choisi de voir sur cet appareil, dans son ordre (« Personnaliser »).
   const { appareil, blocs, compteurs } = useAccueil();
+  // Mes tâches « Pour info » (auteur ou responsable), en cours : qui doit encore les voir (052 : personnes avec un compte).
+  const miennesInfo = data.tasks.filter((t) => !!user && t.pourInfo && !t.paiement && !t.source && !isDone(data, t) && (t.createdBy === user.id || t.responsables.includes(user.id)));
+  const suivi = useSuiviPourInfo(miennesInfo);
   if (!user) return null;
 
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
@@ -84,10 +88,14 @@ export function Dashboard() {
   const vus = prefs.pourInfoVus ?? {};
   const infoTout = data.tasks.filter((t) => pourMoi(t, user.id) && !isDone(data, t)).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   const recuesTout = pourInfo.filter((x) => !termineeChezElle(x)).sort((a, b) => (a.task.delai || '9999').localeCompare(b.task.delai || '9999'));
-  const infoIci = infoTout.filter((t) => !vus[t.id]);
-  const infoRecues = recuesTout.filter((x) => !vus[clePourInfo(x)]);
+  // Modifiée depuis mon « ✓ Vu » (052) : elle revient, avec ✏️.
+  const revoirIci = (t: Task) => vuAvantModif(t.pourInfoVus?.[`p:${user.id}`], t);
+  const revoirRecue = (x: TachePartagee) => !!club && modifieeDepuisMonVu(x.task, clesVu(x.task, x.uniteId, club.current.id, user.id, can('tasks.viewAll')));
+  const infoIci = infoTout.filter((t) => !vus[t.id] || revoirIci(t));
+  const infoRecues = recuesTout.filter((x) => !vus[clePourInfo(x)] || revoirRecue(x));
   const clesInfo = new Set([...infoTout.map((t) => t.id), ...recuesTout.map(clePourInfo)]);
-  const masquees = [...clesInfo].filter((k) => vus[k]).length;
+  const masquees = infoTout.length + recuesTout.length - infoIci.length - infoRecues.length;
+  const enAttente = miennesInfo.filter((t) => attendDesVus(bilanVu(t, suivi[t.id])));
   // « ✓ Vu » : la tâche quitte l'accueil, et son auteur voit que je l'ai vue (enregistré sur la tâche). `uniteId` : tâche
   // d'une autre entité (reçue pour info, partagée).
   const marquerVu = (cle: string, titre: string, tacheId: string, uniteId?: string) => {
@@ -104,7 +112,7 @@ export function Dashboard() {
   // À prendre : tâches qu'on me propose, tant qu'il reste une place.
   const aPrendre = data.tasks.filter((t) => aPrendrePourMoi(t, user.id) && !isDone(data, t)).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   // Blocs vides ce jour-là : ils ne prennent pas de place.
-  const vide = (id: string) => (id === 'aprendre' && !aPrendre.length) || (id === 'emails' && !toSend.length && !upcoming.length) || (id === 'sondages' && !toVote.length) || (id === 'compteurs' && !compteurs.length) || (id === 'pourinfo' && !infoIci.length && !infoRecues.length);
+  const vide = (id: string) => (id === 'aprendre' && !aPrendre.length) || (id === 'emails' && !toSend.length && !upcoming.length) || (id === 'sondages' && !toVote.length) || (id === 'compteurs' && !compteurs.length) || (id === 'pourinfo' && !infoIci.length && !infoRecues.length && !enAttente.length);
   const ordre = blocs.filter((id) => !vide(id));
 
   const rendre = (id: string): ReactNode => {
@@ -162,6 +170,16 @@ export function Dashboard() {
                 </button>
               )}
             </h2>
+            {enAttente.length > 0 && (
+              <p className="pour-info-attente">
+                <Link to="/taches?delai=pourinfo" title="Tes tâches « Pour info » en cours, et qui ne les a pas encore vues">
+                  <Icone n="voir" />{' '}
+                  {enAttente.length === 1
+                    ? `Ta tâche « ${enAttente[0].titre} » n’est pas encore vue par tout le monde`
+                    : `${enAttente.length} de tes tâches « Pour info » ne sont pas encore vues par tout le monde`}
+                </Link>
+              </p>
+            )}
             <div className="cards">
               {infoIci.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} onVu={() => marquerVu(t.id, t.titre, t.source?.id ?? t.id, t.source?.uniteId)} />)}
               {infoRecues.map((x) => {
@@ -176,7 +194,11 @@ export function Dashboard() {
                     <strong>{t.titre}</strong>
                     {t.remarque && <small className="muted clip">{t.remarque}</small>}
                     <div className="tcard-bottom">
-                      <span className="badge pour-info"><Icone n="voir" /> lecture seule</span>
+                      {revoirRecue(x) ? (
+                        <span className="badge pour-info revoir" title="Elle a changé depuis ton « ✓ Vu »">✏️ À revoir</span>
+                      ) : (
+                        <span className="badge pour-info"><Icone n="voir" /> lecture seule</span>
+                      )}
                       <span className={retard ? 'late-text' : 'muted'}>{delaiRecu(x)}</span>
                     </div>
                     <BoutonVu onVu={() => marquerVu(clePourInfo(x), t.titre, t.id, x.uniteId)} />

@@ -8,6 +8,7 @@ import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './utils'
 import { hasPermission, userRoles } from './permissions';
 import { GENRES, chf, genre, holders, paiementTasks } from './paiements';
 import type { DemandeMdp } from './cloud';
+import { clesVu, modifieeDepuisMonVu, pourMoi, vuAvantModif } from './pourInfo';
 
 // Notifications (cloche 🔔) calculées à partir des données : dans l'appli (src/notifications.ts), et sur le serveur
 // pour les notifications sur téléphone, appli fermée (fonction « gsa-push », par `npm run fonction`).
@@ -235,17 +236,33 @@ export function computeNotifications(
 
   // Un message où l'on est mentionné (📣) n'est pas annoncé une seconde fois en 💬.
   const mentions = new Set(p.assign ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === 'mention').map(memeMessage) : []);
+  const voitTout = hasPermission(userRoles(data.roles, user), 'tasks.viewAll');
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'mention'].includes(n.type);
+    const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'mention', 'relance'].includes(n.type);
     if ((nouvelle && !p.assign) || (!nouvelle && !p.modif)) continue;
     if (n.type === 'comment' && mentions.has(memeMessage(n))) continue;
-    if (n.type === 'comment' || n.type === 'mention') {
+    if (n.type === 'comment' || n.type === 'mention' || n.type === 'relance') {
       // Tâche d'ici, partagée (affichée ici) ou reçue pour info ; sinon (serveur : tâches partagées non lues), son titre.
       const ici = data.tasks.find((x) => x.id === n.taskId);
       const recue = ici ? undefined : pourInfo.find((x) => `x:${x.uniteId}:${x.task.id}` === n.taskId);
       const titre = ici?.titre ?? recue?.task.titre ?? n.titre;
       if (titre === undefined) continue;
+      if (n.type === 'relance') {
+        // Relance (052) d'une tâche « Pour info » : plus rien à faire si je l'ai vue entre-temps.
+        const vue = ici ? !!ici.pourInfoVus?.[`p:${user.id}`] : !!recue && !!courante && clesVu(recue.task, recue.uniteId, courante, user.id, voitTout).every((k) => recue.task.pourInfoVus?.[k]);
+        if (vue) continue;
+        items.push({
+          key: n.id,
+          icon: '🔔',
+          text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} te rappelle « ${titre} »`,
+          sub: 'pour info · pas encore marquée « ✓ Vu »',
+          link: recue ? `/taches?pourinfo=${recue.uniteId}:${recue.task.id}` : `/taches?tache=${n.taskId}`,
+          at: n.at,
+          kind: 'activite',
+        });
+        continue;
+      }
       items.push({
         key: n.id,
         icon: n.type === 'mention' ? '📣' : '💬',
@@ -264,9 +281,10 @@ export function computeNotifications(
     const by = n.byName ?? fullName(data.people.find((x) => x.id === n.by));
     items.push({
       key: n.id,
-      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : n.type === 'info' ? '👁' : n.type === 'propose' || n.type === 'pris' ? '🙋' : n.type === 'refus' ? '🙅' : '✏️',
+      icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : n.type === 'info' ? '👁' : n.type === 'propose' || n.type === 'pris' ? '🙋' : n.type === 'refus' ? '🙅' : n.type === 'toutVu' ? '✅' : '✏️',
       text:
         n.type === 'assign' ? `${by} t’a attribué « ${t.titre} »`
+        : n.type === 'toutVu' ? `Tout le monde a vu « ${t.titre} »`
         : n.type === 'info' ? `${by} te met au courant : « ${t.titre} »`
         : n.type === 'propose' ? `${by} te propose « ${t.titre} » : tu t’en charges ?`
         : n.type === 'pris' ? `${by} se charge de « ${t.titre} »`
@@ -277,6 +295,7 @@ export function computeNotifications(
         n.type === 'recur' ? (n.detail ? `nouveau délai : ${n.detail}` : 'sans délai')
         : n.type === 'modif' ? n.detail
         : n.type === 'refus' ? etatRefus(t)
+        : n.type === 'toutVu' ? `pour info · dernier « ✓ Vu » : ${by}`
         : t.delai ? `délai : ${fmtDate(t.delai)}` : undefined,
       link: `/taches?tache=${t.id}`,
       at: n.at,
@@ -299,6 +318,28 @@ export function computeNotifications(
         kind: 'activite',
       });
     }
+
+  // Tâches « Pour info » modifiées depuis mon « ✓ Vu » (052) : à revoir (une fois par modification).
+  if (p.modif) {
+    for (const t of data.tasks) {
+      if (!pourMoi(t, user.id) || isDone(data, t) || !vuAvantModif(t.pourInfoVus?.[`p:${user.id}`], t)) continue;
+      items.push({ key: `revoir:${t.id}:${t.contenuLe}`, icon: '✏️', text: `« ${t.titre} » a changé depuis ton « ✓ Vu »`, sub: 'pour info · à revoir', link: `/taches?tache=${t.id}`, at: t.contenuLe!, kind: 'activite' });
+    }
+    if (courante)
+      for (const x of pourInfo) {
+        const t = x.task;
+        if (x.statuts.find((s) => s.id === t.statusId)?.done || !modifieeDepuisMonVu(t, clesVu(t, x.uniteId, courante, user.id, voitTout))) continue;
+        items.push({
+          key: `revoir:${x.uniteId}:${t.id}:${t.contenuLe}`,
+          icon: '✏️',
+          text: `« ${t.titre} » a changé depuis ton « ✓ Vu »`,
+          sub: `${x.unite} · pour info · à revoir`,
+          link: `/taches?pourinfo=${x.uniteId}:${t.id}`,
+          at: t.contenuLe!,
+          kind: 'activite',
+        });
+      }
+  }
 
   return items
     .map((x) => ({ ...x, unread: !seen.has(x.key) }))

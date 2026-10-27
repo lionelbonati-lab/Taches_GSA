@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { nonLus } from '../data/commentaires';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { ciblesPourInfo, clesVu, termineeChezElle, vusDeLEntite } from '../data/pourInfo';
+import { ciblesPourInfo, clesVu, modifieeDepuisMonVu, termineeChezElle, vusDeLEntite } from '../data/pourInfo';
 import type { TachePartagee } from '../data/types';
 import { daysUntil, fmtDate } from '../data/utils';
 import { AvecLiens, Lien } from './Liens';
@@ -68,7 +68,9 @@ export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: T
                   return `${c.texte}${c.genre === 'unite' ? (n ? ` (✓ ${n})` : '') : t.pourInfoVus?.[c.cle] ? ' ✓' : ''}`;
                 });
                 const miennes = user && club ? clesVu(t, x.uniteId, club.current.id, user.id, can('tasks.viewAll')) : [];
-                const aVoir = miennes.length > 0 && !vuIci.includes(k) && miennes.some((c) => !t.pourInfoVus?.[c]);
+                // Pas encore vue, ou modifiée depuis mon « ✓ Vu » (052) : à revoir.
+                const revoir = !vuIci.includes(k) && modifieeDepuisMonVu(t, miennes);
+                const aVoir = miennes.length > 0 && !vuIci.includes(k) && (miennes.some((c) => !t.pourInfoVus?.[c]) || revoir);
                 // Comme les notifications : la tâche vue d'ici (« x:<entité>:<tâche> »).
                 const cle = `x:${k}`;
                 const msgs = t.commentaires?.length ?? 0;
@@ -81,6 +83,7 @@ export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: T
                         {' '}· {termineeChezElle(x) ? '✓ ' : ''}{st?.label ?? '?'} · {delaiRecu(x)}
                         {liste.length > 0 && ` · ☑ ${liste.filter((c) => c.done).length}/${liste.length}`}
                         {pourToi ? ' · pour toi' : ` · pour « ${ici} »`}
+                        {revoir && ' · ✏️ modifiée depuis ton « ✓ Vu »'}
                         {nl > 0 && <> · <Icone n="message" /> {nl} non lu{nl > 1 ? 's' : ''}</>}
                       </small>
                     </span>

@@ -8,7 +8,8 @@ import { avecSondages, avecVote, finSondage, sondageEnregistre } from './polls';
 import { applyRows, commenterTache, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
 import { useClubOptional } from './club';
 import { autresResponsables, avecPartagees, estPartagee, idPartagee, texteAutres, versOrigine } from './partage';
-import { ajouterVus, clesVu, encoreMontree, epurerPourInfo, pourMoi, recuePourMoi } from './pourInfo';
+import { ajouterVus, clesVu, dernierAttendu, encoreMontree, epurerPourInfo, pourMoi, recuePourMoi, vuAvantModif } from './pourInfo';
+import { changementsTache } from './historique';
 import { aPrendreOuverte, auteurAPrendre, epurerAPrendre, proposeeA } from './aPrendre';
 import { suivreExternes, versEntite } from './externes';
 import { migrate } from './migrate';
@@ -321,6 +322,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       // Écrits par le serveur (discussion, « Vu ») : ceux de la tâche enregistrée, pas ceux de la fenêtre ouverte plus tôt.
       task.commentaires = isNew ? undefined : before?.commentaires;
       task.pourInfoVus = isNew ? undefined : before?.pourInfoVus;
+      // Contenu modifié (pas seulement « Pour info ») : ceux qui l'avaient marquée « ✓ Vu » voient qu'elle a changé (052).
+      const changes = isNew ? null : changementsTache(before, task);
+      task.contenuLe = changes && Object.keys(changes.champs).some((k) => k !== 'pourInfo') ? task.updatedAt : before?.contenuLe;
       // Proposée à d'autres personnes : c'est la personne connectée qui est prévenue des réponses.
       if (task.aPrendre && userId && task.aPrendre.personnes.some((id) => !before?.aPrendre?.personnes.includes(id))) task.aPrendre.par = userId;
       // Une tâche récurrente retient les postes de ses responsables pour l'attribution suivante.
@@ -436,7 +440,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           const refus = (y.aPrendre.refus ?? []).filter((id) => id !== user.id);
           if (!prend) refus.push(user.id);
           const aPrendre = { ...y.aPrendre, refus: refus.length ? refus : undefined };
-          return { ...y, responsables: prend ? [...y.responsables, user.id] : y.responsables, aPrendre, updatedAt: at };
+          return { ...y, responsables: prend ? [...y.responsables, user.id] : y.responsables, aPrendre, updatedAt: at, contenuLe: at };
         });
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
       }, action, { annulable: false });
@@ -465,7 +469,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         return;
       }
       const x = data.tasks.find((y) => y.id === tacheId);
-      if (!x || !pourMoi(x, user.id) || x.pourInfoVus?.[`p:${user.id}`]) return;
+      // Déjà vue, sauf si elle a changé depuis (052 : revue).
+      const deja = x?.pourInfoVus?.[`p:${user.id}`];
+      if (!x || !pourMoi(x, user.id) || (deja && !vuAvantModif(deja, x))) return;
       if (cloud) {
         if (!c) return;
         await cloud.sync.flushNow();
@@ -475,9 +481,14 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         return;
       }
       const le = new Date().toISOString();
+      // Dernier « ✓ Vu » attendu : l'auteur est prévenu (version réelle : le serveur, 052).
+      const attendus = c && !deja ? (await c.suiviPourInfo(c.current.id, [x.id]).catch(() => null))?.[x.id] : undefined;
+      const auteur = x.createdBy !== user.id && data.people.some((p) => p.id === x.createdBy && p.actif) ? x.createdBy : undefined;
+      const toutVu = !!auteur && !!attendus && dernierAttendu(x.pourInfoVus, ajouterVus(x.pourInfoVus, [`p:${user.id}`], le), attendus);
       update((d) => {
-        d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, pourInfoVus: ajouterVus(y.pourInfoVus, [`p:${user.id}`], le) } : y));
-      }, `${fullName(user)} a vu la tâche « ${x.titre} » (pour info)`, { annulable: false });
+        d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, pourInfoVus: ajouterVus(y.pourInfoVus, [`p:${user.id}`], le, y.contenuLe) } : y));
+        if (toutVu) d.notifications = [{ id: uid('n'), userId: auteur!, type: 'toutVu' as const, taskId: x.id, by: user.id, at: le, titre: x.titre }, ...(d.notifications ?? [])].slice(0, 300);
+      }, `${fullName(user)} a ${deja ? 'revu' : 'vu'} la tâche « ${x.titre} » (pour info)`, { annulable: false });
     },
     [user, userId, data, cloud, update, chargerPartagees],
   );
@@ -531,6 +542,23 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       }, mentionNotifs.length ? mentionne : `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} la tâche « ${x.titre} »`, { annulable: false });
     },
     [user, data, cloud, update, chargerPartagees, partagees, pourInfoRecus, myRoles],
+  );
+
+  // Relance (052) : version réelle, le serveur prévient chacune des personnes attendues qui n'ont pas encore vu la tâche ;
+  // démo : celles des autres entités dans leur entité (club), celles d'ici ici.
+  const relancerPourInfo = useCallback(
+    async (x: Task) => {
+      const c = clubRef.current;
+      if (!user || !c) throw new Error('Connecte-toi d’abord.');
+      if (x.source || x.paiement) throw new Error('Une tâche se relance depuis son entité.');
+      if (cloud) await cloud.sync.flushNow();
+      const r = await c.relancerPourInfo(x.id, x);
+      const at = new Date().toISOString();
+      const notifs: ActivityNotif[] = r.ici.map((id) => ({ id: uid('n'), userId: id, type: 'relance', taskId: x.id, by: user.id, at, titre: x.titre }));
+      if (notifs.length) update((d) => { d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300); }, `${fullName(user)} a relancé la tâche « ${x.titre} » (pour info)`, { annulable: false });
+      return r.n;
+    },
+    [user, cloud, update],
   );
 
   const markNotifsRead = useCallback(
@@ -803,6 +831,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     pasDispo,
     vuPourInfo,
     commenter,
+    relancerPourInfo,
+    peutRelancer: (t) => !!user && !t.source && !t.paiement && (t.createdBy === user.id || t.responsables.includes(user.id) || can('tasks.editAny', t.sectionId)),
     toast,
     setToast,
     markNotifsRead,
