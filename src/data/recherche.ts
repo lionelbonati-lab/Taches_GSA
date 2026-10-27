@@ -26,9 +26,8 @@ export interface Resultat {
   detail?: string;
   /** Passage du texte où se trouve la recherche, quand ce n'est pas le titre. */
   extrait?: string;
-  /** Page à ouvrir (hash router) ; `entite` : entité à ouvrir à la place. */
+  /** Page à ouvrir (hash router). */
   lien?: string;
-  entite?: string;
   /** Classement : titre qui commence par la recherche, titre qui la contient, ailleurs. */
   score: number;
   /** Plus récent d'abord, à score égal. */
@@ -181,10 +180,8 @@ export function rechercher(q: string, c: Contexte): Resultat[] {
       );
     }
 
-  for (const u of c.entites ?? []) {
-    if (u.id === c.courante?.id) continue;
-    ajouter({ genre: 'entite', id: u.id, titre: u.nom, detail: UNIT_TYPES[u.type]?.label, entite: u.id, date: '' }, [u.nom]);
-  }
+  // Mes entités : dans l'organigramme (vue « moi » : on ne change pas d'entité).
+  for (const u of c.entites ?? []) ajouter({ genre: 'entite', id: u.id, titre: u.nom, detail: UNIT_TYPES[u.type]?.label, lien: '/organigramme', date: '' }, [u.nom]);
 
   return out.sort((a, b) => b.score - a.score || b.date.localeCompare(a.date) || a.titre.localeCompare(b.titre, 'fr'));
 }

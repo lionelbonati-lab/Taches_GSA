@@ -8,6 +8,8 @@ import { fmtDate, fullName } from '../data/utils';
 import { PageIntro, useNavigation } from '../components/Nav';
 import { Empty } from '../components/ui';
 import { ZoneTexte } from '../components/ZoneTexte';
+import { Chez } from '../data/entites';
+import { useComites } from '../data/comites';
 
 // Propositions d'amélioration de l'appli : tout membre du club en envoie au comité central et en suit la réponse ;
 // les admins du comité central les reçoivent (données du comité central), les étudient et y répondent.
@@ -28,16 +30,14 @@ export const STATUTS_PROPOSITION: Record<Proposition['statut'], { label: string;
 
 const EN_COURS: Proposition['statut'][] = ['nouvelle', 'etudiee', 'retenue'];
 
-/** Admin du comité central, dans le comité central : reçoit et traite les propositions. */
-export function useGereLesPropositions() {
-  const club = useClub();
-  const { can } = useStore();
-  return club.current.type === 'central' && can('admin.access');
+/** Admin du comité central : reçoit et traite les propositions, chez lui (vue « moi » : sans changer d'entité). */
+function useComiteCentralAdmin() {
+  return useComites()?.liste('admin.access').find((u) => u.type === 'central');
 }
 
 export function Propositions() {
   const club = useClub();
-  const gere = useGereLesPropositions();
+  const central = useComiteCentralAdmin();
   const { setToast } = useStore();
   const { mesPropositions, proposerAmelioration } = club;
   const [mes, setMes] = useState<Proposition[] | null | undefined>(undefined);
@@ -85,19 +85,10 @@ export function Propositions() {
         </section>
       )}
 
-      {gere ? (
-        <Recues />
-      ) : (
-        club.canManage &&
-        club.central &&
-        club.current.id !== club.central.id && (
-          <p className="panel muted">
-            Les propositions de tout le club arrivent au comité central.{' '}
-            <button className="btn small" onClick={() => club.switchUnit(club.central!.id, '#/propositions')}>
-              Les voir au {club.central.nom}
-            </button>
-          </p>
-        )
+      {central && (
+        <Chez id={central.id}>
+          <Recues />
+        </Chez>
       )}
     </div>
   );

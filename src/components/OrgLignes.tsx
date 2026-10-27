@@ -52,9 +52,6 @@ const ETROIT = 640;
 /** Page A4 en paysage, marges de 8 mm (px à 96 ppp). */
 const PAGE = { l: 1060, h: 700 };
 
-/** Ouvrir l'entité d'une carte ; sans `go` : c'est l'entité ouverte (« ✓ Ouverte »). */
-type Ouvrir = (u: OrgUnit) => { label: string; aide: string; go?: () => void } | undefined;
-
 /** Ce qu'on peut modifier depuis l'organigramme (mode « Modifier »). */
 export interface EditionLignes {
   /** La personne connectée peut-elle le faire ? Sinon, ce n'est pas un endroit où lâcher la carte. */
@@ -77,8 +74,6 @@ export interface OrgLignesProps {
   onFiche?: (m: OrgMember, uniteId: string) => void;
   /** Sous le nom, dans le profil (ex. « Organigramme 2025, en lecture seule. »). */
   note?: string;
-  /** Ouvrir l'entité d'une carte de groupe ou d'événement, si on peut. */
-  ouvrir?: Ouvrir;
   /** Titre imprimé au-dessus (ex. « Organigramme 2025 »), et en plein écran. */
   titre?: string;
   edition?: EditionLignes;
@@ -98,7 +93,6 @@ const lireReplies = () => {
 interface Ctx {
   /** Son profil ; `depuis` : sa place sur la carte (en modification, « ✋ Déplacer » la prend en main). */
   onPersonne: (m: OrgMember, uniteId: string, depuis?: Depuis, poste?: string) => void;
-  ouvrir?: Ouvrir;
   edition?: EditionLignes;
   tirer?: Tirer;
   /** « Déplacer… » : où peut aller cette carte. */
@@ -109,7 +103,7 @@ interface Ctx {
   mobiles?: Set<string>;
 }
 
-export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme', edition, barre }: OrgLignesProps) {
+export function OrgLignes({ units, onFiche, note, titre = 'Organigramme', edition, barre }: OrgLignesProps) {
   const plan = useMemo(() => planOrganigramme(units, !!edition), [units, edition]);
   const [replies, setReplies] = useState(lireReplies);
   const replier = (k: string) =>
@@ -249,7 +243,6 @@ export function OrgLignes({ units, onFiche, note, ouvrir, titre = 'Organigramme'
       if (tirer.juste() || g?.justeGlisse()) return;
       setProfil({ m, uniteId, deplacer: g && depuis && edition.peutFiche(depuis.uniteId) ? () => g.prendre(prisePersonne(m, depuis, poste)) : undefined });
     },
-    ouvrir,
     edition,
     tirer: edition ? tirer : undefined,
     onDeplacer: edition ? (source, t) => !tirer.juste() && setDeplacer({ source, titre: t }) : undefined,
@@ -611,7 +604,6 @@ function CarteEnt({
   mesure?: (el: HTMLElement | null) => void;
 }) {
   const t = UNIT_TYPES[e.u.type];
-  const o = e.manifestation ? undefined : ctx.ouvrir?.(e.u);
   const quand = e.u.date ? fmtRange(e.u.date, e.u.dateFin) : '';
   const ed = ctx.edition;
   const regler = e.manifestation ? undefined : ed?.modifier?.(e.u.id);
@@ -717,7 +709,7 @@ function CarteEnt({
           )}
         </div>
       )}
-      {(fiche || o || regler) && (
+      {(fiche || regler) && (
         <div className="orgl-entite-pied">
           {regler && (
             <button type="button" className="orgl-plus" title={`Modifier « ${e.u.nom} » (nom, couleur, date, « Dépend de »…)`} aria-label={`Modifier « ${e.u.nom} »`} onClick={regler}>
@@ -729,29 +721,16 @@ function CarteEnt({
               ＋ Poste
             </button>
           )}
-          {o && <BoutonOuvrir o={o} />}
         </div>
       )}
     </div>
   );
 }
 
-/** « Ouvrir › » une entité, ou « ✓ Ouverte » pour celle qui l'est. */
-function BoutonOuvrir({ o }: { o: NonNullable<ReturnType<Ouvrir>> }) {
-  return o.go ? (
-    <button type="button" className="orgl-ouvrir" title={o.aide} onClick={o.go}>
-      {o.label} ›
-    </button>
-  ) : (
-    <span className="orgl-ouvrir orgl-ouverte" title={o.aide}>✓ {o.label}</span>
-  );
-}
-
-/** En-tête d'un cadre : le comité (ou « Sans comité »), sa date, « Ouvrir › » ; en modification : « ＋ Poste », ⚙️. */
+/** En-tête d'un cadre : le comité (ou « Sans comité »), sa date ; en modification : « ＋ Poste », ⚙️. */
 function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx }) {
   const t = c.u ? UNIT_TYPES[c.u.type] : undefined;
   const regler = c.u ? ctx.edition?.modifier?.(c.u.id) : undefined;
-  const o = c.u ? ctx.ouvrir?.(c.u) : undefined;
   return (
     <h3 className="orgl-cadre-tete">
       {c.u ? <UnitMark className="org-icon" logo={c.u.logo} couleur={c.couleur} icone={t!.trait} perso={c.u.icone} /> : <span className="org-icon" style={{ background: SANS_COMITE }} aria-hidden="true"><Icone n="compte" /></span>}
@@ -767,7 +746,6 @@ function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx
           <Icone n="reglages" />
         </button>
       )}
-      {o && <BoutonOuvrir o={o} />}
     </h3>
   );
 }

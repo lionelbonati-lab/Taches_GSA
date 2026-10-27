@@ -122,8 +122,7 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
 
   const ouvrir = (r: Resultat) => {
     onClose();
-    if (r.entite) club?.switchUnit(r.entite);
-    else if (r.lien) navigate(r.lien);
+    if (r.lien) navigate(r.lien);
   };
   const clavier = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') onClose();

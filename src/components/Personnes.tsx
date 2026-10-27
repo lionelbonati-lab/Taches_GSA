@@ -76,7 +76,7 @@ export function FichePersonne({ id, onClose }: { id: string; onClose: () => void
 }
 
 /** Fiche d'une personne d'une autre entité (organigramme) : en lecture ; un admin de l'entité l'y ouvre pour la modifier. */
-export function FicheMembre({ u, m, onModifier, onClose }: { u: OrgUnit; m: OrgMember; onModifier?: () => void; onClose: () => void }) {
+export function FicheMembre({ u, m, onClose }: { u: OrgUnit; m: OrgMember; onClose: () => void }) {
   const aussi = useAussi(personKey(m, u.id), u.id);
   const via = useVia(m.viaEntite);
   return (
@@ -89,7 +89,6 @@ export function FicheMembre({ u, m, onModifier, onClose }: { u: OrgUnit; m: OrgM
       email={m.email}
       roles={m.roles.map((label) => ({ label, couleur: u.couleur }))}
       aussi={aussi}
-      action={onModifier && <button className="btn primary" onClick={onModifier}>Modifier dans « {u.nom} »</button>}
       onClose={onClose}
     />
   );

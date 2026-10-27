@@ -151,7 +151,8 @@ export function Layout() {
   const sortirLabel = <><Icone n={cloud ? 'sortir' : 'changer'} /> {cloud ? 'Se déconnecter' : 'Changer d’utilisateur'}</>;
 
   return (
-    <div className="app">
+    // data-entite : l'entité ouverte (son logo, sa couleur), qui ne s'affiche plus ailleurs (tests de la démo).
+    <div className="app" data-entite={club?.current.id}>
       <header className="topbar">
         <div className="brand">
           <AppLogo src={logoReady ? logo ?? null : undefined} size={30} />

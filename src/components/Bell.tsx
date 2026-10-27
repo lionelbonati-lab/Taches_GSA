@@ -6,7 +6,7 @@ import { useClubOptional } from '../data/club';
 import { pageParEntite, PERMS_COMITE, useComites } from '../data/comites';
 
 /** Pages qui réunissent toutes mes entités (vue « moi »). */
-const PAGES_REUNIES = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/sondages'];
+const PAGES_REUNIES = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/sondages', '/propositions'];
 import { Icone } from './icones';
 
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */

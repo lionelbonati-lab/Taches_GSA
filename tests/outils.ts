@@ -29,23 +29,24 @@ export async function allerA(page: Page, chemin: string) {
   await page.evaluate((h) => { location.hash = h; }, `#${chemin}`);
 }
 
-/** L'entité ouverte est `nom` : « ✓ Ouverte » sur son cadre de l'organigramme (puis retour à la page d'avant). */
+/** Entités de la démo. */
+const ENTITES: Record<string, string> = { 'Comité central': 'u-central', 'Soirée récréative': 'u-soiree' };
+
+/**
+ * L'entité ouverte est toujours `nom` (rien n'a changé d'entité). Vue « moi » : elle ne se choisit plus dans l'appli
+ * (son logo et sa couleur seulement) ; l'appli la donne dans l'attribut data-entite.
+ */
 export async function verifierEntite(page: Page, nom: string) {
   await expect(page.locator('.topbar .brand')).toBeVisible();
-  const avant = await page.evaluate(() => location.hash);
-  await allerA(page, '/organigramme');
-  await expect(page.getByTitle(`Entité ouverte « ${nom} »`).filter({ visible: true }).first()).toBeVisible();
-  await page.evaluate((h) => { location.hash = h; }, avant);
+  await expect(page.locator('.app')).toHaveAttribute('data-entite', ENTITES[nom]);
 }
 
-/** Ouvre l'une de mes entités depuis l'organigramme (« Ouvrir › » de son cadre ou de sa carte ; rien si elle l'est déjà). */
+/** L'appli rouverte dans l'une de mes entités (celle de la connexion, comme après un lien reçu vers elle). */
 export async function ouvrirEntite(page: Page, nom: string) {
   await expect(page.locator('.topbar .brand')).toBeVisible();
-  await allerA(page, '/organigramme');
-  const ouvrir = page.getByTitle(`Ouvrir « ${nom} »`).filter({ visible: true }).first();
-  const ouverte = page.getByTitle(`Entité ouverte « ${nom} »`).filter({ visible: true }).first();
-  await expect(ouvrir.or(ouverte).first()).toBeVisible();
-  if (!(await ouverte.isVisible())) await ouvrir.click();
+  if ((await page.locator('.app').getAttribute('data-entite')) === ENTITES[nom]) return;
+  await page.evaluate((id) => localStorage.setItem('taches-gsa-demo-unite', id), ENTITES[nom]);
+  await page.reload();
   await verifierEntite(page, nom);
 }
 

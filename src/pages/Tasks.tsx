@@ -257,7 +257,6 @@ export function Tasks() {
           trouve={!!edit}
           nom="une tâche"
           introuvable="Tâche introuvable : elle a peut-être été supprimée, ou ton rôle ne te permet pas de la voir."
-          chemin={`/taches?tache=${encodeURIComponent(lienTache)}`}
         />
       )}
 

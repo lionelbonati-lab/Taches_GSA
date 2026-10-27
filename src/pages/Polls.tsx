@@ -66,7 +66,6 @@ export function Polls() {
           trouve={!!focused}
           nom="un sondage"
           introuvable="Sondage introuvable : il a peut-être été supprimé, ou tu ne fais pas partie de ses votants."
-          chemin={`/sondages?id=${encodeURIComponent(focus)}`}
         />
       )}
       {focused ? (

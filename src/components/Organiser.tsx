@@ -432,7 +432,6 @@ export interface ActionsFiche {
   onLien: (id: string) => void;
   /** « + Ajouter une personne » : sa fiche complète. */
   onAjouter?: () => void;
-  ouvrir?: { label: string; aide: string; go: () => void };
   onModifier?: () => void;
 }
 
@@ -455,7 +454,6 @@ export function Fiche({ u, o, a }: { u: OrgUnit; o: OrgaVue; a: ActionsFiche }) 
   const cible = (s: string) => (pose ? k(s) : undefined);
   const sur = (s: string) => (pose && g.survol === k(s) ? 'survol' : '');
   const deplie = o.deplies.has(u.id);
-  const ouverte = !o.units && u.id === club.current.id;
   const prise = (m: OrgMember, depuis: Depuis, poste?: string): Prise => ({ qui: quiDeMembre(m), depuis, nom: nomDe(m), couleur: m.couleur, poste });
   // Une ligne qu'on peut glisser : à la souris partout, au doigt par la poignée ⠿ (un toucher la met en main).
   const tirer = (m: OrgMember, depuis: Depuis, poste?: string) =>
@@ -572,24 +570,18 @@ export function Fiche({ u, o, a }: { u: OrgUnit; o: OrgaVue; a: ActionsFiche }) 
       </span>
       <span className="arbre-meta">
         <span>{u.membres.length} membre{u.membres.length > 1 ? 's' : ''}</span>
-        {ouverte && <span className="arbre-ouverte">ouverte</span>}
-        {a.ouvrir && <span className="arbre-lien">{a.ouvrir.label} ›</span>}
       </span>
     </>
   );
   return (
     <div
-      className={`arbre-noeud fiche ${ouverte ? 'ouverte' : ''} ${u.archive ? 'archived' : ''} ${pose ? 'fiche-pose' : ''}`}
+      className={`arbre-noeud fiche ${u.archive ? 'archived' : ''} ${pose ? 'fiche-pose' : ''}`}
       style={{ borderTopColor: u.couleur }}
       data-noeud={u.id}
     >
       {/* Titre : poser une personne ici en fait un ★ (en plus des autres) ; sur un ★, à sa place. */}
       <div className={`fiche-titre ${sur('titre')}`} data-cible={cible('titre')}>
-        {a.ouvrir ? (
-          <button type="button" className="arbre-tete" title={a.ouvrir.aide} onClick={a.ouvrir.go}>{texte}</button>
-        ) : (
-          <div className="arbre-tete">{texte}</div>
-        )}
+        <div className="arbre-tete">{texte}</div>
         <div className="fiche-etoiles">
           {z.etoiles.map(({ m, postes }) => {
             const { onPointerDown, poignee } = tirer(m, { uniteId: u.id, personId: m.id, zone: 'titre' });
@@ -675,7 +667,7 @@ export function Fiche({ u, o, a }: { u: OrgUnit; o: OrgaVue; a: ActionsFiche }) 
       {(a.onAjouter || a.onModifier) && (
         <div className="arbre-pied">
           {a.onAjouter && (
-            <button type="button" className="arbre-ajout" title={ouverte ? `Ajouter une personne (sa fiche complète) ou toute une entité à « ${u.nom} »` : `Ouvrir « ${u.nom} » et y ajouter une personne`} onClick={a.onAjouter}>
+            <button type="button" className="arbre-ajout" title={`Ajouter une personne (sa fiche complète) à « ${u.nom} »`} onClick={a.onAjouter}>
               + Ajouter une personne
             </button>
           )}

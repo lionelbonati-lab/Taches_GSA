@@ -81,7 +81,14 @@ export function SupprimerEntite({ id, nom, onClose, onFait }: { id: string; nom:
         </>
       )}
       {ouverte ? (
-        <p className="error">C’est l’entité ouverte : ouvre une autre entité (le comité central) pour la supprimer.</p>
+        <p className="error">
+          L’appli est ouverte sur cette entité : passe au comité central pour la supprimer.{' '}
+          {club.central && club.central.id !== id && (
+            <button type="button" className="btn small" onClick={() => club.switchUnit(club.central!.id, '#/organigramme')}>
+              Passer au comité central
+            </button>
+          )}
+        </p>
       ) : (
         apercu && (
           <label className="full">

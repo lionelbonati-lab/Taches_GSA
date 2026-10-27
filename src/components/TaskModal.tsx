@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { TaskModal as FicheTache } from './FicheTache';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
@@ -76,6 +77,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
     ...(task.aPrendre ? ['prendre' as const] : []),
   ]);
   const [nouvelEmail, setNouvelEmail] = useState(false);
+  // Tâche partagée par l'une de mes autres entités : ouverte chez elle, sur place (vue « moi »).
+  const [chezElle, setChezElle] = useState(false);
   const club = useClubOptional();
   // Pour info : « ✓ Vu » de la personne connectée (la tâche quitte son accueil ; l'auteur voit qu'elle l'a vue).
   const [vuIci, setVuIci] = useState<VuPourInfo | null>(null);
@@ -400,6 +403,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
   // Tâche partagée : ce qui se gère dans son entité, et de quoi l'y ouvrir si on en fait partie.
   const chezSource = t.source && club?.units.find((u) => u.id === t.source!.uniteId && u.moi && !u.archive);
   const jeDecline = aDecline(task, user.id);
+  if (chezElle && task.source) return <FicheTache task={{ ...task, source: { ...task.source, chezMoi: true } }} isNew={false} onClose={onClose} />;
 
   return (
     <Modal
@@ -691,8 +695,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
             {chezSource && (
               <>
                 {' '}
-                <button type="button" className="link-btn" onClick={() => { cancel(); club!.switchUnit(chezSource.id, `#/taches?tache=${t.source!.id}`); }}>
-                  Ouvrir dans « {chezSource.nom} »
+                <button type="button" className="link-btn" onClick={() => { deleteFiles(track.current.added); track.current.added = []; setChezElle(true); }}>
+                  Ouvrir la tâche de « {chezSource.nom} »
                 </button>
               </>
             )}
