@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from '../../data/store';
 import { useClubOptional } from '../../data/club';
-import { COMMENTAIRE_MAX, deMoi, dernierMessage, type ActionCommentaire } from '../../data/commentaires';
+import { COMMENTAIRE_MAX, deMoi, dernierMessage, parMoi, type ActionCommentaire } from '../../data/commentaires';
 import { decouper, mentionEnCours, mentionnables, proposer } from '../../data/mentions';
 import type { Commentaire, Person } from '../../data/types';
 import { addDays, fmtDate, fmtDateTime, fullName, localNow } from '../../data/utils';
@@ -58,7 +58,7 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   // Messages des autres arrivés depuis la dernière lecture, à l'ouverture : le premier est repéré.
   const [nonLus] = useState(() => {
     const lu = user ? data.discussionsLues?.[user.id]?.[cle] : undefined;
-    const l = user ? liste.filter((c) => !deMoi(c, user.id, ici, unite) && (!lu || c.le > lu)) : [];
+    const l = user ? liste.filter((c) => !parMoi(c, user.id, ici, unite, club?.mesFiches) && (!lu || c.le > lu)) : [];
     return { premier: l[0]?.id, nombre: l.length };
   });
   const dernier = dernierMessage(liste);
@@ -153,7 +153,9 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
           {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par la tâche sont prévenues 🔔.</p>}
           <ul className="discussion-liste">
             {liste.map((c, i) => {
-              const mien = deMoi(c, user.id, ici, unite);
+              // Les miens à droite, même écrits depuis une autre de mes entités ; ceux-là se corrigent depuis celle-ci.
+              const mien = parMoi(c, user.id, ici, unite, club?.mesFiches);
+              const corrigeable = mien && deMoi(c, user.id, ici, unite);
               const ent = entite(c);
               const jour = jourDe(c.le);
               return (
@@ -193,10 +195,11 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
                         <p className="discussion-texte"><AvecMentions texte={c.texte} people={data.people} moi={user.id} /></p>
                       )}
                       <div className="discussion-pied">
-                        {mien && corrige?.id !== c.id && (
+                        {mien && !corrigeable && ent && <small className="muted" title={`Pour le corriger, ouvre « ${ent} »`}>depuis {ent}</small>}
+                        {corrigeable && corrige?.id !== c.id && (
                           <button type="button" className="btn link small" disabled={busy} onClick={() => setCorrige({ id: c.id, texte: c.texte })}>Corriger</button>
                         )}
-                        {(mien || moderer) && corrige?.id !== c.id && (
+                        {(corrigeable || moderer) && corrige?.id !== c.id && (
                           <button
                             type="button"
                             className="btn link small"

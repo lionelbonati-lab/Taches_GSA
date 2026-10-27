@@ -90,6 +90,21 @@ export function DemoApp() {
     [units, me, version],
   );
 
+  // Ma fiche dans chacune de mes entités : mes messages écrits d'ailleurs restent les miens.
+  const mesFiches = useMemo(
+    () =>
+      Object.fromEntries(
+        me
+          ? units.flatMap((u) => {
+              const p = loadUnitData(u.id).people.find((x) => personKey(x, u.id) === me);
+              return p ? [[u.id, p.id]] : [];
+            })
+          : [],
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [units, me, version],
+  );
+
   const refresh = useCallback(() => setVersion((v) => v + 1), []);
   // Historique de l'organigramme : photo de l'année en cours, reprise à chaque changement.
   useEffect(() => photographierDemo(org), [org]);
@@ -165,6 +180,7 @@ export function DemoApp() {
       current,
       central,
       mine: mineAll.filter((u) => !u.archive || u.id === current.id),
+      mesFiches,
       canManage: !!central?.moiAdmin,
       // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
       liens: false,
@@ -584,7 +600,7 @@ export function DemoApp() {
         for (const [e, fiches] of Object.entries(destinatairesCommentaire(old, uniteId, fiche.id, current.id))) {
           if (e === current.id || !units.some((x) => x.id === e && !x.archive)) continue;
           const de = e === uniteId ? d : loadUnitData(e);
-          const notifs = notifsCommentaire(fiches.filter((f) => de.people.some((p) => p.id === f && p.actif)), { entite: e, unite: uniteId, tache: old.id, titre: old.titre, moi: fiche.id, depuis: current.id, nom, nomDepuis: current.nom, texte: a.texte ?? '', le });
+          const notifs = notifsCommentaire(fiches.filter((f) => de.people.some((p) => p.id === f && p.actif && personKey(p, e) !== me)), { entite: e, unite: uniteId, tache: old.id, titre: old.titre, moi: fiche.id, depuis: current.id, nom, nomDepuis: current.nom, texte: a.texte ?? '', le });
           if (!notifs.length) continue;
           de.notifications = [...notifs, ...(de.notifications ?? [])].slice(0, 300);
           saveUnitData(e, de);
@@ -763,7 +779,7 @@ export function DemoApp() {
       superAdmin: false,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org, current, central, mineAll, switchUnit, refresh, units, me, membresAcces, caissier]);
+  }, [org, current, central, mineAll, mesFiches, switchUnit, refresh, units, me, membresAcces, caissier]);
 
   const personId = useMemo(() => {
     if (!current || !me) return null;

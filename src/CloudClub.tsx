@@ -112,6 +112,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       current,
       central,
       mine: units.filter((u) => u.moi && reachable.has(u.id) && (!u.archive || u.id === current.id)),
+      mesFiches: Object.fromEntries(list.flatMap((x) => (x.personId ? [[x.committeeId, x.personId]] : []))),
       canManage: !!central?.moiAdmin,
       // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
       liens: false,

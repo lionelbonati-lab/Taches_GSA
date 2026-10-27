@@ -74,7 +74,7 @@ export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: T
                 // Comme les notifications : la tâche vue d'ici (« x:<entité>:<tâche> »).
                 const cle = `x:${k}`;
                 const msgs = t.commentaires?.length ?? 0;
-                const nl = user ? nonLus(t.commentaires, data.discussionsLues?.[user.id]?.[cle], user.id, club?.current.id ?? '', x.uniteId) : 0;
+                const nl = user ? nonLus(t.commentaires, data.discussionsLues?.[user.id]?.[cle], user.id, club?.current.id ?? '', x.uniteId, club?.mesFiches) : 0;
                 return (
                   <li key={k} className={termineeChezElle(x) ? 'pour-info-finie' : ''}>
                     <span className="pour-info-titre">

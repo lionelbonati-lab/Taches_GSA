@@ -352,7 +352,7 @@ var DEFAULT_NOTIF = {
   semaine: true,
   systeme: false
 };
-function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], units = [], courante) {
+function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], units = [], courante, mesFiches = {}) {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items = [];
   const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -514,6 +514,8 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
   const voitTout = hasPermission(userRoles(data.roles, user), "tasks.viewAll");
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
+    const [ailleurs2, e, f] = (n.by ?? "").split(":");
+    if (ailleurs2 === "x" && !!f && mesFiches[e] === f) continue;
     const nouvelle = ["assign", "info", "propose", "pris", "refus", "mention", "relance"].includes(n.type);
     if (nouvelle && !p.assign || !nouvelle && !p.modif) continue;
     if (n.type === "comment" && mentions.has(memeMessage(n))) continue;
@@ -657,7 +659,7 @@ function notificationsPush(o) {
   if (!moi || moi.actif === false) return [];
   const p = { ...DEFAULT_NOTIF, ...prefs[o.fiche]?.notif };
   const d = avecSondages(data, [], o.courante, [], o.fiche);
-  return computeNotifications(d, moi, p, o.demandesMdp ?? [], o.pourInfo ?? [], [], o.courante).filter((x) => x.unread);
+  return computeNotifications(d, moi, p, o.demandesMdp ?? [], o.pourInfo ?? [], [], o.courante, o.mesFiches).filter((x) => x.unread);
 }
 var cleEnvoi = (cle) => cle.startsWith("retard:") ? cle.split(":").slice(0, 2).join(":") : cle;
 var urlPush = (unite, lien) => `./?reel=${encodeURIComponent(unite)}#${lien}`;

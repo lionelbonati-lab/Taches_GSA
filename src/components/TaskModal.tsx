@@ -266,7 +266,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   // Discussion de la tâche enregistrée (relue en direct, pas celle de la fenêtre), dans sa propre fenêtre : la bulle en
   // haut l'ouvre et compte les messages pas encore lus.
   const commentaires = (data.tasks.find((x) => x.id === task.id) ?? task).commentaires ?? [];
-  const nl = user ? nonLus(commentaires, data.discussionsLues?.[user.id]?.[task.id], user.id, club?.current.id ?? '', task.source?.uniteId ?? club?.current.id ?? '') : 0;
+  const nl = user ? nonLus(commentaires, data.discussionsLues?.[user.id]?.[task.id], user.id, club?.current.id ?? '', task.source?.uniteId ?? club?.current.id ?? '', club?.mesFiches) : 0;
 
   // Dupliquer : une nouvelle tâche pré-remplie d'après la tâche enregistrée, à compléter puis créer (« À faire », checklist
   // décochée). Ses fichiers restent communs avec l'original (gardés tant que l'une des deux les utilise) ; emails et

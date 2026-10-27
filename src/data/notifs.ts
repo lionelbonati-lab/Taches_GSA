@@ -51,6 +51,7 @@ export function ago(iso: string) {
 
 export function computeNotifications(
   data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = [], pourInfo: TachePartagee[] = [], units: OrgUnit[] = [], courante?: string,
+  mesFiches: Record<string, string> = {},
 ): NotifItem[] {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items: Omit<NotifItem, 'unread'>[] = [];
@@ -239,6 +240,9 @@ export function computeNotifications(
   const voitTout = hasPermission(userRoles(data.roles, user), 'tasks.viewAll');
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
+    // Écrite par moi depuis une autre de mes entités (« x:<entité>:<fiche> ») : rien à m'annoncer.
+    const [ailleurs, e, f] = (n.by ?? '').split(':');
+    if (ailleurs === 'x' && !!f && mesFiches[e] === f) continue;
     const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'mention', 'relance'].includes(n.type);
     if ((nouvelle && !p.assign) || (!nouvelle && !p.modif)) continue;
     if (n.type === 'comment' && mentions.has(memeMessage(n))) continue;

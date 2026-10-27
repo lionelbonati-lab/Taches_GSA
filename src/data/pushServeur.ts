@@ -25,15 +25,15 @@ function donnees(lignes: LignePush[]) {
   return { data: { ...d, prefs, notifLues: lues } as unknown as AppData, prefs };
 }
 
-/** Notifications pas encore lues de la personne (`fiche`) dans l'entité `courante`. */
-export function notificationsPush(o: { lignes: LignePush[]; fiche: string; courante: string; pourInfo?: TachePartagee[]; demandesMdp?: DemandeMdp[] }): NotifItem[] {
+/** Notifications pas encore lues de la personne (`fiche`) dans l'entité `courante` (`mesFiches` : ses fiches, entité → fiche). */
+export function notificationsPush(o: { lignes: LignePush[]; fiche: string; courante: string; pourInfo?: TachePartagee[]; demandesMdp?: DemandeMdp[]; mesFiches?: Record<string, string> }): NotifItem[] {
   const { data, prefs } = donnees(o.lignes);
   const moi = data.people.find((p) => p.id === o.fiche);
   if (!moi || moi.actif === false) return [];
   const p: NotifPrefs = { ...DEFAULT_NOTIF, ...prefs[o.fiche]?.notif };
   // Sondages : la clé de vote de la personne (ceux des autres entités ne sont pas lus ici).
   const d = avecSondages(data, [], o.courante, [], o.fiche);
-  return computeNotifications(d, moi, p, o.demandesMdp ?? [], o.pourInfo ?? [], [], o.courante).filter((x) => x.unread);
+  return computeNotifications(d, moi, p, o.demandesMdp ?? [], o.pourInfo ?? [], [], o.courante, o.mesFiches).filter((x) => x.unread);
 }
 
 /** Clé d'envoi : un seul rappel « en retard » par jour, quel que soit leur nombre. */

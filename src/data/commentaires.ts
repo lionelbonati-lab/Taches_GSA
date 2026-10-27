@@ -27,9 +27,16 @@ export interface ContexteCommentaire {
 /** Le commentaire est-il de la personne `moi` de l'entité `depuis` (tâche de l'entité `unite`) ? */
 export const deMoi = (c: Commentaire, moi: string, depuis: string, unite: string) => c.par === moi && (c.u ?? unite) === depuis;
 
+/**
+ * Écrit par moi, depuis l'entité ouverte ou une autre des miennes (`mesFiches` : entité → ma fiche). Seul celui écrit
+ * d'ici se corrige ici (deMoi) : le serveur ne laisse corriger un message que depuis l'entité d'où il a été écrit.
+ */
+export const parMoi = (c: Commentaire, moi: string, depuis: string, unite: string, mesFiches: Record<string, string> = {}) =>
+  deMoi(c, moi, depuis, unite) || mesFiches[c.u ?? unite] === c.par;
+
 /** Messages pas encore lus : ceux des autres, arrivés après le dernier vu (`lu`, sa date). */
-export const nonLus = (liste: Commentaire[] = [], lu: string | undefined, moi: string, depuis: string, unite: string) =>
-  liste.filter((c) => !deMoi(c, moi, depuis, unite) && (!lu || c.le > lu)).length;
+export const nonLus = (liste: Commentaire[] = [], lu: string | undefined, moi: string, depuis: string, unite: string, mesFiches?: Record<string, string>) =>
+  liste.filter((c) => !parMoi(c, moi, depuis, unite, mesFiches) && (!lu || c.le > lu)).length;
 
 /** Date du dernier message de la discussion. */
 export const dernierMessage = (liste: Commentaire[] = []) => liste.reduce((m, c) => (c.le > m ? c.le : m), '');

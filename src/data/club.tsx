@@ -99,6 +99,8 @@ export interface Club {
   central: OrgUnit | null;
   /** Entités dont l'utilisateur fait partie (hors archivées, sauf l'entité ouverte). */
   mine: OrgUnit[];
+  /** Ma fiche dans chacune de mes entités (entité → fiche) : mes messages écrits d'ailleurs restent les miens. */
+  mesFiches: Record<string, string>;
   /** Admin du comité central : crée et modifie les entités du club. */
   canManage: boolean;
   /** Toute une entité parmi les membres d'une autre : tenu à jour par le serveur (migration 020) ou par la démo. */

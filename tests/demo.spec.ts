@@ -90,6 +90,50 @@ test('discussion : commenter, corriger puis retirer un commentaire', async ({ pa
   await expect(page.locator('.modal')).toHaveCount(1);
 });
 
+test('discussion : mon message écrit depuis une autre de mes entités reste le mien', async ({ page }) => {
+  const entite = async (nom: string) => {
+    await page.locator('.unit-btn').click();
+    await page.locator('.unit-menu .unit-item', { hasText: nom }).click();
+    await expect(page.locator('.unit-btn')).toContainText(nom);
+    await page.goto('./?demo#/taches');
+  };
+  // Julien Moreau, aussi membre de la Soirée récréative, y crée une tâche partagée avec le comité central.
+  await entite('Soirée récréative');
+  const fiche = await nouvelleTache(page, 'Choisir la musique');
+  await fiche.locator('.chip', { hasText: 'Partager' }).click();
+  await fiche.getByRole('button', { name: '🏛️ Comité central' }).click();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Il écrit dans la discussion depuis le comité central.
+  await entite('Comité central');
+  await page.locator('main').getByText('Choisir la musique').filter({ visible: true }).first().click();
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
+  await page.getByLabel('Nouveau commentaire').fill('Une liste de chansons pour samedi ?');
+  await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
+  await expect(page.locator('.discussion-message.mien')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // De retour dans la Soirée : son message, à droite, ni non lu ni notifié ; il se corrige depuis le comité central.
+  await entite('Soirée récréative');
+  const ligne = page.locator('main tr', { hasText: 'Choisir la musique' });
+  await expect(ligne.locator('.discussion-tag')).toBeVisible();
+  await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveCount(0);
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  await expect(page.getByRole('dialog', { name: 'Notifications' })).not.toContainText('Choisir la musique');
+  await page.keyboard.press('Escape');
+  await ligne.getByText('Choisir la musique').first().click();
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
+  const discussion = page.getByRole('dialog', { name: 'Choisir la musique' }).getByRole('region', { name: 'Discussion' });
+  await expect(discussion.locator('.discussion-message.mien')).toContainText('Une liste de chansons pour samedi ?');
+  await expect(discussion.locator('.discussion-message.mien')).toContainText('depuis Comité central');
+  await expect(discussion.locator('.discussion-auteur')).toHaveCount(0);
+  await expect(discussion.getByRole('button', { name: 'Corriger' })).toHaveCount(0);
+  await expect(discussion.locator('.discussion-nouveaux')).toHaveCount(0);
+});
+
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche de la messagerie');

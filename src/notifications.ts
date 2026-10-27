@@ -16,7 +16,7 @@ export function useNotifications() {
     return () => clearInterval(id);
   }, []);
   const p = { ...DEFAULT_NOTIF, ...prefs.notif };
-  const items = user ? computeNotifications(data, user, p, club?.demandesMdp, pourInfo, club?.units, club?.current.id) : [];
+  const items = user ? computeNotifications(data, user, p, club?.demandesMdp, pourInfo, club?.units, club?.current.id, club?.mesFiches) : [];
   return { items, unread: items.filter((x) => x.unread), prefs: p };
 }
 

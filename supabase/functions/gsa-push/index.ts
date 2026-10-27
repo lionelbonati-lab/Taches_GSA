@@ -68,7 +68,7 @@ async function diffuser(appareils: AbonnementLu[], messages: MessagePush[], cles
 }
 
 /** Notifications non lues de la personne dans une entité, lues comme elle (règles d'accès de la base). */
-async function notifsDe(userId: string, committee: string, fiche: string): Promise<Notif[]> {
+async function notifsDe(userId: string, committee: string, fiche: string, mesFiches: Record<string, string>): Promise<Notif[]> {
   return await sql.begin(async (tx) => {
     const [u] = await tx`select coalesce(raw_app_meta_data, '{}'::jsonb) as app, email from auth.users where id = ${userId}`;
     if (!u) return [];
@@ -98,6 +98,7 @@ async function notifsDe(userId: string, committee: string, fiche: string): Promi
       courante: committee,
       pourInfo: Array.isArray(pourInfo) ? pourInfo : [],
       demandesMdp: demandes,
+      mesFiches,
     });
   });
 }
@@ -117,11 +118,13 @@ async function tourner() {
     try {
       const entites = await sql`select m.committee_id, m.person_id, c.name from public.gsa_members m join public.committees c on c.id = m.committee_id
         where m.user_id = ${userId} and m.person_id is not null and coalesce(c.info ->> 'archive', 'false') <> 'true'`;
+      // Ses fiches : un message écrit depuis l'une de ses entités ne la prévient pas dans une autre.
+      const mesFiches = Object.fromEntries(entites.map((e) => [e.committee_id as string, e.person_id as string]));
       const deja = new Set((await sql`select cle from public.gsa_push_envois where user_id = ${userId}`).map((r) => r.cle as string));
       const nouvelles: (Notif & { unite: string; nomUnite: string })[] = [];
       const noter: string[] = [];
       for (const e of entites) {
-        const items = await notifsDe(userId, e.committee_id, e.person_id);
+        const items = await notifsDe(userId, e.committee_id, e.person_id, mesFiches);
         const cle = (k: string) => `${e.committee_id}|${cleEnvoi(k)}`;
         const base = `base|${e.committee_id}`;
         if (!deja.has(base)) {
