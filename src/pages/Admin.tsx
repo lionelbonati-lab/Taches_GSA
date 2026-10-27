@@ -29,12 +29,11 @@ export function Admin() {
   const club = useClubOptional();
   const u = club?.current;
   const central = !u || u.type === 'central';
-  // Sous-comité, groupe ou équipe : couleur héritée du comité central.
-  const sub = !!u && !central;
   // Personnes de l'entité : dans l'organigramme du club (« Club › Organigramme »).
   const personnes = !!club;
 
-  const couleur = u?.couleurAppli ?? (sub ? club?.central?.couleurAppli : undefined);
+  // Couleur de l'appli : celle du club (comité central), pour tout le monde.
+  const couleur = central ? u?.couleurAppli : undefined;
   const nomCouleur = couleur ? COULEURS_APPLI.find((x) => x.c === couleur.toLowerCase())?.nom.toLowerCase() ?? 'personnalisée' : 'bleu d’origine';
   const entete = enteteDe(data, defaultTexte(u));
   const enteteTexte = entete.texte.split('\n').map((l) => l.trim()).find(Boolean);
@@ -63,11 +62,11 @@ export function Admin() {
             id: 'apparence',
             icon: 'miseEnForme' as const,
             titre: 'Apparence',
-            carte: central ? 'Logo, icône et couleur du comité ; nom et icône de l’appli.' : 'Logo et icône de l’entité, couleur de l’appli.',
+            carte: central ? 'Logo, icône et couleur du comité ; nom et icône de l’appli.' : 'Logo et icône de l’entité.',
             aide: central
               ? 'Logo et couleur de l’appli pour tout le club, icône du comité (organigramme, agenda, accueil), et le nom et l’icône de l’appli installée sur les téléphones.'
-              : 'Logo de l’entité (en-tête de l’appli, documents), son icône (organigramme, agenda, événements, accueil) et couleur de l’appli quand elle est ouverte.',
-            resume: `${u.logo ? 'Logo choisi' : central ? 'Pas de logo' : 'Logo du club'} · icône ${u.icone && ICONES_ENTITE[u.icone] ? ICONES_ENTITE[u.icone][0].toLowerCase() : 'du type'} · couleur ${nomCouleur}`,
+              : 'Logo de l’entité (ses documents, sa pastille) et son icône (organigramme, agenda, événements, accueil). L’appli garde le logo et la couleur du club.',
+            resume: `${u.logo ? 'Logo choisi' : central ? 'Pas de logo' : 'Logo du club'} · icône ${u.icone && ICONES_ENTITE[u.icone] ? ICONES_ENTITE[u.icone][0].toLowerCase() : 'du type'}${central ? ` · couleur ${nomCouleur}` : ''}`,
             contenu: <LogoPanel />,
           },
         ]

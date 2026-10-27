@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { ago, useNotifications, type Notif } from '../notifications';
-import { useClubOptional } from '../data/club';
 import { pageParEntite, PERMS_COMITE, useComites } from '../data/comites';
 
 /** Pages qui réunissent toutes mes entités (vue « moi »). */
@@ -12,7 +11,6 @@ import { Icone } from './icones';
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */
 export function Bell() {
   const { markNotifsRead } = useStore();
-  const club = useClubOptional();
   const comites = useComites();
   const { items, unread } = useNotifications();
   const [open, setOpen] = useState(false);
@@ -36,15 +34,14 @@ export function Bell() {
     setOpen(false);
     // De l'une de mes autres entités, une page qui les réunit toutes (séances, sondages…) : elle s'ouvre d'ici, sans
     // changer d'entité ; une séance y choisit son comité (ordre du jour, PV), un « Pour info » reçu s'ouvre chez elle.
-    // Une page d'une seule entité (mots de passe oubliés…) : elle s'y choisit.
+    // Une page d'une seule entité (mots de passe oubliés…) : elle s'y choisit. Toutes les notifications sont de l'un de ces cas.
     const [chemin, q = ''] = n.link.split('?');
     const parEntite = pageParEntite(chemin);
     if (n.entite && (PAGES_REUNIES.includes(chemin) || parEntite)) {
       const perms = parEntite ? [parEntite.perm] : PERMS_COMITE;
       if (perms.some((p) => comites?.liste(p).some((u) => u.id === n.entite))) comites!.choisir(n.entite);
       navigate(chemin === '/taches' && q.startsWith('pourinfo=') ? `${n.link}&chez=${encodeURIComponent(n.entite)}` : n.link);
-    } else if (n.entite && club) club.switchUnit(n.entite, `#${n.link}`);
-    else navigate(n.link);
+    } else navigate(n.link);
   };
 
   return (

@@ -18,9 +18,10 @@ export interface AutreEntite {
 const avecMoi = (ids: string[] | undefined, moi: string) => (ids?.includes(moi) ? ids : [...(ids ?? []), moi]);
 
 /**
- * Données de l'entité ouverte (`moi`, ma fiche `user`) avec les tâches que je vois dans mes autres entités (sauf les
- * tickets de paiement, et celles déjà partagées avec elle). Ma fiche chez elles est remplacée par celle d'ici (pour info,
- * à prendre, « ✓ Vu ») ; les responsables, eux, le sont déjà (même personne).
+ * Données de l'entité ouverte (`moi`, ma fiche `user`) avec les tâches que je vois dans mes autres entités (sauf celles
+ * déjà partagées avec elle), tickets de paiement compris (ceux que j'y vois : caisse, demande, visa), qui s'ouvrent chez
+ * elles. Ma fiche chez elles est remplacée par celle d'ici (pour info, à prendre, « ✓ Vu », demande d'un ticket) ; les
+ * responsables, eux, le sont déjà (même personne).
  */
 export function avecMesEntites(vue: AppData, autres: AutreEntite[], moi: string, units: OrgUnit[], user?: string): AppData {
   const deja = new Set(vue.tasks.map((t) => t.id));
@@ -29,7 +30,7 @@ export function avecMesEntites(vue: AppData, autres: AutreEntite[], moi: string,
   for (const e of autres) {
     const statuts = e.data.statuses.map((s) => ({ id: s.id, label: s.label, done: s.done }));
     for (const task of e.data.tasks) {
-      if (task.paiement || deja.has(idPartagee(e.id, task.id)) || !e.voit(task)) continue;
+      if (deja.has(idPartagee(e.id, task.id)) || !e.voit(task)) continue;
       liste.push({ uniteId: e.id, unite: e.nom, type: e.type, task, statuts, v: 41 });
       fiches.push(e.fiche);
     }
@@ -44,6 +45,8 @@ export function avecMesEntites(vue: AppData, autres: AutreEntite[], moi: string,
       const orig = liste[i - n].task;
       const fiche = fiches[i - n];
       const x: Task = { ...t, source: { ...t.source, chezMoi: true } };
+      // Ticket : le même circuit (caisse → visa → virement), affiché ici et traité chez lui.
+      if (orig.paiement) x.paiement = fiche && user && orig.paiement.demandePar === fiche ? { ...orig.paiement, demandePar: user } : orig.paiement;
       if (!fiche || !user) return x;
       if (orig.createdBy === fiche) x.createdBy = user;
       if (orig.pourInfo?.personnes?.includes(fiche)) x.pourInfo = { ...x.pourInfo, personnes: avecMoi(x.pourInfo?.personnes, user) };

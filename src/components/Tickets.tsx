@@ -23,6 +23,7 @@ import { ZoneTexte } from './ZoneTexte';
 import { Icone } from './icones';
 import { Deroulante } from './Deroulante';
 import { PastilleEntite } from './IconesEntite';
+import { DansEntite } from '../data/entites';
 
 // Remboursements et paiements de factures : des tâches de la section des finances, ouvertes dans cette fenêtre
 // (circuit caisse → visa → virement) au lieu du formulaire de tâche.
@@ -687,8 +688,29 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
 const CENTRALE = '__caisse-centrale__';
 const AUTRE = '__autre__';
 
-/** Nouvelle demande (remboursement ou paiement de facture) ou modification, tant que la caisse ne l'a pas fait viser. */
-export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticket; type?: GenreTicket; onClose: () => void; onEnvoye?: () => void }) {
+type TicketFormProps = { ticket?: Ticket; type?: GenreTicket; onClose: () => void; onEnvoye?: () => void };
+/** Ce qui est déjà écrit, repris quand on choisit la caisse d'une autre de mes entités. */
+type Ecrit = { titre: string; montant: string; beneficiaire: string; echeance: string; iban: string; remarque: string };
+
+/**
+ * Nouvelle demande (remboursement ou paiement de facture) ou modification, tant que la caisse ne l'a pas fait viser.
+ * Vue « moi » : la caisse de l'une de mes autres entités se choisit dans la fenêtre, qui s'affiche alors dans cette
+ * entité (ses caissiers, sa section des finances), avec ce qui est déjà écrit.
+ */
+export function TicketForm(props: TicketFormProps) {
+  const club = useClubOptional();
+  const [chez, setChez] = useState<{ id: string; ecrit: Ecrit; n: number } | null>(null);
+  const versCaisse = (id: string, ecrit: Ecrit) => setChez((c) => ({ id, ecrit, n: (c?.n ?? 0) + 1 }));
+  const form = <FormulaireTicket key={chez?.n ?? 0} {...props} ecrit={chez?.ecrit} versCaisse={club && !props.ticket ? versCaisse : undefined} />;
+  if (!chez || !club || chez.id === club.current.id) return form;
+  return (
+    <DansEntite id={chez.id} sinon={form}>
+      {form}
+    </DansEntite>
+  );
+}
+
+function FormulaireTicket({ ticket, type, onClose, onEnvoye, ecrit, versCaisse }: TicketFormProps & { ecrit?: Ecrit; versCaisse?: (id: string, ecrit: Ecrit) => void }) {
   const { data, user, update, cloud, setToast } = useStore();
   const club = useClubOptional();
   const genreT: GenreTicket = ticket ? genreDe(ticket.paiement) : (type ?? 'remboursement');
@@ -699,20 +721,20 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
   // centrale : caisseDe) pour qui n'en est pas membre ; seulement là où un caissier est désigné.
   const nomsCaisse = caissiers(data).map((p) => fullName(p));
   const ici = nomsCaisse.length > 0;
-  const autres = club && !ticket ? club.mine.filter((u) => u.id !== club.current.id && u.membres.some((m) => m.caisse)) : [];
+  const autres = club && versCaisse ? club.mine.filter((u) => u.id !== club.current.id && u.membres.some((m) => m.caisse)) : [];
   const central = club ? caisseDe(club.units, club.current) : undefined;
   const centrale = !ticket && !!central && !central.moi && central.id !== club?.current.id && central.membres.some((m) => m.caisse);
   const nomCentrale = central ? (central.type === 'central' ? `Caisse centrale (${central.nom})` : `Caisse de « ${central.nom} »`) : '';
   const [vers, setVers] = useState<'ici' | 'centrale'>(!ici && centrale ? 'centrale' : 'ici');
   const versCentrale = vers === 'centrale' && centrale;
   const bloque = !ticket && !(versCentrale || ici);
-  const [titre, setTitre] = useState(ticket?.titre ?? '');
-  const [montant, setMontant] = useState(ticket ? String(ticket.paiement.montant) : '');
+  const [titre, setTitre] = useState(ticket?.titre ?? ecrit?.titre ?? '');
+  const [montant, setMontant] = useState(ticket ? String(ticket.paiement.montant) : ecrit?.montant ?? '');
   // Remboursement : soi-même par défaut ; facture : le créancier, à saisir.
-  const [beneficiaire, setBeneficiaire] = useState(ticket?.paiement.beneficiaire ?? (facture ? '' : fullName(user ?? undefined)));
-  const [echeance, setEcheance] = useState(ticket?.delai ?? '');
-  const [iban, setIban] = useState(ticket?.paiement.iban ?? '');
-  const [remarque, setRemarque] = useState(ticket?.remarque ?? '');
+  const [beneficiaire, setBeneficiaire] = useState(ticket?.paiement.beneficiaire ?? ecrit?.beneficiaire ?? (facture ? '' : fullName(user ?? undefined)));
+  const [echeance, setEcheance] = useState(ticket?.delai ?? ecrit?.echeance ?? '');
+  const [iban, setIban] = useState(ticket?.paiement.iban ?? ecrit?.iban ?? '');
+  const [remarque, setRemarque] = useState(ticket?.remarque ?? ecrit?.remarque ?? '');
   const [docs, setDocsState] = useState<TaskDoc[]>(ticket?.documents ?? []);
   const setDocs = (fn: (d: TaskDoc[]) => TaskDoc[]) => setDocsState(fn);
   const track = useRef<DocTracking>({ added: [], removed: [] });
@@ -773,8 +795,9 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
       setVers(v);
       return;
     }
+    // Caisse de l'une de mes autres entités : la fenêtre s'y affiche, avec ce qui est écrit (sans les photos, rangées ici).
     deleteFiles(track.current.added);
-    club.switchUnit(id, `#/taches?nouveau=${facture ? 'paiement' : 'remboursement'}`);
+    versCaisse?.(id, { titre, montant, beneficiaire, echeance, iban, remarque });
   };
   const submit = async () => {
     if (bloque) return setErr('Choisis la caisse à laquelle envoyer la demande.');
@@ -876,6 +899,7 @@ export function TicketForm({ ticket, type, onClose, onEnvoye }: { ticket?: Ticke
           <label className="full">
             Envoyer à la caisse de
             <Deroulante
+              aria-label="Envoyer à la caisse de"
               value={versCentrale ? CENTRALE : ici ? club.current.id : ''}
               onChange={choisirCaisse}
               options={[

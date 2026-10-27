@@ -68,45 +68,6 @@ export async function prepareImage(file: File, kind: 'logo' | 'banniere'): Promi
   }
 }
 
-/** Icône carrée (PNG) : le logo centré sur fond transparent. */
-async function squareIcon(logo: string, size: number): Promise<string> {
-  const img = await loadImage(logo);
-  const canvas = document.createElement('canvas');
-  canvas.width = canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-  ctx.imageSmoothingQuality = 'high';
-  const k = size / Math.max(img.naturalWidth, img.naturalHeight);
-  const w = img.naturalWidth * k;
-  const h = img.naturalHeight * k;
-  ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
-  return canvas.toDataURL('image/png');
-}
-
-// ---------- Icône de l'onglet ----------
-
-let originals: { el: HTMLLinkElement; href: string }[] | null = null;
-let applied = '';
-
-/**
- * Onglet du navigateur : le logo propre de l'entité ouverte, sinon l'icône du club.
- * L'icône de l'appli installée (écran d'accueil, accès rapides) reste celle du club : fichiers fixes du site
- * (public/icon-*.png, ou celles tirées du logo du club à la publication : icones.ts), seuls fiables pour l'installation.
- */
-export async function applyTabIcon(logo?: string) {
-  const key = isImage(logo) ? logo : '';
-  if (key === applied) return;
-  applied = key;
-  originals ??= [...document.querySelectorAll<HTMLLinkElement>('link[rel~="icon"]')].map((el) => ({ el, href: el.getAttribute('href') ?? '' }));
-  const restore = () => originals?.forEach((o) => (o.el.href = o.href));
-  if (!key) return restore();
-  try {
-    const fav = await squareIcon(key, 64);
-    if (applied === key) originals.forEach((o) => (o.el.href = fav));
-  } catch {
-    restore();
-  }
-}
-
 // Dernier logo affiché, repris dès le lancement (écran de connexion) avant le chargement des données.
 const cacheKey = () => `taches-gsa-logo-${getMode() ?? 'accueil'}`;
 

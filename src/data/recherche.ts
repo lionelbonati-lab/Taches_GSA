@@ -4,7 +4,8 @@ import { UNIT_TYPES } from './units';
 import { echeance, isOpen } from './polls';
 
 // Recherche globale (loupe de l'en-tête) : tâches, séances, PV et ordres du jour archivés, sondages, événements,
-// personnes de l'entité ouverte et entités du club. Sans accents ni majuscules ; tous les mots doivent se trouver.
+// personnes de toutes mes entités (vue « moi » : rechercherPartout) et entités du club. Sans accents ni majuscules ;
+// tous les mots doivent se trouver.
 
 export type GenreResultat = 'tache' | 'seance' | 'archive' | 'sondage' | 'evenement' | 'personne' | 'entite';
 
@@ -183,5 +184,24 @@ export function rechercher(q: string, c: Contexte): Resultat[] {
   // Mes entités : dans l'organigramme (vue « moi » : on ne change pas d'entité).
   for (const u of c.entites ?? []) ajouter({ genre: 'entite', id: u.id, titre: u.nom, detail: UNIT_TYPES[u.type]?.label, lien: '/organigramme', date: '' }, [u.nom]);
 
-  return out.sort((a, b) => b.score - a.score || b.date.localeCompare(a.date) || a.titre.localeCompare(b.titre, 'fr'));
+  return trier(out);
+}
+
+const trier = (l: Resultat[]) => l.sort((a, b) => b.score - a.score || b.date.localeCompare(a.date) || a.titre.localeCompare(b.titre, 'fr'));
+
+/** Lien d'un résultat de l'une de mes autres entités : la carte de cette entité (séances, archives, événements). */
+const lienChez = (lien: string | undefined, u: string) => (lien && /^\/(comite|evenements)\?/.test(lien) ? `${lien}&entite=${encodeURIComponent(u)}` : lien);
+
+/**
+ * Vue « moi » : la recherche dans toutes mes entités. `ici` : l'entité sur laquelle s'appuie l'appli, avec les tâches et
+ * les sondages déjà réunis de toutes ; `autres` : le reste de chacune des autres (séances, événements, personnes), à
+ * son nom.
+ */
+export function rechercherPartout(q: string, ici: Contexte, autres: { u: OrgUnit; c: Contexte }[]): Resultat[] {
+  return trier([
+    ...rechercher(q, ici),
+    ...autres.flatMap(({ u, c }) =>
+      rechercher(q, c).map((r) => ({ ...r, id: `${u.id}:${r.id}`, detail: [r.detail, u.nom].filter(Boolean).join(' · '), lien: lienChez(r.lien, u.id) })),
+    ),
+  ]);
 }

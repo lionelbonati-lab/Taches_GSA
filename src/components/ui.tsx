@@ -177,7 +177,8 @@ export function TicketTag({ task }: { task: Task }) {
   const { data, user } = useStore();
   const p = task.paiement;
   if (!p) return null;
-  const ferme = !peutOuvrirTicket(data, task, user?.id);
+  // Ticket de l'une de mes autres entités : seulement ceux que j'y vois (vue « moi »).
+  const ferme = !task.source?.chezMoi && !peutOuvrirTicket(data, task, user?.id);
   return (
     <small className={`ticket-tag ticket-etat ${p.etat}`} title={`${genre(p).nom} · ${ETATS[p.etat].label}${ferme ? ' · réservé à la caisse, au demandeur et à la personne qui vise' : ''}`}>
       {ferme && <><Icone n="verrou" /> </>}{chf(p.montant)} · {ETATS[p.etat].icon} {ETATS[p.etat].court}

@@ -19,7 +19,7 @@ import { BarreBasModal } from './BarreBas';
 import { barreDuBas } from '../data/navigation';
 import { useDiscussions } from '../data/discussions';
 import { ErrorBoundary } from './ErrorBoundary';
-import { applyTabIcon, cacheLogo } from '../data/logo';
+import { cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 import { Icone, type IconeNom } from './icones';
 import { newTask } from '../data/utils';
@@ -107,18 +107,15 @@ export function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 
-  // Logo de l'entité ouverte, sinon celui du club : en-tête. Logo propre de l'entité : icône de l'onglet.
-  const logo = club?.current.logo ?? club?.central?.logo;
+  // Une seule appli pour tout le club : en-tête au logo et à la couleur du club (comité central), quelle que soit l'entité
+  // sur laquelle elle s'appuie. Le logo d'une entité va sur ses documents (ordre du jour, PV, bon de paiement).
+  const logo = club ? (club.central ?? club.current).logo : undefined;
   const logoReady = !!logo || !club?.loading;
-  const ownLogo = club?.current.logo !== club?.central?.logo ? club?.current.logo : undefined;
   useEffect(() => {
-    if (!logoReady) return;
-    cacheLogo(logo);
-    void applyTabIcon(ownLogo);
-  }, [logo, ownLogo, logoReady]);
+    if (logoReady) cacheLogo(logo);
+  }, [logo, logoReady]);
 
-  // Couleur de l'appli : celle de l'entité ouverte, sinon celle du club (comité central).
-  const couleur = club?.current.couleurAppli ?? club?.central?.couleurAppli;
+  const couleur = club ? (club.central ?? club.current).couleurAppli : undefined;
   const couleurReady = !!couleur || !club?.loading;
   useEffect(() => {
     if (!couleurReady) return;
@@ -154,7 +151,7 @@ export function Layout() {
   const sortirLabel = <><Icone n={cloud ? 'sortir' : 'changer'} /> {cloud ? 'Se déconnecter' : 'Changer d’utilisateur'}</>;
 
   return (
-    // data-entite : l'entité ouverte (son logo, sa couleur), qui ne s'affiche plus ailleurs (tests de la démo).
+    // data-entite : l'entité sur laquelle l'appli s'appuie, qui ne s'affiche nulle part (tests de la démo).
     <div className="app" data-entite={club?.current.id}>
       <header className="topbar">
         <div className="brand">

@@ -70,16 +70,18 @@ export function App() {
   // Pages Comité, console admin : sur l'entité choisie parmi les miennes (vue « moi »), avec mes droits chez elle.
   const comites = useComitesEtat();
   usePrechargement();
+  // Un compte, pas une entité : l'appli s'appuie d'elle-même sur une autre de mes entités si ma fiche a été retirée de
+  // celle-ci, ou si elle a été archivée.
+  const autre = club && (!user || club.current.archive) ? club.mine.find((u) => u.id !== club.current.id && !u.archive) : undefined;
+  useEffect(() => {
+    if (autre) club?.switchUnit(autre.id, window.location.hash || '#/');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autre?.id]);
+  if (autre) return null;
   if (!user) {
-    const others = club?.mine.filter((u) => u.id !== club.current.id) ?? [];
     return (
       <Message title="Accès désactivé" onSignOut={() => login(null)}>
-        <p>Ta fiche a été désactivée ou retirée dans « {club?.current.nom ?? 'ce comité'} ». Renseigne-toi auprès de son président ou responsable.</p>
-        {others.length > 0 && (
-          <p className="row wrap">
-            {others.map((u) => <button key={u.id} className="btn" onClick={() => club!.switchUnit(u.id)}>Ouvrir « {u.nom} »</button>)}
-          </p>
-        )}
+        <p>Ta fiche a été désactivée ou retirée{club ? ` dans « ${club.current.nom} »` : ''}. Renseigne-toi auprès de son président ou responsable.</p>
         {!cloud && <p className="muted">Démo : « Se déconnecter » ramène à la liste des personnes.</p>}
       </Message>
     );

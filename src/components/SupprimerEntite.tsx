@@ -81,14 +81,8 @@ export function SupprimerEntite({ id, nom, onClose, onFait }: { id: string; nom:
         </>
       )}
       {ouverte ? (
-        <p className="error">
-          L’appli est ouverte sur cette entité : passe au comité central pour la supprimer.{' '}
-          {club.central && club.central.id !== id && (
-            <button type="button" className="btn small" onClick={() => club.switchUnit(club.central!.id, '#/organigramme')}>
-              Passer au comité central
-            </button>
-          )}
-        </p>
+        // L'appli s'appuie d'elle-même sur une autre de mes entités quand celle-ci est archivée (App.tsx) : ici, il n'y en a pas.
+        <p className="error">C’est ta seule entité dans l’appli : elle ne peut pas être supprimée d’ici.</p>
       ) : (
         apercu && (
           <label className="full">

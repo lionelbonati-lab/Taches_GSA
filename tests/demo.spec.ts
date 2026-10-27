@@ -470,7 +470,7 @@ test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut 
   await expect(entite).toHaveText(/Soirée récréative/);
   await admin.getByRole('link', { name: 'Console admin de « Soirée récréative »' }).click();
   await expect(affichee).toHaveText(/Soirée récréative/);
-  await expect(page.locator('main')).toContainText('Logo et icône de l’entité, couleur de l’appli.');
+  await expect(page.locator('main')).toContainText('Logo et icône de l’entité.');
   await page.getByRole('link', { name: /Rôles et droits/ }).click();
   await expect(page.locator('main h1')).toContainText('Rôles et droits');
   await expect(affichee).toHaveText(/Soirée récréative/);
@@ -489,7 +489,7 @@ test('vue « moi » : console admin de mon entité, depuis les Réglages, sans l
   await page.locator('.administration').getByRole('link', { name: 'Console admin de « Soirée récréative »' }).click();
   await expect(page.locator('.subtabs .subtabs-entite')).toHaveText(/Soirée récréative/);
   await expect(page.locator('.subtabs').getByRole('link', { name: 'Changer d’entité' })).toHaveCount(0);
-  await expect(page.locator('main')).toContainText('Logo et icône de l’entité, couleur de l’appli.');
+  await expect(page.locator('main')).toContainText('Logo et icône de l’entité.');
   await verifierEntite(page, 'Comité central');
 });
 
@@ -514,6 +514,44 @@ test('vue « moi » : organigramme sans « Ouvrir », fiche d’une personne de 
     )
     .toBe('Bar et buvette');
   await expect(page.locator('main').getByText('Bar et buvette').first()).toBeVisible();
+  await verifierEntite(page, 'Comité central');
+});
+
+test('vue « moi » : remboursement envoyé à la caisse d’une autre de mes entités, puis retrouvé avec les autres', async ({ page }) => {
+  // Marc Lambert : membre du comité central et du CO Bruntrutaine (caisse : Valérie Lefèvre).
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Marc Lambert' }).first().click();
+  await ouvrirEntite(page, 'Comité central');
+  await page.locator('.fab').click();
+  await page.locator('.fab-menu button', { hasText: 'Nouveau remboursement' }).click();
+  const form = page.locator('.modal').first();
+  await form.getByLabel('Objet de la dépense').fill('Gobelets pour le ravitaillement');
+  // La caisse du CO : la fenêtre s'y affiche, avec ce qui est déjà écrit.
+  await form.getByRole('combobox', { name: 'Envoyer à la caisse de' }).click();
+  await page.getByRole('option', { name: /CO Bruntrutaine/ }).click();
+  await expect(form).toContainText('Valérie Lefèvre');
+  await expect(form.getByLabel('Objet de la dépense')).toHaveValue('Gobelets pour le ravitaillement');
+  await form.locator('fieldset.docs input[type=file]').first().setInputFiles({ name: 'ticket.png', mimeType: 'image/png', buffer: png });
+  await expect(form.locator('.doc-list li')).toHaveCount(1);
+  await form.getByLabel('Montant (CHF)').fill('12.50');
+  await form.getByRole('button', { name: 'Envoyer à la caisse' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-bruntrutaine') ?? '{}').tasks ?? []).some((t: { titre: string; paiement?: unknown }) => t.titre === 'Gobelets pour le ravitaillement' && !!t.paiement),
+      ),
+    )
+    .toBe(true);
+  await verifierEntite(page, 'Comité central');
+  // Retrouvé dans ses paiements et remboursements, avec ceux de ses autres entités ; il s'ouvre là.
+  await allerA(page, '/taches?type=tickets');
+  const ligne = page.locator('main').getByText('Gobelets pour le ravitaillement').first();
+  await expect(ligne).toBeVisible();
+  await ligne.click();
+  await expect(page.locator('.modal').first()).toContainText('Gobelets pour le ravitaillement');
+  await expect(page.locator('.modal').first()).toContainText('CHF 12,50');
   await verifierEntite(page, 'Comité central');
 });
 
@@ -877,7 +915,7 @@ test('les données de la démo restent après un rechargement', async ({ page })
   await expect(page.locator('.annuler-btn')).toHaveCount(0);
 });
 
-test('recherche globale (Ctrl+K) : tâche, séance, personne', async ({ page }) => {
+test('recherche globale (Ctrl+K) : tâche, séance, personne, dans toutes mes entités', async ({ page }) => {
   const fiche = await nouvelleTache(page, 'Commander les maillots');
   await fiche.locator('textarea').first().fill('Tailles à demander avant la Fête de Noël');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
@@ -898,6 +936,17 @@ test('recherche globale (Ctrl+K) : tâche, séance, personne', async ({ page }) 
   const nom = (await page.locator('.who-text strong').first().textContent()) ?? '';
   await champ.fill(nom.split(' ').slice(1).join(' ') || nom);
   await expect(page.locator('.recherche-liste section', { has: page.locator('h3', { hasText: 'Personnes' }) }).locator('.recherche-item').first()).toBeVisible();
+  // Dans toutes mes entités : une personne de la Soirée récréative seulement, au nom de son entité, ouverte sur place.
+  await champ.fill('yannick');
+  const yannick = page.locator('.recherche-item', { hasText: 'Yannick Leroy' }).filter({ hasText: 'Soirée récréative' });
+  await expect(yannick).toHaveCount(1);
+  await yannick.click();
+  await expect(page.getByRole('dialog', { name: 'Yannick Leroy' })).toBeVisible();
+  await verifierEntite(page, 'Comité central');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await page.keyboard.press('Control+k');
+  await expect(champ).toBeFocused();
   // Entrée : ouvre le premier résultat
   await champ.fill('maillot');
   await page.keyboard.press('Enter');
