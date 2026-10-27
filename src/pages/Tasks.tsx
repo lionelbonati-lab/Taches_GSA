@@ -13,6 +13,7 @@ import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { APrendreTag, Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 import { PourInfoRecues } from '../components/PourInfo';
+import { Chez } from '../data/entites';
 import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
@@ -108,8 +109,11 @@ export function Tasks() {
   const [voirAnciennes, setVoirAnciennes] = useState(false);
   // Tâches d'autres entités pour info (lecture seule) ; lien d'une notification : /taches?pourinfo=<entité>:<tâche>.
   const [voirPourInfo, setVoirPourInfo] = useState(() => !!params.get('pourinfo'));
+  // Reçue par l'une de mes autres entités (…&chez=<entité>) : sa liste, ouverte chez elle.
+  const [chezPourInfo, setChezPourInfo] = useState(() => params.get('chez') ?? undefined);
   const fermerPourInfo = () => {
     setVoirPourInfo(false);
+    setChezPourInfo(undefined);
     if (params.get('pourinfo')) navigate('/taches', { replace: true });
   };
 
@@ -408,7 +412,11 @@ export function Tasks() {
       {effScope === 'mes' && <SuiviCentral />}
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} choixEntite={edit.isNew} openEmailId={edit.email} ouvrirDiscussion={edit.discussion} onClose={closeEdit} />}
       {voirAnciennes && anciennes && <AnciennesTaches list={anciennes} onClose={() => setVoirAnciennes(false)} />}
-      {voirPourInfo && <PourInfoRecues list={pourInfo} ouverte={params.get('pourinfo') ?? undefined} discussion={params.has('discussion')} onClose={fermerPourInfo} />}
+      {voirPourInfo && (
+        <Chez id={chezPourInfo}>
+          <PourInfoDe ouverte={params.get('pourinfo') ?? undefined} discussion={params.has('discussion')} onClose={fermerPourInfo} />
+        </Chez>
+      )}
     </div>
   );
 }
@@ -491,4 +499,10 @@ export function Linked({ t }: { t: Task }) {
       <Icone n="rattacher" /> {done}/{kids.length} tâches rattachées
     </small>
   );
+}
+
+/** Tâches pour info reçues par l'entité (l'ouverte, ou l'une de mes autres : Chez). */
+function PourInfoDe(props: { ouverte?: string; discussion?: boolean; onClose: () => void }) {
+  const { pourInfo } = useStore();
+  return <PourInfoRecues list={pourInfo} {...props} />;
 }

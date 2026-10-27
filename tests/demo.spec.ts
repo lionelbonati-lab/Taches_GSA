@@ -454,6 +454,51 @@ test('vue « moi » : les événements de toutes mes entités, réunis ; un nouv
   await expect(bloc.locator('.link-panel', { hasText: 'Apéro des bénévoles' }).locator('.tsource')).toHaveText('Soirée récréative');
 });
 
+test('vue « moi » : les sondages de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
+  };
+  // Pierre Favre crée des sondages au comité central (ouvert) et à la Soirée récréative : il pose celui-ci à la Soirée.
+  await changer('Pierre Favre');
+  await ouvrirEntite(page, 'Comité central');
+  await allerA(page, '/sondages');
+  await page.getByRole('button', { name: '+ Nouveau sondage' }).click();
+  const fen = page.getByRole('dialog', { name: 'Nouveau sondage' });
+  const choix = fen.getByRole('combobox', { name: 'Entité' });
+  await expect(choix).toHaveText(/Comité central/);
+  await fen.getByLabel('Question').fill('Faut-il une tombola ?');
+  await choix.click();
+  await page.getByRole('option', { name: /Soirée récréative/ }).click();
+  await expect(choix).toHaveText(/Soirée récréative/);
+  await expect(fen.getByLabel('Question')).toHaveValue('Faut-il une tombola ?');
+  await fen.getByRole('button', { name: 'Créer le sondage' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await page.locator('.seg').getByRole('button', { name: /^En cours/ }).click();
+  const carte = page.locator('.poll', { hasText: 'Faut-il une tombola ?' });
+  await expect(carte.locator('.tsource')).toHaveText('Soirée récréative');
+  await verifierEntite(page, 'Comité central');
+
+  // Julien Moreau, membre de la Soirée : à voter sur son accueil et dans les sondages, sans changer d'entité.
+  await changer('Julien Moreau');
+  await ouvrirEntite(page, 'Comité central');
+  await allerA(page, '/');
+  await expect(page.locator('a.link-panel', { hasText: 'Faut-il une tombola ?' }).locator('.tsource')).toHaveText('Soirée récréative');
+  await allerA(page, '/sondages');
+  await page.locator('.seg').getByRole('button', { name: /^À voter/ }).click();
+  const aVoter = page.locator('.poll', { hasText: 'Faut-il une tombola ?' });
+  await expect(aVoter.locator('.tsource')).toHaveText('Soirée récréative');
+  await aVoter.locator('.poll-choice', { hasText: 'Oui' }).click();
+  await aVoter.getByRole('button', { name: 'Envoyer ma réponse' }).click();
+  // Réponse enregistrée chez la Soirée : le sondage passe dans « En cours », avec ma réponse.
+  await expect(page.locator('.seg').getByRole('button', { name: /^À voter/ })).toHaveText('À voter (0)');
+  await page.locator('.seg').getByRole('button', { name: /^En cours/ }).click();
+  await expect(aVoter).toContainText('1/5 réponses');
+  await expect(aVoter).toContainText('Oui (ton choix)');
+  await verifierEntite(page, 'Comité central');
+});
+
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche de la messagerie');

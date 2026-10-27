@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { ago, useNotifications, type Notif } from '../notifications';
 import { useClubOptional } from '../data/club';
-import { PERMS_COMITE, useComites } from '../data/comites';
+import { PAGES_PAR_COMITE, PERMS_COMITE, useComites } from '../data/comites';
 
-/** Pages Comité : séances (toutes mes entités), ordre du jour et PV (le comité choisi). */
-const PAGES_COMITE = ['/comite', '/ordre-du-jour', '/pv'];
+/** Pages qui réunissent toutes mes entités (vue « moi »). */
+const PAGES_REUNIES = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/sondages'];
 import { Icone } from './icones';
 
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */
@@ -34,12 +34,13 @@ export function Bell() {
   const go = (n: Notif) => {
     markNotifsRead([n.key]);
     setOpen(false);
-    // De l'un de mes autres comités, une page Comité (séance, ordre du jour, PV) : ce comité y est choisi, sans changer
-    // d'entité. D'une autre entité, une autre page (sondage…) : sa page, dans son entité.
-    const comite = n.entite && PERMS_COMITE.some((p) => comites?.liste(p).some((u) => u.id === n.entite)) && PAGES_COMITE.includes(n.link.split('?')[0]);
-    if (comite) {
-      comites!.choisir(n.entite!);
-      navigate(n.link);
+    // De l'une de mes autres entités, une page qui les réunit toutes (séances, sondages…) : elle s'ouvre d'ici, sans
+    // changer d'entité ; une séance y choisit son comité (ordre du jour, PV), un « Pour info » reçu s'ouvre chez elle.
+    // Une autre page (mots de passe oubliés…) : dans son entité.
+    const [chemin, q = ''] = n.link.split('?');
+    if (n.entite && (PAGES_REUNIES.includes(chemin) || PAGES_PAR_COMITE[chemin])) {
+      if (PERMS_COMITE.some((p) => comites?.liste(p).some((u) => u.id === n.entite))) comites!.choisir(n.entite);
+      navigate(chemin === '/taches' && q.startsWith('pourinfo=') ? `${n.link}&chez=${encodeURIComponent(n.entite)}` : n.link);
     } else if (n.entite && club) club.switchUnit(n.entite, `#${n.link}`);
     else navigate(n.link);
   };

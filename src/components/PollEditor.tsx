@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { Poll, PollType } from '../data/types';
-import { OUINON, POLL_TYPES, autreOption, committeeOf, electorat, finSondage } from '../data/polls';
+import { OUINON, POLL_TYPES, autreOption, committeeOf, electorat, finSondage, nouveauSondage } from '../data/polls';
 import { fullName, nomPoste, today, uid } from '../data/utils';
 import { Modal } from './ui';
 import { estPartagee } from '../data/partage';
 import { useClubOptional } from '../data/club';
 import { ZoneTexte } from './ZoneTexte';
 import { IconeEntite } from './IconesEntite';
+import { ChampEntite, type ChoixEntiteFenetre } from './ChoixEntite';
 
 const emptyOptions = (type: PollType): Poll['options'] =>
   type === 'ouinon' ? OUINON : type === 'dates'
@@ -15,25 +16,11 @@ const emptyOptions = (type: PollType): Poll['options'] =>
     : [{ id: uid('o'), label: '' }, { id: uid('o'), label: '' }];
 
 /** Création / modification d'un sondage. */
-export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: string; onClose: () => void }) {
+/** `nouveau` : nouveau sondage déjà préparé ; `entite` : l'entité où le créer, choisie dans la fenêtre (vue « moi »). */
+export function PollEditor({ poll, nouveau, entite, taskId, onClose }: { poll?: Poll; nouveau?: Poll; entite?: ChoixEntiteFenetre<Poll>; taskId?: string; onClose: () => void }) {
   const { data, user, savePoll, sondagesEntites } = useStore();
   const club = useClubOptional();
-  const [p, setP] = useState<Poll>(
-    () =>
-      poll ?? {
-        id: uid('poll'),
-        question: '',
-        type: 'ouinon',
-        multiple: false,
-        options: OUINON,
-        votants: committeeOf(data).map((x) => x.id),
-        anonyme: false,
-        taskId,
-        creePar: user?.id ?? '',
-        creeLe: new Date().toISOString(),
-        votes: {},
-      },
-  );
+  const [p, setP] = useState<Poll>(() => poll ?? nouveau ?? nouveauSondage(data, user?.id ?? '', undefined, taskId));
   // Réponse « Autre » (texte libre) : gardée à part, ajoutée en dernier à l'enregistrement.
   const [autre, setAutre] = useState(() => !!poll?.options.some((o) => o.autre));
   const [err, setErr] = useState('');
@@ -69,6 +56,7 @@ export function PollEditor({ poll, taskId, onClose }: { poll?: Poll; taskId?: st
   return (
     <Modal title={poll ? 'Modifier le sondage' : 'Nouveau sondage'} onClose={onClose} wide>
       <div className="form">
+        <ChampEntite choix={entite} v={p} label="Entité" />
         <label className="full">
           Question
           <input autoFocus value={p.question} onChange={(e) => set({ question: e.target.value })} placeholder="Ex. Qui est disponible pour le souper ?" />

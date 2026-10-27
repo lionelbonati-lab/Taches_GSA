@@ -3,7 +3,8 @@ import { ClubCtx, type Club } from './club';
 import { StoreCtx } from './storeCtx';
 import type { Store } from './storeTypes';
 import { computeNotifications, DEFAULT_NOTIF, type NotifItem } from './notifs';
-import type { Meeting, OrgUnit } from './types';
+import type { Meeting, OrgUnit, Poll } from './types';
+import { sondagesVisibles } from './polls';
 
 // Vue « moi » : mes autres entités sont ouvertes en arrière-plan, chacune avec sa couche de données (sans écran). Leurs
 // tâches, discussions et notifications s'ajoutent à celles de l'entité ouverte (vueMoi.ts) ; une tâche de l'une d'elles
@@ -140,6 +141,33 @@ export function useMesEntites(): EntiteMoi[] {
     ],
     [store, ici, autres],
   );
+}
+
+/** Un sondage de l'une de mes entités (ou reçu par elle), avec son entité. */
+export interface SondageMoi {
+  p: Poll;
+  ent: EntiteMoi;
+}
+
+/**
+ * Sondages de toutes mes entités (vue « moi ») : ceux où je vote, ceux que j'y ai créés ou que j'y gère, et ceux d'autres
+ * entités ouverts aux miennes. Le même (ouvert à plusieurs de mes entités, ou venant de l'une d'elles) une seule fois,
+ * chez lui d'abord.
+ */
+export function useSondagesMoi(): SondageMoi[] {
+  const mes = useMesEntites();
+  return useMemo(() => {
+    const vus = new Set<string>();
+    return mes
+      .flatMap((ent) => sondagesVisibles(ent.store.data.polls ?? [], ent.store.user?.id, ent.store.can('polls.manage')).map((p) => ({ p, ent })))
+      .sort((a, b) => Number(!!a.p.source) - Number(!!b.p.source))
+      .filter(({ p, ent }) => {
+        const cle = p.source ? `${p.source.uniteId}:${p.source.id}` : `${ent.u?.id ?? ''}:${p.id}`;
+        if (vus.has(cle)) return false;
+        vus.add(cle);
+        return true;
+      });
+  }, [mes]);
 }
 
 /** Écran dans l'une de mes entités : l'entité ouverte telle quelle, une autre dans la sienne (DansEntite). */

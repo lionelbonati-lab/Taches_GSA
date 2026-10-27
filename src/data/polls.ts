@@ -2,7 +2,7 @@ import type { AppData, OrgUnit, Person, Poll, PollOption, SondagePartage } from 
 import { hasPermission, userRoles } from './permissions';
 import { emailKey } from './membres';
 import { idPartagee } from './partage';
-import { fmtDate, fullName } from './utils';
+import { fmtDate, fullName, uid } from './utils';
 
 export const OUINON: PollOption[] = [
   { id: 'oui', label: 'Oui' },
@@ -87,6 +87,16 @@ export function pollSummary(p: Poll) {
 /** Membres du comité (rôles ayant l'onglet Comité) : votants proposés par défaut. */
 export const committeeOf = (data: AppData): Person[] =>
   data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
+
+/**
+ * Nouveau sondage dans une entité (`data`), par `creePar` : ses votants proposés sont son comité. `v` : ce qui a déjà été
+ * saisi dans une autre entité (question, réponses, date limite…), sans ses votants, sa tâche ni ses votes.
+ */
+export function nouveauSondage(data: AppData, creePar: string, v?: Poll, taskId?: string): Poll {
+  const base = v ?? { question: '', type: 'ouinon' as const, multiple: false, options: OUINON, anonyme: false };
+  const { electeurs: _e, cleMoi: _c, source: _s, entites: _x, ...rest } = base as Poll;
+  return { ...rest, id: uid('poll'), votants: committeeOf(data).map((x) => x.id), taskId, creePar, creeLe: new Date().toISOString(), votes: {}, textes: undefined };
+}
 
 // Sondage ouvert à d'autres entités du club (Poll.entites) : tous leurs membres votent aussi, en plus des votants
 // choisis dans l'entité du sondage. Une même personne ne vote qu'une fois (même fiche du registre, même email, ou

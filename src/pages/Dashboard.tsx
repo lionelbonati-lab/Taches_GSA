@@ -22,7 +22,7 @@ import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
-import { Chez, useMesEntites, useSeancesMoi, type EntiteMoi } from '../data/entites';
+import { Chez, useMesEntites, useSeancesMoi, useSondagesMoi, type EntiteMoi } from '../data/entites';
 import { useComites } from '../data/comites';
 import { LieuSeance } from '../components/Liens';
 
@@ -44,6 +44,8 @@ export function Dashboard() {
   const seances = useSeancesMoi();
   // Et leurs événements.
   const mesEntites = useMesEntites();
+  // Et leurs sondages (à voter).
+  const sondages = useSondagesMoi();
   const mesEvenements = mesEntites.filter((e) => e.store.can('tab.events'));
   const plusieurs = usePlusieursEntites();
   const comites = useComites();
@@ -103,7 +105,7 @@ export function Dashboard() {
     .sort((a, b) => a.at.localeCompare(b.at));
   const toSend = myEmails.filter((x) => x.st === 'aEnvoyer');
   const upcoming = myEmails.filter((x) => x.st === 'programme').slice(0, 3);
-  const toVote = (data.polls ?? []).filter((p) => isOpen(p) && p.cleMoi && !p.votes[p.cleMoi]);
+  const toVote = sondages.filter(({ p }) => isOpen(p) && p.cleMoi && !p.votes[p.cleMoi]);
   // Pour info : tâches d'ici où je suis mentionné, et celles d'autres entités (moi ou mon entité), en cours.
   // Celles marquées « ✓ Vu » n'y figurent plus (elles restent dans Tâches › 👁 Pour info).
   const vus = prefs.pourInfoVus ?? {};
@@ -268,9 +270,9 @@ export function Dashboard() {
         return (
           <>
             <h2><Icone n="sondage" /> Sondages à voter</h2>
-            {toVote.map((p) => (
-              <Link key={p.id} to={`/sondages?id=${p.id}`} className="panel link-panel">
-                <strong>{p.question}</strong>
+            {toVote.map(({ p, ent }) => (
+              <Link key={`${ent.u?.id ?? ''}:${p.id}`} to={`/sondages?id=${encodeURIComponent(p.id)}`} className="panel link-panel">
+                <strong>{p.question}{plusieurs && <> <span className="tsource">{p.source?.unite ?? ent.u?.nom}</span></>}</strong>
                 <span className="muted">{p.dateLimite ? `Réponds ${p.clotureAuto === false ? 'si possible ' : ''}avant le ${echeance(p)}` : 'En attente de ta réponse'}</span>
               </Link>
             ))}

@@ -14,7 +14,7 @@ import { aLaDate, duree, fmtHeure, horaire, libelleRepetition, occurrencesEntre 
 import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
-import { useMesEntites, useSeancesMoi } from '../data/entites';
+import { useMesEntites, useSeancesMoi, useSondagesMoi } from '../data/entites';
 import { NouveauDans } from '../components/ChoixEntite';
 import { motSeance } from '../data/seances';
 import { useComites } from '../data/comites';
@@ -96,6 +96,8 @@ export function Calendar() {
 
   // Vue « moi » : avec les séances de mes autres entités (où je vois les séances).
   const seances = useSeancesMoi();
+  // Et leurs sondages (date limite).
+  const sondages = useSondagesMoi();
   const plusieurs = usePlusieursEntites();
   const comites = useComites();
   const seeMeetings = can('tab.meetings') || seances.some((x) => !x.ici);
@@ -173,7 +175,7 @@ export function Calendar() {
       events.forEach((e) => occurrencesEntre(e, from, to).forEach((o) => span(`c-${u.id}-${e.id}@${o}`, aLaDate(e, o), e)));
     });
     if (kinds.includes('poll'))
-      (data.polls ?? []).forEach((p) => p.dateLimite && (isOpen(p) || showDone) && push({ kind: 'poll', key: p.id, date: p.dateLimite, p }));
+      sondages.forEach(({ p, ent }) => p.dateLimite && (isOpen(p) || showDone) && push({ kind: 'poll', key: `${ent.u?.id ?? ''}:${p.id}`, date: p.dateLimite, p }));
     for (const t of data.tasks) {
       if (!visible(t)) continue;
       if (kinds.includes('task') && t.delai) push({ kind: 'task', key: t.id, date: t.delai, t });
@@ -184,7 +186,7 @@ export function Calendar() {
     map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind] || heure(a).localeCompare(heure(b))));
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, user, days, kinds, effScope, showDone, seances, seeEvents, canSeeTask, manifs, masquees.join()]);
+  }, [data, user, days, kinds, effScope, showDone, seances, sondages, seeEvents, canSeeTask, manifs, masquees.join()]);
 
   if (!user) return null;
 
@@ -223,7 +225,7 @@ export function Calendar() {
     // Événement de l'une de mes entités : sa carte dans les événements réunis ; d'une autre entité du club : l'organigramme.
     else if (it.kind === 'manif')
       navigate(club?.mine.some((u) => u.id === it.u.id) ? `/evenements${it.e ? `?id=${encodeURIComponent(it.e.id)}&entite=${encodeURIComponent(it.u.id)}` : ''}` : '/organigramme');
-    else navigate(`/sondages?id=${it.p.id}`);
+    else navigate(`/sondages?id=${encodeURIComponent(it.p.id)}`);
   };
 
   // ---------- Glisser-déposer : changer la date ----------

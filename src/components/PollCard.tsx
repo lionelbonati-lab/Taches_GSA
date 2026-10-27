@@ -23,7 +23,8 @@ export function useClotureAuto(polls: Poll[]) {
 }
 
 /** Sondage : vote, résultats (barres, tableau des disponibilités) et gestion. */
-export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: boolean; highlight?: boolean }) {
+/** `pilule` : le nom de son entité (sondages de toutes mes entités réunis). */
+export function PollCard({ poll, compact, highlight, pilule }: { poll: Poll; compact?: boolean; highlight?: boolean; pilule?: string }) {
   const { data, user, votePoll, closePoll, deletePoll, canManagePoll } = useStore();
   const club = useClubOptional();
   // Clé de vote de la personne connectée (sa fiche, ou `entité:fiche` pour un sondage ouvert à son entité).
@@ -57,7 +58,7 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
   return (
     <article id={`poll-${poll.id}`} className={`poll ${compact ? 'compact' : ''} ${highlight ? 'highlight' : ''}`}>
       <header className="poll-head">
-        <strong>📊 {poll.question}</strong>
+        <strong>📊 {poll.question}{pilule && !poll.source && <> <span className="tsource" title={`Sondage de « ${pilule} »`}>{pilule}</span></>}</strong>
         <span className="poll-badges">
           <span className={`pbadge ${open ? 'open' : 'closed'}`}>{open ? 'Ouvert' : 'Clôturé'}</span>
           {!compact && <span className="pbadge">{POLL_TYPES.find((t) => t.id === poll.type)?.label}</span>}

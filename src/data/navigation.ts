@@ -83,7 +83,7 @@ const RUBRIQUES: NavRubrique[] = [
     id: 'sondages',
     label: 'Sondages',
     icon: 'sondage',
-    pages: [{ to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli.' }],
+    pages: [{ to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli. Ceux de toutes tes entités sont réunis ici.' }],
   },
   {
     // Le club : son organigramme (où l'on ouvre l'une de ses entités : ses réglages, sa console admin) et l'annuaire.
