@@ -39,10 +39,12 @@ export async function makeBackup(data: AppData, by?: string): Promise<Backup> {
   return { app: 'taches-gsa', version: 1, exportedAt: new Date().toISOString(), exportedBy: by, schema: data.schema ?? 0, data, files };
 }
 
-export function downloadBackup(b: Backup) {
+/** `entite` : son nom dans celui du fichier (membre de plusieurs entités). */
+export function downloadBackup(b: Backup, entite?: string) {
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(b, null, 1)], { type: 'application/json' }));
-  a.download = `taches-gsa-sauvegarde-${b.exportedAt.slice(0, 10)}.json`;
+  const nom = entite?.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  a.download = `taches-gsa-sauvegarde-${nom ? `${nom}-` : ''}${b.exportedAt.slice(0, 10)}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }

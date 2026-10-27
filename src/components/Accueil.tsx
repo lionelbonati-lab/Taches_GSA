@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
+import { useSetPrefsPartout } from '../data/entites';
 import type { Prefs, Status } from '../data/types';
 import { hasEdition } from './Edition';
 import { Modal } from './ui';
@@ -157,7 +158,8 @@ function Rangement({ titre, elements, masque, ordre, appareil, setMasque, setOrd
 
 /** Choix et ordre des blocs et des compteurs de l'accueil ; affichage séparé sur téléphone et sur ordinateur. */
 export function AccueilModal({ onClose }: { onClose: () => void }) {
-  const { prefs, setPrefs, data, can } = useStore();
+  const { prefs, data, can } = useStore();
+  const setPrefs = useSetPrefsPartout();
   const blocs = useBlocsAccueil();
   const { appareil } = useAccueil();
   const jours = joursAFaire(prefs.aFaireJours);

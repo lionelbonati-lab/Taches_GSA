@@ -3,7 +3,7 @@ import { ClubCtx, type Club } from './club';
 import { StoreCtx } from './storeCtx';
 import type { Store } from './storeTypes';
 import { computeNotifications, DEFAULT_NOTIF, type NotifItem } from './notifs';
-import type { Meeting, OrgUnit, Poll } from './types';
+import type { Meeting, OrgUnit, Poll, Prefs } from './types';
 import { sondagesVisibles } from './polls';
 
 // Vue « moi » : mes autres entités sont ouvertes en arrière-plan, chacune avec sa couche de données (sans écran). Leurs
@@ -141,6 +141,15 @@ export function useMesEntites(): EntiteMoi[] {
     ],
     [store, ici, autres],
   );
+}
+
+/**
+ * Mes préférences (affichage, accueil, barre du bas, notifications) : enregistrées dans chacune de mes entités, pour être
+ * les mêmes partout (pages affichées dans une autre entité, cloche, notifications envoyées par le serveur).
+ */
+export function useSetPrefsPartout(): (p: Partial<Prefs>) => void {
+  const mes = useMesEntites();
+  return useCallback((p: Partial<Prefs>) => mes.forEach((e) => e.store.setPrefs(p)), [mes]);
 }
 
 /** Un sondage de l'une de mes entités (ou reçu par elle), avec son entité. */

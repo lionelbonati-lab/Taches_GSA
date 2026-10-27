@@ -105,7 +105,7 @@ const RUBRIQUES: NavRubrique[] = [
 
 /** Menu du compte (en haut à droite ; « Plus » sur téléphone). */
 export const PAGES_COMPTE: NavPage[] = [
-  { to: '/reglages', label: 'Réglages', icon: 'reglages', aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage, les notifications et la sauvegarde.' },
+  { to: '/reglages', label: 'Réglages', icon: 'reglages', aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage et les notifications (les mêmes dans toutes tes entités), et la sauvegarde.' },
   { to: '/admin', label: 'Console admin', icon: 'admin', perm: 'admin.access', aide: 'Les réglages de l’une de tes entités, réservés à ses admins (choisis-la en haut de la page). Choisis ce que tu veux régler.' },
   {
     to: '/mots-de-passe',

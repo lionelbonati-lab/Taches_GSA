@@ -1,6 +1,6 @@
 import { useStore } from '../data/store';
 import { InstallButton } from '../components/InstallButton';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { backupSummary, downloadBackup, lastBackupAt, makeBackup, readBackup, restoreFiles, setLastBackupAt } from '../data/backup';
 import { fmtDateTime, fullName } from '../data/utils';
 import { DEFAULT_NOTIF, showSystemNotification, useNotifications } from '../notifications';
@@ -18,42 +18,23 @@ import { CopiesAuto } from '../components/CopiesAuto';
 import { copierMaintenant } from '../data/cloud';
 import { Icone } from '../components/icones';
 import { NotifsPush } from '../components/NotifsPush';
+import { Chez, useMesEntites, useSetPrefsPartout } from '../data/entites';
+import { useComites } from '../data/comites';
+import { Deroulante } from '../components/Deroulante';
+import { PastilleEntite } from '../components/IconesEntite';
+import { usePlusieursEntites } from '../components/ui';
 
 export function Settings() {
-  const { dataLocale: data, user, prefs, setPrefs, can, reset, restore, login, cloud } = useStore();
+  const { prefs, can, reset, login, cloud } = useStore();
   const club = useClubOptional();
+  const comites = useComites();
+  const plusieurs = usePlusieursEntites();
+  // Vue « moi » : mes préférences sont les mêmes dans toutes mes entités.
+  const setPrefs = useSetPrefsPartout();
   const [pwd, setPwd] = useState<'ferme' | 'ouvert' | 'ok'>('ferme');
-  const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [last, setLast] = useState(lastBackupAt());
   const [accueil, setAccueil] = useState(false);
   const [barreBas, setBarreBas] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
 
-  const exportAll = async () => {
-    const b = await makeBackup(data, fullName(user ?? undefined));
-    downloadBackup(b);
-    setLastBackupAt(b.exportedAt);
-    setLast(b.exportedAt);
-    setBackupMsg({ ok: true, text: `✅ Sauvegarde téléchargée : ${backupSummary(b)}.` });
-  };
-  const importFile = async (file?: File) => {
-    if (!file) return;
-    try {
-      const b = await readBackup(file);
-      const unit = club ? `« ${club.current.nom} »` : 'du comité';
-      const where = cloud ? `toutes les données ${club ? `de ${unit}` : unit} (pour tous ses membres)` : `toutes les données ${club ? `de ${unit} ` : ''}dans ce navigateur`;
-      if (!confirm(`Remplacer ${where} par la sauvegarde du ${fmtDateTime(b.exportedAt)} ?\n${backupSummary(b)}`)) return;
-      // Version réelle : l'état actuel est d'abord copié par le serveur (036), pour pouvoir revenir en arrière.
-      if (cloud) await copierMaintenant(cloud.membership.committeeId).catch(() => null);
-      await restoreFiles(b.files);
-      restore(b.data, `la sauvegarde du ${fmtDateTime(b.exportedAt)}`);
-      setBackupMsg({ ok: true, text: `✅ Données restaurées : ${backupSummary(b)}.` });
-    } catch (e) {
-      setBackupMsg({ ok: false, text: (e as Error).message });
-    } finally {
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  };
   const { unread } = useNotifications();
   const n: NotifPrefs = { ...DEFAULT_NOTIF, ...prefs.notif };
   const setN = (patch: Partial<NotifPrefs>) => setPrefs({ notif: { ...n, ...patch } });
@@ -82,7 +63,7 @@ export function Settings() {
         <section className="panel account">
           <h2>Mon compte</h2>
           <p>
-            Connecté en tant que <b>{cloud.email}</b> · {cloud.membership.committeeName}
+            Connecté en tant que <b>{cloud.email}</b>
           </p>
           <div className="row wrap">
             <button className="btn" onClick={() => setPwd(pwd === 'ouvert' ? 'ferme' : 'ouvert')}><Icone n="cle" /> Changer mon mot de passe</button>
@@ -96,6 +77,7 @@ export function Settings() {
       {club && <MesDonnees />}
       <section className="panel form">
         <h2 className="full">Préférences personnelles</h2>
+        {plusieurs && <p className="muted full" style={{ margin: 0 }}>Les mêmes dans toutes tes entités.</p>}
         <label>
           Thème
           <select value={prefs.theme} onChange={(e) => setPrefs({ theme: e.target.value as typeof prefs.theme })}>
@@ -146,7 +128,7 @@ export function Settings() {
       </section>
       <section className="panel form">
         <h2 className="full">Notifications</h2>
-        <p className="muted full" style={{ margin: 0 }}>Choisis ce qui s’affiche dans la cloche 🔔 de l’en-tête.</p>
+        <p className="muted full" style={{ margin: 0 }}>Choisis ce qui s’affiche dans la cloche 🔔 de l’en-tête{plusieurs ? ', pour toutes tes entités' : ''}.</p>
         <label className="inline full"><input type="checkbox" checked={n.assign} onChange={(e) => setN({ assign: e.target.checked })} /> 🆕 Une tâche ou une sous-tâche m’est confiée par quelqu’un d’autre, 👁 on me la met « pour info », ou 🙋 on me la propose (et quelqu’un prend ou décline une tâche que j’ai proposée) ; 📣 on me mentionne dans une discussion (@)</label>
         <label className="inline full"><input type="checkbox" checked={n.modif} onChange={(e) => setN({ modif: e.target.checked })} /> ✏️ Une de mes tâches est modifiée par quelqu’un d’autre, ou reconduite ; 💬 quelqu’un commente une tâche dont je m’occupe ou que j’ai commentée</label>
         <label className="inline"><input type="checkbox" checked={n.echeance} onChange={(e) => setN({ echeance: e.target.checked })} /> ⏰ Échéance proche</label>
@@ -160,7 +142,7 @@ export function Settings() {
         <label className="inline full"><input type="checkbox" checked={n.semaine} onChange={(e) => setN({ semaine: e.target.checked })} /> 📅 Résumé de ma semaine, le lundi matin : tâches à faire d’ici dimanche, séances, événements, sondages</label>
         <label className="inline full"><input type="checkbox" checked={n.sondage} onChange={(e) => setN({ sondage: e.target.checked })} /> 📊 Un sondage attend ma réponse</label>
         <label className="inline full"><input type="checkbox" checked={n.email} onChange={(e) => setN({ email: e.target.checked })} /> 📧 Un email que j’ai programmé arrive à son heure d’envoi</label>
-        {can('tab.meetings') && (
+        {(comites ? comites.canUn('tab.meetings') : can('tab.meetings')) && (
           <>
             <label className="inline"><input type="checkbox" checked={n.seance} onChange={(e) => setN({ seance: e.target.checked })} /> 🗓️ Prochaine séance de comité</label>
             <label>
@@ -192,36 +174,7 @@ export function Settings() {
         <p className="muted">Installe {nomAppli()} comme une application sur ton ordinateur ou ton téléphone : icône sur le bureau / l’écran d’accueil, fenêtre dédiée, ouverture même hors connexion.</p>
         <InstallButton />
       </section>
-      <section className="panel backup">
-        <h2>Sauvegarde des données</h2>
-        {cloud ? (
-          <p className="muted">
-            Les données {club ? `de « ${club.current.nom} »` : 'du comité'} sont enregistrées sur le serveur et partagées entre ses membres. Le serveur en garde
-            chaque nuit une copie (30 jours). Une sauvegarde téléchargée en garde une copie complète chez toi (tâches, séances, PV, sondages, emails, responsables,
-            rôles, réglages et fichiers joints), par exemple chaque fin de saison.
-          </p>
-        ) : (
-          <p className="muted">
-            Dans la démo, les données ne sont enregistrées <b>que dans ce navigateur</b>, sur cet appareil. Une sauvegarde contient tout : tâches, séances, PV,
-            sondages, emails, responsables, rôles, réglages et fichiers joints. Elle sert à passer à un autre appareil et à <b>reprendre tes données dans la
-            version réelle</b> (première mise en route). Dans la version réelle, le serveur garde en plus une copie des données chaque nuit, pendant 30 jours.
-          </p>
-        )}
-        <div className="row wrap">
-          <button className="btn primary" onClick={exportAll}><Icone n="telecharger" /> Télécharger une sauvegarde</button>
-          {can('admin.access') && (
-            <>
-              <button className="btn" onClick={() => fileRef.current?.click()}><Icone n="televerser" /> Restaurer une sauvegarde…</button>
-              <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
-            </>
-          )}
-        </div>
-        <small className="muted">{last ? `Dernière sauvegarde depuis ce navigateur : ${fmtDateTime(last)}` : 'Aucune sauvegarde téléchargée depuis ce navigateur.'}</small>
-        {backupMsg && <p className={backupMsg.ok ? 'backup-ok' : 'error'}>{backupMsg.text}</p>}
-        {cloud && can('admin.access') && (
-          <CopiesAuto unite={cloud.membership.committeeId} nom={club?.current.nom ?? cloud.membership.committeeName} restore={restore} />
-        )}
-      </section>
+      <SauvegardeChoisie />
       {!cloud && <section className="panel">
         <h2>Données de démonstration</h2>
         <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club) et efface tout ce qui a été saisi : télécharge d’abord une sauvegarde.</p>
@@ -231,5 +184,93 @@ export function Settings() {
         </div>
       </section>}
     </div>
+  );
+}
+
+/** Sauvegarde : celle de l'une de mes entités, choisie en tête (vue « moi » : sans changer d'entité). */
+function SauvegardeChoisie() {
+  const mes = useMesEntites();
+  const liste = mes.flatMap((e) => (e.u ? [e.u] : []));
+  const [id, setId] = useState(liste[0]?.id);
+  const choix =
+    liste.length > 1 ? (
+      <label className="sauvegarde-entite">
+        Entité
+        <Deroulante aria-label="Entité" value={id ?? ''} onChange={setId} options={liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))} />
+      </label>
+    ) : null;
+  return (
+    <Chez id={id}>
+      <Sauvegarde key={id} choix={choix} nom={choix ? liste.find((u) => u.id === id)?.nom : undefined} />
+    </Chez>
+  );
+}
+
+/** Sauvegarde des données de l'entité (téléchargée ; restaurée et copies du serveur : ses admins). */
+function Sauvegarde({ choix, nom }: { choix: ReactNode; nom?: string }) {
+  const { dataLocale: data, user, can, restore, cloud } = useStore();
+  const club = useClubOptional();
+  const [backupMsg, setBackupMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [last, setLast] = useState(lastBackupAt());
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const exportAll = async () => {
+    const b = await makeBackup(data, fullName(user ?? undefined));
+    downloadBackup(b, nom);
+    setLastBackupAt(b.exportedAt);
+    setLast(b.exportedAt);
+    setBackupMsg({ ok: true, text: `✅ Sauvegarde téléchargée : ${backupSummary(b)}.` });
+  };
+  const importFile = async (file?: File) => {
+    if (!file) return;
+    try {
+      const b = await readBackup(file);
+      const unit = club ? `« ${club.current.nom} »` : 'du comité';
+      const where = cloud ? `toutes les données ${club ? `de ${unit}` : unit} (pour tous ses membres)` : `toutes les données ${club ? `de ${unit} ` : ''}dans ce navigateur`;
+      if (!confirm(`Remplacer ${where} par la sauvegarde du ${fmtDateTime(b.exportedAt)} ?\n${backupSummary(b)}`)) return;
+      // Version réelle : l'état actuel est d'abord copié par le serveur (036), pour pouvoir revenir en arrière.
+      if (cloud) await copierMaintenant(cloud.membership.committeeId).catch(() => null);
+      await restoreFiles(b.files);
+      restore(b.data, `la sauvegarde du ${fmtDateTime(b.exportedAt)}`);
+      setBackupMsg({ ok: true, text: `✅ Données restaurées : ${backupSummary(b)}.` });
+    } catch (e) {
+      setBackupMsg({ ok: false, text: (e as Error).message });
+    } finally {
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  };
+
+  return (
+    <section className="panel backup">
+      <h2>Sauvegarde des données</h2>
+      {choix}
+      {cloud ? (
+        <p className="muted">
+          Les données {club ? `de « ${club.current.nom} »` : 'du comité'} sont enregistrées sur le serveur et partagées entre ses membres. Le serveur en garde
+          chaque nuit une copie (30 jours). Une sauvegarde téléchargée en garde une copie complète chez toi (tâches, séances, PV, sondages, emails, responsables,
+          rôles, réglages et fichiers joints), par exemple chaque fin de saison.
+        </p>
+      ) : (
+        <p className="muted">
+          Dans la démo, les données ne sont enregistrées <b>que dans ce navigateur</b>, sur cet appareil. Une sauvegarde contient tout : tâches, séances, PV,
+          sondages, emails, responsables, rôles, réglages et fichiers joints. Elle sert à passer à un autre appareil et à <b>reprendre tes données dans la
+          version réelle</b> (première mise en route). Dans la version réelle, le serveur garde en plus une copie des données chaque nuit, pendant 30 jours.
+        </p>
+      )}
+      <div className="row wrap">
+        <button className="btn primary" onClick={exportAll}><Icone n="telecharger" /> Télécharger une sauvegarde</button>
+        {can('admin.access') && (
+          <>
+            <button className="btn" onClick={() => fileRef.current?.click()}><Icone n="televerser" /> Restaurer une sauvegarde…</button>
+            <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => importFile(e.target.files?.[0])} />
+          </>
+        )}
+      </div>
+      <small className="muted">{last ? `Dernière sauvegarde depuis ce navigateur : ${fmtDateTime(last)}` : 'Aucune sauvegarde téléchargée depuis ce navigateur.'}</small>
+      {backupMsg && <p className={backupMsg.ok ? 'backup-ok' : 'error'}>{backupMsg.text}</p>}
+      {cloud && can('admin.access') && (
+        <CopiesAuto unite={cloud.membership.committeeId} nom={club?.current.nom ?? cloud.membership.committeeName} restore={restore} />
+      )}
+    </section>
   );
 }

@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { allerA, compter, expect, nouvelleTache, ouvrirDemo, ouvrirEntite, test, verifierEntite } from './outils';
 
@@ -322,6 +323,34 @@ test('vue « moi » : mon profil, le même dans toutes mes entités', async ({ p
   await expect(page.locator('.who-text strong')).toHaveText('Jules Moreau');
   await page.goto('./?demo#/reglages');
   await expect(page.locator('section.mon-profil').getByLabel('Prénom')).toHaveValue('Jules');
+});
+
+test('vue « moi » : mes réglages, les mêmes dans toutes mes entités ; la sauvegarde de l’une d’elles', async ({ page }) => {
+  await page.goto('./?demo#/reglages');
+  // Préférence enregistrée aussi dans la Soirée récréative (pages affichées chez elle, sa cloche).
+  await page.getByLabel('Phrase d’explication en haut des pages').selectOption('non');
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const d = JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}');
+        const moi = d.people?.find((p: { prenom: string }) => p.prenom === 'Julien');
+        return d.prefs?.[moi?.id]?.explications;
+      }),
+    )
+    .toBe(false);
+  // Sauvegarde : celle de l'entité choisie (restaurer : ses admins seulement).
+  const sauvegarde = page.locator('section.backup');
+  await expect(sauvegarde.getByRole('button', { name: /Restaurer une sauvegarde/ })).toBeVisible();
+  const choix = sauvegarde.getByRole('combobox', { name: 'Entité' });
+  await expect(choix).toHaveText(/Comité central/);
+  await choix.click();
+  await page.getByRole('option', { name: /Soirée récréative/ }).click();
+  await expect(choix).toHaveText(/Soirée récréative/);
+  await expect(sauvegarde.getByRole('button', { name: /Restaurer une sauvegarde/ })).toHaveCount(0);
+  const [fichier] = await Promise.all([page.waitForEvent('download'), sauvegarde.getByRole('button', { name: /Télécharger une sauvegarde/ }).click()]);
+  expect(fichier.suggestedFilename()).toMatch(/^taches-gsa-sauvegarde-soiree-recreative-/);
+  const contenu = JSON.parse(readFileSync((await fichier.path())!, 'utf8'));
+  expect(contenu.data.events.some((e: { lieu?: string }) => e.lieu === 'Salle des fêtes')).toBe(true);
 });
 
 test('vue « moi » : les séances de toutes mes entités, réunies (page Séances, accueil, agenda)', async ({ page }) => {
