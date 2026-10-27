@@ -68,7 +68,8 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
       }
       const id = `${idPrefix ?? ''}${uid('d')}`;
       try {
-        await saveFile(id, blob);
+        // Tâche de l'une de mes autres entités (vue « moi ») : dans son dossier.
+        await saveFile(id, blob, cloud?.membership.committeeId);
       } catch (e) {
         setErr(`« ${f.name} » : ${(e as Error).message}.`);
         continue;

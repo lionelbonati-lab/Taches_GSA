@@ -25,7 +25,8 @@ export interface DiscussionVue {
 
 /** Toutes les discussions possibles (tâches vues d'ici, pour info reçues), avec ou sans messages. */
 export function useDiscussions() {
-  const { data, user, canSeeTask, pourInfo, discussionLueLe } = useStore();
+  // Vue « moi » : avec les tâches de mes autres entités.
+  const { dataMoi: data, user, canSeeTask, pourInfo, discussionLueLe } = useStore();
   const club = useClubOptional();
   if (!user) return { toutes: [] as DiscussionVue[], nonLus: 0 };
   const ici = club?.current.id ?? '';
@@ -38,7 +39,8 @@ export function useDiscussions() {
     ...data.tasks
       .filter((t) => !t.paiement && canSeeTask(t))
       .map((t) => vue(t.id, t, { tacheId: t.source?.id ?? t.id, uniteId: t.source?.uniteId, entite: t.source?.unite, lien: `/taches?tache=${t.id}`, terminee: fini.has(t.statusId) })),
-    ...pourInfo.map((x) =>
+    // Une tâche de l'une de mes autres entités y est déjà (vue « moi ») : une seule fois.
+    ...pourInfo.filter((x) => !data.tasks.some((t) => t.id === `x:${x.uniteId}:${x.task.id}`)).map((x) =>
       vue(`x:${x.uniteId}:${x.task.id}`, x.task, {
         tacheId: x.task.id,
         uniteId: x.uniteId,

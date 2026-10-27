@@ -14,6 +14,7 @@ import { AppLogo } from './components/ui';
 import { ChooseCommittee, FirstPassword, Message, NewPassword, RealLogin, Setup, WhoAreYou } from './pages/Real';
 import { ComptesSeuls } from './pages/Comptes';
 import { uniteDuLien } from './data/lienPartage';
+import { RegistreEntites } from './data/entites';
 
 // Version réelle : connexion, choix du comité, mise en route, puis l'appli avec les données du serveur.
 
@@ -193,11 +194,13 @@ export function CloudApp() {
       // Déconnexion en cours : la session disparaît avant le rechargement de la page.
       if (!session) return null;
       return (
-        <CloudClub m={phase.cloud.membership} userId={userId} onSwitch={switchTo}>
-          <StoreProvider cloud={phase.cloud}>
-            <App />
-          </StoreProvider>
-        </CloudClub>
+        <RegistreEntites>
+          <CloudClub m={phase.cloud.membership} userId={userId} email={phase.cloud.email} signOut={signOut} onSwitch={switchTo}>
+            <StoreProvider cloud={phase.cloud}>
+              <App />
+            </StoreProvider>
+          </CloudClub>
+        </RegistreEntites>
       );
   }
 }

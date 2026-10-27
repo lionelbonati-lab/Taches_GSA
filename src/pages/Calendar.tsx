@@ -59,7 +59,8 @@ function longDate(date: string) {
 }
 
 export function Calendar() {
-  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, setToast } = useStore();
+  // Vue « moi » : avec les tâches de mes autres entités.
+  const { dataMoi: data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, setToast } = useStore();
   const club = useClubOptional();
   const { saveMeeting } = useAgendaActions();
   const { saveEvent, saveOccurrence } = useEventActions();

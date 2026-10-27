@@ -192,7 +192,10 @@ test('discussion : une seule notification par personne, lue partout une fois lue
   // Pas encore lue : non lue au comité central aussi.
   const ligne = page.locator('main tr', { hasText: 'Choisir la musique' });
   await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveText('1');
-  await expect(await notifications()).not.toContainText('Choisir la musique');
+  // Vue « moi » : la cloche montre aussi celles de mes autres entités ; celle-ci une seule fois, avec le nom de la Soirée.
+  const venue = (await notifications()).locator('.bell-item', { hasText: 'Choisir la musique' });
+  await expect(venue).toHaveCount(1);
+  await expect(venue).toContainText('Soirée récréative');
   await page.keyboard.press('Escape');
   await entite('Soirée récréative');
   await expect(await notifications()).toContainText('Marc Lambert a commenté « Choisir la musique »');
@@ -229,6 +232,61 @@ test('discussion : une seule notification par personne, lue partout une fois lue
   await entite('Soirée récréative');
   await expect((await notifications()).locator('.bell-item', { hasText: 'Choisir la musique' }).first()).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Notifications' }).locator('.bell-item.unread', { hasText: 'Choisir la musique' })).toHaveCount(0);
+});
+
+test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées sans changer d’entité', async ({ page }) => {
+  const entite = async (nom: string) => {
+    await page.locator('.unit-btn').click();
+    await page.locator('.unit-menu .unit-item', { hasText: nom }).click();
+    await expect(page.locator('.unit-btn')).toContainText(nom);
+    await page.goto('./?demo#/taches');
+  };
+  // Julien Moreau crée une tâche dans la Soirée récréative (pas partagée).
+  await entite('Soirée récréative');
+  const fiche = await nouvelleTache(page, 'Louer les tables');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Au comité central, elle est dans ses tâches, avec la pastille de son entité ; le filtre « Entité » la garde ou la retire.
+  await entite('Comité central');
+  const ligne = page.locator('main tr', { hasText: 'Louer les tables' });
+  await expect(ligne.locator('.tsource')).toHaveText('Soirée récréative');
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  await page.getByLabel('Entité').selectOption({ label: 'Comité central' });
+  await expect(ligne).toHaveCount(0);
+  await page.getByLabel('Entité').selectOption({ label: 'Soirée récréative' });
+  await expect(ligne).toHaveCount(1);
+
+  // Ouverte d'ici, dans son entité : modifiée, commentée, sans changer d'entité.
+  await ligne.getByText('Louer les tables').first().click();
+  const ouverte = page.locator('.modal').first();
+  await expect(ouverte.getByPlaceholder('Que faut-il faire ?')).toHaveValue('Louer les tables');
+  await expect(ouverte).not.toContainText('partagée avec');
+  await ouverte.getByPlaceholder('Que faut-il faire ?').fill('Louer les tables et les bancs');
+  await ouverte.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.unit-btn')).toContainText('Comité central');
+  await expect(page.locator('main tr', { hasText: 'Louer les tables et les bancs' }).locator('.tsource')).toHaveText('Soirée récréative');
+  await page.locator('main').getByText('Louer les tables et les bancs').filter({ visible: true }).first().click();
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
+  await page.getByLabel('Nouveau commentaire').fill('Combien de bancs ?');
+  await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
+  await expect(page.locator('.discussion-message.mien')).toContainText('Combien de bancs ?');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+  // La discussion est aussi dans Messages, d'ici.
+  await page.goto('./?demo#/messages');
+  await expect(page.locator('.messages-ligne', { hasText: 'Louer les tables et les bancs' })).toContainText('Combien de bancs ?');
+
+  // Enregistrée dans la Soirée : tâche d'ici là-bas, avec son message.
+  await entite('Soirée récréative');
+  const chezElle = page.locator('main tr', { hasText: 'Louer les tables et les bancs' });
+  await expect(chezElle).toHaveCount(1);
+  await expect(chezElle.locator('.tsource')).toHaveCount(0);
+  await chezElle.getByText('Louer les tables et les bancs').first().click();
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
+  await expect(page.locator('.discussion-message.mien')).toContainText('Combien de bancs ?');
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {

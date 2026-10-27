@@ -184,6 +184,17 @@ export function loadUnitData(id: string): AppData {
 export function saveUnitData(id: string, d: AppData) {
   noterHistorique(id, read<AppData>(unitStorageKey(id)), d);
   write(unitStorageKey(id), d);
+  ecrite(id);
+}
+
+// Vue « moi » : plusieurs entités sont ouvertes à la fois (l'une à l'écran, les autres en arrière-plan) ; celle dont les
+// données sont réécrites d'ailleurs (autre entité, club, organigramme) les relit.
+const ecoutes = new Set<(id: string) => void>();
+const ecrite = (id: string) => ecoutes.forEach((f) => f(id));
+/** Appelle `f` à chaque réécriture des données d'une entité (son identifiant) ; renvoie de quoi arrêter. */
+export function surEcriture(f: (id: string) => void) {
+  ecoutes.add(f);
+  return () => void ecoutes.delete(f);
 }
 
 /**
@@ -272,6 +283,7 @@ export const ecrireBrut = (id: string, s: string | null) => {
   } catch {
     /* stockage indisponible */
   }
+  ecrite(id);
 };
 
 /**

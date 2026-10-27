@@ -271,6 +271,8 @@ export interface Club {
   refuserMdp: (id: string) => Promise<void>;
   /** Super-admin du club (hors des entités) : page « Comptes du club ». */
   superAdmin: boolean;
+  /** Vue « moi » : l'une de mes autres entités, ouverte en arrière-plan (sans écran ; entites.tsx). */
+  arrierePlan?: boolean;
 }
 
 export const ClubCtx = createContext<Club | null>(null);

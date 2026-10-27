@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { ago, useNotifications } from '../notifications';
+import { ago, useNotifications, type Notif } from '../notifications';
+import { useClubOptional } from '../data/club';
 import { Icone } from './icones';
 
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */
 export function Bell() {
   const { markNotifsRead } = useStore();
+  const club = useClubOptional();
   const { items, unread } = useNotifications();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
@@ -24,10 +26,12 @@ export function Bell() {
     };
   }, [open]);
 
-  const go = (key: string, link: string) => {
-    markNotifsRead([key]);
+  const go = (n: Notif) => {
+    markNotifsRead([n.key]);
     setOpen(false);
-    navigate(link);
+    // De l'une de mes autres entités (séance, sondage…) : sa page, dans son entité.
+    if (n.entite && club) club.switchUnit(n.entite, `#${n.link}`);
+    else navigate(n.link);
   };
 
   return (
@@ -47,7 +51,7 @@ export function Bell() {
             <ul>
               {items.map((n) => (
                 <li key={n.key}>
-                  <button className={`bell-item ${n.unread ? 'unread' : ''}`} onClick={() => go(n.key, n.link)}>
+                  <button className={`bell-item ${n.unread ? 'unread' : ''}`} onClick={() => go(n)}>
                     <span className="bell-icon">{n.icon}</span>
                     <span className="bell-text">
                       <span>{n.text}</span>

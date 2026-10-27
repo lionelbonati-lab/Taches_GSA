@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
+import { CloudSync, accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
 import { luesCommunes } from './data/commentaires';
 import type { OrgUnit } from './data/types';
+import { StoreProvider, type CloudMode } from './data/store';
+import { SCHEMA } from './data/migrate';
 
 // Version réelle : le club autour de l'entité ouverte (organigramme, changement d'entité, demandes au comité central).
 // Les données de chaque entité restent dans la sienne ; ce qui passe de l'une à l'autre passe par les
@@ -14,6 +16,7 @@ import type { OrgUnit } from './data/types';
 // selon son réglage (« Ses tâches dans … », 027).
 // Organigramme à glisser-déposer : chaque modification est faite par le serveur (gsa-acces, orga.ts), qui touche
 // souvent plusieurs entités ; l'entité ouverte la reçoit en direct comme les modifications des autres membres.
+// Vue « moi » : mes autres entités sont ouvertes en arrière-plan (entites.tsx), chacune avec son club et ses données.
 
 /** Enregistre le nom et la fiche (colonne info) d'une entité telle qu'elle doit être. */
 function ecrireEntite(u: OrgUnit) {
@@ -41,7 +44,7 @@ function ecrireEntite(u: OrgUnit) {
   });
 }
 
-export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; userId: string; onSwitch: (m: Membership) => void; children: ReactNode }) {
+export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m: Membership; userId: string; email: string; signOut: () => void; onSwitch: (m: Membership) => void; children: ReactNode }) {
   const clubId = m.parentId ?? m.committeeId;
   const [org, setOrg] = useState<OrgUnit[] | null>(null);
   const [list, setList] = useState<Membership[]>([m]);
@@ -103,30 +106,31 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
     void estSuperAdmin().then(setSuperAdmin);
   }, [userId]);
 
-  // Ma fiche dans chacune de mes entités ; leurs discussions lues le sont ici aussi (relues quand l'appli revient au premier plan).
+  // Ma fiche dans chacune de mes entités ; leurs discussions lues le sont dans les autres aussi (relues quand l'appli
+  // revient au premier plan).
   const mesFiches = useMemo(() => Object.fromEntries(list.flatMap((x) => (x.personId ? [[x.committeeId, x.personId]] : []))), [list]);
-  const [luesAilleurs, setLuesAilleurs] = useState<Record<string, string>>({});
+  const [luesParEntite, setLuesParEntite] = useState<Record<string, unknown>>({});
   useEffect(() => {
-    const autres = Object.fromEntries(Object.entries(mesFiches).filter(([c]) => c !== m.committeeId));
-    const lire = () => void discussionsLuesDe(autres).then((l) => setLuesAilleurs(luesCommunes(l)));
+    const lire = () => void discussionsLuesDe(mesFiches).then(setLuesParEntite);
     const visible = () => document.visibilityState === 'visible' && lire();
     lire();
     document.addEventListener('visibilitychange', visible);
     return () => document.removeEventListener('visibilitychange', visible);
-  }, [mesFiches, m.committeeId]);
+  }, [mesFiches]);
 
-  const club = useMemo<Club>(() => {
-    const units = org ?? [membershipUnit(m)];
-    const current = units.find((u) => u.id === m.committeeId) ?? membershipUnit(m);
+  /** Club vu de l'entité `x` : l'entité ouverte, ou l'une de mes autres entités en arrière-plan (vue « moi »). */
+  const clubPour = useCallback((x: Membership, arrierePlan = false): Club => {
+    const units = org ?? [membershipUnit(x)];
+    const current = units.find((u) => u.id === x.committeeId) ?? membershipUnit(x);
     const central = units.find((u) => u.type === 'central') ?? null;
-    const reachable = new Set(list.map((x) => x.committeeId));
+    const reachable = new Set(list.map((y) => y.committeeId));
     return {
       units,
       current,
       central,
       mine: units.filter((u) => u.moi && reachable.has(u.id) && (!u.archive || u.id === current.id)),
       mesFiches,
-      luesAilleurs,
+      luesAilleurs: luesCommunes(Object.fromEntries(Object.entries(luesParEntite).filter(([c]) => c !== x.committeeId))),
       canManage: !!central?.moiAdmin,
       // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
       liens: false,
@@ -135,7 +139,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       refresh,
       switchUnit(id, hash = '#/') {
         if (id === m.committeeId) return;
-        const target = list.find((x) => x.committeeId === id);
+        const target = list.find((y) => y.committeeId === id);
         if (!target) return;
         window.location.hash = hash;
         onSwitch(target);
@@ -193,25 +197,25 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         if (echec) throw echec.reason instanceof Error ? echec.reason : new Error(String(echec.reason));
       },
       async setEditionDate(date, dateFin) {
-        await setEditionDate(m.committeeId, date, dateFin);
+        await setEditionDate(x.committeeId, date, dateFin);
         refresh();
       },
       async proposeTask(r) {
-        await proposeTask(m.committeeId, { titre: r.titre, remarque: r.remarque, delai: r.delai, sectionId: r.sectionId });
+        await proposeTask(x.committeeId, { titre: r.titre, remarque: r.remarque, delai: r.delai, sectionId: r.sectionId });
       },
-      myRequests: () => myRequests(m.committeeId),
+      myRequests: () => myRequests(x.committeeId),
       // Organigramme à glisser-déposer : le serveur applique la modification (droits, postes liés) et donne de quoi l'annuler.
       organiser: orga
         ? async (op) => {
             try {
-              const r = await accessAction<{ message: string; unites?: string[]; annuler?: string }>({ action: 'organiser', committeeId: m.committeeId, op });
-              if (r.unites?.includes(m.committeeId)) rattraper();
+              const r = await accessAction<{ message: string; unites?: string[]; annuler?: string }>({ action: 'organiser', committeeId: x.committeeId, op });
+              if (r.unites?.includes(x.committeeId)) rattraper();
               return {
                 message: r.message,
                 annuler: async () => {
                   if (!r.annuler) return;
                   try {
-                    await accessAction({ action: 'annulerOrga', committeeId: m.committeeId, jeton: r.annuler });
+                    await accessAction({ action: 'annulerOrga', committeeId: x.committeeId, jeton: r.annuler });
                   } finally {
                     rattraper();
                     refresh();
@@ -230,42 +234,42 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       suivrePostes:
         orga
           ? async (avant) => {
-              const r = await accessAction<{ unites?: string[] }>({ action: 'suivre', committeeId: m.committeeId, avant });
-              if (r.unites?.includes(m.committeeId)) rattraper();
-              if (r.unites?.some((id) => id !== m.committeeId)) refresh();
+              const r = await accessAction<{ unites?: string[] }>({ action: 'suivre', committeeId: x.committeeId, avant });
+              if (r.unites?.includes(x.committeeId)) rattraper();
+              if (r.unites?.some((id) => id !== x.committeeId)) refresh();
             }
           : undefined,
       async proposerAmelioration(p) {
-        await proposerAmelioration(clubId, m.committeeId, p);
+        await proposerAmelioration(clubId, x.committeeId, p);
       },
       mesPropositions: () => mesPropositions(clubId),
       organigrammesAnnuels: () => fetchOrganigrammesAnnuels(clubId),
       async ticketCentral(t) {
-        await sendCentralTicket(m.committeeId, t);
+        await sendCentralTicket(x.committeeId, t);
       },
       mesTicketsCentraux: () => myCentralTickets(),
       verifierVisa: (code) => verifyVisa(code),
       agendaClub: () => fetchAgendaClub(clubId),
-      tachesPartagees: () => fetchTachesPartagees(m.committeeId),
-      seancesComite: () => fetchSeancesComite(m.committeeId),
-      sectionsDependantes: () => fetchSectionsDependantes(m.committeeId),
-      anciennesTaches: () => fetchAnciennesTaches(m.committeeId),
-      tachesPourInfo: () => fetchTachesPourInfo(m.committeeId),
-      modifierTachePartagee: (uniteId, task) => saveTachePartagee(m.committeeId, uniteId, task),
-      repondreTachePartagee: (uniteId, tacheId, prend) => repondreTachePartagee(m.committeeId, uniteId, tacheId, prend),
-      vuPourInfo: (uniteId, tacheId) => pourInfoVu(uniteId, tacheId, m.committeeId),
-      commenter: (uniteId, tacheId, a) => commenterTache(uniteId, tacheId, m.committeeId, a),
-      historique: (uniteId, tacheId) => historiqueTache(uniteId, tacheId, m.committeeId),
-      signalerErreur: (r) => signalerErreur(m.committeeId, r).catch(() => {}),
-      erreurs: () => erreursAppli(m.committeeId),
-      reglerErreur: (id, reglee) => reglerErreurAppli(m.committeeId, id, reglee),
-      effacerErreurs: () => effacerErreursAppli(m.committeeId),
+      tachesPartagees: () => fetchTachesPartagees(x.committeeId),
+      seancesComite: () => fetchSeancesComite(x.committeeId),
+      sectionsDependantes: () => fetchSectionsDependantes(x.committeeId),
+      anciennesTaches: () => fetchAnciennesTaches(x.committeeId),
+      tachesPourInfo: () => fetchTachesPourInfo(x.committeeId),
+      modifierTachePartagee: (uniteId, task) => saveTachePartagee(x.committeeId, uniteId, task),
+      repondreTachePartagee: (uniteId, tacheId, prend) => repondreTachePartagee(x.committeeId, uniteId, tacheId, prend),
+      vuPourInfo: (uniteId, tacheId) => pourInfoVu(uniteId, tacheId, x.committeeId),
+      commenter: (uniteId, tacheId, a) => commenterTache(uniteId, tacheId, x.committeeId, a),
+      historique: (uniteId, tacheId) => historiqueTache(uniteId, tacheId, x.committeeId),
+      signalerErreur: (r) => signalerErreur(x.committeeId, r).catch(() => {}),
+      erreurs: () => erreursAppli(x.committeeId),
+      reglerErreur: (id, reglee) => reglerErreurAppli(x.committeeId, id, reglee),
+      effacerErreurs: () => effacerErreursAppli(x.committeeId),
       destinatairesPourInfo: (uniteId, tacheId) => pourInfoDestinataires(uniteId, tacheId),
       suiviPourInfo: (uniteId, tacheIds) => pourInfoSuivi(uniteId, tacheIds),
-      relancerPourInfo: async (tacheId) => ({ n: await pourInfoRelancer(m.committeeId, tacheId, m.committeeId), ici: [] }),
-      attribuerTache: (uniteId, task, statut) => attribuerTache(m.committeeId, uniteId, task, statut),
-      sondagesPartages: () => fetchSondagesPartages(m.committeeId),
-      voterSondagePartage: (uniteId, pollId, choix, texte) => voterSondagePartage(m.committeeId, uniteId, pollId, choix, texte),
+      relancerPourInfo: async (tacheId) => ({ n: await pourInfoRelancer(x.committeeId, tacheId, x.committeeId), ici: [] }),
+      attribuerTache: (uniteId, task, statut) => attribuerTache(x.committeeId, uniteId, task, statut),
+      sondagesPartages: () => fetchSondagesPartages(x.committeeId),
+      voterSondagePartage: (uniteId, pollId, choix, texte) => voterSondagePartage(x.committeeId, uniteId, pollId, choix, texte),
       membresAcces: acces,
       membres: () => fetchMembres(clubId),
       async saveMembres(l) {
@@ -292,10 +296,10 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         await enregistrerFiche(uniteId, p, i >= 0 ? i : people.length);
         // Comme après une fiche modifiée dans l'entité : ses postes et les postes liés suivent (serveur).
         if (orga) await accessAction({ action: 'suivre', committeeId: uniteId, avant: people });
-        if (uniteId === m.committeeId) rattraper();
+        if (uniteId === x.committeeId) rattraper();
         refresh();
       },
-      demandesMdp: demandes,
+      demandesMdp: arrierePlan ? [] : demandes,
       async approuverMdp(id) {
         try {
           return await accessAction<{ email: string; password: string }>({ action: 'approuverMdp', demandeId: id });
@@ -311,8 +315,52 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
         }
       },
       superAdmin,
+      arrierePlan,
     };
-  }, [org, list, m, loading, error, refresh, onSwitch, acces, caissier, clubId, orga, demandes, chargerDemandes, superAdmin, mesFiches, luesAilleurs]);
+  }, [org, list, m.committeeId, loading, error, refresh, onSwitch, acces, caissier, clubId, orga, demandes, chargerDemandes, superAdmin, mesFiches, luesParEntite]);
+  const club = useMemo(() => clubPour(m), [clubPour, m]);
 
-  return <ClubCtx.Provider value={club}>{children}</ClubCtx.Provider>;
+  // Vue « moi » : mes autres entités (non archivées, où j'ai ma fiche), ouvertes en arrière-plan ; leurs tâches,
+  // discussions et notifications s'ajoutent à celles de l'entité ouverte.
+  const arriere = useMemo(
+    () => list.filter((x) => x.committeeId !== m.committeeId && !!x.personId && club.mine.some((u) => u.id === x.committeeId)).map((x) => ({ m: x, club: clubPour(x, true) })),
+    [list, m.committeeId, club.mine, clubPour],
+  );
+
+  return (
+    <>
+      <ClubCtx.Provider value={club}>{children}</ClubCtx.Provider>
+      {arriere.map((x) => (
+        <ClubCtx.Provider key={x.m.committeeId} value={x.club}>
+          <EntiteArrierePlan m={x.m} userId={userId} email={email} signOut={signOut} />
+        </ClubCtx.Provider>
+      ))}
+    </>
+  );
+}
+
+/** L'une de mes autres entités, ouverte en arrière-plan : ses données (en direct), sans écran. */
+function EntiteArrierePlan({ m, userId, email, signOut }: { m: Membership; userId: string; email: string; signOut: () => void }) {
+  const [cloud, setCloud] = useState<CloudMode | null>(null);
+  const { committeeId, personId } = m;
+  useEffect(() => {
+    let vivante = true;
+    const sync = new CloudSync(committeeId, userId);
+    sync
+      .load()
+      .then(({ data }) => {
+        const person = data.people.find((p) => p.id === personId);
+        if (!vivante || !person) return;
+        // Pas de mise à niveau des données ici : elle se fait quand un admin ouvre l'entité.
+        if (!data.schema) data.schema = SCHEMA;
+        setCloud({ sync, initial: data, personId: person.id, membership: m, email, signOut });
+      })
+      .catch(() => {});
+    return () => {
+      vivante = false;
+    };
+    // Rechargée seulement pour une autre entité ou une autre fiche.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [committeeId, personId, userId]);
+  return cloud ? <StoreProvider cloud={cloud} /> : null;
 }

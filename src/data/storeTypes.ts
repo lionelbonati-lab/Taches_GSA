@@ -34,6 +34,11 @@ export interface Store {
   data: AppData;
   /** Données de l'entité seules, sans les tâches partagées par d'autres entités (réglages, console admin). */
   dataLocale: AppData;
+  /**
+   * Vue « moi » : `data` avec les tâches que je vois dans mes autres entités (tâches, accueil, calendrier, messages) ;
+   * elles s'ouvrent et s'enregistrent dans la leur (vueMoi.ts).
+   */
+  dataMoi: AppData;
   user: Person | null;
   /** Rôles de l'utilisateur connecté. */
   myRoles: Role[];

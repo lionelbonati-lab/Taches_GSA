@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, ecrireBrut, effacerErreursDemo, erreursDemo, reglerErreurDemo, signalerErreurDemo, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, lireHistoriqueDemo, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, synchroDemo, UNIT_KEY } from './data/demoClub';
+import { CENTRAL_ID, deleteMembre, ecrireBrut, effacerErreursDemo, erreursDemo, reglerErreurDemo, signalerErreurDemo, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, lireHistoriqueDemo, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, surEcriture, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData } from './data/units';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { compactIban, emailKey, fusionMembre, ibanValide, nouveauMembre, vueMembre } from './data/membres';
@@ -21,6 +21,7 @@ import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket }
 import { App } from './App';
 import { Login } from './pages/Login';
 import { uniteDuLien } from './data/lienPartage';
+import { RegistreEntites } from './data/entites';
 
 // Démo : le club et ses entités, toutes gardées dans ce navigateur.
 // On se connecte en choisissant une personne de l'annuaire du club ; elle retrouve les entités dont elle fait partie,
@@ -140,7 +141,7 @@ export function DemoApp() {
     [units, me, version],
   );
 
-  const mineAll = org.filter((u) => u.moi);
+  const mineAll = useMemo(() => org.filter((u) => u.moi), [org]);
   const central = org.find((u) => u.type === 'central') ?? null;
   const current =
     mineAll.find((u) => u.id === unitId) ??
@@ -173,8 +174,8 @@ export function DemoApp() {
     return list.find((x) => !!me && emailKey(x.email) === me);
   };
 
-  const club: Club | null = useMemo(() => {
-    if (!current) return null;
+  // Club vu d'une entité (`current`) : l'entité ouverte, ou l'une de mes autres entités en arrière-plan (vue « moi »).
+  const clubDe = useCallback((current: OrgUnit, arrierePlan = false): Club => {
     return {
       units: org,
       current,
@@ -795,9 +796,27 @@ export function DemoApp() {
       approuverMdp: () => Promise.reject(new Error('Pas de mots de passe dans la démo.')),
       refuserMdp: () => Promise.resolve(),
       superAdmin: false,
+      arrierePlan,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org, current, central, mineAll, mesFiches, switchUnit, refresh, units, me, membresAcces, caissier]);
+  }, [org, central, mineAll, mesFiches, switchUnit, refresh, units, me, membresAcces, caissier]);
+  const club = useMemo(() => (current ? clubDe(current) : null), [clubDe, current]);
+
+  // Vue « moi » : plusieurs entités ouvertes à la fois. Celle dont les données sont réécrites hors de sa couche de données
+  // (club, autre entité, organigramme) les relit ; pas quand c'est elle qui les enregistre.
+  const [relire, setRelire] = useState<Record<string, number>>({});
+  const enCours = useRef<string | null>(null);
+  const relireUnite = useCallback((id: string) => setRelire((r) => ({ ...r, [id]: (r[id] ?? 0) + 1 })), []);
+  useEffect(() => surEcriture((id) => id !== enCours.current && queueMicrotask(() => relireUnite(id))), [relireUnite]);
+  const parElle = <T,>(id: string, f: () => T) => {
+    const avant = enCours.current;
+    enCours.current = id;
+    try {
+      return f();
+    } finally {
+      enCours.current = avant;
+    }
+  };
 
   const personId = useMemo(() => {
     if (!current || !me) return null;
@@ -805,43 +824,62 @@ export function DemoApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current?.id, me]);
 
-  const demo: DemoMode | null = useMemo(
-    () =>
-      current
-        ? {
-            load: () => {
-              const d = loadUnitData(current.id);
-              const n = synchroDemo(current.id, d);
-              if (n) saveUnitData(current.id, lierFiches(current.id, n));
-              return n ?? d;
-            },
-            // Comme le serveur : fiches liées au registre ; liens « Membres de » tenus à jour, dans l'entité ouverte
-            // (relue si elle a changé) et dans celles qui la comptent parmi leurs membres.
-            // Organigramme à glisser-déposer : ses postes et les postes liés suivent les personnes modifiées ici.
-            save: (d) => {
-              const ancien = loadUnitData(current.id);
-              const avant = signatureMembres(ancien.people);
-              const n = synchroDemo(current.id, d);
-              const postes = suivrePostes(current.id, ancien, lierFiches(current.id, n ?? d));
-              const next = postes?.d ?? lierFiches(current.id, n ?? d);
-              saveUnitData(current.id, next);
-              const autres = signatureMembres(next.people) !== avant && propagerLiens(current.id);
-              for (const k of postes?.autres ?? []) propagerLiens(k);
-              if (n || postes?.ici) setEpoch((e) => e + 1);
-              if (autres || n || postes?.ici || postes?.autres.length) refresh();
-            },
-            epoch,
-            personId,
-            logout,
-            reset: () => {
-              resetDemo();
-              window.location.hash = '';
-              window.location.reload();
-            },
-          }
-        : null,
+  // Couche de données d'une entité : l'entité ouverte, ou l'une de mes autres entités en arrière-plan.
+  const demoDe = useCallback(
+    (id: string, personne: string | null, epoque: number): DemoMode => ({
+      load: () =>
+        parElle(id, () => {
+          const d = loadUnitData(id);
+          const n = synchroDemo(id, d);
+          if (n) saveUnitData(id, lierFiches(id, n));
+          return n ?? d;
+        }),
+      // Comme le serveur : fiches liées au registre ; liens « Membres de » tenus à jour, dans l'entité (relue si elle a
+      // changé) et dans celles qui la comptent parmi leurs membres.
+      // Organigramme à glisser-déposer : ses postes et les postes liés suivent les personnes modifiées ici.
+      save: (d) =>
+        parElle(id, () => {
+          const ancien = loadUnitData(id);
+          const avant = signatureMembres(ancien.people);
+          const n = synchroDemo(id, d);
+          const postes = suivrePostes(id, ancien, lierFiches(id, n ?? d));
+          const next = postes?.d ?? lierFiches(id, n ?? d);
+          saveUnitData(id, next);
+          const autres = signatureMembres(next.people) !== avant && propagerLiens(id);
+          for (const k of postes?.autres ?? []) propagerLiens(k);
+          if (n || postes?.ici) relireUnite(id);
+          if (autres || n || postes?.ici || postes?.autres.length) refresh();
+        }),
+      epoch: epoque,
+      personId: personne,
+      logout,
+      reset: () => {
+        resetDemo();
+        window.location.hash = '';
+        window.location.reload();
+      },
+    }),
+    [logout, refresh, relireUnite],
+  );
+  const relireIci = current ? relire[current.id] ?? 0 : 0;
+  const demo = useMemo(
+    () => (current ? demoDe(current.id, personId, epoch + relireIci) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [current?.id, personId, logout, epoch, refresh],
+    [current?.id, personId, demoDe, epoch, relireIci],
+  );
+  // Vue « moi » : mes autres entités (non archivées), ouvertes en arrière-plan ; leurs tâches, discussions et
+  // notifications s'ajoutent à celles de l'entité ouverte (entites.tsx).
+  const arriere = useMemo(
+    () =>
+      me && current
+        ? mineAll
+            .filter((u) => u.id !== current.id && !u.archive)
+            .map((u) => {
+              const personne = loadUnitData(u.id).people.find((p) => p.actif && personKey(p, u.id) === me)?.id ?? null;
+              return { u, club: clubDe(u, true), demo: demoDe(u.id, personne, relire[u.id] ?? 0) };
+            })
+        : [],
+    [me, current, mineAll, clubDe, demoDe, relire],
   );
 
   if (!me || !club || !demo) {
@@ -861,10 +899,17 @@ export function DemoApp() {
   }
 
   return (
-    <ClubCtx.Provider value={club}>
-      <StoreProvider key={`${current.id}|${me}`} demo={demo}>
-        <App />
-      </StoreProvider>
-    </ClubCtx.Provider>
+    <RegistreEntites>
+      <ClubCtx.Provider value={club}>
+        <StoreProvider key={`${current.id}|${me}`} demo={demo}>
+          <App />
+        </StoreProvider>
+      </ClubCtx.Provider>
+      {arriere.map((x) => (
+        <ClubCtx.Provider key={`${x.u.id}|${me}`} value={x.club}>
+          <StoreProvider demo={x.demo} />
+        </ClubCtx.Provider>
+      ))}
+    </RegistreEntites>
   );
 }

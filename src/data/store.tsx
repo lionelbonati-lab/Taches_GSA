@@ -1,9 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { makeSeed } from './seed';
 import { hasPermission, userRoles, voitTache } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, postesFor, today, uid } from './utils';
 import type { ActivityNotif, AppData, OrgUnit, Permission, Person, Poll, Prefs, ScheduledEmail, Task, TaskDoc } from './types';
-import { clearFiles, deleteFiles, getFile, saveFile } from './files';
+import { clearFiles, deleteFiles, getFile, rangerFichiers, saveFile } from './files';
 import { avecSondages, avecVote, finSondage, sondageEnregistre } from './polls';
 import { applyRows, commenterTache, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
 import { useClubOptional } from './club';
@@ -19,6 +19,10 @@ import { useRecus } from './recus';
 import { appliquerCommentaire, cleCommune, destinatairesCommentaire, notifsCommentaire, unParPersonne, type ActionCommentaire } from './commentaires';
 import { mentionnables, mentionnes, notifsMention } from './mentions';
 import { usePileAnnulation } from './pileAnnulation';
+import { StoreCtx } from './storeCtx';
+import { Publier, useAutres, useRegistre } from './entites';
+import { avecMesEntites, modifDepuisIci, tacheAilleurs } from './vueMoi';
+import { fileIds } from './backup';
 
 export type { CloudMode, DemoMode } from './storeTypes';
 
@@ -46,9 +50,8 @@ function load(): AppData {
   return makeSeed();
 }
 
-const Ctx = createContext<Store | null>(null);
-
-export function StoreProvider({ children, cloud = null, demo = null }: { children: ReactNode; cloud?: CloudMode | null; demo?: DemoMode | null }) {
+/** `children` : l'appli (rien pour une entité en arrière-plan, vue « moi »). */
+export function StoreProvider({ children, cloud = null, demo = null }: { children?: ReactNode; cloud?: CloudMode | null; demo?: DemoMode | null }) {
   const [data, setData] = useState<AppData>(() => (cloud ? cloud.initial : demo ? demo.load() : load()));
   const [toast, setToast] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(() => {
@@ -145,6 +148,37 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     const avec = moi && units && partagees.length ? avecPartagees(data, partagees, moi, units) : data;
     return moi && units ? avecSondages(avec, sondagesRecus, moi, units, user?.id ?? null) : avec;
   }, [data, partagees, moi, units, sondagesRecus, user?.id]);
+
+  // Vue « moi » : mes autres entités sont ouvertes en arrière-plan (entites.tsx) ; les tâches que j'y vois s'ajoutent à
+  // celles d'ici (dataMoi : tâches, accueil, calendrier, messages), s'ouvrent et s'enregistrent chez elles.
+  const arriere = !!club?.arrierePlan;
+  const registre = useRegistre();
+  const autres = useAutres(!arriere);
+  const dataMoi = useMemo(
+    () =>
+      moi && units && autres.length
+        ? avecMesEntites(view, autres.map((e) => ({ id: e.id, nom: e.club.current.nom, type: e.club.current.type, data: e.store.dataLocale, voit: e.store.canSeeTask, fiche: e.store.user?.id })), moi, units, user?.id)
+        : view,
+    [view, autres, moi, units, user?.id],
+  );
+  /** Mon autre entité `uniteId`, ouverte en arrière-plan. */
+  const autreEntite = useCallback((uniteId?: string) => (uniteId && uniteId !== moi && !arriere ? registre?.get(uniteId) : undefined), [registre, moi, arriere]);
+  /** Tâche de l'une de mes autres entités (vue « moi ») : son entité et la tâche chez elle. */
+  const chezElle = useCallback(
+    (t: Task) => {
+      const e = t.source?.chezMoi ? autreEntite(t.source.uniteId) : undefined;
+      const orig = e?.store.dataLocale.tasks.find((x) => x.id === t.source!.id);
+      return e && orig ? { e, orig } : null;
+    },
+    [autreEntite],
+  );
+  useEffect(() => {
+    if (registre && !arriere) registre.afficher = setToast;
+  }, [registre, arriere]);
+  // Version réelle, entité en arrière-plan : ses fichiers joints sont dans son dossier du serveur.
+  useEffect(() => {
+    if (cloud && arriere) rangerFichiers(fileIds(data), cloud.membership.committeeId);
+  }, [cloud, arriere, data]);
 
   const login = useCallback((id: string | null) => {
     if (cloud) {
@@ -311,8 +345,23 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [data, moi, user, userId, update, chargerPartagees],
   );
 
+  // Vue « moi » : tâche de l'une de mes autres entités modifiée depuis une liste d'ici (statut, délai…) : enregistrée chez elle.
+  const saveChezMoi = useCallback(
+    (t: Task) => {
+      const x = chezElle(t);
+      const avant = dataMoi.tasks.find((y) => y.id === t.id);
+      if (!x || !avant) {
+        setToast('⚠️ Cette tâche n’est plus visible dans son entité.');
+        return;
+      }
+      return x.e.store.saveTask(modifDepuisIci(x.orig, avant, t, data.statuses, x.e.store.dataLocale.statuses), false);
+    },
+    [chezElle, dataMoi.tasks, data.statuses],
+  );
+
   const saveTask = useCallback(
     (t: Task, isNew: boolean) => {
+      if (t.source?.chezMoi) return saveChezMoi(t);
       if (t.source) return savePartagee(t);
       // Modifiée ici : ce n'est plus une entité du partage qui l'a modifiée en dernier.
       const task: Task = { ...t, updatedAt: new Date().toISOString(), modifiePar: undefined };
@@ -382,7 +431,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       );
       if (next) setToast(`🔁 Tâche récurrente reconduite${next.delai ? ` au ${fmtDate(next.delai)}` : ''} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
     },
-    [update, data, userId, savePartagee],
+    [update, data, userId, savePartagee, saveChezMoi],
   );
 
   /**
@@ -392,6 +441,11 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
    */
   const repondre = useCallback(
     async (t: Task, prend: boolean) => {
+      if (t.source?.chezMoi) {
+        const ailleurs = chezElle(t);
+        if (!ailleurs) throw new Error('Cette tâche n’est plus visible dans son entité.');
+        return ailleurs.e.store[prend ? 'prendreTache' : 'pasDispo'](ailleurs.orig);
+      }
       if (!user) throw new Error('Connecte-toi d’abord.');
       const x = (t.source ? view.tasks : data.tasks).find((y) => y.id === t.id);
       if (!x || !proposeeA(x, user.id)) throw new Error('Cette tâche ne t’est pas proposée.');
@@ -445,7 +499,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
       }, action, { annulable: false });
     },
-    [user, data, view.tasks, cloud, update, chargerPartagees],
+    [user, data, view.tasks, cloud, update, chargerPartagees, chezElle],
   );
   const prendreTache = useCallback((t: Task) => repondre(t, true), [repondre]);
   const pasDispo = useCallback((t: Task) => repondre(t, false), [repondre]);
@@ -459,6 +513,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const p = { ...DEFAULT_PREFS, ...prev.prefs[userId] };
         return p.pourInfoVus?.[cle] ? prev : { ...prev, prefs: { ...prev.prefs, [userId]: { ...p, pourInfoVus: { ...p.pourInfoVus, [cle]: today() } } } };
       });
+      // Vue « moi » : tâche de l'une de mes autres entités : vue chez elle.
+      const vue = uniteId ? dataMoi.tasks.find((y) => y.id === idPartagee(uniteId, tacheId)) : undefined;
+      const ailleurs = vue && chezElle(vue);
+      if (ailleurs) return ailleurs.e.store.vuPourInfo(ailleurs.orig.id, ailleurs.orig.id);
       const c = clubRef.current;
       if (c && uniteId && uniteId !== c.current.id) {
         try {
@@ -490,7 +548,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         if (toutVu) d.notifications = [{ id: uid('n'), userId: auteur!, type: 'toutVu' as const, taskId: x.id, by: user.id, at: le, titre: x.titre }, ...(d.notifications ?? [])].slice(0, 300);
       }, `${fullName(user)} a ${deja ? 'revu' : 'vu'} la tâche « ${x.titre} » (pour info)`, { annulable: false });
     },
-    [user, userId, data, cloud, update, chargerPartagees],
+    [user, userId, data, cloud, update, chargerPartagees, dataMoi.tasks, chezElle],
   );
 
   // Discussion (049) : version réelle, le serveur écrit le commentaire et prévient les personnes concernées, puis la tâche
@@ -499,6 +557,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const commenter = useCallback(
     async (tacheId: string, a: ActionCommentaire, uniteId?: string) => {
       if (!user) throw new Error('Connecte-toi d’abord.');
+      // Vue « moi » : tâche de l'une de mes autres entités (ni partagée ni pour info) : commentée chez elle.
+      const vue = uniteId ? dataMoi.tasks.find((y) => y.id === idPartagee(uniteId, tacheId)) : undefined;
+      const ailleurs = vue && chezElle(vue);
+      if (ailleurs) return ailleurs.e.store.commenter(ailleurs.orig.id, a);
       const c = clubRef.current;
       const ici = c?.current.id ?? '';
       const le = new Date().toISOString();
@@ -547,7 +609,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         if (notifs.length || mentionNotifs.length) d.notifications = [...mentionNotifs, ...notifs, ...(d.notifications ?? [])].slice(0, 300);
       }, mentionNotifs.length ? mentionne : `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} la tâche « ${x.titre} »`, { annulable: false });
     },
-    [user, data, cloud, update, chargerPartagees, partagees, pourInfoRecus, myRoles],
+    [user, data, cloud, update, chargerPartagees, partagees, pourInfoRecus, myRoles, dataMoi.tasks, chezElle],
   );
 
   // Relance (052) : version réelle, le serveur prévient chacune des personnes attendues qui n'ont pas encore vu la tâche ;
@@ -568,7 +630,16 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   );
 
   const markNotifsRead = useCallback(
-    (keys: string[]) => {
+    (cles: string[]) => {
+      // Vue « moi » : notification de l'une de mes autres entités (« @<entité>|<clé> ») : lue chez elle.
+      const keys: string[] = [];
+      const ailleurs = new Map<string, string[]>();
+      for (const k of cles) {
+        const m = /^@([^|]+)\|(.*)$/.exec(k);
+        if (m) ailleurs.set(m[1], [...(ailleurs.get(m[1]) ?? []), m[2]]);
+        else keys.push(k);
+      }
+      ailleurs.forEach((l, id) => autreEntite(id)?.store.markNotifsRead(l));
       if (!userId || !keys.length) return;
       setData((prev) => {
         const seen = new Set(prev.notifLues?.[userId] ?? []);
@@ -577,11 +648,15 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         return { ...prev, notifLues: { ...prev.notifLues, [userId]: [...seen].slice(-800) } };
       });
     },
-    [userId],
+    [userId, autreEntite],
   );
 
   const discussionLue = useCallback(
     (cle: string, dernier: string) => {
+      // Vue « moi » : tâche de l'une de mes autres entités : lue chez elle aussi (ses notifications 💬 avec).
+      const x = tacheAilleurs(cle);
+      const e = x && dernier ? autreEntite(x.uniteId) : undefined;
+      if (x && e) e.store.discussionLue(x.id, dernier);
       if (!userId || !dernier) return;
       setData((prev) => {
         const lues = prev.discussionsLues?.[userId] ?? {};
@@ -599,18 +674,20 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         };
       });
     },
-    [userId],
+    [userId, autreEntite],
   );
 
-  // Lue ici ou dans l'une de mes autres entités : la lecture la plus récente.
+  // Lue ici ou dans l'une de mes autres entités (ouverte en arrière-plan, ou d'après le serveur) : la plus récente.
   const luIci = userId ? data.discussionsLues?.[userId] : undefined;
   const discussionLueLe = useCallback(
     (cle: string) => {
-      const a = luIci?.[cle];
-      const b = club ? club.luesAilleurs[cleCommune(cle, club.current.id)] : undefined;
-      return a && b ? (a > b ? a : b) : a ?? b;
+      const x = tacheAilleurs(cle);
+      const dates = [luIci?.[cle], club ? club.luesAilleurs[cleCommune(cle, club.current.id)] : undefined, x ? autreEntite(x.uniteId)?.store.discussionLueLe(x.id) : undefined];
+      return dates.reduce<string | undefined>((a, b) => (b && (!a || b > a) ? b : a), undefined);
     },
-    [luIci, club],
+    // `autres` : relue quand mes autres entités changent.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [luIci, club, autreEntite, autres],
   );
 
   const reset = useCallback(() => {
@@ -824,11 +901,16 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     cloud,
     data: view,
     dataLocale: data,
+    dataMoi,
     user,
     myRoles,
     can,
-    canSeeTask: (t) => voitTache(t, user?.id, myRoles),
-    canEditTask,
+    canSeeTask: (t) => !!t.source?.chezMoi || voitTache(t, user?.id, myRoles),
+    canEditTask: (t) => {
+      if (!t.source?.chezMoi) return canEditTask(t);
+      const x = chezElle(t);
+      return !!x && x.e.store.canEditTask(x.orig);
+    },
     canDeleteTask: (t) => !t.source && can('tasks.delete', t.sectionId),
     autresResp: (t) => (moi && units ? texteAutres(autresResponsables(t, moi, data.people, units)) : ''),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
@@ -870,11 +952,16 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     reset,
     restore,
   };
-  return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+  return (
+    <StoreCtx.Provider value={value}>
+      {arriere && <Publier />}
+      {children}
+    </StoreCtx.Provider>
+  );
 }
 
 export function useStore() {
-  const s = useContext(Ctx);
+  const s = useContext(StoreCtx);
   if (!s) throw new Error('StoreProvider manquant');
   return s;
 }

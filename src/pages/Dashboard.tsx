@@ -25,7 +25,8 @@ import { IconeEntite } from '../components/IconesEntite';
 import { LieuSeance } from '../components/Liens';
 
 export function Dashboard() {
-  const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo, setToast, vuPourInfo } = useStore();
+  // Vue « moi » : avec les tâches de mes autres entités.
+  const { dataMoi: data, user, saveTask, prefs, setPrefs, can, canSeeTask, pourInfo, setToast, vuPourInfo } = useStore();
   const club = useClubOptional();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);

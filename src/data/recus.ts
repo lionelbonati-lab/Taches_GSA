@@ -6,7 +6,8 @@ import { parentDans } from './units';
 
 /**
  * Données venues des autres entités du club, en lecture (leurs modifications ne passent pas par la synchronisation de
- * l'entité) : relues à l'ouverture, au retour sur l'appli et chaque minute. `chargerPartagees` : les relire tout de suite.
+ * l'entité) : relues à l'ouverture, au retour sur l'appli et chaque minute (entité en arrière-plan : toutes les
+ * 5 minutes). `chargerPartagees` : les relire tout de suite.
  */
 export function useRecus(club: Club | null) {
   const clubRef = useRef(club);
@@ -63,10 +64,13 @@ export function useRecus(club: Club | null) {
         .catch(() => {});
     }
   }, []);
+  // Entité en arrière-plan (vue « moi ») : toutes les 5 minutes seulement.
+  const arriere = !!club?.arrierePlan;
   useEffect(() => {
     chargerPartagees();
+    const timer = setInterval(chargerPartagees, arriere ? 300_000 : 60_000);
+    if (arriere) return () => clearInterval(timer);
     const vis = () => document.visibilityState === 'visible' && chargerPartagees();
-    const timer = setInterval(chargerPartagees, 60_000);
     window.addEventListener('focus', chargerPartagees);
     document.addEventListener('visibilitychange', vis);
     return () => {
@@ -74,6 +78,6 @@ export function useRecus(club: Club | null) {
       window.removeEventListener('focus', chargerPartagees);
       document.removeEventListener('visibilitychange', vis);
     };
-  }, [chargerPartagees, moi]);
+  }, [chargerPartagees, moi, arriere]);
   return { partagees, setPartagees, pourInfoRecus, sondagesRecus, setSondagesRecus, sondagesEntites, externes, chargerPartagees };
 }

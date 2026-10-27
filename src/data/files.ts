@@ -18,11 +18,17 @@ export function setServerFiles(committeeId: string) {
   cloudCommittee = committeeId;
 }
 const bucket = () => supabase!.storage.from(BUCKET);
+/** Vue « moi » : fichiers des tâches de mes autres entités (ouvertes en arrière-plan), rangés dans leur dossier. */
+const dossiers = new Map<string, string>();
+/** Version réelle : ces fichiers sont dans le dossier de l'entité `dossier` (l'une de mes autres entités). */
+export function rangerFichiers(ids: string[], dossier: string) {
+  for (const id of ids) if (!id.includes('/')) dossiers.set(id, dossier);
+}
 /**
  * Un identifiant « dossier/fichier » désigne un fichier d'un autre dossier : ticket déposé à la caisse centrale, fichier
  * d'une tâche partagée par une autre entité, ou déposé dans son dossier depuis l'entité ouverte (« <entité>/pt-… », 041).
  */
-const path = (id: string) => (id.includes('/') ? id : `${cloudCommittee}/${id}`);
+const path = (id: string) => (id.includes('/') ? id : `${dossiers.get(id) ?? cloudCommittee}/${id}`);
 
 function db(): Promise<IDBDatabase | null> {
   if (!dbPromise)
@@ -52,8 +58,10 @@ function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<
   );
 }
 
-export async function saveFile(id: string, blob: Blob) {
+/** `dossier` : entité de la tâche, si ce n'est pas l'entité ouverte (vue « moi »). */
+export async function saveFile(id: string, blob: Blob, dossier?: string) {
   if (cloudCommittee) {
+    if (dossier && dossier !== cloudCommittee) rangerFichiers([id], dossier);
     const { error } = await bucket().upload(path(id), blob, { contentType: blob.type || 'application/octet-stream', upsert: !id.includes('/') });
     if (error) throw new Error(`envoi impossible (${error.message})`);
     memory.set(id, blob);

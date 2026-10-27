@@ -26,10 +26,11 @@ import { PastilleEntite } from '../components/IconesEntite';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
-const EMPTY_FILTERS = { q: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
+const EMPTY_FILTERS = { q: '', entite: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
 
 export function Tasks() {
-  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, pourInfo } = useStore();
+  // Vue « moi » : avec les tâches de mes autres entités (pastille de leur entité ; filtre « Entité »).
+  const { dataMoi: data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, pourInfo } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
     params.get('statut') || params.get('delai') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
@@ -127,6 +128,7 @@ export function Tasks() {
         if (!(t.createdBy === user.id || t.responsables.includes(user.id)) || !canSeeTask(t) || t.source || t.paiement || !t.pourInfo || !attendDesVus(bilanVu(t, suivi[t.id]))) return false;
       } else if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
+      if (f.entite && (t.source?.uniteId ?? club?.current.id) !== f.entite) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
       if (f.resp && !t.responsables.includes(f.resp)) return false;
@@ -184,6 +186,8 @@ export function Tasks() {
   const sousDe = (x?: typeof sec) =>
     x ? [...new Set([...x.sousSections, ...data.tasks.filter((t) => t.sectionId === x.id && t.sousSection).map((t) => t.sousSection)])] : [];
   const activeFilters = Object.entries(f).filter(([, v]) => v).length;
+  // Filtre « Entité » : l'entité ouverte et celles des tâches d'ailleurs (mes autres entités, partagées).
+  const entites = club ? [club.current, ...club.units.filter((u) => u.id !== club.current.id && data.tasks.some((t) => t.source?.uniteId === u.id))] : [];
 
   const setStatus = (t: Task, statusId: string) => {
     if (t.statusId === statusId || !canEditTask(t) || t.paiement) return; // remboursement / paiement : suit son circuit
@@ -252,6 +256,12 @@ export function Tasks() {
 
       <div className={`filters ${showFilters ? 'open' : ''}`}>
         <input className="search" placeholder="🔍 Rechercher…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
+        {entites.length > 1 && (
+          <select value={f.entite} onChange={(e) => setF({ ...f, entite: e.target.value })} aria-label="Entité">
+            <option value="">Toutes entités</option>
+            {entites.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
+          </select>
+        )}
         <select value={f.section} onChange={(e) => setF({ ...f, section: e.target.value, sous: '' })}>
           <option value="">Toutes sections</option>
           {data.sections.filter((s) => effScope === 'mes' || can('tasks.viewAll', s.id)).map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
@@ -411,7 +421,7 @@ export const BoutonVu = ({ onVu }: { onVu: () => void }) => (
 
 /** `onVu` : tâche « pour info » de l'accueil, que l'on retire avec « ✓ Vu ». */
 export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () => void; onStatus: (t: Task, s: string) => void; onVu?: () => void }) {
-  const { data, user, canEditTask, prendreTache, pasDispo, setToast } = useStore();
+  const { dataMoi: data, user, canEditTask, prendreTache, pasDispo, setToast } = useStore();
   const [prise, setPrise] = useState(false);
   const editable = canEditTask(t) && !t.paiement; // remboursement / paiement : suit son circuit
   // Tâche à prendre qu'on me propose : « Je m'en charge » ou « Pas dispo » directement sur la carte. Après « Pas dispo », elle
@@ -467,7 +477,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
 
 /** Repères : « ↳ tâche principale » pour une tâche liée, « x/y tâches rattachées » pour une tâche principale. */
 export function Linked({ t }: { t: Task }) {
-  const { data } = useStore();
+  const { dataMoi: data } = useStore();
   const parent = parentOf(data, t);
   const kids = childrenOf(data, t.id);
   if (parent) return <small className="linked-to" title={`Tâche rattachée à « ${parent.titre} »`}>↳ {parent.titre}</small>;
