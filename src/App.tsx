@@ -95,7 +95,7 @@ export function App() {
             <Route path="messages" element={<Messages />} />
             <Route path="agenda" element={<Calendar />} />
             {comites.canUn('tab.meetings') && <Route path="comite" element={<Meetings />} />}
-            {can('tab.events') && <Route path="evenements" element={<Events />} />}
+            {comites.canUn('tab.events') && <Route path="evenements" element={<Events />} />}
             {/* Ancienne page des responsables / membres : tout se fait dans l'organigramme. */}
             <Route path="responsables" element={<Navigate to="/organigramme" replace />} />
             {comites.canUn('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}

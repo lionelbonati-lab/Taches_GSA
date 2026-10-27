@@ -53,7 +53,7 @@ const RUBRIQUES: NavRubrique[] = [
     mobile: true,
     pages: [
       { to: '/agenda', label: 'Calendrier', icon: 'calendrier', aide: 'Le mois en un coup d’œil : séances, événements, échéances des tâches et fins de sondage. Clique sur un jour pour le détail.' },
-      { to: '/evenements', label: 'Événements', icon: 'evenements', perm: 'tab.events', aide: 'Les manifestations, avec l’avancement des tâches qui les préparent.' },
+      { to: '/evenements', label: 'Événements', icon: 'evenements', perm: 'tab.events', aide: 'Les manifestations de tes entités, avec l’avancement des tâches qui les préparent.' },
     ],
   },
   {

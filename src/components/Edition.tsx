@@ -14,7 +14,8 @@ import { RepriseModal } from './Reprise';
 
 export const hasEdition = (u?: OrgUnit | null) => u?.type === 'sous-comite' || u?.type === 'equipe';
 
-export function EditionCard() {
+/** Prochaine édition de l'entité ; `pilule` : son nom (membre de plusieurs entités, événements réunis). */
+export function EditionCard({ pilule }: { pilule?: string } = {}) {
   const club = useClubOptional();
   const { can } = useStore();
   const [open, setOpen] = useState(false);
@@ -35,7 +36,7 @@ export function EditionCard() {
   return (
     <div className={`panel edition ${passee || !u.date ? 'todo' : ''}`}>
       <span className="grow">
-        <Icone n="date" /> <strong>{passee ? 'Dernière édition' : 'Prochaine édition'}</strong>
+        <Icone n="date" /> <strong>{passee ? 'Dernière édition' : 'Prochaine édition'}</strong>{pilule && <> <span className="tsource">{pilule}</span></>}
         {u.date && ` : ${fmtRange(u.date, u.dateFin)}`} <em className="muted">({etat})</em>
       </span>
       {allowed && <button className="btn small" onClick={() => setOpen(true)}>{u.date ? 'Changer la date' : 'Fixer la date'}</button>}

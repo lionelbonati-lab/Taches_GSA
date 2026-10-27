@@ -11,6 +11,8 @@ import type { OrgUnit, Permission } from './types';
 
 /** Droits des pages Comité. */
 export const PERMS_COMITE: Permission[] = ['tab.meetings', 'tab.pv', 'tab.minutes'];
+/** Droits des pages qui réunissent mes entités, ou en choisissent une : il suffit de les avoir dans l'une d'elles. */
+export const PERMS_MOI: Permission[] = [...PERMS_COMITE, 'tab.events'];
 /** Pages d'un seul comité à la fois (le choisi), et le droit qu'elles demandent. */
 export const PAGES_PAR_COMITE: Record<string, Permission> = { '/ordre-du-jour': 'tab.pv', '/pv': 'tab.minutes' };
 
@@ -20,7 +22,7 @@ export interface Comites {
   /** Le comité choisi s'il me donne ce droit, sinon le premier qui le donne. */
   choisi: (p: Permission) => OrgUnit | undefined;
   choisir: (id: string) => void;
-  /** Droit dans l'un de mes comités (pages Comité) : leurs adresses existent. */
+  /** Droit dans l'une de mes entités (pages Comité, Événements) : leurs adresses existent. */
   canUn: (p: Permission) => boolean;
 }
 
@@ -48,6 +50,6 @@ export function useComitesEtat(): Comites {
       return (l.find((x) => x.u.id === choix) ?? l[0])?.u;
     },
     choisir,
-    canUn: (p) => !!store?.can(p) || (PERMS_COMITE.includes(p) && avec(p).length > 0),
+    canUn: (p) => !!store?.can(p) || (PERMS_MOI.includes(p) && avec(p).length > 0),
   };
 }

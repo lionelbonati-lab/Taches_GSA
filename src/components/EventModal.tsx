@@ -10,6 +10,7 @@ import { PORTEES, modifierOccurrence, supprimerOccurrence, type Portee } from '.
 import { Modal } from './ui';
 import { Icone } from './icones';
 import { ZoneTexte } from './ZoneTexte';
+import { ChampEntite, type ChoixEntiteFenetre } from './ChoixEntite';
 
 // Fiche d'un événement, comme dans un agenda : toute la journée ou de telle heure à telle heure, sur un ou plusieurs
 // jours, une seule fois ou répété (tous les jours, semaines, mois, ans, ou personnalisé). Une occurrence d'un événement
@@ -62,7 +63,7 @@ const estSimple = (r: RepetitionEvenement, date: string) =>
  * Fiche d'un événement. `jour` : l'occurrence ouverte d'un événement qui se répète (ses dates sont celles de cette
  * occurrence ; à l'enregistrement, on choisit : cet événement, les suivants, ou tous).
  */
-export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: string; onClose: () => void }) {
+export function EventModal({ event, jour, entite, onClose }: { event: ClubEvent; jour?: string; entite?: ChoixEntiteFenetre<ClubEvent>; onClose: () => void }) {
   const { data } = useStore();
   const { saveEvent, saveOccurrence, removeEvent, removeOccurrence } = useEventActions();
   const serie = jour && event.repetition ? event : undefined;
@@ -171,6 +172,7 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
   return (
     <Modal title={isNew ? 'Nouvel événement' : 'Événement'} onClose={onClose}>
       <div className="form event-form">
+        <ChampEntite choix={entite} v={v} label="Entité" />
         <label className="full">
           Événement
           <input value={v.nom} onChange={(e) => set({ nom: e.target.value })} placeholder="Ajouter un titre" />

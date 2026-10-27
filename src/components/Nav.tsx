@@ -6,9 +6,9 @@ import { navigation, pageOuverte } from '../data/navigation';
 import { Icone } from './icones';
 import { PastilleEntite } from './IconesEntite';
 import { Deroulante } from './Deroulante';
-import { PAGES_PAR_COMITE, PERMS_COMITE, useComites } from '../data/comites';
+import { PAGES_PAR_COMITE, PERMS_MOI, useComites } from '../data/comites';
 
-/** Rubriques, pages du compte et page ouverte, selon mes droits (pages Comité : dans l'un de mes comités). */
+/** Rubriques, pages du compte et page ouverte, selon mes droits (pages Comité, Événements : dans l'une de mes entités). */
 export function useNavigation() {
   const { can } = useStore();
   const club = useClubOptional();
@@ -17,7 +17,7 @@ export function useNavigation() {
   // Nom des séances (« Comité », « Réunions »…) : celui de mes comités s'ils sont tous du même type.
   const types = new Set(comites?.liste('tab.meetings').map((u) => u.type));
   const nav = navigation({
-    can: (p) => (comites && PERMS_COMITE.includes(p) ? comites.canUn(p) : can(p)),
+    can: (p) => (comites && PERMS_MOI.includes(p) ? comites.canUn(p) : can(p)),
     club: !!club,
     registre: !!club && (club.membresAcces || club.caissier),
     type: types.size === 1 ? [...types][0] : types.size ? 'central' : club?.current.type ?? 'central',

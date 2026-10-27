@@ -81,6 +81,8 @@ export function Aide() {
     geste('Voir et modifier les tâches de toutes mes entités, sans changer d’entité', 'Tâches, accueil, calendrier, Messages et la cloche 🔔 réunissent celles de toutes tes entités : la pastille de chaque tâche dit à quelle entité elle appartient (Tâches › Filtres › « Entité » pour n’en voir qu’une). Une tâche s’ouvre, se modifie et se commente d’ici ; elle reste enregistrée dans son entité. Pour en créer une ailleurs : « Nouvelle tâche » › « Entité ».');
   if (club && club.mine.length > 1 && chemin('/comite'))
     geste('Voir et poser les séances de tous mes comités', vers('/comite'), ' : celles de tous tes comités y sont réunies, chacune avec la pilule de son entité. « + Nouvelle séance » › « Comité » choisit où la créer.');
+  if (club && club.mine.length > 1 && chemin('/evenements'))
+    geste('Voir et poser les événements de toutes mes entités', vers('/evenements'), ' : ceux de toutes tes entités y sont réunis, chacun avec la pilule de son entité. « + Nouvel événement » › « Entité » choisit où le créer (aussi depuis l’agenda).');
   if (comites && (comites.liste('tab.pv').length > 1 || comites.liste('tab.minutes').length > 1))
     geste('Préparer l’ordre du jour ou tenir le PV d’un autre de mes comités', vers('/ordre-du-jour') ?? vers('/pv'), ' : choisis le comité en haut de la page (« Comité »). Son ordre du jour et son PV s’affichent directement, avec tes droits chez lui, sans changer d’entité ; le choix vaut pour les deux pages.');
   if (club && club.units.length > 1)

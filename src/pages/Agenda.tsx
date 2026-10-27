@@ -11,8 +11,8 @@ import { RepriseModal } from '../components/Reprise';
 import { reprenable } from '../data/reprise';
 import { Empty, Modal, usePlusieursEntites } from '../components/ui';
 import { Icone } from '../components/icones';
-import { IconeEntite, PastilleEntite } from '../components/IconesEntite';
-import { Deroulante } from '../components/Deroulante';
+import { IconeEntite } from '../components/IconesEntite';
+import { ChampEntite, NouveauDans, type ChoixEntiteFenetre } from '../components/ChoixEntite';
 import { Chez, useMesEntites, type EntiteMoi } from '../data/entites';
 import { useComites } from '../data/comites';
 import { Progress } from './Dashboard';
@@ -62,18 +62,24 @@ export const useMotSeance = () => motSeance(useClubOptional()?.current.type);
  */
 function useCible(param: string) {
   const [params, setParams] = useSearchParams();
-  const [cible, setCible] = useState<{ id: string; archive?: boolean } | null>(null);
+  const [cible, setCible] = useState<{ id: string; archive?: boolean; entite?: string } | null>(null);
   useEffect(() => {
     const id = params.get(param) ?? params.get('archive');
     if (!id) return;
-    setCible({ id, archive: !params.get(param) });
+    setCible({ id, archive: !params.get(param), entite: params.get('entite') ?? undefined });
     setParams({}, { replace: true });
   }, [params, param, setParams]);
   useEffect(() => {
-    if (cible && !cible.archive) document.getElementById(`cible-${cible.id}`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    if (cible && !cible.archive) document.querySelector('.agenda-item.cible')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
   }, [cible]);
   return cible;
 }
+
+/** La carte visée (`?entite=` : celle de cette entité, les mêmes numéros pouvant servir dans plusieurs entités). */
+const estCible = (cible: { id: string; entite?: string } | null, id: string, u?: string) => !!cible && cible.id === id && (!cible.entite || !u || cible.entite === u);
+
+/** Lien vers les tâches d'une séance, d'un événement : de son entité seulement (filtre « Entité »). */
+const tachesDe = (filtre: string, u: string | undefined) => `/taches?${filtre}${u ? `&entite=${encodeURIComponent(u)}` : ''}`;
 
 /**
  * Nouvelle séance, nommée d'après son mois (« Comité de mars 2027 ») et qui revient chaque année.
@@ -159,6 +165,7 @@ export function Meetings() {
   useEffect(() => {
     if (!cible?.archive) return;
     for (const { m, e } of toutes) {
+      if (cible.entite && e.u && cible.entite !== e.u.id) continue;
       const pv = m.minutesArchives?.find((x) => x.id === cible.id);
       const odj = m.pvArchives?.find((x) => x.id === cible.id);
       if (pv || odj) return setViewPv({ meeting: m, pv: (pv ?? odj)!, kind: pv ? 'pv' : 'odj', u: e.u?.id });
@@ -170,7 +177,7 @@ export function Meetings() {
     <Chez key={`${e.u?.id ?? ''}:${m.id}`} id={e.u?.id}>
       <CarteSeance
         m={m}
-        cible={cible?.id === m.id}
+        cible={estCible(cible, m.id, e.u?.id)}
         pilule={plusieurs ? e.u?.nom : undefined}
         onPv={(pv, kind) => setViewPv({ meeting: m, pv, kind, u: e.u?.id })}
         onEdit={() => setEdit({ m, u: e.u?.id })}
@@ -196,7 +203,7 @@ export function Meetings() {
         {!aVenir.length && <Empty>{passees.length ? 'Aucune séance à venir.' : 'Aucune séance.'}</Empty>}
       </div>
       {passees.length > 0 && (
-        <details className="seances-passees" open={passees.some((x) => x.m.id === cible?.id) || undefined}>
+        <details className="seances-passees" open={passees.some((x) => estCible(cible, x.m.id, x.e.u?.id)) || undefined}>
           <summary><Icone n="archives" /> Séances passées ({passees.length})</summary>
           <div className="agenda">{passees.map(carte)}</div>
         </details>
@@ -233,7 +240,7 @@ function CarteSeance({ m, cible, pilule, onPv, onEdit }: { m: Meeting; cible: bo
           {annuelle(m) ? <> · <Icone n="repetition" /> chaque année</> : ' · une seule fois'}
         </div>
         <Excuses m={m} past={past} />
-        <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
+        <Link to={tachesDe(`meeting=${encodeURIComponent(m.id)}`, pilule && club?.current.id)}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
         {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
           <div className="pv-archives">
             {(m.minutesArchives ?? []).map((pv, i) => (
@@ -287,26 +294,7 @@ function NouvelleSeance({ gerables, onClose }: { gerables: EntiteMoi[]; onClose:
     const m = newMeeting(e.store.data.meetings, v?.date || today(), motSeance(e.u?.type));
     return v ? { ...m, heure: v.heure, lieu: v.lieu, lieuGeo: v.lieuGeo } : m;
   };
-  const [chez, setChez] = useState(() => ({ id: gerables[0]?.u?.id, m: cree(gerables[0]), n: 0 }));
-  const liste = gerables.flatMap((e) => (e.u ? [e.u] : []));
-  // Membre de plusieurs entités : le comité de la séance est toujours indiqué (à choisir s'il y en a plusieurs).
-  const plusieurs = usePlusieursEntites();
-  const entite: ChoixComite | undefined =
-    (liste.length > 1 || plusieurs) && chez.id
-      ? {
-          liste,
-          valeur: chez.id,
-          changer: (id, v) => {
-            const e = gerables.find((x) => x.u?.id === id);
-            if (e) setChez((c) => ({ id, m: cree(e, v), n: c.n + 1 }));
-          },
-        }
-      : undefined;
-  return (
-    <Chez id={chez.id}>
-      <MeetingModal key={chez.n} meeting={chez.m} entite={entite} onClose={onClose} />
-    </Chez>
-  );
+  return <NouveauDans entites={gerables} cree={cree}>{(m, choix) => <MeetingModal meeting={m} entite={choix} onClose={onClose} />}</NouveauDans>;
 }
 
 /** « jeudi 8 avril 2027 » (sans la virgule que certains navigateurs ajoutent après le jour). */
@@ -388,11 +376,8 @@ function Renommer({ nom }: { nom?: string }) {
   );
 }
 
-/** Nouvelle séance : le comité où la créer (la fenêtre se rouvre chez lui, avec ce qui a déjà été saisi). */
-type ChoixComite = { liste: OrgUnit[]; valeur: string; changer: (id: string, v: Meeting) => void };
-
 /** Fiche d'une séance : son nom suit le mois de la date ; elle revient chaque année, sauf si on décoche. */
-export function MeetingModal({ meeting, entite, onClose }: { meeting: Meeting; entite?: ChoixComite; onClose: () => void }) {
+export function MeetingModal({ meeting, entite, onClose }: { meeting: Meeting; entite?: ChoixEntiteFenetre<Meeting>; onClose: () => void }) {
   const { data } = useStore();
   const { saveMeeting, removeMeeting } = useAgendaActions();
   const mot = useMotSeance();
@@ -447,22 +432,7 @@ export function MeetingModal({ meeting, entite, onClose }: { meeting: Meeting; e
   return (
     <Modal title={isNew ? 'Nouvelle séance' : 'Séance'} onClose={onClose}>
       <div className="form">
-        {entite && entite.liste.length > 1 && (
-          <label className="full">
-            Comité
-            <Deroulante
-              aria-label="Comité"
-              value={entite.valeur}
-              onChange={(id) => id !== entite.valeur && entite.changer(id, v)}
-              options={entite.liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))}
-            />
-          </label>
-        )}
-        {entite?.liste.length === 1 && (
-          <p className="full seance-comite">
-            Comité : <PastilleEntite u={entite.liste[0]} /> <strong>{entite.liste[0].nom}</strong>
-          </p>
-        )}
+        <ChampEntite choix={entite} v={v} label="Comité" />
         <label>
           Titre
           <input value={v.titre} onChange={(e) => set({ titre: e.target.value })} />
@@ -519,82 +489,133 @@ export function MeetingModal({ meeting, entite, onClose }: { meeting: Meeting; e
   );
 }
 
+/**
+ * Événements de toutes mes entités (vue « moi »), chacun avec la pilule de son entité : il s'y affiche, s'y modifie et
+ * s'y reprend, sans changer d'entité. Avec les événements du club qui dépendent de mes comités.
+ */
 export function Events() {
-  const { data, can } = useStore();
-  const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string } | null>(null);
+  const mes = useMesEntites().filter((e) => e.store.can('tab.events'));
+  const plusieurs = usePlusieursEntites();
+  const club = useClubOptional();
+  const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string; u?: string } | null>(null);
+  const [nouveau, setNouveau] = useState(false);
   // Événement passé repris pour une nouvelle édition, avec ses tâches (Reprise.tsx).
-  const [reprise, setReprise] = useState<ClubEvent | null>(null);
-  const manage = can('events.manage');
+  const [reprise, setReprise] = useState<{ e: ClubEvent; u?: string } | null>(null);
+  const gerables = mes.filter((e) => e.store.can('events.manage'));
   const cible = useCible('id');
   // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
   const jour = today();
   const affiche = (e: ClubEvent) => (e.repetition ? (occurrenceDu(e, jour) ?? derniereOccurrence(e) ?? e.date) : e.date);
-  // Avec les événements du club qui dépendent de ce comité, à leur date (sans date : à la fin).
-  const club = useClubOptional();
-  const dependants = club ? evenementsDependants(club.units, club.current) : [];
-  const liste = [
-    ...data.events.map((e) => ({ date: affiche(e), e, u: undefined })),
-    ...dependants.map((u) => ({ date: u.date || '9999', e: undefined, u })),
-  ].sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? ''));
+  // Avec les événements du club qui dépendent de chacun de mes comités, à leur date (sans date : à la fin).
+  const liste = mes
+    .flatMap((ent) => [
+      ...ent.store.data.events.map((e) => ({ date: affiche(e), e, u: undefined, ent })),
+      ...(club && ent.u ? evenementsDependants(club.units, ent.u) : []).map((u) => ({ date: u.date || '9999', e: undefined, u, ent })),
+    ])
+    .sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? '') || Number(b.ent.ici) - Number(a.ent.ici));
 
   return (
     <div>
       <div className="page-head">
         <h1>Événements</h1>
-        {manage && <button className="btn primary" onClick={() => setEdit({ e: newEvent() })}>+ Nouvel événement</button>}
+        {gerables.length > 0 && <button className="btn primary" onClick={() => setNouveau(true)}>+ Nouvel événement</button>}
       </div>
       <PageIntro />
-      <EditionCard />
+      {mes.map((ent) => (
+        <Chez key={ent.u?.id ?? ''} id={ent.u?.id}>
+          <EditionCard pilule={plusieurs ? ent.u?.nom : undefined} />
+        </Chez>
+      ))}
       <div className="agenda">
-        {liste.map(({ e: serie, u, date }) => {
-          if (u) return <EvenementDependant key={u.id} u={u} />;
-          if (!serie) return null;
-          const e = aLaDate(serie, date);
-          const tasks = data.tasks.filter((t) => t.eventId === e.id);
-          const fin = endOf(e);
-          const past = fin < jour;
-          const jours = diffDays(e.date, fin) + 1;
-          const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
-          const suite = data.events.find((x) => x.repriseDe === serie.id);
-          return (
-            <article key={e.id} id={`cible-${serie.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible?.id === serie.id ? 'cible' : ''}`}>
-              <DateBlock date={e.date} fin={e.dateFin} />
-              <div className="grow">
-                <strong>{e.nom}</strong>
-                <div className="muted">{[horaire(e), e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
-                {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
-                <p>{e.description}</p>
-                <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
-                <Link to={`/taches?event=${e.id}`}>Voir les tâches →</Link>
-                {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${suite.id}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
-              </div>
-              {manage && (
-                <div className="agenda-actions">
-                  <button className="btn small" onClick={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}>Modifier</button>
-                  {past && reprenable(serie) && (
-                    <button className="btn small" onClick={() => setReprise(serie)} title="Nouvelle édition de cet événement, avec ses tâches">
-                      <Icone n="dupliquer" /> Reprendre
-                    </button>
-                  )}
-                </div>
-              )}
-            </article>
-          );
-        })}
+        {liste.map(({ e: serie, u, date, ent }) => (
+          <Chez key={`${ent.u?.id ?? ''}:${u ? `u:${u.id}` : serie?.id}`} id={ent.u?.id}>
+            {u ? (
+              <EvenementDependant u={u} pilule={plusieurs ? ent.u?.nom : undefined} />
+            ) : (
+              serie && (
+                <CarteEvenement
+                  serie={serie}
+                  date={date}
+                  cible={estCible(cible, serie.id, ent.u?.id)}
+                  pilule={plusieurs ? ent.u?.nom : undefined}
+                  onEdit={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined, u: ent.u?.id })}
+                  onReprise={() => setReprise({ e: serie, u: ent.u?.id })}
+                />
+              )
+            )}
+          </Chez>
+        ))}
         {!liste.length && <Empty>Aucun événement.</Empty>}
       </div>
-      {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
-      {reprise && <RepriseModal event={reprise} edition={hasEdition(club?.current)} onClose={() => setReprise(null)} />}
+      {edit && (
+        <Chez id={edit.u}>
+          <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />
+        </Chez>
+      )}
+      {nouveau && (
+        <NouveauDans entites={gerables} cree={(_e, v?: ClubEvent) => (v ? { ...v, id: uid('e') } : newEvent())}>
+          {(e, choix) => <EventModal event={e} entite={choix} onClose={() => setNouveau(false)} />}
+        </NouveauDans>
+      )}
+      {reprise && (
+        <Chez id={reprise.u}>
+          <RepriseChez event={reprise.e} onClose={() => setReprise(null)} />
+        </Chez>
+      )}
     </div>
   );
+}
+
+/** Carte d'un événement (à la date `date` s'il se répète), dans son entité : avancement de ses tâches, mes droits chez elle. */
+function CarteEvenement({ serie, date, cible, pilule, onEdit, onReprise }: { serie: ClubEvent; date: string; cible: boolean; pilule?: string; onEdit: () => void; onReprise: () => void }) {
+  const { data, can } = useStore();
+  const club = useClubOptional();
+  const jour = today();
+  const e = aLaDate(serie, date);
+  const tasks = data.tasks.filter((t) => t.eventId === e.id);
+  const fin = endOf(e);
+  const past = fin < jour;
+  const jours = diffDays(e.date, fin) + 1;
+  const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
+  const suite = data.events.find((x) => x.repriseDe === serie.id);
+  const ici = pilule ? club?.current.id : undefined;
+  return (
+    <article id={`cible-${serie.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
+      <DateBlock date={e.date} fin={e.dateFin} />
+      <div className="grow">
+        <strong>{e.nom}</strong>{pilule && <> <span className="tsource" title={`Événement de « ${pilule} »`}>{pilule}</span></>}
+        <div className="muted">{[horaire(e), e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
+        {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
+        <p>{e.description}</p>
+        <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
+        <Link to={tachesDe(`event=${encodeURIComponent(e.id)}`, ici)}>Voir les tâches →</Link>
+        {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}${ici ? `&entite=${encodeURIComponent(ici)}` : ''}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
+      </div>
+      {can('events.manage') && (
+        <div className="agenda-actions">
+          <button className="btn small" onClick={onEdit}>Modifier</button>
+          {past && reprenable(serie) && (
+            <button className="btn small" onClick={onReprise} title="Nouvelle édition de cet événement, avec ses tâches">
+              <Icone n="dupliquer" /> Reprendre
+            </button>
+          )}
+        </div>
+      )}
+    </article>
+  );
+}
+
+/** Reprise d'un événement passé, dans son entité (une équipe d'événement : sa prochaine édition). */
+function RepriseChez({ event, onClose }: { event: ClubEvent; onClose: () => void }) {
+  const club = useClubOptional();
+  return <RepriseModal event={event} edition={hasEdition(club?.current)} onClose={onClose} />;
 }
 
 /**
  * Événement du club qui dépend du comité ouvert : sa prochaine édition, sa description, ses propres événements à venir
  * et l'avancement des tâches qui le concernent ici (partagées par lui, ou du comité liées à lui ou partagées avec lui).
- * Il s'ouvre d'ici pour qui en fait partie.
  */
-function EvenementDependant({ u }: { u: OrgUnit }) {
+function EvenementDependant({ u, pilule }: { u: OrgUnit; pilule?: string }) {
   const { data, externes } = useStore();
   const agenda = externes.agenda ?? [];
   const club = useClubOptional();
@@ -611,12 +632,11 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
     .filter((e): e is AgendaClubEvent => !!e && endOf(e) >= jour && !(e.date === u.date && (e.dateFin ?? '') === (u.dateFin ?? '')))
     .sort((a, b) => a.date.localeCompare(b.date));
   const taches = data.tasks.filter((t) => tacheDeLEvenement(t, u.id));
-  const membre = club.mine.some((x) => x.id === u.id);
   return (
     <article className={`panel agenda-item dependant ${past ? 'past' : ''}`} style={{ '--c': u.couleur } as React.CSSProperties}>
       {u.date ? <DateBlock date={u.date} fin={u.dateFin} /> : <div className="dateblock vide" title="Date à fixer"><b>?</b><span>date</span></div>}
       <div className="grow">
-        <strong><IconeEntite u={u} /> {u.nom}</strong> <span className="chip dependant-tag" title={`« Dépend de » : ${club.current.nom}`}>dépend de ce comité</span>
+        <strong><IconeEntite u={u} /> {u.nom}</strong> <span className="chip dependant-tag" title={`« Dépend de » : ${club.current.nom}`}>{pilule ? `dépend de « ${pilule} »` : 'dépend de ce comité'}</span>
         <div className="muted">{[UNIT_TYPES[u.type].label, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
         {u.description && <p>{u.description}</p>}
         {siens.length > 0 && (
@@ -630,10 +650,9 @@ function EvenementDependant({ u }: { u: OrgUnit }) {
           </ul>
         )}
         {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
-        <Link to={`/taches?event=${encodeURIComponent(`u:${u.id}`)}`}>Voir les tâches →</Link>
+        <Link to={tachesDe(`event=${encodeURIComponent(`u:${u.id}`)}`, pilule && club.current.id)}>Voir les tâches →</Link>
         {!taches.length && <small className="muted"> Aucune pour l’instant : range une tâche sous « Événements » › « {u.nom} », ou rattache-la à lui (« <Icone n="rattacher" /> Rattacher à… » ou « Pour quand ? ») ; ou il partage les siennes.</small>}
       </div>
-      {membre && <button className="btn small" onClick={() => club.switchUnit(u.id, '#/evenements')} title={`Ouvrir « ${u.nom} »`}>Ouvrir</button>}
     </article>
   );
 }

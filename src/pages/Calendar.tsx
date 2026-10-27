@@ -4,17 +4,19 @@ import { useStore } from '../data/store';
 import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, Poll, Task } from '../data/types';
 import { useClubOptional } from '../data/club';
 import { UNIT_TYPES } from '../data/units';
-import { addDays, diffDays, fmtDate, fmtRange, isDone, isLate, newTask, parentOf, today } from '../data/utils';
+import { addDays, diffDays, fmtDate, fmtRange, isDone, isLate, newTask, parentOf, today, uid } from '../data/utils';
 import { isOpen } from '../data/polls';
 import { TaskModal, useAutresCreation } from '../components/FicheTache';
 import { Avatar, EntiteTag, StatusBadge, usePlusieursEntites } from '../components/ui';
-import { MeetingModal, newMeeting, useAgendaActions, useMotSeance } from './Agenda';
+import { MeetingModal, newMeeting, useAgendaActions } from './Agenda';
 import { ChoixPortee, EventModal, newEvent, useEventActions } from '../components/EventModal';
 import { aLaDate, duree, fmtHeure, horaire, libelleRepetition, occurrencesEntre } from '../data/repetition';
 import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
-import { useSeancesMoi } from '../data/entites';
+import { useMesEntites, useSeancesMoi } from '../data/entites';
+import { NouveauDans } from '../components/ChoixEntite';
+import { motSeance } from '../data/seances';
 import { useComites } from '../data/comites';
 import { Icone, type IconeNom } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
@@ -67,7 +69,6 @@ export function Calendar() {
   const club = useClubOptional();
   const { saveMeeting } = useAgendaActions();
   const { saveEvent, saveOccurrence } = useEventActions();
-  const motSeance = useMotSeance();
   const navigate = useNavigate();
   const [month, setMonth] = useState(monthOf(today()));
   const [selected, setSelected] = useState(today());
@@ -101,6 +102,11 @@ export function Calendar() {
   const seeEvents = can('tab.events');
   const addMeeting = can('meetings.manage');
   const addEvent = can('events.manage');
+  // Nouvelle séance, nouvel événement : aussi dans l'une de mes autres entités (choisie dans la fenêtre).
+  const mes = useMesEntites();
+  const gerSeances = mes.filter((e) => e.store.can('meetings.manage'));
+  const gerEvenements = mes.filter((e) => e.store.can('events.manage'));
+  const [nouveau, setNouveau] = useState<{ kind: 'meeting' | 'event'; date: string } | null>(null);
   // Vue « moi » : aussi dans l'une de mes autres entités (choisie dans la fenêtre).
   const autresCreation = useAutresCreation();
   const addTask = creatableSections().length > 0 || autresCreation.length > 0;
@@ -191,14 +197,13 @@ export function Calendar() {
   const create = (kind: 'meeting' | 'task' | 'event', date: string) => {
     setMenu(null);
     setSelected(date);
-    if (kind === 'meeting') setMeeting(newMeeting(data.meetings, date, motSeance));
-    else if (kind === 'event') setEvent({ e: newEvent(date) });
+    if (kind === 'meeting' || kind === 'event') setNouveau({ kind, date });
     else setTask({ t: newTask(user.id, { delai: date }), isNew: true });
   };
   const addChoices = [
-    addMeeting && { kind: 'meeting' as const, label: 'Séance de comité' },
+    gerSeances.length > 0 && { kind: 'meeting' as const, label: 'Séance de comité' },
     addTask && { kind: 'task' as const, label: 'Tâche' },
-    addEvent && { kind: 'event' as const, label: 'Événement' },
+    gerEvenements.length > 0 && { kind: 'event' as const, label: 'Événement' },
   ].filter(Boolean) as { kind: 'meeting' | 'task' | 'event'; label: string }[];
 
   const open = (it: Item) => {
@@ -215,7 +220,9 @@ export function Calendar() {
       }
     }
     else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : navigate('/evenements'));
-    else if (it.kind === 'manif') navigate(it.u.id === club?.current.id && seeEvents ? '/evenements' : '/organigramme');
+    // Événement de l'une de mes entités : sa carte dans les événements réunis ; d'une autre entité du club : l'organigramme.
+    else if (it.kind === 'manif')
+      navigate(club?.mine.some((u) => u.id === it.u.id) ? `/evenements${it.e ? `?id=${encodeURIComponent(it.e.id)}&entite=${encodeURIComponent(it.u.id)}` : ''}` : '/organigramme');
     else navigate(`/sondages?id=${it.p.id}`);
   };
 
@@ -464,6 +471,16 @@ export function Calendar() {
       {task && <TaskModal task={task.t} isNew={task.isNew} choixEntite onClose={() => setTask(null)} />}
       {meeting && <MeetingModal meeting={meeting} onClose={() => setMeeting(null)} />}
       {event && <EventModal event={event.e} jour={event.jour} onClose={() => setEvent(null)} />}
+      {nouveau?.kind === 'meeting' && (
+        <NouveauDans entites={gerSeances} cree={(e, v?: Meeting) => { const m = newMeeting(e.store.data.meetings, v?.date || nouveau.date, motSeance(e.u?.type)); return v ? { ...m, heure: v.heure, lieu: v.lieu, lieuGeo: v.lieuGeo } : m; }}>
+          {(m, choix) => <MeetingModal meeting={m} entite={choix} onClose={() => setNouveau(null)} />}
+        </NouveauDans>
+      )}
+      {nouveau?.kind === 'event' && (
+        <NouveauDans entites={gerEvenements} cree={(_e, v?: ClubEvent) => (v ? { ...v, id: uid('e') } : newEvent(nouveau.date))}>
+          {(e, choix) => <EventModal event={e} entite={choix} onClose={() => setNouveau(null)} />}
+        </NouveauDans>
+      )}
       {exporter && (
         <ExportAgenda
           manifs={manifs.filter((x) => !masquees.includes(x.u.id))}

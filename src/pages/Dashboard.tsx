@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, ScheduledEmail, TachePartagee, Task } from '../data/types';
+import type { ClubEvent, OrgUnit, ScheduledEmail, TachePartagee, Task } from '../data/types';
 import { daysUntil, derniereSeancePassee, endOf, estArchivee, fmtDate, fmtRange, isDone, isLate, today } from '../data/utils';
 import { aLaDate, horaire, occurrenceDu } from '../data/repetition';
 import { BoutonVu, TaskCard } from './Tasks';
@@ -22,7 +22,7 @@ import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
-import { useSeancesMoi } from '../data/entites';
+import { Chez, useMesEntites, useSeancesMoi, type EntiteMoi } from '../data/entites';
 import { useComites } from '../data/comites';
 import { LieuSeance } from '../components/Liens';
 
@@ -42,6 +42,9 @@ export function Dashboard() {
   const suivi = useSuiviPourInfo(miennesInfo);
   // Vue « moi » : les séances de toutes mes entités, chacune avec la pilule de son entité (comme les tâches).
   const seances = useSeancesMoi();
+  // Et leurs événements.
+  const mesEntites = useMesEntites();
+  const mesEvenements = mesEntites.filter((e) => e.store.can('tab.events'));
   const plusieurs = usePlusieursEntites();
   const comites = useComites();
   if (!user) return null;
@@ -61,22 +64,31 @@ export function Dashboard() {
   // Prochaine séance de chacune de mes entités, dans l'ordre chronologique (à date égale, celle de l'entité ouverte d'abord).
   const seancesAVenir = seances.filter((x) => x.m.date >= today()).sort((a, b) => a.m.date.localeCompare(b.m.date) || Number(b.ici) - Number(a.ici));
   const prochaines = seancesAVenir.filter((x, i) => seancesAVenir.findIndex((y) => y.u?.id === x.u?.id) === i);
-  // Prochains événements : ceux de l'agenda de l'entité et ceux du club qui dépendent d'elle (leur prochaine édition,
-  // comme dans Agenda › Événements) ; le même dans l'agenda (même date, nom pareil ou contenu dans l'autre, ex.
+  // Prochains événements de toutes mes entités : ceux de leur agenda et ceux du club qui dépendent d'elles (leur prochaine
+  // édition, comme dans Agenda › Événements) ; le même dans un agenda (même date, nom pareil ou contenu dans l'autre, ex.
   // « Bruntrutaine » et « CO Bruntrutaine ») ne compte qu'une fois.
   const jour = today();
   const simple = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
   const memeNom = (a: string, b: string) => { const [x, y] = [simple(a), simple(b)]; return !!x && !!y && (x.includes(y) || y.includes(x)); };
-  const editions = (club ? evenementsDependants(club.units, club.current) : []).filter((u) => u.date && endOf({ date: u.date, dateFin: u.dateFin }) >= jour);
+  const pareil = (u: OrgUnit, e: ClubEvent) => u.date === e.date && memeNom(u.nom, e.nom);
   // Événement qui se répète : sa prochaine occurrence.
-  const aVenir = data.events
-    .map((e) => (e.repetition ? (occurrenceDu(e, jour) ? aLaDate(e, occurrenceDu(e, jour)!) : undefined) : e))
-    .filter((e): e is ClubEvent => !!e && endOf(e) >= jour);
-  const nextEvents = [
-    ...aVenir.filter((e) => !editions.some((u) => u.date === e.date && memeNom(u.nom, e.nom))).map((e) => ({ date: e.date, e, u: undefined })),
-    ...editions.map((u) => ({ date: u.date!, e: aVenir.find((e) => e.date === u.date && memeNom(u.nom, e.nom)), u })),
+  const evs = mesEvenements.flatMap((ent) =>
+    ent.store.data.events
+      .map((e) => (e.repetition ? (occurrenceDu(e, jour) ? aLaDate(e, occurrenceDu(e, jour)!) : undefined) : e))
+      .filter((e): e is ClubEvent => !!e && endOf(e) >= jour)
+      .map((e) => ({ e, ent })),
+  );
+  const eds = mesEvenements
+    .flatMap((ent) => (club && ent.u ? evenementsDependants(club.units, ent.u) : []).map((u) => ({ u, ent })))
+    .filter((x, i, l) => x.u.date && endOf({ date: x.u.date, dateFin: x.u.dateFin }) >= jour && l.findIndex((y) => y.u.id === x.u.id) === i);
+  const nextEvents: { date: string; e?: ClubEvent; u?: OrgUnit; ent: EntiteMoi; entE?: EntiteMoi }[] = [
+    ...evs.filter((x) => !eds.some((y) => pareil(y.u, x.e))).map((x) => ({ date: x.e.date, e: x.e, u: undefined, ent: x.ent, entE: x.ent })),
+    ...eds.map((y) => {
+      const meme = evs.find((x) => pareil(y.u, x.e));
+      return { date: y.u.date!, u: y.u, ent: y.ent, e: meme?.e, entE: meme?.ent };
+    }),
   ]
-    .sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u))
+    .sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u) || Number(b.ent.ici) - Number(a.ent.ici))
     .slice(0, 3);
   const onStatus = (t: Task, s: string) => {
     const q = finAnticipee(data, t, { ...t, statusId: s });
@@ -127,7 +139,12 @@ export function Dashboard() {
   const rendre = (id: string): ReactNode => {
     switch (id) {
       case 'edition':
-        return <EditionCard />;
+        // Prochaine édition de chacune de mes entités qui en a (équipe d'événement, sous-comité).
+        return mesEntites.map((ent) => (
+          <Chez key={ent.u?.id ?? ''} id={ent.u?.id}>
+            <EditionCard pilule={plusieurs ? ent.u?.nom : undefined} />
+          </Chez>
+        ));
       case 'compteurs':
         return (
           <div className="stats">
@@ -290,15 +307,25 @@ export function Dashboard() {
         return (
           <>
             <h2><Icone n="evenements" /> Prochains événements</h2>
-            {nextEvents.map(({ e, u }) => {
-              // Événement qui dépend de l'entité : les tâches qui le concernent ici (et celles de l'événement du même nom).
-              const tasks = data.tasks.filter((t) => (u && tacheDeLEvenement(t, u.id)) || (!!e && t.eventId === e.id));
-              const done = tasks.filter((t) => isDone(data, t)).length;
+            {nextEvents.map(({ e, u, ent, entE }) => {
+              // Événement qui dépend de mon comité : les tâches qui le concernent chez lui (et celles de l'événement du même
+              // nom, dans son entité).
+              const lui = u ? ent.store.data : undefined;
+              const sien = e && entE ? entE.store.data : undefined;
+              const tasks = [
+                ...(lui ? lui.tasks.filter((t) => tacheDeLEvenement(t, u!.id)).map((t) => ({ t, d: lui })) : []),
+                ...(sien ? sien.tasks.filter((t) => t.eventId === e!.id && !(u && tacheDeLEvenement(t, u.id) && sien === lui)).map((t) => ({ t, d: sien })) : []),
+              ];
+              const done = tasks.filter((x) => isDone(x.d, x.t)).length;
               const x = u ? { date: u.date!, dateFin: u.dateFin } : e!;
               const quand = x.date <= jour ? 'en cours' : `dans ${daysUntil(x.date)} j`;
+              const lien = u ? `/taches?event=${encodeURIComponent(`u:${u.id}`)}` : `/taches?event=${encodeURIComponent(e!.id)}${plusieurs && ent.u ? `&entite=${encodeURIComponent(ent.u.id)}` : ''}`;
               return (
-                <Link key={u ? `u:${u.id}` : e!.id} to={`/taches?event=${encodeURIComponent(u ? `u:${u.id}` : e!.id)}`} className="panel link-panel">
-                  <strong>{u ? <><IconeEntite u={u} /> {u.nom}</> : e!.nom}</strong>
+                <Link key={u ? `u:${u.id}` : `${ent.u?.id ?? ''}:${e!.id}`} to={lien} className="panel link-panel">
+                  <strong>
+                    {u ? <><IconeEntite u={u} /> {u.nom}</> : e!.nom}
+                    {plusieurs && !u && ent.u && <> <span className="tsource">{ent.u.nom}</span></>}
+                  </strong>
                   <span>
                     {[fmtRange(x.date, x.dateFin), e && horaire(e), e?.lieu].filter(Boolean).join(' · ')}
                     {e?.repetition && <> <span title="Se répète" aria-label="se répète"><Icone n="repetition" /></span></>} <em className="muted">({quand})</em>

@@ -338,7 +338,7 @@ test('vue « moi » : les séances de toutes mes entités, réunies (page Séanc
   await expect(page.locator('.subtabs-entite')).toHaveCount(0);
   await page.getByRole('button', { name: '+ Nouvelle séance' }).click();
   const fen = page.getByRole('dialog', { name: 'Nouvelle séance' });
-  await expect(fen.locator('.seance-comite')).toContainText('Soirée récréative');
+  await expect(fen.locator('.champ-entite')).toContainText('Soirée récréative');
   await expect(fen.getByLabel('Titre')).toHaveValue(/^Réunion /);
   await fen.getByLabel('Titre').fill('Séance de la Soirée');
   await fen.getByRole('button', { name: 'Enregistrer', exact: true }).click();
@@ -421,6 +421,37 @@ test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut 
   await page.getByRole('option', { name: /Comité central/ }).click();
   await expect(comite).toHaveText(/Comité central/);
   await expect(page.getByLabel('Séance', { exact: true })).not.toContainText('Réunion de la soirée');
+});
+
+test('vue « moi » : les événements de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
+  };
+  // Pierre Favre, au comité central (ouvert), gère les événements de la Soirée récréative : il en pose un d'ici.
+  await changer('Pierre Favre');
+  await ouvrirEntite(page, 'Comité central');
+  await allerA(page, '/evenements');
+  const soiree = page.locator('.agenda-item:not(.dependant)', { hasText: 'Salle des fêtes' });
+  await expect(soiree.locator('.tsource')).toHaveText('Soirée récréative');
+  await page.getByRole('button', { name: '+ Nouvel événement' }).click();
+  const fen = page.getByRole('dialog', { name: 'Nouvel événement' });
+  await expect(fen.locator('.champ-entite')).toContainText('Soirée récréative');
+  await fen.getByPlaceholder('Ajouter un titre').fill('Apéro des bénévoles');
+  await fen.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const apero = page.locator('.agenda-item', { hasText: 'Apéro des bénévoles' });
+  await expect(apero.locator('.tsource')).toHaveText('Soirée récréative');
+  await expect(apero.getByRole('button', { name: 'Modifier' })).toBeVisible();
+  await verifierEntite(page, 'Comité central');
+
+  // Julien Moreau, membre de la Soirée : sur son accueil, avec la pilule de son entité.
+  await changer('Julien Moreau');
+  await ouvrirEntite(page, 'Comité central');
+  await allerA(page, '/');
+  const bloc = page.locator('.bloc-evenements');
+  await expect(bloc.locator('.link-panel', { hasText: 'Apéro des bénévoles' }).locator('.tsource')).toHaveText('Soirée récréative');
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {

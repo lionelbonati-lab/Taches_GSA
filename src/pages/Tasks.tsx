@@ -39,6 +39,7 @@ export function Tasks() {
   );
   const [f, setF] = useState({
     ...EMPTY_FILTERS,
+    entite: params.get('entite') ?? '',
     event: params.get('event') ?? '',
     meeting: params.get('meeting') ?? '',
     resp: params.get('resp') ?? '',
