@@ -31,11 +31,12 @@ var uid = (prefix) => `${prefix}${Date.now().toString(36)}${Math.random().toStri
 
 // src/data/units.ts
 var UNIT_TYPES = {
-  central: { label: "Comité central", plural: "Comité central", icon: "🏛️", chef: "Président", seances: "Comité", aide: "Direction du club." },
+  central: { label: "Comité central", plural: "Comité central", icon: "🏛️", trait: "comite", chef: "Président", seances: "Comité", aide: "Direction du club." },
   "sous-comite": {
     label: "Sous-comité",
     plural: "Sous-comités",
     icon: "🎪",
+    trait: "sousComite",
     chef: "Président",
     seances: "Comité",
     aide: "Organisation d’un événement, avec son président et ses membres."
@@ -44,6 +45,7 @@ var UNIT_TYPES = {
     label: "Groupe",
     plural: "Groupes",
     icon: "🚴",
+    trait: "groupe",
     chef: "Responsable",
     seances: "Séances",
     aide: "Activité permanente du club (école de cyclisme, compétition…) avec ses propres membres (moniteurs…)."
@@ -52,6 +54,7 @@ var UNIT_TYPES = {
     label: "Équipe d’événement",
     plural: "Équipes d’événement",
     icon: "🎉",
+    trait: "evenements",
     chef: "Responsable",
     seances: "Réunions",
     aide: "Événement sans comité : quelques personnes, souvent déjà actives ailleurs dans le club."
