@@ -86,12 +86,20 @@ const RUBRIQUES: NavRubrique[] = [
     pages: [{ to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli.' }],
   },
   {
-    // L'organigramme du club n'est pas une rubrique : il s'ouvre depuis le menu des entités (en haut à gauche).
+    // Le club : son organigramme (où l'on ouvre l'une de ses entités, ses séances, son PV, ses réglages) et l'annuaire.
     id: 'personnes',
-    label: 'Membres du club',
-    court: 'Membres',
-    icon: 'membres',
-    pages: [{ to: '/membres-club', label: 'Membres du club', icon: 'membres', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli ; on y gère aussi les accès de chacun aux entités.' }],
+    label: 'Club',
+    icon: 'organigramme',
+    pages: [
+      {
+        to: '/organigramme',
+        label: 'Organigramme',
+        icon: 'organigramme',
+        club: true,
+        aide: 'Le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. « Ouvrir › » sur l’une de tes entités : ses séances, son PV et ses réglages.',
+      },
+      { to: '/membres-club', label: 'Membres du club', icon: 'membres', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli ; on y gère aussi les accès de chacun aux entités.' },
+    ],
   },
 ];
 
@@ -126,7 +134,6 @@ export const PAGES_COMPTE: NavPage[] = [
 
 /** Nom d'une page de l'appli (« Comité › PV »), quels que soient les droits ; l'adresse elle-même si inconnue. */
 export function libellePage(to: string) {
-  if (to === '/organigramme') return 'Organigramme';
   for (const r of RUBRIQUES) {
     const p = r.pages.find((x) => x.to === to);
     if (p) return r.pages.length > 1 ? `${r.label} › ${p.label}` : p.label;

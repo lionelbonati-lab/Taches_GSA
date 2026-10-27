@@ -1,9 +1,10 @@
 import { useEffect, useRef } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { navigation, pageOuverte } from '../data/navigation';
 import { Icone } from './icones';
+import { PastilleEntite } from './IconesEntite';
 
 /** Rubriques, pages du compte et page ouverte, selon les droits et l'entité ouverte. */
 export function useNavigation() {
@@ -34,11 +35,16 @@ export function useChemin() {
   };
 }
 
-/** Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV, Sondages). */
+/**
+ * Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV, Sondages). Comité : d'abord l'entité dont ce
+ * sont les séances (l'entité ouverte ; l'organigramme en ouvre une autre).
+ */
 export function SousOnglets() {
   const { ouverte } = useNavigation();
+  const club = useClubOptional();
   const barre = useRef<HTMLElement>(null);
   const r = ouverte?.rubrique;
+  const entite = r?.id === 'comite' ? club?.current : undefined;
   // Téléphone : la page ouverte reste visible dans la barre (qui défile de côté). Seule la barre bouge, jamais la page.
   useEffect(() => {
     const bar = barre.current;
@@ -47,14 +53,20 @@ export function SousOnglets() {
     const [x, b] = [a.getBoundingClientRect(), bar.getBoundingClientRect()];
     if (x.left < b.left || x.right > b.right) bar.scrollLeft += x.left - b.left - 12;
   }, [ouverte?.page.to]);
-  if (!r || r.pages.length < 2) return null;
+  if (!r || (r.pages.length < 2 && !entite)) return null;
   return (
     <nav ref={barre} className="subtabs no-print" aria-label={r.label}>
-      {r.pages.map((p) => (
-        <NavLink key={p.to} to={p.to}>
-          <Icone n={p.icon} /> {p.label}
-        </NavLink>
-      ))}
+      {entite && (
+        <Link to="/organigramme" className="subtabs-entite" title={`${r.label} de « ${entite.nom} » (organigramme : ouvrir une autre de tes entités)`}>
+          <PastilleEntite u={entite} /> {entite.nom}
+        </Link>
+      )}
+      {r.pages.length > 1 &&
+        r.pages.map((p) => (
+          <NavLink key={p.to} to={p.to}>
+            <Icone n={p.icon} /> {p.label}
+          </NavLink>
+        ))}
     </nav>
   );
 }

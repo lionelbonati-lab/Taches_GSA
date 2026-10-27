@@ -398,7 +398,7 @@ export function Org() {
         <p className="muted small-note">Une carte par poste : les comités en haut (avec les groupes dont le responsable y siège), les groupes en dessous, puis les événements. Clique sur un nom pour voir le profil de la personne.</p>
       )}
       {club.error && <p className="error small-note">{club.error}</p>}
-      <OrgLignes units={active} onFiche={(m, uniteId) => setFiche({ unitId: uniteId, personId: m.id })} ouvrir={(u) => actions(u).ouvrir} edition={editionLignes} barre={barre} />
+      <OrgLignes units={active} onFiche={(m, uniteId) => setFiche({ unitId: uniteId, personId: m.id })} ouvrir={(u) => (u.id === club.current.id ? { label: 'Ouverte', aide: `Entité ouverte « ${u.nom} » : ses séances, son PV et ses réglages` } : actions(u).ouvrir)} edition={editionLignes} barre={barre} />
       <LegendePostes />
       {archived.length > 0 && (
         <details className="org-archives">

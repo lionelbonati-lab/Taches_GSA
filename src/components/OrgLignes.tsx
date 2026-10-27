@@ -52,7 +52,8 @@ const ETROIT = 640;
 /** Page A4 en paysage, marges de 8 mm (px à 96 ppp). */
 const PAGE = { l: 1060, h: 700 };
 
-type Ouvrir = (u: OrgUnit) => { label: string; aide: string; go: () => void } | undefined;
+/** Ouvrir l'entité d'une carte ; sans `go` : c'est l'entité ouverte (« ✓ Ouverte »). */
+type Ouvrir = (u: OrgUnit) => { label: string; aide: string; go?: () => void } | undefined;
 
 /** Ce qu'on peut modifier depuis l'organigramme (mode « Modifier »). */
 export interface EditionLignes {
@@ -728,14 +729,21 @@ function CarteEnt({
               ＋ Poste
             </button>
           )}
-          {o && (
-            <button type="button" className="orgl-ouvrir" title={o.aide} onClick={o.go}>
-              {o.label} ›
-            </button>
-          )}
+          {o && <BoutonOuvrir o={o} />}
         </div>
       )}
     </div>
+  );
+}
+
+/** « Ouvrir › » une entité, ou « ✓ Ouverte » pour celle qui l'est. */
+function BoutonOuvrir({ o }: { o: NonNullable<ReturnType<Ouvrir>> }) {
+  return o.go ? (
+    <button type="button" className="orgl-ouvrir" title={o.aide} onClick={o.go}>
+      {o.label} ›
+    </button>
+  ) : (
+    <span className="orgl-ouvrir orgl-ouverte" title={o.aide}>✓ {o.label}</span>
   );
 }
 
@@ -759,11 +767,7 @@ function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx
           <Icone n="reglages" />
         </button>
       )}
-      {o && (
-        <button type="button" className="orgl-ouvrir" title={o.aide} onClick={o.go}>
-          {o.label} ›
-        </button>
-      )}
+      {o && <BoutonOuvrir o={o} />}
     </h3>
   );
 }

@@ -155,6 +155,9 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .subtabs a { padding: 7px 12px; border-radius: 999px; color: var(--muted); white-space: nowrap; font-weight: 500; font-size: 0.92rem; }
 .subtabs a:hover { background: var(--surface2); text-decoration: none; }
 .subtabs a.active { background: var(--primary); color: #fff; }
+/* Comité : l'entité dont ce sont les séances (vers l'organigramme). */
+.subtabs a.subtabs-entite { display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 14em; overflow: hidden; text-overflow: ellipsis; color: var(--text); font-weight: 600; border: 1px solid var(--border); margin-right: 4px; }
+.subtabs a.subtabs-entite .unit-dot { width: 20px; height: 20px; font-size: 0.72rem; }
 /* À quoi sert la page : une phrase sous le titre. */
 .page-intro { color: var(--muted); margin: -4px 0 16px; max-width: 75ch; font-size: 0.93rem; }
 /* Erreur d'affichage : message à copier au lieu d'un écran blanc. */
@@ -165,6 +168,7 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
   .subtabs { gap: 2px; margin-top: -4px; }
   .subtabs a { padding: 6px 10px; font-size: 0.88rem; }
   .subtabs a span { display: none; }
+  .subtabs a.subtabs-entite span { display: inline-flex; }
 }
 
 /* Comment ça marche ? */
@@ -1434,6 +1438,7 @@ button.orgl-depend:hover { color: var(--text); }
 .orgl-cadre-tete .orgl-plus + .orgl-plus { margin-left: 0; }
 .orgl-cadre-tete .orgl-ouvrir { margin-left: auto; align-self: center; flex: none; }
 .orgl-cadre-tete .orgl-plus ~ .orgl-ouvrir { margin-left: 0; }
+.orgl-ouverte { color: var(--muted); font-weight: 600; cursor: default; }
 .orgl-cadre-vide { position: absolute; left: 12px; right: 12px; top: 44px; margin: 0; font-size: 0.8rem; white-space: normal; }
 .orgl-survol { outline: 3px solid var(--primary); outline-offset: 2px; }
 .orgl-cadre.orgl-survol { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }

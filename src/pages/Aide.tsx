@@ -97,7 +97,7 @@ export function Aide() {
     geste('Attribuer une tâche du comité à un événement ou à un groupe qui dépend de lui', 'Dans la tâche (nouvelle ou existante), choisis la section « Événements », puis dans « Sous-section » l’un des « Événements qui dépendent de … » et sa section chez lui ; ou la section au nom du groupe (« École de cyclisme »), puis l’une de ses sections (« Sections de … »). « Qui s’en occupe ? » propose alors d’abord ses personnes à lui ; tu pourras encore les changer ensuite, depuis la tâche partagée. À l’enregistrement, la tâche passe chez lui : il la gère comme les siennes ; au comité, elle reste visible et modifiable, partagée (icône poignée de main). Ses fichiers joints la suivent (rangés chez lui) ; les emails programmés restent au comité : supprime-les d’abord.');
   if (club && evenementsDependants(club.units, club.current).length)
     geste('Rattacher une tâche du comité à un événement qui dépend de lui', 'Dans la tâche, « Rattacher à… » › « Événement », groupe « Événements qui dépendent de … » : sa prochaine édition ou l’un de ses événements. Pour un délai calé sur lui (« 1 semaine avant la soirée ») : « Pour quand ? » › « ou selon un événement / une séance ». Le nom et la date suivent les changements de l’événement.');
-  if (club) geste('Ouvrir une autre entité (sous-comité, groupe, équipe)', 'Le bouton « Organigramme » en haut à gauche (dessous : l’entité ouverte), puis « Ouvrir › » sur l’entité. Ses séances, son PV et ses réglages s’y trouvent ; ses tâches, messages et notifications, eux, sont déjà là sans en changer.');
+  if (club && chemin('/organigramme')) geste('Ouvrir une autre entité (sous-comité, groupe, équipe)', vers('/organigramme'), ' (« Plus » sur téléphone) : « Ouvrir › » sur l’entité (« ✓ Ouverte » : celle qui l’est déjà). Ses séances, son PV et ses réglages s’y trouvent ; ses tâches, ses séances à venir, ses messages et ses notifications, eux, sont déjà là sans en changer.');
   geste('Installer l’appli sur le téléphone ou l’ordinateur', '« Installer l’application » dans le menu du compte (« Plus » sur téléphone).');
   geste('Choisir ce qui s’affiche sur mon accueil, et dans quel ordre', vers('/'), ' : le bouton « Personnaliser » à côté de « Bonjour » (la roue dentée seule sur téléphone). Coche les blocs et les compteurs à voir, séparément sur téléphone et sur ordinateur ; ↑ ↓ change leur ordre. Le bloc « À faire » se règle aussi : nombre de jours (directement dans son titre) et, si tu vois toutes les tâches, les tiennes ou toutes.');
   geste('Thème sombre, notifications', vers('/reglages'), '.');
@@ -113,8 +113,7 @@ export function Aide() {
       geste('Gérer les accès d’un membre (rôles, entités, activation)', vers('/membres-club'), ' : clic sur le membre › « Entités et accès ». Dans les entités dont tu es admin : coche ses rôles, crée ou retire son accès à l’appli, « Retirer de l’entité », ou « Ajouter à une entité… ».');
   }
   if (chemin('/propositions')) geste('Proposer une idée pour l’appli, signaler un problème', vers('/propositions'), ' (menu du compte) : le comité central l’étudie et te répond sur la même page, dans « Mes propositions ».');
-  // Organigramme : le bouton en haut à gauche, pas dans les rubriques.
-  const orga = club && <><Link to="/organigramme">Organigramme du club</Link> (bouton « Organigramme », en haut à gauche)</>;
+  const orga = club ? vers('/organigramme') : null;
   if (orga) geste('Voir qui fait quoi, et ses coordonnées', orga, ' : un clic sur une personne ouvre la fiche de la personne.');
   if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « Modifier l’organigramme », puis « + Ajouter une personne » en bas de la liste des postes de l’entité.');
   if (orga && club && club.units.length > 1)
@@ -168,16 +167,6 @@ export function Aide() {
             </ul>
           </div>
         ))}
-        {club && (
-          <div className="aide-rubrique">
-            <h3><Icone n="organigramme" /> Entités du club</h3>
-            <p className="muted small-note">Le bouton « Organigramme », en haut à gauche ; dessous, l’entité ouverte.</p>
-            <ul>
-              <li>Ouvrir une autre de tes entités (« Ouvrir › » sur son cadre ou sa carte) : ses séances, son PV, ses réglages. Ses tâches, messages et notifications sont déjà là, sans en changer.</li>
-              <li><Link to="/organigramme">Organigramme du club</Link> : le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. Un clic sur une personne ouvre sa fiche (coordonnées, rôles, accès à l’appli) ; « Modifier l’organigramme » pour ajouter quelqu’un, ranger les cartes ou modifier une entité.</li>
-            </ul>
-          </div>
-        )}
         <div className="aide-rubrique">
           <h3><Icone n="compte" /> Mon compte</h3>
           <p className="muted small-note">Ta pastille en haut à droite (« Plus » sur téléphone).</p>

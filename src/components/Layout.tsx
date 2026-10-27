@@ -5,7 +5,7 @@ import { TaskModal, useAutresCreation } from './FicheTache';
 import { versProchaineSeance } from '../data/seances';
 import { TicketForm } from './Tickets';
 import { GENRES, type GenreTicket } from '../data/paiements';
-import { AppLogo, Avatar, Toast, UnitMark } from './ui';
+import { AppLogo, Avatar, Toast } from './ui';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
 import { Recherche } from './Recherche';
@@ -14,7 +14,6 @@ import { rafraichirPush } from '../data/push';
 import { useClubOptional } from '../data/club';
 import { brancherRapport } from '../data/rapportErreurs';
 import { nomAppli } from '../data/nomAppli';
-import { UNIT_TYPES } from '../data/units';
 import { SousOnglets, useNavigation } from './Nav';
 import { BarreBasModal } from './BarreBas';
 import { barreDuBas } from '../data/navigation';
@@ -157,7 +156,6 @@ export function Layout() {
           <span className="brand-name">{nomAppli()}</span>
           {cloud ? <SyncBadge /> : <span className="demo-tag">DÉMO</span>}
         </div>
-        {club && <BoutonOrganigramme />}
         <nav className="tabs">
           {rubriques.map((r) => (
             <NavLink key={r.id} to={r.pages[0].to} end className={() => (r.id === rubriqueOuverte ? 'active' : '')} title={r.pages.length > 1 ? `${r.label} : ${r.pages.map((p) => p.label).join(' · ')}` : r.label}>
@@ -283,32 +281,6 @@ export function Layout() {
       {quick && canCreate && <TaskModal isNew choixEntite task={newTask(user.id, versProchaineSeance(data.meetings, undefined, club?.current.type))} onClose={() => setQuick(false)} />}
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
       {reglerBarre && <BarreBasModal onClose={() => setReglerBarre(false)} />}
-    </div>
-  );
-}
-
-/**
- * Organigramme du club, où l'on ouvre une autre entité ; dessous, l'entité ouverte (ses séances, son PV, ses réglages).
- * Vue « moi » : les tâches, messages et notifications de toutes mes entités sont déjà là, sans en changer.
- */
-function BoutonOrganigramme() {
-  const club = useClubOptional();
-  if (!club) return null;
-  const { current } = club;
-  return (
-    <div className="unit-switch">
-      <NavLink
-        to="/organigramme"
-        className="unit-btn"
-        title={`Organigramme du club (y ouvrir une autre entité) · entité ouverte : ${current.nom}, ${UNIT_TYPES[current.type].label.toLowerCase()}`}
-        style={{ borderColor: current.couleur }}
-      >
-        <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icone={UNIT_TYPES[current.type].trait} perso={current.icone} />
-        <span className="unit-name">
-          <span className="unit-titre"><Icone n="organigramme" /> Organigramme</span>
-          <small>{current.nom}</small>
-        </span>
-      </NavLink>
     </div>
   );
 }

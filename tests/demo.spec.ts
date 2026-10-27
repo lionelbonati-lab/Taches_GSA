@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
-import { compter, expect, nouvelleTache, ouvrirDemo, ouvrirEntite, test } from './outils';
+import { compter, expect, nouvelleTache, ouvrirDemo, ouvrirEntite, test, verifierEntite } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
 
@@ -150,7 +150,7 @@ test('discussion : une seule notification par personne, lue partout une fois lue
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();
     await page.locator('.login-user', { hasText: nom }).first().click();
-    await expect(page.locator('.unit-btn')).toBeVisible();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
   };
   const ecrire = async (texte: string) => {
     await page.goto('./?demo#/messages');
@@ -181,7 +181,7 @@ test('discussion : une seule notification par personne, lue partout une fois lue
 
   // Marc Lambert écrit depuis le comité central : Julien, concerné dans les deux entités, est prévenu une fois, dans la Soirée.
   await changer('Marc Lambert');
-  await expect(page.locator('.unit-btn')).toContainText('Comité central');
+  await verifierEntite(page, 'Comité central');
   await ecrire('Bonne idée !');
   await changer('Julien Moreau');
   await entite('Comité central');
@@ -212,7 +212,7 @@ test('discussion : une seule notification par personne, lue partout une fois lue
 
   // Et la cloche : prévenu dans la Soirée, message lu au comité central, la notification de la Soirée est lue aussi.
   await changer('Marc Lambert');
-  await expect(page.locator('.unit-btn')).toContainText('Comité central');
+  await verifierEntite(page, 'Comité central');
   await ecrire('Et la sono ?');
   await changer('Julien Moreau');
   await entite('Soirée récréative');
@@ -259,7 +259,7 @@ test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées
   await ouverte.getByPlaceholder('Que faut-il faire ?').fill('Louer les tables et les bancs');
   await ouverte.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await expect(page.locator('.unit-btn')).toContainText('Comité central');
+  await verifierEntite(page, 'Comité central');
   await expect(page.locator('main tr', { hasText: 'Louer les tables et les bancs' }).locator('.tsource')).toHaveText('Soirée récréative');
   await page.locator('main').getByText('Louer les tables et les bancs').filter({ visible: true }).first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
@@ -296,7 +296,7 @@ test('vue « moi » : nouvelle tâche créée dans une autre de mes entités, sa
   await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ index: 1 });
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await expect(page.locator('.unit-btn')).toContainText('Comité central');
+  await verifierEntite(page, 'Comité central');
   await expect(page.locator('main tr', { hasText: 'Commander les boissons' }).locator('.tsource')).toHaveText('Soirée récréative');
 
   // Enregistrée dans la Soirée, comme une tâche à elle.
@@ -346,7 +346,7 @@ test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async 
   await page.locator('.who-btn').click();
   await page.getByText('Changer d’utilisateur').click();
   await page.locator('.login-user').nth(1).click();
-  await expect(page.locator('.unit-btn')).toBeVisible();
+  await expect(page.locator('.topbar .brand')).toBeVisible();
   await page.goto('./?demo#/messages');
   await expect(page.locator('.tabs .onglet-nb')).toHaveText('1');
   await expect(ligne).toHaveClass(/nonlu/);
@@ -368,7 +368,7 @@ test('discussion : messages non lus sur la carte et la bulle, ouverte depuis la 
     await page.locator('.who-btn').click();
     await page.getByText('Changer d’utilisateur').click();
     await page.locator('.login-user').nth(n).click();
-    await expect(page.locator('.unit-btn')).toBeVisible();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
   };
 
   // Une autre personne écrit dans la discussion.
@@ -504,7 +504,7 @@ test('Pour info : sans compte, relance, « ✓ Vu », tout le monde a vu, à rev
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();
     await page.locator('.login-user', { hasText: nom }).first().click();
-    await expect(page.locator('.unit-btn')).toBeVisible();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
   };
   const ouvrir = async () => {
     await page.goto('./?demo#/taches');
@@ -736,7 +736,7 @@ test('discussion : mentionner quelqu’un avec @, notification 📣 sans 💬 en
     await page.getByText('Changer d’utilisateur').click();
     const nom = (await page.locator('.login-user strong').nth(n).textContent())!.trim();
     await page.locator('.login-user').nth(n).click();
-    await expect(page.locator('.unit-btn')).toBeVisible();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
     return nom;
   };
   const ouvrirDiscussion = async () => {

@@ -21,16 +21,32 @@ export async function ouvrirDemo(page: Page) {
   await page.goto('./?demo#/');
   await page.reload();
   await page.locator('.login-user').first().click();
-  await expect(page.locator('.unit-btn')).toBeVisible();
+  await expect(page.locator('.topbar .brand')).toBeVisible();
 }
 
-/** Ouvre l'une de mes entités depuis l'organigramme (bouton de l'en-tête, puis « Ouvrir › » de son cadre ou de sa carte). */
+/** Va sur une page de l'appli sans la recharger (l'entité ouverte reste). */
+export async function allerA(page: Page, chemin: string) {
+  await page.evaluate((h) => { location.hash = h; }, `#${chemin}`);
+}
+
+/** L'entité ouverte est `nom` : « ✓ Ouverte » sur son cadre de l'organigramme (puis retour à la page d'avant). */
+export async function verifierEntite(page: Page, nom: string) {
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  const avant = await page.evaluate(() => location.hash);
+  await allerA(page, '/organigramme');
+  await expect(page.getByTitle(`Entité ouverte « ${nom} »`).filter({ visible: true }).first()).toBeVisible();
+  await page.evaluate((h) => { location.hash = h; }, avant);
+}
+
+/** Ouvre l'une de mes entités depuis l'organigramme (« Ouvrir › » de son cadre ou de sa carte ; rien si elle l'est déjà). */
 export async function ouvrirEntite(page: Page, nom: string) {
-  await expect(page.locator('.unit-btn')).toBeVisible();
-  if ((await page.locator('.unit-btn small').textContent()) === nom) return;
-  await page.locator('.unit-btn').click();
-  await page.getByTitle(`Ouvrir « ${nom} »`).filter({ visible: true }).first().click();
-  await expect(page.locator('.unit-btn')).toContainText(nom);
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  await allerA(page, '/organigramme');
+  const ouvrir = page.getByTitle(`Ouvrir « ${nom} »`).filter({ visible: true }).first();
+  const ouverte = page.getByTitle(`Entité ouverte « ${nom} »`).filter({ visible: true }).first();
+  await expect(ouvrir.or(ouverte).first()).toBeVisible();
+  if (!(await ouverte.isVisible())) await ouvrir.click();
+  await verifierEntite(page, nom);
 }
 
 /** Nouvelle tâche ouverte depuis le bouton « + », titre et section remplis (pas encore enregistrée). */
