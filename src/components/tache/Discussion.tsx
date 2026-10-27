@@ -77,10 +77,6 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   if (!user) return null;
   const moderer = unite === ici && can('admin.access');
   const tactile = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
-  const entite = (c: Commentaire) => {
-    const e = c.u ?? unite;
-    return e !== ici ? (club?.units.find((u) => u.id === e)?.nom ?? 'autre entité') : '';
-  };
   const agir = async (a: ActionCommentaire, ensuite?: () => void) => {
     setBusy(true);
     setErr('');
@@ -91,7 +87,8 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
       const m = e instanceof Error ? e.message : String(e);
       // Serveur sans la mise à jour 053 : un message écrit d'ailleurs ne se corrige ou ne se retire que depuis son entité.
       const c = a.cle ? liste.find((x) => x.id === a.cle) : undefined;
-      setErr(c && /pas le tien/.test(m) && !deMoi(c, user.id, ici, unite) ? `Le serveur ne le permet pas encore (mise à jour 053 à appliquer) : fais-le depuis « ${entite(c)} ».` : m);
+      const d = c && club?.units.find((u) => u.id === (c.u ?? unite))?.nom;
+      setErr(c && /pas le tien/.test(m) && !deMoi(c, user.id, ici, unite) ? `Le serveur ne le permet pas encore (mise à jour 053 à appliquer) : fais-le depuis « ${d ?? 'l’entité d’où tu l’as écrit'} ».` : m);
     }
     setBusy(false);
   };
@@ -156,9 +153,9 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
           {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par la tâche sont prévenues 🔔.</p>}
           <ul className="discussion-liste">
             {liste.map((c, i) => {
-              // Les miens à droite, même écrits depuis une autre de mes entités (« depuis … ») ; tous se corrigent d'ici.
+              // De personne à personne : les miens à droite, même écrits depuis une autre de mes entités (ils se corrigent
+              // d'ici) ; les autres avec le nom de leur auteur, sans son entité.
               const mien = parMoi(c, user.id, ici, unite, club?.mesFiches);
-              const ent = entite(c);
               const jour = jourDe(c.le);
               return (
                 <Fragment key={c.id}>
@@ -171,10 +168,7 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
                   <li className={`discussion-message${mien ? ' mien' : ''}`}>
                     <div className="discussion-bulle">
                       {!mien && (
-                        <div className="discussion-auteur">
-                          {c.nom}
-                          {ent && <small className="muted"> · {ent}</small>}
-                        </div>
+                        <div className="discussion-auteur">{c.nom}</div>
                       )}
                       {corrige?.id === c.id ? (
                         <div className="discussion-correction">
@@ -197,7 +191,6 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
                         <p className="discussion-texte"><AvecMentions texte={c.texte} people={data.people} moi={user.id} /></p>
                       )}
                       <div className="discussion-pied">
-                        {mien && ent && <small className="muted">depuis {ent}</small>}
                         {mien && corrige?.id !== c.id && (
                           <button type="button" className="btn link small" disabled={busy} onClick={() => setCorrige({ id: c.id, texte: c.texte })}>Corriger</button>
                         )}

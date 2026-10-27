@@ -614,7 +614,7 @@ export function DemoApp() {
         for (const [e, fiches] of Object.entries(unParPersonne(actives, uniteId, current.id, qui))) {
           if (e === current.id) continue;
           const de = donnees(e);
-          const notifs = notifsCommentaire(fiches, { entite: e, unite: uniteId, tache: old.id, titre: old.titre, moi: fiche.id, depuis: current.id, nom, nomDepuis: current.nom, texte: a.texte ?? '', le });
+          const notifs = notifsCommentaire(fiches, { entite: e, unite: uniteId, tache: old.id, titre: old.titre, moi: fiche.id, depuis: current.id, nom, texte: a.texte ?? '', le });
           if (!notifs.length) continue;
           de.notifications = [...notifs, ...(de.notifications ?? [])].slice(0, 300);
           saveUnitData(e, de);

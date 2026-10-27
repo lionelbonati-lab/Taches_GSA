@@ -517,7 +517,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           Object.entries(destinatairesCommentaire(avant, uniteId, user.id, ici)).map(([e, l]) => [e, l.filter((f) => !!fiche(e, f) && c.mesFiches[e] !== f)]),
         );
         const qui = (e: string, f: string) => fiche(e, f)?.email.trim().toLowerCase() || undefined;
-        const notifs = notifsCommentaire(unParPersonne(dest, uniteId, ici, qui)[ici] ?? [], { entite: ici, unite: uniteId, tache: tacheId, titre: avant.titre, moi: user.id, depuis: ici, nom: fullName(user), nomDepuis: c.current.nom, texte: a.texte ?? '', le });
+        const notifs = notifsCommentaire(unParPersonne(dest, uniteId, ici, qui)[ici] ?? [], { entite: ici, unite: uniteId, tache: tacheId, titre: avant.titre, moi: user.id, depuis: ici, nom: fullName(user), texte: a.texte ?? '', le });
         if (notifs.length) update((d) => { d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300); }, `${fullName(user)} a commenté la tâche « ${avant.titre} » (${c.units.find((u) => u.id === uniteId)?.nom ?? 'autre entité'})`, { annulable: false });
         return;
       }
@@ -540,7 +540,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const commentaires = appliquerCommentaire(x.commentaires, a, { moi: user.id, nom: fullName(user), depuis: ici, unite: ici, admin: hasPermission(myRoles, 'admin.access'), le, mesFiches: c?.mesFiches });
       const notifs = a.cle ? [] : notifsCommentaire(
         (destinatairesCommentaire(x, ici, user.id, ici)[ici] ?? []).filter((id) => data.people.some((p) => p.id === id && p.actif)),
-        { entite: ici, unite: ici, tache: x.id, titre: x.titre, moi: user.id, depuis: ici, nom: fullName(user), nomDepuis: c?.current.nom ?? '', texte: a.texte ?? '', le },
+        { entite: ici, unite: ici, tache: x.id, titre: x.titre, moi: user.id, depuis: ici, nom: fullName(user), texte: a.texte ?? '', le },
       );
       update((d) => {
         d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, commentaires: commentaires.length ? commentaires : undefined } : y));

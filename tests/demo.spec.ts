@@ -127,8 +127,9 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
   await ligne.getByText('Choisir la musique').first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
   const discussion = page.getByRole('dialog', { name: 'Choisir la musique' }).getByRole('region', { name: 'Discussion' });
+  // De personne à personne : ni son nom ni l'entité d'où il a écrit.
   await expect(discussion.locator('.discussion-message.mien')).toContainText('Une liste de chansons pour samedi ?');
-  await expect(discussion.locator('.discussion-message.mien')).toContainText('depuis Comité central');
+  await expect(discussion.locator('.discussion-message.mien')).not.toContainText('Comité central');
   await expect(discussion.locator('.discussion-auteur')).toHaveCount(0);
   await expect(discussion.locator('.discussion-nouveaux')).toHaveCount(0);
   await discussion.getByRole('button', { name: 'Corriger' }).click();
@@ -136,7 +137,6 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
   await discussion.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(discussion.locator('.discussion-message.mien')).toContainText('Une liste de chansons pour la soirée ?');
   await expect(discussion.locator('.discussion-message.mien')).toContainText('corrigé');
-  await expect(discussion.locator('.discussion-message.mien')).toContainText('depuis Comité central');
   page.once('dialog', (d) => void d.accept());
   await discussion.getByRole('button', { name: 'Retirer' }).click();
   await expect(discussion.locator('.discussion-message')).toHaveCount(0);
@@ -190,7 +190,12 @@ test('discussion : une seule notification par personne, dans l’entité de la t
   await expect(await notifications()).not.toContainText('Choisir la musique');
   await page.keyboard.press('Escape');
   await entite('Soirée récréative');
-  await expect(await notifications()).toContainText('Marc Lambert (Comité central) a commenté « Choisir la musique »');
+  await expect(await notifications()).toContainText('Marc Lambert a commenté « Choisir la musique »');
+  await page.keyboard.press('Escape');
+  // De personne à personne : son message avec son nom, sans l'entité d'où il l'a écrit.
+  await page.locator('main').getByText('Choisir la musique').filter({ visible: true }).first().click();
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion (1 non lu)' }).click();
+  await expect(page.locator('.discussion-message:not(.mien) .discussion-auteur')).toHaveText('Marc Lambert');
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {

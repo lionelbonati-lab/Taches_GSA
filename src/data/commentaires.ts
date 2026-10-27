@@ -108,16 +108,16 @@ export const apercu = (texte: string) => (texte.length > 140 ? `${texte.slice(0,
 
 /**
  * Notifications d'un nouveau commentaire pour les personnes `fiches` de l'entité `entite` (comme le serveur) : la tâche
- * vue d'ici (« x:<entité>:<tâche> » si elle est d'une autre entité), l'auteur nommé s'il est d'ailleurs.
+ * vue d'ici (« x:<entité>:<tâche> » si elle est d'une autre entité), l'auteur nommé s'il est d'ailleurs (sans son entité).
  */
-export function notifsCommentaire(fiches: string[], o: { entite: string; unite: string; tache: string; titre: string; moi: string; depuis: string; nom: string; nomDepuis: string; texte: string; le: string }): ActivityNotif[] {
+export function notifsCommentaire(fiches: string[], o: { entite: string; unite: string; tache: string; titre: string; moi: string; depuis: string; nom: string; texte: string; le: string }): ActivityNotif[] {
   return fiches.map((userId) => ({
     id: uid('n'),
     userId,
     type: 'comment' as const,
     taskId: o.entite === o.unite ? o.tache : `x:${o.unite}:${o.tache}`,
     by: o.entite === o.depuis ? o.moi : `x:${o.depuis}:${o.moi}`,
-    ...(o.entite !== o.depuis ? { byName: `${o.nom || '?'} (${o.nomDepuis || '?'})` } : {}),
+    ...(o.entite !== o.depuis ? { byName: o.nom || '?' } : {}),
     at: o.le,
     titre: o.titre,
     detail: apercu(o.texte.trim()),

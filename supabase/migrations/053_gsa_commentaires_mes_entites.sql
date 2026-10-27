@@ -2,13 +2,14 @@
 --
 -- Une personne membre de plusieurs entités du club y a une fiche dans chacune ; un message porte la fiche (et l'entité)
 -- d'où il a été écrit.
--- • gsa_commenter (049) remplacée, mêmes contrôles et mêmes paramètres, deux changements :
+-- • gsa_commenter (049) remplacée, mêmes contrôles et mêmes paramètres, trois changements :
 --     - corriger ou retirer son message : aussi depuis une autre de ses entités que celle d'où il a été écrit (le message
 --       est le sien si sa fiche et son entité sont celles de l'un de ses accès, gsa_members du compte connecté). Le message
 --       garde son auteur, son entité et sa date ; seuls son texte et « corrigé le » changent, comme avant ;
 --     - nouveau message : ses autres fiches (ses accès dans les autres entités) ne sont pas prévenues de son propre message ;
 --       une personne concernée dans plusieurs de ses entités n'est prévenue qu'une fois : dans l'entité de la tâche si elle
---       y est concernée, sinon dans celle d'où le message a été écrit, sinon dans la première.
+--       y est concernée, sinon dans celle d'où le message a été écrit, sinon dans la première ;
+--     - la notification nomme l'auteur sans son entité (on discute de personne à personne).
 -- Ajout pur : une fonction remplacée ; aucune donnée modifiée.
 -- Pour revenir en arrière : relancer gsa_commenter de 049.
 
@@ -129,7 +130,8 @@ begin
         'by', case when z.entite = depuis then moi else 'x:' || depuis::text || ':' || moi end,
         'at', quand, 'titre', coalesce(d ->> 'titre', ''),
         'detail', case when char_length(mot) > 140 then left(mot, 139) || '…' else mot end)
-      || case when z.entite <> depuis then jsonb_build_object('byName', coalesce(nom, '?') || ' (' || coalesce(ici, '?') || ')') else '{}'::jsonb end,
+      -- De personne à personne (053) : l'auteur d'une autre entité est nommé, sans son entité.
+      || case when z.entite <> depuis then jsonb_build_object('byName', coalesce(nom, '?')) else '{}'::jsonb end,
       false, null
     from (
       -- Un identifiant par notification (calculé ligne par ligne) ; en tête de la liste de son entité.
