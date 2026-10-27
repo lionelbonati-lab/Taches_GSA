@@ -142,6 +142,57 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
   await expect(discussion.locator('.discussion-message')).toHaveCount(0);
 });
 
+test('discussion : une seule notification par personne, dans l’entité de la tâche', async ({ page }) => {
+  const entite = async (nom: string) => {
+    await page.locator('.unit-btn').click();
+    await page.locator('.unit-menu .unit-item', { hasText: nom }).click();
+    await expect(page.locator('.unit-btn')).toContainText(nom);
+    await page.goto('./?demo#/taches');
+  };
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
+    await expect(page.locator('.unit-btn')).toBeVisible();
+  };
+  const ecrire = async (texte: string) => {
+    await page.goto('./?demo#/messages');
+    await page.getByRole('button', { name: 'Nouvelle discussion' }).click();
+    await page.getByLabel('Chercher une tâche').fill('musique');
+    await page.locator('.messages-choix button', { hasText: 'Choisir la musique' }).click();
+    await page.getByLabel('Nouveau commentaire').fill(texte);
+    await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
+    await expect(page.locator('.discussion-message.mien', { hasText: texte })).toHaveCount(1);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.modal')).toHaveCount(0);
+  };
+  const notifications = async () => {
+    await page.getByRole('button', { name: /^Notifications/ }).click();
+    const panneau = page.getByRole('dialog', { name: 'Notifications' });
+    await expect(panneau).toBeVisible();
+    return panneau;
+  };
+  // Julien Moreau : responsable de la tâche dans la Soirée récréative (partagée avec le comité central), où il a écrit.
+  await entite('Soirée récréative');
+  const fiche = await nouvelleTache(page, 'Choisir la musique');
+  await fiche.locator('.chip', { hasText: 'Partager' }).click();
+  await fiche.getByRole('button', { name: '🏛️ Comité central' }).click();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await entite('Comité central');
+  await ecrire('Je regarde ça.');
+
+  // Marc Lambert écrit depuis le comité central : Julien, concerné dans les deux entités, est prévenu une fois, dans la Soirée.
+  await changer('Marc Lambert');
+  await expect(page.locator('.unit-btn')).toContainText('Comité central');
+  await ecrire('Bonne idée !');
+  await changer('Julien Moreau');
+  await entite('Comité central');
+  await expect(await notifications()).not.toContainText('Choisir la musique');
+  await page.keyboard.press('Escape');
+  await entite('Soirée récréative');
+  await expect(await notifications()).toContainText('Marc Lambert (Comité central) a commenté « Choisir la musique »');
+});
+
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche de la messagerie');

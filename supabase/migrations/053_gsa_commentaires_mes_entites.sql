@@ -6,7 +6,9 @@
 --     - corriger ou retirer son message : aussi depuis une autre de ses entités que celle d'où il a été écrit (le message
 --       est le sien si sa fiche et son entité sont celles de l'un de ses accès, gsa_members du compte connecté). Le message
 --       garde son auteur, son entité et sa date ; seuls son texte et « corrigé le » changent, comme avant ;
---     - nouveau message : ses autres fiches (ses accès dans les autres entités) ne sont pas prévenues de son propre message.
+--     - nouveau message : ses autres fiches (ses accès dans les autres entités) ne sont pas prévenues de son propre message ;
+--       une personne concernée dans plusieurs de ses entités n'est prévenue qu'une fois : dans l'entité de la tâche si elle
+--       y est concernée, sinon dans celle d'où le message a été écrit, sinon dans la première.
 -- Ajout pur : une fonction remplacée ; aucune donnée modifiée.
 -- Pour revenir en arrière : relancer gsa_commenter de 049.
 
@@ -134,7 +136,10 @@ begin
       select x.entite, x.fiche, 'n' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 16) as nid,
         coalesce((select min(n.pos) from public.gsa_items n where n.committee_id = x.entite and n.kind = 'notifications'), 0) - 1 as pos
       from (
-        select distinct y.entite, y.fiche
+        -- Une notification par personne (053) : une personne avec un accès dans plusieurs entités concernées n'est prévenue
+        -- qu'une fois, dans l'entité de la tâche si elle y est concernée, sinon dans celle d'où le message a été écrit,
+        -- sinon dans la première. Une fiche sans accès compte pour elle-même.
+        select distinct on (coalesce(m.user_id::text, y.entite::text || ':' || y.fiche)) y.entite, y.fiche
         from (
           select unite as entite, r.v as fiche
           from jsonb_array_elements_text(case when jsonb_typeof(d -> 'responsables') = 'array' then d -> 'responsables' else '[]'::jsonb end) r(v)
@@ -153,9 +158,11 @@ begin
         join public.committees e on e.id = y.entite and coalesce(e.parent_id, e.id) = club and not coalesce((e.info ->> 'archive')::boolean, false)
         join public.gsa_items p on p.committee_id = y.entite and p.kind = 'people' and p.id = y.fiche and not p.deleted
           and coalesce((p.data ->> 'actif')::boolean, true)
+        left join public.gsa_members m on m.committee_id = y.entite and m.person_id = y.fiche
         where not (y.entite = depuis and y.fiche = moi)
           -- Ni ses autres fiches (053) : on n'est pas prévenu de son propre message dans ses autres entités.
-          and not exists (select 1 from public.gsa_members m where m.user_id = auth.uid() and m.committee_id = y.entite and m.person_id = y.fiche)
+          and m.user_id is distinct from auth.uid()
+        order by coalesce(m.user_id::text, y.entite::text || ':' || y.fiche), (y.entite = unite) desc, (y.entite = depuis) desc, y.entite
       ) x
       offset 0
     ) z;

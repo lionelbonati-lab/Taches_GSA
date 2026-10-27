@@ -83,6 +83,26 @@ export function destinatairesCommentaire(t: Pick<Task, 'responsables' | 'created
   return r;
 }
 
+/**
+ * Une notification par personne (comme le serveur, 053) : une personne concernée dans plusieurs de ses entités n'est
+ * prévenue qu'une fois, dans l'entité de la tâche (`unite`) si elle y est concernée, sinon dans celle d'où le message a
+ * été écrit (`depuis`), sinon dans la première. `r` : fiches à prévenir par entité (actives) ; `qui` : la personne d'une
+ * fiche (rien : la fiche compte pour elle-même).
+ */
+export function unParPersonne(r: Record<string, string[]>, unite: string, depuis: string, qui: (entite: string, fiche: string) => string | undefined) {
+  const rang = (e: string) => (e === unite ? 0 : e === depuis ? 1 : 2);
+  const vues = new Set<string>();
+  const res: Record<string, string[]> = {};
+  for (const e of Object.keys(r).sort((a, b) => rang(a) - rang(b) || (a < b ? -1 : a > b ? 1 : 0)))
+    res[e] = r[e].filter((f) => {
+      const k = qui(e, f) ?? `${e}:${f}`;
+      if (vues.has(k)) return false;
+      vues.add(k);
+      return true;
+    });
+  return res;
+}
+
 /** Aperçu du commentaire dans la notification. */
 export const apercu = (texte: string) => (texte.length > 140 ? `${texte.slice(0, 139)}…` : texte);
 

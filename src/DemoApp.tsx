@@ -14,7 +14,7 @@ import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
 import { ajouterVus, attendusDe, clesVu, dernierAttendu } from './data/pourInfo';
-import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire } from './data/commentaires';
+import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, unParPersonne } from './data/commentaires';
 import { changementsTache } from './data/historique';
 import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
@@ -597,10 +597,24 @@ export function DemoApp() {
         d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, commentaires: commentaires.length ? commentaires : undefined } : x));
         saveUnitData(uniteId, d);
         if (a.cle) return;
-        for (const [e, fiches] of Object.entries(destinatairesCommentaire(old, uniteId, fiche.id, current.id))) {
-          if (e === current.id || !units.some((x) => x.id === e && !x.archive)) continue;
-          const de = e === uniteId ? d : loadUnitData(e);
-          const notifs = notifsCommentaire(fiches.filter((f) => de.people.some((p) => p.id === f && p.actif && personKey(p, e) !== me)), { entite: e, unite: uniteId, tache: old.id, titre: old.titre, moi: fiche.id, depuis: current.id, nom, nomDepuis: current.nom, texte: a.texte ?? '', le });
+        // Comme le serveur : fiches actives des entités pas archivées, sans les miennes, une notification par personne.
+        const donnees = (e: string) => (e === uniteId ? d : loadUnitData(e));
+        const actives = Object.fromEntries(
+          Object.entries(destinatairesCommentaire(old, uniteId, fiche.id, current.id))
+            .filter(([e]) => units.some((x) => x.id === e && !x.archive))
+            .map(([e, l]) => {
+              const people = donnees(e).people;
+              return [e, l.filter((f) => people.some((p) => p.id === f && p.actif && personKey(p, e) !== me))];
+            }),
+        );
+        const qui = (e: string, f: string) => {
+          const p = donnees(e).people.find((x) => x.id === f);
+          return p && personKey(p, e);
+        };
+        for (const [e, fiches] of Object.entries(unParPersonne(actives, uniteId, current.id, qui))) {
+          if (e === current.id) continue;
+          const de = donnees(e);
+          const notifs = notifsCommentaire(fiches, { entite: e, unite: uniteId, tache: old.id, titre: old.titre, moi: fiche.id, depuis: current.id, nom, nomDepuis: current.nom, texte: a.texte ?? '', le });
           if (!notifs.length) continue;
           de.notifications = [...notifs, ...(de.notifications ?? [])].slice(0, 300);
           saveUnitData(e, de);

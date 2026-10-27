@@ -16,7 +16,7 @@ import { migrate } from './migrate';
 import { ajouterSuivante, idDe, preparerSuivante } from './suivante';
 import type { CloudMode, DemoMode, Store } from './storeTypes';
 import { useRecus } from './recus';
-import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
+import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, unParPersonne, type ActionCommentaire } from './commentaires';
 import { mentionnables, mentionnes, notifsMention } from './mentions';
 import { usePileAnnulation } from './pileAnnulation';
 
@@ -511,7 +511,13 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           chargerPartagees();
         }
         if (cloud || a.cle || !avant) return;
-        const notifs = notifsCommentaire(destinatairesCommentaire(avant, uniteId, user.id, ici)[ici] ?? [], { entite: ici, unite: uniteId, tache: tacheId, titre: avant.titre, moi: user.id, depuis: ici, nom: fullName(user), nomDepuis: c.current.nom, texte: a.texte ?? '', le });
+        // Comme le serveur : fiches actives, sans les miennes, une notification par personne (même adresse email).
+        const fiche = (e: string, f: string) => (e === ici ? data.people.find((p) => p.id === f && p.actif) : c.units.find((u) => u.id === e)?.membres.find((m) => m.id === f));
+        const dest = Object.fromEntries(
+          Object.entries(destinatairesCommentaire(avant, uniteId, user.id, ici)).map(([e, l]) => [e, l.filter((f) => !!fiche(e, f) && c.mesFiches[e] !== f)]),
+        );
+        const qui = (e: string, f: string) => fiche(e, f)?.email.trim().toLowerCase() || undefined;
+        const notifs = notifsCommentaire(unParPersonne(dest, uniteId, ici, qui)[ici] ?? [], { entite: ici, unite: uniteId, tache: tacheId, titre: avant.titre, moi: user.id, depuis: ici, nom: fullName(user), nomDepuis: c.current.nom, texte: a.texte ?? '', le });
         if (notifs.length) update((d) => { d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300); }, `${fullName(user)} a commenté la tâche « ${avant.titre} » (${c.units.find((u) => u.id === uniteId)?.nom ?? 'autre entité'})`, { annulable: false });
         return;
       }
