@@ -14,7 +14,7 @@ import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
 import { ajouterVus, attendusDe, clesVu, dernierAttendu } from './data/pourInfo';
-import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, unParPersonne } from './data/commentaires';
+import { appliquerCommentaire, destinatairesCommentaire, luesCommunes, notifsCommentaire, unParPersonne } from './data/commentaires';
 import { changementsTache } from './data/historique';
 import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
@@ -181,6 +181,10 @@ export function DemoApp() {
       central,
       mine: mineAll.filter((u) => !u.archive || u.id === current.id),
       mesFiches,
+      // Discussions lues dans mes autres entités : lues ici aussi.
+      luesAilleurs: luesCommunes(
+        Object.fromEntries(Object.entries(mesFiches).flatMap(([u, f]) => (u === current.id ? [] : [[u, loadUnitData(u).discussionsLues?.[f]]]))),
+      ),
       canManage: !!central?.moiAdmin,
       // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
       liens: false,

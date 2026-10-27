@@ -8,7 +8,7 @@
 // Le calcul (notifs.js) vient de src/data/pushServeur.ts par `npm run fonction`.
 import postgres from 'npm:postgres@3.4.5';
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { cleEnvoi, messagesPush, notificationsPush } from './notifs.js';
+import { cleEnvoi, luesCommunes, messagesPush, notificationsPush } from './notifs.js';
 import { envoyer, nouvellesClesVapid, type Abonnement, type ClesVapid } from './webpush.ts';
 
 const sql = postgres(Deno.env.get('SUPABASE_DB_URL')!, { prepare: false, max: 3, idle_timeout: 20 });
@@ -68,7 +68,7 @@ async function diffuser(appareils: AbonnementLu[], messages: MessagePush[], cles
 }
 
 /** Notifications non lues de la personne dans une entité, lues comme elle (règles d'accès de la base). */
-async function notifsDe(userId: string, committee: string, fiche: string, mesFiches: Record<string, string>): Promise<Notif[]> {
+async function notifsDe(userId: string, committee: string, fiche: string, mesFiches: Record<string, string>, lues: Record<string, string>): Promise<Notif[]> {
   return await sql.begin(async (tx) => {
     const [u] = await tx`select coalesce(raw_app_meta_data, '{}'::jsonb) as app, email from auth.users where id = ${userId}`;
     if (!u) return [];
@@ -99,6 +99,7 @@ async function notifsDe(userId: string, committee: string, fiche: string, mesFic
       pourInfo: Array.isArray(pourInfo) ? pourInfo : [],
       demandesMdp: demandes,
       mesFiches,
+      lues,
     });
   });
 }
@@ -120,11 +121,17 @@ async function tourner() {
         where m.user_id = ${userId} and m.person_id is not null and coalesce(c.info ->> 'archive', 'false') <> 'true'`;
       // Ses fiches : un message écrit depuis l'une de ses entités ne la prévient pas dans une autre.
       const mesFiches = Object.fromEntries(entites.map((e) => [e.committee_id as string, e.person_id as string]));
+      // Ses discussions lues dans toutes ses entités : une discussion lue dans l'une ne prévient plus dans une autre.
+      const lues = luesCommunes(Object.fromEntries(
+        (await sql`select i.committee_id, i.data from public.gsa_items i
+          join public.gsa_members m on m.committee_id = i.committee_id and m.person_id = i.id
+          where m.user_id = ${userId} and i.kind = 'discussionsLues' and not i.deleted`).map((r) => [r.committee_id as string, r.data]),
+      ));
       const deja = new Set((await sql`select cle from public.gsa_push_envois where user_id = ${userId}`).map((r) => r.cle as string));
       const nouvelles: (Notif & { unite: string; nomUnite: string })[] = [];
       const noter: string[] = [];
       for (const e of entites) {
-        const items = await notifsDe(userId, e.committee_id, e.person_id, mesFiches);
+        const items = await notifsDe(userId, e.committee_id, e.person_id, mesFiches, lues);
         const cle = (k: string) => `${e.committee_id}|${cleEnvoi(k)}`;
         const base = `base|${e.committee_id}`;
         if (!deja.has(base)) {

@@ -25,15 +25,14 @@ export interface DiscussionVue {
 
 /** Toutes les discussions possibles (tâches vues d'ici, pour info reçues), avec ou sans messages. */
 export function useDiscussions() {
-  const { data, user, canSeeTask, pourInfo } = useStore();
+  const { data, user, canSeeTask, pourInfo, discussionLueLe } = useStore();
   const club = useClubOptional();
   if (!user) return { toutes: [] as DiscussionVue[], nonLus: 0 };
   const ici = club?.current.id ?? '';
-  const lues = data.discussionsLues?.[user.id] ?? {};
   const fini = new Set(data.statuses.filter((s) => s.done).map((s) => s.id));
   const vue = (cle: string, t: Pick<Task, 'titre' | 'commentaires'>, o: { tacheId: string; uniteId?: string; entite?: string; lien: string; terminee: boolean }): DiscussionVue => {
     const liste = t.commentaires ?? [];
-    return { cle, titre: t.titre || '(sans titre)', liste, ...o, dernier: dernierMessage(liste), nonLus: nonLus(liste, lues[cle], user.id, ici, o.uniteId ?? ici, club?.mesFiches) };
+    return { cle, titre: t.titre || '(sans titre)', liste, ...o, dernier: dernierMessage(liste), nonLus: nonLus(liste, discussionLueLe(cle), user.id, ici, o.uniteId ?? ici, club?.mesFiches) };
   };
   const toutes = [
     ...data.tasks

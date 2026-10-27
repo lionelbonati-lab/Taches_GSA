@@ -9,6 +9,7 @@ import { hasPermission, userRoles } from './permissions';
 import { GENRES, chf, genre, holders, paiementTasks } from './paiements';
 import type { DemandeMdp } from './cloud';
 import { clesVu, modifieeDepuisMonVu, pourMoi, vuAvantModif } from './pourInfo';
+import { cleCommune } from './commentaires';
 
 // Notifications (cloche 🔔) calculées à partir des données : dans l'appli (src/notifications.ts), et sur le serveur
 // pour les notifications sur téléphone, appli fermée (fonction « gsa-push », par `npm run fonction`).
@@ -51,7 +52,7 @@ export function ago(iso: string) {
 
 export function computeNotifications(
   data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = [], pourInfo: TachePartagee[] = [], units: OrgUnit[] = [], courante?: string,
-  mesFiches: Record<string, string> = {},
+  autres: { mesFiches?: Record<string, string>; lues?: Record<string, string> } = {},
 ): NotifItem[] {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items: Omit<NotifItem, 'unread'>[] = [];
@@ -242,10 +243,12 @@ export function computeNotifications(
     if (n.userId !== user.id) continue;
     // Écrite par moi depuis une autre de mes entités (« x:<entité>:<fiche> ») : rien à m'annoncer.
     const [ailleurs, e, f] = (n.by ?? '').split(':');
-    if (ailleurs === 'x' && !!f && mesFiches[e] === f) continue;
+    if (ailleurs === 'x' && !!f && autres.mesFiches?.[e] === f) continue;
     const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'mention', 'relance'].includes(n.type);
     if ((nouvelle && !p.assign) || (!nouvelle && !p.modif)) continue;
     if (n.type === 'comment' && mentions.has(memeMessage(n))) continue;
+    // Discussion lue depuis dans l'une de mes autres entités (clé commune) : ses 💬 et 📣 sont lues ici aussi.
+    if ((n.type === 'comment' || n.type === 'mention') && courante && (autres.lues?.[cleCommune(n.taskId, courante)] ?? '') >= n.at) seen.add(n.id);
     if (n.type === 'comment' || n.type === 'mention' || n.type === 'relance') {
       // Tâche d'ici, partagée (affichée ici) ou reçue pour info ; sinon (serveur : tâches partagées non lues), son titre.
       const ici = data.tasks.find((x) => x.id === n.taskId);

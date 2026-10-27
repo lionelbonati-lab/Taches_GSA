@@ -47,7 +47,7 @@ export function TaskModal(props: TaskModalProps) {
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'partage' | 'info' | 'prendre';
 
 function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: TaskModalProps) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, vuPourInfo, update, autresResp, externes, setToast } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, attribuerTache, prendreTache, pasDispo, vuPourInfo, update, autresResp, externes, setToast, discussionLueLe } = useStore();
   // Nouvelle tâche : seules les personnes actives de l'entité peuvent en être responsables.
   // Statut inconnu de l'entité (statuts personnalisés) : le premier statut ouvert.
   const [t, setT] = useState<Task>(() =>
@@ -266,7 +266,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   // Discussion de la tâche enregistrée (relue en direct, pas celle de la fenêtre), dans sa propre fenêtre : la bulle en
   // haut l'ouvre et compte les messages pas encore lus.
   const commentaires = (data.tasks.find((x) => x.id === task.id) ?? task).commentaires ?? [];
-  const nl = user ? nonLus(commentaires, data.discussionsLues?.[user.id]?.[task.id], user.id, club?.current.id ?? '', task.source?.uniteId ?? club?.current.id ?? '', club?.mesFiches) : 0;
+  const nl = user ? nonLus(commentaires, discussionLueLe(task.id), user.id, club?.current.id ?? '', task.source?.uniteId ?? club?.current.id ?? '', club?.mesFiches) : 0;
 
   // Dupliquer : une nouvelle tâche pré-remplie d'après la tâche enregistrée, à compléter puis créer (« À faire », checklist
   // décochée). Ses fichiers restent communs avec l'original (gardés tant que l'une des deux les utilise) ; emails et

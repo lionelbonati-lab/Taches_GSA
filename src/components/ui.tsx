@@ -130,7 +130,7 @@ export function LinkIcon({ task }: { task: Task }) {
 }
 
 export function DocPollIcons({ task }: { task: Task }) {
-  const { data, user } = useStore();
+  const { data, user, discussionLueLe } = useStore();
   const club = useClubOptional();
   const n = task.documents?.length ?? 0;
   const polls = (data.polls ?? []).filter((p) => p.taskId === task.id).length;
@@ -138,7 +138,7 @@ export function DocPollIcons({ task }: { task: Task }) {
   // Discussion : bulle s'il y a des messages, avec le nombre de ceux pas encore lus.
   const msgs = task.commentaires?.length ?? 0;
   const ici = club?.current.id ?? '';
-  const nl = user && msgs ? nonLus(task.commentaires, data.discussionsLues?.[user.id]?.[task.id], user.id, ici, task.source?.uniteId ?? ici, club?.mesFiches) : 0;
+  const nl = user && msgs ? nonLus(task.commentaires, discussionLueLe(task.id), user.id, ici, task.source?.uniteId ?? ici, club?.mesFiches) : 0;
   return (
     <>
       {msgs > 0 && (

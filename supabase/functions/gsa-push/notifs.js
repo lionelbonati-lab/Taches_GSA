@@ -338,6 +338,19 @@ var holders = (data, perm) => {
 var expresses = (data, perm) => data.people.filter((p) => p.actif && userRoles(data.roles, p).some((r) => !r.locked && r.permissions.includes(perm)));
 var paiementTasks = (data) => data.tasks.filter((t) => !!t.paiement);
 
+// src/data/commentaires.ts
+var cleCommune = (cle, ici) => cle.startsWith("x:") ? cle.slice(2) : `${ici}:${cle}`;
+function luesCommunes(parEntite) {
+  const r = {};
+  for (const [e, l] of Object.entries(parEntite))
+    if (l && typeof l === "object")
+      for (const [cle, le] of Object.entries(l)) {
+        const k = cleCommune(cle, e);
+        if (typeof le === "string" && le > (r[k] ?? "")) r[k] = le;
+      }
+  return r;
+}
+
 // src/data/notifs.ts
 var DEFAULT_NOTIF = {
   assign: true,
@@ -352,7 +365,7 @@ var DEFAULT_NOTIF = {
   semaine: true,
   systeme: false
 };
-function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], units = [], courante, mesFiches = {}) {
+function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], units = [], courante, autres = {}) {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items = [];
   const now = (/* @__PURE__ */ new Date()).toISOString();
@@ -515,10 +528,11 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
     const [ailleurs2, e, f] = (n.by ?? "").split(":");
-    if (ailleurs2 === "x" && !!f && mesFiches[e] === f) continue;
+    if (ailleurs2 === "x" && !!f && autres.mesFiches?.[e] === f) continue;
     const nouvelle = ["assign", "info", "propose", "pris", "refus", "mention", "relance"].includes(n.type);
     if (nouvelle && !p.assign || !nouvelle && !p.modif) continue;
     if (n.type === "comment" && mentions.has(memeMessage(n))) continue;
+    if ((n.type === "comment" || n.type === "mention") && courante && (autres.lues?.[cleCommune(n.taskId, courante)] ?? "") >= n.at) seen.add(n.id);
     if (n.type === "comment" || n.type === "mention" || n.type === "relance") {
       const ici = data.tasks.find((x) => x.id === n.taskId);
       const recue = ici ? void 0 : pourInfo.find((x) => `x:${x.uniteId}:${x.task.id}` === n.taskId);
@@ -659,7 +673,7 @@ function notificationsPush(o) {
   if (!moi || moi.actif === false) return [];
   const p = { ...DEFAULT_NOTIF, ...prefs[o.fiche]?.notif };
   const d = avecSondages(data, [], o.courante, [], o.fiche);
-  return computeNotifications(d, moi, p, o.demandesMdp ?? [], o.pourInfo ?? [], [], o.courante, o.mesFiches).filter((x) => x.unread);
+  return computeNotifications(d, moi, p, o.demandesMdp ?? [], o.pourInfo ?? [], [], o.courante, { mesFiches: o.mesFiches, lues: o.lues }).filter((x) => x.unread);
 }
 var cleEnvoi = (cle) => cle.startsWith("retard:") ? cle.split(":").slice(0, 2).join(":") : cle;
 var urlPush = (unite, lien) => `./?reel=${encodeURIComponent(unite)}#${lien}`;
@@ -682,6 +696,7 @@ function messagesPush(items, plusieurs) {
 }
 export {
   cleEnvoi,
+  luesCommunes,
   messagesPush,
   notificationsPush,
   urlPush

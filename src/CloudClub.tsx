@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
+import { accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
+import { luesCommunes } from './data/commentaires';
 import type { OrgUnit } from './data/types';
 
 // Version réelle : le club autour de l'entité ouverte (organigramme, changement d'entité, demandes au comité central).
@@ -102,6 +103,18 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
     void estSuperAdmin().then(setSuperAdmin);
   }, [userId]);
 
+  // Ma fiche dans chacune de mes entités ; leurs discussions lues le sont ici aussi (relues quand l'appli revient au premier plan).
+  const mesFiches = useMemo(() => Object.fromEntries(list.flatMap((x) => (x.personId ? [[x.committeeId, x.personId]] : []))), [list]);
+  const [luesAilleurs, setLuesAilleurs] = useState<Record<string, string>>({});
+  useEffect(() => {
+    const autres = Object.fromEntries(Object.entries(mesFiches).filter(([c]) => c !== m.committeeId));
+    const lire = () => void discussionsLuesDe(autres).then((l) => setLuesAilleurs(luesCommunes(l)));
+    const visible = () => document.visibilityState === 'visible' && lire();
+    lire();
+    document.addEventListener('visibilitychange', visible);
+    return () => document.removeEventListener('visibilitychange', visible);
+  }, [mesFiches, m.committeeId]);
+
   const club = useMemo<Club>(() => {
     const units = org ?? [membershipUnit(m)];
     const current = units.find((u) => u.id === m.committeeId) ?? membershipUnit(m);
@@ -112,7 +125,8 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       current,
       central,
       mine: units.filter((u) => u.moi && reachable.has(u.id) && (!u.archive || u.id === current.id)),
-      mesFiches: Object.fromEntries(list.flatMap((x) => (x.personId ? [[x.committeeId, x.personId]] : []))),
+      mesFiches,
+      luesAilleurs,
       canManage: !!central?.moiAdmin,
       // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
       liens: false,
@@ -298,7 +312,7 @@ export function CloudClub({ m, userId, onSwitch, children }: { m: Membership; us
       },
       superAdmin,
     };
-  }, [org, list, m, loading, error, refresh, onSwitch, acces, caissier, clubId, orga, demandes, chargerDemandes, superAdmin]);
+  }, [org, list, m, loading, error, refresh, onSwitch, acces, caissier, clubId, orga, demandes, chargerDemandes, superAdmin, mesFiches, luesAilleurs]);
 
   return <ClubCtx.Provider value={club}>{children}</ClubCtx.Provider>;
 }

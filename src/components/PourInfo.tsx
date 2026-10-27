@@ -25,7 +25,7 @@ export function delaiRecu(x: TachePartagee) {
 
 /** `ouverte` : la tâche dépliée d'emblée (lien d'une notification), avec sa discussion si `discussion`. */
 export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: TachePartagee[]; ouverte?: string; discussion?: boolean; onClose: () => void }) {
-  const { data, user, can, vuPourInfo, setToast } = useStore();
+  const { user, can, vuPourInfo, setToast, discussionLueLe } = useStore();
   // « ✓ Vu » noté pendant que la fenêtre est ouverte (la liste se relit ensuite).
   const [vuIci, setVuIci] = useState<string[]>([]);
   const club = useClubOptional();
@@ -74,7 +74,7 @@ export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: T
                 // Comme les notifications : la tâche vue d'ici (« x:<entité>:<tâche> »).
                 const cle = `x:${k}`;
                 const msgs = t.commentaires?.length ?? 0;
-                const nl = user ? nonLus(t.commentaires, data.discussionsLues?.[user.id]?.[cle], user.id, club?.current.id ?? '', x.uniteId, club?.mesFiches) : 0;
+                const nl = user ? nonLus(t.commentaires, discussionLueLe(cle), user.id, club?.current.id ?? '', x.uniteId, club?.mesFiches) : 0;
                 return (
                   <li key={k} className={termineeChezElle(x) ? 'pour-info-finie' : ''}>
                     <span className="pour-info-titre">

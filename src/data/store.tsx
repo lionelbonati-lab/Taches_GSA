@@ -16,7 +16,7 @@ import { migrate } from './migrate';
 import { ajouterSuivante, idDe, preparerSuivante } from './suivante';
 import type { CloudMode, DemoMode, Store } from './storeTypes';
 import { useRecus } from './recus';
-import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, unParPersonne, type ActionCommentaire } from './commentaires';
+import { appliquerCommentaire, cleCommune, destinatairesCommentaire, notifsCommentaire, unParPersonne, type ActionCommentaire } from './commentaires';
 import { mentionnables, mentionnes, notifsMention } from './mentions';
 import { usePileAnnulation } from './pileAnnulation';
 
@@ -602,6 +602,17 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [userId],
   );
 
+  // Lue ici ou dans l'une de mes autres entités : la lecture la plus récente.
+  const luIci = userId ? data.discussionsLues?.[userId] : undefined;
+  const discussionLueLe = useCallback(
+    (cle: string) => {
+      const a = luIci?.[cle];
+      const b = club ? club.luesAilleurs[cleCommune(cle, club.current.id)] : undefined;
+      return a && b ? (a > b ? a : b) : a ?? b;
+    },
+    [luIci, club],
+  );
+
   const reset = useCallback(() => {
     if (cloud) return;
     clearFiles();
@@ -843,6 +854,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     setToast,
     markNotifsRead,
     discussionLue,
+    discussionLueLe,
     savePoll,
     votePoll,
     closePoll,

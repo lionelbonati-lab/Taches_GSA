@@ -107,6 +107,8 @@ export interface Store {
   markNotifsRead: (keys: string[]) => void;
   /** Discussion d'une tâche lue jusqu'au message du `dernier` (sa date) ; `cle` : la tâche vue d'ici. Ses 💬 aussi. */
   discussionLue: (cle: string, dernier: string) => void;
+  /** Date jusqu'où j'ai lu la discussion `cle` (vue d'ici), ici ou dans l'une de mes autres entités. */
+  discussionLueLe: (cle: string) => string | undefined;
   savePoll: (p: Poll, isNew: boolean) => void;
   /** `texte` : réponse écrite avec « Autre ». */
   votePoll: (pollId: string, optionIds: string[], texte?: string) => void;

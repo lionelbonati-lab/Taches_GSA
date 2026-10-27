@@ -144,7 +144,7 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
   await expect(discussion.locator('.discussion-message')).toHaveCount(0);
 });
 
-test('discussion : une seule notification par personne, dans l’entité de la tâche', async ({ page }) => {
+test('discussion : une seule notification par personne, lue partout une fois lue', async ({ page }) => {
   const entite = async (nom: string) => {
     await page.locator('.unit-btn').click();
     await page.locator('.unit-menu .unit-item', { hasText: nom }).click();
@@ -189,6 +189,9 @@ test('discussion : une seule notification par personne, dans l’entité de la t
   await ecrire('Bonne idée !');
   await changer('Julien Moreau');
   await entite('Comité central');
+  // Pas encore lue : non lue au comité central aussi.
+  const ligne = page.locator('main tr', { hasText: 'Choisir la musique' });
+  await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveText('1');
   await expect(await notifications()).not.toContainText('Choisir la musique');
   await page.keyboard.press('Escape');
   await entite('Soirée récréative');
@@ -198,6 +201,34 @@ test('discussion : une seule notification par personne, dans l’entité de la t
   await page.locator('main').getByText('Choisir la musique').filter({ visible: true }).first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion (1 non lu)' }).click();
   await expect(page.locator('.discussion-message:not(.mien) .discussion-auteur')).toHaveText('Marc Lambert');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Lue dans la Soirée, elle est lue partout : plus rien de non lu au comité central.
+  await entite('Comité central');
+  await expect(ligne.locator('.discussion-tag')).toBeVisible();
+  await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveCount(0);
+  await expect(page.locator('.tabs .onglet-nb')).toHaveCount(0);
+
+  // Et la cloche : prévenu dans la Soirée, message lu au comité central, la notification de la Soirée est lue aussi.
+  await changer('Marc Lambert');
+  await expect(page.locator('.unit-btn')).toContainText('Comité central');
+  await ecrire('Et la sono ?');
+  await changer('Julien Moreau');
+  await entite('Soirée récréative');
+  await expect((await notifications()).locator('.bell-item.unread', { hasText: 'Choisir la musique' })).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await entite('Comité central');
+  await page.locator('main').getByText('Choisir la musique').filter({ visible: true }).first().click();
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion (1 non lu)' }).click();
+  await expect(page.locator('.discussion-message', { hasText: 'Et la sono ?' })).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await entite('Soirée récréative');
+  await expect((await notifications()).locator('.bell-item', { hasText: 'Choisir la musique' }).first()).toBeVisible();
+  await expect(page.getByRole('dialog', { name: 'Notifications' }).locator('.bell-item.unread', { hasText: 'Choisir la musique' })).toHaveCount(0);
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {

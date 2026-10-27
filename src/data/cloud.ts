@@ -463,6 +463,16 @@ export function rattraper() {
   window.dispatchEvent(new Event(RATTRAPER));
 }
 
+/** Mes discussions lues dans chacune de mes entités (`fiches` : entité → ma fiche) ; rien en cas d'échec. */
+export async function discussionsLuesDe(fiches: Record<string, string>): Promise<Record<string, unknown>> {
+  const ids = Object.keys(fiches);
+  if (!ids.length) return {};
+  const { data, error } = await sb().from('gsa_items').select('committee_id, id, data').eq('kind', 'discussionsLues').eq('deleted', false)
+    .in('committee_id', ids).in('id', [...new Set(Object.values(fiches))]);
+  if (error) return {};
+  return Object.fromEntries((data ?? []).filter((r) => fiches[r.committee_id as string] === r.id).map((r) => [r.committee_id as string, r.data]));
+}
+
 /** Comités auxquels le compte connecté a accès. */
 export async function myMemberships(userId: string): Promise<Membership[]> {
   const { data, error } = await sb().from('gsa_members').select('committee_id, person_id, owner, committees(name, type, parent_id, info)').eq('user_id', userId);

@@ -42,6 +42,24 @@ export const parMoi = (c: Commentaire, moi: string, depuis: string, unite: strin
 export const nonLus = (liste: Commentaire[] = [], lu: string | undefined, moi: string, depuis: string, unite: string, mesFiches?: Record<string, string>) =>
   liste.filter((c) => !parMoi(c, moi, depuis, unite, mesFiches) && (!lu || c.le > lu)).length;
 
+/** Clé d'une discussion commune à toutes les entités, « <entité de la tâche>:<tâche> » (`cle` : vue de l'entité `ici`). */
+export const cleCommune = (cle: string, ici: string) => (cle.startsWith('x:') ? cle.slice(2) : `${ici}:${cle}`);
+
+/**
+ * Discussions lues dans mes entités (`parEntite` : entité → mes discussions lues, clé d'ici → date) : par clé commune,
+ * la lecture la plus récente. Une discussion lue dans l'une est lue partout.
+ */
+export function luesCommunes(parEntite: Record<string, unknown>) {
+  const r: Record<string, string> = {};
+  for (const [e, l] of Object.entries(parEntite))
+    if (l && typeof l === 'object')
+      for (const [cle, le] of Object.entries(l as Record<string, unknown>)) {
+        const k = cleCommune(cle, e);
+        if (typeof le === 'string' && le > (r[k] ?? '')) r[k] = le;
+      }
+  return r;
+}
+
 /** Date du dernier message de la discussion. */
 export const dernierMessage = (liste: Commentaire[] = []) => liste.reduce((m, c) => (c.le > m ? c.le : m), '');
 

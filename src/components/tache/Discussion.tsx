@@ -43,7 +43,7 @@ export const quandMessage = (iso: string) => {
  * « @ » propose les personnes de l'entité qui voient la tâche (tâche d'ici) : mentionnées, elles sont prévenues 📣.
  */
 export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, onClose }: { titre: string; liste?: Commentaire[]; cle: string; tacheId: string; uniteId?: string; actions?: ReactNode; onClose: () => void }) {
-  const { data, user, can, commenter, discussionLue } = useStore();
+  const { data, user, can, commenter, discussionLue, discussionLueLe } = useStore();
   const club = useClubOptional();
   const [texte, setTexte] = useState('');
   const [corrige, setCorrige] = useState<{ id: string; texte: string } | null>(null);
@@ -60,7 +60,7 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   const [suggestion, setSuggestion] = useState<{ debut: number; fin: number; liste: Person[]; i: number } | null>(null);
   // Messages des autres arrivés depuis la dernière lecture, à l'ouverture : le premier est repéré.
   const [nonLus] = useState(() => {
-    const lu = user ? data.discussionsLues?.[user.id]?.[cle] : undefined;
+    const lu = discussionLueLe(cle);
     const l = user ? liste.filter((c) => !parMoi(c, user.id, ici, unite, club?.mesFiches) && (!lu || c.le > lu)) : [];
     return { premier: l[0]?.id, nombre: l.length };
   });
