@@ -2,6 +2,7 @@ import { dueAt, emailState, fillTemplate } from './emails';
 import type { AppData, NotifPrefs, OrgUnit, Person, TachePartagee, Task } from './types';
 import { nomsDestinataires } from './destinataires';
 import { echeance, isOpen } from './polls';
+import { finDeSemaine, jourSemaine } from './repetition';
 import { aPrendreOuverte, aPrendrePourMoi, attenteAilleurs, plusPersonne, sansReponse } from './aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './utils';
 import { hasPermission, userRoles } from './permissions';
@@ -21,6 +22,7 @@ export const DEFAULT_NOTIF: NotifPrefs = {
   seanceJours: 7,
   sondage: true,
   email: true,
+  semaine: true,
   systeme: false,
 };
 
@@ -53,6 +55,12 @@ export function computeNotifications(
   const items: Omit<NotifItem, 'unread'>[] = [];
   const now = new Date().toISOString();
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id) && !isDone(data, t));
+
+  // Le lundi : résumé de la semaine (une fois par semaine ; sur le téléphone, au matin).
+  if (p.semaine && jourSemaine(today()) === 1) {
+    const r = resumeSemaine(data, user, mine);
+    if (r) items.push({ ...r, at: now });
+  }
 
   if (p.retard) {
     const late = mine.filter((t) => !!t.delai && t.delai < today());
@@ -292,6 +300,51 @@ export function computeNotifications(
   return items
     .map((x) => ({ ...x, unread: !seen.has(x.key) }))
     .sort((a, b) => (a.kind !== b.kind ? (a.kind === 'alerte' ? -1 : 1) : b.at.localeCompare(a.at)));
+}
+
+const JOURS = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'];
+const nomJour = (jour: string) => (jour === today() ? 'aujourd’hui' : JOURS[jourSemaine(jour) - 1]);
+const nombre = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
+
+/**
+ * Résumé de la semaine (d'aujourd'hui à dimanche) : mes tâches à faire d'ici là (en retard comprises), les séances (droit
+ * « Séances ») et les événements de l'entité (pas ceux qui se répètent : la routine), les sondages qui attendent ma
+ * réponse. Rien s'il n'y a rien. « Cette semaine : 3 tâches à faire, Comité de novembre jeudi », le détail en dessous.
+ */
+export function resumeSemaine(data: AppData, user: Person, mine: Task[]): Omit<NotifItem, 'unread' | 'at'> | null {
+  const auj = today();
+  const fin = finDeSemaine(auj);
+  const taches = mine.filter((t) => !!t.delai && t.delai <= fin).sort((a, b) => a.delai.localeCompare(b.delai));
+  const retard = taches.filter((t) => t.delai < auj).length;
+  const seances = hasPermission(userRoles(data.roles, user), 'tab.meetings')
+    ? data.meetings.filter((m) => m.date >= auj && m.date <= fin).sort((a, b) => a.date.localeCompare(b.date))
+    : [];
+  const evenements = data.events.filter((e) => !e.repetition && e.date <= fin && (e.dateFin || e.date) >= auj).sort((a, b) => a.date.localeCompare(b.date));
+  const sondages = (data.polls ?? []).filter((x) => isOpen(x) && !!x.cleMoi && !x.votes[x.cleMoi]);
+  if (!taches.length && !seances.length && !evenements.length && !sondages.length) return null;
+  const quandEv = (e: { date: string }) => (e.date < auj ? 'en cours' : nomJour(e.date));
+  const parts = [
+    taches.length && `${nombre(taches.length, 'tâche')} à faire${retard ? ` (${retard} en retard)` : ''}`,
+    seances.length === 1 ? `${seances[0].titre} ${nomJour(seances[0].date)}` : seances.length && nombre(seances.length, 'séance'),
+    evenements.length === 1 ? `${evenements[0].nom} ${quandEv(evenements[0])}` : evenements.length && nombre(evenements.length, 'événement'),
+    sondages.length && `${nombre(sondages.length, 'sondage')} à répondre`,
+  ].filter(Boolean);
+  // Le détail : celles de la semaine d'abord, puis celles en retard.
+  const ordre = [...taches.filter((t) => t.delai >= auj), ...taches.filter((t) => t.delai < auj)];
+  const detail = taches.length
+    ? ordre.slice(0, 3).map((t) => `« ${t.titre} » ${t.delai < auj ? 'en retard' : nomJour(t.delai)}`).join(' · ') + (taches.length > 3 ? ' …' : '')
+    : [
+        ...seances.map((m) => `${m.titre} ${nomJour(m.date)}${m.heure ? ` à ${m.heure.replace(':', 'h')}` : ''}`),
+        ...evenements.map((e) => `${e.nom} ${quandEv(e)}${e.lieu ? ` · ${e.lieu}` : ''}`),
+      ].slice(0, 3).join(' · ');
+  return {
+    key: `semaine:${auj}`,
+    icon: '📅',
+    text: `Cette semaine : ${parts.join(', ')}`,
+    sub: detail || undefined,
+    link: taches.length ? '/taches?delai=semaine' : seances.length ? '/comite' : evenements.length ? '/evenements' : '/sondages',
+    kind: 'alerte',
+  };
 }
 
 /** Tâche à prendre déclinée : où en est-elle ? */

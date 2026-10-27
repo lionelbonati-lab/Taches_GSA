@@ -22,6 +22,9 @@ const fmt = (d: string) => d.split('-').reverse().join('.');
 /** 1 = lundi … 7 = dimanche. */
 export const jourSemaine = (d: string) => ((utc(...parts(d)).getUTCDay() + 6) % 7) + 1;
 
+/** Dimanche de la semaine du jour (AAAA-MM-JJ). */
+export const finDeSemaine = (d: string) => plus(d, 7 - jourSemaine(d));
+
 /** Rang du jour dans son mois (2 : le deuxième jeudi), et s'il est le dernier de ce jour-là dans le mois. */
 export function rangDansMois(d: string) {
   const [y, m, j] = parts(d);

@@ -15,6 +15,18 @@ var aPrendrePourMoi = (t, userId) => peutPrendre(t, userId) && !pasDispo(t, user
 var sansReponse = (t) => (t.aPrendre?.personnes ?? []).filter((id) => !t.responsables.includes(id) && !t.aPrendre?.refus?.includes(id));
 var plusPersonne = (t) => !sansReponse(t).length && !attenteAilleurs(t);
 
+// src/data/repetition.ts
+var pad = (n) => String(n).padStart(2, "0");
+var parts = (d) => d.split("-").map(Number);
+var utc = (y, m, j) => new Date(Date.UTC(y, m - 1, j));
+var iso = (x) => `${x.getUTCFullYear()}-${pad(x.getUTCMonth() + 1)}-${pad(x.getUTCDate())}`;
+var plus = (d, n) => {
+  const [y, m, j] = parts(d);
+  return iso(utc(y, m, j + n));
+};
+var jourSemaine = (d) => (utc(...parts(d)).getUTCDay() + 6) % 7 + 1;
+var finDeSemaine = (d) => plus(d, 7 - jourSemaine(d));
+
 // src/data/utils.ts
 var today = () => (/* @__PURE__ */ new Date()).toISOString().slice(0, 10);
 var localNow = () => {
@@ -33,8 +45,8 @@ function daysUntil(date) {
   const b = (/* @__PURE__ */ new Date(date + "T12:00:00")).getTime();
   return Math.round((b - a) / 864e5);
 }
-var pad = (n) => String(n).padStart(2, "0");
-var ymd = (y, m, d) => `${y}-${pad(m)}-${pad(d)}`;
+var pad2 = (n) => String(n).padStart(2, "0");
+var ymd = (y, m, d) => `${y}-${pad2(m)}-${pad2(d)}`;
 function addDays(date, n) {
   const [y, m, d] = date.split("-").map(Number);
   const x = new Date(Date.UTC(y, m - 1, d + n));
@@ -325,6 +337,7 @@ var DEFAULT_NOTIF = {
   seanceJours: 7,
   sondage: true,
   email: true,
+  semaine: true,
   systeme: false
 };
 function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], units = [], courante) {
@@ -332,6 +345,10 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
   const items = [];
   const now = (/* @__PURE__ */ new Date()).toISOString();
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id) && !isDone(data, t));
+  if (p.semaine && jourSemaine(today()) === 1) {
+    const r = resumeSemaine(data, user, mine);
+    if (r) items.push({ ...r, at: now });
+  }
   if (p.retard) {
     const late = mine.filter((t) => !!t.delai && t.delai < today());
     if (late.length)
@@ -530,6 +547,39 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
       });
     }
   return items.map((x) => ({ ...x, unread: !seen.has(x.key) })).sort((a, b) => a.kind !== b.kind ? a.kind === "alerte" ? -1 : 1 : b.at.localeCompare(a.at));
+}
+var JOURS = ["lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+var nomJour = (jour) => jour === today() ? "aujourd’hui" : JOURS[jourSemaine(jour) - 1];
+var nombre = (n, mot) => `${n} ${mot}${n > 1 ? "s" : ""}`;
+function resumeSemaine(data, user, mine) {
+  const auj = today();
+  const fin = finDeSemaine(auj);
+  const taches = mine.filter((t) => !!t.delai && t.delai <= fin).sort((a, b) => a.delai.localeCompare(b.delai));
+  const retard = taches.filter((t) => t.delai < auj).length;
+  const seances = hasPermission(userRoles(data.roles, user), "tab.meetings") ? data.meetings.filter((m) => m.date >= auj && m.date <= fin).sort((a, b) => a.date.localeCompare(b.date)) : [];
+  const evenements = data.events.filter((e) => !e.repetition && e.date <= fin && (e.dateFin || e.date) >= auj).sort((a, b) => a.date.localeCompare(b.date));
+  const sondages = (data.polls ?? []).filter((x) => isOpen(x) && !!x.cleMoi && !x.votes[x.cleMoi]);
+  if (!taches.length && !seances.length && !evenements.length && !sondages.length) return null;
+  const quandEv = (e) => e.date < auj ? "en cours" : nomJour(e.date);
+  const parts2 = [
+    taches.length && `${nombre(taches.length, "tâche")} à faire${retard ? ` (${retard} en retard)` : ""}`,
+    seances.length === 1 ? `${seances[0].titre} ${nomJour(seances[0].date)}` : seances.length && nombre(seances.length, "séance"),
+    evenements.length === 1 ? `${evenements[0].nom} ${quandEv(evenements[0])}` : evenements.length && nombre(evenements.length, "événement"),
+    sondages.length && `${nombre(sondages.length, "sondage")} à répondre`
+  ].filter(Boolean);
+  const ordre = [...taches.filter((t) => t.delai >= auj), ...taches.filter((t) => t.delai < auj)];
+  const detail = taches.length ? ordre.slice(0, 3).map((t) => `« ${t.titre} » ${t.delai < auj ? "en retard" : nomJour(t.delai)}`).join(" · ") + (taches.length > 3 ? " …" : "") : [
+    ...seances.map((m) => `${m.titre} ${nomJour(m.date)}${m.heure ? ` à ${m.heure.replace(":", "h")}` : ""}`),
+    ...evenements.map((e) => `${e.nom} ${quandEv(e)}${e.lieu ? ` · ${e.lieu}` : ""}`)
+  ].slice(0, 3).join(" · ");
+  return {
+    key: `semaine:${auj}`,
+    icon: "📅",
+    text: `Cette semaine : ${parts2.join(", ")}`,
+    sub: detail || void 0,
+    link: taches.length ? "/taches?delai=semaine" : seances.length ? "/comite" : evenements.length ? "/evenements" : "/sondages",
+    kind: "alerte"
+  };
 }
 function etatRefus(t) {
   if (!aPrendreOuverte(t)) return "quelqu’un s’en charge";

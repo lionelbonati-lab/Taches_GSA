@@ -692,6 +692,8 @@ export interface NotifPrefs {
   sondage: boolean;
   /** Un email programmé arrive à son heure d'envoi. */
   email: boolean;
+  /** Résumé de la semaine, le lundi : tâches à faire d'ici dimanche, séances, événements, sondages. */
+  semaine: boolean;
   /** Notifications de l'appareil (système), en plus de la cloche. */
   systeme: boolean;
 }

@@ -390,3 +390,23 @@ test('reprendre un événement passé : nouvelle édition avec ses tâches, dél
   const nouvelle = page.locator('.agenda-item').filter({ has: page.locator('strong', { hasText: /^Course de préparation 2027$/ }) });
   await expect(nouvelle).toContainText('0/1 tâches terminées');
 });
+
+test('résumé de la semaine, le lundi : notification et tâches de la semaine', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-02T08:00:00Z'));
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Préparer le stand');
+  await fiche.getByRole('combobox', { name: 'Date fixe, ou selon un événement / une séance' }).click();
+  await page.getByRole('option', { name: 'Date fixe' }).click();
+  await fiche.getByLabel('Pour quand ?').fill('2026-11-04');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  await page.goto('./?demo#/');
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  const resume = page.locator('.bell-item', { hasText: 'Cette semaine :' });
+  await expect(resume).toContainText('1 tâche à faire');
+  await expect(resume).toContainText('« Préparer le stand » mercredi');
+  await resume.click();
+  await expect(page).toHaveURL(/delai=semaine/);
+  await expect(page.locator('main tr', { hasText: 'Préparer le stand' })).toHaveCount(1);
+});

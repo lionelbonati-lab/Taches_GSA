@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, newTask, parentOf, recurrenceLabel, today } from '../data/utils';
+import { finDeSemaine } from '../data/repetition';
 import { sortedMeetings } from '../data/agenda';
 import { finAnticipee, versProchaineSeance } from '../data/seances';
 import { TaskModal } from '../components/FicheTache';
@@ -30,7 +31,7 @@ export function Tasks() {
   const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, pourInfo } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
-    params.get('statut') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
+    params.get('statut') || params.get('delai') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
   );
   const [f, setF] = useState({
     ...EMPTY_FILTERS,
@@ -38,6 +39,7 @@ export function Tasks() {
     meeting: params.get('meeting') ?? '',
     resp: params.get('resp') ?? '',
     statut: params.get('statut') ?? '',
+    delai: params.get('delai') ?? '',
     parent: params.get('parent') ?? '',
     type: params.get('type') ?? '',
   });
@@ -67,7 +69,7 @@ export function Tasks() {
     if (params.get('tache')) navigate('/taches', { replace: true });
   };
 
-  const [showFilters, setShowFilters] = useState(!!params.get('statut') || !!params.get('type'));
+  const [showFilters, setShowFilters] = useState(!!params.get('statut') || !!params.get('type') || !!params.get('delai'));
   // Terminées : visibles jusqu'à la séance suivante, puis archivées (estArchivee) ; « Masquer les terminées » les retire avant.
   const hideDone = !!prefs.masquerTerminees;
   const setHideDone = (v: boolean) => setPrefs({ masquerTerminees: v });
@@ -127,12 +129,14 @@ export function Tasks() {
       // « u:<entité> » : un événement qui dépend du comité (tâches partagées par lui, ou liées à lui).
       if (f.event && (f.event.startsWith('u:') ? !tacheDeLEvenement(t, f.event.slice(2)) : t.eventId !== f.event)) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
-      if (f.delai && ['passe', '7', '30'].includes(f.delai) && !t.delai) return false;
+      if (f.delai && ['passe', '7', '30', 'semaine'].includes(f.delai) && !t.delai) return false;
       if (f.delai) {
         const n = daysUntil(t.delai);
         if (f.delai === 'passe' && n >= 0) return false;
         if (f.delai === '7' && (n < 0 || n > 7)) return false;
         if (f.delai === '30' && (n < 0 || n > 30)) return false;
+        // Cette semaine (résumé du lundi) : à faire d'ici dimanche, en retard comprises.
+        if (f.delai === 'semaine' && (t.delai > finDeSemaine(today()) || isDone(data, t))) return false;
         if (f.delai === 'recurrente' && !t.recurrence) return false;
         if (f.delai === 'lie' && !t.delaiRef) return false;
         if (f.delai === 'principale' && !childrenOf(data, t.id).length) return false;
@@ -285,6 +289,7 @@ export function Tasks() {
         <select value={f.delai} onChange={(e) => setF({ ...f, delai: e.target.value })}>
           <option value="">Tous délais</option>
           <option value="passe">Délai dépassé</option>
+          <option value="semaine">Cette semaine (à faire)</option>
           <option value="7">7 prochains jours</option>
           <option value="30">30 prochains jours</option>
           <option value="lie">📌 Délai calé sur un événement / une séance</option>

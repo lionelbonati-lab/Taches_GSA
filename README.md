@@ -399,6 +399,7 @@ Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de n
 - 💬 quelqu'un commente une tâche dont tu t'occupes, que tu as créée ou que tu as déjà commentée (voir « Discussion » dans la fiche d'une tâche) ;
 - ⏰ échéance proche (le jour même à 14 jours avant, réglable) ;
 - ⚠️ résumé quotidien de tes tâches en retard ;
+- 📅 le lundi, **résumé de ta semaine** : tâches à faire d'ici dimanche (en retard comprises, les plus proches citées), séances de comité, événements et sondages qui attendent ton vote ; un clic ouvre « Cette semaine » dans Tâches (filtre Délai) ;
 - 🗓️ prochaine séance de comité (et « ordre du jour disponible » s'il a été archivé).
 
 Un clic ouvre directement la tâche (ou la liste filtrée / Comité › Séances). Réglages → Notifications : choix des types, délais de prévenance, et **notifications de l'appareil** (téléphone / ordinateur, après autorisation) avec un bouton de test.
