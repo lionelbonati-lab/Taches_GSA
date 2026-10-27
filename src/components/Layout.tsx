@@ -1,5 +1,5 @@
 import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Navigate, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
 import { TaskModal, useAutresCreation } from './FicheTache';
 import { versProchaineSeance } from '../data/seances';
@@ -24,7 +24,7 @@ import { applyAppColor, cacheColor } from '../data/couleur';
 import { Icone, type IconeNom } from './icones';
 import { newTask } from '../data/utils';
 import { DansEntite } from '../data/entites';
-import { PAGES_COMITE, useComites } from '../data/comites';
+import { PAGES_PAR_COMITE, useComites } from '../data/comites';
 
 export function Layout() {
   const { data, user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
@@ -341,19 +341,16 @@ function SyncBadge() {
 
 /** Page pas encore chargée (premier clic juste après l'ouverture) : rien pendant un instant, puis un mot d'attente. */
 /**
- * Pages Comité (séances, ordre du jour, PV) d'un autre de mes comités que l'entité ouverte : affichées dans le sien (ses
- * séances, ses tâches, mes droits chez lui), sans changer d'entité. Une page qu'il ne me donne pas : la première qu'il donne.
+ * Ordre du jour et PV d'un autre de mes comités que l'entité ouverte : affichés dans le sien (ses séances, ses tâches, mes
+ * droits chez lui), sans changer d'entité.
  */
 function DansComite({ children }: { children: ReactNode }) {
   const comites = useComites();
   const club = useClubOptional();
   const { pathname } = useLocation();
-  const { rubriques, ouverte } = useNavigation();
-  const choisi = comites?.choisi;
-  if (!choisi || !PAGES_COMITE.includes(pathname)) return <>{children}</>;
-  const premiere = rubriques.find((r) => r.id === 'comite')?.pages[0]?.to;
-  if (!ouverte && premiere && premiere !== pathname) return <Navigate to={premiere} replace />;
-  if (choisi.id === club?.current.id) return <>{children}</>;
+  const perm = PAGES_PAR_COMITE[pathname];
+  const choisi = perm ? comites?.choisi(perm) : undefined;
+  if (!choisi || choisi.id === club?.current.id) return <>{children}</>;
   return (
     <DansEntite key={choisi.id} id={choisi.id} sinon={<ChargementPage />}>
       {children}

@@ -119,6 +119,40 @@ export function useSeancesMoi(): SeanceMoi[] {
   );
 }
 
+/** L'une de mes entités (vue « moi ») : l'entité ouverte ou l'une des autres, avec sa couche de données et ses droits. */
+export interface EntiteMoi {
+  /** Son entité (absente hors club). */
+  u?: OrgUnit;
+  store: Store;
+  ici: boolean;
+}
+
+/** Toutes mes entités, l'entité ouverte d'abord : les pages qui les réunissent (séances, événements, sondages). */
+export function useMesEntites(): EntiteMoi[] {
+  const store = useContext(StoreCtx);
+  const club = useContext(ClubCtx);
+  const autres = useAutres(!club?.arrierePlan);
+  const ici = club?.current;
+  return useMemo(
+    () => [
+      ...(store?.user ? [{ u: ici, store, ici: true }] : []),
+      ...autres.filter((e) => e.store.user).map((e) => ({ u: e.club.current, store: e.store, ici: false })),
+    ],
+    [store, ici, autres],
+  );
+}
+
+/** Écran dans l'une de mes entités : l'entité ouverte telle quelle, une autre dans la sienne (DansEntite). */
+export function Chez({ id, children, sinon = null }: { id?: string; children: ReactNode; sinon?: ReactNode }) {
+  const club = useContext(ClubCtx);
+  if (!id || id === club?.current.id) return <>{children}</>;
+  return (
+    <DansEntite id={id} sinon={sinon}>
+      {children}
+    </DansEntite>
+  );
+}
+
 /** Dans une entité en arrière-plan : l'annonce à l'entité ouverte (sa couche de données, son club, ses notifications). */
 export function Publier() {
   const registre = useContext(RegistreCtx);

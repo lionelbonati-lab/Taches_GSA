@@ -267,12 +267,12 @@ export function Dashboard() {
               {prochaines.length > 1 ? 'Prochaines séances' : (prochaines[0]?.u ?? club?.current)?.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}
             </h2>
             {prochaines.map(({ m, u, ici }) => (
-              // Toute la carte mène aux séances de son comité (choisi dans les pages Comité, sans changer d'entité) ; le lieu placé sur la carte garde son propre lien.
+              // Toute la carte mène à la séance (son comité choisi pour l'ordre du jour et le PV, sans changer d'entité) ; le lieu placé sur la carte garde son propre lien.
               <div key={`${u?.id ?? ''}:${m.id}`} className="panel link-panel lien-etendu">
                 {ici || !u ? (
-                  <Link to="/comite" onClick={() => club && comites?.choisir(club.current.id)}><strong>{m.titre}</strong>{plusieurs && u && <> <span className="tsource">{u.nom}</span></>}</Link>
+                  <Link to={`/comite?seance=${encodeURIComponent(m.id)}`} onClick={() => club && comites?.choisir(club.current.id)}><strong>{m.titre}</strong>{plusieurs && u && <> <span className="tsource">{u.nom}</span></>}</Link>
                 ) : (
-                  <Link to="/comite" title={`Séances de « ${u.nom} »`} onClick={() => comites?.choisir(u.id)}>
+                  <Link to={`/comite?seance=${encodeURIComponent(m.id)}`} title={`Séance de « ${u.nom} »`} onClick={() => comites?.choisir(u.id)}>
                     <strong>{m.titre}</strong> <span className="tsource">{u.nom}</span>
                   </Link>
                 )}

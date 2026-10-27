@@ -204,14 +204,14 @@ export function Calendar() {
   const open = (it: Item) => {
     if (it.kind === 'task') setTask({ t: it.t, isNew: false });
     else if (it.kind === 'meeting') {
-      // Séance de l'un de mes autres comités : ses séances, sans changer d'entité.
+      // Séance de l'un de mes autres comités : sa carte dans les séances (et son ordre du jour, son PV choisis).
       if (it.u) {
         comites?.choisir(it.u.id);
-        navigate('/comite');
+        navigate(`/comite?seance=${encodeURIComponent(it.m.id)}`);
       } else if (addMeeting) setMeeting(it.m);
       else {
         if (club) comites?.choisir(club.current.id);
-        navigate('/comite');
+        navigate(`/comite?seance=${encodeURIComponent(it.m.id)}`);
       }
     }
     else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : navigate('/evenements'));

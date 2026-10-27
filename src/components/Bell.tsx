@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { ago, useNotifications, type Notif } from '../notifications';
 import { useClubOptional } from '../data/club';
-import { PAGES_COMITE, useComites } from '../data/comites';
+import { PERMS_COMITE, useComites } from '../data/comites';
+
+/** Pages Comité : séances (toutes mes entités), ordre du jour et PV (le comité choisi). */
+const PAGES_COMITE = ['/comite', '/ordre-du-jour', '/pv'];
 import { Icone } from './icones';
 
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */
@@ -33,7 +36,7 @@ export function Bell() {
     setOpen(false);
     // De l'un de mes autres comités, une page Comité (séance, ordre du jour, PV) : ce comité y est choisi, sans changer
     // d'entité. D'une autre entité, une autre page (sondage…) : sa page, dans son entité.
-    const comite = n.entite && comites?.liste.some((u) => u.id === n.entite) && PAGES_COMITE.includes(n.link.split('?')[0]);
+    const comite = n.entite && PERMS_COMITE.some((p) => comites?.liste(p).some((u) => u.id === n.entite)) && PAGES_COMITE.includes(n.link.split('?')[0]);
     if (comite) {
       comites!.choisir(n.entite!);
       navigate(n.link);

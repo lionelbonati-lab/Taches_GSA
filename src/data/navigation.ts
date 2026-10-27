@@ -62,7 +62,7 @@ const RUBRIQUES: NavRubrique[] = [
     icon: 'seances',
     mobile: true,
     pages: [
-      { to: '/comite', label: 'Séances', icon: 'seances', perm: 'tab.meetings', aide: 'Les séances à venir : date, lieu (placé sur une carte au besoin), excusés, ordre du jour et PV archivés. Les séances passées sont repliées en bas.' },
+      { to: '/comite', label: 'Séances', icon: 'seances', perm: 'tab.meetings', aide: 'Les séances à venir de tes comités : date, lieu (placé sur une carte au besoin), excusés, ordre du jour et PV archivés. Les séances passées sont repliées en bas.' },
       {
         to: '/ordre-du-jour',
         label: 'Ordre du jour',
@@ -86,7 +86,7 @@ const RUBRIQUES: NavRubrique[] = [
     pages: [{ to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli.' }],
   },
   {
-    // Le club : son organigramme (où l'on ouvre l'une de ses entités, ses séances, son PV, ses réglages) et l'annuaire.
+    // Le club : son organigramme (où l'on ouvre l'une de ses entités : ses réglages, sa console admin) et l'annuaire.
     id: 'personnes',
     label: 'Club',
     icon: 'organigramme',
@@ -96,7 +96,7 @@ const RUBRIQUES: NavRubrique[] = [
         label: 'Organigramme',
         icon: 'organigramme',
         club: true,
-        aide: 'Le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. « Ouvrir › » sur l’une de tes entités : ses séances, son PV et ses réglages.',
+        aide: 'Le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. « Ouvrir › » sur l’une de tes entités : ses réglages et sa console admin.',
       },
       { to: '/membres-club', label: 'Membres du club', icon: 'membres', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli ; on y gère aussi les accès de chacun aux entités.' },
     ],

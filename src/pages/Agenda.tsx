@@ -9,9 +9,12 @@ import { EventModal, newEvent } from '../components/EventModal';
 import { EditionCard, hasEdition } from '../components/Edition';
 import { RepriseModal } from '../components/Reprise';
 import { reprenable } from '../data/reprise';
-import { Empty, Modal } from '../components/ui';
+import { Empty, Modal, usePlusieursEntites } from '../components/ui';
 import { Icone } from '../components/icones';
-import { IconeEntite } from '../components/IconesEntite';
+import { IconeEntite, PastilleEntite } from '../components/IconesEntite';
+import { Deroulante } from '../components/Deroulante';
+import { Chez, useMesEntites, type EntiteMoi } from '../data/entites';
+import { useComites } from '../data/comites';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
@@ -131,100 +134,178 @@ function Excuses({ m, past }: { m: Meeting; past: boolean }) {
   );
 }
 
+/** Archive ouverte (PV ou ordre du jour) d'une séance ; `u` : son entité. */
+type VuePv = { meeting: Meeting; pv: PvArchive; kind: 'odj' | 'pv'; u?: string };
+
+/**
+ * Séances de tous mes comités (vue « moi »), chacune avec la pilule de son entité : elle s'y affiche, s'y modifie et
+ * mène à son ordre du jour et à son PV (ce comité choisi), sans changer d'entité.
+ */
 export function Meetings() {
-  const { data, can, update } = useStore();
-  const mot = useMotSeance();
-  const [edit, setEdit] = useState<Meeting | null>(null);
-  const [viewPv, setViewPv] = useState<{ meeting: Meeting; pv: PvArchive; kind: 'odj' | 'pv' } | null>(null);
-  const manage = can('meetings.manage');
-  const sorted = [...data.meetings].sort((a, b) => a.date.localeCompare(b.date));
+  const mes = useMesEntites().filter((e) => e.store.can('tab.meetings'));
+  const plusieurs = usePlusieursEntites();
+  const [edit, setEdit] = useState<{ m: Meeting; u?: string } | null>(null);
+  const [nouvelle, setNouvelle] = useState(false);
+  const [viewPv, setViewPv] = useState<VuePv | null>(null);
+  const gerables = mes.filter((e) => e.store.can('meetings.manage'));
   // Les séances passées sont repliées en bas (archives des PV et ordres du jour), les plus récentes d'abord.
   const jour = today();
-  const aVenir = sorted.filter((m) => m.date >= jour);
-  const passees = sorted.filter((m) => m.date < jour).reverse();
+  const toutes = mes
+    .flatMap((e) => e.store.data.meetings.map((m) => ({ m, e })))
+    .sort((a, b) => a.m.date.localeCompare(b.m.date) || (a.m.heure ?? '').localeCompare(b.m.heure ?? '') || Number(b.e.ici) - Number(a.e.ici));
+  const aVenir = toutes.filter((x) => x.m.date >= jour);
+  const passees = toutes.filter((x) => x.m.date < jour).reverse();
   const cible = useCible('seance');
   useEffect(() => {
     if (!cible?.archive) return;
-    for (const m of data.meetings) {
+    for (const { m, e } of toutes) {
       const pv = m.minutesArchives?.find((x) => x.id === cible.id);
       const odj = m.pvArchives?.find((x) => x.id === cible.id);
-      if (pv || odj) return setViewPv({ meeting: m, pv: (pv ?? odj)!, kind: pv ? 'pv' : 'odj' });
+      if (pv || odj) return setViewPv({ meeting: m, pv: (pv ?? odj)!, kind: pv ? 'pv' : 'odj', u: e.u?.id });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cible]);
 
-  const carte = (m: Meeting) => {
-    const tasks = data.tasks.filter((t) => t.meetingId === m.id);
-    const past = m.date < jour;
-    return (
-      <article key={m.id} id={`cible-${m.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible?.id === m.id ? 'cible' : ''}`}>
-        <DateBlock date={m.date} />
-        <div className="grow">
-          <strong>{m.titre}</strong>
-          <div className="muted">
-            {m.heure && `${m.heure.replace(':', 'h')} · `}<LieuSeance m={m} vide="" />{!past && ` · dans ${daysUntil(m.date)} j`}
-            {annuelle(m) ? <> · <Icone n="repetition" /> chaque année</> : ' · une seule fois'}
-          </div>
-          <Excuses m={m} past={past} />
-          <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
-          {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
-            <div className="pv-archives">
-              {(m.minutesArchives ?? []).map((pv, i) => (
-                <button key={pv.id} className="chip on" onClick={() => setViewPv({ meeting: m, pv, kind: 'pv' })} title={`Validé le ${fmtDateTime(pv.at)}`}>
-                  <Icone n="pv" /> {pv.titre}{i > 0 ? ` (version du ${fmtDateTime(pv.at)})` : ''}
-                </button>
-              ))}
-              {(m.pvArchives ?? []).map((pv) => (
-                <button key={pv.id} className="chip" onClick={() => setViewPv({ meeting: m, pv, kind: 'odj' })} title={`Archivé le ${fmtDateTime(pv.at)}`}>
-                  <Icone n="odj" /> Ordre du jour · {fmtDateTime(pv.at)}
-                </button>
-              ))}
-              {can('tab.minutes') && <Link className="chip" to={`/pv?seance=${m.id}`}><Icone n="notes" /> {m.minutes ? 'Reprendre le PV' : 'Prendre les notes du PV'}</Link>}
-            </div>
-          )}
-        </div>
-        {manage && <button className="btn small" onClick={() => setEdit(m)}>Modifier</button>}
-      </article>
-    );
-  };
+  const carte = ({ m, e }: { m: Meeting; e: EntiteMoi }) => (
+    <Chez key={`${e.u?.id ?? ''}:${m.id}`} id={e.u?.id}>
+      <CarteSeance
+        m={m}
+        cible={cible?.id === m.id}
+        pilule={plusieurs ? e.u?.nom : undefined}
+        onPv={(pv, kind) => setViewPv({ meeting: m, pv, kind, u: e.u?.id })}
+        onEdit={() => setEdit({ m, u: e.u?.id })}
+      />
+    </Chez>
+  );
 
   return (
     <div>
       <div className="page-head">
-        <h1>Séances du comité</h1>
-        {manage && <button className="btn primary" onClick={() => setEdit(newMeeting(data.meetings, today(), mot))}>+ Nouvelle séance</button>}
+        <h1>{mes.length > 1 ? 'Séances de mes comités' : 'Séances du comité'}</h1>
+        {gerables.length > 0 && <button className="btn primary" onClick={() => setNouvelle(true)}>+ Nouvelle séance</button>}
       </div>
       <PageIntro />
-      {manage && <Renommer />}
-      {manage && <AnneeProchaine />}
+      {gerables.map((e) => (
+        <Chez key={e.u?.id ?? ''} id={e.u?.id}>
+          <Renommer nom={gerables.length > 1 ? e.u?.nom : undefined} />
+          <AnneeProchaine nom={gerables.length > 1 ? e.u?.nom : undefined} />
+        </Chez>
+      ))}
       <div className="agenda">
         {aVenir.map(carte)}
         {!aVenir.length && <Empty>{passees.length ? 'Aucune séance à venir.' : 'Aucune séance.'}</Empty>}
       </div>
       {passees.length > 0 && (
-        <details className="seances-passees" open={passees.some((m) => m.id === cible?.id) || undefined}>
+        <details className="seances-passees" open={passees.some((x) => x.m.id === cible?.id) || undefined}>
           <summary><Icone n="archives" /> Séances passées ({passees.length})</summary>
           <div className="agenda">{passees.map(carte)}</div>
         </details>
       )}
       {viewPv && (
-        <PvViewer
-          pv={viewPv.pv}
-          kind={viewPv.kind}
-          canDelete={viewPv.kind === 'pv' ? can('tab.minutes') : manage || can('tab.pv')}
-          onDelete={() => {
-            update((d) => {
-              const x = d.meetings.find((y) => y.id === viewPv.meeting.id)!;
-              if (viewPv.kind === 'pv') x.minutesArchives = (x.minutesArchives ?? []).filter((p) => p.id !== viewPv.pv.id);
-              else x.pvArchives = (x.pvArchives ?? []).filter((p) => p.id !== viewPv.pv.id);
-            }, `Suppression ${viewPv.kind === 'pv' ? 'du PV' : 'de l’ordre du jour'} archivé « ${viewPv.pv.titre} »`);
-            setViewPv(null);
-          }}
-          onClose={() => setViewPv(null)}
-        />
+        <Chez id={viewPv.u}>
+          <ArchiveSeance vue={viewPv} onClose={() => setViewPv(null)} />
+        </Chez>
       )}
-      {edit && <MeetingModal meeting={edit} onClose={() => setEdit(null)} />}
+      {edit && (
+        <Chez id={edit.u}>
+          <MeetingModal meeting={edit.m} onClose={() => setEdit(null)} />
+        </Chez>
+      )}
+      {nouvelle && <NouvelleSeance gerables={gerables} onClose={() => setNouvelle(false)} />}
     </div>
+  );
+}
+
+/** Carte d'une séance, dans son entité : ses tâches, ses excusés, ses archives, mes droits chez elle. */
+function CarteSeance({ m, cible, pilule, onPv, onEdit }: { m: Meeting; cible: boolean; pilule?: string; onPv: (pv: PvArchive, kind: 'odj' | 'pv') => void; onEdit: () => void }) {
+  const { data, can } = useStore();
+  const club = useClubOptional();
+  const comites = useComites();
+  const tasks = data.tasks.filter((t) => t.meetingId === m.id);
+  const past = m.date < today();
+  return (
+    <article id={`cible-${m.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
+      <DateBlock date={m.date} />
+      <div className="grow">
+        <strong>{m.titre}</strong>{pilule && <> <span className="tsource" title={`Séance de « ${pilule} »`}>{pilule}</span></>}
+        <div className="muted">
+          {m.heure && `${m.heure.replace(':', 'h')} · `}<LieuSeance m={m} vide="" />{!past && ` · dans ${daysUntil(m.date)} j`}
+          {annuelle(m) ? <> · <Icone n="repetition" /> chaque année</> : ' · une seule fois'}
+        </div>
+        <Excuses m={m} past={past} />
+        <Link to={`/taches?meeting=${m.id}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
+        {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
+          <div className="pv-archives">
+            {(m.minutesArchives ?? []).map((pv, i) => (
+              <button key={pv.id} className="chip on" onClick={() => onPv(pv, 'pv')} title={`Validé le ${fmtDateTime(pv.at)}`}>
+                <Icone n="pv" /> {pv.titre}{i > 0 ? ` (version du ${fmtDateTime(pv.at)})` : ''}
+              </button>
+            ))}
+            {(m.pvArchives ?? []).map((pv) => (
+              <button key={pv.id} className="chip" onClick={() => onPv(pv, 'odj')} title={`Archivé le ${fmtDateTime(pv.at)}`}>
+                <Icone n="odj" /> Ordre du jour · {fmtDateTime(pv.at)}
+              </button>
+            ))}
+            {can('tab.minutes') && (
+              <Link className="chip" to={`/pv?seance=${m.id}`} onClick={() => club && comites?.choisir(club.current.id)}>
+                <Icone n="notes" /> {m.minutes ? 'Reprendre le PV' : 'Prendre les notes du PV'}
+              </Link>
+            )}
+          </div>
+        )}
+      </div>
+      {can('meetings.manage') && <button className="btn small" onClick={onEdit}>Modifier</button>}
+    </article>
+  );
+}
+
+/** PV ou ordre du jour archivé d'une séance, dans son entité (supprimable selon mes droits chez elle). */
+function ArchiveSeance({ vue, onClose }: { vue: VuePv; onClose: () => void }) {
+  const { can, update } = useStore();
+  return (
+    <PvViewer
+      pv={vue.pv}
+      kind={vue.kind}
+      canDelete={vue.kind === 'pv' ? can('tab.minutes') : can('meetings.manage') || can('tab.pv')}
+      onDelete={() => {
+        update((d) => {
+          const x = d.meetings.find((y) => y.id === vue.meeting.id)!;
+          if (vue.kind === 'pv') x.minutesArchives = (x.minutesArchives ?? []).filter((p) => p.id !== vue.pv.id);
+          else x.pvArchives = (x.pvArchives ?? []).filter((p) => p.id !== vue.pv.id);
+        }, `Suppression ${vue.kind === 'pv' ? 'du PV' : 'de l’ordre du jour'} archivé « ${vue.pv.titre} »`);
+        onClose();
+      }}
+      onClose={onClose}
+    />
+  );
+}
+
+/** Nouvelle séance : dans l'un de mes comités où je gère les séances, choisi dans la fenêtre (« Comité »). */
+function NouvelleSeance({ gerables, onClose }: { gerables: EntiteMoi[]; onClose: () => void }) {
+  // Nommée d'après son mois chez le comité choisi ; date, heure et lieu déjà saisis suivent.
+  const cree = (e: EntiteMoi, v?: Meeting): Meeting => {
+    const m = newMeeting(e.store.data.meetings, v?.date || today(), motSeance(e.u?.type));
+    return v ? { ...m, heure: v.heure, lieu: v.lieu, lieuGeo: v.lieuGeo } : m;
+  };
+  const [chez, setChez] = useState(() => ({ id: gerables[0]?.u?.id, m: cree(gerables[0]), n: 0 }));
+  const liste = gerables.flatMap((e) => (e.u ? [e.u] : []));
+  // Membre de plusieurs entités : le comité de la séance est toujours indiqué (à choisir s'il y en a plusieurs).
+  const plusieurs = usePlusieursEntites();
+  const entite: ChoixComite | undefined =
+    (liste.length > 1 || plusieurs) && chez.id
+      ? {
+          liste,
+          valeur: chez.id,
+          changer: (id, v) => {
+            const e = gerables.find((x) => x.u?.id === id);
+            if (e) setChez((c) => ({ id, m: cree(e, v), n: c.n + 1 }));
+          },
+        }
+      : undefined;
+  return (
+    <Chez id={chez.id}>
+      <MeetingModal key={chez.n} meeting={chez.m} entite={entite} onClose={onClose} />
+    </Chez>
   );
 }
 
@@ -235,11 +316,11 @@ const jourLong = (date: string) => {
 };
 
 /** Séances de l'année prochaine : chaque séance revient le même mois ; on coche celles à ajouter. */
-function AnneeProchaine() {
-  const { data, update } = useStore();
+function AnneeProchaine({ nom }: { nom?: string }) {
+  const { data, can, update } = useStore();
   const [sauf, setSauf] = useState<string[]>([]);
   const liste = aPlanifier(data.meetings);
-  if (!liste.length) return null;
+  if (!liste.length || !can('meetings.manage')) return null;
   const choisies = liste.filter((x) => !sauf.includes(x.source.id));
   const ajouter = () =>
     update((d) => { d.meetings = [...d.meetings, ...choisies.map((x) => x.meeting)]; }, `Ajout des séances de l’année prochaine : ${choisies.map((x) => x.meeting.titre).join(', ')}`);
@@ -249,7 +330,7 @@ function AnneeProchaine() {
   };
   return (
     <section className="panel seances-suivantes">
-      <h2><Icone n="repetition" /> Séances de l’année prochaine</h2>
+      <h2><Icone n="repetition" /> Séances de l’année prochaine{nom && <> <span className="tsource">{nom}</span></>}</h2>
       <p className="muted">Chaque séance revient l’année suivante, le même mois et le même jour de la semaine. Coche celles à ajouter :</p>
       <ul>
         {liste.map(({ source, meeting }) => (
@@ -272,13 +353,13 @@ function AnneeProchaine() {
 const GARDER_NOMS = 'gsa-seances-noms-gardes';
 
 /** Anciens noms numérotés (« Comité 4 ») : les remplacer par le mois (« Comité de septembre 2026 »). */
-function Renommer() {
-  const { data, update } = useStore();
+function Renommer({ nom }: { nom?: string }) {
+  const { data, can, update } = useStore();
   const [garde, setGarde] = useState(() => {
     try { return localStorage.getItem(GARDER_NOMS) === '1'; } catch { return false; }
   });
   const liste = aRenommer(data.meetings);
-  if (!liste.length || garde) return null;
+  if (!liste.length || garde || !can('meetings.manage')) return null;
   const renommer = () =>
     update((d) => {
       d.meetings.forEach((m) => { const x = liste.find((y) => y.meeting.id === m.id); if (x) m.titre = x.titre; });
@@ -289,7 +370,7 @@ function Renommer() {
   };
   return (
     <section className="panel seances-noms">
-      <h2><Icone n="modifier" /> Nommer les séances d’après leur mois</h2>
+      <h2><Icone n="modifier" /> Nommer les séances d’après leur mois{nom && <> <span className="tsource">{nom}</span></>}</h2>
       <p className="muted">
         « {liste[0].meeting.titre} » deviendrait « {liste[0].titre} ». Le nom suit ensuite la date : une séance déplacée en avril s’appelle « … d’avril ».
       </p>
@@ -307,8 +388,11 @@ function Renommer() {
   );
 }
 
+/** Nouvelle séance : le comité où la créer (la fenêtre se rouvre chez lui, avec ce qui a déjà été saisi). */
+type ChoixComite = { liste: OrgUnit[]; valeur: string; changer: (id: string, v: Meeting) => void };
+
 /** Fiche d'une séance : son nom suit le mois de la date ; elle revient chaque année, sauf si on décoche. */
-export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: () => void }) {
+export function MeetingModal({ meeting, entite, onClose }: { meeting: Meeting; entite?: ChoixComite; onClose: () => void }) {
   const { data } = useStore();
   const { saveMeeting, removeMeeting } = useAgendaActions();
   const mot = useMotSeance();
@@ -363,6 +447,22 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
   return (
     <Modal title={isNew ? 'Nouvelle séance' : 'Séance'} onClose={onClose}>
       <div className="form">
+        {entite && entite.liste.length > 1 && (
+          <label className="full">
+            Comité
+            <Deroulante
+              aria-label="Comité"
+              value={entite.valeur}
+              onChange={(id) => id !== entite.valeur && entite.changer(id, v)}
+              options={entite.liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))}
+            />
+          </label>
+        )}
+        {entite?.liste.length === 1 && (
+          <p className="full seance-comite">
+            Comité : <PastilleEntite u={entite.liste[0]} /> <strong>{entite.liste[0].nom}</strong>
+          </p>
+        )}
         <label>
           Titre
           <input value={v.titre} onChange={(e) => set({ titre: e.target.value })} />

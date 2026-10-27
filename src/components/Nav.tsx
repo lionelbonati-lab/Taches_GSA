@@ -6,19 +6,21 @@ import { navigation, pageOuverte } from '../data/navigation';
 import { Icone } from './icones';
 import { PastilleEntite } from './IconesEntite';
 import { Deroulante } from './Deroulante';
-import { PERMS_COMITE, useComites } from '../data/comites';
+import { PAGES_PAR_COMITE, PERMS_COMITE, useComites } from '../data/comites';
 
-/** Rubriques, pages du compte et page ouverte, selon les droits et l'entité ouverte (pages Comité : le comité choisi). */
+/** Rubriques, pages du compte et page ouverte, selon mes droits (pages Comité : dans l'un de mes comités). */
 export function useNavigation() {
   const { can } = useStore();
   const club = useClubOptional();
   const comites = useComites();
   const { pathname } = useLocation();
+  // Nom des séances (« Comité », « Réunions »…) : celui de mes comités s'ils sont tous du même type.
+  const types = new Set(comites?.liste('tab.meetings').map((u) => u.type));
   const nav = navigation({
-    can: (p) => (comites && PERMS_COMITE.includes(p) ? comites.canChoisi(p) : can(p)),
+    can: (p) => (comites && PERMS_COMITE.includes(p) ? comites.canUn(p) : can(p)),
     club: !!club,
     registre: !!club && (club.membresAcces || club.caissier),
-    type: comites?.choisi?.type ?? club?.current.type ?? 'central',
+    type: types.size === 1 ? [...types][0] : types.size ? 'central' : club?.current.type ?? 'central',
     demandes: !!club?.demandesMdp.length,
     superAdmin: !!club?.superAdmin,
   });
@@ -39,15 +41,20 @@ export function useChemin() {
 }
 
 /**
- * Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV, Sondages). Comité : d'abord le comité dont ce
- * sont les séances, à choisir parmi les miens (vue « moi » : sans changer d'entité).
+ * Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV). Ordre du jour et PV : d'abord le comité dont ce
+ * sont l'ordre du jour et le PV, à choisir parmi les miens (vue « moi » : sans changer d'entité).
  */
 export function SousOnglets() {
   const { ouverte } = useNavigation();
   const comites = useComites();
+  const club = useClubOptional();
+  const { pathname } = useLocation();
   const barre = useRef<HTMLElement>(null);
   const r = ouverte?.rubrique;
-  const entite = r?.id === 'comite' ? comites?.choisi : undefined;
+  const perm = PAGES_PAR_COMITE[pathname];
+  const liste = perm && comites ? comites.liste(perm) : [];
+  const entite = perm && (liste.length > 1 || (club?.mine.length ?? 0) > 1) ? comites?.choisi(perm) : undefined;
+  const page = ouverte?.page.label;
   // Téléphone : la page ouverte reste visible dans la barre (qui défile de côté). Seule la barre bouge, jamais la page.
   useEffect(() => {
     const bar = barre.current;
@@ -59,19 +66,19 @@ export function SousOnglets() {
   if (!r || (r.pages.length < 2 && !entite)) return null;
   return (
     <nav ref={barre} className="subtabs no-print" aria-label={r.label}>
-      {entite && comites && comites.liste.length > 1 ? (
+      {entite && comites && liste.length > 1 ? (
         <span className="subtabs-entite subtabs-choix">
           <Deroulante
             aria-label="Comité"
-            title={`${r.label} de « ${entite.nom} » : choisis l’un de tes comités`}
+            title={`${page} de « ${entite.nom} » : choisis l’un de tes comités`}
             value={entite.id}
             onChange={comites.choisir}
-            options={comites.liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))}
+            options={liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))}
           />
         </span>
       ) : (
         entite && (
-          <span className="subtabs-entite" title={`${r.label} de « ${entite.nom} »`}>
+          <span className="subtabs-entite" title={`${page} de « ${entite.nom} »`}>
             <PastilleEntite u={entite} /> {entite.nom}
           </span>
         )
