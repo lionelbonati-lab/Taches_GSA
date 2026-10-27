@@ -65,7 +65,7 @@ export function LogoPanel() {
       <section className="panel icone-entite-panel">
         <h2>{`Icône de « ${u.nom} »`}</h2>
         <p className="muted">
-          À choisir dans la bibliothèque de l’appli : la pastille de l’entité (en-tête, menu des entités, organigramme){u.logo ? ' quand elle n’a pas de logo' : ''}, et
+          À choisir dans la bibliothèque de l’appli : la pastille de l’entité (en-tête, organigramme, tâches){u.logo ? ' quand elle n’a pas de logo' : ''}, et
           son repère dans l’agenda, les événements et l’accueil. Sans choix : l’icône de son type.
         </p>
         <ChoixIconeEntite type={u.type} value={u.icone} couleur={u.couleur} disabled={!allowed} onChange={(i) => void changerIcone(i)} />

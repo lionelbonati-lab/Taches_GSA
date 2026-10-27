@@ -28,7 +28,7 @@ export function Admin() {
   const central = !u || u.type === 'central';
   // Sous-comité, groupe ou équipe : couleur héritée du comité central.
   const sub = !!u && !central;
-  // Personnes de l'entité : dans l'organigramme du club (menu des entités, en haut à gauche).
+  // Personnes de l'entité : dans l'organigramme du club (bouton « Organigramme », en haut à gauche).
   const personnes = !!club;
 
   const couleur = u?.couleurAppli ?? (sub ? club?.central?.couleurAppli : undefined);
@@ -136,7 +136,7 @@ export function Admin() {
             <span>
               <b>Personnes et accès</b>
               <span className="muted">« + Ajouter une personne » sous l’entité ; un clic sur une personne ouvre la fiche : poste, rôle, accès à l’appli.</span>
-              <small>Organigramme du club (menu des entités, en haut à gauche) · {data.people.filter((x) => x.actif).length} personnes</small>
+              <small>Organigramme du club (bouton « Organigramme », en haut à gauche) · {data.people.filter((x) => x.actif).length} personnes</small>
             </span>
           </Link>
         )}

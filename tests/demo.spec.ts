@@ -1,5 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
-import { compter, expect, nouvelleTache, ouvrirDemo, test } from './outils';
+import { compter, expect, nouvelleTache, ouvrirDemo, ouvrirEntite, test } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
 
@@ -92,9 +92,7 @@ test('discussion : commenter, corriger puis retirer un commentaire', async ({ pa
 
 test('discussion : mon message écrit depuis une autre de mes entités reste le mien', async ({ page }) => {
   const entite = async (nom: string) => {
-    await page.locator('.unit-btn').click();
-    await page.locator('.unit-menu .unit-item', { hasText: nom }).click();
-    await expect(page.locator('.unit-btn')).toContainText(nom);
+    await ouvrirEntite(page, nom);
     await page.goto('./?demo#/taches');
   };
   // Julien Moreau, aussi membre de la Soirée récréative, y crée une tâche partagée avec le comité central.
@@ -146,9 +144,7 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
 
 test('discussion : une seule notification par personne, lue partout une fois lue', async ({ page }) => {
   const entite = async (nom: string) => {
-    await page.locator('.unit-btn').click();
-    await page.locator('.unit-menu .unit-item', { hasText: nom }).click();
-    await expect(page.locator('.unit-btn')).toContainText(nom);
+    await ouvrirEntite(page, nom);
     await page.goto('./?demo#/taches');
   };
   const changer = async (nom: string) => {
@@ -236,9 +232,7 @@ test('discussion : une seule notification par personne, lue partout une fois lue
 
 test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées sans changer d’entité', async ({ page }) => {
   const entite = async (nom: string) => {
-    await page.locator('.unit-btn').click();
-    await page.locator('.unit-menu .unit-item', { hasText: nom }).click();
-    await expect(page.locator('.unit-btn')).toContainText(nom);
+    await ouvrirEntite(page, nom);
     await page.goto('./?demo#/taches');
   };
   // Julien Moreau crée une tâche dans la Soirée récréative (pas partagée).
@@ -306,9 +300,7 @@ test('vue « moi » : nouvelle tâche créée dans une autre de mes entités, sa
   await expect(page.locator('main tr', { hasText: 'Commander les boissons' }).locator('.tsource')).toHaveText('Soirée récréative');
 
   // Enregistrée dans la Soirée, comme une tâche à elle.
-  await page.locator('.unit-btn').click();
-  await page.locator('.unit-menu .unit-item', { hasText: 'Soirée récréative' }).click();
-  await expect(page.locator('.unit-btn')).toContainText('Soirée récréative');
+  await ouvrirEntite(page, 'Soirée récréative');
   await page.goto('./?demo#/taches');
   const chezElle = page.locator('main tr', { hasText: 'Commander les boissons' });
   await expect(chezElle).toHaveCount(1);

@@ -157,7 +157,7 @@ export function Layout() {
           <span className="brand-name">{nomAppli()}</span>
           {cloud ? <SyncBadge /> : <span className="demo-tag">DÉMO</span>}
         </div>
-        {club && <UnitSwitch />}
+        {club && <BoutonOrganigramme />}
         <nav className="tabs">
           {rubriques.map((r) => (
             <NavLink key={r.id} to={r.pages[0].to} end className={() => (r.id === rubriqueOuverte ? 'active' : '')} title={r.pages.length > 1 ? `${r.label} : ${r.pages.map((p) => p.label).join(' · ')}` : r.label}>
@@ -287,42 +287,28 @@ export function Layout() {
   );
 }
 
-/** Entité ouverte (comité central, sous-comité, groupe, équipe) et passage à une autre. */
-function UnitSwitch() {
+/**
+ * Organigramme du club, où l'on ouvre une autre entité ; dessous, l'entité ouverte (ses séances, son PV, ses réglages).
+ * Vue « moi » : les tâches, messages et notifications de toutes mes entités sont déjà là, sans en changer.
+ */
+function BoutonOrganigramme() {
   const club = useClubOptional();
-  const [open, setOpen] = useState(false);
-  const loc = useLocation();
-  useEffect(() => setOpen(false), [loc.pathname]);
   if (!club) return null;
   const { current } = club;
-  const others = club.mine.filter((u) => u.id !== current.id);
   return (
     <div className="unit-switch">
-      <button className="unit-btn" onClick={() => setOpen(!open)} aria-expanded={open} title={`${UNIT_TYPES[current.type].label} · changer d’entité`} style={{ borderColor: current.couleur }}>
+      <NavLink
+        to="/organigramme"
+        className="unit-btn"
+        title={`Organigramme du club (y ouvrir une autre entité) · entité ouverte : ${current.nom}, ${UNIT_TYPES[current.type].label.toLowerCase()}`}
+        style={{ borderColor: current.couleur }}
+      >
         <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icone={UNIT_TYPES[current.type].trait} perso={current.icone} />
-        <span className="unit-name">{current.nom}</span>
-        <span className="unit-caret">▾</span>
-      </button>
-      {open && (
-        <>
-          <div className="unit-back" onClick={() => setOpen(false)} />
-          <div className="unit-menu" role="menu">
-            <small className="muted">Entité ouverte</small>
-            <div className="unit-item on">
-              <UnitMark className="unit-dot" logo={current.logo} couleur={current.couleur} icone={UNIT_TYPES[current.type].trait} perso={current.icone} />
-              <span><b>{current.nom}</b><small className="muted">{UNIT_TYPES[current.type].label}</small></span>
-            </div>
-            {others.length > 0 && <small className="muted">Mes autres entités</small>}
-            {others.map((u) => (
-              <button key={u.id} className="unit-item" role="menuitem" onClick={() => { setOpen(false); club.switchUnit(u.id); }}>
-                <UnitMark className="unit-dot" logo={u.logo} couleur={u.couleur} icone={UNIT_TYPES[u.type].trait} perso={u.icone} />
-                <span><b>{u.nom}</b><small className="muted">{UNIT_TYPES[u.type].label}{u.moiAdmin ? ' · ★ admin' : ''}</small></span>
-              </button>
-            ))}
-            <NavLink to="/organigramme" className="unit-item link" onClick={() => setOpen(false)}><Icone n="organigramme" /> Organigramme du club</NavLink>
-          </div>
-        </>
-      )}
+        <span className="unit-name">
+          <span className="unit-titre"><Icone n="organigramme" /> Organigramme</span>
+          <small>{current.nom}</small>
+        </span>
+      </NavLink>
     </div>
   );
 }

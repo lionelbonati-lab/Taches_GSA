@@ -739,10 +739,11 @@ function CarteEnt({
   );
 }
 
-/** En-tête d'un cadre : le comité (ou « Sans comité »), sa date ; en modification : « ＋ Poste », ⚙️. */
+/** En-tête d'un cadre : le comité (ou « Sans comité »), sa date, « Ouvrir › » ; en modification : « ＋ Poste », ⚙️. */
 function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx }) {
   const t = c.u ? UNIT_TYPES[c.u.type] : undefined;
   const regler = c.u ? ctx.edition?.modifier?.(c.u.id) : undefined;
+  const o = c.u ? ctx.ouvrir?.(c.u) : undefined;
   return (
     <h3 className="orgl-cadre-tete">
       {c.u ? <UnitMark className="org-icon" logo={c.u.logo} couleur={c.couleur} icone={t!.trait} perso={c.u.icone} /> : <span className="org-icon" style={{ background: SANS_COMITE }} aria-hidden="true"><Icone n="compte" /></span>}
@@ -756,6 +757,11 @@ function TeteCadre({ c, ctx }: { c: PlanOrganigramme['cadres'][number]; ctx: Ctx
       {regler && (
         <button type="button" className="orgl-plus" title={`Modifier « ${c.titre} » (nom, couleur, date…)`} aria-label={`Modifier « ${c.titre} »`} onClick={regler}>
           <Icone n="reglages" />
+        </button>
+      )}
+      {o && (
+        <button type="button" className="orgl-ouvrir" title={o.aide} onClick={o.go}>
+          {o.label} ›
         </button>
       )}
     </h3>

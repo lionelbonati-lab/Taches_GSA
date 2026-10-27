@@ -1289,7 +1289,12 @@ code.password { font-size: 1.1rem; padding: 2px 8px; border-radius: 6px; backgro
 /* ---------- Entités du club : changement d'entité, organigramme, demandes ---------- */
 .unit-switch { position: relative; flex-shrink: 0; }
 .unit-btn { display: inline-flex; align-items: center; gap: 6px; max-width: 220px; border: 1px solid var(--border); border-left-width: 4px; background: var(--surface); border-radius: 8px; padding: 4px 8px 4px 6px; cursor: pointer; font-weight: 600; font-size: 0.88rem; }
-.unit-btn:hover { background: var(--surface2); }
+.unit-btn:hover, .unit-btn.active { background: var(--surface2); }
+/* Bouton « Organigramme » de l'en-tête : dessous, l'entité ouverte. */
+a.unit-btn { color: inherit; text-decoration: none; }
+.unit-btn .unit-name { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.unit-titre { display: inline-flex; align-items: center; gap: 4px; }
+.unit-btn .unit-name small { font-weight: 400; color: var(--muted); font-size: 0.74rem; overflow: hidden; text-overflow: ellipsis; }
 .unit-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .unit-caret { color: var(--muted); font-size: 0.75rem; }
 .unit-dot { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 6px; font-size: 0.8rem; flex-shrink: 0; color: #fff; }
@@ -1426,6 +1431,8 @@ button.orgl-depend:hover { color: var(--text); }
 .orgl-plus { border: 1px dashed var(--primary); background: var(--primary-soft); color: var(--primary); border-radius: 6px; padding: 1px 6px; font: inherit; font-size: 0.74rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
 .orgl-cadre-tete .orgl-plus { margin-left: auto; }
 .orgl-cadre-tete .orgl-plus + .orgl-plus { margin-left: 0; }
+.orgl-cadre-tete .orgl-ouvrir { margin-left: auto; align-self: center; flex: none; }
+.orgl-cadre-tete .orgl-plus ~ .orgl-ouvrir { margin-left: 0; }
 .orgl-cadre-vide { position: absolute; left: 12px; right: 12px; top: 44px; margin: 0; font-size: 0.8rem; white-space: normal; }
 .orgl-survol { outline: 3px solid var(--primary); outline-offset: 2px; }
 .orgl-cadre.orgl-survol { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }

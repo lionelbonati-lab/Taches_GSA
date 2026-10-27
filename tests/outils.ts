@@ -24,6 +24,15 @@ export async function ouvrirDemo(page: Page) {
   await expect(page.locator('.unit-btn')).toBeVisible();
 }
 
+/** Ouvre l'une de mes entités depuis l'organigramme (bouton de l'en-tête, puis « Ouvrir › » de son cadre ou de sa carte). */
+export async function ouvrirEntite(page: Page, nom: string) {
+  await expect(page.locator('.unit-btn')).toBeVisible();
+  if ((await page.locator('.unit-btn small').textContent()) === nom) return;
+  await page.locator('.unit-btn').click();
+  await page.getByTitle(`Ouvrir « ${nom} »`).filter({ visible: true }).first().click();
+  await expect(page.locator('.unit-btn')).toContainText(nom);
+}
+
 /** Nouvelle tâche ouverte depuis le bouton « + », titre et section remplis (pas encore enregistrée). */
 export async function nouvelleTache(page: Page, titre: string) {
   await page.locator('.fab').click();
