@@ -67,6 +67,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const track = useRef<DocTracking>({ added: [], removed: [] });
+  // Entités avec qui la tâche a été partagée pour y confier la tâche à quelqu'un (hors de l'entité) : plus partagée si on
+  // le retire, avant d'enregistrer.
+  const partagesPour = useRef(new Set<string>());
   const [chat, setChat] = useState(!!ouvrirDiscussion && !isNew);
   const [newPoll, setNewPoll] = useState(false);
   // Liens et partage déjà remplis : ils restent affichés si on les vide (ex. partage retiré : plus de séance du comité).
@@ -182,8 +185,53 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
       return { ...x, respPartage: Object.keys(respPartage).length ? respPartage : undefined };
     });
   };
-  // Responsables des autres entités (tâche partagée), sauf ceux de l'entité de la tâche (choisis ci-dessus).
-  const autres = autresResp(!entite ? t : attribuee ? { ...t, respPartage: { ...t.respPartage, [chezId]: [] } } : { ...t, source: { ...t.source!, responsables: [] } });
+  // Personnes hors de l'entité (tâche d'ici) : celles des autres entités du club. Choisie, la tâche est partagée avec son
+  // entité et elle en est responsable là-bas (respPartage), comme si son entité l'avait choisie : elle la voit dans ses
+  // tâches et ses notifications.
+  const ici = club?.current.id;
+  const horsChoisis = t.source
+    ? []
+    : Object.entries(t.respPartage ?? {})
+        .filter(([u]) => u !== ici && u !== chezId)
+        .flatMap(([uniteId, ids]) => {
+          const u = club?.units.find((x) => x.id === uniteId);
+          return u ? ids.flatMap((id) => u.membres.filter((m) => m.id === id).map((m) => ({ u, m }))) : [];
+        });
+  const dejaPris = [...respIci, ...choisisChez, ...horsChoisis.map((x) => x.m)];
+  const horsIci =
+    club && !t.source && !attribuee && !t.paiement && complet && canAssignOthers
+      ? club.units
+          .filter((u) => u.id !== ici && !u.archive)
+          .sort((a, b) => a.nom.localeCompare(b.nom, 'fr'))
+          .map((u) => ({
+            u,
+            membres: u.membres
+              .filter((m) => !ficheIci(m) && !dejaPris.some((x) => memePersonne(x, m)))
+              .sort((a, b) => `${a.prenom} ${a.nom}`.localeCompare(`${b.prenom} ${b.nom}`, 'fr')),
+          }))
+          .filter((x) => x.membres.length)
+      : [];
+  const ajouterHors = (u: string, id: string) => {
+    if (!partage.includes(u)) partagesPour.current.add(u);
+    setT((x) => {
+      const y = avecPartage(x, u, true, centralId);
+      return { ...y, respPartage: { ...y.respPartage, [u]: [...(y.respPartage?.[u] ?? []), id] } };
+    });
+  };
+  const retirerHors = (u: string, id: string) => {
+    const reste = (t.respPartage?.[u] ?? []).some((y) => y !== id);
+    const plusPartagee = !reste && partagesPour.current.delete(u);
+    setT((x) => {
+      if (plusPartagee) return avecPartage(x, u, false, centralId);
+      const l = (x.respPartage?.[u] ?? []).filter((y) => y !== id);
+      const respPartage = { ...x.respPartage, [u]: l };
+      if (!l.length) delete respPartage[u];
+      return { ...x, respPartage: Object.keys(respPartage).length ? respPartage : undefined };
+    });
+  };
+  // Responsables des autres entités (tâche partagée par une autre entité), sauf ceux de l'entité de la tâche (choisis
+  // ci-dessus) ; tâche d'ici : tous en puces.
+  const autres = t.source ? autresResp({ ...t, source: { ...t.source, responsables: [] } }) : '';
 
   // Tâches liées : un seul niveau (une tâche principale n'est pas elle-même liée à une autre).
   const kids = isNew ? [] : childrenOf(data, task.id).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
@@ -601,19 +649,35 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
                 {!dis && canAssignOthers && <button type="button" className="chip-x" aria-label={`Retirer ${m.prenom} ${m.nom}`} onClick={() => toggleChez(m.id)}>✕</button>}
               </span>
             ))}
-            {!t.responsables.length && !choisisChez.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
-            {!dis && (aAjouter.length > 0 || membresChez.length > 0) && (
+            {horsChoisis.map(({ u, m }) => (
+              <span key={`${u.id}:${m.id}`} className="chip on" title={`Personne de « ${u.nom} » : la tâche est partagée avec elle`}>
+                <IconeEntite u={u} /> {m.prenom} {m.nom}
+                {!dis && canAssignOthers && <button type="button" className="chip-x" aria-label={`Retirer ${m.prenom} ${m.nom}`} onClick={() => retirerHors(u.id, m.id)}>✕</button>}
+              </span>
+            ))}
+            {!t.responsables.length && !choisisChez.length && !horsChoisis.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
+            {!dis && (aAjouter.length > 0 || membresChez.length > 0 || horsIci.length > 0) && (
               <Deroulante
                 puce
                 value=""
                 libelle="＋ Ajouter…"
                 aria-label="Ajouter une personne"
-                onChange={(v) => v && (v.startsWith('chez:') ? toggleChez(v.slice(5)) : toggleResp(v))}
+                onChange={(v) => {
+                  if (v.startsWith('chez:')) toggleChez(v.slice(5));
+                  else if (v.startsWith('hors:')) {
+                    const [u, id] = v.slice(5).split(':');
+                    ajouterHors(u, id);
+                  } else if (v) toggleResp(v);
+                }}
                 options={[
-                  ...(entite
+                  ...(entite || horsIci.length
                     ? [
-                        { groupe: entite.nom, icone: <PastilleEntite u={entite} />, options: membresChez.map((m) => ({ value: `chez:${m.id}`, label: nomPoste(m) })) },
-                        { groupe: club?.current.nom ?? 'Ici', options: aAjouter.map((p) => ({ value: p.id, label: nomPoste(p, user.id) })) },
+                        ...(entite ? [{ groupe: entite.nom, icone: <PastilleEntite u={entite} />, options: membresChez.map((m) => ({ value: `chez:${m.id}`, label: nomPoste(m) })) }] : []),
+                        ...(aAjouter.length
+                          ? [{ groupe: club?.current.nom ?? 'Ici', icone: club ? <PastilleEntite u={club.current} /> : undefined, options: aAjouter.map((p) => ({ value: p.id, label: nomPoste(p, user.id) })) }]
+                          : []),
+                        // Hors de l'entité : la tâche sera partagée avec la sienne.
+                        ...horsIci.map(({ u, membres }) => ({ groupe: u.nom, icone: <PastilleEntite u={u} />, options: membres.map((m) => ({ value: `hors:${u.id}:${m.id}`, label: nomPoste(m) })) })),
                       ]
                     : aAjouter.map((p) => ({ value: p.id, label: nomPoste(p, user.id) }))),
                 ]}

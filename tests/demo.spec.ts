@@ -555,6 +555,34 @@ test('vue « moi » : remboursement envoyé à la caisse d’une autre de mes en
   await verifierEntite(page, 'Comité central');
 });
 
+test('tâche : une personne hors du comité, d’une autre entité du club, s’en occupe (tâche partagée avec son entité)', async ({ page }) => {
+  // Antoine Mercier : moniteur de l'École de cyclisme, sans fiche au comité central.
+  const fiche = await nouvelleTache(page, 'Préparer les dossards');
+  await fiche.getByRole('combobox', { name: 'Ajouter une personne' }).click();
+  await page.getByRole('option', { name: /Antoine Mercier/ }).click();
+  await expect(fiche.locator('.qui .chip', { hasText: 'Antoine Mercier' })).toBeVisible();
+  // La tâche est partagée avec son entité (visible dans « Partager ») ; retirée, le partage fait pour elle s'en va aussi.
+  await expect(fiche.locator('.partage .chip.on', { hasText: 'École de cyclisme' })).toHaveCount(1);
+  await fiche.getByRole('button', { name: 'Retirer Antoine Mercier' }).click();
+  await expect(fiche.locator('.qui .chip', { hasText: 'Antoine Mercier' })).toHaveCount(0);
+  await expect(fiche.locator('.partage .chip.on', { hasText: 'École de cyclisme' })).toHaveCount(0);
+  await fiche.getByRole('combobox', { name: 'Ajouter une personne' }).click();
+  await page.getByRole('option', { name: /Antoine Mercier/ }).click();
+  await expect(fiche.locator('.partage .chip.on', { hasText: 'École de cyclisme' })).toHaveCount(1);
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const enregistree = await page.evaluate(() =>
+    (JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').tasks ?? []).find((t: { titre: string }) => t.titre === 'Préparer les dossards'),
+  );
+  expect(enregistree.partage).toContain('u-ecole');
+  expect(enregistree.respPartage['u-ecole']).toHaveLength(1);
+  // Antoine la retrouve dans ses tâches, à l'École de cyclisme.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Antoine Mercier' }).first().click();
+  await allerA(page, '/taches');
+  await expect(page.locator('main').getByText('Préparer les dossards').first()).toBeVisible();
+});
+
 test('vue « moi » : les événements de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();
