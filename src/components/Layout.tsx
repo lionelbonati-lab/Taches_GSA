@@ -24,7 +24,7 @@ import { applyAppColor, cacheColor } from '../data/couleur';
 import { Icone, type IconeNom } from './icones';
 import { newTask } from '../data/utils';
 import { DansEntite } from '../data/entites';
-import { PAGES_PAR_COMITE, useComites } from '../data/comites';
+import { pageParEntite, useComites } from '../data/comites';
 
 export function Layout() {
   const { data, user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
@@ -339,16 +339,15 @@ function SyncBadge() {
   return <span className="sync-tag" title="Tout est enregistré sur le serveur">☁<span className="sync-text"> À jour</span></span>;
 }
 
-/** Page pas encore chargée (premier clic juste après l'ouverture) : rien pendant un instant, puis un mot d'attente. */
 /**
- * Ordre du jour et PV d'un autre de mes comités que l'entité ouverte : affichés dans le sien (ses séances, ses tâches, mes
- * droits chez lui), sans changer d'entité.
+ * Ordre du jour et PV d'un autre de mes comités que l'entité ouverte, console admin d'une autre de mes entités : affichés
+ * dans la sienne (ses séances, ses tâches, mes droits chez elle), sans changer d'entité.
  */
 function DansComite({ children }: { children: ReactNode }) {
   const comites = useComites();
   const club = useClubOptional();
   const { pathname } = useLocation();
-  const perm = PAGES_PAR_COMITE[pathname];
+  const perm = pageParEntite(pathname)?.perm;
   const choisi = perm ? comites?.choisi(perm) : undefined;
   if (!choisi || choisi.id === club?.current.id) return <>{children}</>;
   return (
@@ -358,6 +357,7 @@ function DansComite({ children }: { children: ReactNode }) {
   );
 }
 
+/** Page pas encore chargée (premier clic juste après l'ouverture) : rien pendant un instant, puis un mot d'attente. */
 function ChargementPage() {
   const [visible, setVisible] = useState(false);
   useEffect(() => {

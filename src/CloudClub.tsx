@@ -7,7 +7,7 @@ import { uid } from './data/utils';
 import { luesCommunes } from './data/commentaires';
 import type { OrgUnit } from './data/types';
 import { StoreProvider, type CloudMode } from './data/store';
-import { SCHEMA } from './data/migrate';
+import { migrate, SCHEMA } from './data/migrate';
 
 // Version réelle : le club autour de l'entité ouverte (organigramme, changement d'entité, demandes au comité central).
 // Les données de chaque entité restent dans la sienne ; ce qui passe de l'une à l'autre passe par les
@@ -91,11 +91,13 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
   }, [clubId, userId]);
   useEffect(refresh, [refresh]);
 
-  // Mots de passe oubliés : demandes des membres de l'entité ouverte (le serveur ne répond qu'à ses admins), revues toutes les 5 minutes.
-  const [demandes, setDemandes] = useState<DemandeMdp[]>([]);
+  // Mots de passe oubliés : demandes des membres de chacune de mes entités (le serveur ne répond qu'à ses admins), revues
+  // toutes les 5 minutes.
+  const [demandes, setDemandes] = useState<Record<string, DemandeMdp[]>>({});
+  const entites = [...new Set([m.committeeId, ...list.filter((x) => x.personId).map((x) => x.committeeId)])].sort().join(',');
   const chargerDemandes = useCallback(() => {
-    void demandesMdp(m.committeeId).then(setDemandes);
-  }, [m.committeeId]);
+    void Promise.all(entites.split(',').map((c) => demandesMdp(c).then((l) => [c, l] as const))).then((r) => setDemandes(Object.fromEntries(r)));
+  }, [entites]);
   useEffect(() => {
     chargerDemandes();
     const id = setInterval(chargerDemandes, 5 * 60_000);
@@ -299,7 +301,7 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
         if (uniteId === x.committeeId) rattraper();
         refresh();
       },
-      demandesMdp: arrierePlan ? [] : demandes,
+      demandesMdp: demandes[x.committeeId] ?? [],
       async approuverMdp(id) {
         try {
           return await accessAction<{ email: string; password: string }>({ action: 'approuverMdp', demandeId: id });
@@ -351,8 +353,9 @@ function EntiteArrierePlan({ m, userId, email, signOut }: { m: Membership; userI
       .then(({ data }) => {
         const person = data.people.find((p) => p.id === personId);
         if (!vivante || !person) return;
-        // Pas de mise à niveau des données ici : elle se fait quand un admin ouvre l'entité.
+        // Mise à niveau des données, comme à l'ouverture : seul un admin la fait (le serveur refuserait sinon).
         if (!data.schema) data.schema = SCHEMA;
+        else if (data.schema < SCHEMA && person.roles.includes(ADMIN_ROLE_ID)) migrate(data);
         setCloud({ sync, initial: data, personId: person.id, membership: m, email, signOut });
       })
       .catch(() => {});

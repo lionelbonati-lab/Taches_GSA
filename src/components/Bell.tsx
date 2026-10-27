@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { ago, useNotifications, type Notif } from '../notifications';
 import { useClubOptional } from '../data/club';
-import { PAGES_PAR_COMITE, PERMS_COMITE, useComites } from '../data/comites';
+import { pageParEntite, PERMS_COMITE, useComites } from '../data/comites';
 
 /** Pages qui réunissent toutes mes entités (vue « moi »). */
 const PAGES_REUNIES = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/sondages'];
@@ -36,10 +36,12 @@ export function Bell() {
     setOpen(false);
     // De l'une de mes autres entités, une page qui les réunit toutes (séances, sondages…) : elle s'ouvre d'ici, sans
     // changer d'entité ; une séance y choisit son comité (ordre du jour, PV), un « Pour info » reçu s'ouvre chez elle.
-    // Une autre page (mots de passe oubliés…) : dans son entité.
+    // Une page d'une seule entité (mots de passe oubliés…) : elle s'y choisit.
     const [chemin, q = ''] = n.link.split('?');
-    if (n.entite && (PAGES_REUNIES.includes(chemin) || PAGES_PAR_COMITE[chemin])) {
-      if (PERMS_COMITE.some((p) => comites?.liste(p).some((u) => u.id === n.entite))) comites!.choisir(n.entite);
+    const parEntite = pageParEntite(chemin);
+    if (n.entite && (PAGES_REUNIES.includes(chemin) || parEntite)) {
+      const perms = parEntite ? [parEntite.perm] : PERMS_COMITE;
+      if (perms.some((p) => comites?.liste(p).some((u) => u.id === n.entite))) comites!.choisir(n.entite);
       navigate(chemin === '/taches' && q.startsWith('pourinfo=') ? `${n.link}&chez=${encodeURIComponent(n.entite)}` : n.link);
     } else if (n.entite && club) club.switchUnit(n.entite, `#${n.link}`);
     else navigate(n.link);

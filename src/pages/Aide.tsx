@@ -87,6 +87,8 @@ export function Aide() {
     geste('Voter aux sondages de toutes mes entités, et en poser un', vers('/sondages'), ' : ceux de toutes tes entités y sont réunis, chacun avec la pilule de son entité ; tu y votes sans changer d’entité. « + Nouveau sondage » › « Entité » choisit où le créer (ses votants sont proposés).');
   if (comites && (comites.liste('tab.pv').length > 1 || comites.liste('tab.minutes').length > 1))
     geste('Préparer l’ordre du jour ou tenir le PV d’un autre de mes comités', vers('/ordre-du-jour') ?? vers('/pv'), ' : choisis le comité en haut de la page (« Comité »). Son ordre du jour et son PV s’affichent directement, avec tes droits chez lui, sans changer d’entité ; le choix vaut pour les deux pages.');
+  if (comites && comites.liste('admin.access').length > 1)
+    geste('Régler une autre de mes entités (console admin)', vers('/admin'), ' : choisis l’entité en haut de la page (« Entité »), parmi celles dont tu es admin. Ses rôles, ses sections, son apparence et son en-tête s’affichent directement, sans changer d’entité (aussi pour « Mots de passe oubliés »).');
   if (club && club.units.length > 1)
     geste('Partager une tâche avec d’autres entités (comité central, CO, groupe…)', 'Dans la tâche, « Ajouter : » › « Partager », puis choisis les entités : elles la voient dans leurs tâches et leur ordre du jour (sous l’événement, ou la section qui porte ton nom) et la modifient comme les leurs. Elle reste enregistrée chez toi, repérée 🤝.');
     geste('Compléter une tâche qu’une autre entité partage avec toi', 'Dans la tâche, « Ajouter : » propose tout : documents (les fichiers sont rangés chez elle, avec ton nom), répétition (elle crée l’occurrence suivante quand la tâche est terminée), une séance d’ici (la tâche va à son ordre du jour et à son PV), partage avec d’autres entités, sondage, email. La supprimer, la rattacher à un événement ou à une autre tâche : dans son entité (« Ouvrir dans … »).');
@@ -151,7 +153,7 @@ export function Aide() {
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
   if (chemin('/admin')) geste('Donner une icône à l’entité', vers('/admin'), ' › « Apparence » › « Choisir une icône… » (ou la fiche de l’entité dans l’organigramme) : elle remplace celle de son type sur sa pastille et dans l’agenda, les événements et l’accueil. « Reprendre celle du type » pour revenir à l’icône d’origine.');
   if (chemin('/admin')) geste('Changer l’en-tête de l’ordre du jour, du PV et du bon de paiement', vers('/admin'), ' › « En-tête des documents » : le même pour tous les documents de l’entité.');
-  if (club && club.current.type === 'central' && chemin('/admin'))
+  if (comites?.liste('admin.access').some((u) => u.type === 'central') && chemin('/admin'))
     geste('Voir les erreurs rencontrées par les membres', vers('/admin'), ' › « Erreurs de l’appli » : l’appli les signale d’elle-même (une même erreur est comptée, pas répétée). « Copier » pour la faire corriger, puis « Réglée ».');
 
   return (

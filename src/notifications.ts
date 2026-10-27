@@ -24,8 +24,10 @@ export function useNotifications() {
   }, []);
   const p = { ...DEFAULT_NOTIF, ...prefs.notif };
   const ici: Notif[] = user ? computeNotifications(data, user, p, club?.demandesMdp, pourInfo, club?.units, club?.current.id, { mesFiches: club?.mesFiches, lues: club?.luesAilleurs }) : [];
+  // Une même demande de mot de passe (personne de plusieurs de mes entités) : une seule fois.
+  const mdp = new Set(ici.filter((n) => n.key.startsWith('mdp:')).map((n) => n.key));
   const ailleurs: Notif[] = autres.flatMap((e) =>
-    e.notifs.map((n) => {
+    e.notifs.filter((n) => !n.key.startsWith('mdp:') || (!mdp.has(n.key) && !!mdp.add(n.key))).map((n) => {
       const l = lienDepuisEntite(n.link, e.id, club?.current.id ?? '');
       return { ...n, key: `@${e.id}|${n.key}`, sub: [n.sub, e.club.current.nom].filter(Boolean).join(' · '), link: l.lien, entite: l.ici ? undefined : e.id };
     }),

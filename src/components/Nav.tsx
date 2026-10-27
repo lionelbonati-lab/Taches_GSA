@@ -6,13 +6,15 @@ import { navigation, pageOuverte } from '../data/navigation';
 import { Icone } from './icones';
 import { PastilleEntite } from './IconesEntite';
 import { Deroulante } from './Deroulante';
-import { PAGES_PAR_COMITE, PERMS_MOI, useComites } from '../data/comites';
+import { pageParEntite, PERMS_MOI, useComites } from '../data/comites';
+import { useAutres } from '../data/entites';
 
 /** Rubriques, pages du compte et page ouverte, selon mes droits (pages Comité, Événements : dans l'une de mes entités). */
 export function useNavigation() {
   const { can } = useStore();
   const club = useClubOptional();
   const comites = useComites();
+  const autres = useAutres(!club?.arrierePlan);
   const { pathname } = useLocation();
   // Nom des séances (« Comité », « Réunions »…) : celui de mes comités s'ils sont tous du même type.
   const types = new Set(comites?.liste('tab.meetings').map((u) => u.type));
@@ -21,7 +23,7 @@ export function useNavigation() {
     club: !!club,
     registre: !!club && (club.membresAcces || club.caissier),
     type: types.size === 1 ? [...types][0] : types.size ? 'central' : club?.current.type ?? 'central',
-    demandes: !!club?.demandesMdp.length,
+    demandes: !!club?.demandesMdp.length || autres.some((e) => e.club.demandesMdp.length && e.store.can('admin.access')),
     superAdmin: !!club?.superAdmin,
   });
   return { ...nav, ouverte: pageOuverte(nav.rubriques, nav.compte, pathname) };
@@ -42,7 +44,8 @@ export function useChemin() {
 
 /**
  * Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV). Ordre du jour et PV : d'abord le comité dont ce
- * sont l'ordre du jour et le PV, à choisir parmi les miens (vue « moi » : sans changer d'entité).
+ * sont l'ordre du jour et le PV, à choisir parmi les miens ; console admin : l'entité, parmi celles dont je suis admin
+ * (vue « moi » : sans changer d'entité).
  */
 export function SousOnglets() {
   const { ouverte } = useNavigation();
@@ -51,7 +54,8 @@ export function SousOnglets() {
   const { pathname } = useLocation();
   const barre = useRef<HTMLElement>(null);
   const r = ouverte?.rubrique;
-  const perm = PAGES_PAR_COMITE[pathname];
+  const choix = pageParEntite(pathname);
+  const perm = choix?.perm;
   const liste = perm && comites ? comites.liste(perm) : [];
   const entite = perm && (liste.length > 1 || (club?.mine.length ?? 0) > 1) ? comites?.choisi(perm) : undefined;
   const page = ouverte?.page.label;
@@ -63,14 +67,14 @@ export function SousOnglets() {
     const [x, b] = [a.getBoundingClientRect(), bar.getBoundingClientRect()];
     if (x.left < b.left || x.right > b.right) bar.scrollLeft += x.left - b.left - 12;
   }, [ouverte?.page.to]);
-  if (!r || (r.pages.length < 2 && !entite)) return null;
+  if (!entite && (!r || r.pages.length < 2)) return null;
   return (
-    <nav ref={barre} className="subtabs no-print" aria-label={r.label}>
+    <nav ref={barre} className="subtabs no-print" aria-label={r?.label ?? page}>
       {entite && comites && liste.length > 1 ? (
         <span className="subtabs-entite subtabs-choix">
           <Deroulante
-            aria-label="Comité"
-            title={`${page} de « ${entite.nom} » : choisis l’un de tes comités`}
+            aria-label={choix!.libelle}
+            title={`${page} de « ${entite.nom} » : choisis ${choix!.libelle === 'Comité' ? 'l’un de tes comités' : 'l’une de tes entités'}`}
             value={entite.id}
             onChange={comites.choisir}
             options={liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))}
@@ -83,7 +87,7 @@ export function SousOnglets() {
           </span>
         )
       )}
-      {r.pages.length > 1 &&
+      {r && r.pages.length > 1 &&
         r.pages.map((p) => (
           <NavLink key={p.to} to={p.to}>
             <Icone n={p.icon} /> {p.label}

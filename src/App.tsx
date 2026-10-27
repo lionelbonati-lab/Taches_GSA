@@ -65,9 +65,9 @@ function usePrechargement() {
 }
 
 export function App() {
-  const { user, can, cloud, login } = useStore();
+  const { user, cloud, login } = useStore();
   const club = useClubOptional();
-  // Pages Comité : sur le comité choisi parmi les miens (vue « moi »), avec mes droits chez lui.
+  // Pages Comité, console admin : sur l'entité choisie parmi les miennes (vue « moi »), avec mes droits chez elle.
   const comites = useComitesEtat();
   usePrechargement();
   if (!user) {
@@ -105,10 +105,10 @@ export function App() {
             {club && <Route path="organigramme" element={<Org />} />}
             {(club?.membresAcces || club?.caissier) && <Route path="membres-club" element={<MembresClub />} />}
             <Route path="reglages" element={<Settings />} />
-            {can('admin.access') && <Route path="admin" element={<Admin />} />}
-            {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}
+            {comites.canUn('admin.access') && <Route path="admin" element={<Admin />} />}
+            {comites.canUn('admin.access') && <Route path="admin/:partie" element={<Admin />} />}
             {club && <Route path="propositions" element={<Propositions />} />}
-            {club && can('admin.access') && <Route path="mots-de-passe" element={<MotsDePasse />} />}
+            {club && comites.canUn('admin.access') && <Route path="mots-de-passe" element={<MotsDePasse />} />}
             {club?.superAdmin && <Route path="comptes" element={<Comptes intro={<PageIntro />} />} />}
             <Route path="aide" element={<Aide />} />
             <Route path="*" element={<Navigate to="/" replace />} />

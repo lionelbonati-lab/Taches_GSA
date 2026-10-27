@@ -421,6 +421,32 @@ test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut 
   await page.getByRole('option', { name: /Comité central/ }).click();
   await expect(comite).toHaveText(/Comité central/);
   await expect(page.getByLabel('Séance', { exact: true })).not.toContainText('Réunion de la soirée');
+
+  // Console admin : celle de l'une de mes entités, choisie de même en haut de la page.
+  await allerA(page, '/admin');
+  const entite = page.locator('.subtabs').getByRole('combobox', { name: 'Entité' });
+  await expect(entite).toHaveText(/Comité central/);
+  await expect(page.locator('main')).toContainText('Logo, icône et couleur du comité');
+  await entite.click();
+  await page.getByRole('option', { name: /Soirée récréative/ }).click();
+  await expect(entite).toHaveText(/Soirée récréative/);
+  await expect(page.locator('main')).toContainText('Logo et icône de l’entité, couleur de l’appli.');
+  await page.getByRole('link', { name: /Rôles et droits/ }).click();
+  await expect(page.locator('main h1')).toContainText('Rôles et droits');
+  await expect(entite).toHaveText(/Soirée récréative/);
+  await verifierEntite(page, 'Comité central');
+});
+
+test('vue « moi » : console admin de mon entité, sans l’ouvrir', async ({ page }) => {
+  // Pierre Favre : membre du comité central (ouvert), admin de la Soirée récréative seulement.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
+  await ouvrirEntite(page, 'Comité central');
+  await page.locator('.who-btn').click();
+  await page.getByRole('menuitem', { name: 'Console admin' }).click();
+  await expect(page.locator('.subtabs .subtabs-entite')).toHaveText(/Soirée récréative/);
+  await expect(page.locator('main')).toContainText('Logo et icône de l’entité, couleur de l’appli.');
+  await verifierEntite(page, 'Comité central');
 });
 
 test('vue « moi » : les événements de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {

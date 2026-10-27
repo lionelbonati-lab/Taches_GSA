@@ -106,14 +106,14 @@ const RUBRIQUES: NavRubrique[] = [
 /** Menu du compte (en haut à droite ; « Plus » sur téléphone). */
 export const PAGES_COMPTE: NavPage[] = [
   { to: '/reglages', label: 'Réglages', icon: 'reglages', aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage, les notifications et la sauvegarde.' },
-  { to: '/admin', label: 'Console admin', icon: 'admin', perm: 'admin.access', aide: 'Les réglages de l’entité, réservés à ses admins. Choisis ce que tu veux régler.' },
+  { to: '/admin', label: 'Console admin', icon: 'admin', perm: 'admin.access', aide: 'Les réglages de l’une de tes entités, réservés à ses admins (choisis-la en haut de la page). Choisis ce que tu veux régler.' },
   {
     to: '/mots-de-passe',
     label: 'Mots de passe oubliés',
     icon: 'cle',
     perm: 'admin.access',
     demandes: true,
-    aide: 'Des membres de l’entité ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
+    aide: 'Des membres de l’entité choisie en haut de la page ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
   },
   {
     to: '/comptes',
