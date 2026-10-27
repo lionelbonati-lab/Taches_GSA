@@ -2,6 +2,7 @@ import { Fragment, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
+import { useComites } from '../data/comites';
 import { entitesDependantes, evenementsDependants } from '../data/externes';
 import { nomAppli } from '../data/nomAppli';
 import { motSeance } from '../data/seances';
@@ -12,6 +13,7 @@ import { Icone } from '../components/icones';
 export function Aide() {
   const { can, cloud, sondagesEntites } = useStore();
   const club = useClubOptional();
+  const comites = useComites();
   const { rubriques, compte } = useNavigation();
   const chemin = useChemin();
   // Lien vers une page accessible, sous son nom de rubrique (« Comité › PV ») ; rien si la personne n'y a pas accès.
@@ -77,6 +79,8 @@ export function Aide() {
   geste('Savoir si une tâche « Pour info » a changé depuis mon « ✓ Vu »', 'Elle revient sur l’accueil avec « ✏️ À revoir », et une notification ✏️ le signale ; dans la tâche, le bandeau « Elle a changé depuis ton « ✓ Vu » » propose de la marquer vue à nouveau. Chez l’auteur, la pastille porte ✏️ tant que la personne n’a pas revu la nouvelle version.');
   if (club && club.mine.length > 1)
     geste('Voir et modifier les tâches de toutes mes entités, sans changer d’entité', 'Tâches, accueil, calendrier, Messages et la cloche 🔔 réunissent celles de toutes tes entités : la pastille de chaque tâche dit à quelle entité elle appartient (Tâches › Filtres › « Entité » pour n’en voir qu’une). Une tâche s’ouvre, se modifie et se commente d’ici ; elle reste enregistrée dans son entité. Pour en créer une ailleurs : « Nouvelle tâche » › « Entité ».');
+  if (comites && comites.liste.length > 1 && chemin('/comite'))
+    geste('Préparer l’ordre du jour ou tenir le PV d’un autre de mes comités', vers('/comite'), ' : choisis le comité en haut de la page (« Comité »). Ses séances, son ordre du jour et son PV s’y affichent, avec tes droits chez lui, sans changer d’entité ; le choix vaut pour les trois pages.');
   if (club && club.units.length > 1)
     geste('Partager une tâche avec d’autres entités (comité central, CO, groupe…)', 'Dans la tâche, « Ajouter : » › « Partager », puis choisis les entités : elles la voient dans leurs tâches et leur ordre du jour (sous l’événement, ou la section qui porte ton nom) et la modifient comme les leurs. Elle reste enregistrée chez toi, repérée 🤝.');
     geste('Compléter une tâche qu’une autre entité partage avec toi', 'Dans la tâche, « Ajouter : » propose tout : documents (les fichiers sont rangés chez elle, avec ton nom), répétition (elle crée l’occurrence suivante quand la tâche est terminée), une séance d’ici (la tâche va à son ordre du jour et à son PV), partage avec d’autres entités, sondage, email. La supprimer, la rattacher à un événement ou à une autre tâche : dans son entité (« Ouvrir dans … »).');
@@ -97,7 +101,7 @@ export function Aide() {
     geste('Attribuer une tâche du comité à un événement ou à un groupe qui dépend de lui', 'Dans la tâche (nouvelle ou existante), choisis la section « Événements », puis dans « Sous-section » l’un des « Événements qui dépendent de … » et sa section chez lui ; ou la section au nom du groupe (« École de cyclisme »), puis l’une de ses sections (« Sections de … »). « Qui s’en occupe ? » propose alors d’abord ses personnes à lui ; tu pourras encore les changer ensuite, depuis la tâche partagée. À l’enregistrement, la tâche passe chez lui : il la gère comme les siennes ; au comité, elle reste visible et modifiable, partagée (icône poignée de main). Ses fichiers joints la suivent (rangés chez lui) ; les emails programmés restent au comité : supprime-les d’abord.');
   if (club && evenementsDependants(club.units, club.current).length)
     geste('Rattacher une tâche du comité à un événement qui dépend de lui', 'Dans la tâche, « Rattacher à… » › « Événement », groupe « Événements qui dépendent de … » : sa prochaine édition ou l’un de ses événements. Pour un délai calé sur lui (« 1 semaine avant la soirée ») : « Pour quand ? » › « ou selon un événement / une séance ». Le nom et la date suivent les changements de l’événement.');
-  if (club && chemin('/organigramme')) geste('Ouvrir une autre entité (sous-comité, groupe, équipe)', vers('/organigramme'), ' (« Plus » sur téléphone) : « Ouvrir › » sur l’entité (« ✓ Ouverte » : celle qui l’est déjà). Ses séances, son PV et ses réglages s’y trouvent ; ses tâches, ses séances à venir, ses messages et ses notifications, eux, sont déjà là sans en changer.');
+  if (club && chemin('/organigramme')) geste('Ouvrir une autre entité (sous-comité, groupe, équipe)', vers('/organigramme'), ' (« Plus » sur téléphone) : « Ouvrir › » sur l’entité (« ✓ Ouverte » : celle qui l’est déjà). Ses réglages et sa console admin s’y trouvent ; ses tâches, ses séances (au Comité, avec son ordre du jour et son PV : choix « Comité »), ses messages et ses notifications, eux, sont déjà là sans en changer.');
   geste('Installer l’appli sur le téléphone ou l’ordinateur', '« Installer l’application » dans le menu du compte (« Plus » sur téléphone).');
   geste('Choisir ce qui s’affiche sur mon accueil, et dans quel ordre', vers('/'), ' : le bouton « Personnaliser » à côté de « Bonjour » (la roue dentée seule sur téléphone). Coche les blocs et les compteurs à voir, séparément sur téléphone et sur ordinateur ; ↑ ↓ change leur ordre. Le bloc « À faire » se règle aussi : nombre de jours (directement dans son titre) et, si tu vois toutes les tâches, les tiennes ou toutes.');
   geste('Thème sombre, notifications', vers('/reglages'), '.');

@@ -23,6 +23,7 @@ import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
 import { useSeancesMoi } from '../data/entites';
+import { useComites } from '../data/comites';
 import { LieuSeance } from '../components/Liens';
 
 export function Dashboard() {
@@ -42,6 +43,7 @@ export function Dashboard() {
   // Vue « moi » : les séances de toutes mes entités, chacune avec la pilule de son entité (comme les tâches).
   const seances = useSeancesMoi();
   const plusieurs = usePlusieursEntites();
+  const comites = useComites();
   if (!user) return null;
 
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
@@ -265,14 +267,14 @@ export function Dashboard() {
               {prochaines.length > 1 ? 'Prochaines séances' : (prochaines[0]?.u ?? club?.current)?.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance'}
             </h2>
             {prochaines.map(({ m, u, ici }) => (
-              // Toute la carte mène au comité (d'une autre entité : il s'ouvre) ; le lieu placé sur la carte garde son propre lien.
+              // Toute la carte mène aux séances de son comité (choisi dans les pages Comité, sans changer d'entité) ; le lieu placé sur la carte garde son propre lien.
               <div key={`${u?.id ?? ''}:${m.id}`} className="panel link-panel lien-etendu">
                 {ici || !u ? (
-                  <Link to="/comite"><strong>{m.titre}</strong>{plusieurs && u && <> <span className="tsource">{u.nom}</span></>}</Link>
+                  <Link to="/comite" onClick={() => club && comites?.choisir(club.current.id)}><strong>{m.titre}</strong>{plusieurs && u && <> <span className="tsource">{u.nom}</span></>}</Link>
                 ) : (
-                  <a href="#/comite" title={`Ouvrir « ${u.nom} » : ses séances`} onClick={(e) => { e.preventDefault(); club?.switchUnit(u.id, '#/comite'); }}>
+                  <Link to="/comite" title={`Séances de « ${u.nom} »`} onClick={() => comites?.choisir(u.id)}>
                     <strong>{m.titre}</strong> <span className="tsource">{u.nom}</span>
-                  </a>
+                  </Link>
                 )}
                 <span>
                   {fmtDate(m.date)}

@@ -3,12 +3,14 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { ago, useNotifications, type Notif } from '../notifications';
 import { useClubOptional } from '../data/club';
+import { PAGES_COMITE, useComites } from '../data/comites';
 import { Icone } from './icones';
 
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */
 export function Bell() {
   const { markNotifsRead } = useStore();
   const club = useClubOptional();
+  const comites = useComites();
   const { items, unread } = useNotifications();
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
@@ -29,8 +31,13 @@ export function Bell() {
   const go = (n: Notif) => {
     markNotifsRead([n.key]);
     setOpen(false);
-    // De l'une de mes autres entités (séance, sondage…) : sa page, dans son entité.
-    if (n.entite && club) club.switchUnit(n.entite, `#${n.link}`);
+    // De l'un de mes autres comités, une page Comité (séance, ordre du jour, PV) : ce comité y est choisi, sans changer
+    // d'entité. D'une autre entité, une autre page (sondage…) : sa page, dans son entité.
+    const comite = n.entite && comites?.liste.some((u) => u.id === n.entite) && PAGES_COMITE.includes(n.link.split('?')[0]);
+    if (comite) {
+      comites!.choisir(n.entite!);
+      navigate(n.link);
+    } else if (n.entite && club) club.switchUnit(n.entite, `#${n.link}`);
     else navigate(n.link);
   };
 

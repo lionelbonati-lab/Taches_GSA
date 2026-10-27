@@ -1,21 +1,24 @@
 import { useEffect, useRef } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { navigation, pageOuverte } from '../data/navigation';
 import { Icone } from './icones';
 import { PastilleEntite } from './IconesEntite';
+import { Deroulante } from './Deroulante';
+import { PERMS_COMITE, useComites } from '../data/comites';
 
-/** Rubriques, pages du compte et page ouverte, selon les droits et l'entité ouverte. */
+/** Rubriques, pages du compte et page ouverte, selon les droits et l'entité ouverte (pages Comité : le comité choisi). */
 export function useNavigation() {
   const { can } = useStore();
   const club = useClubOptional();
+  const comites = useComites();
   const { pathname } = useLocation();
   const nav = navigation({
-    can,
+    can: (p) => (comites && PERMS_COMITE.includes(p) ? comites.canChoisi(p) : can(p)),
     club: !!club,
     registre: !!club && (club.membresAcces || club.caissier),
-    type: club?.current.type ?? 'central',
+    type: comites?.choisi?.type ?? club?.current.type ?? 'central',
     demandes: !!club?.demandesMdp.length,
     superAdmin: !!club?.superAdmin,
   });
@@ -36,15 +39,15 @@ export function useChemin() {
 }
 
 /**
- * Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV, Sondages). Comité : d'abord l'entité dont ce
- * sont les séances (l'entité ouverte ; l'organigramme en ouvre une autre).
+ * Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV, Sondages). Comité : d'abord le comité dont ce
+ * sont les séances, à choisir parmi les miens (vue « moi » : sans changer d'entité).
  */
 export function SousOnglets() {
   const { ouverte } = useNavigation();
-  const club = useClubOptional();
+  const comites = useComites();
   const barre = useRef<HTMLElement>(null);
   const r = ouverte?.rubrique;
-  const entite = r?.id === 'comite' ? club?.current : undefined;
+  const entite = r?.id === 'comite' ? comites?.choisi : undefined;
   // Téléphone : la page ouverte reste visible dans la barre (qui défile de côté). Seule la barre bouge, jamais la page.
   useEffect(() => {
     const bar = barre.current;
@@ -56,10 +59,22 @@ export function SousOnglets() {
   if (!r || (r.pages.length < 2 && !entite)) return null;
   return (
     <nav ref={barre} className="subtabs no-print" aria-label={r.label}>
-      {entite && (
-        <Link to="/organigramme" className="subtabs-entite" title={`${r.label} de « ${entite.nom} » (organigramme : ouvrir une autre de tes entités)`}>
-          <PastilleEntite u={entite} /> {entite.nom}
-        </Link>
+      {entite && comites && comites.liste.length > 1 ? (
+        <span className="subtabs-entite subtabs-choix">
+          <Deroulante
+            aria-label="Comité"
+            title={`${r.label} de « ${entite.nom} » : choisis l’un de tes comités`}
+            value={entite.id}
+            onChange={comites.choisir}
+            options={comites.liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))}
+          />
+        </span>
+      ) : (
+        entite && (
+          <span className="subtabs-entite" title={`${r.label} de « ${entite.nom} »`}>
+            <PastilleEntite u={entite} /> {entite.nom}
+          </span>
+        )
       )}
       {r.pages.length > 1 &&
         r.pages.map((p) => (

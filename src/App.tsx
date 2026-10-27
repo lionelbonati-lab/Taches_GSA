@@ -7,6 +7,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Tasks } from './pages/Tasks';
 import { Comptes } from './pages/Comptes';
 import { PageIntro } from './components/Nav';
+import { ComitesCtx, useComitesEtat } from './data/comites';
 import { chargerFicheTache } from './components/FicheTache';
 import { useClubOptional } from './data/club';
 
@@ -66,6 +67,8 @@ function usePrechargement() {
 export function App() {
   const { user, can, cloud, login } = useStore();
   const club = useClubOptional();
+  // Pages Comité : sur le comité choisi parmi les miens (vue « moi »), avec mes droits chez lui.
+  const comites = useComitesEtat();
   usePrechargement();
   if (!user) {
     const others = club?.mine.filter((u) => u.id !== club.current.id) ?? [];
@@ -82,35 +85,37 @@ export function App() {
     );
   }
   return (
-    <HashRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          {/* La clé force la remise à zéro des filtres quand on arrive via un lien ?event=… */}
-          <Route path="taches" element={<TasksRoute />} />
-          <Route path="messages" element={<Messages />} />
-          <Route path="agenda" element={<Calendar />} />
-          {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
-          {can('tab.events') && <Route path="evenements" element={<Events />} />}
-          {/* Ancienne page des responsables / membres : tout se fait dans l'organigramme. */}
-          <Route path="responsables" element={<Navigate to="/organigramme" replace />} />
-          {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
-          {can('tab.minutes') && <Route path="pv" element={<Minutes />} />}
-          <Route path="sondages" element={<Polls />} />
-          <Route path="paiements" element={<PaiementsRedirect />} />
-          {club && <Route path="organigramme" element={<Org />} />}
-          {(club?.membresAcces || club?.caissier) && <Route path="membres-club" element={<MembresClub />} />}
-          <Route path="reglages" element={<Settings />} />
-          {can('admin.access') && <Route path="admin" element={<Admin />} />}
-          {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}
-          {club && <Route path="propositions" element={<Propositions />} />}
-          {club && can('admin.access') && <Route path="mots-de-passe" element={<MotsDePasse />} />}
-          {club?.superAdmin && <Route path="comptes" element={<Comptes intro={<PageIntro />} />} />}
-          <Route path="aide" element={<Aide />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </HashRouter>
+    <ComitesCtx.Provider value={comites}>
+      <HashRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            {/* La clé force la remise à zéro des filtres quand on arrive via un lien ?event=… */}
+            <Route path="taches" element={<TasksRoute />} />
+            <Route path="messages" element={<Messages />} />
+            <Route path="agenda" element={<Calendar />} />
+            {comites.canUn('tab.meetings') && <Route path="comite" element={<Meetings />} />}
+            {can('tab.events') && <Route path="evenements" element={<Events />} />}
+            {/* Ancienne page des responsables / membres : tout se fait dans l'organigramme. */}
+            <Route path="responsables" element={<Navigate to="/organigramme" replace />} />
+            {comites.canUn('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
+            {comites.canUn('tab.minutes') && <Route path="pv" element={<Minutes />} />}
+            <Route path="sondages" element={<Polls />} />
+            <Route path="paiements" element={<PaiementsRedirect />} />
+            {club && <Route path="organigramme" element={<Org />} />}
+            {(club?.membresAcces || club?.caissier) && <Route path="membres-club" element={<MembresClub />} />}
+            <Route path="reglages" element={<Settings />} />
+            {can('admin.access') && <Route path="admin" element={<Admin />} />}
+            {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}
+            {club && <Route path="propositions" element={<Propositions />} />}
+            {club && can('admin.access') && <Route path="mots-de-passe" element={<MotsDePasse />} />}
+            {club?.superAdmin && <Route path="comptes" element={<Comptes intro={<PageIntro />} />} />}
+            <Route path="aide" element={<Aide />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </HashRouter>
+    </ComitesCtx.Provider>
   );
 }
 

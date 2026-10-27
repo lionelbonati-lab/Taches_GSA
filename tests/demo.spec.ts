@@ -360,13 +360,55 @@ test('vue « moi » : les séances de toutes mes entités, sur l’accueil et da
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(page.locator('main tr', { hasText: 'Réserver la salle' }).locator('.tsource')).toHaveText('Comité central');
 
-  // Dans l'agenda aussi, avec le nom de son entité ; ouverte, elle mène aux séances de la Soirée.
+  // Dans l'agenda aussi, avec le nom de son entité ; ouverte, elle mène aux séances de la Soirée, choisie dans les pages
+  // Comité sans changer d'entité.
   await allerA(page, '/agenda');
   const ligne = page.locator('.cal-side .cal-row', { hasText: 'Séance de la Soirée' });
   await expect(ligne.locator('.tsource')).toHaveText('Soirée récréative');
   await ligne.click();
-  await expect(page.locator('.subtabs-entite')).toContainText('Soirée récréative');
+  const comite = page.getByRole('combobox', { name: 'Comité' });
+  await expect(comite).toHaveText(/Soirée récréative/);
   await expect(page.locator('main')).toContainText('Séance de la Soirée');
+  await verifierEntite(page, 'Comité central');
+  // Retour au comité central, choisi en haut de la page.
+  await comite.click();
+  await page.getByRole('option', { name: /Comité central/ }).click();
+  await expect(comite).toHaveText(/Comité central/);
+  await expect(page.locator('main')).toContainText('Comité d’octobre');
+  await expect(page.locator('main')).not.toContainText('Séance de la Soirée');
+});
+
+test('vue « moi » : ordre du jour et PV de mes deux comités, sans changer d’entité', async ({ page }) => {
+  // Pierre Favre : au comité central (ouvert) et responsable de la Soirée récréative.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
+  await ouvrirEntite(page, 'Comité central');
+  await allerA(page, '/comite');
+  const comite = page.getByRole('combobox', { name: 'Comité' });
+  await expect(comite).toHaveText(/Comité central/);
+  await comite.click();
+  await page.getByRole('option', { name: /Soirée récréative/ }).click();
+  await expect(comite).toHaveText(/Soirée récréative/);
+  // Une réunion de la Soirée, posée d'ici.
+  await page.getByRole('button', { name: '+ Nouvelle séance' }).click();
+  const fen = page.getByRole('dialog', { name: 'Nouvelle séance' });
+  await fen.getByLabel('Titre').fill('Réunion de la soirée');
+  await fen.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.locator('main')).toContainText('Réunion de la soirée');
+  // Son ordre du jour et son PV, toujours dans la Soirée.
+  await page.locator('.subtabs').getByRole('link', { name: 'Ordre du jour' }).click();
+  await expect(comite).toHaveText(/Soirée récréative/);
+  await expect(page.locator('main')).toContainText('Réunion de la soirée');
+  await page.locator('.subtabs').getByRole('link', { name: 'PV' }).click();
+  await expect(page.getByLabel('Séance', { exact: true })).toContainText('Réunion de la soirée');
+  // Le comité central reste l'entité ouverte. Pierre n'y a que les séances (pas de PV) : choisi, il y revient ; elles
+  // n'ont pas changé.
+  await verifierEntite(page, 'Comité central');
+  await comite.click();
+  await page.getByRole('option', { name: /Comité central/ }).click();
+  await expect(page.locator('.subtabs').getByRole('link', { name: 'PV' })).toHaveCount(0);
+  await expect(page.locator('main')).toContainText('Comité d’octobre');
+  await expect(page.locator('main')).not.toContainText('Réunion de la soirée');
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {

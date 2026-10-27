@@ -15,6 +15,7 @@ import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
 import { useSeancesMoi } from '../data/entites';
+import { useComites } from '../data/comites';
 import { Icone, type IconeNom } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
 import { ExportAgenda } from '../components/ExportAgenda';
@@ -95,6 +96,7 @@ export function Calendar() {
   // Vue « moi » : avec les séances de mes autres entités (où je vois les séances).
   const seances = useSeancesMoi();
   const plusieurs = usePlusieursEntites();
+  const comites = useComites();
   const seeMeetings = can('tab.meetings') || seances.some((x) => !x.ici);
   const seeEvents = can('tab.events');
   const addMeeting = can('meetings.manage');
@@ -201,7 +203,17 @@ export function Calendar() {
 
   const open = (it: Item) => {
     if (it.kind === 'task') setTask({ t: it.t, isNew: false });
-    else if (it.kind === 'meeting') (it.u ? club?.switchUnit(it.u.id, '#/comite') : addMeeting ? setMeeting(it.m) : navigate('/comite'));
+    else if (it.kind === 'meeting') {
+      // Séance de l'un de mes autres comités : ses séances, sans changer d'entité.
+      if (it.u) {
+        comites?.choisir(it.u.id);
+        navigate('/comite');
+      } else if (addMeeting) setMeeting(it.m);
+      else {
+        if (club) comites?.choisir(club.current.id);
+        navigate('/comite');
+      }
+    }
     else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : navigate('/evenements'));
     else if (it.kind === 'manif') navigate(it.u.id === club?.current.id && seeEvents ? '/evenements' : '/organigramme');
     else navigate(`/sondages?id=${it.p.id}`);
