@@ -116,7 +116,7 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // De retour dans la Soirée : son message, à droite, ni non lu ni notifié ; il se corrige depuis le comité central.
+  // De retour dans la Soirée : son message, à droite, ni non lu ni notifié ; il le corrige et le retire d'ici.
   await entite('Soirée récréative');
   const ligne = page.locator('main tr', { hasText: 'Choisir la musique' });
   await expect(ligne.locator('.discussion-tag')).toBeVisible();
@@ -130,8 +130,16 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
   await expect(discussion.locator('.discussion-message.mien')).toContainText('Une liste de chansons pour samedi ?');
   await expect(discussion.locator('.discussion-message.mien')).toContainText('depuis Comité central');
   await expect(discussion.locator('.discussion-auteur')).toHaveCount(0);
-  await expect(discussion.getByRole('button', { name: 'Corriger' })).toHaveCount(0);
   await expect(discussion.locator('.discussion-nouveaux')).toHaveCount(0);
+  await discussion.getByRole('button', { name: 'Corriger' }).click();
+  await discussion.getByLabel('Corriger le commentaire').fill('Une liste de chansons pour la soirée ?');
+  await discussion.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(discussion.locator('.discussion-message.mien')).toContainText('Une liste de chansons pour la soirée ?');
+  await expect(discussion.locator('.discussion-message.mien')).toContainText('corrigé');
+  await expect(discussion.locator('.discussion-message.mien')).toContainText('depuis Comité central');
+  page.once('dialog', (d) => void d.accept());
+  await discussion.getByRole('button', { name: 'Retirer' }).click();
+  await expect(discussion.locator('.discussion-message')).toHaveCount(0);
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {

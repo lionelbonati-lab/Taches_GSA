@@ -88,7 +88,10 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
       await commenter(tacheId, a, uniteId);
       ensuite?.();
     } catch (e) {
-      setErr(e instanceof Error ? e.message : String(e));
+      const m = e instanceof Error ? e.message : String(e);
+      // Serveur sans la mise à jour 053 : un message écrit d'ailleurs ne se corrige ou ne se retire que depuis son entité.
+      const c = a.cle ? liste.find((x) => x.id === a.cle) : undefined;
+      setErr(c && /pas le tien/.test(m) && !deMoi(c, user.id, ici, unite) ? `Le serveur ne le permet pas encore (mise à jour 053 à appliquer) : fais-le depuis « ${entite(c)} ».` : m);
     }
     setBusy(false);
   };
@@ -153,9 +156,8 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
           {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par la tâche sont prévenues 🔔.</p>}
           <ul className="discussion-liste">
             {liste.map((c, i) => {
-              // Les miens à droite, même écrits depuis une autre de mes entités ; ceux-là se corrigent depuis celle-ci.
+              // Les miens à droite, même écrits depuis une autre de mes entités (« depuis … ») ; tous se corrigent d'ici.
               const mien = parMoi(c, user.id, ici, unite, club?.mesFiches);
-              const corrigeable = mien && deMoi(c, user.id, ici, unite);
               const ent = entite(c);
               const jour = jourDe(c.le);
               return (
@@ -195,11 +197,11 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
                         <p className="discussion-texte"><AvecMentions texte={c.texte} people={data.people} moi={user.id} /></p>
                       )}
                       <div className="discussion-pied">
-                        {mien && !corrigeable && ent && <small className="muted" title={`Pour le corriger, ouvre « ${ent} »`}>depuis {ent}</small>}
-                        {corrigeable && corrige?.id !== c.id && (
+                        {mien && ent && <small className="muted">depuis {ent}</small>}
+                        {mien && corrige?.id !== c.id && (
                           <button type="button" className="btn link small" disabled={busy} onClick={() => setCorrige({ id: c.id, texte: c.texte })}>Corriger</button>
                         )}
-                        {(corrigeable || moderer) && corrige?.id !== c.id && (
+                        {(mien || moderer) && corrige?.id !== c.id && (
                           <button
                             type="button"
                             className="btn link small"

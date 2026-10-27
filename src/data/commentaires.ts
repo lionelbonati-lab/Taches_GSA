@@ -14,7 +14,10 @@ export interface ActionCommentaire {
   supprimer?: boolean;
 }
 
-/** Contexte : la fiche de l'auteur et son entité (`depuis`), l'entité de la tâche, admin de celle-ci, la date. */
+/**
+ * Contexte : la fiche de l'auteur et son entité (`depuis`), l'entité de la tâche, admin de celle-ci, la date ; ses fiches
+ * dans ses autres entités (`mesFiches`), pour corriger ou retirer de là les messages écrits d'ailleurs.
+ */
 export interface ContexteCommentaire {
   moi: string;
   nom: string;
@@ -22,14 +25,15 @@ export interface ContexteCommentaire {
   unite: string;
   admin: boolean;
   le: string;
+  mesFiches?: Record<string, string>;
 }
 
 /** Le commentaire est-il de la personne `moi` de l'entité `depuis` (tâche de l'entité `unite`) ? */
 export const deMoi = (c: Commentaire, moi: string, depuis: string, unite: string) => c.par === moi && (c.u ?? unite) === depuis;
 
 /**
- * Écrit par moi, depuis l'entité ouverte ou une autre des miennes (`mesFiches` : entité → ma fiche). Seul celui écrit
- * d'ici se corrige ici (deMoi) : le serveur ne laisse corriger un message que depuis l'entité d'où il a été écrit.
+ * Écrit par moi, depuis l'entité ouverte ou une autre des miennes (`mesFiches` : entité → ma fiche) : il se corrige ou se
+ * retire d'ici (version réelle : migration 053 ; avant, seulement depuis l'entité d'où il a été écrit).
  */
 export const parMoi = (c: Commentaire, moi: string, depuis: string, unite: string, mesFiches: Record<string, string> = {}) =>
   deMoi(c, moi, depuis, unite) || mesFiches[c.u ?? unite] === c.par;
@@ -55,7 +59,7 @@ export function appliquerCommentaire(liste: Commentaire[] = [], a: ActionComment
   }
   const c = liste.find((x) => x.id === a.cle);
   if (!c) throw new Error('Commentaire introuvable');
-  if (!deMoi(c, o.moi, o.depuis, o.unite) && !(a.supprimer && o.admin)) throw new Error('Ce commentaire n’est pas le tien');
+  if (!parMoi(c, o.moi, o.depuis, o.unite, o.mesFiches) && !(a.supprimer && o.admin)) throw new Error('Ce commentaire n’est pas le tien');
   if (a.supprimer) return liste.filter((x) => x !== c);
   verifier();
   return c.texte === texte ? liste : liste.map((x) => (x === c ? { ...c, texte, modifieLe: o.le } : x));

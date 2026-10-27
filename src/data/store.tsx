@@ -531,7 +531,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         return;
       }
       if (x.paiement) throw new Error('Pas de discussion sur un ticket de paiement');
-      const commentaires = appliquerCommentaire(x.commentaires, a, { moi: user.id, nom: fullName(user), depuis: ici, unite: ici, admin: hasPermission(myRoles, 'admin.access'), le });
+      const commentaires = appliquerCommentaire(x.commentaires, a, { moi: user.id, nom: fullName(user), depuis: ici, unite: ici, admin: hasPermission(myRoles, 'admin.access'), le, mesFiches: c?.mesFiches });
       const notifs = a.cle ? [] : notifsCommentaire(
         (destinatairesCommentaire(x, ici, user.id, ici)[ici] ?? []).filter((id) => data.people.some((p) => p.id === id && p.actif)),
         { entite: ici, unite: ici, tache: x.id, titre: x.titre, moi: user.id, depuis: ici, nom: fullName(user), nomDepuis: c?.current.nom ?? '', texte: a.texte ?? '', le },

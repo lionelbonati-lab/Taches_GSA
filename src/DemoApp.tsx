@@ -593,7 +593,7 @@ export function DemoApp() {
           throw new Error('Tu ne vois pas cette tâche');
         const nom = `${fiche.prenom} ${fiche.nom}`.trim();
         const le = new Date().toISOString();
-        const commentaires = appliquerCommentaire(old.commentaires, a, { moi: fiche.id, nom, depuis: current.id, unite: uniteId, admin: false, le });
+        const commentaires = appliquerCommentaire(old.commentaires, a, { moi: fiche.id, nom, depuis: current.id, unite: uniteId, admin: false, le, mesFiches });
         d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, commentaires: commentaires.length ? commentaires : undefined } : x));
         saveUnitData(uniteId, d);
         if (a.cle) return;
