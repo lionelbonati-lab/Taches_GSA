@@ -498,19 +498,21 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
         });
     }
   }
+  const mentions = new Set(p.assign ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === "mention").map(memeMessage) : []);
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    const nouvelle = ["assign", "info", "propose", "pris", "refus"].includes(n.type);
+    const nouvelle = ["assign", "info", "propose", "pris", "refus", "mention"].includes(n.type);
     if (nouvelle && !p.assign || !nouvelle && !p.modif) continue;
-    if (n.type === "comment") {
+    if (n.type === "comment" && mentions.has(memeMessage(n))) continue;
+    if (n.type === "comment" || n.type === "mention") {
       const ici = data.tasks.find((x) => x.id === n.taskId);
       const recue = ici ? void 0 : pourInfo.find((x) => `x:${x.uniteId}:${x.task.id}` === n.taskId);
       const titre = ici?.titre ?? recue?.task.titre ?? n.titre;
       if (titre === void 0) continue;
       items.push({
         key: n.id,
-        icon: "💬",
-        text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} a commenté « ${titre} »`,
+        icon: n.type === "mention" ? "📣" : "💬",
+        text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} ${n.type === "mention" ? "te mentionne dans" : "a commenté"} « ${titre} »`,
         sub: n.detail,
         link: recue ? `/taches?pourinfo=${recue.uniteId}:${recue.task.id}&discussion=1` : `/taches?tache=${n.taskId}&discussion=1`,
         at: n.at,
@@ -587,6 +589,7 @@ function etatRefus(t) {
   const n = sansReponse(t).length + attenteAilleurs(t);
   return `${n} personne${n > 1 ? "s n’ont" : " n’a"} pas encore répondu`;
 }
+var memeMessage = (n) => `${n.taskId}|${n.by}|${(n.detail ?? "").replace(/\s+/g, " ").trim().slice(0, 80)}`;
 
 // src/data/pushServeur.ts
 var LISTES = ["people", "roles", "sections", "statuses", "meetings", "events", "tasks", "polls", "emails", "notifications", "propositions"];

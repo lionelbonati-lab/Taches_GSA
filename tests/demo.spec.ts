@@ -410,3 +410,66 @@ test('résumé de la semaine, le lundi : notification et tâches de la semaine',
   await expect(page).toHaveURL(/delai=semaine/);
   await expect(page.locator('main tr', { hasText: 'Préparer le stand' })).toHaveCount(1);
 });
+
+test('discussion : mentionner quelqu’un avec @, notification 📣 sans 💬 en double', async ({ page }) => {
+  const changerDePersonne = async (n: number) => {
+    await page.locator('.who-btn').click();
+    await page.getByText('Changer d’utilisateur').click();
+    const nom = (await page.locator('.login-user strong').nth(n).textContent())!.trim();
+    await page.locator('.login-user').nth(n).click();
+    await expect(page.locator('.unit-btn')).toBeVisible();
+    return nom;
+  };
+  const ouvrirDiscussion = async () => {
+    await page.goto('./?demo#/taches');
+    await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+    await page.locator('main').getByText('Tâche avec mention').filter({ visible: true }).first().click();
+    await page.locator('.modal').first().getByRole('button', { name: /^Discussion/ }).click();
+    return page.getByRole('region', { name: 'Discussion' });
+  };
+  const autre = await changerDePersonne(1);
+  const moi = await changerDePersonne(0);
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Tâche avec mention');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // « @ » et le début du prénom (sans accents) : la personne est proposée, Entrée l'insère.
+  let discussion = await ouvrirDiscussion();
+  const champ = discussion.getByLabel('Nouveau commentaire');
+  await expect(champ).toHaveAttribute('placeholder', /@ pour mentionner/);
+  await champ.pressSequentially(`Peux-tu regarder, @${autre.slice(0, 3).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()}`);
+  await expect(page.getByRole('option', { name: autre })).toBeVisible();
+  await page.getByRole('option').filter({ hasText: autre }).click();
+  await expect(champ).toHaveValue(`Peux-tu regarder, @${autre} `);
+  await expect(page.getByRole('listbox', { name: 'Mentionner' })).toHaveCount(0);
+  await champ.pressSequentially('stp ?');
+  await champ.press('Enter');
+  await expect(discussion.locator('.discussion-message.mien .mention')).toHaveText(`@${autre}`);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
+  // La personne mentionnée (ni responsable ni autrice) : 📣, qui ouvre la discussion ; son nom ressort.
+  await changerDePersonne(1);
+  await page.goto('./?demo#/');
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  await expect(page.locator('.bell-item', { hasText: 'a commenté « Tâche avec mention »' })).toHaveCount(0);
+  await page.locator('.bell-item', { hasText: `${moi} te mentionne dans « Tâche avec mention »` }).click();
+  const chat = page.getByRole('dialog', { name: 'Tâche avec mention' });
+  await expect(chat.locator('.mention.moi')).toHaveText(`@${autre}`);
+  await chat.getByLabel('Nouveau commentaire').fill(`C’est fait, @${moi} !`);
+  await chat.getByLabel('Nouveau commentaire').press('Enter');
+  await expect(chat.locator('.discussion-message.mien .mention')).toHaveText(`@${moi}`);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // L'autrice de la tâche, prévenue de toute façon (💬), ne reçoit que le 📣.
+  await changerDePersonne(0);
+  await page.goto('./?demo#/');
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  await expect(page.locator('.bell-item', { hasText: `${autre} te mentionne dans « Tâche avec mention »` })).toHaveCount(1);
+  await expect(page.locator('.bell-item', { hasText: 'a commenté « Tâche avec mention »' })).toHaveCount(0);
+  discussion = await ouvrirDiscussion();
+  await expect(discussion.locator('.discussion-message:not(.mien) .mention.moi')).toHaveText(`@${moi}`);
+});

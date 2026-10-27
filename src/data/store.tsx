@@ -16,6 +16,7 @@ import { ajouterSuivante, idDe, preparerSuivante } from './suivante';
 import type { CloudMode, DemoMode, Store } from './storeTypes';
 import { useRecus } from './recus';
 import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
+import { mentionnables, mentionnes, notifsMention } from './mentions';
 import { usePileAnnulation } from './pileAnnulation';
 
 export type { CloudMode, DemoMode } from './storeTypes';
@@ -482,7 +483,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   );
 
   // Discussion (049) : version réelle, le serveur écrit le commentaire et prévient les personnes concernées, puis la tâche
-  // est relue ; démo : ici. Tâche d'une autre entité : enregistré dans son entité.
+  // est relue ; démo : ici. Tâche d'une autre entité : enregistré dans son entité. Personnes mentionnées « @Prénom Nom »
+  // (tâche d'ici) : prévenues 📣 par l'appli (sans 💬 en double : notifs.ts).
   const commenter = useCallback(
     async (tacheId: string, a: ActionCommentaire, uniteId?: string) => {
       if (!user) throw new Error('Connecte-toi d’abord.');
@@ -504,10 +506,15 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       }
       const x = data.tasks.find((y) => y.id === tacheId);
       if (!x) throw new Error('Tâche introuvable');
+      const texte = (a.texte ?? '').trim();
+      const nommes = a.cle || x.source || !texte ? [] : mentionnes(texte, mentionnables(x, data.people, data.roles, user.id));
+      const mentionNotifs = notifsMention(nommes, x, user.id, texte, le);
+      const mentionne = `${fullName(user)} a mentionné ${nommes.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ')} dans la discussion de « ${x.titre} »`;
       if (cloud) {
         if (!c) throw new Error('Club introuvable');
         await cloud.sync.flushNow();
         await commenterTache(ici, x.id, ici, a);
+        if (mentionNotifs.length) update((d) => { d.notifications = [...mentionNotifs, ...(d.notifications ?? [])].slice(0, 300); }, mentionne, { annulable: false });
         const fresh = await cloud.sync.fetchRows([{ kind: 'tasks', id: x.id }]);
         setData((prev) => applyRows(prev, fresh, cloud.sync.posOf));
         return;
@@ -520,8 +527,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       );
       update((d) => {
         d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, commentaires: commentaires.length ? commentaires : undefined } : y));
-        if (notifs.length) d.notifications = [...notifs, ...(d.notifications ?? [])].slice(0, 300);
-      }, `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} la tâche « ${x.titre} »`, { annulable: false });
+        if (notifs.length || mentionNotifs.length) d.notifications = [...mentionNotifs, ...notifs, ...(d.notifications ?? [])].slice(0, 300);
+      }, mentionNotifs.length ? mentionne : `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} la tâche « ${x.titre} »`, { annulable: false });
     },
     [user, data, cloud, update, chargerPartagees, partagees, pourInfoRecus, myRoles],
   );
@@ -544,9 +551,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (!userId || !dernier) return;
       setData((prev) => {
         const lues = prev.discussionsLues?.[userId] ?? {};
-        // Ses notifications 💬 sont lues du même coup.
+        // Ses notifications 💬 et 📣 sont lues du même coup.
         const seen = new Set(prev.notifLues?.[userId] ?? []);
-        const notifs = (prev.notifications ?? []).filter((n) => n.userId === userId && n.type === 'comment' && n.taskId === cle && !seen.has(n.id));
+        const notifs = (prev.notifications ?? []).filter((n) => n.userId === userId && (n.type === 'comment' || n.type === 'mention') && n.taskId === cle && !seen.has(n.id));
         if ((lues[cle] ?? '') >= dernier && !notifs.length) return prev;
         notifs.forEach((n) => seen.add(n.id));
         // Les 400 discussions lues le plus récemment suffisent.

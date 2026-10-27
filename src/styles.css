@@ -465,6 +465,12 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .discussion-saisie textarea { flex: 1; min-width: 0; resize: none; max-height: 30vh; border-radius: 20px; padding: 9px 14px; }
 .discussion-envoyer { flex: none; width: 40px; height: 40px; border: 0; border-radius: 50%; background: var(--primary); color: #fff; font-size: 1.1rem; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; }
 .discussion-envoyer:disabled { opacity: 0.45; cursor: default; }
+/* Mentions « @Prénom Nom » : suggestions au-dessus de la saisie, noms en évidence dans les messages. */
+.mention-choix { list-style: none; margin: 0; padding: 4px 6px; border-top: 1px solid var(--border); background: var(--surface); max-height: 34vh; overflow-y: auto; }
+.mention-choix button { display: block; width: 100%; padding: 8px 10px; border: 0; border-radius: 8px; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mention-choix [aria-selected='true'] button, .mention-choix button:hover { background: var(--primary-soft); }
+.mention { color: var(--primary); font-weight: 600; }
+.mention.moi { padding: 0 3px; border-radius: 4px; background: var(--primary-soft); }
 /* Cartes et listes de tâches : bulle s'il y a des messages, pastille des non lus. */
 .ticon.discussion-tag { position: relative; cursor: default; }
 .ticon.discussion-tag.nonlu { color: var(--primary); margin-right: 6px; }

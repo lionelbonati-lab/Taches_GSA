@@ -754,9 +754,10 @@ export interface ActivityNotif {
   /**
    * info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge, refus : quelqu'un
    * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur ;
-   * tâche d'une autre entité : taskId « x:<entité>:<tâche> »).
+   * tâche d'une autre entité : taskId « x:<entité>:<tâche> ») ; mention : « @Prénom Nom » dans un commentaire (mentions.ts,
+   * écrit par l'appli de l'auteur ; detail : l'aperçu du message, comme le 💬 qu'il remplace).
    */
-  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus' | 'comment';
+  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus' | 'comment' | 'mention';
   taskId: string;
   by: string;
   /** Auteur hors de l'entité (membre du comité central) : son nom, à afficher tel quel. */

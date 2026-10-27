@@ -233,11 +233,14 @@ export function computeNotifications(
     }
   }
 
+  // Un message où l'on est mentionné (📣) n'est pas annoncé une seconde fois en 💬.
+  const mentions = new Set(p.assign ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === 'mention').map(memeMessage) : []);
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus'].includes(n.type);
+    const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'mention'].includes(n.type);
     if ((nouvelle && !p.assign) || (!nouvelle && !p.modif)) continue;
-    if (n.type === 'comment') {
+    if (n.type === 'comment' && mentions.has(memeMessage(n))) continue;
+    if (n.type === 'comment' || n.type === 'mention') {
       // Tâche d'ici, partagée (affichée ici) ou reçue pour info ; sinon (serveur : tâches partagées non lues), son titre.
       const ici = data.tasks.find((x) => x.id === n.taskId);
       const recue = ici ? undefined : pourInfo.find((x) => `x:${x.uniteId}:${x.task.id}` === n.taskId);
@@ -245,8 +248,8 @@ export function computeNotifications(
       if (titre === undefined) continue;
       items.push({
         key: n.id,
-        icon: '💬',
-        text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} a commenté « ${titre} »`,
+        icon: n.type === 'mention' ? '📣' : '💬',
+        text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} ${n.type === 'mention' ? 'te mentionne dans' : 'a commenté'} « ${titre} »`,
         sub: n.detail,
         link: recue ? `/taches?pourinfo=${recue.uniteId}:${recue.task.id}&discussion=1` : `/taches?tache=${n.taskId}&discussion=1`,
         at: n.at,
@@ -354,3 +357,6 @@ function etatRefus(t: Task) {
   const n = sansReponse(t).length + attenteAilleurs(t);
   return `${n} personne${n > 1 ? 's n’ont' : ' n’a'} pas encore répondu`;
 }
+
+/** Même message (taskId, auteur, début de l'aperçu ; le serveur et l'appli coupent l'aperçu chacun à leur façon). */
+const memeMessage = (n: { taskId: string; by: string; detail?: string }) => `${n.taskId}|${n.by}|${(n.detail ?? '').replace(/\s+/g, ' ').trim().slice(0, 80)}`;

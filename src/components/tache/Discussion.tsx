@@ -1,9 +1,10 @@
-import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from '../../data/store';
 import { useClubOptional } from '../../data/club';
 import { COMMENTAIRE_MAX, deMoi, dernierMessage, type ActionCommentaire } from '../../data/commentaires';
-import type { Commentaire } from '../../data/types';
-import { addDays, fmtDate, fmtDateTime, localNow } from '../../data/utils';
+import { decouper, mentionEnCours, mentionnables, proposer } from '../../data/mentions';
+import type { Commentaire, Person } from '../../data/types';
+import { addDays, fmtDate, fmtDateTime, fullName, localNow } from '../../data/utils';
 import { AvecLiens } from '../Liens';
 import { ZoneTexte } from '../ZoneTexte';
 import { Modal } from '../ui';
@@ -36,6 +37,7 @@ export const quandMessage = (iso: string) => {
  * Ouverte, elle est lue (pastille des cartes) ; les messages arrivés depuis la dernière lecture suivent un repère.
  * `cle` : la tâche vue d'ici (lecture, notifications) ; `uniteId` : entité de la tâche quand ce n'est pas l'entité
  * ouverte (`tacheId` : son identifiant là-bas). `actions` : boutons de plus dans l'en-tête (ex. ouvrir la tâche).
+ * « @ » propose les personnes de l'entité qui voient la tâche (tâche d'ici) : mentionnées, elles sont prévenues 📣.
  */
 export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, onClose }: { titre: string; liste?: Commentaire[]; cle: string; tacheId: string; uniteId?: string; actions?: ReactNode; onClose: () => void }) {
   const { data, user, can, commenter, discussionLue } = useStore();
@@ -48,6 +50,11 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   const repere = useRef<HTMLLIElement>(null);
   const ici = club?.current.id ?? '';
   const unite = uniteId ?? ici;
+  // Mentions : personnes qu'on peut nommer (tâche d'ici seulement), suggestions pendant la frappe.
+  const tache = unite === ici ? data.tasks.find((t) => t.id === tacheId && !t.source) : undefined;
+  const nommables = useMemo(() => (tache && user ? mentionnables(tache, data.people, data.roles, user.id) : []), [tache, data.people, data.roles, user]);
+  const zone = useRef<HTMLTextAreaElement | null>(null);
+  const [suggestion, setSuggestion] = useState<{ debut: number; fin: number; liste: Person[]; i: number } | null>(null);
   // Messages des autres arrivés depuis la dernière lecture, à l'ouverture : le premier est repéré.
   const [nonLus] = useState(() => {
     const lu = user ? data.discussionsLues?.[user.id]?.[cle] : undefined;
@@ -87,6 +94,47 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   };
   const envoyer = () => {
     if (texte.trim() && !busy) void agir({ texte }, () => setTexte(''));
+    setSuggestion(null);
+  };
+  // Suggestions de la mention tapée juste avant le curseur.
+  const suivre = (el: HTMLTextAreaElement) => {
+    zone.current = el;
+    const m = nommables.length && el.selectionStart === el.selectionEnd ? mentionEnCours(el.value, el.selectionStart) : null;
+    const liste = m ? proposer(nommables, m.cherche) : [];
+    setSuggestion(m && liste.length ? { debut: m.debut, fin: el.selectionStart, liste, i: 0 } : null);
+  };
+  const choisir = (p: Person) => {
+    if (!suggestion) return;
+    const mot = `@${fullName(p)} `;
+    const suite = texte.slice(suggestion.fin).replace(/^ /, '');
+    setTexte(texte.slice(0, suggestion.debut) + mot + suite);
+    setSuggestion(null);
+    const curseur = suggestion.debut + mot.length;
+    requestAnimationFrame(() => {
+      zone.current?.focus();
+      zone.current?.setSelectionRange(curseur, curseur);
+    });
+  };
+  const clavier = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (suggestion && !e.nativeEvent.isComposing) {
+      const n = suggestion.liste.length;
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSuggestion({ ...suggestion, i: (suggestion.i + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
+        return;
+      }
+      if ((e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) || e.key === 'Tab') {
+        e.preventDefault();
+        choisir(suggestion.liste[suggestion.i]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        setSuggestion(null);
+        return;
+      }
+    }
+    raccourci(e, envoyer);
   };
   // Entrée envoie, Maj+Entrée passe à la ligne ; sur écran tactile, Entrée passe à la ligne (le bouton envoie).
   // Ctrl+Entrée (⌘+Entrée) envoie partout.
@@ -142,7 +190,7 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
                           </span>
                         </div>
                       ) : (
-                        <p className="discussion-texte"><AvecLiens texte={c.texte} /></p>
+                        <p className="discussion-texte"><AvecMentions texte={c.texte} people={data.people} moi={user.id} /></p>
                       )}
                       <div className="discussion-pied">
                         {mien && corrige?.id !== c.id && (
@@ -168,16 +216,34 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
           </ul>
         </div>
         {err && <p className="error">{err}</p>}
+        {suggestion && (
+          <ul className="mention-choix" role="listbox" aria-label="Mentionner">
+            {suggestion.liste.map((p, i) => (
+              <li key={p.id} role="option" aria-selected={i === suggestion.i}>
+                {/* Appui sans quitter la saisie (le clavier du téléphone reste ouvert). */}
+                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => choisir(p)}>
+                  <strong>{fullName(p)}</strong>
+                  {p.poste && <small className="muted"> · {p.poste}</small>}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
         <div className="discussion-saisie">
           <ZoneTexte
             rows={1}
             value={texte}
             maxLength={COMMENTAIRE_MAX}
-            placeholder="Écrire un message…"
+            placeholder={nommables.length ? 'Écrire un message… (@ pour mentionner)' : 'Écrire un message…'}
             aria-label="Nouveau commentaire"
             autoFocus={!tactile}
-            onChange={(e) => setTexte(e.target.value)}
-            onKeyDown={(e) => raccourci(e, envoyer)}
+            onChange={(e) => {
+              setTexte(e.target.value);
+              suivre(e.target);
+            }}
+            onSelect={(e) => suivre(e.currentTarget)}
+            onBlur={() => setSuggestion(null)}
+            onKeyDown={clavier}
           />
           <button type="button" className="discussion-envoyer" disabled={busy || !texte.trim()} onClick={envoyer} aria-label="Envoyer" title={tactile ? 'Envoyer' : 'Envoyer (Entrée ; Maj+Entrée : à la ligne)'}>
             <Icone n="envoyer" />
@@ -185,5 +251,17 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
         </div>
       </section>
     </Modal>
+  );
+}
+
+/** Texte d'un message : mentions « @Prénom Nom » des personnes d'ici en évidence (la sienne plus encore), adresses en liens. */
+function AvecMentions({ texte, people, moi }: { texte: string; people: Person[]; moi: string }) {
+  if (!texte.includes('@')) return <AvecLiens texte={texte} />;
+  return (
+    <>
+      {decouper(texte, people).map((x, i) =>
+        x.id ? <span key={i} className={`mention${x.id === moi ? ' moi' : ''}`}>{x.texte}</span> : <AvecLiens key={i} texte={x.texte} />,
+      )}
+    </>
   );
 }
