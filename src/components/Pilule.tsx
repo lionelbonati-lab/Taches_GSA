@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react';
 import { Icone, type IconeNom } from './icones';
 
 // Barre d'outils flottante (« pilule »), en icônes seulement : on la déplace en la tenant par sa poignée (souris ou
@@ -21,6 +21,10 @@ export interface OutilPilule {
 }
 
 type Pos = { x: number; y: number };
+/** Place choisie, en proportion de l'écran (0 : bord gauche / haut, 1 : bord droit / bas) : la pilule la garde quand
+ *  l'écran tourne ou que le clavier s'ouvre, toujours entièrement à l'écran. */
+type Place = { fx: number; fy: number };
+const MARGE = 4;
 const lire = <T,>(cle: string, defaut: T): T => {
   try {
     const v = localStorage.getItem(cle);
@@ -41,37 +45,34 @@ const ecrire = (cle: string, v: unknown) => {
 export function Pilule({ id, label, titre, outils, ligne2 }: { id: string; label: string; titre?: ReactNode; outils: OutilPilule[]; ligne2?: ReactNode }) {
   const cle = `taches-gsa-pilule-${id}`;
   const ref = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<Pos | null>(() => lire<Pos | null>(cle, null));
+  const [place, setPlace] = useState<Place | null>(() => {
+    const p = lire<Partial<Place> | null>(cle, null);
+    return typeof p?.fx === 'number' && typeof p.fy === 'number' ? { fx: p.fx, fy: p.fy } : null;
+  });
   const [reduite, setReduite] = useState(() => lire(`${cle}-reduite`, false));
-  const glisse = useRef<{ dx: number; dy: number; arrivee?: Pos } | null>(null);
+  const glisse = useRef<{ dx: number; dy: number; arrivee?: Place } | null>(null);
 
-  // Toujours entièrement à l'écran (fenêtre plus petite, pilule agrandie).
-  const borner = (p: Pos): Pos => {
+  // Coin en haut à gauche voulu (pixels) → place en proportion de l'espace libre autour de la pilule.
+  const versPlace = ({ x, y }: Pos): Place => {
     const el = ref.current;
-    const w = el?.offsetWidth ?? 0;
-    const h = el?.offsetHeight ?? 0;
-    return { x: Math.round(Math.min(Math.max(4, p.x), window.innerWidth - w - 4)), y: Math.round(Math.min(Math.max(4, p.y), window.innerHeight - h - 4)) };
-  };
-  useLayoutEffect(() => {
-    setPos((p) => (p ? borner(p) : p));
-  }, [reduite, outils.length]);
-  useEffect(() => {
-    const f = () => setPos((p) => (p ? borner(p) : p));
-    window.addEventListener('resize', f);
-    // Pilule agrandie (palette de couleurs ouverte…) : toujours à l'écran.
-    const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(f);
-    if (ref.current) ro?.observe(ref.current);
-    return () => {
-      window.removeEventListener('resize', f);
-      ro?.disconnect();
+    const f = (v: number, libre: number) => (libre > 0 ? Math.round(Math.min(1, Math.max(0, (v - MARGE) / libre)) * 1e4) / 1e4 : 0);
+    return {
+      fx: f(x, document.documentElement.clientWidth - (el?.offsetWidth ?? 0) - 2 * MARGE),
+      fy: f(y, window.innerHeight - (el?.offsetHeight ?? 0) - 2 * MARGE),
     };
+  };
+  const placer = (p: Pos | null) => {
+    const pl = p && versPlace(p);
+    setPlace(pl);
+    ecrire(cle, pl);
+  };
+  // Place retenue par une version précédente (en pixels) : reprise en proportion de l'écran.
+  useLayoutEffect(() => {
+    const p = lire<Partial<Pos> | null>(cle, null);
+    if (typeof p?.x === 'number' && typeof p.y === 'number') placer({ x: p.x, y: p.y });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const placer = (p: Pos | null) => {
-    const b = p && borner(p);
-    setPos(b);
-    ecrire(cle, b);
-  };
   const debut = (e: PointerEvent<HTMLElement>) => {
     const r = ref.current?.getBoundingClientRect();
     if (!r) return;
@@ -81,8 +82,8 @@ export function Pilule({ id, label, titre, outils, ligne2 }: { id: string; label
   const bouge = (e: PointerEvent<HTMLElement>) => {
     const g = glisse.current;
     if (!g) return;
-    g.arrivee = borner({ x: e.clientX - g.dx, y: e.clientY - g.dy });
-    setPos(g.arrivee);
+    g.arrivee = versPlace({ x: e.clientX - g.dx, y: e.clientY - g.dy });
+    setPlace(g.arrivee);
   };
   const fin = () => {
     if (glisse.current?.arrivee) ecrire(cle, glisse.current.arrivee);
@@ -100,8 +101,15 @@ export function Pilule({ id, label, titre, outils, ligne2 }: { id: string; label
     setReduite(!reduite);
   };
 
+  // Calculée par le navigateur à chaque changement de taille de l'écran ou de la pilule : 4 px + fx × (largeur libre).
+  const style = place && {
+    left: `calc(${MARGE}px + ${place.fx} * (100% - ${2 * MARGE}px))`,
+    top: `calc(${MARGE}px + ${place.fy} * (100% - ${2 * MARGE}px))`,
+    transform: `translate(${-100 * place.fx}%, ${-100 * place.fy}%)`,
+  };
+
   return (
-    <div ref={ref} className={`pilule no-print ${pos ? '' : 'defaut'} ${titre || (ligne2 && !reduite) ? 'avec-titre' : ''}`} style={pos ? { left: pos.x, top: pos.y } : undefined} role="toolbar" aria-label={label}>
+    <div ref={ref} className={`pilule no-print ${place ? 'placee' : 'defaut'} ${titre || (ligne2 && !reduite) ? 'avec-titre' : ''}`} style={style ?? undefined} role="toolbar" aria-label={label}>
       {/* Le titre sert aussi de poignée (plus grand à saisir au doigt). */}
       {titre && (
         <div className="pilule-titre" onPointerDown={debut} onPointerMove={bouge} onPointerUp={fin} onPointerCancel={fin} onDoubleClick={() => placer(null)}>

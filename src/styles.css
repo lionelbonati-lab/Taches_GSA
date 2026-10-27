@@ -702,6 +702,8 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 /* Pilule : barre d'outils flottante en icônes (prise de notes du PV), déplaçable par sa poignée. */
 .pilule { position: fixed; z-index: 35; display: flex; flex-direction: column; padding: 3px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); user-select: none; -webkit-user-select: none; }
 .pilule.defaut { left: 50%; bottom: 24px; transform: translateX(-50%); }
+/* Déplacée : place en proportion de l'écran (Pilule.tsx), même largeur où qu'elle soit. */
+.pilule.placee { width: max-content; max-width: calc(100% - 8px); }
 .pilule-outil { display: inline-flex; align-items: center; }
 .pilule-barre { display: flex; align-items: center; gap: 1px; }
 .pilule.avec-titre { border-radius: 18px; }
@@ -732,6 +734,7 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .chrono.arrete { color: var(--muted); }
 @media (max-width: 767px) {
   .pilule.defaut { bottom: calc(150px + env(safe-area-inset-bottom)); } /* au-dessus du bouton « + » */
+  html.clavier .pilule.defaut { bottom: 8px; } /* clavier ouvert : « + » et barre du bas cachés */
   .pilule button { width: 33px; height: 33px; }
   .pilule .poignee { width: 22px; }
   .pilule-sep { margin: 0 1px; }
@@ -984,6 +987,8 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
   font-size: 0.95rem; font-weight: 600; white-space: nowrap; cursor: pointer; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
 .fab-menu button:hover { border-color: var(--primary); color: var(--primary); }
+/* Clavier de l'écran ouvert (clavier.ts) : place pour écrire ; « + » et barre du bas reviennent à sa fermeture. */
+html.clavier :is(.fab, .fab-menu, .fab-back, .bottomnav) { display: none; }
 
 @media (max-width: 767px) {
   body { font-size: 15px; }
@@ -1853,7 +1858,7 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
   .modal.recherche { max-height: none; height: 100%; border-radius: 0; padding-top: env(safe-area-inset-top); }
   /* Discussion : tout l'écran, comme une messagerie. */
   .modal-back:has(> .modal.chat) { align-items: stretch; }
-  .modal.chat { height: 100dvh; max-height: none; border-radius: 0; padding: env(safe-area-inset-top) 0 0; }
+  .modal.chat { height: auto; max-height: none; border-radius: 0; padding: env(safe-area-inset-top) 0 0; } /* tout le fond : au-dessus du clavier */
   .discussion-saisie { padding-bottom: calc(8px + env(safe-area-inset-bottom)); }
 }
 .agenda-item.cible { outline: 2px solid var(--primary); outline-offset: 2px; animation: cible 1.6s ease-out 2; }

@@ -6,12 +6,14 @@ import { DemoApp } from './DemoApp';
 import { CloudApp } from './CloudApp';
 import { Welcome } from './pages/Real';
 import { initPwa } from './pwa';
+import { suivreClavier } from './clavier';
 import { applyAppColor, cachedColor } from './data/couleur';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { installerRapport } from './data/rapportErreurs';
 import './styles.css';
 
 initPwa();
+suivreClavier();
 // Erreurs de script signalées aux admins du club, une fois l'appli connectée (Layout).
 installerRapport();
 entiteDuLienRecu();

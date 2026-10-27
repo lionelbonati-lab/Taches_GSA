@@ -313,3 +313,35 @@ test('recherche globale (Ctrl+K) : tâche, séance, personne', async ({ page }) 
   await page.keyboard.press('Enter');
   await expect(page.getByPlaceholder('Que faut-il faire ?')).toHaveValue('Commander les maillots');
 });
+
+test('pilule du PV : garde sa place quand l’écran tourne ou que le clavier s’ouvre', async ({ page }) => {
+  await page.goto('./?demo#/pv');
+  const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  const boite = async () => (await pilule.boundingBox())!;
+  const droite = async () => {
+    const r = await boite();
+    return Math.round((await page.evaluate(() => document.documentElement.clientWidth)) - r.x - r.width);
+  };
+  // Contre le bord droit, vers le haut.
+  await pilule.getByRole('button', { name: /Déplacer la barre/ }).focus();
+  for (let i = 0; i < 70; i++) await page.keyboard.press('ArrowRight');
+  for (let i = 0; i < 25; i++) await page.keyboard.press('ArrowUp');
+  const avant = await boite();
+  expect(await droite()).toBe(4);
+  // Écran tourné : toujours contre le bord droit, puis à la même place au retour.
+  const taille = page.viewportSize()!;
+  await page.setViewportSize({ width: taille.height, height: taille.width });
+  await expect.poll(droite).toBe(4);
+  await page.setViewportSize(taille);
+  await expect.poll(boite).toEqual(avant);
+  // Clavier ouvert dans une note : en-tête et pilule restent à l'écran, le « + » laisse la place.
+  await page.locator('.note-riche').first().click();
+  await page.setViewportSize({ width: taille.width, height: taille.height - 320 });
+  await expect(page.locator('html')).toHaveClass(/clavier/);
+  await expect(page.locator('.fab')).toBeHidden();
+  await expect(pilule).toBeInViewport({ ratio: 1 });
+  await expect(page.locator('.topbar')).toBeInViewport({ ratio: 1 });
+  await page.setViewportSize(taille);
+  await expect(page.locator('.fab')).toBeVisible();
+  await expect.poll(boite).toEqual(avant);
+});

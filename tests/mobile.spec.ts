@@ -44,3 +44,17 @@ test('barre du bas : onglets choisis et rangés', async ({ page }) => {
   await barre.getByRole('button', { name: 'Plus' }).click();
   await expect(page.locator('.sheet').getByRole('link', { name: 'Calendrier' })).toBeVisible();
 });
+
+test('clavier ouvert : le « + » et la barre du bas laissent la place', async ({ page }) => {
+  await page.goto('./?demo#/messages');
+  const taille = page.viewportSize()!;
+  await page.getByRole('searchbox', { name: 'Rechercher dans les messages' }).click();
+  await page.setViewportSize({ width: taille.width, height: taille.height - 330 });
+  await expect(page.locator('.fab')).toBeHidden();
+  await expect(page.locator('.bottomnav')).toBeHidden();
+  await expect(page.locator('.topbar')).toBeInViewport({ ratio: 1 });
+  // Clavier refermé, champ encore actif : tout revient.
+  await page.setViewportSize(taille);
+  await expect(page.locator('.fab')).toBeVisible();
+  await expect(page.locator('.bottomnav')).toBeVisible();
+});
