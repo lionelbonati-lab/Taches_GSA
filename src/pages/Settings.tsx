@@ -13,6 +13,7 @@ import { PageIntro } from '../components/Nav';
 import { AccueilModal, accueilPerso } from '../components/Accueil';
 import { BarreBasModal } from '../components/BarreBas';
 import { MesDonnees } from '../components/MesDonnees';
+import { MonProfil } from '../components/MonProfil';
 import { CopiesAuto } from '../components/CopiesAuto';
 import { copierMaintenant } from '../data/cloud';
 import { Icone } from '../components/icones';
@@ -91,6 +92,7 @@ export function Settings() {
           {pwd === 'ok' && <p className="backup-ok">✅ Mot de passe changé.</p>}
         </section>
       )}
+      {club && <MonProfil />}
       {club && <MesDonnees />}
       <section className="panel form">
         <h2 className="full">Préférences personnelles</h2>

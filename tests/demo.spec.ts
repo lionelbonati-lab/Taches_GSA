@@ -307,6 +307,21 @@ test('vue « moi » : nouvelle tâche créée dans une autre de mes entités, sa
   await expect(chezElle.locator('.tsource')).toHaveCount(0);
 });
 
+test('vue « moi » : mon profil, le même dans toutes mes entités', async ({ page }) => {
+  await page.goto('./?demo#/reglages');
+  const profil = page.locator('section.mon-profil');
+  await expect(profil).toContainText('Soirée récréative');
+  await expect(profil.getByLabel('Email')).toBeDisabled();
+  await profil.getByLabel('Prénom').fill('Jules');
+  await profil.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.locator('.who-text strong')).toHaveText('Jules Moreau');
+  // Dans la Soirée récréative aussi, sans l'avoir modifié là-bas.
+  await ouvrirEntite(page, 'Soirée récréative');
+  await expect(page.locator('.who-text strong')).toHaveText('Jules Moreau');
+  await page.goto('./?demo#/reglages');
+  await expect(page.locator('section.mon-profil').getByLabel('Prénom')).toHaveValue('Jules');
+});
+
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche de la messagerie');
