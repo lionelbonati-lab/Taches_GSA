@@ -9,6 +9,7 @@ import { AvecLiens } from '../Liens';
 import { ZoneTexte } from '../ZoneTexte';
 import { Modal } from '../ui';
 import { Icone } from '../icones';
+import { PastilleEntite } from '../IconesEntite';
 
 const p2 = (n: number) => String(n).padStart(2, '0');
 /** Jour local d'un message (AAAA-MM-JJ), pour les séparateurs « Aujourd'hui », « Hier », « 12.10.2026 ». */
@@ -32,8 +33,10 @@ export const quandMessage = (iso: string) => {
 
 /**
  * Discussion sur une tâche (049), dans sa propre fenêtre, comme une messagerie : les messages en bulles (les miens à
- * droite), du plus ancien au plus récent, ouverte sur le dernier, et le champ de saisie en bas. Chacun corrige ou retire
- * les siens ; un admin de l'entité de la tâche retire n'importe lequel. Les personnes concernées sont prévenues (🔔).
+ * droite), du plus ancien au plus récent, ouverte sur le dernier, et le champ de saisie en bas ; de personne à personne
+ * (l'auteur sans son entité), avec en tête l'entité de la tâche (personnes de plusieurs entités, tâche d'ailleurs).
+ * Chacun corrige ou retire les siens ; un admin de l'entité de la tâche retire n'importe lequel. Les personnes concernées
+ * sont prévenues (🔔).
  * Ouverte, elle est lue (pastille des cartes) ; les messages arrivés depuis la dernière lecture suivent un repère.
  * `cle` : la tâche vue d'ici (lecture, notifications) ; `uniteId` : entité de la tâche quand ce n'est pas l'entité
  * ouverte (`tacheId` : son identifiant là-bas). `actions` : boutons de plus dans l'en-tête (ex. ouvrir la tâche).
@@ -76,6 +79,9 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   }, [liste.length]);
   if (!user) return null;
   const moderer = unite === ici && can('admin.access');
+  // Entité de la tâche : pour qui est dans plusieurs entités, ou si la tâche est d'ailleurs.
+  const proprietaire = club?.units.find((u) => u.id === unite);
+  const montrerEntite = !!proprietaire && (unite !== ici || club!.mine.length > 1);
   const tactile = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const agir = async (a: ActionCommentaire, ensuite?: () => void) => {
     setBusy(true);
@@ -149,6 +155,11 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   return (
     <Modal title={titre} icone="message" onClose={onClose} className="chat" actions={actions}>
       <section className="discussion" aria-label="Discussion">
+        {montrerEntite && (
+          <p className="discussion-entite">
+            <PastilleEntite u={proprietaire} /> Tâche de « {proprietaire.nom} »
+          </p>
+        )}
         <div ref={fil} className="discussion-fil">
           {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par la tâche sont prévenues 🔔.</p>}
           <ul className="discussion-liste">

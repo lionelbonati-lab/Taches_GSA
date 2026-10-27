@@ -105,10 +105,11 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // Il écrit dans la discussion depuis le comité central.
+  // Il écrit dans la discussion depuis le comité central ; en tête, l'entité de la tâche.
   await entite('Comité central');
   await page.locator('main').getByText('Choisir la musique').filter({ visible: true }).first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
+  await expect(page.locator('.discussion-entite')).toHaveText('Tâche de « Soirée récréative »');
   await page.getByLabel('Nouveau commentaire').fill('Une liste de chansons pour samedi ?');
   await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
   await expect(page.locator('.discussion-message.mien')).toHaveCount(1);
@@ -127,6 +128,7 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
   await ligne.getByText('Choisir la musique').first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
   const discussion = page.getByRole('dialog', { name: 'Choisir la musique' }).getByRole('region', { name: 'Discussion' });
+  await expect(discussion.locator('.discussion-entite')).toHaveText('Tâche de « Soirée récréative »');
   // De personne à personne : ni son nom ni l'entité d'où il a écrit.
   await expect(discussion.locator('.discussion-message.mien')).toContainText('Une liste de chansons pour samedi ?');
   await expect(discussion.locator('.discussion-message.mien')).not.toContainText('Comité central');
