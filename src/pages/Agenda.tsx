@@ -6,7 +6,9 @@ import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, PvArchive, Task } fr
 import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
 import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu } from '../data/repetition';
 import { EventModal, newEvent } from '../components/EventModal';
-import { EditionCard } from '../components/Edition';
+import { EditionCard, hasEdition } from '../components/Edition';
+import { RepriseModal } from '../components/Reprise';
+import { reprenable } from '../data/reprise';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
@@ -420,6 +422,8 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
 export function Events() {
   const { data, can } = useStore();
   const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string } | null>(null);
+  // Événement passé repris pour une nouvelle édition, avec ses tâches (Reprise.tsx).
+  const [reprise, setReprise] = useState<ClubEvent | null>(null);
   const manage = can('events.manage');
   const cible = useCible('id');
   // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
@@ -451,6 +455,7 @@ export function Events() {
           const past = fin < jour;
           const jours = diffDays(e.date, fin) + 1;
           const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
+          const suite = data.events.find((x) => x.repriseDe === serie.id);
           return (
             <article key={e.id} id={`cible-${serie.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible?.id === serie.id ? 'cible' : ''}`}>
               <DateBlock date={e.date} fin={e.dateFin} />
@@ -461,14 +466,25 @@ export function Events() {
                 <p>{e.description}</p>
                 <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
                 <Link to={`/taches?event=${e.id}`}>Voir les tâches →</Link>
+                {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${suite.id}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
               </div>
-              {manage && <button className="btn small" onClick={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}>Modifier</button>}
+              {manage && (
+                <div className="agenda-actions">
+                  <button className="btn small" onClick={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}>Modifier</button>
+                  {past && reprenable(serie) && (
+                    <button className="btn small" onClick={() => setReprise(serie)} title="Nouvelle édition de cet événement, avec ses tâches">
+                      <Icone n="dupliquer" /> Reprendre
+                    </button>
+                  )}
+                </div>
+              )}
             </article>
           );
         })}
         {!liste.length && <Empty>Aucun événement.</Empty>}
       </div>
       {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
+      {reprise && <RepriseModal event={reprise} edition={hasEdition(club?.current)} onClose={() => setReprise(null)} />}
     </div>
   );
 }

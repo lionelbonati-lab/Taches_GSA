@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { daysUntil, endOf, fmtRange, today } from '../data/utils';
-import type { OrgUnit } from '../data/types';
+import type { ClubEvent, OrgUnit } from '../data/types';
 import { Modal } from './ui';
 import { Icone } from './icones';
+import { RepriseModal } from './Reprise';
 
 // Date de la prochaine édition d'une manifestation (sous-comité, équipe d'événement), sur un ou plusieurs jours.
 // Affichée sur l'accueil et la page Événements de l'entité ; son comité la change (admins, droit « Gérer les
-// événements », comité central) et peut déplacer du même coup l'événement de l'agenda (les délais liés suivent).
+// événements », comité central) et peut déplacer du même coup l'événement de l'agenda (les délais liés suivent). Édition
+// passée : son événement de l'agenda peut être repris pour la nouvelle, avec ses tâches (Reprise.tsx).
 
 export const hasEdition = (u?: OrgUnit | null) => u?.type === 'sous-comite' || u?.type === 'equipe';
 
@@ -16,6 +18,7 @@ export function EditionCard() {
   const club = useClubOptional();
   const { can } = useStore();
   const [open, setOpen] = useState(false);
+  const [reprise, setReprise] = useState<Reprise | null>(null);
   if (!club || !hasEdition(club.current)) return null;
   const u = club.current;
   const allowed = club.canManage || u.moiAdmin || can('events.manage');
@@ -36,12 +39,16 @@ export function EditionCard() {
         {u.date && ` : ${fmtRange(u.date, u.dateFin)}`} <em className="muted">({etat})</em>
       </span>
       {allowed && <button className="btn small" onClick={() => setOpen(true)}>{u.date ? 'Changer la date' : 'Fixer la date'}</button>}
-      {open && <EditionModal unit={u} onClose={() => setOpen(false)} />}
+      {open && <EditionModal unit={u} onClose={() => setOpen(false)} onReprendre={setReprise} />}
+      {reprise && <RepriseModal {...reprise} edition onClose={() => setReprise(null)} />}
     </div>
   );
 }
 
-function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void }) {
+/** Événement de l'édition passée à reprendre, aux dates de la nouvelle. */
+type Reprise = { event: ClubEvent; date: string; dateFin?: string };
+
+function EditionModal({ unit, onClose, onReprendre }: { unit: OrgUnit; onClose: () => void; onReprendre: (r: Reprise) => void }) {
   const club = useClubOptional()!;
   const { data, can, update } = useStore();
   const [debut, setDebut] = useState(unit.date ?? '');
@@ -52,6 +59,10 @@ function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void })
   const moveable = can('events.manage');
   const auto = unit.date && endOf({ date: unit.date, dateFin: unit.dateFin }) >= today() ? events.find((e) => e.date === unit.date) : undefined;
   const [ev, setEv] = useState(auto?.id ?? '');
+  // Édition passée : son événement (celui de ses dates), à reprendre pour la nouvelle avec ses tâches.
+  const finEdition = unit.date ? endOf({ date: unit.date, dateFin: unit.dateFin }) : '';
+  const ancienne = moveable && unit.date && finEdition < today() ? events.find((e) => e.date >= unit.date! && e.date <= finEdition) : undefined;
+  const [reprendre, setReprendre] = useState(!!ancienne);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const liees = ev ? data.tasks.filter((t) => t.eventId === ev && t.delaiRef?.type === 'event').length : 0;
@@ -69,6 +80,7 @@ function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void })
       if (e && moveable) update((d) => { d.events = d.events.map((x) => (x.id === e.id ? { ...x, date: debut, dateFin } : x)); }, `Prochaine édition le ${quand} (événement « ${e.nom} » déplacé)`);
       else update(() => {}, `Prochaine édition le ${quand}`);
       onClose();
+      if (ancienne && reprendre && ev !== ancienne.id) onReprendre({ event: ancienne, date: debut, dateFin });
     } catch (x) {
       setErr((x as Error).message);
     } finally {
@@ -94,6 +106,12 @@ function EditionModal({ unit, onClose }: { unit: OrgUnit; onClose: () => void })
               <option value="">Non, ne pas toucher aux événements</option>
               {events.map((e) => <option key={e.id} value={e.id}>{e.nom} ({fmtRange(e.date, e.dateFin)})</option>)}
             </select>
+          </label>
+        )}
+        {ancienne && ev !== ancienne.id && (
+          <label className="check-inline full">
+            <input type="checkbox" checked={reprendre} onChange={(e) => setReprendre(e.target.checked)} />
+            <span>Reprendre « {ancienne.nom} » pour cette édition, avec ses tâches (choisies à l’étape suivante)</span>
           </label>
         )}
       </div>

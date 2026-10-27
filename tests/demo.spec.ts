@@ -345,3 +345,48 @@ test('pilule du PV : garde sa place quand l’écran tourne ou que le clavier s�
   await expect(page.locator('.fab')).toBeVisible();
   await expect.poll(boite).toEqual(avant);
 });
+
+test('reprendre un événement passé : nouvelle édition avec ses tâches, délais décalés', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Réserver les dossards');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  // Liée à la course d'avril (passée), 7 jours avant ; terminée, checklist cochée.
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k)?.includes('Réserver les dossards'), cle)).toBe(true);
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    d.events.find((x: { id: string }) => x.id === 'e1').nom = 'Course de préparation 2026';
+    const t = d.tasks.find((x: { titre: string }) => x.titre === 'Réserver les dossards');
+    const fini = d.statuses.find((s: { done: boolean }) => s.done).id;
+    Object.assign(t, { eventId: 'e1', delaiRef: { type: 'event', joursAvant: 7, unite: 'jours' }, delai: '2026-04-18', statusId: fini, checklist: [{ id: 'c1', label: 'Commander', done: true }] });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+
+  await page.locator('.agenda-item', { hasText: 'Course de préparation 2026' }).getByRole('button', { name: 'Reprendre' }).click();
+  const reprise = page.getByRole('dialog', { name: 'Reprendre « Course de préparation 2026 »' });
+  await reprise.getByLabel('Premier jour').fill('2027-04-24');
+  await expect(reprise.getByLabel('Nom', { exact: true })).toHaveValue('Course de préparation 2027');
+  const ligne = reprise.locator('.anciennes-liste li', { hasText: 'Réserver les dossards' });
+  await expect(ligne.locator('input')).toBeChecked();
+  await expect(ligne).toContainText('délai 17.04.2027 (7 jours avant)');
+  await reprise.getByRole('button', { name: 'Reprendre avec 1 tâche' }).click();
+
+  // Les tâches de la nouvelle édition : la copie, à faire, au 17.04.2027, checklist décochée.
+  await expect(page).toHaveURL(/#\/taches\?event=/);
+  const copie = page.locator('main tr', { hasText: 'Réserver les dossards' });
+  await expect(copie).toHaveCount(1);
+  await expect(copie).toContainText('17.04.2027');
+  await copie.getByText('Réserver les dossards').click();
+  const rouverte = page.locator('.modal').first();
+  await expect(rouverte.getByRole('combobox', { name: 'Statut' })).toHaveText('À faire');
+  await expect(rouverte.locator('.check-row input')).not.toBeChecked();
+  await rouverte.getByRole('button', { name: 'Fermer' }).first().click();
+
+  await page.goto('./?demo#/evenements');
+  await expect(page.locator('.agenda-item', { hasText: 'Course de préparation 2026' }).locator('.reprise')).toContainText('Course de préparation 2027');
+  const nouvelle = page.locator('.agenda-item').filter({ has: page.locator('strong', { hasText: /^Course de préparation 2027$/ }) });
+  await expect(nouvelle).toContainText('0/1 tâches terminées');
+});

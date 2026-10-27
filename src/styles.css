@@ -1756,6 +1756,16 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .form label.check-inline { flex-direction: row; align-items: flex-start; gap: 8px; color: var(--text); font-weight: 400; font-size: 0.95rem; margin-top: 6px; }
 .form label.check-inline input { width: auto; margin-top: 3px; }
 
+/* Reprendre un événement passé (nouvelle édition) : les tâches à recopier, par groupe. */
+.reprise-groupe { margin-top: 14px; }
+.reprise-groupe .row { align-items: baseline; }
+.reprise-resp { display: grid; gap: 6px; }
+.reprise-resp label.inline { align-items: center; gap: 8px; }
+.reprise-resp input { width: auto; }
+.reprise-deja { color: var(--late); }
+.agenda-item .reprise { margin: 4px 0 0; }
+.agenda-actions { display: flex; flex-direction: column; gap: 6px; align-items: stretch; }
+
 /* Suppression définitive d'une entité archivée */
 .zone-suppression { border-top: 1px solid var(--border); padding-top: 10px; }
 .suppression-liste { margin: 6px 0 10px; padding-left: 20px; display: grid; gap: 2px; }

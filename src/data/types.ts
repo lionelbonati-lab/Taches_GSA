@@ -655,6 +655,8 @@ export interface ClubEvent {
   sauf?: string[];
   /** Occurrence d'une série modifiée seule : la série et le jour de l'occurrence d'origine. */
   serie?: { id: string; date: string };
+  /** Nouvelle édition d'un événement passé, avec ses tâches reprises (« Reprendre », reprise.ts) : celui-ci. */
+  repriseDe?: string;
 }
 
 /** Répétition d'un événement, comme dans un agenda : tous les N jours, semaines, mois ou ans. */
