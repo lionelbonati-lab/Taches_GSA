@@ -29,7 +29,11 @@ par étape conseillée). Suite de `PERSONNES_DU_CLUB.md` (étapes 1 à 6 faites)
 2. **Profil, réglages, lectures (notifications, discussions) : une seule fois, au club.**
 3. **Les entités n'ont plus de fiches de personnes**, seulement des **places** (organigramme) qui donnent les droits
    (★ → Admin, poste → son rôle, bénévole) ; coordonnées seulement dans la fiche du club (déjà le cas).
-4. **Sans place** : la même appli, avec ses seules tâches confiées (plus d'écran à part).
+4. **Sans place (dans aucun comité, groupe ou événement)** : accès à l'appli normale (plus d'écran à part), **sauf les
+   écrans propres à un rôle** (ordre du jour, PV, séances, console admin, caisse, visa, gestion des personnes…) :
+   accueil, ses tâches confiées et « pour info », messagerie, agenda du club, sondages où il vote, « Personnes du club »
+   (noms), et le bouton « + » pour **envoyer un remboursement ou un paiement** (à la caisse centrale par défaut, autre
+   caisse au choix) et en suivre l'état.
 5. **Tâches, séances, événements, sondages restent dans leur entité** : à la création, choix de l'entité (la dernière
    choisie proposée, sinon le comité central) ; ordre du jour, PV, console admin : entité choisie en haut (déjà le cas).
 
@@ -63,7 +67,9 @@ migration appliquée par le président (éditeur SQL), aucun déploiement sans s
 ### Étape 2 — Démo : les écrans
 
 - Créations (tâche, séance, événement, sondage) : choix de l'entité, la dernière proposée.
-- Personne sans place : l'appli normale (accueil, tâches confiées) ; retirer `SansPlace` séparé.
+- Personne sans place : l'appli normale sans les écrans de rôle (navigation filtrée par droits : aucun droit d'entité)
+  ; accueil, tâches confiées, messagerie, agenda, sondages, « + » remboursement / paiement vers la caisse centrale (ou
+  une autre au choix) avec son suivi ; retirer `SansPlace` séparé.
 - Retirer « Accès désactivé dans X » et la bascule d'entité (`App.tsx`) ; annuler/refaire et rapport d'erreurs par
   entité de la modification.
 - Aide (`Aide.tsx`), README.
@@ -86,6 +92,10 @@ migration appliquée par le président (éditeur SQL), aucun déploiement sans s
 
 - `gsa-push` : réglages et lectures lus au club (`pushServeur.ts`, `npm run fonction`), redéploiement avec accord.
 - Liens des notifications : sans entité (`?u=` devient inutile ; `LienRecu` garde la compatibilité des anciens liens).
+- Personne sans place : envoyer un ticket (remboursement, facture) à une caisse et le suivre — aujourd'hui
+  `gsa_ticket_central` / `gsa_mes_tickets_centraux` demandent une place dans une entité : migration 060 pour les ouvrir
+  à toute personne du club qui a un compte (photo du ticket dans le dossier de la caisse, comme 030) ; ses messages,
+  agenda et sondages selon les mêmes règles.
 - (Facultatif, plus tard) `gsa_members` remplacé par les places pour les règles d'accès : seulement si utile, migration
   à part.
 
@@ -104,12 +114,12 @@ moins qu'une longue session qui enchaîne tout.
 | --- | --- | --- |
 | 0 | Inventaire, contrôle serveur en lecture | 1 à 2 M |
 | 1 | Démo : session du club, façade `useStore`, réglages au club | 8 à 12 M |
-| 2 | Démo : écrans, sans place dans l'appli, aide | 4 à 6 M |
+| 2 | Démo : écrans, sans place dans l'appli (sans écrans de rôle, avec tickets), aide | 5 à 8 M |
 | 3 | Serveur : rapport en lecture seule | 0,5 à 1 M |
 | 4 | Migration 059, appli réelle, essais base locale | 6 à 9 M |
-| 5 | `gsa-push`, liens, redéploiement | 1,5 à 3 M |
+| 5 | `gsa-push`, liens, tickets des personnes sans place (060), redéploiement | 3 à 6 M |
 | 6 | Ménage et documentation | 1 à 2 M |
-| **Total** | | **22 à 35 M** |
+| **Total** | | **26 à 40 M** |
 
 Les étapes 1 et 4 sont les plus lourdes (presque tous les écrans passent par `useStore()`). Chaque étape laisse l'appli
 utilisable : on peut s'arrêter entre deux.
