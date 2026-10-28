@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
 import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, newTask, parentOf, recurrenceLabel, today } from '../data/utils';
@@ -29,7 +29,20 @@ type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 
 
 const EMPTY_FILTERS = { q: '', entite: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
 
+/**
+ * Notification d'un message (💬, 📣 : …&discussion=1) : la discussion s'ouvre dans « Messages », pas par-dessus la fiche ;
+ * la fermer ramène aux discussions, et l'icône de la tâche y ouvre la fiche. Les notifications déjà envoyées gardent
+ * l'ancien lien (sur téléphone aussi) : elles passent par ici.
+ */
 export function Tasks() {
+  const [params] = useSearchParams();
+  const tache = params.get('tache');
+  const pourInfo = params.get('pourinfo');
+  if (params.has('discussion') && (tache || pourInfo)) return <Navigate to={`/messages?d=${encodeURIComponent(tache ?? `x:${pourInfo}`)}`} replace />;
+  return <ListeTaches />;
+}
+
+function ListeTaches() {
   // Vue « moi » : avec les tâches de mes autres entités (pastille de leur entité ; filtre « Entité »).
   const { dataMoi: data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, pourInfo } = useStore();
   // Nouvelle tâche : aussi dans l'une de mes autres entités (choisie dans la fenêtre).

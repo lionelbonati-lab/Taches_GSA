@@ -91,6 +91,39 @@ test('discussion : commenter, corriger puis retirer un commentaire', async ({ pa
   await expect(page.locator('.modal')).toHaveCount(1);
 });
 
+test('notification d’un message : la discussion s’ouvre dans Messages, la croix y ramène, l’icône ouvre la tâche', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Tâche commentée');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await page.locator('main').getByText('Tâche commentée').filter({ visible: true }).first().click();
+  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
+  const chat = page.getByRole('dialog', { name: 'Tâche commentée' });
+  await chat.getByLabel('Nouveau commentaire').fill('Le devis est arrivé');
+  await chat.getByLabel('Nouveau commentaire').press('Enter');
+  await expect(chat.locator('.discussion-message')).toHaveCount(1);
+  // Identifiant de la tâche : celui de sa discussion dans Messages.
+  await page.goto('./?demo#/messages');
+  await page.locator('.messages-ligne', { hasText: 'Tâche commentée' }).click();
+  const id = await page.evaluate(() => new URLSearchParams(location.hash.split('?')[1]).get('d'));
+  expect(id).toBeTruthy();
+
+  // Lien d'une notification 💬 (cloche, ou téléphone) : la discussion, sur la page Messages.
+  await page.goto(`./?demo#/taches?tache=${id}&discussion=1`);
+  await expect(page).toHaveURL(/#\/messages\?d=/);
+  const ouverte = page.getByRole('dialog', { name: 'Tâche commentée' });
+  await expect(ouverte.locator('.discussion-message')).toContainText('Le devis est arrivé');
+  // La croix ramène aux discussions (pas à la fiche de la tâche).
+  await ouverte.getByRole('button', { name: 'Fermer' }).click();
+  await expect(page).toHaveURL(/#\/messages$/);
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.messages-ligne', { hasText: 'Tâche commentée' })).toBeVisible();
+  // Rouverte : l'icône de la tâche ouvre sa fiche.
+  await page.locator('.messages-ligne', { hasText: 'Tâche commentée' }).click();
+  await page.getByRole('dialog', { name: 'Tâche commentée' }).getByRole('button', { name: 'Ouvrir la tâche' }).click();
+  await expect(page).toHaveURL(/#\/taches\?tache=/);
+  await expect(page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true })).toBeVisible();
+});
+
 test('discussion : mon message écrit depuis une autre de mes entités reste le mien', async ({ page }) => {
   const entite = async (nom: string) => {
     await ouvrirEntite(page, nom);
@@ -844,11 +877,13 @@ test('discussion : messages non lus sur la carte et la bulle, ouverte depuis la 
   const chat = page.getByRole('dialog', { name: 'Tâche à discuter' });
   await expect(chat.locator('.discussion-nouveaux')).toHaveText('Nouveau message');
   await expect(chat.locator('.discussion-message:not(.mien)')).toContainText('Je peux m’en occuper samedi.');
+  // Ouverte dans Messages : la croix ramène aux discussions.
+  await expect(page).toHaveURL(/#\/messages\?d=/);
   await chat.getByRole('button', { name: 'Fermer' }).click();
-  // Lue : plus de pastille, la bulle reste pour dire qu'il y a une discussion.
-  await expect(page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true })).toBeVisible();
-  await page.locator('.modal').first().getByRole('button', { name: 'Fermer' }).first().click();
   await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.messages-ligne', { hasText: 'Tâche à discuter' })).toBeVisible();
+  // Lue : plus de pastille, la bulle reste pour dire qu'il y a une discussion.
+  await page.goto('./?demo#/taches');
   await expect(ligne.locator('.discussion-tag')).toBeVisible();
   await expect(ligne.locator('.pastille-nonlu')).toHaveCount(0);
 });

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDiscussions, type DiscussionVue } from '../data/discussions';
+import { useClubOptional } from '../data/club';
 import { PageIntro } from '../components/Nav';
 import { Discussion, quandMessage } from '../components/tache/Discussion';
 import { Empty, Modal } from '../components/ui';
@@ -17,17 +18,28 @@ const cherche = (q: string, ...textes: (string | undefined)[]) => {
   return !m || textes.some((t) => !!t && norme(t).includes(m));
 };
 
+/** La discussion d'une clé : la même, sinon la même tâche vue autrement (d'une autre de mes entités, ou d'ici). */
+function trouver(toutes: DiscussionVue[], cle: string, ici: string) {
+  const exacte = toutes.find((d) => d.cle === cle);
+  if (exacte) return exacte;
+  const [, unite, id] = /^x:([^:]+):(.+)$/.exec(cle) ?? [];
+  if (unite) return toutes.find((d) => d.tacheId === id && (d.uniteId ?? ici) === unite);
+  return toutes.find((d) => d.tacheId === cle && (!d.uniteId || d.uniteId === ici));
+}
+
 export function Messages() {
   const { toutes, nonLus } = useDiscussions();
+  const club = useClubOptional();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [filtre, setFiltre] = useState<Filtre>('toutes');
   const [q, setQ] = useState('');
   const [nouvelle, setNouvelle] = useState(false);
-  // Discussion ouverte : dans l'adresse (?d=…), pour que « retour » du téléphone la ferme.
+  // Discussion ouverte : dans l'adresse (?d=…), pour que « retour » du téléphone la ferme. Lien d'une notification : la
+  // tâche vue de l'entité qui l'a reçue (« x:<entité>:<tâche> », ou son identifiant dans cette entité).
   const ouverte = params.get('d');
   const ouvrir = (cle: string | null) => setParams(cle ? { d: cle } : {}, { replace: !cle });
-  const chat = ouverte ? toutes.find((d) => d.cle === ouverte) : undefined;
+  const chat = ouverte ? trouver(toutes, ouverte, club?.current.id ?? '') : undefined;
 
   const avecMessages = toutes.filter((d) => d.liste.length).sort((a, b) => b.dernier.localeCompare(a.dernier));
   const liste = avecMessages.filter((d) => (filtre === 'toutes' || d.nonLus > 0) && cherche(q, d.titre, d.entite, ...d.liste.map((c) => c.texte), ...d.liste.map((c) => c.nom)));
