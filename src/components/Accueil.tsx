@@ -37,7 +37,8 @@ export function useBlocsAccueil(): Element[] {
   const central = club?.current.type === 'central';
   const jours = joursAFaire(prefs.aFaireJours);
   const l: (Element & { si: boolean })[] = [
-    { id: 'edition', icone: 'date', label: 'Date de l’édition', si: hasEdition(club?.current) },
+    // Mes entités avec une édition (sous-comité, équipe d'événement), quelle que soit l'entité ouverte.
+    { id: 'edition', icone: 'date', label: 'Date de l’édition', si: !!club?.units.some((u) => u.moi && !u.archive && hasEdition(u)) },
     { id: 'compteurs', icone: 'compteur', label: 'Compteurs de mes tâches', si: true },
     { id: 'retard', icone: 'alerte', label: 'Mes tâches en retard', si: true },
     { id: 'aprendre', icone: 'main', label: 'À prendre (tâches qu’on me propose)', si: true },
@@ -74,13 +75,24 @@ export function ordonner(ids: string[], ordre?: string[]) {
 export const accueilPerso = (p: Prefs) =>
   !!(p.aFaireJours || p.aFaireToutes || p.accueilOrdre?.length || p.compteursOrdre?.length || p.accueilMasque?.telephone?.length || p.accueilMasque?.ordinateur?.length || p.compteursMasque?.telephone?.length || p.compteursMasque?.ordinateur?.length);
 
+/**
+ * Blocs masqués tant que la personne n'a rien choisi : les dates d'édition pour le comité central (ses membres voient les
+ * éditions dans « Prochains événements », plus bas ; en haut, elles prendraient la place des tâches).
+ */
+export function useMasqueAccueil(): Required<NonNullable<Prefs['accueilMasque']>> {
+  const { prefs } = useStore();
+  const club = useClubOptional();
+  const defaut = club?.central?.moi ? ['edition'] : [];
+  return { telephone: prefs.accueilMasque?.telephone ?? defaut, ordinateur: prefs.accueilMasque?.ordinateur ?? defaut };
+}
+
 /** Ce que la personne voit sur son accueil, sur cet appareil, dans son ordre. */
 export function useAccueil() {
   const { prefs, data } = useStore();
   const tel = useTelephone();
   const blocs = useBlocsAccueil();
   const appareil: Appareil = tel ? 'telephone' : 'ordinateur';
-  const masques = prefs.accueilMasque?.[appareil] ?? [];
+  const masques = useMasqueAccueil()[appareil];
   const cMasques = prefs.compteursMasque?.[appareil] ?? [];
   const compteurs = compteursAccueil(data.statuses);
   return {
@@ -161,6 +173,7 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
   const { prefs, data, can } = useStore();
   const setPrefs = useSetPrefsPartout();
   const blocs = useBlocsAccueil();
+  const masque = useMasqueAccueil();
   const { appareil } = useAccueil();
   const jours = joursAFaire(prefs.aFaireJours);
   return (
@@ -171,7 +184,7 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
       <Rangement
         titre="Blocs"
         elements={blocs}
-        masque={prefs.accueilMasque}
+        masque={masque}
         ordre={prefs.accueilOrdre}
         appareil={appareil}
         setMasque={(m) => setPrefs({ accueilMasque: m })}

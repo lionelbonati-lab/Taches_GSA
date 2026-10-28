@@ -1286,3 +1286,18 @@ test('discussion : mentionner quelqu’un avec @, notification 📣 sans 💬 en
   discussion = await ouvrirDiscussion();
   await expect(discussion.locator('.discussion-message:not(.mien) .mention.moi')).toHaveText(`@${moi}`);
 });
+
+test('accueil du comité central : pas de cartes « Prochaine édition » en haut, même ouvert sur un sous-comité', async ({ page }) => {
+  // Une notification peut ouvrir l'appli sur l'entité de la tâche : l'accueil ne change pas pour autant.
+  await ouvrirEntite(page, 'Soirée récréative');
+  await page.goto('./?demo#/');
+  await expect(page.getByRole('heading', { name: /^Bonjour/ })).toBeVisible();
+  await expect(page.locator('.panel.edition')).toHaveCount(0);
+  // Le bloc reste au choix de chacun (⚙️ Mon accueil), masqué d'origine.
+  await page.getByRole('button', { name: 'Personnaliser l’accueil' }).click();
+  const ligne = page.getByRole('checkbox', { name: 'Date de l’édition — Ordinateur' });
+  await expect(ligne).not.toBeChecked();
+  await ligne.check();
+  await page.getByRole('button', { name: 'Fermer', exact: true }).last().click();
+  await expect(page.locator('.panel.edition').first()).toBeVisible();
+});
