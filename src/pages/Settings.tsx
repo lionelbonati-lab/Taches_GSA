@@ -1,7 +1,7 @@
 import { useStore } from '../data/store';
 import { InstallButton } from '../components/InstallButton';
 import { useState } from 'react';
-import { DEFAULT_NOTIF, showSystemNotification, useNotifications } from '../notifications';
+import { lireNotif, showSystemNotification, useNotifications } from '../notifications';
 import type { NotifPrefs } from '../data/types';
 import { PasswordForm } from './Real';
 import { switchMode } from '../data/mode';
@@ -30,7 +30,7 @@ export function Settings() {
   const [barreBas, setBarreBas] = useState(false);
 
   const { unread } = useNotifications();
-  const n: NotifPrefs = { ...DEFAULT_NOTIF, ...prefs.notif };
+  const n: NotifPrefs = lireNotif(prefs.notif);
   const setN = (patch: Partial<NotifPrefs>) => setPrefs({ notif: { ...n, ...patch } });
   const supported = typeof window !== 'undefined' && 'Notification' in window;
   const [perm, setPerm] = useState<string>(supported ? Notification.permission : 'unsupported');
@@ -123,8 +123,9 @@ export function Settings() {
       <section className="panel form">
         <h2 className="full">Notifications</h2>
         <p className="muted full" style={{ margin: 0 }}>Choisis ce qui s’affiche dans la cloche 🔔 de l’en-tête{plusieurs ? ', pour toutes tes entités' : ''}.</p>
-        <label className="inline full"><input type="checkbox" checked={n.assign} onChange={(e) => setN({ assign: e.target.checked })} /> 🆕 Une tâche ou une sous-tâche m’est confiée par quelqu’un d’autre, 👁 on me la met « pour info », ou 🙋 on me la propose (et quelqu’un prend ou décline une tâche que j’ai proposée) ; 📣 on me mentionne dans une discussion (@)</label>
-        <label className="inline full"><input type="checkbox" checked={n.modif} onChange={(e) => setN({ modif: e.target.checked })} /> ✏️ Une de mes tâches est modifiée par quelqu’un d’autre, ou reconduite ; 💬 quelqu’un commente une tâche dont je m’occupe ou que j’ai commentée</label>
+        <h3 className="full notif-groupe">Tâches</h3>
+        <label className="inline full"><input type="checkbox" checked={n.assign} onChange={(e) => setN({ assign: e.target.checked })} /> 🆕 Une tâche m’est confiée par quelqu’un d’autre, 👁 on me la met « pour info », ou 🙋 on me la propose (et quelqu’un prend ou décline une tâche que j’ai proposée)</label>
+        <label className="inline full"><input type="checkbox" checked={n.modif} onChange={(e) => setN({ modif: e.target.checked })} /> ✏️ Une de mes tâches est modifiée par quelqu’un d’autre, ou reconduite</label>
         <label className="inline"><input type="checkbox" checked={n.echeance} onChange={(e) => setN({ echeance: e.target.checked })} /> ⏰ Échéance proche</label>
         <label>
           Prévenir
@@ -133,9 +134,12 @@ export function Settings() {
           </select>
         </label>
         <label className="inline full"><input type="checkbox" checked={n.retard} onChange={(e) => setN({ retard: e.target.checked })} /> ⚠️ Mes tâches en retard (résumé quotidien)</label>
+        <label className="inline full"><input type="checkbox" checked={n.email} onChange={(e) => setN({ email: e.target.checked })} /> 📧 Un email que j’ai programmé arrive à son heure d’envoi</label>
+        <h3 className="full notif-groupe">Messagerie</h3>
+        <label className="inline full"><input type="checkbox" checked={n.messages} onChange={(e) => setN({ messages: e.target.checked })} /> 💬 Quelqu’un écrit dans la discussion d’une tâche dont je m’occupe ou où j’ai écrit ; 📣 on me mentionne dans une discussion (@)</label>
+        <h3 className="full notif-groupe">Agenda et sondages</h3>
         <label className="inline full"><input type="checkbox" checked={n.semaine} onChange={(e) => setN({ semaine: e.target.checked })} /> 📅 Résumé de ma semaine, le lundi matin : tâches à faire d’ici dimanche, séances, événements, sondages</label>
         <label className="inline full"><input type="checkbox" checked={n.sondage} onChange={(e) => setN({ sondage: e.target.checked })} /> 📊 Un sondage attend ma réponse</label>
-        <label className="inline full"><input type="checkbox" checked={n.email} onChange={(e) => setN({ email: e.target.checked })} /> 📧 Un email que j’ai programmé arrive à son heure d’envoi</label>
         {(comites ? comites.canUn('tab.meetings') : can('tab.meetings')) && (
           <>
             <label className="inline"><input type="checkbox" checked={n.seance} onChange={(e) => setN({ seance: e.target.checked })} /> 🗓️ Prochaine séance de comité</label>

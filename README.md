@@ -409,7 +409,7 @@ Cloche 🔔 dans l'en-tête (ordinateur et mobile), avec pastille du nombre de n
 - 📅 le lundi, **résumé de ta semaine** : tâches à faire d'ici dimanche (en retard comprises, les plus proches citées), séances de comité, événements et sondages qui attendent ton vote ; un clic ouvre « Cette semaine » dans Tâches (filtre Délai) ;
 - 🗓️ prochaine séance de comité (et « ordre du jour disponible » s'il a été archivé).
 
-Un clic ouvre directement la tâche (ou la liste filtrée / Comité › Séances). Réglages → Notifications : choix des types, délais de prévenance, et **notifications de l'appareil** (téléphone / ordinateur, après autorisation) avec un bouton de test.
+Un clic ouvre directement la tâche (ou la liste filtrée / Comité › Séances). Réglages → Notifications, en trois groupes : **Tâches** (confiée, pour info, proposée ; modifiée ou reconduite ; échéance ; retard ; email programmé), **Messagerie** (💬 messages et 📣 mentions, une case à part) et **Agenda et sondages** (résumé de la semaine, sondage, séance) ; délais de prévenance, et **notifications de l'appareil** (téléphone / ordinateur, après autorisation) avec un bouton de test.
 
 Démo : sans serveur, les notifications sont calculées dans le navigateur et celles de l'appareil ne partent qu'à l'ouverture de l'appli.
 

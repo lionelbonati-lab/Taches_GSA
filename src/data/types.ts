@@ -703,8 +703,12 @@ export interface LogEntry {
 }
 
 export interface NotifPrefs {
+  /** Tâches : confiée, pour info, proposée (prise, déclinée), relance. */
   assign: boolean;
+  /** Tâches : une des miennes modifiée par quelqu'un d'autre, reconduite, vue par tous. */
   modif: boolean;
+  /** Messagerie : 💬 message dans la discussion d'une tâche, 📣 mention (@). */
+  messages: boolean;
   echeance: boolean;
   echeanceJours: number;
   retard: boolean;

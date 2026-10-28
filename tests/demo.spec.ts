@@ -262,6 +262,16 @@ test('discussion : une seule notification par personne, lue partout une fois lue
   await entite('Soirée récréative');
   await expect((await notifications()).locator('.bell-item', { hasText: 'Choisir la musique' }).first()).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Notifications' }).locator('.bell-item.unread', { hasText: 'Choisir la musique' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+
+  // Réglages : la messagerie a sa propre case, à part des tâches ; décochée, les 💬 quittent la cloche.
+  await page.goto('./?demo#/reglages');
+  const messagerie = page.getByRole('checkbox', { name: /Quelqu’un écrit dans la discussion/ });
+  await expect(messagerie).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: /Une tâche m’est confiée/ })).not.toHaveAccessibleName(/mentionne/);
+  await messagerie.uncheck();
+  await expect(page.getByRole('checkbox', { name: /Une tâche m’est confiée/ })).toBeChecked();
+  await expect((await notifications()).locator('.bell-item', { hasText: 'a commenté « Choisir la musique »' })).toHaveCount(0);
 });
 
 test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées sans changer d’entité', async ({ page }) => {

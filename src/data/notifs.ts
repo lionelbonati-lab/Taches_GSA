@@ -18,6 +18,7 @@ import { cleCommune } from './commentaires';
 export const DEFAULT_NOTIF: NotifPrefs = {
   assign: true,
   modif: true,
+  messages: true,
   echeance: true,
   echeanceJours: 3,
   retard: true,
@@ -28,6 +29,12 @@ export const DEFAULT_NOTIF: NotifPrefs = {
   semaine: true,
   systeme: false,
 };
+
+/**
+ * Réglages des notifications d'une personne, complétés. La messagerie a sa case depuis le 28.10.2026 ; avant, les 💬
+ * suivaient « tâche modifiée » : un ancien réglage la garde ainsi.
+ */
+export const lireNotif = (p?: Partial<NotifPrefs>): NotifPrefs => ({ ...DEFAULT_NOTIF, ...p, messages: p?.messages ?? p?.modif ?? DEFAULT_NOTIF.messages });
 
 export interface NotifItem {
   key: string;
@@ -224,15 +231,17 @@ export function computeNotifications(
   }
 
   // Un message où l'on est mentionné (📣) n'est pas annoncé une seconde fois en 💬.
-  const mentions = new Set(p.assign ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === 'mention').map(memeMessage) : []);
+  const mentions = new Set(p.messages ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === 'mention').map(memeMessage) : []);
   const voitTout = hasPermission(userRoles(data.roles, user), 'tasks.viewAll');
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
     // Écrite par moi depuis une autre de mes entités (« x:<entité>:<fiche> ») : rien à m'annoncer.
     const [ailleurs, e, f] = (n.by ?? '').split(':');
     if (ailleurs === 'x' && !!f && autres.mesFiches?.[e] === f) continue;
-    const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'mention', 'relance'].includes(n.type);
-    if ((nouvelle && !p.assign) || (!nouvelle && !p.modif)) continue;
+    // Messagerie (💬, 📣), tâches qui me sont confiées ou proposées, mes tâches modifiées : chacune sa case.
+    const message = n.type === 'comment' || n.type === 'mention';
+    const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'relance'].includes(n.type);
+    if (message ? !p.messages : nouvelle ? !p.assign : !p.modif) continue;
     if (n.type === 'comment' && mentions.has(memeMessage(n))) continue;
     // Discussion lue depuis dans l'une de mes autres entités (clé commune) : ses 💬 et 📣 sont lues ici aussi.
     if ((n.type === 'comment' || n.type === 'mention') && courante && (autres.lues?.[cleCommune(n.taskId, courante)] ?? '') >= n.at) seen.add(n.id);

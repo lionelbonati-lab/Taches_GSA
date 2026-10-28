@@ -242,7 +242,7 @@ Correction à redéployer : la fonction lisait la colonne `nom` des entités au 
 
 ## Fonction serveur `gsa-push`
 
-`supabase/functions/gsa-push/index.ts` (déployée le 26.10.2026, redéployée le 28.10.2026 : rappels de séance selon l’organigramme, ★ et postes ; `notifs.js` régénéré ensuite sans la notification 📨 des demandes au comité central, retirées : la version déployée la garde, sans effet, jusqu'au prochain déploiement ; sans vérification de connexion : `verify_jwt` désactivé ; avec la migration 047) : notifications envoyées aux appareils inscrits, même l'appli fermée. Trois demandes (`POST`, `{ action }`) :
+`supabase/functions/gsa-push/index.ts` (déployée le 26.10.2026, redéployée le 28.10.2026 : rappels de séance selon l’organigramme, ★ et postes ; `notifs.js` régénéré ensuite : sans la notification 📨 des demandes au comité central (retirées, sans effet en attendant), et avec la case « Messagerie » à part (💬 et 📣 ; la version déployée les range encore sous « tâche modifiée » et « tâche confiée ») — à redéployer ; sans vérification de connexion : `verify_jwt` désactivé ; avec la migration 047) : notifications envoyées aux appareils inscrits, même l'appli fermée. Trois demandes (`POST`, `{ action }`) :
 
 - `cle` : la clé publique du serveur (VAPID), pour inscrire un appareil ; créée à la première demande ;
 - `essai` (personne connectée, jeton vérifié dans le code) : une notification d'essai sur ses appareils ;

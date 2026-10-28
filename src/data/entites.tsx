@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useLayoutEffect, use
 import { ClubCtx, type Club } from './club';
 import { StoreCtx } from './storeCtx';
 import type { Store } from './storeTypes';
-import { computeNotifications, DEFAULT_NOTIF, type NotifItem } from './notifs';
+import { computeNotifications, lireNotif, type NotifItem } from './notifs';
 import type { Meeting, OrgUnit, Poll, Prefs } from './types';
 import { sondagesVisibles } from './polls';
 
@@ -205,7 +205,7 @@ export function Publier() {
   const user = store?.user;
   const notifs =
     store && user && club
-      ? computeNotifications(store.data, user, { ...DEFAULT_NOTIF, ...store.prefs.notif }, club.demandesMdp, store.pourInfo, club.units, club.current.id, { mesFiches: club.mesFiches, lues: club.luesAilleurs })
+      ? computeNotifications(store.data, user, lireNotif(store.prefs.notif), club.demandesMdp, store.pourInfo, club.units, club.current.id, { mesFiches: club.mesFiches, lues: club.luesAilleurs })
       : [];
   const id = club?.current.id;
   useLayoutEffect(() => {

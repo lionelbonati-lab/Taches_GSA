@@ -365,6 +365,7 @@ function luesCommunes(parEntite) {
 var DEFAULT_NOTIF = {
   assign: true,
   modif: true,
+  messages: true,
   echeance: true,
   echeanceJours: 3,
   retard: true,
@@ -375,6 +376,7 @@ var DEFAULT_NOTIF = {
   semaine: true,
   systeme: false
 };
+var lireNotif = (p) => ({ ...DEFAULT_NOTIF, ...p, messages: p?.messages ?? p?.modif ?? DEFAULT_NOTIF.messages });
 function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], units = [], courante, autres = {}) {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items = [];
@@ -520,14 +522,15 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
         });
     }
   }
-  const mentions = new Set(p.assign ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === "mention").map(memeMessage) : []);
+  const mentions = new Set(p.messages ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === "mention").map(memeMessage) : []);
   const voitTout = hasPermission(userRoles(data.roles, user), "tasks.viewAll");
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
     const [ailleurs2, e, f] = (n.by ?? "").split(":");
     if (ailleurs2 === "x" && !!f && autres.mesFiches?.[e] === f) continue;
-    const nouvelle = ["assign", "info", "propose", "pris", "refus", "mention", "relance"].includes(n.type);
-    if (nouvelle && !p.assign || !nouvelle && !p.modif) continue;
+    const message = n.type === "comment" || n.type === "mention";
+    const nouvelle = ["assign", "info", "propose", "pris", "refus", "relance"].includes(n.type);
+    if (message ? !p.messages : nouvelle ? !p.assign : !p.modif) continue;
     if (n.type === "comment" && mentions.has(memeMessage(n))) continue;
     if ((n.type === "comment" || n.type === "mention") && courante && (autres.lues?.[cleCommune(n.taskId, courante)] ?? "") >= n.at) seen.add(n.id);
     if (n.type === "comment" || n.type === "mention" || n.type === "relance") {
@@ -668,7 +671,7 @@ function notificationsPush(o) {
   const { data, prefs } = donnees(o.lignes);
   const moi = data.people.find((p2) => p2.id === o.fiche);
   if (!moi || moi.actif === false) return [];
-  const p = { ...DEFAULT_NOTIF, ...prefs[o.fiche]?.notif };
+  const p = lireNotif(prefs[o.fiche]?.notif);
   const d = avecSondages(data, [], o.courante, [], o.fiche);
   return computeNotifications(d, moi, p, o.demandesMdp ?? [], o.pourInfo ?? [], [], o.courante, { mesFiches: o.mesFiches, lues: o.lues }).filter((x) => x.unread);
 }

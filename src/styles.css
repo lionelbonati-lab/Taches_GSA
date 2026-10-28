@@ -1954,3 +1954,6 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 
 /* Console admin d'une entité : les statuts du club (réglés au comité central), en lecture. */
 .statuts-club { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }
+
+/* Réglages › Notifications : groupes (tâches, messagerie, agenda et sondages). */
+.form h3.notif-groupe { margin: 10px 0 -4px; font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }

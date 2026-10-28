@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useStore } from './data/store';
 import { useClubOptional } from './data/club';
-import { computeNotifications, DEFAULT_NOTIF, type NotifItem } from './data/notifs';
+import { computeNotifications, lireNotif, type NotifItem } from './data/notifs';
 import { useAutres } from './data/entites';
 import { lienDepuisEntite } from './data/vueMoi';
 
 // Notifications de l'appli : le calcul est dans src/data/notifs.ts (aussi utilisé par le serveur, appli fermée).
-export { ago, computeNotifications, DEFAULT_NOTIF, type NotifItem } from './data/notifs';
+export { ago, computeNotifications, DEFAULT_NOTIF, lireNotif, type NotifItem } from './data/notifs';
 
 /** Notification de la cloche ; `entite` : de l'une de mes autres entités, dont la page s'ouvre dans cette entité. */
 export type Notif = NotifItem & { entite?: string };
@@ -22,7 +22,7 @@ export function useNotifications() {
     const id = setInterval(() => setTick((x) => x + 1), 60000);
     return () => clearInterval(id);
   }, []);
-  const p = { ...DEFAULT_NOTIF, ...prefs.notif };
+  const p = lireNotif(prefs.notif);
   const ici: Notif[] = user ? computeNotifications(data, user, p, club?.demandesMdp, pourInfo, club?.units, club?.current.id, { mesFiches: club?.mesFiches, lues: club?.luesAilleurs }) : [];
   // Une même demande de mot de passe (personne de plusieurs de mes entités) : une seule fois.
   const mdp = new Set(ici.filter((n) => n.key.startsWith('mdp:')).map((n) => n.key));

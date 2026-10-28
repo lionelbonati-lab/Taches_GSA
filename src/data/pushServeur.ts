@@ -1,6 +1,6 @@
 import type { AppData, NotifPrefs, Prefs, TachePartagee } from './types';
 import type { DemandeMdp } from './cloud';
-import { computeNotifications, DEFAULT_NOTIF, type NotifItem } from './notifs';
+import { computeNotifications, lireNotif, type NotifItem } from './notifs';
 import { avecSondages } from './polls';
 
 // Fonction « gsa-push » (notifications sur téléphone, appli fermée) : les notifications de la cloche 🔔 d'une personne
@@ -33,7 +33,7 @@ export function notificationsPush(o: { lignes: LignePush[]; fiche: string; coura
   const { data, prefs } = donnees(o.lignes);
   const moi = data.people.find((p) => p.id === o.fiche);
   if (!moi || moi.actif === false) return [];
-  const p: NotifPrefs = { ...DEFAULT_NOTIF, ...prefs[o.fiche]?.notif };
+  const p: NotifPrefs = lireNotif(prefs[o.fiche]?.notif);
   // Sondages : la clé de vote de la personne (ceux des autres entités ne sont pas lus ici).
   const d = avecSondages(data, [], o.courante, [], o.fiche);
   return computeNotifications(d, moi, p, o.demandesMdp ?? [], o.pourInfo ?? [], [], o.courante, { mesFiches: o.mesFiches, lues: o.lues }).filter((x) => x.unread);
