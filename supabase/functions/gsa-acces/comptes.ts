@@ -132,6 +132,13 @@ export async function actionComptes(db: Db, me: string, action: string, body: Re
     if (absorber === me) throw new ErreurCompte('Garde ton propre compte : fusionne l’autre dans le tien.');
     const { data, error } = await db.rpc('gsa_fusionner_comptes', { garder: userId, absorber });
     if (error) throw new ErreurCompte(error.message);
+    // Personnes du club (056) : le compte gardé reprend celle du compte absorbé, s'il n'en a pas déjà une dans ce club.
+    const { data: liens } = await db.from('gsa_club_comptes').select('club_id, membre_id').eq('user_id', absorber);
+    for (const l of liens ?? []) {
+      const { data: deja } = await db.from('gsa_club_comptes').select('membre_id').eq('club_id', l.club_id).eq('user_id', userId).maybeSingle();
+      if (deja) await db.from('gsa_club_comptes').delete().eq('club_id', l.club_id).eq('membre_id', l.membre_id);
+      else await db.from('gsa_club_comptes').update({ user_id: userId }).eq('club_id', l.club_id).eq('membre_id', l.membre_id);
+    }
     // Le compte absorbé n'a plus rien : supprimé, ou à défaut bloqué.
     const { error: e } = await db.auth.admin.deleteUser(absorber);
     if (e) {

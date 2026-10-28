@@ -817,6 +817,26 @@ function fichesArrivees(ecr) {
     return { committee_id: e.ligne.committee_id, id: e.ligne.id, email: (n.email ?? "").trim().toLowerCase(), membreId: n.membreId };
   });
 }
+function retirerDuClubServeur(c, membreId, email) {
+  const avant = photo(c);
+  const e = email.trim().toLowerCase();
+  const sienne = (p) => p.actif && (p.membreId === membreId || !p.membreId && !!e && (p.email ?? "").trim().toLowerCase() === e);
+  for (const u of c.units) {
+    const etoiles = c.data.get(u.id)?.people.filter(estEtoile) ?? [];
+    if (!u.archive && etoiles.length && etoiles.every(sienne)) throw new Error(`C’est le seul ★ de « ${u.nom} » : désigne d’abord un autre responsable.`);
+  }
+  const m = { units: c.units, data: c.data, notes: [], peut: () => true };
+  for (const u of c.units) {
+    const d = c.data.get(u.id);
+    if (!d?.people.some(sienne)) continue;
+    const ancien = { ...d, people: propre(d.people), postes: d.postes ? propre(d.postes) : void 0 };
+    d.people = d.people.map((p) => sienne(p) ? { ...p, actif: false } : p);
+    suivre(m, u.id, ancien);
+  }
+  const ecr = ecritures(c, avant);
+  gardeUnEtoile(c, ecr);
+  return ecr;
+}
 export {
   convertir,
   fichesArrivees,
@@ -824,5 +844,6 @@ export {
   lireClub,
   lireOp,
   organiser,
+  retirerDuClubServeur,
   suivreFiches
 };

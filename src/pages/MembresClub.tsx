@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useClub } from '../data/club';
 import { useStore } from '../data/store';
-import { accessAction, type AccessInfo } from '../data/cloud';
+import { accessAction, actionPersonne, comptePersonne, type AccessInfo, type ComptePersonne } from '../data/cloud';
 import { downloadCsv, norm } from '../data/csv';
 import { COLS_REGISTRE, analyserRegistre, derniers } from '../data/imports';
 import { compactIban, emailKey, formatIban, groupesClub, nomMembre, nouveauMembre, postesDe } from '../data/membres';
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { defaultRoleId } from '../data/units';
-import { uid } from '../data/utils';
+import { fmtDateTime, uid } from '../data/utils';
 import type { ClubMembre, ColonnesMembres, FichesEntite, OrgMember, OrgUnit, Person } from '../data/types';
 import { Initials, Modal } from '../components/ui';
 import { ImportCsv } from '../components/ImportCsv';
@@ -445,6 +445,7 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
           </div>
         )}
       </fieldset>
+      {!nouveau && cloud && !lecture && club.central && <CompteDuClub clubId={club.central.id} membre={membre} />}
       {!nouveau && <AccesMembre membre={membre} postes={postes} />}
       {nouveau && <p className="muted small-note">Une fois la fiche enregistrée, place la personne dans l’organigramme, ou ouvre sa fiche pour l’ajouter à une entité (rôle, accès à l’appli).</p>}
       {err && <p className="error">{err}</p>}
@@ -468,6 +469,84 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
         {!lecture && <button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>}
       </div>
     </Modal>
+  );
+}
+
+/**
+ * Version réelle : son compte (un par personne, donné une fois ; ses places lui ouvrent leurs entités, sans place elle voit
+ * les tâches qui lui sont confiées). Pour qui gère les personnes ; rien tant que le serveur n'est pas à jour (056).
+ */
+function CompteDuClub({ clubId, membre }: { clubId: string; membre: ClubMembre }) {
+  const [etat, setEtat] = useState<ComptePersonne | null | undefined>(undefined);
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const charger = useCallback(() => {
+    comptePersonne(clubId, membre.id)
+      .then(setEtat)
+      .catch((e: Error) => {
+        setEtat(null);
+        setErr(e.message);
+      });
+  }, [clubId, membre.id]);
+  useEffect(charger, [charger]);
+  if (etat === undefined) return <p className="muted small-note">Accès à l’appli…</p>;
+  if (!etat) return err ? <p className="error small-note">Accès à l’appli : {err}</p> : null;
+  const act = async (action: 'compteClub' | 'mdpCompteClub' | 'retirerCompteClub') => {
+    setBusy(true);
+    setErr('');
+    try {
+      const r = await actionPersonne<{ email?: string; password?: string; existant?: boolean }>(action, clubId, membre.id);
+      if (action !== 'retirerCompteClub') setShown({ person: membre, email: r.email ?? etat.email ?? membre.email, password: r.password, existant: r.existant });
+      charger();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const nom = nomMembre(membre);
+  const effet = etat.places ? 'ses places dans l’organigramme lui ouvrent leurs entités' : 'sans place dans l’organigramme, elle y voit les tâches qui lui sont confiées';
+  return (
+    <section className="compte-club">
+      <span className="field-label">Accès à l’appli</span>
+      {etat.compte ? (
+        <p className="access">
+          <span>✅ {etat.email}</span>
+          <small className="muted">
+            {etat.provisoire ? 'Mot de passe provisoire pas encore changé' : etat.derniereConnexion ? `Dernière connexion : ${fmtDateTime(etat.derniereConnexion)}` : 'Jamais connecté'} · {effet}
+          </small>
+        </p>
+      ) : (
+        <p className="muted small-note">
+          Pas encore d’accès. Un seul compte par personne : {effet}.{!membre.email && !membre.masque && ' Indique d’abord son adresse email.'}
+        </p>
+      )}
+      {!etat.peutDonner && !etat.moi && (
+        <small className="muted">
+          {etat.etoiles.length ? `★ de ${etat.etoiles.join(', ')} : son accès se règle par un admin de cette entité ou du comité central.` : 'Compte du propriétaire ou d’un super-admin : réservé aux super-admins.'}
+        </small>
+      )}
+      <span className="row wrap">
+        {!etat.compte && etat.peutDonner && (
+          <button className="btn small primary" disabled={busy || (!membre.email && !membre.masque)} onClick={() => act('compteClub')}>
+            {busy ? 'Création…' : 'Donner l’accès'}
+          </button>
+        )}
+        {etat.compte && etat.peutMdp && (
+          <button className="btn small" disabled={busy} onClick={() => confirm(`Donner un nouveau mot de passe provisoire à ${nom} ? L’actuel ne fonctionnera plus.`) && act('mdpCompteClub')}>
+            Nouveau mot de passe
+          </button>
+        )}
+        {etat.compte && etat.peutDonner && !etat.moi && (
+          <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${nom} à l’appli ? Ses places restent dans l’organigramme.`) && act('retirerCompteClub')}>
+            Retirer l’accès
+          </button>
+        )}
+      </span>
+      {err && <small className="error">{err}</small>}
+      {shown && <CredentialsModal {...shown} onClose={() => setShown(null)} />}
+    </section>
   );
 }
 

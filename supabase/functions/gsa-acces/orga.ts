@@ -8,7 +8,7 @@
 // fiches liées « Membres de »). Une personne placée dans une entité y retrouve son compte (s'il existe au club).
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 // @ts-ignore module généré (npm run fonction), sans types
-import { convertir, fichesArrivees, lierEntiteServeur, lireClub, lireOp, organiser, suivreFiches } from './organigramme.js';
+import { convertir, fichesArrivees, lierEntiteServeur, lireClub, lireOp, organiser, retirerDuClubServeur, suivreFiches } from './organigramme.js';
 
 type Db = SupabaseClient;
 type Ligne = { committee_id: string; kind: string; id: string; pos: number; data: unknown; deleted?: boolean };
@@ -204,6 +204,17 @@ async function quiDuRegistre(db: Db, clubId: string, qui: { prenom: string; nom:
   if (!qui.prenom.trim() && !qui.nom.trim()) throw new Erreur('Indique au moins son prénom ou son nom.');
   const membreId = `m${hasard(16)}`;
   return { qui: { ...qui, membreId }, nouveau: { club_id: clubId, id: membreId, data: { prenom: qui.prenom.trim(), nom: qui.nom.trim(), email, telephone: qui.telephone ?? '', couleur: qui.couleur, groupes: [] } } };
+}
+
+/**
+ * Personne retirée du club (club.ts, droits vérifiés avant) : ses places quittent leurs entités, les postes suivent.
+ * Renvoie les entités touchées.
+ */
+export async function retirerPlaces(db: Db, userId: string, clubId: string, membreId: string, email: string) {
+  const k = await chargerClub(db, clubId, userId);
+  const ecr = retirerDuClubServeur(k.club, membreId, email) as Ecriture[];
+  await ecrire(db, ecr.map((e) => e.ligne));
+  return [...new Set(ecr.map((e) => e.ligne.committee_id))];
 }
 
 /** Une action de l'organigramme ; renvoie { message, unites, annuler? }. */

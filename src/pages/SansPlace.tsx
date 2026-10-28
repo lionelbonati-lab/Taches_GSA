@@ -15,12 +15,14 @@ export interface TacheConfiee {
 /**
  * Personne du club sans place dans l'organigramme, avec un accès à l'appli (PERSONNES_DU_CLUB.md, étape 3) : seulement
  * les tâches qui lui sont confiées (son nom sur la tâche), dans toutes les entités ; elle en change le statut et coche
- * leur checklist, enregistrés dans leur entité. Démo ; version réelle : avec le serveur à jour (étape 5).
+ * leur checklist, enregistrés dans leur entité. Version réelle : CloudApp, avec le serveur à jour (056).
  */
-export function SansPlace({ membre, logo, taches, modifier, sortir, onSortir }: {
-  membre: ClubMembre;
+export function SansPlace({ membre, logo, taches, erreur, modifier, sortir, onSortir }: {
+  membre: Pick<ClubMembre, 'prenom' | 'nom'>;
   logo?: string;
   taches: TacheConfiee[];
+  /** Dernière modification refusée (version réelle). */
+  erreur?: string;
   modifier: (uniteId: string, tacheId: string, patch: Partial<Pick<Task, 'statusId' | 'checklist'>>) => void;
   sortir: string;
   onSortir: () => void;
@@ -42,6 +44,7 @@ export function SansPlace({ membre, logo, taches, modifier, sortir, onSortir }: 
           Tu n’as pas de place dans l’organigramme du club : tu vois ici les tâches qui te sont confiées, dans toutes ses entités. Change leur statut et
           coche leur checklist au fur et à mesure.
         </p>
+        {erreur && <p className="error">{erreur}</p>}
         {!liste.length && <Empty>Aucune tâche ne t’est confiée pour l’instant.</Empty>}
         {liste.map(({ unite, tache: t, statuts }) => (
           <section key={`${unite.id}:${t.id}`} className={`panel tache-confiee${fini({ unite, tache: t, statuts }) ? ' finie' : ''}`}>

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
-import { CloudSync, estSuperAdmin, linkMyPerson, myMemberships, type Membership } from './data/cloud';
+import { CloudSync, estSuperAdmin, linkMyPerson, mesComptesClub, mesTachesConfiees, modifierTacheConfiee, myMemberships, type Membership, type MonCompteClub } from './data/cloud';
 import { doitChangerMdp, doitChoisirMdp, finRecuperation, verifierLienRecuperation } from './data/recuperation';
 import { StoreProvider, type CloudMode } from './data/store';
 import { migrate, SCHEMA } from './data/migrate';
 import { setServerFiles } from './data/files';
-import type { AppData, Person } from './data/types';
+import type { AppData, Person, Task } from './data/types';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { App } from './App';
 import { CloudClub } from './CloudClub';
@@ -15,6 +15,8 @@ import { ChooseCommittee, FirstPassword, Message, NewPassword, RealLogin, Setup,
 import { ComptesSeuls } from './pages/Comptes';
 import { uniteDuLien } from './data/lienPartage';
 import { RegistreEntites } from './data/entites';
+import { SansPlace, type TacheConfiee } from './pages/SansPlace';
+import { isImage } from './data/logo';
 
 // Version réelle : connexion, choix du comité, mise en route, puis l'appli avec les données du serveur.
 
@@ -24,6 +26,7 @@ type Phase =
   | { k: 'motDePasse' }
   | { k: 'nouveauMdp' }
   | { k: 'aucunComite'; superAdmin: boolean }
+  | { k: 'sansPlace'; compte: MonCompteClub }
   | { k: 'choixComite'; list: Membership[] }
   | { k: 'erreur'; text: string }
   | { k: 'miseEnRoute'; m: Membership; sync: CloudSync }
@@ -88,8 +91,11 @@ export function CloudApp() {
       if (doitChangerMdp(s.user)) return setPhase({ k: 'motDePasse' });
       setPhase({ k: 'chargement', text: 'Recherche de ton comité…' });
       try {
-        const list = await myMemberships(s.user.id);
+        // Personne du club sans place dans l'organigramme (056) : ses tâches confiées seulement.
+        const [list, comptes] = await Promise.all([myMemberships(s.user.id), mesComptesClub()]);
         if (id !== run.current) return;
+        const sansPlace = comptes?.length && !comptes.some((c) => c.place) ? comptes[0] : null;
+        if (sansPlace) return setPhase({ k: 'sansPlace', compte: sansPlace });
         // Sans entité : le super-admin du club a la page des comptes.
         if (!list.length) return setPhase({ k: 'aucunComite', superAdmin: await estSuperAdmin() });
         let saved: string | null = null;
@@ -157,9 +163,11 @@ export function CloudApp() {
       if (phase.superAdmin) return <ComptesSeuls email={email} onSignOut={signOut} />;
       return (
         <Message title="Pas encore d’accès" onSignOut={signOut}>
-          <p>Le compte <b>{email}</b> n’est rattaché à aucun comité. Demande au président de te donner l’accès (organigramme : clic sur ton nom, « Créer l’accès »).</p>
+          <p>Le compte <b>{email}</b> n’est rattaché à aucun comité. Demande à quelqu’un qui gère les personnes du club de te donner l’accès (« Personnes du club » : ta fiche, « Donner l’accès »).</p>
         </Message>
       );
+    case 'sansPlace':
+      return <SansPlaceReel compte={phase.compte} onSignOut={signOut} />;
     case 'choixComite':
       return <ChooseCommittee list={phase.list} onSignOut={signOut} onChoose={(m) => session && void open(session, m).catch((e) => setPhase({ k: 'erreur', text: (e as Error).message }))} />;
     case 'erreur': {
@@ -203,4 +211,48 @@ export function CloudApp() {
         </RegistreEntites>
       );
   }
+}
+
+/** Version réelle de « Mes tâches » (personne du club sans place) : ses tâches confiées, lues et modifiées sur le serveur. */
+function SansPlaceReel({ compte, onSignOut }: { compte: MonCompteClub; onSignOut: () => void }) {
+  const [taches, setTaches] = useState<TacheConfiee[] | null>(null);
+  const [err, setErr] = useState('');
+  const charger = useCallback(
+    () =>
+      mesTachesConfiees(compte.club)
+        .then(setTaches)
+        .catch((e: Error) => setErr(e.message)),
+    [compte.club],
+  );
+  useEffect(() => {
+    void charger();
+    // Revenue sur l'appli : les tâches ont pu changer.
+    const vue = () => document.visibilityState === 'visible' && void charger();
+    document.addEventListener('visibilitychange', vue);
+    return () => document.removeEventListener('visibilitychange', vue);
+  }, [charger]);
+  const remplacer = (uniteId: string, tacheId: string, f: (t: Task) => Task) =>
+    setTaches((l) => l?.map((x) => (x.unite.id === uniteId && x.tache.id === tacheId ? { ...x, tache: f(x.tache) } : x)) ?? null);
+  const modifier = (uniteId: string, tacheId: string, patch: Partial<Pick<Task, 'statusId' | 'checklist'>>) => {
+    setErr('');
+    remplacer(uniteId, tacheId, (t) => ({ ...t, ...patch }));
+    const coches = patch.checklist ? Object.fromEntries(patch.checklist.map((c) => [c.id, c.done])) : undefined;
+    modifierTacheConfiee(compte.club, uniteId, tacheId, { statut: patch.statusId, coches })
+      .then((t) => remplacer(uniteId, tacheId, () => t))
+      .catch((e: Error) => {
+        setErr(e.message);
+        void charger();
+      });
+  };
+  if (!taches) {
+    if (!err) return <div className="loading-screen"><AppLogo size={56} /><p>Chargement de tes tâches…</p></div>;
+    return (
+      <Message title="Erreur du serveur" onSignOut={onSignOut}>
+        <p>{err}</p>
+        <p><button className="btn primary" onClick={() => void charger()}>Réessayer</button></p>
+      </Message>
+    );
+  }
+  const logo = compte.logo && isImage(compte.logo) ? compte.logo : undefined;
+  return <SansPlace membre={{ prenom: compte.prenom, nom: compte.nomPersonne }} logo={logo} taches={taches} erreur={err} modifier={modifier} sortir="Se déconnecter" onSortir={onSignOut} />;
 }

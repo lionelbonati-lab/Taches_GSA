@@ -36,7 +36,12 @@ club.
    coordonnées pour tout le club ; organigramme : placer des personnes du club, rôle donné par chaque poste.
 2. Démo — Accès selon l'organigramme ; responsables dans tout le club ; convocations (★ et postes).
 3. Démo — Personnes sans place avec compte : écran « Mes tâches ».
-4. Serveur, lecture seule : rapport de fusion (chiffres), contrôlé avant toute écriture.
-5. Serveur : migrations 055 (places liées aux personnes du club), 056 (droits), 057 + fonction `gsa-acces` (accès automatiques,
-   comptes sans place), appliquées une par une.
+4. Serveur, lecture seule : rapport de fusion (chiffres), contrôlé avant toute écriture. Résultat : places déjà liées aux
+   personnes du club, aucune fusion nécessaire.
+5. Serveur, appliqués un par un :
+   - migration 055 : la liste du club pour toute personne du club, coordonnées et gestion selon les droits ;
+   - migration 056 : un compte par personne (`gsa_club_comptes`), accès qui suivent les places, tâches confiées aux personnes
+     sans place (lecture, statut, checklist), état du compte pour qui gère les personnes ;
+   - fonction `gsa-acces` (`club.ts`) : donner l'accès, nouveau mot de passe, retirer l'accès, retirer du club. Garde-fou : une
+     place ★ se règle par un admin de cette entité ou du comité central ; jamais le seul ★ d'une entité.
 6. Ménage : anciens réglages d'accès entité par entité, aide, README.

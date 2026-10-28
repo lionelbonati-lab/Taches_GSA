@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase, supabaseUrl } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, TachePartagee, Task, TicketCentral, UnitType, VisaVerifie, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, Status, TachePartagee, Task, TicketCentral, UnitType, VisaVerifie, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
 import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -775,9 +775,98 @@ export async function enregistrerFiche(unite: string, p: Person, pos: number) {
   if (error) throw new Error(error.message);
 }
 
-export async function deleteMembre(club: string, id: string) {
+/**
+ * Retire une personne du club : avec le serveur à jour (056, fonction gsa-acces), ses places, son accès et sa fiche ;
+ * avant, sa fiche seulement (refusé tant qu'elle a une place).
+ */
+export async function deleteMembre(club: string, id: string): Promise<string[]> {
+  try {
+    const r = await actionPersonne<{ unites?: string[] }>('retirerDuClub', club, id);
+    return r.unites ?? [];
+  } catch (e) {
+    if (!(e instanceof PasAJour)) throw e;
+  }
   const { error } = await sb().from('gsa_club_membres').delete().eq('club_id', club).eq('id', id);
   if (error) throw registreErreur(error);
+  return [];
+}
+
+/** Serveur pas encore à jour : migration 056 pas appliquée, ou fonction gsa-acces d'avant (elle ne connaît pas l'action). */
+export class PasAJour extends Error {}
+
+/** Compte d'une personne du club, ou son retrait du club (fonction gsa-acces, club.ts). */
+export async function actionPersonne<T = Record<string, unknown>>(action: 'compteClub' | 'mdpCompteClub' | 'retirerCompteClub' | 'retirerDuClub', club: string, membreId: string): Promise<T> {
+  try {
+    return await accessAction<T>({ action, club, membreId });
+  } catch (e) {
+    // La fonction d'avant répond « Réservé aux administrateurs du comité » (action sans entité) ou « Action inconnue ».
+    if (/Action inconnue|Réservé aux administrateurs du comité|migration 056/.test((e as Error).message))
+      throw new PasAJour('La fonction gsa-acces du serveur n’est pas encore à jour : demande à l’administrateur du serveur de la déployer.');
+    throw e;
+  }
+}
+
+/** Compte d'une personne du club (056), pour qui gère les personnes. */
+export interface ComptePersonne {
+  compte: boolean;
+  /** Adresse de connexion de son compte. */
+  email: string | null;
+  derniereConnexion: string | null;
+  provisoire: boolean;
+  /** Ses places actives dans les entités du club. */
+  places: number;
+  /** Entités où elle est ★. */
+  etoiles: string[];
+  /** C'est la personne connectée. */
+  moi: boolean;
+  /** La personne connectée peut lui donner l'accès, le retirer, la retirer du club (places ★ : admins seulement). */
+  peutDonner: boolean;
+  /** La personne connectée peut lui donner un nouveau mot de passe provisoire. */
+  peutMdp: boolean;
+}
+
+/** Son compte et ce que la personne connectée peut en faire ; null : serveur pas encore à jour (056). */
+export async function comptePersonne(club: string, membre: string): Promise<ComptePersonne | null> {
+  const { data, error } = await sb().rpc('gsa_compte_club_etat', { club, membre });
+  if (error) {
+    if (absente(error)) return null;
+    throw new Error(error.message);
+  }
+  return data as ComptePersonne;
+}
+
+/** Les clubs du compte connecté et sa personne dans chacun (056) ; null : serveur pas encore à jour. */
+export interface MonCompteClub {
+  club: string;
+  nom: string;
+  logo: string | null;
+  membreId: string;
+  prenom: string;
+  nomPersonne: string;
+  /** Une place dans l'organigramme (une entité ouverte). */
+  place: boolean;
+}
+export async function mesComptesClub(): Promise<MonCompteClub[] | null> {
+  const { data, error } = await sb().rpc('gsa_mes_comptes_club');
+  if (error) return null;
+  return (data ?? []) as MonCompteClub[];
+}
+
+type LigneConfiee = { unite: LigneOrg; tache: Task; statuts: Status[] };
+const lireConfiee = (x: LigneConfiee) => ({ unite: lireOrg([{ ...x.unite, moi: false, moiAdmin: false, membres: [] }])[0], tache: x.tache, statuts: x.statuts });
+
+/** Tâches confiées à la personne connectée, sur son nom, dans les entités du club (056). */
+export async function mesTachesConfiees(club: string) {
+  const { data, error } = await sb().rpc('gsa_mes_taches_confiees', { club });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as LigneConfiee[]).map(lireConfiee);
+}
+
+/** Statut ou checklist (`coches` : élément → coché) d'une tâche qui lui est confiée (056) ; renvoie la tâche. */
+export async function modifierTacheConfiee(club: string, unite: string, tache: string, patch: { statut?: string; coches?: Record<string, boolean> }): Promise<Task> {
+  const { data, error } = await sb().rpc('gsa_modifier_tache_confiee', { club, unite, tache, statut: patch.statut ?? null, coches: patch.coches ?? null });
+  if (error) throw new Error(error.message);
+  return data as Task;
 }
 
 /** Tâches que d'autres entités du club partagent avec l'entité (migration 019). */
@@ -1082,7 +1171,9 @@ export type AccessRequest =
   | { action: 'approuverMdp' | 'refuserMdp'; demandeId: string }
   | { action: 'comptes' }
   | { action: 'reinitialiserCompte' | 'bloquer' | 'debloquer'; userId: string }
-  | { action: 'fusionner'; userId: string; absorber: string };
+  | { action: 'fusionner'; userId: string; absorber: string }
+  /** Personnes du club (supabase/functions/gsa-acces/club.ts, migration 056) : son compte, son retrait du club. */
+  | { action: 'compteClub' | 'mdpCompteClub' | 'retirerCompteClub' | 'retirerDuClub'; club: string; membreId: string };
 
 export async function accessAction<T = Record<string, unknown>>(body: AccessRequest): Promise<T> {
   const { data, error } = await sb().functions.invoke('gsa-acces', { body });

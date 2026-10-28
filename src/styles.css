@@ -1955,3 +1955,5 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .tache-confiee-remarque { white-space: pre-wrap; margin: 0; }
 .tache-confiee-statut { display: flex; align-items: center; gap: 8px; }
 .tache-confiee-liste { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
+.compte-club { margin: 12px 0 4px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.compte-club .access { margin: 0; display: flex; flex-direction: column; gap: 2px; }

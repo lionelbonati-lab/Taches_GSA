@@ -784,7 +784,10 @@ export function DemoApp() {
         for (const u of touchees) {
           const d = loadUnitData(u.id);
           const admins = d.people.filter((p) => p.actif && p.roles.includes(ADMIN_ROLE_ID));
-          if (admins.length && admins.every(sienne)) throw new Error(`${nomMembre(m)} est le seul admin de « ${u.nom} » : désigne d’abord un autre responsable (★).`);
+          // Une place ★ : réservé aux admins de l'entité ou du comité central (comme le serveur, 056).
+          if (admins.some(sienne) && !central?.moiAdmin && !org.find((x) => x.id === u.id)?.moiAdmin)
+            throw new Error(`${nomMembre(m)} est ★ de « ${u.nom} » : réservé aux admins de cette entité ou du comité central.`);
+          if (!u.archive && admins.length && admins.every(sienne)) throw new Error(`${nomMembre(m)} est le seul admin de « ${u.nom} » : désigne d’abord un autre responsable (★).`);
         }
         for (const u of touchees) {
           const ancien = loadUnitData(u.id);

@@ -259,7 +259,8 @@ export interface Club {
   saveMembres: (list: ClubMembre[]) => Promise<void>;
   /**
    * Retire une personne du club : ses places dans les entités (fiches retirées, postes libérés) et son accès ; ses tâches
-   * gardent son nom (démo ; version réelle : refusé tant qu'elle a une place, jusqu'aux migrations du serveur).
+   * gardent son nom. Ses places ★ : admins de l'entité ou du comité central ; jamais le seul ★ d'une entité (version
+   * réelle : serveur à jour, 056 ; avant, refusé tant qu'elle a une place).
    */
   deleteMembre: (id: string) => Promise<void>;
   /** Ma fiche du registre (mon IBAN, ma confidentialité) ; null : je n'y suis pas. */

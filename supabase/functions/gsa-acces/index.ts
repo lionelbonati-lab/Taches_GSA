@@ -5,13 +5,14 @@
 // Les comptes sont créés ici (clé secrète, jamais dans le navigateur), adresse confirmée d'office :
 // aucun email n'est envoyé, l'admin transmet lui-même le mot de passe provisoire, à changer à la 1re connexion.
 // L'organigramme à glisser-déposer passe aussi par ici (orga.ts : placer une personne, postes, postes liés),
-// ainsi que les comptes du club (comptes.ts : mot de passe oublié, super-admins) et la suppression définitive d'une
-// entité archivée (suppression.ts).
+// ainsi que les comptes du club (comptes.ts : mot de passe oublié, super-admins), les comptes des personnes du club
+// (club.ts : un compte par personne, migration 056) et la suppression définitive d'une entité archivée (suppression.ts).
 // Mot de passe provisoire pas encore changé (app_metadata, migration 025) : aucune action, sauf la demande sans connexion.
 import { createClient, type SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { ACTIONS_ORGA, actionOrganigramme, Erreur } from './orga.ts';
 import { ACTIONS_COMPTES, actionComptes, demandeMdp, donnerMdpProvisoire, ErreurCompte, estSuperAdmin, peutApprouver, provisoire, tempPassword } from './comptes.ts';
 import { ErreurSuppression, supprimerUnite } from './suppression.ts';
+import { ACTIONS_CLUB, actionClub } from './club.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -29,6 +30,17 @@ function secretKey() {
     /* clé héritée ci-dessous */
   }
   return Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+}
+
+/** Clé publique : appels au nom de la personne connectée (avec son jeton), pour les droits calculés par le serveur. */
+function publicKey() {
+  try {
+    const keys = JSON.parse(Deno.env.get('SUPABASE_PUBLISHABLE_KEYS') ?? '{}');
+    if (keys.default) return keys.default as string;
+  } catch {
+    /* clé héritée ci-dessous */
+  }
+  return Deno.env.get('SUPABASE_ANON_KEY')!;
 }
 
 type Db = SupabaseClient;
@@ -150,6 +162,20 @@ Deno.serve(async (req) => {
       return json({ error: e instanceof Error ? e.message : String(e) }, e instanceof ErreurCompte ? e.status : 400);
     }
   }
+  // Personnes du club : leur compte (club.ts) ; droits : gsa_compte_club_etat, au nom de la personne connectée.
+  if (ACTIONS_CLUB.has(action)) {
+    try {
+      const commeMoi = createClient(Deno.env.get('SUPABASE_URL')!, publicKey(), {
+        global: { headers: { Authorization: `Bearer ${token}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      });
+      return json(await actionClub(db, commeMoi, me.user.id, action, body));
+    } catch (e) {
+      const status = e instanceof ErreurCompte || e instanceof Erreur ? e.status : 400;
+      return json({ error: e instanceof Error ? e.message : String(e) }, status);
+    }
+  }
+
   const committeeId = String(body.committeeId ?? '');
   const personId = body.personId ? String(body.personId) : '';
 
