@@ -1143,18 +1143,8 @@ export async function linkMyPerson(committeeId: string, userId: string, personId
   if (error) throw new Error(error.message);
 }
 
-export interface AccessInfo {
-  personId: string | null;
-  owner: boolean;
-  email?: string;
-  derniereConnexion?: string;
-  provisoire: boolean;
-}
-
-/** Gestion des accès (console admin) : fonction serveur gsa-acces. */
+/** Fonction serveur gsa-acces : entités, organigramme, comptes du club. */
 export type AccessRequest =
-  | { action: 'liste'; committeeId: string }
-  | { action: 'creer' | 'reinitialiser' | 'retirer'; committeeId: string; personId: string; email?: string }
   | { action: 'creerUnite'; committeeId: string; unite: { nom: string; type: UnitType; info: UnitInfo }; rows: Row[]; chefId: string }
   /** Entité archivée supprimée définitivement (`committeeId` : comité central) ; `apercu` : ce qui serait supprimé. */
   | { action: 'supprimerUnite'; committeeId: string; uniteId: string; apercu?: boolean; nom?: string }

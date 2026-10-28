@@ -244,8 +244,7 @@ export interface Club {
   /**
    * Personnes du club (liste unique, PERSONNES_DU_CLUB.md) : `voir` la liste (tout le monde) ; `coordonnees` (email,
    * téléphone : droit « voir les coordonnées » dans l'une de ses entités) ; `gerer` (ajouter, modifier, retirer du club :
-   * droit « Gérer les personnes » dans l'une de ses entités). Version réelle : le registre (droit « Membres du club » ou
-   * admin d'une entité) jusqu'aux migrations du serveur.
+   * droit « Gérer les personnes » dans l'une de ses entités). Version réelle : calculés par le serveur (055).
    */
   personnes: { voir: boolean; coordonnees: boolean; gerer: boolean };
   /**

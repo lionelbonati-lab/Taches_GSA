@@ -1,4 +1,4 @@
-# Personnes du club — nouvelle logique (en cours)
+# Personnes du club — nouvelle logique
 
 Décisions prises avec le président du club (octobre 2026). Référence pour chaque étape ; le README décrit ce qui est déjà en place.
 
@@ -44,4 +44,8 @@ club.
      sans place (lecture, statut, checklist), état du compte pour qui gère les personnes ;
    - fonction `gsa-acces` (`club.ts`) : donner l'accès, nouveau mot de passe, retirer l'accès, retirer du club. Garde-fou : une
      place ★ se règle par un admin de cette entité ou du comité central ; jamais le seul ★ d'une entité.
-6. Ménage : anciens réglages d'accès entité par entité, aide, README.
+6. Ménage : plus d'accès entité par entité dans l'appli (« Créer l'accès » remplacé par le compte de la personne, dans sa
+   fiche du club ou de l'entité), aide, README, `SUPABASE_SETUP.md`.
+
+État au 28.10.2026 : étapes 1 à 6 faites ; migrations 055 et 056 appliquées ; fonctions `gsa-acces` et `gsa-push`
+déployées.

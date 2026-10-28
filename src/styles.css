@@ -1691,8 +1691,6 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 
 /* Membres du club, personnes de l'entité, imports CSV */
 .person-roles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0; }
-.person-acces { margin: 10px 0; }
-.person-acces .access { display: flex; flex-direction: column; gap: 4px; }
 .membres-table td { vertical-align: top; }
 .membres-table .badge { margin: 0 4px 4px 0; display: inline-block; }
 .membres-table.lecture tbody tr { cursor: default; }

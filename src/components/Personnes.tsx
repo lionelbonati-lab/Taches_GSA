@@ -3,20 +3,19 @@ import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { ADMIN_ROLE_ID } from '../data/permissions';
-import { accessAction, type AccessInfo } from '../data/cloud';
 import { emailKey, nomMembre } from '../data/membres';
 import { norm } from '../data/csv';
 import { defaultRoleId, directory, personKey, UNIT_TYPES } from '../data/units';
-import type { AppData, OrgMember, OrgUnit, Person, Unit } from '../data/types';
+import type { AppData, ClubMembre, OrgMember, OrgUnit, Person, Unit } from '../data/types';
 import { rolesAutomatiques, rolesDeLaPlace } from '../data/organigramme';
 import { fullName, isDone, uid } from '../data/utils';
 import { Avatar, Initials, Modal } from './ui';
-import { AccessCell, CredentialsModal, type Shown } from './Acces';
+import { CompteDuClub } from './Acces';
 import { Icone } from './icones';
 import { IconeEntite } from './IconesEntite';
 
 // Les personnes d'une entité, ouvertes depuis l'organigramme : ajouter quelqu'un (« + » sous l'entité),
-// voir ou modifier sa fiche (clic sur son nom) : poste, rôles, accès à l'appli, retrait.
+// voir ou modifier sa fiche (clic sur son nom) : poste, rôles, retrait ; son compte (un par personne du club) suit ses places.
 // Les coordonnées viennent du registre « Membres du club ».
 // On peut aussi y ajouter toute une entité : ses membres en font partie et suivent (voir data/liens.ts).
 
@@ -136,33 +135,14 @@ function FicheLecture(f: {
   );
 }
 
-/** Fiche modifiable, avec l'accès à l'appli (version réelle, admins de l'entité). */
+/** Fiche modifiable. */
 function ModifierPersonne({ person, onClose }: { person: Person; onClose: () => void }) {
-  const { data, can, update, cloud } = useStore();
+  const { data, update } = useStore();
   const club = useClubOptional();
-  const [access, setAccess] = useState<AccessInfo[] | null>(null);
-  const [accessErr, setAccessErr] = useState('');
-  const [shown, setShown] = useState<Shown | null>(null);
-  const committeeId = can('admin.access') && data.people.some((x) => x.id === person.id) ? cloud?.membership.committeeId : undefined;
-  const loadAccess = () => {
-    if (!committeeId) return;
-    accessAction<{ acces: AccessInfo[] }>({ action: 'liste', committeeId })
-      .then((r) => {
-        setAccess(r.acces);
-        setAccessErr('');
-      })
-      .catch((e: Error) => setAccessErr(`Accès : ${e.message}`));
-  };
-  useEffect(loadAccess, [committeeId]);
   return (
-    <>
     <PersonModal
       person={person}
       central={!club || club.current.type === 'central'}
-      access={access}
-      accessErr={accessErr}
-      onAccessChange={loadAccess}
-      onShow={setShown}
       onSave={(p, action) => {
         const isNew = !data.people.some((x) => x.id === p.id);
         update((d) => {
@@ -171,19 +151,16 @@ function ModifierPersonne({ person, onClose }: { person: Person; onClose: () => 
       }}
       onClose={onClose}
     />
-    {shown && <CredentialsModal {...shown} onClose={() => setShown(null)} />}
-    </>
   );
 }
 
-/** Fiche d'une personne de l'entité : coordonnées, poste, rôles, accès à l'appli, retrait. */
-function PersonModal({ person, central, access, accessErr, onAccessChange, onShow, onSave, onClose }: {
+/** Sa personne du club, telle que la fiche de l'entité la connaît (pour son compte). */
+const membreDe = (p: Person): ClubMembre => ({ id: p.membreId ?? '', prenom: p.prenom, nom: p.nom, email: p.email, telephone: p.telephone, couleur: p.couleur, groupes: [] });
+
+/** Fiche d'une personne de l'entité : coordonnées, poste, rôles, retrait ; son compte (version réelle). */
+function PersonModal({ person, central, onSave, onClose }: {
   person: Person;
   central: boolean;
-  access: AccessInfo[] | null;
-  accessErr?: string;
-  onAccessChange: () => void;
-  onShow: (s: Shown) => void;
   onSave: (p: Person, action: string) => void;
   onClose: () => void;
 }) {
@@ -229,7 +206,7 @@ function PersonModal({ person, central, access, accessErr, onAccessChange, onSho
       onSave({ ...before, actif: false, exclu: true }, `${fullName(before)} retiré de l’entité (membre de « ${via} »)`);
       return onClose();
     }
-    if (!confirm(`Retirer ${fullName(before)} de l’entité ?${cloud ? ' Son accès à l’appli est aussi coupé.' : ''} Ses tâches restent ; tu pourras le réactiver.`)) return;
+    if (!confirm(`Retirer ${fullName(before)} de l’entité ?${cloud ? ' Son accès à cette entité est aussi coupé.' : ''} Ses tâches restent ; tu pourras le réactiver.`)) return;
     onSave({ ...before, actif: false }, `${fullName(before)} retiré de l’entité`);
     onClose();
   };
@@ -271,14 +248,11 @@ function PersonModal({ person, central, access, accessErr, onAccessChange, onSho
           {!isNew && data.postes && <RoleDeLaPlace d={data} p={v} onRevenir={admin ? (roles) => set({ roles }) : undefined} />}
         </div>
       </div>
-      {cloud && admin && !isNew && !reactiver && (
-        <div className="person-acces">
-          <span className="field-label">Accès à l’appli</span>
-          <AccessCell person={before!} access={access} onChange={onAccessChange} onShow={onShow} />
-        </div>
+      {cloud && before?.actif && before.membreId && club?.central && club.personnes.gerer ? (
+        <CompteDuClub clubId={club.central.id} membre={membreDe(before)} />
+      ) : (
+        cloud && <p className="muted small-note">Accès à l’appli : un seul compte par personne, donné depuis « Personnes du club » ; sa place ici lui ouvre l’entité.</p>
       )}
-      {cloud && admin && (isNew || reactiver) && <p className="muted small-note">Accès à l’appli : à créer une fois la fiche enregistrée (clic sur son nom dans l’organigramme).</p>}
-      {accessErr && <p className="error">{accessErr}</p>}
       {club && <p className="muted small-note">Prénom, nom, email et téléphone sont communs à tout le club (« Personnes du club ») : modifiés ici, ils changent dans toutes les entités.</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">

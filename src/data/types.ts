@@ -78,7 +78,7 @@ export interface ClubMembre {
   prive?: boolean;
   /**
    * Accès à l'appli d'une personne sans place dans l'organigramme (PERSONNES_DU_CLUB.md) : elle y voit les tâches qui lui
-   * sont confiées. Démo ; version réelle : son compte (étape 5).
+   * sont confiées. Démo ; version réelle : son compte du club (gsa_club_comptes, 056).
    */
   acces?: boolean;
   /** Liste : données masquées par la personne (vides ici). */

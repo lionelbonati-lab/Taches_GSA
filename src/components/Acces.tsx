@@ -1,14 +1,16 @@
-import { useState } from 'react';
-import { useStore } from '../data/store';
-import { accessAction, type AccessInfo } from '../data/cloud';
-import type { Person } from '../data/types';
-import { fmtDateTime, fullName } from '../data/utils';
+import { useCallback, useEffect, useState } from 'react';
+import { actionPersonne, comptePersonne, type ComptePersonne } from '../data/cloud';
+import { nomMembre } from '../data/membres';
+import type { ClubMembre, Person } from '../data/types';
+import { fmtDateTime } from '../data/utils';
 import { Modal } from './ui';
 import { nomAppli } from '../data/nomAppli';
 import { lienMailto } from '../data/lienPartage';
 import { Icone } from './icones';
 
-// Accès à la version réelle d'une fiche (compte, mot de passe provisoire), réglé par les admins de l'entité.
+// Accès à la version réelle : un compte par personne du club, donné une fois (PERSONNES_DU_CLUB.md) ; ses places dans
+// l'organigramme lui ouvrent leurs entités, sans place elle voit les tâches qui lui sont confiées. Mot de passe provisoire
+// à transmettre, à changer à la première connexion.
 
 export interface Shown {
   person: Pick<Person, 'prenom' | 'nom'>;
@@ -18,59 +20,80 @@ export interface Shown {
 }
 
 /**
- * Accès d'une fiche. `committeeId` : son entité, si ce n'est pas l'entité ouverte (page « Membres du club ») ; `soi` : la
- * fiche de la personne connectée (son accès ne se retire pas).
+ * Son compte (fiche « Personnes du club », ou sa fiche dans une entité) : donner l'accès, nouveau mot de passe, retirer
+ * l'accès. Pour qui gère les personnes du club ; les places ★ se règlent par les admins (serveur : gsa_compte_club_etat).
  */
-export function AccessCell({ person, access, onChange, onShow, committeeId, soi }: { person: Person; access: AccessInfo[] | null; onChange: () => void; onShow: (s: Shown) => void; committeeId?: string; soi?: boolean }) {
-  const { cloud } = useStore();
-  const [busy, setBusy] = useState(false);
+export function CompteDuClub({ clubId, membre }: { clubId: string; membre: ClubMembre }) {
+  const [etat, setEtat] = useState<ComptePersonne | null | undefined>(undefined);
   const [err, setErr] = useState('');
-  if (!cloud) return null;
-  if (!access) return <small className="muted">…</small>;
-  const info = access.find((a) => a.personId === person.id);
-  const act = async (action: 'creer' | 'reinitialiser' | 'retirer') => {
+  const [busy, setBusy] = useState(false);
+  const [shown, setShown] = useState<Shown | null>(null);
+  const charger = useCallback(() => {
+    comptePersonne(clubId, membre.id)
+      .then(setEtat)
+      .catch((e: Error) => {
+        setEtat(null);
+        setErr(e.message);
+      });
+  }, [clubId, membre.id]);
+  useEffect(charger, [charger]);
+  if (etat === undefined) return <p className="muted small-note">Accès à l’appli…</p>;
+  if (!etat) return err ? <p className="error small-note">Accès à l’appli : {err}</p> : null;
+  const act = async (action: 'compteClub' | 'mdpCompteClub' | 'retirerCompteClub') => {
     setBusy(true);
     setErr('');
     try {
-      const comite = committeeId ?? cloud.membership.committeeId;
-      // La fiche doit être enregistrée sur le serveur avant de créer l'accès.
-      if (action === 'creer' && comite === cloud.membership.committeeId) await cloud.sync.flushNow();
-      const r = await accessAction<{ email?: string; password?: string; existant?: boolean }>({ action, committeeId: comite, personId: person.id });
-      if (action !== 'retirer') onShow({ person, email: r.email ?? person.email, password: r.password, existant: r.existant });
-      onChange();
+      const r = await actionPersonne<{ email?: string; password?: string; existant?: boolean }>(action, clubId, membre.id);
+      if (action !== 'retirerCompteClub') setShown({ person: membre, email: r.email ?? etat.email ?? membre.email, password: r.password, existant: r.existant });
+      charger();
     } catch (e) {
       setErr((e as Error).message);
     } finally {
       setBusy(false);
     }
   };
-  if (info?.owner)
-    return <span className="access"><span>👑 Propriétaire</span><small className="muted">{info.email}</small></span>;
-  if (info)
-    return (
-      <span className="access">
-        <span>✅ {info.email}</span>
-        <small className="muted">
-          {info.provisoire ? 'Mot de passe provisoire pas encore changé' : info.derniereConnexion ? `Dernière connexion : ${fmtDateTime(info.derniereConnexion)}` : 'Jamais connecté'}
-        </small>
-        <span className="row wrap">
-          <button className="btn small" disabled={busy} onClick={() => confirm(`Donner un nouveau mot de passe provisoire à ${fullName(person)} ? L’actuel ne fonctionnera plus.`) && act('reinitialiser')}>Nouveau mot de passe</button>
-          {!(soi ?? person.id === cloud.personId) && (
-            <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${fullName(person)} à l’appli ?`) && act('retirer')}>Retirer l’accès</button>
-          )}
-        </span>
-        {err && <small className="error">{err}</small>}
-      </span>
-    );
-  if (!person.actif) return <small className="muted">—</small>;
+  const nom = nomMembre(membre);
+  const effet = etat.places ? 'ses places dans l’organigramme lui ouvrent leurs entités' : 'sans place dans l’organigramme, elle y voit les tâches qui lui sont confiées';
   return (
-    <span className="access">
-      <button className="btn small primary" disabled={busy || !person.email} title={person.email ? '' : 'Ajoute d’abord son adresse email à sa fiche'} onClick={() => act('creer')}>
-        {busy ? 'Création…' : 'Créer l’accès'}
-      </button>
-      {!person.email && <small className="muted">Adresse email manquante sur sa fiche</small>}
+    <section className="compte-club">
+      <span className="field-label">Accès à l’appli</span>
+      {etat.compte ? (
+        <p className="access">
+          <span>✅ {etat.email}</span>
+          <small className="muted">
+            {etat.provisoire ? 'Mot de passe provisoire pas encore changé' : etat.derniereConnexion ? `Dernière connexion : ${fmtDateTime(etat.derniereConnexion)}` : 'Jamais connecté'} · {effet}
+          </small>
+        </p>
+      ) : (
+        <p className="muted small-note">
+          Pas encore d’accès. Un seul compte par personne : {effet}.{!membre.email && !membre.masque && ' Indique d’abord son adresse email.'}
+        </p>
+      )}
+      {!etat.peutDonner && !etat.moi && (
+        <small className="muted">
+          {etat.etoiles.length ? `★ de ${etat.etoiles.join(', ')} : son accès se règle par un admin de cette entité ou du comité central.` : 'Compte du propriétaire ou d’un super-admin : réservé aux super-admins.'}
+        </small>
+      )}
+      <span className="row wrap">
+        {!etat.compte && etat.peutDonner && (
+          <button className="btn small primary" disabled={busy || (!membre.email && !membre.masque)} onClick={() => act('compteClub')}>
+            {busy ? 'Création…' : 'Donner l’accès'}
+          </button>
+        )}
+        {etat.compte && etat.peutMdp && (
+          <button className="btn small" disabled={busy} onClick={() => confirm(`Donner un nouveau mot de passe provisoire à ${nom} ? L’actuel ne fonctionnera plus.`) && act('mdpCompteClub')}>
+            Nouveau mot de passe
+          </button>
+        )}
+        {etat.compte && etat.peutDonner && !etat.moi && (
+          <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${nom} à l’appli ? Ses places restent dans l’organigramme.`) && act('retirerCompteClub')}>
+            Retirer l’accès
+          </button>
+        )}
+      </span>
       {err && <small className="error">{err}</small>}
-    </span>
+      {shown && <CredentialsModal {...shown} onClose={() => setShown(null)} />}
+    </section>
   );
 }
 

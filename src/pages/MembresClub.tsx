@@ -1,17 +1,16 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useClub } from '../data/club';
 import { useStore } from '../data/store';
-import { accessAction, actionPersonne, comptePersonne, type AccessInfo, type ComptePersonne } from '../data/cloud';
 import { downloadCsv, norm } from '../data/csv';
 import { COLS_REGISTRE, analyserRegistre, derniers } from '../data/imports';
 import { compactIban, emailKey, formatIban, groupesClub, nomMembre, nouveauMembre, postesDe } from '../data/membres';
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { defaultRoleId } from '../data/units';
-import { fmtDateTime, uid } from '../data/utils';
+import { uid } from '../data/utils';
 import type { ClubMembre, ColonnesMembres, FichesEntite, OrgMember, OrgUnit, Person } from '../data/types';
 import { Initials, Modal } from '../components/ui';
 import { ImportCsv } from '../components/ImportCsv';
-import { AccessCell, CredentialsModal, type Shown } from '../components/Acces';
+import { CompteDuClub } from '../components/Acces';
 import { RoleDeLaPlace } from '../components/Personnes';
 import { Icone } from '../components/icones';
 import { Deroulante } from '../components/Deroulante';
@@ -472,84 +471,6 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
   );
 }
 
-/**
- * Version réelle : son compte (un par personne, donné une fois ; ses places lui ouvrent leurs entités, sans place elle voit
- * les tâches qui lui sont confiées). Pour qui gère les personnes ; rien tant que le serveur n'est pas à jour (056).
- */
-function CompteDuClub({ clubId, membre }: { clubId: string; membre: ClubMembre }) {
-  const [etat, setEtat] = useState<ComptePersonne | null | undefined>(undefined);
-  const [err, setErr] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [shown, setShown] = useState<Shown | null>(null);
-  const charger = useCallback(() => {
-    comptePersonne(clubId, membre.id)
-      .then(setEtat)
-      .catch((e: Error) => {
-        setEtat(null);
-        setErr(e.message);
-      });
-  }, [clubId, membre.id]);
-  useEffect(charger, [charger]);
-  if (etat === undefined) return <p className="muted small-note">Accès à l’appli…</p>;
-  if (!etat) return err ? <p className="error small-note">Accès à l’appli : {err}</p> : null;
-  const act = async (action: 'compteClub' | 'mdpCompteClub' | 'retirerCompteClub') => {
-    setBusy(true);
-    setErr('');
-    try {
-      const r = await actionPersonne<{ email?: string; password?: string; existant?: boolean }>(action, clubId, membre.id);
-      if (action !== 'retirerCompteClub') setShown({ person: membre, email: r.email ?? etat.email ?? membre.email, password: r.password, existant: r.existant });
-      charger();
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-  const nom = nomMembre(membre);
-  const effet = etat.places ? 'ses places dans l’organigramme lui ouvrent leurs entités' : 'sans place dans l’organigramme, elle y voit les tâches qui lui sont confiées';
-  return (
-    <section className="compte-club">
-      <span className="field-label">Accès à l’appli</span>
-      {etat.compte ? (
-        <p className="access">
-          <span>✅ {etat.email}</span>
-          <small className="muted">
-            {etat.provisoire ? 'Mot de passe provisoire pas encore changé' : etat.derniereConnexion ? `Dernière connexion : ${fmtDateTime(etat.derniereConnexion)}` : 'Jamais connecté'} · {effet}
-          </small>
-        </p>
-      ) : (
-        <p className="muted small-note">
-          Pas encore d’accès. Un seul compte par personne : {effet}.{!membre.email && !membre.masque && ' Indique d’abord son adresse email.'}
-        </p>
-      )}
-      {!etat.peutDonner && !etat.moi && (
-        <small className="muted">
-          {etat.etoiles.length ? `★ de ${etat.etoiles.join(', ')} : son accès se règle par un admin de cette entité ou du comité central.` : 'Compte du propriétaire ou d’un super-admin : réservé aux super-admins.'}
-        </small>
-      )}
-      <span className="row wrap">
-        {!etat.compte && etat.peutDonner && (
-          <button className="btn small primary" disabled={busy || (!membre.email && !membre.masque)} onClick={() => act('compteClub')}>
-            {busy ? 'Création…' : 'Donner l’accès'}
-          </button>
-        )}
-        {etat.compte && etat.peutMdp && (
-          <button className="btn small" disabled={busy} onClick={() => confirm(`Donner un nouveau mot de passe provisoire à ${nom} ? L’actuel ne fonctionnera plus.`) && act('mdpCompteClub')}>
-            Nouveau mot de passe
-          </button>
-        )}
-        {etat.compte && etat.peutDonner && !etat.moi && (
-          <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${nom} à l’appli ? Ses places restent dans l’organigramme.`) && act('retirerCompteClub')}>
-            Retirer l’accès
-          </button>
-        )}
-      </span>
-      {err && <small className="error">{err}</small>}
-      {shown && <CredentialsModal {...shown} onClose={() => setShown(null)} />}
-    </section>
-  );
-}
-
 /** Fiche de ce membre dans une entité : liée au registre, sinon même email. */
 const ficheDe = (f: FichesEntite, m: ClubMembre) => {
   const e = emailKey(m.email);
@@ -558,18 +479,16 @@ const ficheDe = (f: FichesEntite, m: ClubMembre) => {
 };
 
 /**
- * Accès du membre dans les entités du club : rôles, retrait, ajout ou réactivation, accès à l'appli (version réelle).
- * Modifiables dans les entités dont la personne connectée est admin ; les autres en lecture.
+ * Places du membre dans les entités du club : rôles, retrait, ajout ou réactivation (son compte, s'il en a un, suit ses
+ * places). Modifiables dans les entités dont la personne connectée est admin ; les autres en lecture.
  */
 function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnType<typeof postesDe> }) {
   const club = useClub();
   const { cloud } = useStore();
   const [fiches, setFiches] = useState<Record<string, FichesEntite | string>>({});
-  const [acces, setAcces] = useState<Record<string, AccessInfo[] | string>>({});
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const [msg, setMsg] = useState('');
-  const [shown, setShown] = useState<Shown | null>(null);
   const [ajout, setAjout] = useState('');
   const [role, setRole] = useState('');
   const miennes = club.units.filter((u) => u.moiAdmin && !u.archive);
@@ -589,22 +508,10 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
-  const chargerAcces = useCallback(
-    (id: string) => {
-      if (!cloud) return;
-      accessAction<{ acces: AccessInfo[] }>({ action: 'liste', committeeId: id })
-        .then((r) => setAcces((x) => ({ ...x, [id]: r.acces })))
-        .catch((e: Error) => setAcces((x) => ({ ...x, [id]: e.message })));
-    },
-    [cloud],
-  );
   const admins = postes.filter((p) => p.unit.moiAdmin).map((p) => p.unit.id).join(',');
   useEffect(() => {
-    for (const id of admins ? admins.split(',') : []) {
-      void chargerFiches(id);
-      chargerAcces(id);
-    }
-  }, [admins, chargerFiches, chargerAcces]);
+    for (const id of admins ? admins.split(',') : []) void chargerFiches(id);
+  }, [admins, chargerFiches]);
   // Entité choisie pour l'ajout : ses rôles (rôle de base proposé).
   useEffect(() => {
     if (!ajout) return;
@@ -629,7 +536,6 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
   const enregistrer = async (u: OrgUnit, p: Person) => {
     await club.enregistrerFiche(u.id, p);
     await chargerFiches(u.id);
-    chargerAcces(u.id);
   };
   const ajouter = () => {
     const u = miennes.find((x) => x.id === ajout);
@@ -648,8 +554,8 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
   if (!postes.length && !possibles.length) return null;
   return (
     <div className="acces-membre">
-      <span className="field-label">Entités et accès</span>
-      {!postes.length && <p className="muted small-note">Aucun poste dans une entité du club (pas d’accès à l’appli).</p>}
+      <span className="field-label">Places dans les entités</span>
+      {!postes.length && <p className="muted small-note">Aucune place dans une entité du club.</p>}
       {postes.map(({ unit: u, member: om }) => {
         const f = fiches[u.id];
         const fiche = f && typeof f !== 'string' ? ficheDe(f, membre) : undefined;
@@ -677,7 +583,6 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
         const admins = (f as FichesEntite).people.filter((p) => p.actif && p.roles.includes(ADMIN_ROLE_ID));
         const soi = !!membre.moi;
         const dernierAdmin = fiche.roles.includes(ADMIN_ROLE_ID) && admins.length <= 1;
-        const a = acces[u.id];
         return (
           <div key={u.id} className="acces-ligne">
             {tete}
@@ -709,7 +614,6 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
               />
             )}
             <div className="row wrap">
-              {cloud && (typeof a === 'string' ? <small className="error">Accès : {a}</small> : <AccessCell person={fiche} access={a ?? null} committeeId={u.id} soi={soi} onChange={() => chargerAcces(u.id)} onShow={setShown} />)}
               <span className="grow" />
               <button
                 className="btn small danger"
@@ -744,7 +648,6 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
       )}
       {msg && <p className="ok-note">{msg}</p>}
       {err && <p className="error">{err}</p>}
-      {shown && <CredentialsModal {...shown} onClose={() => setShown(null)} />}
     </div>
   );
 }

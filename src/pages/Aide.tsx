@@ -123,12 +123,18 @@ export function Aide() {
   }
   if (club && chemin('/membres-club')) {
     geste('Choisir les colonnes de la liste des personnes', vers('/membres-club'), ' : « Colonnes » (afficher, masquer, ↑/↓ pour l’ordre) ; un clic sur un en-tête trie. Ce réglage n’est que pour toi.');
-    if (club.personnes.gerer && !cloud)
-      geste('Donner l’accès à l’appli à quelqu’un sans place dans l’organigramme', vers('/membres-club'), ' : clic sur la personne › « Accès à l’appli ». Elle n’y voit que les tâches qui lui sont confiées (son nom sur la tâche : « Qui s’en occupe ? » › « ＋ Quelqu’un d’autre… »).');
+    if (club.personnes.gerer)
+      geste(
+        'Donner l’accès à l’appli à quelqu’un',
+        vers('/membres-club'),
+        cloud
+          ? ' : clic sur la personne › « Accès à l’appli » › « Donner l’accès » (son email doit être dans sa fiche) ; transmets-lui le mot de passe provisoire. Un seul compte par personne : ses places dans l’organigramme lui ouvrent leurs entités, et sans place elle voit les tâches qui lui sont confiées (son nom sur la tâche : « Qui s’en occupe ? » › « ＋ Quelqu’un d’autre… »). Une place ★ : l’accès se règle par un admin de cette entité ou du comité central.'
+          : ' : clic sur la personne › « Accès à l’appli ». Avec une place dans l’organigramme, elle a accès à ses entités ; sans place, elle n’y voit que les tâches qui lui sont confiées (son nom sur la tâche : « Qui s’en occupe ? » › « ＋ Quelqu’un d’autre… »).',
+      );
     if (club.personnes.gerer)
       geste('Ajouter une personne au club, corriger ses coordonnées, la retirer du club', vers('/membres-club'), ' : « + Nouvelle personne », ou clic sur la personne. « Retirer du club » lui retire aussi ses places dans les entités et son accès ; ses tâches gardent son nom.');
     if (club.units.some((u) => u.moiAdmin))
-      geste('Régler le rôle d’une personne dans mon entité', vers('/membres-club'), ' : clic sur la personne › « Entités et accès ». Dans les entités dont tu es admin : coche ses rôles, crée ou retire son accès à l’appli, « Retirer de l’entité », ou « Ajouter à une entité… ».');
+      geste('Régler le rôle d’une personne dans mon entité', vers('/membres-club'), ' : clic sur la personne › « Places dans les entités ». Dans les entités dont tu es admin : coche ses rôles, « Retirer de l’entité », ou « Ajouter à une entité… ». Son compte suit ses places.');
   }
   if (chemin('/propositions')) geste('Proposer une idée pour l’appli, signaler un problème', vers('/propositions'), ' (menu du compte) : le comité central l’étudie et te répond sur la même page, dans « Mes propositions ».');
   const orga = club ? vers('/organigramme') : null;
@@ -156,7 +162,6 @@ export function Aide() {
   if (orga && club?.canManage && club.units.some((u) => u.archive))
     geste('Supprimer définitivement une entité archivée', orga, ' : « Modifier l’organigramme », « Entités archivées » sous l’organigramme, puis la roue dentée de l’entité › « Supprimer définitivement… ». Tu vois ce qui sera effacé (tâches, séances, fiches, fichiers…), puis tu retapes son nom. Sans retour possible : pour seulement la cacher, laisse-la archivée.');
   if (orga) geste('Revoir l’organigramme d’une année passée', orga, ' : choisis l’année dans « Aujourd’hui ▾ » en haut de la page. Il s’affiche tel qu’à la fin de cette année-là, en lecture seule ; un clic sur une personne montre ses fonctions cette année-là. « Revenir à aujourd’hui » pour l’organigramme actuel.');
-  if (orga && can('admin.access')) geste('Donner l’accès à l’appli à quelqu’un', orga, ' : clic sur son nom (sa fiche doit avoir son email), puis « Créer l’accès ».');
   if (chemin('/admin')) geste('Choisir qui peut faire quoi', vers('/admin'), ' › « Rôles et droits ». Sans « Voir toutes les tâches », on ne voit que ses tâches ; pour une personne extérieure : « + Nouveau rôle » › modèle « Externe ». Les tickets ne se voient que de la caisse, du demandeur, de qui vise et des admins.');
   if (chemin('/admin')) geste('Changer le logo ou la couleur de l’appli', vers('/admin'), ' › « Apparence ».');
   if (chemin('/admin')) geste('Donner une icône à l’entité', vers('/admin'), ' › « Apparence » › « Choisir une icône… » (ou la fiche de l’entité dans l’organigramme) : elle remplace celle de son type sur sa pastille et dans l’agenda, les événements et l’accueil. « Reprendre celle du type » pour revenir à l’icône d’origine.');
