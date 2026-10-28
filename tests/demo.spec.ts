@@ -583,6 +583,30 @@ test('tâche : une personne hors du comité, d’une autre entité du club, s’
   await expect(page.locator('main').getByText('Préparer les dossards').first()).toBeVisible();
 });
 
+test('tâche : quelqu’un qui n’est dans aucune entité s’en occupe (fiche externe créée dans le comité)', async ({ page }) => {
+  const fiche = await nouvelleTache(page, 'Tenir le stand de crêpes');
+  await fiche.getByRole('combobox', { name: 'Ajouter une personne' }).click();
+  await page.getByRole('option', { name: 'Quelqu’un d’autre…' }).click();
+  const autre = page.getByRole('dialog', { name: 'Quelqu’un d’autre' });
+  await autre.getByLabel('Prénom').fill('Claire');
+  await autre.getByLabel('Nom', { exact: true }).fill('Dumas');
+  await autre.getByLabel('Email (facultatif)').fill('claire.dumas@gsajoie.example');
+  await autre.getByRole('button', { name: 'Ajouter à la tâche' }).click();
+  await expect(autre).toHaveCount(0);
+  await expect(fiche.locator('.qui .chip', { hasText: 'Claire Dumas' })).toBeVisible();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const d = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}'));
+  const claire = d.people.find((p: { prenom: string }) => p.prenom === 'Claire');
+  expect(claire.roles).toEqual(['externe']);
+  expect(claire.poste).toBe('');
+  expect(d.tasks.find((t: { titre: string }) => t.titre === 'Tenir le stand de crêpes').responsables).toContain(claire.id);
+  // Ensuite, elle est proposée avec les personnes du comité.
+  const autreFiche = await nouvelleTache(page, 'Rendre la crêpière');
+  await autreFiche.getByRole('combobox', { name: 'Ajouter une personne' }).click();
+  await expect(page.getByRole('option', { name: /Claire Dumas/ })).toBeVisible();
+});
+
 test('vue « moi » : les événements de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();

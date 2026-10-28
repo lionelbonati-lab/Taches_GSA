@@ -28,6 +28,7 @@ import { ZoneTexte } from './ZoneTexte';
 import { DelaiField } from './tache/Quand';
 import { APrendreChamp, placesAPrendre } from './tache/APrendre';
 import { PourInfoChamp } from './tache/PourInfo';
+import { PersonneExterne } from './tache/PersonneExterne';
 import { Checklist } from './tache/Checklist';
 import { Repetition } from './tache/Repetition';
 import { Rattachements } from './tache/Rattachements';
@@ -39,6 +40,9 @@ import { Historique } from './tache/Historique';
 export type ChoixEntite = { liste: OrgUnit[]; valeur: string; changer: (id: string, t: Task) => void };
 /** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
 export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string; ouvrirDiscussion?: boolean; entite?: ChoixEntite };
+
+/** « Qui s'en occupe ? » › « ＋ Ajouter… » : quelqu'un qui n'est dans aucune entité. */
+const AUTRE_PERSONNE = 'autre:';
 
 /** Fenêtre d'une tâche ; un remboursement ou un paiement de facture s'ouvre dans la sienne (circuit caisse → visa → virement). */
 export function TaskModal(props: TaskModalProps) {
@@ -70,6 +74,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
   // Entités avec qui la tâche a été partagée pour y confier la tâche à quelqu'un (hors de l'entité) : plus partagée si on
   // le retire, avant d'enregistrer.
   const partagesPour = useRef(new Set<string>());
+  // « Quelqu'un d'autre » : une personne qui n'est dans aucune entité (fiche créée ici).
+  const [externe, setExterne] = useState(false);
   const [chat, setChat] = useState(!!ouvrirDiscussion && !isNew);
   const [newPoll, setNewPoll] = useState(false);
   // Liens et partage déjà remplis : ils restent affichés si on les vide (ex. partage retiré : plus de séance du comité).
@@ -228,6 +234,12 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
       if (!l.length) delete respPartage[u];
       return { ...x, respPartage: Object.keys(respPartage).length ? respPartage : undefined };
     });
+  };
+  // Quelqu'un qui n'est dans aucune entité : une fiche ici (pour qui gère les personnes), puis responsable.
+  const peutExterne = !t.source && !attribuee && !t.paiement && canAssignOthers && (can('people.manage') || can('admin.access'));
+  const ajouterExterne = (id: string) => {
+    setExterne(false);
+    setT((x) => (x.responsables.includes(id) ? x : { ...x, responsables: [...x.responsables, id] }));
   };
   // Responsables des autres entités (tâche partagée par une autre entité), sauf ceux de l'entité de la tâche (choisis
   // ci-dessus) ; tâche d'ici : tous en puces.
@@ -656,14 +668,15 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
               </span>
             ))}
             {!t.responsables.length && !choisisChez.length && !horsChoisis.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
-            {!dis && (aAjouter.length > 0 || membresChez.length > 0 || horsIci.length > 0) && (
+            {!dis && (aAjouter.length > 0 || membresChez.length > 0 || horsIci.length > 0 || peutExterne) && (
               <Deroulante
                 puce
                 value=""
                 libelle="＋ Ajouter…"
                 aria-label="Ajouter une personne"
                 onChange={(v) => {
-                  if (v.startsWith('chez:')) toggleChez(v.slice(5));
+                  if (v === AUTRE_PERSONNE) setExterne(true);
+                  else if (v.startsWith('chez:')) toggleChez(v.slice(5));
                   else if (v.startsWith('hors:')) {
                     const [u, id] = v.slice(5).split(':');
                     ajouterHors(u, id);
@@ -680,6 +693,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
                         ...horsIci.map(({ u, membres }) => ({ groupe: u.nom, icone: <PastilleEntite u={u} />, options: membres.map((m) => ({ value: `hors:${u.id}:${m.id}`, label: nomPoste(m) })) })),
                       ]
                     : aAjouter.map((p) => ({ value: p.id, label: nomPoste(p, user.id) }))),
+                  peutExterne && { groupe: 'Dans aucune entité', options: [{ value: AUTRE_PERSONNE, label: '＋ Quelqu’un d’autre…' }] },
                 ]}
               />
             )}
@@ -782,6 +796,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
         {editable && <button className="btn primary" disabled={busy} onClick={() => void submit()}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}
       </div>
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
+      {externe && <PersonneExterne onAjoutee={ajouterExterne} onClose={() => setExterne(false)} />}
       {chat && !isNew && (
         <Discussion titre={task.titre} liste={commentaires} cle={task.id} tacheId={task.source?.id ?? task.id} uniteId={task.source?.uniteId} onClose={() => setChat(false)} />
       )}

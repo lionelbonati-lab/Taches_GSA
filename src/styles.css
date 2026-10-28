@@ -1604,6 +1604,10 @@ body.glisse-en-cours, body.glisse-en-cours * { cursor: grabbing !important; user
 .fiche-personne { margin-bottom: 4px; }
 .fiche-infos { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 0 0 10px; font-size: 0.85rem; }
 .login-search { width: 100%; margin-top: 14px; }
+/* Tâche › « Quelqu’un d’autre » : membres du club sans entité, en liste qui défile. */
+.externe-registre h3, .externe-registre + .form h3 { margin: 12px 0 0; font-size: 1rem; }
+.externe-registre .login-list { max-height: 240px; overflow-y: auto; margin: 10px 0; }
+.externe-registre .login-user { text-align: left; }
 
 .field-label { display: block; font-size: 0.85rem; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
