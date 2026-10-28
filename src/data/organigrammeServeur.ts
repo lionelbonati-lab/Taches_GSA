@@ -92,7 +92,14 @@ function postes(d: unknown): Poste[] | undefined {
   if (!Array.isArray(d)) return undefined;
   return d
     .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object' && typeof x.id === 'string' && typeof x.nom === 'string')
-    .map((x) => ({ id: x.id as string, nom: (x.nom as string).slice(0, 120), titulaire: typeof x.titulaire === 'string' ? x.titulaire : undefined, lien: typeof x.lien === 'string' ? x.lien : undefined }));
+    .map((x) => ({
+      id: x.id as string,
+      nom: (x.nom as string).slice(0, 120),
+      titulaire: typeof x.titulaire === 'string' ? x.titulaire : undefined,
+      lien: typeof x.lien === 'string' ? x.lien : undefined,
+      // Rôle que le poste donne à son titulaire (organigramme.ts, rolePoste).
+      role: typeof x.role === 'string' ? x.role.slice(0, 100) : undefined,
+    }));
 }
 
 /** Le club à partir des lignes lues : entités (committees) et leurs fiches, rôles et postes (gsa_items). */

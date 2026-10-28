@@ -650,7 +650,14 @@ function role(d, id) {
 }
 function postes(d) {
   if (!Array.isArray(d)) return void 0;
-  return d.filter((x) => !!x && typeof x === "object" && typeof x.id === "string" && typeof x.nom === "string").map((x) => ({ id: x.id, nom: x.nom.slice(0, 120), titulaire: typeof x.titulaire === "string" ? x.titulaire : void 0, lien: typeof x.lien === "string" ? x.lien : void 0 }));
+  return d.filter((x) => !!x && typeof x === "object" && typeof x.id === "string" && typeof x.nom === "string").map((x) => ({
+    id: x.id,
+    nom: x.nom.slice(0, 120),
+    titulaire: typeof x.titulaire === "string" ? x.titulaire : void 0,
+    lien: typeof x.lien === "string" ? x.lien : void 0,
+    // Rôle que le poste donne à son titulaire (organigramme.ts, rolePoste).
+    role: typeof x.role === "string" ? x.role.slice(0, 100) : void 0
+  }));
 }
 function lireClub(entites, lignes) {
   const central = entites.find((e) => !e.parent_id);
