@@ -139,7 +139,9 @@ export function DemoApp() {
         const p = d.people.find((x) => x.actif && personKey(x, u.id) === me);
         return !!p && hasPermission(userRoles(d.roles, p), perm);
       });
-    return { voir: !!me, coordonnees: membresAcces || droit('tab.people'), gerer: membresAcces || droit('people.manage') };
+    // Gérer les personnes : leurs coordonnées aussi (on ne gère pas ce qu'on ne voit pas).
+    const gerer = membresAcces || droit('people.manage');
+    return { voir: !!me, coordonnees: gerer || droit('tab.people'), gerer };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [units, me, version, membresAcces]);
 

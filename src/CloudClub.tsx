@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CloudSync, accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
+import { CloudSync, accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, personnesDroits, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
@@ -51,6 +51,8 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [acces, setAcces] = useState(false);
+  // Personnes du club (055) : null avant la migration (le registre, selon `acces`).
+  const [droitsPersonnes, setDroitsPersonnes] = useState<{ voir: boolean; coordonnees: boolean; gerer: boolean } | null>(null);
   const [caissier, setCaissier] = useState(false);
   // Le serveur tient les postes des fiches (migration 023) : organigramme à glisser-déposer.
   const [orga, setOrga] = useState(false);
@@ -64,8 +66,9 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
 
   const refresh = useCallback(() => {
     setLoading(true);
-    Promise.all([fetchOrg(clubId), myMemberships(userId), membresAcces(clubId), caissierClub(clubId)])
-      .then(([o, l, a, c]) => {
+    Promise.all([fetchOrg(clubId), myMemberships(userId), membresAcces(clubId), caissierClub(clubId), personnesDroits(clubId)])
+      .then(([o, l, a, c, dp]) => {
+        setDroitsPersonnes(dp);
         setOrg(o.units);
         setOrga(o.postes);
         setList(l);
@@ -272,8 +275,8 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
       attribuerTache: (uniteId, task, statut) => attribuerTache(x.committeeId, uniteId, task, statut),
       sondagesPartages: () => fetchSondagesPartages(x.committeeId),
       voterSondagePartage: (uniteId, pollId, choix, texte) => voterSondagePartage(x.committeeId, uniteId, pollId, choix, texte),
-      // Jusqu'aux migrations du serveur (PERSONNES_DU_CLUB.md) : le registre, selon le droit « Membres du club ».
-      personnes: { voir: acces || caissier, coordonnees: acces || caissier, gerer: acces },
+      // Serveur à jour (055) : ses droits ; avant : le registre, selon le droit « Membres du club ».
+      personnes: droitsPersonnes ?? { voir: acces || caissier, coordonnees: acces || caissier, gerer: acces },
       membres: () => fetchMembres(clubId),
       async saveMembres(l) {
         await saveMembres(clubId, l);
@@ -320,7 +323,7 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
       superAdmin,
       arrierePlan,
     };
-  }, [org, list, m.committeeId, loading, error, refresh, onSwitch, acces, caissier, clubId, orga, demandes, chargerDemandes, superAdmin, mesFiches, luesParEntite]);
+  }, [org, list, m.committeeId, loading, error, refresh, onSwitch, acces, droitsPersonnes, caissier, clubId, orga, demandes, chargerDemandes, superAdmin, mesFiches, luesParEntite]);
   const club = useMemo(() => clubPour(m), [clubPour, m]);
 
   // Vue « moi » : mes autres entités (non archivées, où j'ai ma fiche), ouvertes en arrière-plan ; leurs tâches,

@@ -689,6 +689,14 @@ export async function membresAcces(club: string): Promise<boolean> {
 /** Fonction du serveur absente : migration pas encore appliquée. */
 const absente = (e: { code?: string }) => e.code === 'PGRST202' || e.code === '42883';
 
+/** Droits sur « Personnes du club » (gsa_personnes_droits, 055) ; null : migration pas encore appliquée. */
+export async function personnesDroits(club: string): Promise<{ voir: boolean; coordonnees: boolean; gerer: boolean } | null> {
+  const { data, error } = await sb().rpc('gsa_personnes_droits', { club });
+  if (error) return null;
+  const d = (data ?? {}) as Record<string, unknown>;
+  return { voir: d.voir === true, coordonnees: d.coordonnees === true, gerer: d.gerer === true };
+}
+
 /**
  * Liste des membres du club (gsa_membres_liste, 034) : données masquées par une personne vides, IBAN aux caissiers et
  * à la personne elle-même. Avant la migration 034 : la table, telle quelle.
@@ -711,6 +719,10 @@ export async function fetchMembres(club: string): Promise<ClubMembre[]> {
  * (avant 034) est renvoyé tel quel ; ensuite le serveur l'ignore, comme les coordonnées masquées et la confidentialité.
  */
 export async function saveMembres(club: string, list: ClubMembre[]) {
+  // Droit « Gérer les personnes du club » (055) ; avant : la table, pour le droit « Membres du club » et les admins.
+  const { error: e055 } = await sb().rpc('gsa_enregistrer_membres', { club, membres: list.map(({ masque, moi, prive, ...m }) => m) });
+  if (!e055) return;
+  if (!absente(e055)) throw registreErreur(e055);
   for (let i = 0; i < list.length; i += 200) {
     const rows = list.slice(i, i + 200).map(({ id, masque, moi, prive, ...data }) => ({ club_id: club, id, data }));
     const { error } = await sb().from('gsa_club_membres').upsert(rows, { onConflict: 'club_id,id' });
