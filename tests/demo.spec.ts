@@ -593,7 +593,7 @@ test('tâche confiée à une personne d’une autre entité : elle seule la voit
   await expect(page.locator('main').getByText('Préparer les dossards')).toHaveCount(0);
 });
 
-test('tâche : quelqu’un qui n’est dans aucune entité, son nom noté sur la tâche (sans fiche)', async ({ page }) => {
+test('tâche : quelqu’un sans place dans l’organigramme, son nom sur la tâche ; avec un accès, ses tâches seulement', async ({ page }) => {
   const avant = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').people.length);
   const fiche = await nouvelleTache(page, 'Tenir le stand de crêpes');
   await fiche.getByRole('combobox', { name: 'Ajouter une personne' }).click();
@@ -612,6 +612,30 @@ test('tâche : quelqu’un qui n’est dans aucune entité, son nom noté sur la
   const claire = await page.evaluate(() => (JSON.parse(localStorage.getItem('taches-gsa-demo-membres') ?? '[]') as { id: string; prenom: string }[]).find((m) => m.prenom === 'Claire'));
   expect(claire).toBeTruthy();
   expect(d.tasks.find((t: { titre: string }) => t.titre === 'Tenir le stand de crêpes').respHors).toEqual([expect.objectContaining({ prenom: 'Claire', nom: 'Dumas', membreId: claire!.id })]);
+
+  // Accès à l'appli donné sur sa fiche du club : sans place, elle ne voit que ses tâches confiées, et les fait avancer.
+  await allerA(page, '/membres-club');
+  await page.locator('.membres-table tr', { hasText: 'Dumas' }).first().click();
+  const sa = page.getByRole('dialog', { name: /Claire Dumas/ });
+  await sa.getByText('Accès à l’appli : sans place dans l’organigramme').click();
+  await sa.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(sa).toHaveCount(0);
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Claire Dumas' }).click();
+  await expect(page.getByRole('heading', { name: 'Mes tâches' })).toBeVisible();
+  const carte = page.locator('.tache-confiee', { hasText: 'Tenir le stand de crêpes' });
+  await carte.getByRole('combobox', { name: /Statut/ }).click();
+  await page.getByRole('option', { name: 'Terminé' }).click();
+  await expect(carte).toHaveClass(/finie/);
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}');
+        const t = d.tasks.find((x: { titre: string }) => x.titre === 'Tenir le stand de crêpes');
+        return d.statuses.find((x: { id: string }) => x.id === t.statusId)?.done;
+      }),
+    )
+    .toBe(true);
 });
 
 test('personnes du club : la liste pour tout le monde, fiche en lecture ; retirer quelqu’un du club', async ({ page }) => {

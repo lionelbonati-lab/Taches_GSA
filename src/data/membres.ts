@@ -32,6 +32,7 @@ export const nouveauMembre = (m: Partial<ClubMembre>): ClubMembre => ({
   telephone: m.telephone?.trim() ?? '',
   couleur: m.couleur ?? '#0f766e',
   groupes: m.groupes ?? [],
+  ...(m.acces ? { acces: true } : {}),
 });
 
 /** Même personne : même email ; sans email d'un côté, même prénom et nom. */

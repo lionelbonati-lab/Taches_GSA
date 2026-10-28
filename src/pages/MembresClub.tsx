@@ -374,6 +374,7 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
   onClose: () => void;
 }) {
   const club = useClub();
+  const { cloud } = useStore();
   const [v, setV] = useState<ClubMembre>(membre);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
@@ -421,6 +422,12 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
             <br />
             <small className="muted">Seule la personne elle-même enregistre ou modifie son IBAN (Réglages).</small>
           </p>
+        )}
+        {!nouveau && !postes.length && !cloud && (
+          <label className="full inline">
+            <input type="checkbox" checked={!!v.acces} onChange={(e) => set({ acces: e.target.checked || undefined })} />
+            Accès à l’appli : sans place dans l’organigramme, elle y voit les tâches qui lui sont confiées
+          </label>
         )}
         {groupes.length > 0 && (
           <div className="full">

@@ -6,10 +6,10 @@ import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, pers
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { compactIban, emailKey, fusionMembre, ibanValide, nomMembre, nouveauMembre, vueMembre } from './data/membres';
 import { appliquer, estEtoile } from './data/organigramme';
-import { uid } from './data/utils';
+import { isDone, uid } from './data/utils';
 import { deleteFiles } from './data/files';
 import { fileIds } from './data/backup';
-import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Permission, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, AppData, ClubMembre, MyRequest, OrgUnit, Permission, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { confieeA, fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
@@ -20,6 +20,7 @@ import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
 import { App } from './App';
 import { Login } from './pages/Login';
+import { SansPlace, type TacheConfiee } from './pages/SansPlace';
 import { uniteDuLien } from './data/lienPartage';
 import { RegistreEntites } from './data/entites';
 
@@ -930,10 +931,39 @@ export function DemoApp() {
     [me, current, mineAll, clubDe, demoDe, relire],
   );
 
+  // Personnes du club sans place dans l'organigramme, avec un accès : leurs tâches confiées (PERSONNES_DU_CLUB.md, étape 3).
+  const aUnePlace = (m: ClubMembre) =>
+    units.some((u) => loadUnitData(u.id).people.some((p) => p.actif && (p.membreId === m.id || (!!emailKey(m.email) && emailKey(p.email) === emailKey(m.email)))));
+  const moiSansPlace = !current && me?.startsWith('membre:') ? loadMembres().find((m) => `membre:${m.id}` === me && m.acces && !aUnePlace(m)) : undefined;
+  if (moiSansPlace) {
+    const taches: TacheConfiee[] = org
+      .filter((u) => !u.archive)
+      .flatMap((u) => {
+        const d = loadUnitData(u.id);
+        return d.tasks.filter((t) => !t.paiement && t.respHors?.some((p) => p.membreId === moiSansPlace.id)).map((t) => ({ unite: u, tache: t, statuts: d.statuses }));
+      });
+    const modifier = (uniteId: string, tacheId: string, patch: Partial<Pick<Task, 'statusId' | 'checklist'>>) => {
+      const d = loadUnitData(uniteId);
+      const t = d.tasks.find((x) => x.id === tacheId);
+      if (!t || !t.respHors?.some((p) => p.membreId === moiSansPlace.id)) return;
+      const now = new Date().toISOString();
+      const nom = nomMembre(moiSansPlace);
+      const next: Task = { ...t, ...patch, updatedAt: now, modifiePar: nom, contenuLe: now };
+      if (patch.statusId) next.termineeLe = d.statuses.find((s) => s.id === patch.statusId)?.done ? (isDone(d, t) ? t.termineeLe : now.slice(0, 10)) : undefined;
+      const quoi = patch.statusId ? `statut « ${d.statuses.find((s) => s.id === patch.statusId)?.label ?? ''} »` : 'checklist';
+      d.tasks = d.tasks.map((x) => (x.id === t.id ? next : x));
+      d.log = [{ id: uid('l'), at: now, userId: '', action: `${nom} (sans place dans l’organigramme) : « ${t.titre} » › ${quoi}` }, ...(d.log ?? [])].slice(0, 300);
+      saveUnitData(uniteId, d);
+      refresh();
+    };
+    return <SansPlace membre={moiSansPlace} logo={central?.logo} taches={taches} modifier={modifier} sortir="Changer" onSortir={logout} />;
+  }
+
   if (!me || !club || !demo) {
     return (
       <Login
         units={org}
+        sansPlace={loadMembres().filter((m) => m.acces && !aUnePlace(m)).map((m) => ({ key: `membre:${m.id}`, prenom: m.prenom, nom: m.nom, couleur: m.couleur }))}
         onPick={(key) => {
           saveMe(key);
           setMe(key);

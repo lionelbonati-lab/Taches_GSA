@@ -76,6 +76,11 @@ export interface ClubMembre {
   groupes: string[];
   /** Données personnelles (email, téléphone, IBAN) masquées dans la liste des membres : son choix, dans ses réglages. */
   prive?: boolean;
+  /**
+   * Accès à l'appli d'une personne sans place dans l'organigramme (PERSONNES_DU_CLUB.md) : elle y voit les tâches qui lui
+   * sont confiées. Démo ; version réelle : son compte (étape 5).
+   */
+  acces?: boolean;
   /** Liste : données masquées par la personne (vides ici). */
   masque?: boolean;
   /** Liste : la personne connectée. */

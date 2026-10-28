@@ -123,6 +123,8 @@ export function Aide() {
   }
   if (club && chemin('/membres-club')) {
     geste('Choisir les colonnes de la liste des personnes', vers('/membres-club'), ' : « Colonnes » (afficher, masquer, ↑/↓ pour l’ordre) ; un clic sur un en-tête trie. Ce réglage n’est que pour toi.');
+    if (club.personnes.gerer && !cloud)
+      geste('Donner l’accès à l’appli à quelqu’un sans place dans l’organigramme', vers('/membres-club'), ' : clic sur la personne › « Accès à l’appli ». Elle n’y voit que les tâches qui lui sont confiées (son nom sur la tâche : « Qui s’en occupe ? » › « ＋ Quelqu’un d’autre… »).');
     if (club.personnes.gerer)
       geste('Ajouter une personne au club, corriger ses coordonnées, la retirer du club', vers('/membres-club'), ' : « + Nouvelle personne », ou clic sur la personne. « Retirer du club » lui retire aussi ses places dans les entités et son accès ; ses tâches gardent son nom.');
     if (club.units.some((u) => u.moiAdmin))

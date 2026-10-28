@@ -9,7 +9,13 @@ import { nomAppli } from '../data/nomAppli';
 import { Icone } from '../components/icones';
 
 /** Démo : connexion en choisissant une personne de l'annuaire du club (sans mot de passe). */
-export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (key: string) => void; onReset: () => void }) {
+export function Login({ units, sansPlace = [], onPick, onReset }: {
+  units: OrgUnit[];
+  /** Personnes du club sans place dans l'organigramme, avec un accès (leurs tâches confiées). */
+  sansPlace?: { key: string; prenom: string; nom: string; couleur: string }[];
+  onPick: (key: string) => void;
+  onReset: () => void;
+}) {
   const [q, setQ] = useState('');
   // Dans l'ordre de l'organigramme (président d'abord) ; personnes fictives, avec leurs postes dans le club.
   const people = directory(units.filter((u) => !u.archive), false).filter((e) => `${e.prenom} ${e.nom} ${e.postes.map((p) => `${p.unit.nom} ${p.member.poste}`).join(' ')}`.toLowerCase().includes(q.trim().toLowerCase()));
@@ -43,6 +49,24 @@ export function Login({ units, onPick, onReset }: { units: OrgUnit[]; onPick: (k
           ))}
           {!people.length && <p className="muted">Personne ne correspond à « {q} ».</p>}
         </div>
+        {sansPlace.length > 0 && (
+          <>
+            <p className="muted small-note">Sans place dans l’organigramme (seulement les tâches qui leur sont confiées) :</p>
+            <div className="login-list">
+              {sansPlace
+                .filter((e) => `${e.prenom} ${e.nom}`.toLowerCase().includes(q.trim().toLowerCase()))
+                .map((e) => (
+                  <button key={e.key} className="login-user" onClick={() => onPick(e.key)}>
+                    <Initials prenom={e.prenom} nom={e.nom} couleur={e.couleur} size={40} />
+                    <span>
+                      <strong>{e.prenom} {e.nom}</strong>
+                      <small>Ses tâches confiées</small>
+                    </span>
+                  </button>
+                ))}
+            </div>
+          </>
+        )}
         <p className="muted small-note">★ = président ou responsable de l’entité. Chaque comité, groupe ou équipe a ses propres tâches, invisibles des autres.</p>
         <InstallButton variant="compact" hideWhenUnavailable />
         <div className="login-foot">

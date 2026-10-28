@@ -1943,3 +1943,15 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .barre-choix li.on { border-color: var(--primary); background: var(--primary-soft); }
 .barre-choix label { flex: 1; display: flex; align-items: center; gap: 8px; cursor: pointer; margin: 0; }
 .barre-ordre { display: flex; gap: 2px; }
+
+/* Personne sans place dans l'organigramme, avec un accès : ses tâches confiées (PERSONNES_DU_CLUB.md, étape 3). */
+.sans-place { min-height: 100vh; }
+.sans-place-tete { display: flex; align-items: center; gap: 10px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--surface); }
+.sans-place main { padding: 16px; }
+.tache-confiee { display: grid; gap: 6px; margin-bottom: 12px; }
+.tache-confiee h2 { margin: 0; font-size: 1.1rem; }
+.tache-confiee.finie h2 { text-decoration: line-through; color: var(--muted); }
+.tache-confiee-entite { display: inline-flex; align-items: center; gap: 6px; }
+.tache-confiee-remarque { white-space: pre-wrap; margin: 0; }
+.tache-confiee-statut { display: flex; align-items: center; gap: 8px; }
+.tache-confiee-liste { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
