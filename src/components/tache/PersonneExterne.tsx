@@ -22,13 +22,13 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
   const [email, setEmail] = useState('');
   const [err, setErr] = useState('');
   useEffect(() => {
-    if (!club?.membresAcces) return;
+    if (!club?.personnes.voir) return;
     club
       .membres()
       .then(setRegistre)
       .catch(() => setRegistre([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [club?.membresAcces]);
+  }, [club?.personnes.voir]);
 
   // Membres du registre qui ne sont dans aucune entité (ceux des entités sont proposés dans la tâche, sous leur nom).
   const annuaire = club ? directory(club.units.filter((u) => !u.archive)) : [];
@@ -50,11 +50,11 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
   return (
     <Modal title="Quelqu’un d’autre" onClose={onClose}>
       <p className="muted">
-        Une personne qui n’est dans aucune entité du club : son nom est noté sur la tâche, qui reste dans son entité. Sans accès à l’appli, elle ne la voit pas.
+        Une personne qui n’a pas de place dans l’organigramme : son nom est noté sur la tâche, qui reste dans son entité. Sans accès à l’appli, elle ne la voit pas.
       </p>
       {registre.length > 0 && (
         <section className="externe-registre">
-          <h3>Membres du club sans entité</h3>
+          <h3>Personnes du club sans entité</h3>
           <input className="login-search" type="search" placeholder="Rechercher un nom, un email…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Rechercher un membre du club" />
           <div className="login-list">
             {sansEntite.slice(0, 50).map((m) => (

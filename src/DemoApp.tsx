@@ -4,12 +4,12 @@ import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit,
 import { CENTRAL_ID, deleteMembre, ecrireBrut, effacerErreursDemo, erreursDemo, reglerErreurDemo, signalerErreurDemo, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, lireHistoriqueDemo, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, surEcriture, synchroDemo, UNIT_KEY } from './data/demoClub';
 import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData } from './data/units';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
-import { compactIban, emailKey, fusionMembre, ibanValide, nouveauMembre, vueMembre } from './data/membres';
+import { compactIban, emailKey, fusionMembre, ibanValide, nomMembre, nouveauMembre, vueMembre } from './data/membres';
 import { appliquer, estEtoile } from './data/organigramme';
 import { uid } from './data/utils';
 import { deleteFiles } from './data/files';
 import { fileIds } from './data/backup';
-import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Permission, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { confieeA, fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
@@ -126,6 +126,21 @@ export function DemoApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [units, me, version],
   );
+
+  // Personnes du club (PERSONNES_DU_CLUB.md) : la liste pour tout le monde ; coordonnées et gestion selon un droit dans
+  // l'une de mes entités (« voir les coordonnées », « Gérer les personnes »), ou le droit « Membres du club ».
+  const personnes = useMemo(() => {
+    const droit = (perm: Permission) =>
+      !!me &&
+      units.some((u) => {
+        if (u.archive) return false;
+        const d = loadUnitData(u.id);
+        const p = d.people.find((x) => x.actif && personKey(x, u.id) === me);
+        return !!p && hasPermission(userRoles(d.roles, p), perm);
+      });
+    return { voir: !!me, coordonnees: membresAcces || droit('tab.people'), gerer: membresAcces || droit('people.manage') };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [units, me, version, membresAcces]);
 
   // Caissier du club : un rôle qui donne expressément « paiements.payer » (hors Admin) dans l'une de ses entités.
   const caissier = useMemo(
@@ -729,16 +744,17 @@ export function DemoApp() {
         }
         return null;
       },
-      membresAcces,
+      personnes,
       caissier,
       // Comme le serveur (034) : données masquées vides, IBAN aux caissiers et à la personne elle-même.
       async membres() {
-        if (!membresAcces && !caissier) throw new Error('Réservé aux personnes qui ont le droit « Membres du club » et aux caissiers.');
+        if (!personnes.voir) throw new Error('Réservé aux personnes du club.');
         const mid = monMembre()?.id;
-        return loadMembres().map((m) => vueMembre(m, m.id === mid, caissier));
+        // Sans le droit « voir les coordonnées » : les noms seulement (sauf les siennes).
+        return loadMembres().map((m) => vueMembre(m, m.id === mid, caissier)).map((m) => (personnes.coordonnees || m.moi ? m : { ...m, email: '', telephone: '' }));
       },
       async saveMembres(l) {
-        if (!membresAcces) throw new Error('Réservé aux personnes qui ont le droit « Membres du club ».');
+        if (!personnes.gerer) throw new Error('Réservé aux personnes qui ont le droit « Gérer les personnes ».');
         // IBAN et confidentialité gardés, comme les coordonnées masquées (sauf par la personne elle-même).
         const avant = loadMembres();
         const mid = monMembre()?.id;
@@ -753,9 +769,33 @@ export function DemoApp() {
         setEpoch((e) => e + 1);
         refresh();
       },
+      // Retirée du club : ses places dans les entités (fiches retirées, postes libérés, comme « Retirer de l'entité ») ;
+      // ses tâches gardent son nom.
       async deleteMembre(id) {
-        if (!membresAcces) throw new Error('Réservé aux personnes qui ont le droit « Membres du club ».');
+        if (!personnes.gerer) throw new Error('Réservé aux personnes qui ont le droit « Gérer les personnes ».');
+        const m = loadMembres().find((x) => x.id === id);
+        if (!m) return;
+        if (emailKey(m.email) && emailKey(m.email) === me) throw new Error('Tu ne peux pas te retirer toi-même du club.');
+        const sienne = (p: Person) => p.actif && (p.membreId === id || (!p.membreId && !!emailKey(m.email) && emailKey(p.email) === emailKey(m.email)));
+        const touchees = units.filter((u) => loadUnitData(u.id).people.some(sienne));
+        for (const u of touchees) {
+          const d = loadUnitData(u.id);
+          const admins = d.people.filter((p) => p.actif && p.roles.includes(ADMIN_ROLE_ID));
+          if (admins.length && admins.every(sienne)) throw new Error(`${nomMembre(m)} est le seul admin de « ${u.nom} » : désigne d’abord un autre responsable (★).`);
+        }
+        for (const u of touchees) {
+          const ancien = loadUnitData(u.id);
+          const d = loadUnitData(u.id);
+          d.people = d.people.map((p) => (sienne(p) ? { ...p, actif: false } : p));
+          const n = synchroDemo(u.id, d);
+          const lie = lierFiches(u.id, n ?? d);
+          const postes = suivrePostes(u.id, ancien, lie);
+          saveUnitData(u.id, postes?.d ?? lie);
+          propagerLiens(u.id);
+          for (const k of postes?.autres ?? []) propagerLiens(k);
+        }
         deleteMembre(id);
+        if (touchees.some((u) => u.id === current.id)) setEpoch((e) => e + 1);
         refresh();
       },
       async monRegistre() {
@@ -765,7 +805,7 @@ export function DemoApp() {
       // Mon IBAN, ma confidentialité : moi seul (comme le serveur).
       async enregistrerMonIban(iban) {
         const m = monMembre();
-        if (!m) throw new Error('Ta fiche n’est pas dans le registre « Membres du club » : demande à un admin de t’y inscrire.');
+        if (!m) throw new Error('Tu n’es pas encore dans « Personnes du club » : demande à quelqu’un qui gère les personnes de t’y inscrire.');
         const v = compactIban(iban);
         if (!ibanValide(v)) throw new Error('IBAN invalide : vérifie-le (longueur et chiffres de contrôle).');
         saveMembres([{ ...m, iban: v || undefined }]);
@@ -773,7 +813,7 @@ export function DemoApp() {
       },
       async setConfidentialite(masquer) {
         const m = monMembre();
-        if (!m) throw new Error('Ta fiche n’est pas dans le registre « Membres du club » : demande à un admin de t’y inscrire.');
+        if (!m) throw new Error('Tu n’es pas encore dans « Personnes du club » : demande à quelqu’un qui gère les personnes de t’y inscrire.');
         saveMembres([{ ...m, prive: masquer }]);
       },
       async fichesEntite(uniteId) {
@@ -807,7 +847,7 @@ export function DemoApp() {
       arrierePlan,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org, central, mineAll, mesFiches, switchUnit, refresh, units, me, membresAcces, caissier]);
+  }, [org, central, mineAll, mesFiches, switchUnit, refresh, units, me, personnes, caissier]);
   const club = useMemo(() => (current ? clubDe(current) : null), [clubDe, current]);
 
   // Vue « moi » : plusieurs entités ouvertes à la fois. Celle dont les données sont réécrites hors de sa couche de données

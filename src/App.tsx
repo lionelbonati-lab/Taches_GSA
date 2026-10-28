@@ -105,7 +105,7 @@ export function App() {
             <Route path="sondages" element={<Polls />} />
             <Route path="paiements" element={<PaiementsRedirect />} />
             {club && <Route path="organigramme" element={<Org />} />}
-            {(club?.membresAcces || club?.caissier) && <Route path="membres-club" element={<MembresClub />} />}
+            {club?.personnes.voir && <Route path="membres-club" element={<MembresClub />} />}
             <Route path="reglages" element={<Settings />} />
             {comites.canUn('admin.access') && <Route path="admin" element={<Admin />} />}
             {comites.canUn('admin.access') && <Route path="admin/:partie" element={<Admin />} />}

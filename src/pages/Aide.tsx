@@ -119,12 +119,14 @@ export function Aide() {
   if (cloud) geste('Recevoir les notifications sur mon téléphone, même l’appli fermée', vers('/reglages'), ' › Notifications : coche « Recevoir ces notifications sur cet appareil » (sur chaque appareil), autorise-les, puis « Envoyer une notification d’essai ». Sur iPhone, installe d’abord l’appli sur l’écran d’accueil et coche-la depuis l’appli installée. Rien entre 22 h et 7 h.');
   if (club) {
     geste('Enregistrer mon IBAN pour mes remboursements', vers('/reglages'), ' › « Mes données au club » : « Enregistrer mon IBAN » ; ou, en demandant un remboursement, coche « Enregistrer mon IBAN ». Toi seul peux le saisir ou le modifier ; seuls les caissiers le voient.');
-    geste('Masquer mes coordonnées dans la liste des membres du club', vers('/reglages'), ' › « Mes données au club » : « Masquer mes données personnelles ». Ton email, ton téléphone et ton IBAN n’y apparaissent plus (« 🔒 masqué »).');
+    geste('Masquer mes coordonnées dans la liste des personnes du club', vers('/reglages'), ' › « Mes données au club » : « Masquer mes données personnelles ». Ton email, ton téléphone et ton IBAN n’y apparaissent plus (« 🔒 masqué »).');
   }
   if (club && chemin('/membres-club')) {
-    geste('Choisir les colonnes de la liste des membres', vers('/membres-club'), ' : « Colonnes » (afficher, masquer, ↑/↓ pour l’ordre) ; un clic sur un en-tête trie. Ce réglage n’est que pour toi.');
-    if (club.membresAcces)
-      geste('Gérer les accès d’un membre (rôles, entités, activation)', vers('/membres-club'), ' : clic sur le membre › « Entités et accès ». Dans les entités dont tu es admin : coche ses rôles, crée ou retire son accès à l’appli, « Retirer de l’entité », ou « Ajouter à une entité… ».');
+    geste('Choisir les colonnes de la liste des personnes', vers('/membres-club'), ' : « Colonnes » (afficher, masquer, ↑/↓ pour l’ordre) ; un clic sur un en-tête trie. Ce réglage n’est que pour toi.');
+    if (club.personnes.gerer)
+      geste('Ajouter une personne au club, corriger ses coordonnées, la retirer du club', vers('/membres-club'), ' : « + Nouvelle personne », ou clic sur la personne. « Retirer du club » lui retire aussi ses places dans les entités et son accès ; ses tâches gardent son nom.');
+    if (club.units.some((u) => u.moiAdmin))
+      geste('Régler le rôle d’une personne dans mon entité', vers('/membres-club'), ' : clic sur la personne › « Entités et accès ». Dans les entités dont tu es admin : coche ses rôles, crée ou retire son accès à l’appli, « Retirer de l’entité », ou « Ajouter à une entité… ».');
   }
   if (chemin('/propositions')) geste('Proposer une idée pour l’appli, signaler un problème', vers('/propositions'), ' (menu du compte) : le comité central l’étudie et te répond sur la même page, dans « Mes propositions ».');
   const orga = club ? vers('/organigramme') : null;

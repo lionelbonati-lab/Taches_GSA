@@ -350,6 +350,8 @@ details summary { cursor: pointer; color: var(--muted); margin: 4px 0; }
 .form h2 { margin: 0; }
 .form input, .form select, .form textarea { color: var(--text); font-size: 0.95rem; }
 fieldset { border: 1px solid var(--border); border-radius: 8px; padding: 10px; margin: 0; }
+/* Formulaire en lecture (fiche d'une personne du club sans le droit de la modifier) : sans cadre. */
+fieldset.form { border: 0; padding: 0; min-width: 0; }
 legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0; }
 .chip { border: 1px solid var(--border); background: var(--surface); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px; }

@@ -16,7 +16,7 @@ export function ImportsEntite() {
   const club = useClubOptional();
   const [sorte, setSorte] = useState<Sorte>('personnes');
   const [registre, setRegistre] = useState<ClubMembre[] | undefined>();
-  const acces = !!club?.membresAcces;
+  const acces = !!club?.personnes.voir;
   const membres = club?.membres;
   useEffect(() => {
     if (acces && membres) membres().then(setRegistre).catch(() => setRegistre(undefined));
@@ -40,7 +40,7 @@ export function ImportsEntite() {
             <p className="muted">
               Une ligne par personne, avec son poste et son rôle dans cette entité. Une personne déjà présente (même email, sinon même prénom et nom)
               est mise à jour : cellules remplies, rôles ajoutés à ceux qu’elle a déjà ; une personne retirée est réactivée.
-              {club && ' Ses coordonnées sont celles du registre « Membres du club » (communes à tout le club).'} L’accès à l’appli se crée ensuite
+              {club && ' Ses coordonnées sont celles de sa fiche dans « Personnes du club » (communes à tout le club).'} L’accès à l’appli se crée ensuite
               dans sa fiche (organigramme : clic sur son nom).
             </p>
           }

@@ -38,7 +38,7 @@ export function useCandidats(units: OrgUnit[], actif: boolean) {
   const club = useClub();
   const [registre, setRegistre] = useState<ClubMembre[]>([]);
   useEffect(() => {
-    if (!actif || !club.membresAcces) return;
+    if (!actif || !club.personnes.voir) return;
     let vivant = true;
     club
       .membres()
@@ -48,7 +48,7 @@ export function useCandidats(units: OrgUnit[], actif: boolean) {
       vivant = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [actif, club.membresAcces]);
+  }, [actif, club.personnes.voir]);
   return useMemo(() => {
     const dir = directory(units.filter((u) => !u.archive));
     const liste: Candidat[] = dir.map((e) => {

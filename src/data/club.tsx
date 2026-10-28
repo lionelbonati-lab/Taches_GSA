@@ -241,8 +241,13 @@ export interface Club {
   proposerAmelioration: (p: NouvelleProposition) => Promise<void>;
   /** Propositions envoyées par la personne connectée, avec leur suivi ; null : le serveur ne les gère pas encore (migration 022). */
   mesPropositions: () => Promise<Proposition[] | null>;
-  /** Registre « Membres du club » : accès (droit « club.membres » ou admin de l'une des entités du club). */
-  membresAcces: boolean;
+  /**
+   * Personnes du club (liste unique, PERSONNES_DU_CLUB.md) : `voir` la liste (tout le monde) ; `coordonnees` (email,
+   * téléphone : droit « voir les coordonnées » dans l'une de ses entités) ; `gerer` (ajouter, modifier, retirer du club :
+   * droit « Gérer les personnes » dans l'une de ses entités). Version réelle : le registre (droit « Membres du club » ou
+   * admin d'une entité) jusqu'aux migrations du serveur.
+   */
+  personnes: { voir: boolean; coordonnees: boolean; gerer: boolean };
   /**
    * Caissier du club (rôle qui donne expressément « paiements.payer » dans l'une de ses entités) : lit la liste des
    * membres, avec leurs IBAN (eux seuls).
@@ -252,7 +257,10 @@ export interface Club {
   membres: () => Promise<ClubMembre[]>;
   /** Enregistre des membres (nouveaux ou modifiés) ; leurs coordonnées passent dans les fiches liées des entités. */
   saveMembres: (list: ClubMembre[]) => Promise<void>;
-  /** Supprime un membre du registre (refusé s'il a encore un poste actif dans une entité). */
+  /**
+   * Retire une personne du club : ses places dans les entités (fiches retirées, postes libérés) et son accès ; ses tâches
+   * gardent son nom (démo ; version réelle : refusé tant qu'elle a une place, jusqu'aux migrations du serveur).
+   */
   deleteMembre: (id: string) => Promise<void>;
   /** Ma fiche du registre (mon IBAN, ma confidentialité) ; null : je n'y suis pas. */
   monRegistre: () => Promise<MonRegistre | null>;

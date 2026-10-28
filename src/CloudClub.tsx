@@ -272,7 +272,8 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
       attribuerTache: (uniteId, task, statut) => attribuerTache(x.committeeId, uniteId, task, statut),
       sondagesPartages: () => fetchSondagesPartages(x.committeeId),
       voterSondagePartage: (uniteId, pollId, choix, texte) => voterSondagePartage(x.committeeId, uniteId, pollId, choix, texte),
-      membresAcces: acces,
+      // Jusqu'aux migrations du serveur (PERSONNES_DU_CLUB.md) : le registre, selon le droit « Membres du club ».
+      personnes: { voir: acces || caissier, coordonnees: acces || caissier, gerer: acces },
       membres: () => fetchMembres(clubId),
       async saveMembres(l) {
         await saveMembres(clubId, l);

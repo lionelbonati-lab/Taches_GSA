@@ -612,6 +612,34 @@ test('tâche : quelqu’un qui n’est dans aucune entité, son nom noté sur la
   expect(d.tasks.find((t: { titre: string }) => t.titre === 'Tenir le stand de crêpes').respHors).toEqual([expect.objectContaining({ prenom: 'Claire', nom: 'Dumas' })]);
 });
 
+test('personnes du club : la liste pour tout le monde, fiche en lecture ; retirer quelqu’un du club', async ({ page }) => {
+  // Simon Vincent, moniteur de l'École (coordonnées, sans « Gérer les personnes ») : la liste et les fiches, en lecture.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Simon Vincent' }).first().click();
+  await allerA(page, '/membres-club');
+  await expect(page.locator('main h1')).toContainText('Personnes du club');
+  await expect(page.getByRole('button', { name: '+ Nouvelle personne' })).toHaveCount(0);
+  await page.locator('.membres-table tr', { hasText: 'Hugo' }).first().click();
+  const fiche = page.getByRole('dialog', { name: /Hugo Morel/ });
+  await expect(fiche.getByLabel('Prénom')).toBeDisabled();
+  await expect(fiche.getByRole('button', { name: 'Enregistrer' })).toHaveCount(0);
+  await expect(fiche.getByRole('button', { name: 'Retirer du club' })).toHaveCount(0);
+  await fiche.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
+
+  // Julien Moreau (« Gérer les personnes ») retire Hugo Morel du club : sa place au CO Bruntrutaine aussi.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Julien Moreau' }).first().click();
+  await allerA(page, '/membres-club');
+  await page.locator('.membres-table tr', { hasText: 'Hugo' }).first().click();
+  page.once('dialog', (d) => void d.accept());
+  await page.getByRole('dialog', { name: /Hugo Morel/ }).getByRole('button', { name: 'Retirer du club' }).click();
+  await expect(page.locator('.membres-table tr', { hasText: 'Hugo' })).toHaveCount(0);
+  const fiche2 = await page.evaluate(() =>
+    (JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-bruntrutaine') ?? '{}').people ?? []).find((p: { prenom: string }) => p.prenom === 'Hugo'),
+  );
+  expect(fiche2.actif).toBe(false);
+});
+
 test('vue « moi » : les événements de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();

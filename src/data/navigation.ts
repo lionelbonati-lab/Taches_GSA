@@ -99,7 +99,7 @@ const RUBRIQUES: NavRubrique[] = [
         club: true,
         aide: 'Le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. Un clic sur une personne de tes entités : sa fiche, modifiable sur place.',
       },
-      { to: '/membres-club', label: 'Membres du club', icon: 'membres', registre: true, aide: 'L’annuaire de tout le club, avec ou sans accès à l’appli ; on y gère aussi les accès de chacun aux entités.' },
+      { to: '/membres-club', label: 'Personnes du club', icon: 'membres', registre: true, aide: 'Les personnes du club, avec ou sans accès à l’appli : une fiche par personne, ses places dans les entités (l’organigramme) et, dans tes entités, son rôle et son accès.' },
     ],
   },
 ];

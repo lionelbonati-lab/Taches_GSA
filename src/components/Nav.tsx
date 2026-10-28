@@ -21,7 +21,7 @@ export function useNavigation() {
   const nav = navigation({
     can: (p) => (comites && PERMS_MOI.includes(p) ? comites.canUn(p) : can(p)),
     club: !!club,
-    registre: !!club && (club.membresAcces || club.caissier),
+    registre: !!club?.personnes.voir,
     type: types.size === 1 ? [...types][0] : types.size ? 'central' : club?.current.type ?? 'central',
     demandes: !!club?.demandesMdp.length || autres.some((e) => e.club.demandesMdp.length && e.store.can('admin.access')),
     superAdmin: !!club?.superAdmin,

@@ -7,7 +7,7 @@ import type { MonRegistre } from '../data/types';
 // Réglages › Mes données au club : mon IBAN (moi seul l'enregistre ; seuls les caissiers le voient) et la confidentialité
 // de mes données personnelles dans la liste des membres du club.
 
-const PAS_INSCRIT = 'Ta fiche n’est pas dans le registre « Membres du club » : demande à un admin de t’y inscrire.';
+const PAS_INSCRIT = 'Tu n’es pas encore dans « Personnes du club » : demande à quelqu’un qui gère les personnes de t’y inscrire.';
 
 export function MesDonnees() {
   const club = useClub();

@@ -277,7 +277,7 @@ function PersonModal({ person, central, access, accessErr, onAccessChange, onSho
       )}
       {cloud && admin && (isNew || reactiver) && <p className="muted small-note">Accès à l’appli : à créer une fois la fiche enregistrée (clic sur son nom dans l’organigramme).</p>}
       {accessErr && <p className="error">{accessErr}</p>}
-      {club && <p className="muted small-note">Prénom, nom, email et téléphone sont communs à tout le club (registre « Membres du club ») : modifiés ici, ils changent dans toutes les entités.</p>}
+      {club && <p className="muted small-note">Prénom, nom, email et téléphone sont communs à tout le club (« Personnes du club ») : modifiés ici, ils changent dans toutes les entités.</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         {admin && !isNew && !reactiver && (
@@ -312,7 +312,7 @@ function AjouterPersonne({ onPick, onClose }: { onPick: (p: Person | null) => vo
   const club = useClubOptional()!;
   const [q, setQ] = useState('');
   const [registre, setRegistre] = useState<Candidat[] | null>(null);
-  const acces = club.membresAcces;
+  const acces = club.personnes.voir;
   const { membres, units } = club;
   useEffect(() => {
     if (!acces) return;

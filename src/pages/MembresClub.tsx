@@ -16,10 +16,11 @@ import { Icone } from '../components/icones';
 import { Deroulante } from '../components/Deroulante';
 import { IconeEntite, PastilleEntite } from '../components/IconesEntite';
 
-// Membres du club : registre commun à toutes les entités (une fiche par personne, avec ou sans accès à l'appli).
-// Réservé au droit « Membres du club » (Admin, Secrétaire…) et aux admins des entités ; les caissiers la lisent, avec les
-// IBAN (eux seuls). Chacun choisit ses colonnes (ordre, affichage, tri). Une personne peut masquer ses données
-// personnelles (Réglages). Les admins d'une entité y gèrent aussi les accès de ses membres (rôles, retrait, compte).
+// Personnes du club : la liste unique du club (une fiche par personne, avec ou sans accès à l'appli ; PERSONNES_DU_CLUB.md).
+// Tout le monde la voit (noms et entités) ; les coordonnées, avec le droit « voir les coordonnées » dans l'une de ses
+// entités ; ajouter, modifier, retirer du club : droit « Gérer les personnes » dans l'une de ses entités. IBAN : les
+// caissiers seulement. Chacun choisit ses colonnes (ordre, affichage, tri) et peut masquer ses données personnelles
+// (Réglages). Les admins d'une entité y règlent aussi les rôles et l'accès de chacun chez eux.
 
 type Col = 'nom' | 'prenom' | 'telephone' | 'email' | 'postes' | 'groupes' | 'iban';
 const COLONNES: { key: Col; label: string }[] = [
@@ -34,9 +35,9 @@ const COLONNES: { key: Col; label: string }[] = [
 const libelle = (k: Col) => COLONNES.find((c) => c.key === k)!.label;
 const PAR_DEFAUT: ColonnesMembres = { ordre: COLONNES.map((c) => c.key), masquees: ['groupes'], tri: { col: 'nom' } };
 
-/** Colonnes de la personne : ses choix, complétés (IBAN : caissiers seulement). */
-function colonnesDe(c: ColonnesMembres | undefined, caisse: boolean) {
-  const connues = COLONNES.map((x) => x.key).filter((k) => caisse || k !== 'iban');
+/** Colonnes de la personne : ses choix, complétés (IBAN : caissiers seulement ; email et téléphone : droit aux coordonnées). */
+function colonnesDe(c: ColonnesMembres | undefined, caisse: boolean, coords: boolean) {
+  const connues = COLONNES.map((x) => x.key).filter((k) => (caisse || k !== 'iban') && (coords || (k !== 'email' && k !== 'telephone')));
   const ordre = [...(c?.ordre ?? []).filter((k): k is Col => connues.includes(k as Col)), ...connues.filter((k) => !c?.ordre.includes(k))];
   const masquees = new Set((c ?? PAR_DEFAUT).masquees);
   const visibles = ordre.filter((k) => !masquees.has(k));
@@ -79,7 +80,7 @@ export function MembresClub() {
   const [importer, setImporter] = useState(false);
   const [reglerColonnes, setReglerColonnes] = useState(false);
   const { membres } = club;
-  const gerer = club.membresAcces;
+  const { gerer, coordonnees: coords } = club.personnes;
   const caisse = club.caissier;
   const load = useCallback(
     () =>
@@ -97,7 +98,7 @@ export function MembresClub() {
 
   const qui = emailKey(user?.email) || user?.id || '';
   const choix = prefs.membresColonnes ?? lireLocal(qui);
-  const cols = colonnesDe(choix, caisse);
+  const cols = colonnesDe(choix, caisse, coords);
   const sauverColonnes = (c: ColonnesMembres) => {
     setPrefs({ membresColonnes: c });
     ecrireLocal(qui, c);
@@ -140,13 +141,12 @@ export function MembresClub() {
     });
 
   const exporter = () =>
-    downloadCsv('membres-du-club.csv', [
-      ['Prénom', 'Nom', 'Email', 'Téléphone', ...(caisse ? ['IBAN'] : []), 'Groupes', 'Postes'],
+    downloadCsv('personnes-du-club.csv', [
+      ['Prénom', 'Nom', ...(coords ? ['Email', 'Téléphone'] : []), ...(caisse ? ['IBAN'] : []), 'Groupes', 'Postes'],
       ...vus.map((m) => [
         m.prenom,
         m.nom,
-        m.email,
-        m.telephone,
+        ...(coords ? [m.email, m.telephone] : []),
         ...(caisse ? [formatIban(m.iban ?? '')] : []),
         groupesDe(m).map((u) => u.nom).join(', '),
         postesTexte(m),
@@ -173,20 +173,21 @@ export function MembresClub() {
   return (
     <div>
       <div className="page-head">
-        <h1>Membres du club{list && <small className="muted"> · {list.length}</small>}</h1>
+        <h1>Personnes du club{list && <small className="muted"> · {list.length}</small>}</h1>
         {list && (
           <span className="row wrap">
             <button className="btn" onClick={() => setReglerColonnes(true)}><Icone n="colonnes" /> Colonnes</button>
             {gerer && <button className="btn" onClick={() => setImporter(true)}><Icone n="importer" /> Importer</button>}
             <button className="btn" disabled={!vus.length} onClick={exporter}><Icone n="exporter" /> Exporter</button>
-            {gerer && <button className="btn primary" onClick={() => setEdit(nouveauMembre({}))}>+ Nouveau membre</button>}
+            {gerer && <button className="btn primary" onClick={() => setEdit(nouveauMembre({}))}>+ Nouvelle personne</button>}
           </span>
         )}
       </div>
       <p className="muted">
-        Une fiche par personne pour tout le club, avec ou sans accès à l’appli (licenciés, parents, bénévoles…). Prénom, nom, email et
-        téléphone sont les mêmes dans toutes les entités où la personne a un poste : modifiés ici, ils changent partout.
-        {gerer && ' Clic sur un membre : sa fiche, et ses accès dans les entités dont tu es admin (rôles, retrait, accès à l’appli).'}
+        Les personnes font partie du club : une fiche par personne, avec ou sans accès à l’appli (licenciés, parents, bénévoles…).
+        L’organigramme les place dans les entités ; prénom, nom, email et téléphone sont les mêmes partout : modifiés ici, ils changent
+        partout. Clic sur une personne : sa fiche et ses places dans les entités{gerer ? '' : ' (en lecture)'}.
+        {!coords && ' Les coordonnées sont visibles avec le droit « voir les coordonnées » dans l’une de tes entités.'}
         {caisse ? ' L’IBAN n’est visible que des caissiers ; chacun enregistre le sien dans ses Réglages.' : ''} Chacun peut masquer ses
         données personnelles dans cette liste (Réglages).
       </p>
@@ -197,7 +198,7 @@ export function MembresClub() {
           <div className="filters open">
             <input className="search" type="search" placeholder="Rechercher un nom, un email, un téléphone…" value={q} onChange={(e) => setQ(e.target.value)} />
             <select value={filtre} onChange={(e) => setFiltre(e.target.value)} aria-label="Filtrer">
-              <option value="">Tous les membres ({list.length})</option>
+              <option value="">Toutes les personnes ({list.length})</option>
               <option value="poste">Avec un poste dans une entité</option>
               <option value="sans">Sans poste</option>
               {groupes.map((g) => (
@@ -207,7 +208,7 @@ export function MembresClub() {
             </select>
           </div>
           <div className="table-scroll">
-            <table className={`table membres-table${gerer ? '' : ' lecture'}`}>
+            <table className="table membres-table">
               <thead>
                 <tr>
                   {cols.visibles.map((k) => (
@@ -219,14 +220,14 @@ export function MembresClub() {
               </thead>
               <tbody>
                 {vus.map((m) => (
-                  <tr key={m.id} onClick={gerer ? () => setEdit(m) : undefined}>
+                  <tr key={m.id} onClick={() => setEdit(m)}>
                     {cols.visibles.map((k) => <td key={k}>{cellule(m, k)}</td>)}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          {!vus.length && <p className="muted">{list.length ? 'Aucun membre ne correspond.' : 'Le registre est vide : ajoute un membre ou importe un fichier.'}</p>}
+          {!vus.length && <p className="muted">{list.length ? 'Personne ne correspond.' : 'La liste est vide : ajoute une personne ou importe un fichier.'}</p>}
         </>
       )}
       {reglerColonnes && (
@@ -243,6 +244,7 @@ export function MembresClub() {
           membre={edit}
           list={list}
           postes={postes.get(edit.id) ?? []}
+          lecture={!gerer}
           onSave={(m) => enregistrer([m])}
           onDelete={async (id) => {
             await club.deleteMembre(id);
@@ -252,7 +254,7 @@ export function MembresClub() {
         />
       )}
       {importer && list && (
-        <Modal title="Importer des membres du club" wide onClose={() => setImporter(false)}>
+        <Modal title="Importer des personnes du club" wide onClose={() => setImporter(false)}>
           <ImportCsv
             colonnes={COLS_REGISTRE}
             modele="modele-membres-du-club.csv"
@@ -261,7 +263,7 @@ export function MembresClub() {
             appliquer={async (vals) => {
               const maj = derniers(vals);
               await enregistrer(maj);
-              return `${maj.length} membre${maj.length > 1 ? 's' : ''} enregistré${maj.length > 1 ? 's' : ''} dans le registre du club.`;
+              return `${maj.length} personne${maj.length > 1 ? 's' : ''} enregistrée${maj.length > 1 ? 's' : ''} dans la liste du club.`;
             }}
           />
         </Modal>
@@ -322,10 +324,12 @@ function ColonnesModal({ ordre, visibles, onSave, onReset, onClose }: { ordre: C
   );
 }
 
-function MembreModal({ membre, list, postes, onSave, onDelete, onClose }: {
+function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose }: {
   membre: ClubMembre;
   list: ClubMembre[];
   postes: ReturnType<typeof postesDe>;
+  /** Sans le droit « Gérer les personnes » : la fiche en lecture. */
+  lecture: boolean;
   onSave: (m: ClubMembre) => Promise<void>;
   onDelete: (id: string) => Promise<void>;
   onClose: () => void;
@@ -358,14 +362,14 @@ function MembreModal({ membre, list, postes, onSave, onDelete, onClose }: {
     void run(() => onSave({ ...nouveauMembre(v), iban: membre.iban }));
   };
   return (
-    <Modal title={nouveau ? 'Nouveau membre du club' : nomMembre(membre)} onClose={onClose}>
+    <Modal title={nouveau ? 'Nouvelle personne du club' : nomMembre(membre)} onClose={onClose}>
       {membre.masque && (
         <p className="lien-note">🔒 {nomMembre(membre)} a masqué ses données personnelles : son email et son téléphone ne s’affichent pas ici et ne s’y modifient pas (seulement depuis sa fiche dans une entité).</p>
       )}
-      <div className="form">
+      <fieldset className="form" disabled={lecture}>
         <label>Prénom<input value={v.prenom} onChange={(e) => set({ prenom: e.target.value })} /></label>
         <label>Nom<input value={v.nom} onChange={(e) => set({ nom: e.target.value })} /></label>
-        {!membre.masque && (
+        {!membre.masque && (!lecture || v.email || v.telephone) && (
           <>
             <label>Adresse email<input type="email" value={v.email} onChange={(e) => set({ email: e.target.value })} /></label>
             <label>Téléphone portable<input type="tel" value={v.telephone} onChange={(e) => set({ telephone: e.target.value })} /></label>
@@ -394,24 +398,28 @@ function MembreModal({ membre, list, postes, onSave, onDelete, onClose }: {
             </div>
           </div>
         )}
-      </div>
+      </fieldset>
       {!nouveau && <AccesMembre membre={membre} postes={postes} />}
-      {nouveau && <p className="muted small-note">Une fois la fiche enregistrée, ouvre-la pour l’ajouter à une entité (rôle, accès à l’appli).</p>}
+      {nouveau && <p className="muted small-note">Une fois la fiche enregistrée, place la personne dans l’organigramme, ou ouvre sa fiche pour l’ajouter à une entité (rôle, accès à l’appli).</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!nouveau && (
+        {!nouveau && !lecture && (
           <button
             className="btn danger"
-            disabled={busy || postes.length > 0}
-            title={postes.length ? 'Retire-le d’abord de ses entités' : ''}
-            onClick={() => confirm(`Supprimer ${nomMembre(membre)} du registre du club ?`) && void run(() => onDelete(membre.id))}
+            disabled={busy || !!membre.moi}
+            title={membre.moi ? 'Pas toi-même' : ''}
+            onClick={() =>
+              confirm(
+                `Retirer ${nomMembre(membre)} du club ?${postes.length ? ` Ses places dans les entités (${postes.map((p) => p.unit.nom).join(', ')}) et son accès à l’appli sont retirés.` : ''} Ses tâches gardent son nom.`,
+              ) && void run(() => onDelete(membre.id))
+            }
           >
-            Supprimer
+            Retirer du club
           </button>
         )}
         <span className="grow" />
-        <button className="btn" onClick={onClose}>Annuler</button>
-        <button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>
+        <button className="btn" onClick={onClose}>{lecture ? 'Fermer' : 'Annuler'}</button>
+        {!lecture && <button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Enregistrement…' : 'Enregistrer'}</button>}
       </div>
     </Modal>
   );
