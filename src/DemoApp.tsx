@@ -21,7 +21,6 @@ import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket }
 import { App } from './App';
 import { Login } from './pages/Login';
 import { SansPlace, type TacheConfiee } from './pages/SansPlace';
-import { uniteDuLien } from './data/lienPartage';
 import { RegistreEntites } from './data/entites';
 
 // Démo : le club et ses entités, toutes gardées dans ce navigateur.
@@ -50,9 +49,11 @@ function attendusDemo(t: Task, uniteId: string, units: Unit[]) {
   );
 }
 
+// Entité de base : le comité central (ou celle où la démo a été rouverte) ; un lien reçu vers une autre de mes entités
+// s'ouvre d'ici (LienRecu), sans changer d'entité.
 const readUnit = () => {
   try {
-    return uniteDuLien() ?? localStorage.getItem(UNIT_KEY);
+    return localStorage.getItem(UNIT_KEY);
   } catch {
     return null;
   }

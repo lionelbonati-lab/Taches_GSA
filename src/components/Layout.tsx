@@ -8,6 +8,7 @@ import { GENRES, type GenreTicket } from '../data/paiements';
 import { AppLogo, Avatar, Toast } from './ui';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
+import { LienRecu } from './LienRecu';
 import { Recherche } from './Recherche';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { rafraichirPush } from '../data/push';
@@ -171,6 +172,7 @@ export function Layout() {
         <BoutonAnnuler />
         <Recherche />
         <Bell />
+        <LienRecu />
         <div className="who">
           <InstallButton variant="compact" hideWhenUnavailable />
           <button

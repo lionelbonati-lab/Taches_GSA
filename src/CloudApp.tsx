@@ -11,14 +11,15 @@ import { ADMIN_ROLE_ID } from './data/permissions';
 import { App } from './App';
 import { CloudClub } from './CloudClub';
 import { AppLogo } from './components/ui';
-import { ChooseCommittee, FirstPassword, Message, NewPassword, RealLogin, Setup, WhoAreYou } from './pages/Real';
+import { FirstPassword, Message, NewPassword, RealLogin, Setup, WhoAreYou } from './pages/Real';
 import { ComptesSeuls } from './pages/Comptes';
-import { uniteDuLien } from './data/lienPartage';
+import { entiteDeBase } from './data/units';
 import { RegistreEntites } from './data/entites';
 import { SansPlace, type TacheConfiee } from './pages/SansPlace';
 import { isImage } from './data/logo';
 
-// Version réelle : connexion, choix du comité, mise en route, puis l'appli avec les données du serveur.
+// Version réelle : connexion, mise en route, puis l'appli avec les données du serveur, appuyée sur l'une de mes entités
+// (toujours la même : entiteDeBase) ; les autres sont chargées en arrière-plan (vue « moi »).
 
 type Phase =
   | { k: 'chargement'; text: string }
@@ -27,14 +28,11 @@ type Phase =
   | { k: 'nouveauMdp' }
   | { k: 'aucunComite'; superAdmin: boolean }
   | { k: 'sansPlace'; compte: MonCompteClub }
-  | { k: 'choixComite'; list: Membership[] }
   | { k: 'erreur'; text: string }
   | { k: 'miseEnRoute'; m: Membership; sync: CloudSync }
   | { k: 'quiEsTu'; m: Membership; sync: CloudSync; data: AppData }
   | { k: 'pasPret'; m: Membership }
   | { k: 'pret'; cloud: CloudMode };
-
-const COMMITTEE_KEY = 'taches-gsa-comite';
 
 export function CloudApp() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
@@ -61,12 +59,7 @@ export function CloudApp() {
     async (s: Session, m: Membership) => {
       const id = ++run.current;
       const alive = () => id === run.current;
-      try {
-        localStorage.setItem(COMMITTEE_KEY, m.committeeId);
-      } catch {
-        /* ignore */
-      }
-      setPhase({ k: 'chargement', text: `Chargement des données · ${m.committeeName}…` });
+      setPhase({ k: 'chargement', text: 'Chargement de tes données…' });
       setServerFiles(m.committeeId);
       const sync = new CloudSync(m.committeeId, s.user.id);
       const { data, empty } = await sync.load();
@@ -89,7 +82,7 @@ export function CloudApp() {
       if (!s) return setPhase({ k: 'connexion' });
       if (doitChoisirMdp()) return setPhase({ k: 'nouveauMdp' });
       if (doitChangerMdp(s.user)) return setPhase({ k: 'motDePasse' });
-      setPhase({ k: 'chargement', text: 'Recherche de ton comité…' });
+      setPhase({ k: 'chargement', text: 'Chargement…' });
       try {
         // Personne du club sans place dans l'organigramme (056) : ses tâches confiées seulement.
         const [list, comptes] = await Promise.all([myMemberships(s.user.id), mesComptesClub()]);
@@ -98,20 +91,10 @@ export function CloudApp() {
         if (sansPlace) return setPhase({ k: 'sansPlace', compte: sansPlace });
         // Sans entité : le super-admin du club a la page des comptes.
         if (!list.length) return setPhase({ k: 'aucunComite', superAdmin: await estSuperAdmin() });
-        let saved: string | null = null;
-        try {
-          saved = localStorage.getItem(COMMITTEE_KEY);
-        } catch {
-          /* ignore */
-        }
-        // Entité d'un lien reçu (WhatsApp…), sinon la dernière ouverte, sinon le comité central ; le choix ne se pose qu'à défaut.
-        const lien = uniteDuLien();
-        const m =
-          list.find((x) => !!lien && x.committeeId === lien) ??
-          list.find((x) => x.committeeId === saved) ??
-          list.find((x) => x.type === 'central') ??
-          (list.length === 1 ? list[0] : null);
-        if (!m) return setPhase({ k: 'choixComite', list });
+        // Toujours la même entité de base (le comité central d'abord), avec ma fiche ; un lien reçu vers une autre de mes
+        // entités (notification, WhatsApp…) s'ouvre ensuite d'ici (LienRecu), sans changer d'entité.
+        const avecFiche = list.filter((x) => x.personId);
+        const m = entiteDeBase((avecFiche.length ? avecFiche : list).map((x) => ({ ...x, nom: x.committeeName, archive: !!x.info.archive })))!;
         await open(s, m);
       } catch (e) {
         if (id === run.current) setPhase({ k: 'erreur', text: (e as Error).message });
@@ -133,7 +116,7 @@ export function CloudApp() {
   const email = session?.user.email ?? '';
   const userId = session?.user.id ?? '';
   const retry = () => session && start(session);
-  // Passage à une autre entité du club (menu en haut, organigramme).
+  // Passage à une autre de mes entités : ma fiche a été retirée de l'entité de base, ou celle-ci archivée (App).
   const switchTo = useCallback(
     (m: Membership) => {
       if (session) void open(session, m).catch((e) => setPhase({ k: 'erreur', text: (e as Error).message }));
@@ -163,13 +146,11 @@ export function CloudApp() {
       if (phase.superAdmin) return <ComptesSeuls email={email} onSignOut={signOut} />;
       return (
         <Message title="Pas encore d’accès" onSignOut={signOut}>
-          <p>Le compte <b>{email}</b> n’est rattaché à aucun comité. Demande à quelqu’un qui gère les personnes du club de te donner l’accès (« Personnes du club » : ta fiche, « Donner l’accès »).</p>
+          <p>Le compte <b>{email}</b> n’a encore de place dans aucune entité du club. Demande à quelqu’un qui gère les personnes du club de te donner l’accès (« Personnes du club » : ta fiche, « Donner l’accès »).</p>
         </Message>
       );
     case 'sansPlace':
       return <SansPlaceReel compte={phase.compte} onSignOut={signOut} />;
-    case 'choixComite':
-      return <ChooseCommittee list={phase.list} onSignOut={signOut} onChoose={(m) => session && void open(session, m).catch((e) => setPhase({ k: 'erreur', text: (e as Error).message }))} />;
     case 'erreur': {
       const offline = /fetch|network/i.test(phase.text);
       return (
@@ -182,7 +163,7 @@ export function CloudApp() {
     case 'pasPret':
       return (
         <Message title={phase.m.committeeName} onSignOut={signOut}>
-          <p>Aucune donnée accessible pour l’instant : le comité n’est pas encore mis en route, ou ton accès a été désactivé.</p>
+          <p>Aucune donnée accessible pour l’instant : l’entité n’est pas encore mise en route, ou ton accès a été désactivé.</p>
           <p>Renseigne-toi auprès du président.</p>
           <p><button className="btn" onClick={retry}>Réessayer</button></p>
         </Message>

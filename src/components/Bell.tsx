@@ -1,20 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { ago, useNotifications, type Notif } from '../notifications';
-import { pageParEntite, PERMS_COMITE, useComites } from '../data/comites';
-
-/** Pages qui réunissent toutes mes entités (vue « moi »). */
-const PAGES_REUNIES = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/sondages', '/propositions'];
 import { Icone } from './icones';
+import { useOuvrirLien } from './LienRecu';
 
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */
 export function Bell() {
   const { markNotifsRead } = useStore();
-  const comites = useComites();
   const { items, unread } = useNotifications();
   const [open, setOpen] = useState(false);
-  const navigate = useNavigate();
+  const ouvrir = useOuvrirLien();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -32,16 +27,8 @@ export function Bell() {
   const go = (n: Notif) => {
     markNotifsRead([n.key]);
     setOpen(false);
-    // De l'une de mes autres entités, une page qui les réunit toutes (séances, sondages…) : elle s'ouvre d'ici, sans
-    // changer d'entité ; une séance y choisit son comité (ordre du jour, PV), un « Pour info » reçu s'ouvre chez elle.
-    // Une page d'une seule entité (mots de passe oubliés…) : elle s'y choisit. Toutes les notifications sont de l'un de ces cas.
-    const [chemin, q = ''] = n.link.split('?');
-    const parEntite = pageParEntite(chemin);
-    if (n.entite && (PAGES_REUNIES.includes(chemin) || parEntite)) {
-      const perms = parEntite ? [parEntite.perm] : PERMS_COMITE;
-      if (perms.some((p) => comites?.liste(p).some((u) => u.id === n.entite))) comites!.choisir(n.entite);
-      navigate(chemin === '/taches' && q.startsWith('pourinfo=') ? `${n.link}&chez=${encodeURIComponent(n.entite)}` : n.link);
-    } else navigate(n.link);
+    // De l'une de mes autres entités : ouverte d'ici, sans changer d'entité (useOuvrirLien).
+    ouvrir(n.link, n.entite);
   };
 
   return (
@@ -74,7 +61,7 @@ export function Bell() {
               ))}
             </ul>
           )}
-          <button className="bell-foot" onClick={() => { setOpen(false); navigate('/reglages'); }}><Icone n="reglages" /> Réglages des notifications</button>
+          <button className="bell-foot" onClick={() => { setOpen(false); ouvrir('/reglages'); }}><Icone n="reglages" /> Réglages des notifications</button>
         </div>
       )}
     </div>

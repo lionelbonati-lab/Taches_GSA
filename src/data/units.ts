@@ -313,4 +313,13 @@ export function sortUnits<T extends { type: UnitType; nom: string; date?: string
   return [...list].sort((a, b) => rank[a.type] - rank[b.type] || (a.date ?? '').localeCompare(b.date ?? '') || a.nom.localeCompare(b.nom, 'fr'));
 }
 
+/**
+ * Entité sur laquelle l'appli s'appuie (vue « moi » : toutes mes entités sont réunies) : la même à chaque ouverture,
+ * quels que soient la page ou le lien suivi — le comité central, sinon un sous-comité, un groupe, puis une équipe
+ * d'événement ; une entité archivée seulement s'il n'y en a pas d'autre.
+ */
+export function entiteDeBase<T extends { type: UnitType; nom: string; date?: string; archive?: boolean }>(list: T[]): T | undefined {
+  return sortUnits(list.filter((u) => !u.archive))[0] ?? list[0];
+}
+
 export const UNIT_COLORS = ['#1d4ed8', '#059669', '#ea580c', '#db2777', '#7c3aed', '#0891b2', '#b45309', '#475569'];

@@ -12,9 +12,7 @@ import { ADMIN_ROLE_ID } from '../data/permissions';
 import { fmtDateTime, fullName, posteBesideName, uid } from '../data/utils';
 import type { AppData, Person } from '../data/types';
 import { nomAppli } from '../data/nomAppli';
-import { sortUnits, UNIT_TYPES } from '../data/units';
 import { Icone } from '../components/icones';
-import { IconeEntite } from '../components/IconesEntite';
 
 // Écrans de la version réelle (avant d'entrer dans l'appli) et écran d'accueil (choix démo / version réelle).
 
@@ -236,23 +234,6 @@ export function Message({ title, children, onSignOut }: { title: string; childre
         {onSignOut && <button className="btn" onClick={onSignOut}>Se déconnecter</button>}
         <button className="btn link" onClick={() => switchMode('demo')}><Icone n="demo" /> Ouvrir la démo</button>
       </div>
-    </Card>
-  );
-}
-
-export function ChooseCommittee({ list, onChoose, onSignOut }: { list: Membership[]; onChoose: (m: Membership) => void; onSignOut: () => void }) {
-  return (
-    <Card>
-      <p className="muted">Ton compte a accès à plusieurs entités du club. Laquelle ouvrir ? (Tu passeras de l’une à l’autre depuis le menu en haut.)</p>
-      <div className="login-list">
-        {sortUnits(list.map((m) => ({ ...m, nom: m.committeeName, date: m.info.date }))).map((m) => (
-          <button key={m.committeeId} className="login-user" onClick={() => onChoose(m)}>
-            <span className="unit-dot" style={{ background: m.info.couleur ?? '#1d4ed8' }}><IconeEntite u={{ type: m.type, icone: m.info.icone }} /></span>
-            <span><strong>{m.committeeName}</strong><small>{UNIT_TYPES[m.type].label}{m.owner ? ' · propriétaire' : ''}</small></span>
-          </button>
-        ))}
-      </div>
-      <button className="btn link" onClick={onSignOut}>Se déconnecter</button>
     </Card>
   );
 }

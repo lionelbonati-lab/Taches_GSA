@@ -1394,3 +1394,22 @@ test('tâches : les filtres « Entité » et « Événement » ne proposent que 
     expect(await page.locator('main tbody tr').count()).toBeGreaterThan(0);
   }
 });
+
+test('lien reçu vers une tâche d’une autre de mes entités : l’appli reste sur son entité de base et l’ouvre d’ici', async ({ page }) => {
+  // Une tâche de la Soirée récréative confiée à Julien Moreau (comité central et Soirée).
+  const cle = 'taches-gsa-demo-u-u-soiree';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const julien = d.people.find((p: { prenom: string }) => p.prenom === 'Julien');
+    d.tasks.push({ id: 'tlien', sectionId: d.sections[0].id, sousSection: '', titre: 'Réserver la sono', responsables: [julien.id], statusId: d.statuses[0].id, delai: '', remarque: '', checklist: [], createdBy: julien.id, updatedAt: new Date().toISOString() });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  // Le lien (notification du téléphone, WhatsApp) porte l'entité de la tâche : l'appli ne s'appuie pas sur elle pour autant.
+  await page.goto('./?demo=u-soiree#/taches?tache=tlien');
+  await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ?')).toHaveValue('Réserver la sono');
+  await verifierEntite(page, 'Comité central');
+  // Rouverte ensuite sans lien : toujours le comité central.
+  await page.goto('./?demo#/');
+  await verifierEntite(page, 'Comité central');
+});

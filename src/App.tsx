@@ -10,6 +10,7 @@ import { PageIntro } from './components/Nav';
 import { ComitesCtx, useComitesEtat } from './data/comites';
 import { chargerFicheTache } from './components/FicheTache';
 import { useClubOptional } from './data/club';
+import { entiteDeBase } from './data/units';
 
 // Pages chargées à la demande : l'ouverture ne charge que l'accueil et la liste des tâches. Les autres pages et la fiche
 // d'une tâche suivent en arrière-plan une fois l'appli affichée (prêtes au premier clic, et gardées par le service worker
@@ -72,7 +73,7 @@ export function App() {
   usePrechargement();
   // Un compte, pas une entité : l'appli s'appuie d'elle-même sur une autre de mes entités si ma fiche a été retirée de
   // celle-ci, ou si elle a été archivée.
-  const autre = club && (!user || club.current.archive) ? club.mine.find((u) => u.id !== club.current.id && !u.archive) : undefined;
+  const autre = club && (!user || club.current.archive) ? entiteDeBase(club.mine.filter((u) => u.id !== club.current.id && !u.archive)) : undefined;
   useEffect(() => {
     if (autre) club?.switchUnit(autre.id, window.location.hash || '#/');
     // eslint-disable-next-line react-hooks/exhaustive-deps
