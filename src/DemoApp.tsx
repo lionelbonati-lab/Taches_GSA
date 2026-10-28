@@ -11,7 +11,7 @@ import { deleteFiles } from './data/files';
 import { fileIds } from './data/backup';
 import type { AgendaClubEvent, AppData, MyRequest, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
-import { fusionPartagee, tacheDans } from './data/partage';
+import { confieeA, fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
 import { ajouterVus, attendusDe, clesVu, dernierAttendu } from './data/pourInfo';
 import { appliquerCommentaire, destinatairesCommentaire, luesCommunes, notifsCommentaire, unParPersonne } from './data/commentaires';
@@ -176,6 +176,14 @@ export function DemoApp() {
 
   // Club vu d'une entité (`current`) : l'entité ouverte, ou l'une de mes autres entités en arrière-plan (vue « moi »).
   const clubDe = useCallback((current: OrgUnit, arrierePlan = false): Club => {
+    // Tâche `t` de l'entité `u` vue de `current` : partagée avec elle (tacheDans), ou confiée à moi seulement (confieeA,
+    // comme le serveur : 054).
+    const vueDe = (t: Task, u: Unit) => {
+      const vue = tacheDans(t, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u));
+      if (vue) return vue;
+      const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
+      return confieeA(t, org, current.id, fiche) ? 'modifiable' : null;
+    };
     return {
       units: org,
       current,
@@ -453,7 +461,7 @@ export function DemoApp() {
             const d = loadUnitData(u.id);
             const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
             return d.tasks
-              .filter((t) => tacheDans(t, u, parentDans(actives, u)?.id, current.id, reglageTaches(org, u)) === 'modifiable')
+              .filter((t) => vueDe(t, u) === 'modifiable')
               .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts, v: 41 }));
           });
       },
@@ -516,7 +524,7 @@ export function DemoApp() {
         const u = units.find((x) => x.id === uniteId);
         const d = loadUnitData(uniteId);
         const old = d.tasks.find((t) => t.id === task.id);
-        const vue = u && old && !u.archive ? tacheDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)) : null;
+        const vue = u && old && !u.archive ? vueDe(old, u) : null;
         if (vue === 'ancienne') throw new Error(`Ancienne tâche de « ${u!.nom} » : elle se consulte et se copie, sans modification`);
         if (!u || !old || vue !== 'modifiable') throw new Error('Cette tâche n’est plus partagée avec cette entité.');
         const t = fusionPartagee(old, task, current.id, uniteId, { entites: units, centralId: central?.id, meetings: loadUnitData(current.id).meetings });
@@ -531,7 +539,7 @@ export function DemoApp() {
         const u = units.find((x) => x.id === uniteId);
         const d = loadUnitData(uniteId);
         const old = d.tasks.find((t) => t.id === tacheId);
-        if (!u || u.archive || !old || tacheDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)) !== 'modifiable')
+        if (!u || u.archive || !old || vueDe(old, u) !== 'modifiable')
           throw new Error('Cette tâche n’est plus partagée avec cette entité.');
         const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
         if (!fiche) throw new Error('Réservé aux membres de l’entité.');
@@ -593,7 +601,7 @@ export function DemoApp() {
         if (!fiche) throw new Error('Réservé aux membres de l’entité.');
         if (!u || u.archive || !old) throw new Error('Tâche introuvable');
         if (old.paiement) throw new Error('Pas de discussion sur un ticket de paiement');
-        const partagee = tacheDans(old, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u)) === 'modifiable';
+        const partagee = vueDe(old, u) === 'modifiable';
         if (!partagee && !clesVu(old, uniteId, current.id, fiche.id, hasPermission(userRoles(ici.roles, fiche), 'tasks.viewAll')).length)
           throw new Error('Tu ne vois pas cette tâche');
         const nom = `${fiche.prenom} ${fiche.nom}`.trim();

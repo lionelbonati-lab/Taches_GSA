@@ -15,7 +15,7 @@ import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { ailleurs, aPrendreOuverte, auteurAPrendre, pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { auComiteEntier, parentDans, reglageTaches } from '../data/units';
 import { attributionDe, attributions, entitesDependantes, sectionChez } from '../data/externes';
-import type { OrgMember, OrgUnit, Person, Task, VuPourInfo } from '../data/types';
+import type { OrgMember, OrgUnit, Person, PersonneHors, Task, VuPourInfo } from '../data/types';
 import { applyDelaiRef, childrenOf, fmtDate, fmtDateTime, fullName, isDone, nomPoste, parentOf, uid } from '../data/utils';
 import { finAnticipee, motSeance } from '../data/seances';
 import { Modal } from './ui';
@@ -71,10 +71,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const track = useRef<DocTracking>({ added: [], removed: [] });
-  // Entités avec qui la tâche a été partagée pour y confier la tâche à quelqu'un (hors de l'entité) : plus partagée si on
-  // le retire, avant d'enregistrer.
-  const partagesPour = useRef(new Set<string>());
-  // « Quelqu'un d'autre » : une personne qui n'est dans aucune entité (fiche créée ici).
+  // « Quelqu'un d'autre » : une personne qui n'est dans aucune entité (son nom, sur la tâche).
   const [externe, setExterne] = useState(false);
   const [chat, setChat] = useState(!!ouvrirDiscussion && !isNew);
   const [newPoll, setNewPoll] = useState(false);
@@ -191,9 +188,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
       return { ...x, respPartage: Object.keys(respPartage).length ? respPartage : undefined };
     });
   };
-  // Personnes hors de l'entité (tâche d'ici) : celles des autres entités du club. Choisie, la tâche est partagée avec son
-  // entité et elle en est responsable là-bas (respPartage), comme si son entité l'avait choisie : elle la voit dans ses
-  // tâches et ses notifications.
+  // Personnes hors de l'entité (tâche d'ici) : celles des autres entités du club. Choisie, la tâche lui est confiée à elle
+  // seule (respPartage), sans être partagée avec son entité : elle la voit et la modifie depuis ses entités, ses tâches et
+  // ses notifications ; les autres personnes de son entité, non (serveur : 054). La tâche reste ici.
   const ici = club?.current.id;
   const horsChoisis = t.source
     ? []
@@ -217,30 +214,25 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
           }))
           .filter((x) => x.membres.length)
       : [];
-  const ajouterHors = (u: string, id: string) => {
-    if (!partage.includes(u)) partagesPour.current.add(u);
+  const ajouterHors = (u: string, id: string) => setT((x) => ({ ...x, respPartage: { ...x.respPartage, [u]: [...(x.respPartage?.[u] ?? []), id] } }));
+  const retirerHors = (u: string, id: string) =>
     setT((x) => {
-      const y = avecPartage(x, u, true, centralId);
-      return { ...y, respPartage: { ...y.respPartage, [u]: [...(y.respPartage?.[u] ?? []), id] } };
-    });
-  };
-  const retirerHors = (u: string, id: string) => {
-    const reste = (t.respPartage?.[u] ?? []).some((y) => y !== id);
-    const plusPartagee = !reste && partagesPour.current.delete(u);
-    setT((x) => {
-      if (plusPartagee) return avecPartage(x, u, false, centralId);
       const l = (x.respPartage?.[u] ?? []).filter((y) => y !== id);
       const respPartage = { ...x.respPartage, [u]: l };
       if (!l.length) delete respPartage[u];
       return { ...x, respPartage: Object.keys(respPartage).length ? respPartage : undefined };
     });
-  };
-  // Quelqu'un qui n'est dans aucune entité : une fiche ici (pour qui gère les personnes), puis responsable.
-  const peutExterne = !t.source && !attribuee && !t.paiement && canAssignOthers && (can('people.manage') || can('admin.access'));
-  const ajouterExterne = (id: string) => {
+  // Quelqu'un qui n'est dans aucune entité : son nom, sur la tâche (respHors) ; sans accès à l'appli, elle ne la voit pas.
+  const peutExterne = !t.source && !attribuee && !t.paiement && canAssignOthers;
+  const ajouterExterne = (p: PersonneHors) => {
     setExterne(false);
-    setT((x) => (x.responsables.includes(id) ? x : { ...x, responsables: [...x.responsables, id] }));
+    setT((x) => ((x.respHors ?? []).some((y) => y.id === p.id) ? x : { ...x, respHors: [...(x.respHors ?? []), p] }));
   };
+  const retirerExterne = (id: string) =>
+    setT((x) => {
+      const l = (x.respHors ?? []).filter((y) => y.id !== id);
+      return { ...x, respHors: l.length ? l : undefined };
+    });
   // Responsables des autres entités (tâche partagée par une autre entité), sauf ceux de l'entité de la tâche (choisis
   // ci-dessus) ; tâche d'ici : tous en puces.
   const autres = t.source ? autresResp({ ...t, source: { ...t.source, responsables: [] } }) : '';
@@ -662,12 +654,18 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
               </span>
             ))}
             {horsChoisis.map(({ u, m }) => (
-              <span key={`${u.id}:${m.id}`} className="chip on" title={`Personne de « ${u.nom} » : la tâche est partagée avec elle`}>
+              <span key={`${u.id}:${m.id}`} className="chip on" title={`Personne de « ${u.nom} » : elle voit cette tâche, son entité non`}>
                 <IconeEntite u={u} /> {m.prenom} {m.nom}
                 {!dis && canAssignOthers && <button type="button" className="chip-x" aria-label={`Retirer ${m.prenom} ${m.nom}`} onClick={() => retirerHors(u.id, m.id)}>✕</button>}
               </span>
             ))}
-            {!t.responsables.length && !choisisChez.length && !horsChoisis.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
+            {(t.respHors ?? []).map((p) => (
+              <span key={p.id} className="chip on" title="Dans aucune entité du club : sans accès à l’appli, elle ne voit pas la tâche">
+                <Icone n="compte" /> {p.prenom} {p.nom}
+                {!dis && canAssignOthers && !t.source && <button type="button" className="chip-x" aria-label={`Retirer ${p.prenom} ${p.nom}`} onClick={() => retirerExterne(p.id)}>✕</button>}
+              </span>
+            ))}
+            {!t.responsables.length && !choisisChez.length && !horsChoisis.length && !t.respHors?.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
             {!dis && (aAjouter.length > 0 || membresChez.length > 0 || horsIci.length > 0 || peutExterne) && (
               <Deroulante
                 puce
@@ -796,7 +794,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
         {editable && <button className="btn primary" disabled={busy} onClick={() => void submit()}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}
       </div>
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
-      {externe && <PersonneExterne onAjoutee={ajouterExterne} onClose={() => setExterne(false)} />}
+      {externe && <PersonneExterne deja={t.respHors ?? []} onAjoutee={ajouterExterne} onClose={() => setExterne(false)} />}
       {chat && !isNew && (
         <Discussion titre={task.titre} liste={commentaires} cle={task.id} tacheId={task.source?.id ?? task.id} uniteId={task.source?.uniteId} onClose={() => setChat(false)} />
       )}

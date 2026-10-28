@@ -280,8 +280,14 @@ export interface Task {
   partage?: string[];
   /** Ancienne case « Transmettre au comité central » : partagée avec le comité central. */
   auCentral?: boolean;
-  /** Responsables choisis par les entités du partage, parmi leurs propres membres (par entité). */
+  /**
+   * Responsables d'autres entités, par entité (leur fiche chez elle) : choisis par une entité du partage, ou confiés
+   * d'ici à une personne seulement (sans partager la tâche avec son entité : elle seule la voit et la modifie, depuis
+   * n'importe laquelle de ses entités ; serveur : 054).
+   */
   respPartage?: Record<string, string[]>;
+  /** Responsables qui ne sont dans aucune entité du club : leur nom (et leur fiche du registre « Membres du club »). */
+  respHors?: PersonneHors[];
   /** Pour info : personnes et entités qui voient la tâche sans s'en occuper. */
   pourInfo?: PourInfo;
   /**
@@ -389,6 +395,16 @@ export interface PourInfo {
   unites?: string[];
   /** Personnes d'autres entités : leur fiche dans leur entité, par entité. */
   autres?: Record<string, string[]>;
+}
+
+/** Responsable d'une tâche qui n'est dans aucune entité du club (sans accès à l'appli). */
+export interface PersonneHors {
+  id: string;
+  prenom: string;
+  nom: string;
+  email?: string;
+  /** Sa fiche du registre « Membres du club ». */
+  membreId?: string;
 }
 
 /** « ✓ Vu » d'une tâche pour info : quand. */

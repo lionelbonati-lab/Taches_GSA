@@ -112,6 +112,21 @@ export function tacheDans(
   return partagee ? 'modifiable' : null;
 }
 
+/**
+ * Tâche confiée à une personne d'une autre entité (respPartage), même sans être partagée avec cette entité : la personne
+ * (`fiche`, sa fiche dans l'entité `unite`, ou la même personne ailleurs) la voit et la modifie, elle seule (serveur : 054).
+ */
+export function confieeA(t: Pick<Task, 'respPartage' | 'paiement'>, units: OrgUnit[], unite: string, fiche?: Pick<Person, 'id' | 'membreId' | 'email'>) {
+  if (t.paiement || !fiche) return false;
+  return Object.entries(t.respPartage ?? {}).some(([u, ids]) =>
+    ids.some((id) => {
+      if (u === unite && id === fiche.id) return true;
+      const m = membre(units, u, id);
+      return !!m && memePersonne(m, fiche);
+    }),
+  );
+}
+
 /** La tâche `t` de l'entité `u` s'affiche-t-elle (modifiable) dans l'entité `moi` ? Voir tacheDans. */
 export const visibleDans = (...a: Parameters<typeof tacheDans>) => tacheDans(...a) === 'modifiable';
 
@@ -259,6 +274,7 @@ export function avecPartagees(data: AppData, list: TachePartagee[], moi: string,
       partage: t.partage,
       auCentral: t.auCentral,
       respPartage: t.respPartage,
+      respHors: t.respHors,
       modifiePar: t.modifiePar,
       // À prendre et Pour info (040) : ceux de l'entité ouverte comme les siens ; les autres, à part.
       aPrendre: aPrendreVu(t.aPrendre, x.uniteId, moi),
@@ -467,7 +483,7 @@ export function fusionPartagee(
   };
 }
 
-/** Responsables hors de l'entité ouverte (sans fiche ici), par entité : « Prénom Nom (Entité) ». */
+/** Responsables hors de l'entité ouverte (sans fiche ici), par entité : « Prénom Nom (Entité) » ; dans aucune entité : leur nom. */
 export function autresResponsables(t: Task, moi: string, people: Person[], units: OrgUnit[]): { unite: string; noms: string[] }[] {
   const groupes: { unite: string; noms: string[] }[] = [];
   const ajoute = (uniteId: string, ids: string[]) => {
@@ -480,7 +496,9 @@ export function autresResponsables(t: Task, moi: string, people: Person[], units
   };
   if (t.source) ajoute(t.source.uniteId, t.source.responsables);
   for (const [u, ids] of Object.entries(t.respPartage ?? {})) if (u !== moi) ajoute(u, ids);
+  const hors = (t.respHors ?? []).map((p) => `${p.prenom} ${p.nom}`.trim()).filter(Boolean);
+  if (hors.length) groupes.push({ unite: '', noms: hors });
   return groupes;
 }
 
-export const texteAutres = (l: { unite: string; noms: string[] }[]) => l.map((g) => `${g.noms.join(', ')} (${g.unite})`).join(' · ');
+export const texteAutres = (l: { unite: string; noms: string[] }[]) => l.map((g) => `${g.noms.join(', ')}${g.unite ? ` (${g.unite})` : ''}`).join(' · ');

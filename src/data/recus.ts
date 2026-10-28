@@ -2,7 +2,19 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Club } from './club';
 import { entitesDependantes, evenementsDependants, type Externes } from './externes';
 import type { SondagePartage, TachePartagee } from './types';
-import { parentDans } from './units';
+import { parentDans, reglageTaches } from './units';
+import { tacheDans } from './partage';
+
+/**
+ * Partagée avec l'entité en entier (pas seulement confiée à l'une de ses personnes, 054). Une tâche confiée à une
+ * personne lui est donnée par chacune de ses entités : seule l'entité sur laquelle s'appuie l'appli la garde (pas de
+ * doublon dans la vue « moi » ni dans la cloche).
+ */
+function avecEntite(x: TachePartagee, c: Club) {
+  const actives = c.units.filter((u) => !u.archive);
+  const u = actives.find((y) => y.id === x.uniteId);
+  return !!u && tacheDans(x.task, u, parentDans(actives, u)?.id, c.current.id, reglageTaches(c.units, u)) === 'modifiable';
+}
 
 /**
  * Données venues des autres entités du club, en lecture (leurs modifications ne passent pas par la synchronisation de
@@ -31,7 +43,7 @@ export function useRecus(club: Club | null) {
     if (!c) return;
     const n = ++lecture.current;
     c.tachesPartagees()
-      .then((l) => n === lecture.current && setPartagees(l))
+      .then((l) => n === lecture.current && setPartagees(c.arrierePlan ? l.filter((x) => avecEntite(x, c)) : l))
       .catch(() => {});
     const i = ++lecturePourInfo.current;
     c.tachesPourInfo()
