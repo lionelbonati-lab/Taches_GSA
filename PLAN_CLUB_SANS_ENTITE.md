@@ -86,7 +86,7 @@ migration appliquée par le président (éditeur SQL), aucun déploiement sans s
   actuelles ; fonction `gsa_ma_session_club()` (personne, places, entités). Ajout pur, retour en arrière documenté.
 - Appli réelle : `CloudApp` sans `open(m)` d'une entité ; chargement de toutes les entités ; réglages et lectures au club ;
   toutes les entités en direct (temps réel), pas seulement l'une.
-- Essais sur la base locale (`/var/lib/postgresql/gsatest`) avant de proposer la migration.
+- Essais sur la base de test locale (`outils/base-test/LISEZMOI.md`) avant de proposer la migration.
 
 ### Étape 5 — Serveur : accès et notifications
 
