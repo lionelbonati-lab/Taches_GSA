@@ -16,12 +16,14 @@ import { EnteteReglage } from '../components/Entete';
 import { defaultTexte, enteteDe, enteteRegle } from '../data/entete';
 import { Icone, type IconeNom } from '../components/icones';
 import { ErreursAppli } from '../components/ErreursAppli';
+import { SauvegardeConsole } from '../components/SauvegardeConsole';
+import { lastBackupAt } from '../data/backup';
 
 type Partie = { id: string; icon: IconeNom; titre: string; carte: string; aide: string; resume: string; contenu: ReactNode };
 
 /**
- * Console admin (depuis les Réglages, pour l'entité choisie là) : une page d'accueil qui explique chaque partie, puis une
- * adresse par partie (/admin/droits…).
+ * Console admin (menu du compte ; « Plus » sur téléphone), pour l'entité choisie en haut de la page : une page d'accueil
+ * qui explique chaque partie, puis une adresse par partie (/admin/droits…).
  */
 export function Admin() {
   const { partie } = useParams();
@@ -98,6 +100,15 @@ export function Admin() {
       resume: data.log[0] ? `Dernière : ${fmtDateTime(data.log[0].at)}` : 'Aucune modification',
       contenu: <Log />,
     },
+    {
+      id: 'sauvegarde',
+      icon: 'sauvegarde' as const,
+      titre: 'Sauvegarde',
+      carte: club?.sauvegardeClub ? 'Tout le club dans un seul fichier ; restaurer l’entité.' : 'Restaurer l’entité depuis une sauvegarde ou une copie du serveur.',
+      aide: 'La sauvegarde de tout le club (toutes ses entités, leurs fichiers joints et « Personnes du club »), téléchargée par un super-admin, et la restauration de l’entité choisie, par ses admins.',
+      resume: lastBackupAt() ? `Dernière ici : ${fmtDateTime(lastBackupAt()!)}` : club?.sauvegardeClub ? 'Aucune depuis ce navigateur' : 'Restauration',
+      contenu: <SauvegardeConsole />,
+    },
     ...(club && central
       ? [
           {
@@ -129,9 +140,6 @@ export function Admin() {
 
   return (
     <div>
-      <p className="admin-retour no-print">
-        <Link to="/reglages">‹ Réglages</Link>
-      </p>
       <h1>Console admin</h1>
       <PageIntro />
       <div className="admin-cartes">

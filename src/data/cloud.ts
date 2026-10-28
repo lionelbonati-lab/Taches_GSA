@@ -8,6 +8,8 @@ import type { OpOrga } from './organigramme';
 import type { OptionsAbonnement } from './agendaIcs';
 import type { HistoriqueTache } from './historique';
 import type { ErreurAppli, RapportErreur } from './rapportErreurs';
+import { fichiersDe, type EntiteSauvegardee, type SauvegardeClub } from './backup';
+import { lireFichierDe } from './files';
 
 // Version réelle : synchronisation des données du comité avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -789,6 +791,31 @@ export async function deleteMembre(club: string, id: string): Promise<string[]> 
   const { error } = await sb().from('gsa_club_membres').delete().eq('club_id', club).eq('id', id);
   if (error) throw registreErreur(error);
   return [];
+}
+
+/**
+ * Sauvegarde de tout le club (super-admins, migration 057) : chaque entité (ses lignes, comme les copies de chaque nuit,
+ * et ses fichiers joints) et « Personnes du club ».
+ */
+export async function sauvegardeClub(club: string, nom: string, par: string): Promise<SauvegardeClub> {
+  const { data, error } = await sb().rpc('gsa_sauvegarde_club', { club });
+  if (error) throw new Error(absente(error) ? 'Le serveur n’est pas encore à jour : la sauvegarde du club demande la migration 057.' : error.message);
+  const d = data as { entites: { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; lignes: Row[] }[]; personnes: ClubMembre[] };
+  const entites: EntiteSauvegardee[] = [];
+  for (const e of d.entites ?? []) {
+    const donnees = fromRows(e.lignes ?? []);
+    entites.push({
+      id: e.id,
+      nom: e.nom,
+      type: e.type,
+      parentId: e.parentId ?? undefined,
+      archive: e.info?.archive ? true : undefined,
+      schema: donnees.schema ?? 0,
+      data: donnees,
+      files: await fichiersDe(donnees, (id) => lireFichierDe(e.id, id)),
+    });
+  }
+  return { app: 'taches-gsa', version: 2, exportedAt: new Date().toISOString(), exportedBy: par, club: { id: club, nom }, entites, personnes: d.personnes ?? [] };
 }
 
 /** Serveur pas encore à jour : migration 056 pas appliquée, ou fonction gsa-acces d'avant (elle ne connaît pas l'action). */

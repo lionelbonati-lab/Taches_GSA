@@ -7,7 +7,7 @@ import { UNIT_TYPES } from './units';
 // Sur téléphone, la barre du bas montre jusqu'à BARRE_MAX rubriques au choix de chacun (`mobile` : celles d'origine), les
 // autres sont dans « Plus ».
 
-/** `dans` : page qui s'ouvre depuis une autre (ex. la console admin, depuis les Réglages), pas depuis les menus. */
+/** `dans` : page qui s'ouvre depuis une autre, pas depuis les menus. */
 export type NavPage = { to: string; label: string; icon: IconeNom; aide: string; perm?: Permission; club?: boolean; registre?: boolean; demandes?: boolean; superAdmin?: boolean; dans?: string };
 export type NavRubrique = { id: string; label: string; court?: string; icon: IconeNom; mobile?: boolean; pages: NavPage[] };
 
@@ -110,15 +110,14 @@ export const PAGES_COMPTE: NavPage[] = [
     to: '/reglages',
     label: 'Réglages',
     icon: 'reglages',
-    aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage et les notifications (les mêmes dans toutes tes entités), la sauvegarde et, pour les admins, la console admin de leurs entités.',
+    aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage et les notifications (les mêmes dans toutes tes entités).',
   },
   {
     to: '/admin',
     label: 'Console admin',
     icon: 'admin',
     perm: 'admin.access',
-    dans: '/reglages',
-    aide: 'Les réglages de l’une de tes entités, réservés à ses admins (choisie dans Réglages › « Administration »). Choisis ce que tu veux régler.',
+    aide: 'Les réglages de l’une de tes entités, réservés à ses admins (choisie en haut de la page) : rôles et droits, sections et statuts, apparence, en-tête des documents, imports, historique et sauvegarde.',
   },
   {
     to: '/mots-de-passe',
@@ -126,8 +125,7 @@ export const PAGES_COMPTE: NavPage[] = [
     icon: 'cle',
     perm: 'admin.access',
     demandes: true,
-    dans: '/reglages',
-    aide: 'Des membres de l’entité choisie dans Réglages › « Administration » ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
+    aide: 'Des membres de l’entité choisie en haut de la page ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
   },
   {
     to: '/comptes',

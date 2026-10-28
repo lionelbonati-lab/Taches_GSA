@@ -358,7 +358,7 @@ test('vue « moi » : mon profil, le même dans toutes mes entités', async ({ p
   await expect(page.locator('section.mon-profil').getByLabel('Prénom')).toHaveValue('Jules');
 });
 
-test('vue « moi » : mes réglages, les mêmes dans toutes mes entités ; la sauvegarde de l’une d’elles', async ({ page }) => {
+test('vue « moi » : mes réglages, les mêmes dans toutes mes entités ; la sauvegarde du club, une entité restaurée', async ({ page }) => {
   await page.goto('./?demo#/reglages');
   // Préférence enregistrée aussi dans la Soirée récréative (pages affichées chez elle, sa cloche).
   await page.getByLabel('Phrase d’explication en haut des pages').selectOption('non');
@@ -371,19 +371,44 @@ test('vue « moi » : mes réglages, les mêmes dans toutes mes entités ; la sa
       }),
     )
     .toBe(false);
-  // Sauvegarde : celle de l'entité choisie (restaurer : ses admins seulement).
-  const sauvegarde = page.locator('section.backup');
-  await expect(sauvegarde.getByRole('button', { name: /Restaurer une sauvegarde/ })).toBeVisible();
-  const choix = sauvegarde.getByRole('combobox', { name: 'Entité' });
-  await expect(choix).toHaveText(/Comité central/);
-  await choix.click();
-  await page.getByRole('option', { name: /Soirée récréative/ }).click();
-  await expect(choix).toHaveText(/Soirée récréative/);
-  await expect(sauvegarde.getByRole('button', { name: /Restaurer une sauvegarde/ })).toHaveCount(0);
-  const [fichier] = await Promise.all([page.waitForEvent('download'), sauvegarde.getByRole('button', { name: /Télécharger une sauvegarde/ }).click()]);
-  expect(fichier.suggestedFilename()).toMatch(/^taches-gsa-sauvegarde-soiree-recreative-/);
-  const contenu = JSON.parse(readFileSync((await fichier.path())!, 'utf8'));
-  expect(contenu.data.events.some((e: { lieu?: string }) => e.lieu === 'Salle des fêtes')).toBe(true);
+  // Sauvegarde : dans la console admin, celle de tout le club.
+  await page.locator('.who-btn').click();
+  await page.getByRole('menuitem', { name: 'Console admin' }).click();
+  await page.getByRole('link', { name: /Sauvegarde/ }).click();
+  const club = page.locator('section.sauvegarde-club');
+  const [fichier] = await Promise.all([page.waitForEvent('download'), club.getByRole('button', { name: 'Télécharger la sauvegarde du club' }).click()]);
+  expect(fichier.suggestedFilename()).toMatch(/^taches-gsa-sauvegarde-club-/);
+  await expect(club.locator('.backup-ok')).toContainText('Sauvegarde du club téléchargée');
+  const chemin = (await fichier.path())!;
+  const contenu = JSON.parse(readFileSync(chemin, 'utf8'));
+  expect(contenu.version).toBe(2);
+  const soiree = contenu.entites.find((e: { nom: string }) => e.nom === 'Soirée récréative');
+  expect(soiree.data.events.some((e: { lieu?: string }) => e.lieu === 'Salle des fêtes')).toBe(true);
+  expect(contenu.entites.length).toBeGreaterThan(2);
+  expect(contenu.personnes.length).toBeGreaterThan(0);
+  expect(contenu.personnes.some((m: { iban?: string }) => 'iban' in m)).toBe(false);
+
+  // Restaurer la Soirée seule, depuis la sauvegarde du club : un événement ajouté depuis disparaît, le comité central ne bouge pas.
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}');
+    d.events = [...(d.events ?? []), { ...d.events[0], id: 'ev-apres', nom: 'Ajouté après la sauvegarde' }];
+    localStorage.setItem('taches-gsa-demo-u-u-soiree', JSON.stringify(d));
+  });
+  const central = await page.evaluate(() => localStorage.getItem('taches-gsa-demo-v7'));
+  // Par son admin, Pierre Favre (pas admin du comité central : pas de sauvegarde du club pour lui).
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
+  await page.locator('.who-btn').click();
+  await page.getByRole('menuitem', { name: 'Console admin' }).click();
+  await page.getByRole('link', { name: /Sauvegarde/ }).click();
+  await expect(page.locator('section.sauvegarde-club')).toContainText('se télécharge par un super-admin');
+  await expect(page.getByRole('heading', { name: 'Restaurer « Soirée récréative »' })).toBeVisible();
+  page.once('dialog', (d) => void d.accept());
+  await page.getByLabel('Fichier de sauvegarde').setInputFiles(chemin);
+  await expect(page.locator('.backup-ok', { hasText: '« Soirée récréative » restaurée' })).toBeVisible();
+  const apres = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}'));
+  expect(apres.events.some((e: { id: string }) => e.id === 'ev-apres')).toBe(false);
+  expect(await page.evaluate(() => localStorage.getItem('taches-gsa-demo-v7'))).toBe(central);
 });
 
 test('vue « moi » : les séances de toutes mes entités, réunies (page Séances, accueil, agenda)', async ({ page }) => {
@@ -441,7 +466,7 @@ test('vue « moi » : les séances de toutes mes entités, réunies (page Séanc
   await verifierEntite(page, 'Comité central');
 });
 
-test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut de la page ; console admin choisie dans les Réglages', async ({ page }) => {
+test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut de la page ; console admin depuis le menu, entité choisie en haut', async ({ page }) => {
   // Julien Moreau, président du comité central (ouvert), est ici aussi admin de la Soirée récréative.
   const cle = 'taches-gsa-demo-u-u-soiree';
   await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
@@ -484,44 +509,32 @@ test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut 
   await expect(comite).toHaveText(/Comité central/);
   await expect(page.getByLabel('Séance', { exact: true })).not.toContainText('Réunion de la soirée');
 
-  // Console admin : seulement depuis les Réglages (plus dans le menu du compte), pour l'entité choisie là.
+  // Console admin : dans le menu du compte ; l'entité se choisit en haut de la console (plus dans les Réglages).
   await page.locator('.who-btn').click();
-  await expect(page.getByRole('menuitem', { name: 'Console admin' })).toHaveCount(0);
-  await page.getByRole('menuitem', { name: 'Réglages' }).click();
-  const admin = page.locator('.administration');
-  const entite = admin.getByRole('combobox', { name: 'Entité' });
+  await page.getByRole('menuitem', { name: 'Console admin' }).click();
+  const entite = page.locator('.subtabs').getByRole('combobox', { name: 'Entité' });
   await expect(entite).toHaveText(/Comité central/);
-  await admin.getByRole('link', { name: 'Console admin de « Comité central »' }).click();
-  const affichee = page.locator('.subtabs .subtabs-entite');
-  await expect(affichee).toHaveText(/Comité central/);
-  await expect(page.locator('.subtabs').getByRole('combobox')).toHaveCount(0);
   await expect(page.locator('main')).toContainText('Logo, icône et couleur du comité');
-  // « Changer d'entité » ramène aux Réglages, où l'on choisit la Soirée.
-  await page.locator('.subtabs').getByRole('link', { name: 'Changer d’entité' }).click();
   await entite.click();
   await page.getByRole('option', { name: /Soirée récréative/ }).click();
   await expect(entite).toHaveText(/Soirée récréative/);
-  await admin.getByRole('link', { name: 'Console admin de « Soirée récréative »' }).click();
-  await expect(affichee).toHaveText(/Soirée récréative/);
   await expect(page.locator('main')).toContainText('Logo et icône de l’entité.');
   await page.getByRole('link', { name: /Rôles et droits/ }).click();
   await expect(page.locator('main h1')).toContainText('Rôles et droits');
-  await expect(affichee).toHaveText(/Soirée récréative/);
+  await expect(entite).toHaveText(/Soirée récréative/);
   await verifierEntite(page, 'Comité central');
 });
 
-test('vue « moi » : console admin de mon entité, depuis les Réglages, sans l’ouvrir', async ({ page }) => {
+test('vue « moi » : console admin de mon entité, depuis le menu, sans l’ouvrir', async ({ page }) => {
   // Pierre Favre : membre du comité central (ouvert), admin de la Soirée récréative seulement.
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
   await ouvrirEntite(page, 'Comité central');
   await page.locator('.who-btn').click();
-  await page.getByRole('menuitem', { name: 'Réglages' }).click();
+  await page.getByRole('menuitem', { name: 'Console admin' }).click();
   // Seule entité dont il est admin : pas de choix, elle est nommée.
-  await expect(page.locator('.administration').getByRole('combobox')).toHaveCount(0);
-  await page.locator('.administration').getByRole('link', { name: 'Console admin de « Soirée récréative »' }).click();
+  await expect(page.locator('.subtabs').getByRole('combobox')).toHaveCount(0);
   await expect(page.locator('.subtabs .subtabs-entite')).toHaveText(/Soirée récréative/);
-  await expect(page.locator('.subtabs').getByRole('link', { name: 'Changer d’entité' })).toHaveCount(0);
   await expect(page.locator('main')).toContainText('Logo et icône de l’entité.');
   await verifierEntite(page, 'Comité central');
 });

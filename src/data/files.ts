@@ -83,6 +83,16 @@ export async function getFile(id: string): Promise<Blob | undefined> {
   return (await run<Blob>('readonly', (s) => s.get(id))) ?? (id.includes('/') ? run<Blob>('readonly', (s) => s.get(id.slice(id.indexOf('/') + 1))) : undefined);
 }
 
+/**
+ * Un fichier joint d'une tâche de l'entité `dossier`, sans l'avoir ouverte (sauvegarde du club : en version réelle, les
+ * super-admins lisent tous les dossiers, migration 057 ; dans la démo, tous les fichiers sont dans ce navigateur).
+ */
+export async function lireFichierDe(dossier: string, id: string): Promise<Blob | undefined> {
+  if (!cloudCommittee) return getFile(id);
+  const { data } = await bucket().download(id.includes('/') ? id : `${dossier}/${id}`);
+  return data ?? undefined;
+}
+
 export async function deleteFiles(ids: string[]) {
   ids.forEach((id) => memory.delete(id));
   if (!ids.length) return;

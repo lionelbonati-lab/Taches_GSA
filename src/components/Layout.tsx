@@ -39,7 +39,7 @@ export function Layout() {
   const navigate = useNavigate();
   const nav = useNavigation();
   const { rubriques, ouverte } = nav;
-  // Console admin, mots de passe oubliés : depuis les Réglages seulement.
+  // Pages qui s'ouvrent depuis une autre (`dans`) : pas dans les menus.
   const pagesCompte = nav.compte.filter((p) => !p.dans);
   const { nonLus } = useDiscussions();
   useEffect(() => {

@@ -158,7 +158,6 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 /* Comité : le comité dont ce sont les séances (au choix parmi les miens). */
 .subtabs .subtabs-entite { display: inline-flex; align-items: center; gap: 6px; flex: none; max-width: 16em; padding: 7px 12px; border-radius: 999px; color: var(--text); font-weight: 600; font-size: 0.92rem; white-space: nowrap; border: 1px solid var(--border); margin-right: 4px; }
 /* Console admin : l’entité se change dans les Réglages. */
-.subtabs .subtabs-changer { flex: none; align-self: center; margin-right: 8px; color: var(--primary); font-size: 0.85rem; }
 .subtabs .subtabs-choix { padding: 0; border: none; }
 /* À quoi sert la page : une phrase sous le titre. */
 .page-intro { color: var(--muted); margin: -4px 0 16px; max-width: 75ch; font-size: 0.93rem; }

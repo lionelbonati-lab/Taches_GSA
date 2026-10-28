@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { switchMode } from '../data/mode';
 import { InstallButton } from '../components/InstallButton';
 import { AppLogo } from '../components/ui';
-import { backupSummary, readBackup, restoreFiles, type Backup } from '../data/backup';
+import { backupSummary, lireSauvegarde, partieDe, restoreFiles, type Backup } from '../data/backup';
 import { demanderMdp, linkMyPerson, type CloudSync, type Membership } from '../data/cloud';
 import { lienInvalide } from '../data/recuperation';
 import { makeSeed } from '../data/seed';
@@ -341,7 +341,12 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
   const pick = async (file?: File) => {
     if (!file) return;
     try {
-      const b = await readBackup(file);
+      // Sauvegarde du club (démo) : la partie de ce comité (même nom, sinon le comité central).
+      const s = await lireSauvegarde(file);
+      const b =
+        partieDe(s, membership.committeeId, membership.committeeName) ??
+        (s.version === 2 ? partieDe(s, s.entites.find((e) => e.type === membership.type)?.id ?? '', '') : null);
+      if (!b) throw new Error(`Cette sauvegarde du club ne contient pas « ${membership.committeeName} ».`);
       setBackup(b);
       const admins = b.data.people.filter((p) => p.actif && p.roles.includes(ADMIN_ROLE_ID));
       setMe(admins[0]?.id ?? b.data.people[0]?.id ?? '');
@@ -371,7 +376,7 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
             <button className="mode-card" onClick={() => fileRef.current?.click()}>
               <span className="mode-icon"><Icone n="televerser" /></span>
               <strong>Reprendre une sauvegarde</strong>
-              <small>Une sauvegarde téléchargée (Réglages › Sauvegarde des données) : tâches, séances, PV, responsables, fichiers joints…</small>
+              <small>Une sauvegarde téléchargée (Console admin › Sauvegarde) : tâches, séances, PV, responsables, fichiers joints…</small>
             </button>
             <button className="mode-card" onClick={() => setStep('vide')}>
               <span className="mode-icon"><Icone n="nouveau" /></span>

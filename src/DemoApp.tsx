@@ -7,8 +7,8 @@ import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
 import { compactIban, emailKey, fusionMembre, ibanValide, nomMembre, nouveauMembre, vueMembre } from './data/membres';
 import { appliquer, estEtoile } from './data/organigramme';
 import { isDone, uid } from './data/utils';
-import { deleteFiles } from './data/files';
-import { fileIds } from './data/backup';
+import { deleteFiles, getFile } from './data/files';
+import { fichiersDe, fileIds, type EntiteSauvegardee } from './data/backup';
 import type { AgendaClubEvent, AppData, ClubMembre, MyRequest, OrgUnit, Permission, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { confieeA, fusionPartagee, tacheDans } from './data/partage';
@@ -850,6 +850,18 @@ export function DemoApp() {
       approuverMdp: () => Promise.reject(new Error('Pas de mots de passe dans la démo.')),
       refuserMdp: () => Promise.resolve(),
       superAdmin: false,
+      // Sauvegarde de tout le club : les admins du comité central (version réelle : les super-admins).
+      sauvegardeClub: central?.moiAdmin
+        ? async (par) => {
+            const entites: EntiteSauvegardee[] = [];
+            for (const x of units) {
+              const data = loadUnitData(x.id);
+              entites.push({ id: x.id, nom: x.nom, type: x.type, parentId: x.parentId, archive: x.archive || undefined, schema: data.schema ?? 0, data, files: await fichiersDe(data, getFile) });
+            }
+            const personnes = loadMembres().map(({ iban: _iban, ...m }) => m);
+            return { app: 'taches-gsa', version: 2, exportedAt: new Date().toISOString(), exportedBy: par, club: { id: central.id, nom: central.nom }, entites, personnes };
+          }
+        : undefined,
       arrierePlan,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

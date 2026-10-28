@@ -6,6 +6,7 @@ import type { DemandeMdp } from './cloud';
 import type { ActionCommentaire } from './commentaires';
 import type { HistoriqueTache } from './historique';
 import type { ErreurAppli, RapportErreur } from './rapportErreurs';
+import type { SauvegardeClub } from './backup';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
 // L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
@@ -279,6 +280,11 @@ export interface Club {
   refuserMdp: (id: string) => Promise<void>;
   /** Super-admin du club (hors des entités) : page « Comptes du club ». */
   superAdmin: boolean;
+  /**
+   * Sauvegarde de tout le club (console admin › Sauvegarde) : toutes ses entités, avec leurs fichiers joints, et « Personnes
+   * du club ». Super-admins (démo : admins du comité central) ; absent pour les autres.
+   */
+  sauvegardeClub?: (par: string) => Promise<SauvegardeClub>;
   /** Vue « moi » : l'une de mes autres entités, ouverte en arrière-plan (sans écran ; entites.tsx). */
   arrierePlan?: boolean;
 }

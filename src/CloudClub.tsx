@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CloudSync, accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, personnesDroits, photographierOrganigramme, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
+import { CloudSync, accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, personnesDroits, photographierOrganigramme, sauvegardeClub, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
@@ -321,6 +321,7 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
         }
       },
       superAdmin,
+      sauvegardeClub: superAdmin && central ? (par) => sauvegardeClub(central.id, central.nom, par) : undefined,
       arrierePlan,
     };
   }, [org, list, m.committeeId, loading, error, refresh, onSwitch, acces, droitsPersonnes, caissier, clubId, orga, demandes, chargerDemandes, superAdmin, mesFiches, luesParEntite]);
