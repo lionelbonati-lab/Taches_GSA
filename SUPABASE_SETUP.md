@@ -19,7 +19,7 @@ Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la 
 - `committees` : colonnes `parent_id` (comité central de l'entité ; vide pour le comité central), `type` (`central`, `sous-comite`, `groupe`, `equipe`) et `info` (couleur, description, date, archive). Le comité existant est devenu le comité central, ses données n'ont pas changé.
 - Chaque entité a ses propres lignes dans `gsa_items` et ses membres dans `gsa_members` : les règles existantes la rendent invisible des autres entités, comité central compris.
 - `gsa_organigramme(club)` : entités, membres actifs (nom, poste, rôles, email ; pas de téléphone) et sections du comité central, pour les seuls membres du club (`gsa_is_club_member`).
-- `gsa_proposer_tache(entité, tâche)` : une entité envoie une tâche au comité central (titre, remarque et délai contrôlés, sans responsable, premier statut ouvert, marquée `proposee`) ; `gsa_mes_demandes(entité)` : leur suivi (statut, délai, responsables).
+- `gsa_proposer_tache(entité, tâche)` : une entité envoie une tâche au comité central (titre, remarque et délai contrôlés, sans responsable, premier statut ouvert, marquée `proposee`) ; `gsa_mes_demandes(entité)` : leur suivi (statut, délai, responsables). Plus utilisées par l'appli depuis le 28.10.2026 (demandes au comité central retirées : on partage la tâche avec lui) ; elles restent sur le serveur, sans effet.
 - Nom, couleur, description et date d'une entité : modifiables par ses admins et ceux du comité central ; type et archivage réservés au comité central (déclencheur `gsa_committees_guard`).
 
 `supabase/migrations/006_gsa_acces_central.sql` (appliqué le 05.10.2026) : accès du comité central aux données d'une entité. Ajout pur : aucune donnée modifiée. **L'appli ne le propose plus** (plus de réglage ni de visite) : le comité dont une entité dépend voit ses tâches par la migration 027. Les valeurs `info.central` déjà enregistrées sont gardées telles quelles (l'appli ne les touche pas) ; la migration 028 ferme cet accès.
@@ -242,7 +242,7 @@ Correction à redéployer : la fonction lisait la colonne `nom` des entités au 
 
 ## Fonction serveur `gsa-push`
 
-`supabase/functions/gsa-push/index.ts` (déployée le 26.10.2026, redéployée le 28.10.2026 : rappels de séance selon l’organigramme, ★ et postes ; sans vérification de connexion : `verify_jwt` désactivé ; avec la migration 047) : notifications envoyées aux appareils inscrits, même l'appli fermée. Trois demandes (`POST`, `{ action }`) :
+`supabase/functions/gsa-push/index.ts` (déployée le 26.10.2026, redéployée le 28.10.2026 : rappels de séance selon l’organigramme, ★ et postes ; `notifs.js` régénéré ensuite sans la notification 📨 des demandes au comité central, retirées : la version déployée la garde, sans effet, jusqu'au prochain déploiement ; sans vérification de connexion : `verify_jwt` désactivé ; avec la migration 047) : notifications envoyées aux appareils inscrits, même l'appli fermée. Trois demandes (`POST`, `{ action }`) :
 
 - `cle` : la clé publique du serveur (VAPID), pour inscrire un appareil ; créée à la première demande ;
 - `essai` (personne connectée, jeton vérifié dans le code) : une notification d'essai sur ses appareils ;

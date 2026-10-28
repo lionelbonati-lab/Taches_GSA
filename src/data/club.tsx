@@ -1,5 +1,5 @@
 import { createContext, useContext } from 'react';
-import type { Carte, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, VisaVerifie, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
+import type { Carte, ClubMembre, FichesEntite, MonRegistre, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, VisaVerifie, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
 import { uid } from './utils';
 import type { OpOrga } from './organigramme';
 import type { DemandeMdp } from './cloud';
@@ -10,7 +10,7 @@ import type { SauvegardeClub } from './backup';
 
 // Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
 // L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
-// le changement d'entité et ce qui passe d'une entité à l'autre (demandes au comité central).
+// le changement d'entité et ce qui passe d'une entité à l'autre (tâches partagées, tickets).
 // Démo : DemoApp (données dans le navigateur) ; version réelle : CloudApp (serveur).
 
 /** Personne qui rejoint une nouvelle entité (prise dans l'annuaire du club ou nouvelle). */
@@ -83,15 +83,6 @@ export interface ApercuSuppression {
   postesLies: number;
 }
 
-export interface NewRequest {
-  titre: string;
-  remarque: string;
-  delai: string;
-  sectionId: string;
-  /** Nom de la personne qui envoie la demande. */
-  par: string;
-}
-
 export interface Club {
   /** Toutes les entités du club, avec leurs membres (archivées comprises). */
   units: OrgUnit[];
@@ -126,10 +117,6 @@ export interface Club {
   placerCartes: (places: Record<string, Carte | null>) => Promise<void>;
   /** Change la date de la prochaine édition de l'entité ouverte (ses admins, son droit « Gérer les événements », le comité central). */
   setEditionDate: (date: string, dateFin?: string) => Promise<void>;
-  /** Envoie une tâche au comité central (depuis une autre entité). */
-  proposeTask: (r: NewRequest) => Promise<void>;
-  /** Demandes envoyées au comité central par l'entité ouverte, avec leur suivi. */
-  myRequests: () => Promise<MyRequest[]>;
   /**
    * Envoie un ticket à rembourser à la caisse qui reçoit ceux de l'entité ouverte : celle du comité dont elle dépend
    * s'il a un caissier, sinon la caisse centrale (caisseDe ; membre d'une autre entité que celle de la caisse).

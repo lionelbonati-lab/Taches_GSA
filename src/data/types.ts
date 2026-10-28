@@ -276,8 +276,6 @@ export interface Task {
   termineeLe?: string;
   createdBy: string;
   updatedAt: string;
-  /** Tâche proposée au comité central par un sous-comité, un groupe ou une équipe. */
-  proposee?: Proposal;
   /**
    * Entités du club avec qui la tâche est partagée : elle reste dans son entité, et chacune la voit dans ses tâches
    * (et son ordre du jour) et la modifie comme les siennes.
@@ -380,14 +378,6 @@ export interface SeancesDuComite {
 
 /** Sections des entités qui dépendent de l'entité ouverte, par entité (gsa_sections_dependantes, 033) : nom seulement. */
 export type SectionsDependantes = Record<string, { id: string; nom: string }[]>;
-
-/** Origine d'une tâche proposée au comité central. */
-export interface Proposal {
-  uniteId: string;
-  unite: string;
-  par: string;
-  le: string;
-}
 
 /** Tâche d'une autre entité partagée avec l'entité ouverte, telle que la lit le serveur (gsa_taches_partagees). */
 /**
@@ -1104,20 +1094,6 @@ export interface SuiviTicket {
   viseLe?: string | null;
   payeLe?: string | null;
   motif?: string | null;
-}
-
-/** Demande envoyée au comité central, telle que la voit l'entité qui l'a envoyée. */
-export interface MyRequest {
-  id: string;
-  titre: string;
-  delai: string;
-  le: string;
-  par: string;
-  statut: string;
-  couleur: string;
-  termine: boolean;
-  supprimee: boolean;
-  responsables: string[];
 }
 
 /** Proposition d'amélioration de l'appli : envoyée par un membre du club, rangée dans les données du comité central. */

@@ -14,7 +14,6 @@ import { aPrendrePourMoi } from '../data/aPrendre';
 import { echeance, isOpen } from '../data/polls';
 import { dueAt, emailState, fillTemplate, whenLabel } from '../data/emails';
 import { EmailSend } from '../components/EmailsField';
-import { IncomingRequests, OutgoingRequests } from '../components/Requests';
 import { useClubOptional } from '../data/club';
 import { EditionCard } from '../components/Edition';
 import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../components/Accueil';
@@ -236,8 +235,6 @@ export function Dashboard() {
             </div>
           </>
         );
-      case 'demandes':
-        return club?.current.type === 'central' ? <IncomingRequests onOpen={setEdit} /> : club ? <OutgoingRequests /> : null;
       case 'emails':
         return (
           <>

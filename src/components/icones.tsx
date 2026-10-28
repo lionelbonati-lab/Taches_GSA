@@ -6,7 +6,7 @@ import {
   MailPlus, Maximize2, Menu, Merge, MessageCircle, MessageSquarePlus, Minimize2, Move, Network, NotebookPen, Palette, PartyPopper, Paperclip, Pencil, Pin,
   Play, Printer, Puzzle, RefreshCw, Repeat, RotateCcw, Save, ScrollText, Send, Settings, Share2, ShieldCheck, ShieldHalf, Signature,
   Smartphone, Sparkles, SquareCheckBig, Stamp, Undo2, Upload, UserLock, UserX, Users, Calendar, Camera, CreditCard, Receipt, FolderTree, PanelTop, History,
-  MapPin, Search, LocateFixed, Redo2, GripVertical, ChevronUp, ChevronDown, ListPlus, TriangleAlert, Clock, Landmark, Tent, Bike, Inbox, Hash,
+  MapPin, Search, LocateFixed, Redo2, GripVertical, ChevronUp, ChevronDown, ListPlus, TriangleAlert, Clock, Landmark, Tent, Bike, Hash,
   Monitor, Flag, Bold, Italic, Underline, Strikethrough, Baseline,
 } from 'lucide-react';
 
@@ -135,7 +135,6 @@ export const ICONES = {
   position: LocateFixed,
   alerte: TriangleAlert,
   horloge: Clock,
-  demande: Inbox,
   compteur: Hash,
   telephone: Smartphone,
   ordinateur: Monitor,

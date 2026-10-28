@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CloudSync, accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, personnesDroits, photographierOrganigramme, sauvegardeClub, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, myRequests, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, proposeTask, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
+import { CloudSync, accessAction, attribuerTache, caissierClub, commenterTache, deleteMembre, discussionsLuesDe, effacerErreursAppli, erreursAppli, historiqueTache, reglerErreurAppli, signalerErreur, demandesMdp, enregistrerFiche, fichesEntite, maConfidentialite, monIban, monRegistre, estSuperAdmin, type DemandeMdp, fetchAgendaClub, fetchAnciennesTaches, fetchTachesPourInfo, fetchSeancesComite, fetchSectionsDependantes, fetchTachesPartagees, fetchSondagesPartages, fetchMembres, fetchOrg, fetchOrganigrammesAnnuels, membresAcces, personnesDroits, photographierOrganigramme, sauvegardeClub, saveMembres, saveTachePartagee, membershipUnit, mesPropositions, myCentralTickets, myMemberships, pourInfoDestinataires, pourInfoRelancer, pourInfoSuivi, pourInfoVu, proposerAmelioration, rattraper, repondreTachePartagee, sendCentralTicket, setEditionDate, toRows, updateCommittee, verifyVisa, voterSondagePartage, type Membership } from './data/cloud';
 import { defaultRoleId, unitData } from './data/units';
 import { ADMIN_ROLE_ID } from './data/permissions';
 import { uid } from './data/utils';
@@ -9,7 +9,7 @@ import type { OrgUnit } from './data/types';
 import { StoreProvider, type CloudMode } from './data/store';
 import { migrate, SCHEMA } from './data/migrate';
 
-// Version réelle : le club autour de l'entité ouverte (organigramme, changement d'entité, demandes au comité central).
+// Version réelle : le club autour de l'entité ouverte (organigramme, changement d'entité, tâches partagées).
 // Les données de chaque entité restent dans la sienne ; ce qui passe de l'une à l'autre passe par les
 // fonctions du serveur (gsa_organigramme, gsa_proposer_tache, gsa_mes_demandes, gsa_taches_partagees, gsa-acces
 // « creerUnite »). On n'ouvre que les entités dont on est membre : le comité dont une entité dépend voit ses tâches
@@ -205,10 +205,6 @@ export function CloudClub({ m, userId, email, signOut, onSwitch, children }: { m
         await setEditionDate(x.committeeId, date, dateFin);
         refresh();
       },
-      async proposeTask(r) {
-        await proposeTask(x.committeeId, { titre: r.titre, remarque: r.remarque, delai: r.delai, sectionId: r.sectionId });
-      },
-      myRequests: () => myRequests(x.committeeId),
       // Organigramme à glisser-déposer : le serveur applique la modification (droits, postes liés) et donne de quoi l'annuler.
       organiser: orga
         ? async (op) => {

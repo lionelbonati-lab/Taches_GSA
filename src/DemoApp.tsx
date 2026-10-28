@@ -9,7 +9,7 @@ import { appliquer, estEtoile } from './data/organigramme';
 import { isDone, uid } from './data/utils';
 import { deleteFiles, getFile } from './data/files';
 import { fichiersDe, fileIds, type EntiteSauvegardee } from './data/backup';
-import type { AgendaClubEvent, AppData, ClubMembre, MyRequest, OrgUnit, Permission, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
+import type { AgendaClubEvent, AppData, ClubMembre, OrgUnit, Permission, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
 import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { confieeA, fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
@@ -308,51 +308,6 @@ export function DemoApp() {
         const next = units.map((u) => (u.id === current.id ? { ...u, date, dateFin: dateFin && dateFin > date ? dateFin : undefined } : u));
         saveUnits(next);
         setUnits(next);
-      },
-      async proposeTask(r) {
-        if (!central) throw new Error('Pas de comité central.');
-        const d = loadUnitData(central.id);
-        const now = new Date().toISOString();
-        const open = d.statuses.find((s) => !s.done) ?? d.statuses[0];
-        const t: Task = {
-          id: uid('d'),
-          sectionId: d.sections.some((s) => s.id === r.sectionId) ? r.sectionId : d.sections[0]?.id ?? '',
-          sousSection: '',
-          titre: r.titre.trim(),
-          responsables: [],
-          statusId: open?.id ?? '',
-          delai: r.delai,
-          remarque: r.remarque.trim(),
-          checklist: [],
-          createdBy: '',
-          updatedAt: now,
-          proposee: { uniteId: current.id, unite: current.nom, par: r.par, le: now },
-        };
-        d.tasks.unshift(t);
-        d.log.unshift({ id: uid('l'), at: now, userId: '', action: `Demande de « ${current.nom} » (${r.par}) : « ${t.titre} »` });
-        saveUnitData(central.id, d);
-      },
-      async myRequests(): Promise<MyRequest[]> {
-        if (!central) return [];
-        const d = loadUnitData(central.id);
-        return d.tasks
-          .filter((t) => t.proposee?.uniteId === current.id)
-          .map((t) => {
-            const s = d.statuses.find((x) => x.id === t.statusId);
-            return {
-              id: t.id,
-              titre: t.titre,
-              delai: t.delai,
-              le: t.proposee!.le,
-              par: t.proposee!.par,
-              statut: s?.label ?? '?',
-              couleur: s?.couleur ?? '#999',
-              termine: !!s?.done,
-              supprimee: false,
-              responsables: t.responsables.map((id) => d.people.find((p) => p.id === id)).filter((p): p is Person => !!p).map((p) => `${p.prenom} ${p.nom}`.trim()),
-            };
-          })
-          .sort((a, b) => b.le.localeCompare(a.le));
       },
       // Organigramme à glisser-déposer (voir data/organigramme.ts ; version réelle : par la fonction « gsa-acces »).
       organiser: async (op) => {

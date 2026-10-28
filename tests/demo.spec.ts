@@ -1306,8 +1306,11 @@ test('accueil du comité central : pas de cartes « Prochaine édition » en hau
   await page.goto('./?demo#/');
   await expect(page.getByRole('heading', { name: /^Bonjour/ })).toBeVisible();
   await expect(page.locator('.panel.edition')).toHaveCount(0);
+  // Plus de demandes au comité central (on partage la tâche avec lui).
+  await expect(page.locator('main')).not.toContainText(/Demandes (au comité central|reçues)/);
   // Le bloc reste au choix de chacun (⚙️ Mon accueil), masqué d'origine.
   await page.getByRole('button', { name: 'Personnaliser l’accueil' }).click();
+  await expect(page.locator('.modal')).not.toContainText('Demandes');
   const ligne = page.getByRole('checkbox', { name: 'Date de l’édition — Ordinateur' });
   await expect(ligne).not.toBeChecked();
   await ligne.check();

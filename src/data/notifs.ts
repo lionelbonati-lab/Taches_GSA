@@ -163,21 +163,6 @@ export function computeNotifications(
       });
     }
 
-  // Demandes envoyées par les autres entités du club, pas encore attribuées : pour ceux qui attribuent les tâches.
-  if (p.assign)
-    for (const t of data.tasks) {
-      if (!t.proposee || t.responsables.length || isDone(data, t) || !hasPermission(userRoles(data.roles, user), 'tasks.createAny', t.sectionId)) continue;
-      items.push({
-        key: `demande:${t.id}`,
-        icon: '📨',
-        text: `Demande de « ${t.proposee.unite} » : « ${t.titre} »`,
-        sub: `envoyée par ${t.proposee.par}${t.delai ? ` · délai : ${fmtDate(t.delai)}` : ''} · à attribuer`,
-        link: `/taches?tache=${t.id}`,
-        at: t.proposee.le,
-        kind: 'activite',
-      });
-    }
-
   // Comité central : propositions d'amélioration de l'appli pas encore étudiées, pour ses admins.
   if (p.assign && data.propositions?.length && hasPermission(userRoles(data.roles, user), 'admin.access'))
     for (const x of data.propositions) {

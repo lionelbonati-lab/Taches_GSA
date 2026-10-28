@@ -1652,9 +1652,6 @@ h2 .h2-action { align-self: auto; margin-left: 10px; font-weight: 400; vertical-
 .autres-resp { display: block; margin-top: 4px; }
 .proposal-banner { margin: 0; border: 1px solid #0e7490; background: color-mix(in srgb, #0e7490 10%, var(--surface)); border-radius: 8px; padding: 7px 10px; font-size: 0.9rem; }
 h2.with-action { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.request { display: flex; flex-direction: column; gap: 4px; }
-.request-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }
-.request.done { opacity: 0.7; }
 .genres-proposition { border: none; padding: 0; margin: 0; display: flex; gap: 8px; flex-wrap: wrap; }
 .genres-proposition legend { font-size: 0.85rem; color: var(--muted); font-weight: 500; padding: 0; margin-bottom: 4px; }
 .form .genres-proposition label.chip { flex-direction: row; color: var(--text); font-size: 0.9rem; }

@@ -11,7 +11,7 @@ import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
-import { APrendreTag, Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, ProposalTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
+import { APrendreTag, Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, OrigineTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 import { PourInfoRecues } from '../components/PourInfo';
 import { Chez, useMesEntites } from '../data/entites';
 import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
@@ -426,7 +426,7 @@ function ListeTaches() {
                   <td>{sectionName(t.sectionId)}</td>
                   <td className="muted">{t.sousSection}</td>
                   <td>
-                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /> <TicketTag task={t} />
+                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /> <TicketTag task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
                     <Linked t={t} />
                   </td>
@@ -452,7 +452,7 @@ function ListeTaches() {
                 {col.map((t) => (
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t) && !t.paiement} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
-                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
+                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
                     <TicketTag task={t} />
                     <Linked t={t} />
                     <div className="kmeta">
@@ -513,7 +513,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
         <small className="muted">{sectionName}{t.sousSection && ` › ${t.sousSection}`}</small>
         <StatusBadge task={t} />
       </div>
-      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <ProposalTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
+      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
       <TicketTag task={t} />
       <Linked t={t} />
       {t.remarque && <small className="muted clip">{t.remarque}</small>}

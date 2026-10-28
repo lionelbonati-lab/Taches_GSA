@@ -34,7 +34,6 @@ type Element = { id: string; label: string; icone?: IconeNom; couleur?: string }
 export function useBlocsAccueil(): Element[] {
   const { can, prefs } = useStore();
   const club = useClubOptional();
-  const central = club?.current.type === 'central';
   const jours = joursAFaire(prefs.aFaireJours);
   const l: (Element & { si: boolean })[] = [
     // Mes entités avec une édition (sous-comité, équipe d'événement), quelle que soit l'entité ouverte.
@@ -44,7 +43,6 @@ export function useBlocsAccueil(): Element[] {
     { id: 'aprendre', icone: 'main', label: 'À prendre (tâches qu’on me propose)', si: true },
     { id: 'semaine', icone: 'date', label: `À faire dans les ${jours} jours`, si: true },
     { id: 'pourinfo', icone: 'voir', label: 'Pour info', si: true },
-    { id: 'demandes', icone: 'demande', label: central ? 'Demandes reçues' : 'Demandes au comité central', si: !!club },
     { id: 'emails', icone: 'email', label: 'Mes emails à envoyer et programmés', si: true },
     { id: 'sondages', icone: 'sondage', label: 'Sondages à voter', si: true },
     { id: 'seance', icone: 'seances', label: club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance', si: can('tab.meetings') },

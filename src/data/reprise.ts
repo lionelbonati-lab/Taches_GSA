@@ -86,7 +86,7 @@ export function reprendre(data: AppData, e: ClubEvent, c: ChoixReprise, moi: str
   const now = new Date().toISOString();
   const tasks = choisies.map((t): Task => {
     const {
-      suivanteId: _a, termineeLe: _b, proposee: _c, parCentral: _d, copieDe: _e, attribueePar: _f, modifiePar: _g, pieces: _h, pourInfoVus: _i,
+      suivanteId: _a, termineeLe: _b, parCentral: _d, copieDe: _e, attribueePar: _f, modifiePar: _g, pieces: _h, pourInfoVus: _i,
       commentaires: _j, recurrence: _k, postesResp: _l, meetingId: _m, seanceComite: _n, evenementEntite: _o, contenuLe: _p, ...x
     } = t;
     const liee = t.eventId === e.id;

@@ -1,6 +1,6 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase, supabaseUrl } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, MyRequest, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, Status, TachePartagee, Task, TicketCentral, UnitType, VisaVerifie, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
+import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, Status, TachePartagee, Task, TicketCentral, UnitType, VisaVerifie, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
 import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
@@ -596,13 +596,6 @@ export async function updateCommittee(id: string, patch: { name: string; type: U
   if (!data?.length) throw new Error('Modification refusée : réservée aux admins de l’entité et du comité central.');
 }
 
-/** Tâche envoyée au comité central par une entité du club. */
-export async function proposeTask(source: string, tache: { titre: string; remarque: string; delai: string; sectionId: string }) {
-  const { data, error } = await sb().rpc('gsa_proposer_tache', { source, tache });
-  if (error) throw new Error(error.message);
-  return data as string;
-}
-
 /** Ticket envoyé depuis une entité à la caisse qui reçoit les siens (photo déjà déposée dans le dossier de cette caisse ; 030). */
 export async function sendCentralTicket(source: string, ticket: TicketCentral) {
   const { data, error } = await sb().rpc('gsa_ticket_central', { source, ticket });
@@ -1157,12 +1150,6 @@ export async function mesPropositions(club: string): Promise<Proposition[] | nul
   return (data ?? []) as Proposition[];
 }
 
-/** Suivi des demandes de l'entité au comité central. */
-export async function myRequests(source: string): Promise<MyRequest[]> {
-  const { data, error } = await sb().rpc('gsa_mes_demandes', { source });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as MyRequest[];
-}
 
 /** Le propriétaire choisit sa fiche responsable. */
 export async function linkMyPerson(committeeId: string, userId: string, personId: string) {

@@ -473,19 +473,6 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
         kind: "alerte"
       });
     }
-  if (p.assign)
-    for (const t of data.tasks) {
-      if (!t.proposee || t.responsables.length || isDone(data, t) || !hasPermission(userRoles(data.roles, user), "tasks.createAny", t.sectionId)) continue;
-      items.push({
-        key: `demande:${t.id}`,
-        icon: "📨",
-        text: `Demande de « ${t.proposee.unite} » : « ${t.titre} »`,
-        sub: `envoyée par ${t.proposee.par}${t.delai ? ` · délai : ${fmtDate(t.delai)}` : ""} · à attribuer`,
-        link: `/taches?tache=${t.id}`,
-        at: t.proposee.le,
-        kind: "activite"
-      });
-    }
   if (p.assign && data.propositions?.length && hasPermission(userRoles(data.roles, user), "admin.access"))
     for (const x of data.propositions) {
       if (x.statut !== "nouvelle") continue;

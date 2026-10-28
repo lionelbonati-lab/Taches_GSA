@@ -331,7 +331,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
   const peutDupliquer = !isNew && !task.source && !task.paiement && creatableSections().some((s) => s.id === task.sectionId);
   const dupliquer = () => {
     const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
-    const { suivanteId, termineeLe, proposee, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, pourInfoVus, contenuLe, commentaires, ...reste } = task;
+    const { suivanteId, termineeLe, parCentral, copieDe, attribueePar, modifiePar, aPrendre, respPartage, postesResp, pieces, pourInfoVus, contenuLe, commentaires, ...reste } = task;
     setOther({
       task: {
         ...reste,
@@ -514,12 +514,6 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
         {t.copieDe && (
           <p className="full proposal-banner">
             📋 Copiée depuis le comité <b>{t.copieDe.comite || '?'}</b>, le {fmtDate(t.copieDe.le)} (ancienne tâche de « {t.copieDe.entite} ») : une tâche à part entière de {club?.current.nom ?? 'cette entité'} ; l’original n’est pas modifié.
-          </p>
-        )}
-        {t.proposee && (
-          <p className="full proposal-banner">
-            📨 Demande de <b>{t.proposee.unite}</b>, envoyée par {t.proposee.par} le {fmtDate(t.proposee.le.slice(0, 10))}.
-            <span className="muted"> L’entité suit l’avancement (statut, délai, responsables) depuis son accueil.</span>
           </p>
         )}
         {pourMoiAPrendre && (
