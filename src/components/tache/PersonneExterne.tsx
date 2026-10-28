@@ -1,6 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useClubOptional } from '../../data/club';
-import { nomMembre } from '../../data/membres';
+import { nomMembre, nouveauMembre, trouverMembre } from '../../data/membres';
 import { norm } from '../../data/csv';
 import { directory } from '../../data/units';
 import { memePersonne } from '../../data/partage';
@@ -8,9 +8,10 @@ import type { ClubMembre, PersonneHors } from '../../data/types';
 import { uid } from '../../data/utils';
 import { Initials, Modal } from '../ui';
 
-// Tâche : une personne qui n'est dans aucune entité du club (un membre du registre « Membres du club », ou quelqu'un
+// Tâche : une personne qui n'a pas de place dans l'organigramme (une personne du club sans entité, ou quelqu'un
 // d'extérieur). Ce sont les tâches qui font partie des entités, pas les personnes : son nom est noté sur la tâche
-// (respHors), sans fiche dans l'entité. Sans accès à l'appli, elle ne voit pas la tâche.
+// (respHors), sans fiche dans l'entité. Liste unique (PERSONNES_DU_CLUB.md) : une nouvelle personne entre dans
+// « Personnes du club » pour qui gère les personnes. Sans accès à l'appli, elle ne voit pas la tâche.
 
 /** Choisir ou écrire la personne ; `deja` : celles déjà sur la tâche. */
 export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHors[]; onAjoutee: (p: PersonneHors) => void; onClose: () => void }) {
@@ -39,18 +40,38 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
     .filter((m) => !needle || norm(`${m.prenom} ${m.nom} ${m.email}`).includes(needle))
     .sort((a, b) => nomMembre(a).localeCompare(nomMembre(b), 'fr'));
 
-  const creer = (e: FormEvent) => {
+  const gerer = !!club?.personnes.gerer;
+  const [busy, setBusy] = useState(false);
+  const creer = async (e: FormEvent) => {
     e.preventDefault();
     if (!prenom.trim() && !nom.trim()) return setErr('Indique au moins son prénom ou son nom.');
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setErr('Adresse email invalide.');
     if (deja.some((p) => norm(nomMembre(p)) === norm(`${prenom} ${nom}`))) return setErr('Elle est déjà sur la tâche.');
-    onAjoutee({ id: uid('ph'), prenom: prenom.trim(), nom: nom.trim(), ...(email.trim() ? { email: email.trim() } : {}) });
+    const p: PersonneHors = { id: uid('ph'), prenom: prenom.trim(), nom: nom.trim(), ...(email.trim() ? { email: email.trim() } : {}) };
+    // Déjà au club : elle-même (avec une place dans une entité : à choisir dans la liste, sous le nom de son entité).
+    const connue = trouverMembre(registre, p);
+    if (connue && annuaire.some((x) => x.postes.some((y) => memePersonne(cle(connue), y.member))))
+      return setErr(`${nomMembre(connue)} a une place dans l’organigramme : choisis-la dans la liste « Ajouter… », sous le nom de son entité.`);
+    if (connue) return onAjoutee({ ...p, membreId: connue.id });
+    if (club && gerer) {
+      const m = nouveauMembre(p);
+      setBusy(true);
+      try {
+        await club.saveMembres([m]);
+      } catch (x) {
+        setBusy(false);
+        return setErr((x as Error).message);
+      }
+      return onAjoutee({ ...p, membreId: m.id });
+    }
+    onAjoutee(p);
   };
 
   return (
     <Modal title="Quelqu’un d’autre" onClose={onClose}>
       <p className="muted">
-        Une personne qui n’a pas de place dans l’organigramme : son nom est noté sur la tâche, qui reste dans son entité. Sans accès à l’appli, elle ne la voit pas.
+        Une personne qui n’a pas de place dans l’organigramme : son nom est noté sur la tâche, qui reste dans son entité
+        {gerer ? ' ; une nouvelle personne entre aussi dans « Personnes du club »' : ''}. Sans accès à l’appli, elle ne la voit pas.
       </p>
       {registre.length > 0 && (
         <section className="externe-registre">
@@ -93,7 +114,7 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
         <div className="modal-foot full">
           <span className="grow" />
           <button type="button" className="btn" onClick={onClose}>Annuler</button>
-          <button type="submit" className="btn primary">Ajouter à la tâche</button>
+          <button type="submit" className="btn primary" disabled={busy}>Ajouter à la tâche</button>
         </div>
       </form>
     </Modal>

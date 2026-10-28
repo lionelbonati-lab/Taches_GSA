@@ -1,5 +1,5 @@
 import type { AppData, OrgUnit, Person, Poll, PollOption, SondagePartage } from './types';
-import { hasPermission, userRoles } from './permissions';
+import { convoquesDe } from './seances';
 import { emailKey } from './membres';
 import { idPartagee } from './partage';
 import { fmtDate, fullName, uid } from './utils';
@@ -84,9 +84,8 @@ export function pollSummary(p: Poll) {
   return `${parts.join(' · ')} — ${r.voters.length}/${electeursDe(p).length} réponses, ${state}`;
 }
 
-/** Membres du comité (rôles ayant l'onglet Comité) : votants proposés par défaut. */
-export const committeeOf = (data: AppData): Person[] =>
-  data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
+/** Membres du comité (ses convoqués : ★ et postes) : votants proposés par défaut, présences du PV. */
+export const committeeOf = (data: AppData): Person[] => convoquesDe(data);
 
 /**
  * Nouveau sondage dans une entité (`data`), par `creePar` : ses votants proposés sont son comité. `v` : ce qui a déjà été

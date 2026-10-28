@@ -275,15 +275,6 @@ function calendrierIcs(nom, elements, opts) {
   return lignes.map(plier).join("\r\n") + "\r\n";
 }
 
-// src/data/polls.ts
-function finSondage(p) {
-  if (!p.dateLimite || p.clotureAuto === false) return null;
-  const [y, m, d] = p.dateLimite.split("-").map(Number);
-  const [h, mn] = (p.heureLimite || "24:00").split(":").map(Number);
-  return new Date(y, m - 1, d, h, mn).getTime();
-}
-var isOpen = (p) => !p.clotureLe && (finSondage(p) ?? Infinity) > Date.now();
-
 // src/data/units.ts
 var UNIT_TYPES = {
   central: { label: "Comité central", plural: "Comité central", icon: "🏛️", trait: "comite", chef: "Président", seances: "Comité", aide: "Direction du club." },
@@ -318,6 +309,19 @@ var UNIT_TYPES = {
 var MEMBER_PERMS = ["tasks.viewAll", "tasks.editOwn", "tab.meetings", "tab.events", "tab.people", "polls.create"];
 var CAISSE_PERMS = [...MEMBER_PERMS, "paiements.payer"];
 var CO_PERMS = [...MEMBER_PERMS, "events.manage"];
+
+// src/data/seances.ts
+var MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+var AVEC_MOIS = new RegExp(`^(.+?) (?:de |d['’])(?:${MOIS.join("|")}) \\d{4}$`, "i");
+
+// src/data/polls.ts
+function finSondage(p) {
+  if (!p.dateLimite || p.clotureAuto === false) return null;
+  const [y, m, d] = p.dateLimite.split("-").map(Number);
+  const [h, mn] = (p.heureLimite || "24:00").split(":").map(Number);
+  return new Date(y, m - 1, d, h, mn).getTime();
+}
+var isOpen = (p) => !p.clotureLe && (finSondage(p) ?? Infinity) > Date.now();
 
 // src/data/agendaIcs.ts
 var DUREE_SEANCE = 120;

@@ -1,10 +1,21 @@
-import type { AppData, Meeting, Recurrence, Task, UnitType } from './types';
+import type { AppData, Meeting, Person, Recurrence, Task, UnitType } from './types';
 import { UNIT_TYPES } from './units';
+import { ADMIN_ROLE_ID, hasPermission, userRoles } from './permissions';
 import { addDays, fmtDate, isDone, localNow, nextOccurrence, today, uid } from './utils';
 
 // Séances qui reviennent chaque année : une séance revient l'année suivante le même mois (sauf si elle est
 // « unique »). Leur nom suit le mois (« Comité de mars 2027 ») ; une tâche annuelle liée à une séance passe à
 // celle du même mois l'année suivante.
+
+/**
+ * Convoqués aux séances du comité (PERSONNES_DU_CLUB.md) : ses ★ et les titulaires de ses postes ; ni ses bénévoles, ni
+ * les personnes à qui une tâche est seulement confiée. Organigramme sans postes (pas encore converti) : le droit « Séances ».
+ */
+export function convoquesDe(data: Pick<AppData, 'people' | 'roles' | 'postes'>): Person[] {
+  if (!data.postes) return data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
+  const titulaires = new Set(data.postes.map((x) => x.titulaire).filter(Boolean));
+  return data.people.filter((p) => p.actif && (p.roles.includes(ADMIN_ROLE_ID) || titulaires.has(p.id)));
+}
 
 export const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 

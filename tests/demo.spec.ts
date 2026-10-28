@@ -607,9 +607,11 @@ test('tâche : quelqu’un qui n’est dans aucune entité, son nom noté sur la
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   const d = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}'));
-  // Pas de fiche dans le comité : son nom est sur la tâche.
+  // Pas de fiche dans le comité : son nom est sur la tâche ; elle entre dans « Personnes du club » (Julien gère les personnes).
   expect(d.people.length).toBe(avant);
-  expect(d.tasks.find((t: { titre: string }) => t.titre === 'Tenir le stand de crêpes').respHors).toEqual([expect.objectContaining({ prenom: 'Claire', nom: 'Dumas' })]);
+  const claire = await page.evaluate(() => (JSON.parse(localStorage.getItem('taches-gsa-demo-membres') ?? '[]') as { id: string; prenom: string }[]).find((m) => m.prenom === 'Claire'));
+  expect(claire).toBeTruthy();
+  expect(d.tasks.find((t: { titre: string }) => t.titre === 'Tenir le stand de crêpes').respHors).toEqual([expect.objectContaining({ prenom: 'Claire', nom: 'Dumas', membreId: claire!.id })]);
 });
 
 test('personnes du club : la liste pour tout le monde, fiche en lecture ; retirer quelqu’un du club', async ({ page }) => {

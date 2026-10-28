@@ -19,10 +19,9 @@ import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
 import { useUnitLogo } from '../components/Entete';
-import { hasPermission, userRoles } from '../data/permissions';
 import { PageIntro } from '../components/Nav';
 import { useClubOptional } from '../data/club';
-import { aPlanifier, aRenommer, annuelle, duMois, finDeSerie, motSeance, nomSeance, serieDuMois, seuleDuMois, titreSelonDate } from '../data/seances';
+import { aPlanifier, aRenommer, annuelle, convoquesDe, duMois, finDeSerie, motSeance, nomSeance, serieDuMois, seuleDuMois, titreSelonDate } from '../data/seances';
 import { UNIT_TYPES } from '../data/units';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
@@ -104,7 +103,8 @@ function Excuses({ m, past }: { m: Meeting; past: boolean }) {
   const [motif, setMotif] = useState('');
   const list = m.excuses ?? [];
   const mine = user ? list.find((e) => e.personId === user.id) : undefined;
-  const convoque = !!user && user.actif && hasPermission(userRoles(data.roles, user), 'tab.meetings') && data.people.some((p) => p.id === user.id);
+  // Convoqués : ★ et postes du comité (PERSONNES_DU_CLUB.md).
+  const convoque = !!user && convoquesDe(data).some((p) => p.id === user.id);
   const set = (excuse: boolean) => {
     if (!user) return;
     update((d) => {

@@ -100,12 +100,57 @@ var PERMISSIONS = [
   { id: "admin.access", label: "Accès console admin", group: "Administration" }
 ];
 var ALL_PERMISSIONS = PERMISSIONS.map((p) => p.id);
+var ADMIN_ROLE_ID = "admin";
 var userRoles = (roles, p) => p ? roles.filter((r) => p.roles.includes(r.id)) : [];
 function hasPermission(roles, perm, sectionId) {
   return roles.some(
     (r) => (r.locked || r.permissions.includes(perm)) && (!sectionId || r.sections.length === 0 || r.sections.includes(sectionId))
   );
 }
+
+// src/data/units.ts
+var UNIT_TYPES = {
+  central: { label: "Comité central", plural: "Comité central", icon: "🏛️", trait: "comite", chef: "Président", seances: "Comité", aide: "Direction du club." },
+  "sous-comite": {
+    label: "Sous-comité",
+    plural: "Sous-comités",
+    icon: "🎪",
+    trait: "sousComite",
+    chef: "Président",
+    seances: "Comité",
+    aide: "Organisation d’un événement, avec son président et ses membres."
+  },
+  groupe: {
+    label: "Groupe",
+    plural: "Groupes",
+    icon: "🚴",
+    trait: "groupe",
+    chef: "Responsable",
+    seances: "Séances",
+    aide: "Activité permanente du club (école de cyclisme, compétition…) avec ses propres membres (moniteurs…)."
+  },
+  equipe: {
+    label: "Équipe d’événement",
+    plural: "Équipes d’événement",
+    icon: "🎉",
+    trait: "evenements",
+    chef: "Responsable",
+    seances: "Réunions",
+    aide: "Événement sans comité : quelques personnes, souvent déjà actives ailleurs dans le club."
+  }
+};
+var MEMBER_PERMS = ["tasks.viewAll", "tasks.editOwn", "tab.meetings", "tab.events", "tab.people", "polls.create"];
+var CAISSE_PERMS = [...MEMBER_PERMS, "paiements.payer"];
+var CO_PERMS = [...MEMBER_PERMS, "events.manage"];
+
+// src/data/seances.ts
+function convoquesDe(data) {
+  if (!data.postes) return data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), "tab.meetings"));
+  const titulaires = new Set(data.postes.map((x) => x.titulaire).filter(Boolean));
+  return data.people.filter((p) => p.actif && (p.roles.includes(ADMIN_ROLE_ID) || titulaires.has(p.id)));
+}
+var MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+var AVEC_MOIS = new RegExp(`^(.+?) (?:de |d['’])(?:${MOIS.join("|")}) \\d{4}$`, "i");
 
 // src/data/membres.ts
 var emailKey = (e) => (e ?? "").trim().toLowerCase();
@@ -203,41 +248,6 @@ function fillTemplate(data, task, e, text, unite) {
   };
   return text.replace(/\{[^}]+\}/g, (k) => values[k] ?? k);
 }
-
-// src/data/units.ts
-var UNIT_TYPES = {
-  central: { label: "Comité central", plural: "Comité central", icon: "🏛️", trait: "comite", chef: "Président", seances: "Comité", aide: "Direction du club." },
-  "sous-comite": {
-    label: "Sous-comité",
-    plural: "Sous-comités",
-    icon: "🎪",
-    trait: "sousComite",
-    chef: "Président",
-    seances: "Comité",
-    aide: "Organisation d’un événement, avec son président et ses membres."
-  },
-  groupe: {
-    label: "Groupe",
-    plural: "Groupes",
-    icon: "🚴",
-    trait: "groupe",
-    chef: "Responsable",
-    seances: "Séances",
-    aide: "Activité permanente du club (école de cyclisme, compétition…) avec ses propres membres (moniteurs…)."
-  },
-  equipe: {
-    label: "Équipe d’événement",
-    plural: "Équipes d’événement",
-    icon: "🎉",
-    trait: "evenements",
-    chef: "Responsable",
-    seances: "Réunions",
-    aide: "Événement sans comité : quelques personnes, souvent déjà actives ailleurs dans le club."
-  }
-};
-var MEMBER_PERMS = ["tasks.viewAll", "tasks.editOwn", "tab.meetings", "tab.events", "tab.people", "polls.create"];
-var CAISSE_PERMS = [...MEMBER_PERMS, "paiements.payer"];
-var CO_PERMS = [...MEMBER_PERMS, "events.manage"];
 
 // src/data/destinataires.ts
 var EMAIL_RE = /^[^\s@,;<>]+@[^\s@,;<>]+\.[^\s@,;<>]+$/;
@@ -403,7 +413,7 @@ function computeNotifications(data, user, p, demandesMdp = [], pourInfo = [], un
         kind: "alerte"
       });
     }
-  if (p.seance && hasPermission(userRoles(data.roles, user), "tab.meetings")) {
+  if (p.seance && convoquesDe(data).some((x) => x.id === user.id)) {
     const next = [...data.meetings].filter((m) => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
     const n = next ? daysUntil(next.date) : -1;
     if (next && n <= p.seanceJours) {

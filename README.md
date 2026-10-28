@@ -289,7 +289,7 @@ Démo : les données restent dans le navigateur, un lien n'ouvre donc l'élémen
 
 Page **📝 Ordre du jour** (rubrique Comité ; droit « Comité › Ordre du jour », donné au Président ; attribuable à d'autres rôles dans la console admin). Il prépare le document de la **prochaine séance** (Séances › « Séance à préparer » : seulement les séances à venir ; sans séance à venir, la dernière, marquée « passée »), présenté comme les ordres du jour Word du club, en **liste numérotée** (pas de tableau) :
 
-- en-tête : **le nom du comité** (titre) et la date de la séance, début de séance, lieu, **convoqués** (avec initiales), ligne **Excusés** à compléter ;
+- en-tête : **le nom du comité** (titre) et la date de la séance, début de séance, lieu, **convoqués** (avec initiales : les ★ et les titulaires des postes du comité dans l'organigramme, ni ses bénévoles ni les personnes à qui une tâche est seulement confiée ; aussi pour « Je serai absent », les présences du PV, le rappel de la prochaine séance et les votants proposés d'un sondage), ligne **Excusés** à compléter ;
 - **Ordre du jour** numéroté : **1. Section** (gras) › **a. Sous-section** › **■ point** (tâche avec initiales du responsable, délai, et selon le cas « ⚠ en retard », « pour le Comité 6 » (échéance à la date de la séance suivante ; avant elle, seulement la date), « après le Comité 6 » (voir la marge ci-dessous), « ✓ fait », statut, remarque) › **◦ détails** (checklist, documents joints, sondage lié) ;
 - toujours **par section** : toutes les tâches de la section ensemble (retards, séance, séance suivante, terminées), sections sans point affichées seules ; sondages sous leur section ;
 - cadre de notes et prochaine séance en pied de page ;

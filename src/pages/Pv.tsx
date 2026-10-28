@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useStore } from '../data/store';
-import { hasPermission, userRoles } from '../data/permissions';
+import { convoquesDe } from '../data/seances';
 import type { AppData, ChecklistItem, LienLieu, Meeting, Person, PvSettings, Section, StyleDocs, Task } from '../data/types';
 import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
@@ -633,7 +633,8 @@ export function Pv() {
   const logo = useUnitLogo();
 
   const nbPartagees = data.tasks.filter((t) => t.source).length;
-  const committee: Person[] = data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
+  // Convoqués : ★ et postes du comité (PERSONNES_DU_CLUB.md).
+  const committee: Person[] = convoquesDe(data);
   const canEdit = can('tab.pv');
 
   // ---------- Excusés ----------

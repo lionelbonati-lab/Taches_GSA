@@ -6,6 +6,7 @@ import { finDeSemaine, jourSemaine } from './repetition';
 import { aPrendreOuverte, aPrendrePourMoi, attenteAilleurs, plusPersonne, sansReponse } from './aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './utils';
 import { hasPermission, userRoles } from './permissions';
+import { convoquesDe } from './seances';
 import { GENRES, chf, genre, holders, paiementTasks } from './paiements';
 import type { DemandeMdp } from './cloud';
 import { clesVu, modifieeDepuisMonVu, pourMoi, vuAvantModif } from './pourInfo';
@@ -96,7 +97,8 @@ export function computeNotifications(
       });
     }
 
-  if (p.seance && hasPermission(userRoles(data.roles, user), 'tab.meetings')) {
+  // Prochaine séance : pour ses convoqués (★ et postes du comité).
+  if (p.seance && convoquesDe(data).some((x) => x.id === user.id)) {
     const next = [...data.meetings].filter((m) => m.date >= today()).sort((a, b) => a.date.localeCompare(b.date))[0];
     const n = next ? daysUntil(next.date) : -1;
     if (next && n <= p.seanceJours) {
