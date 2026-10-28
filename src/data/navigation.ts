@@ -97,7 +97,7 @@ const RUBRIQUES: NavRubrique[] = [
         label: 'Organigramme',
         icon: 'organigramme',
         club: true,
-        aide: 'Le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. Un clic sur une personne de tes entités : sa fiche, modifiable sur place.',
+        aide: 'Le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. Un clic sur une personne : sa fiche du club, avec ses places et son rôle dans chaque entité.',
       },
       { to: '/membres-club', label: 'Personnes du club', icon: 'membres', registre: true, aide: 'Les personnes du club, avec ou sans accès à l’appli : une fiche par personne, ses places dans les entités (l’organigramme) et, dans tes entités, son rôle et son accès.' },
     ],

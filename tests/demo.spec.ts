@@ -493,7 +493,7 @@ test('vue « moi » : console admin de mon entité, depuis les Réglages, sans l
   await verifierEntite(page, 'Comité central');
 });
 
-test('vue « moi » : organigramme sans « Ouvrir », fiche d’une personne de mon entité modifiée sur place', async ({ page }) => {
+test('vue « moi » : organigramme sans « Ouvrir », fiche du club d’une personne, son rôle dans mon entité modifié sur place', async ({ page }) => {
   // Pierre Favre : membre du comité central (ouvert), admin de la Soirée récréative.
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
@@ -503,17 +503,17 @@ test('vue « moi » : organigramme sans « Ouvrir », fiche d’une personne de 
   await expect(page.locator('main').getByTitle(/^Ouvrir «/)).toHaveCount(0);
   await page.locator('main').getByText('Yannick Leroy').first().click();
   await page.getByRole('dialog', { name: 'Yannick Leroy' }).getByRole('button', { name: 'Fiche complète' }).click();
+  // Sa fiche du club : ses places, et son rôle dans la Soirée (dont Pierre est admin), modifiable sur place.
   const fiche = page.getByRole('dialog', { name: 'Yannick Leroy' });
-  await fiche.getByLabel('Poste').fill('Bar et buvette');
-  await fiche.getByRole('button', { name: 'Enregistrer', exact: true }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  // Enregistrée dans la Soirée, sans l'avoir ouverte.
+  await expect(fiche.locator('.acces-ligne', { hasText: 'Comité central' })).toBeVisible();
+  const soiree = fiche.locator('.acces-ligne', { hasText: 'Soirée récréative' });
+  await soiree.getByRole('button', { name: 'Caissier' }).click();
+  // Enregistré dans la Soirée, sans l'avoir ouverte.
   await expect
     .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').people?.find((p: { prenom: string }) => p.prenom === 'Yannick')?.poste),
+      page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').people?.find((p: { prenom: string }) => p.prenom === 'Yannick')?.roles),
     )
-    .toBe('Bar et buvette');
-  await expect(page.locator('main').getByText('Bar et buvette').first()).toBeVisible();
+    .toContain('caissier');
   await verifierEntite(page, 'Comité central');
 });
 

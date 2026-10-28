@@ -15,6 +15,7 @@ import { ImagePicker } from '../components/ImagePicker';
 import { CredentialsModal } from '../components/Acces';
 import { SupprimerEntite } from '../components/SupprimerEntite';
 import { FicheMembre, FichePersonne } from '../components/Personnes';
+import { FicheClub } from './MembresClub';
 import { Chez, useAutres } from '../data/entites';
 import {
   AvecModal,
@@ -423,12 +424,16 @@ export function Org() {
         </>
       )}
 
-      {/* Fiche d'une personne : dans son entité si c'est l'une des miennes (mes droits chez elle), sinon telle que l'organigramme la montre. */}
-      {fiche && ficheUnit && (
-        <Chez id={ficheUnit.id} sinon={ficheMembre && <FicheMembre u={ficheUnit} m={ficheMembre} onClose={() => setFiche(null)} />}>
-          <FichePersonne id={fiche.personId} onClose={() => setFiche(null)} />
-        </Chez>
-      )}
+      {/* Fiche d'une personne : sa fiche du club (ses coordonnées, ses places et son rôle dans chaque entité) ; sans la liste
+          du club, dans son entité si c'est l'une des miennes (mes droits chez elle), sinon telle que l'organigramme la montre. */}
+      {fiche && ficheUnit && (() => {
+        const dansEntite = (
+          <Chez id={ficheUnit.id} sinon={ficheMembre && <FicheMembre u={ficheUnit} m={ficheMembre} onClose={() => setFiche(null)} />}>
+            <FichePersonne id={fiche.personId} onClose={() => setFiche(null)} />
+          </Chez>
+        );
+        return ficheMembre ? <FicheClub m={ficheMembre} onClose={() => setFiche(null)} sinon={dansEntite} /> : dansEntite;
+      })()}
       {edit && (
         <UnitModal
           unit={edit.unit}

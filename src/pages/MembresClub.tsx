@@ -8,7 +8,7 @@ import { compactIban, emailKey, formatIban, groupesClub, nomMembre, nouveauMembr
 import { ADMIN_ROLE_ID } from '../data/permissions';
 import { defaultRoleId } from '../data/units';
 import { uid } from '../data/utils';
-import type { ClubMembre, ColonnesMembres, FichesEntite, OrgUnit, Person } from '../data/types';
+import type { ClubMembre, ColonnesMembres, FichesEntite, OrgMember, OrgUnit, Person } from '../data/types';
 import { Initials, Modal } from '../components/ui';
 import { ImportCsv } from '../components/ImportCsv';
 import { AccessCell, CredentialsModal, type Shown } from '../components/Acces';
@@ -270,6 +270,44 @@ export function MembresClub() {
         </Modal>
       )}
     </div>
+  );
+}
+
+/**
+ * Fiche du club d'une personne de l'organigramme (PERSONNES_DU_CLUB.md) : ses coordonnées et ses places dans les entités,
+ * avec son rôle dans chacune. `sinon` : quand la liste du club n'est pas lisible (version réelle, sans le droit, jusqu'aux
+ * migrations) ou que la personne n'y est pas encore.
+ */
+export function FicheClub({ m, onClose, sinon }: { m: Pick<OrgMember, 'membreId' | 'email'>; onClose: () => void; sinon: ReactNode }) {
+  const club = useClub();
+  const [list, setList] = useState<ClubMembre[] | null | undefined>(undefined);
+  const voir = club.personnes.voir;
+  useEffect(() => {
+    if (!voir) return setList(null);
+    let vivant = true;
+    club
+      .membres()
+      .then((l) => vivant && setList(l))
+      .catch(() => vivant && setList(null));
+    return () => {
+      vivant = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [voir]);
+  if (list === undefined) return null;
+  const e = emailKey(m.email);
+  const membre = list?.find((x) => (!!m.membreId && x.id === m.membreId) || (!!e && emailKey(x.email) === e));
+  if (!list || !membre) return <>{sinon}</>;
+  return (
+    <MembreModal
+      membre={membre}
+      list={list}
+      postes={postesDe(membre, club.units.filter((u) => !u.archive))}
+      lecture={!club.personnes.gerer}
+      onSave={(x) => club.saveMembres([x])}
+      onDelete={(id) => club.deleteMembre(id)}
+      onClose={onClose}
+    />
   );
 }
 
