@@ -1,6 +1,6 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS } from './permissions';
 import { statuses } from './seedData';
-import type { AppData, Carte, OrgMember, OrgUnit, PeriodeDependance, Permission, Person, Role, Section, TachesDependance, Unit, UnitType } from './types';
+import type { AppData, Carte, OrgMember, OrgUnit, PeriodeDependance, Permission, Person, Role, Section, Status, TachesDependance, Task, Unit, UnitType } from './types';
 import { uid } from './utils';
 import type { IconeNom } from '../components/icones';
 
@@ -226,6 +226,15 @@ export function defaultRoleId(roles: Role[]) {
   if (plain) return plain.id;
   const others = roles.filter((r) => r.id !== ADMIN_ROLE_ID).sort((a, b) => a.permissions.length - b.permissions.length);
   return others[0]?.id ?? ADMIN_ROLE_ID;
+}
+
+/**
+ * Statuts d'une entité : ceux du club (ceux du comité central, les mêmes partout ; version réelle : recopiés par le
+ * serveur, 058), dans le même ordre ; un statut à elle encore utilisé par l'une de ses tâches est gardé à la fin, jusqu'à
+ * ce qu'elles en changent.
+ */
+export function statutsDuClub(club: Status[], propres: Status[], tasks: Task[]): Status[] {
+  return [...club.map((s) => ({ ...s })), ...propres.filter((s) => !club.some((c) => c.id === s.id) && tasks.some((t) => t.statusId === s.id))];
 }
 
 /** Données de départ d'une nouvelle entité : statuts du club, sections et rôles du type, membres. */

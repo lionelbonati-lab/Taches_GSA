@@ -1954,3 +1954,6 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .tache-confiee-liste { list-style: none; padding: 0; margin: 0; display: grid; gap: 4px; }
 .compte-club { margin: 12px 0 4px; display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
 .compte-club .access { margin: 0; display: flex; flex-direction: column; gap: 2px; }
+
+/* Console admin d'une entité : les statuts du club (réglés au comité central), en lecture. */
+.statuts-club { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }

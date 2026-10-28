@@ -1315,13 +1315,31 @@ test('accueil du comité central : pas de cartes « Prochaine édition » en hau
   await expect(page.locator('.panel.edition').first()).toBeVisible();
 });
 
-test('vue « moi » : chaque tâche garde le statut de son entité (accueil, liste, filtre), même ouverte sur une autre', async ({ page }) => {
-  // Le comité central a un statut à lui, « Envoyé » ; la Soirée récréative ne l'a pas.
+test('statuts : les mêmes dans tout le club, réglés au comité central ; accueil, liste, filtre et fiche d’accord', async ({ page }) => {
+  // Julien Moreau, président du comité central, est ici aussi admin de la Soirée récréative.
+  const cle = 'taches-gsa-demo-u-u-soiree';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    d.people.find((p: { prenom: string }) => p.prenom === 'Julien').roles = ['admin'];
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await page.reload();
+  // Le comité central ajoute un statut, « Envoyé ».
   await allerA(page, '/admin/taches');
+  await expect(page.locator('.subtabs').getByRole('combobox', { name: 'Entité' })).toHaveText(/Comité central/);
   const nouveau = page.getByPlaceholder('Nouveau statut (ex. En attente)');
   await nouveau.fill('Envoyé');
   await page.locator('.row', { has: nouveau }).getByRole('button', { name: 'Ajouter', exact: true }).click();
   await expect(page.getByLabel('Nom du statut Envoyé')).toBeVisible();
+  // La Soirée le reçoit : dans sa console, les statuts du club, sans pouvoir les changer.
+  const entite = page.locator('.subtabs').getByRole('combobox', { name: 'Entité' });
+  await entite.click();
+  await page.getByRole('option', { name: /Soirée récréative/ }).click();
+  await expect(page.locator('.statuts-club')).toContainText('Envoyé');
+  await expect(page.getByPlaceholder('Nouveau statut (ex. En attente)')).toHaveCount(0);
+  await expect(page.locator('main')).toContainText('se règlent dans la console admin du comité central');
+
   await allerA(page, '/taches');
   const fiche = await nouvelleTache(page, 'Poster les invitations');
   await fiche.getByRole('combobox', { name: 'Statut' }).click();

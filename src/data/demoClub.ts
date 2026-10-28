@@ -1,14 +1,14 @@
 import { makeSeed } from './seed';
 import { people as centralPeople } from './seedData';
 import { migrate } from './migrate';
-import { parentDans, unitData } from './units';
+import { parentDans, statutsDuClub, unitData } from './units';
 import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
 import { membresPropres, synchroLiens } from './liens';
 import { convertirPostes, lierEntite, suivre } from './organigramme';
 import { ajouterHistorique, changementsTache, nomsCites, type EntreeHistorique, type HistoriqueTache } from './historique';
 import type { ErreurAppli, RapportErreur } from './rapportErreurs';
-import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUnit, Person, Unit } from './types';
+import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUnit, Person, Status, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
 // Le site est public : les personnes sont fictives (noms inventés, adresses @gsajoie.example, pas de téléphones),
@@ -23,6 +23,8 @@ const ORGAS_KEY = 'taches-gsa-demo-organigrammes';
 /** Historique des tâches (version réelle : gsa_historique, 050) : entité → tâche → entrées, de la plus récente à la plus ancienne. */
 const HISTO_KEY = 'taches-gsa-demo-historique';
 const ERREURS_KEY = 'taches-gsa-demo-erreurs';
+/** Statuts du club : ceux du comité central, les mêmes dans toutes les entités (version réelle : 058). */
+const STATUTS_KEY = 'taches-gsa-demo-statuts';
 /** Ancienne connexion de la démo (fiche du comité central). */
 const OLD_USER_KEY = 'taches-gsa-user';
 
@@ -172,7 +174,7 @@ export function loadUnits(): Unit[] {
 
 export const saveUnits = (units: Unit[]) => write(CLUB_KEY, units);
 
-export function loadUnitData(id: string): AppData {
+function lireUnite(id: string): AppData {
   const saved = read<AppData>(unitStorageKey(id));
   // Entités : seules les mises à niveau suivant leur création (v12) s'appliquent.
   if (saved) return id === CENTRAL_ID || saved.schema ? migrate(saved) : saved;
@@ -181,10 +183,27 @@ export function loadUnitData(id: string): AppData {
   return u ? seedUnit(u) : unitData('groupe', [], 'p1', id);
 }
 
+/** Données d'une entité ; ses statuts sont ceux du club (comité central), comme la recopie du serveur (058). */
+export function loadUnitData(id: string): AppData {
+  const d = lireUnite(id);
+  if (id === CENTRAL_ID) {
+    if (!read(STATUTS_KEY)) write(STATUTS_KEY, d.statuses);
+    return d;
+  }
+  const club = read<Status[]>(STATUTS_KEY);
+  return club?.length ? { ...d, statuses: statutsDuClub(club, d.statuses, d.tasks) } : d;
+}
+
 export function saveUnitData(id: string, d: AppData) {
   noterHistorique(id, read<AppData>(unitStorageKey(id)), d);
+  const avant = id === CENTRAL_ID ? JSON.stringify(read<Status[]>(STATUTS_KEY)) : '';
   write(unitStorageKey(id), d);
   ecrite(id);
+  // Statuts du comité central changés : ceux de tout le club ; les autres entités ouvertes les relisent.
+  if (id === CENTRAL_ID && avant !== JSON.stringify(d.statuses)) {
+    write(STATUTS_KEY, d.statuses);
+    loadUnits().forEach((u) => u.id !== CENTRAL_ID && ecrite(u.id));
+  }
 }
 
 // Vue « moi » : plusieurs entités sont ouvertes à la fois (l'une à l'écran, les autres en arrière-plan) ; celle dont les
@@ -385,7 +404,7 @@ export function resetDemo() {
     const units = read<Unit[]>(CLUB_KEY) ?? SEED_UNITS;
     units.forEach((u) => localStorage.removeItem(unitStorageKey(u.id)));
     // Avec le dernier logo et la dernière couleur affichés (écran de connexion).
-    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, ORGAS_KEY, HISTO_KEY, ERREURS_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
+    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, ORGAS_KEY, HISTO_KEY, ERREURS_KEY, STATUTS_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }

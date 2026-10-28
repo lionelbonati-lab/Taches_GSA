@@ -53,8 +53,10 @@ export function Admin() {
       id: 'taches',
       icon: 'rangement' as const,
       titre: 'Sections et statuts',
-      carte: 'Le rangement des tâches (sections, sous-sections) et leurs étapes (À faire, En cours…).',
-      aide: 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV) et leurs étapes (À faire, En cours, Terminé…).',
+      carte: central ? 'Le rangement des tâches (sections, sous-sections) et leurs étapes (À faire, En cours…), pour tout le club.' : 'Le rangement des tâches (sections, sous-sections) ; leurs étapes sont celles du club.',
+      aide: central
+        ? 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV) et leurs étapes (À faire, En cours, Terminé…), les mêmes dans toutes les entités du club.'
+        : 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV). Leurs étapes (À faire, En cours, Terminé…) sont les mêmes dans tout le club : le comité central les règle.',
       resume: `${data.sections.length} sections · ${data.statuses.length} statuts`,
       contenu: <Lists />,
     },
@@ -371,6 +373,9 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
 
 function Lists() {
   const { dataLocale: data, update, setToast } = useStore();
+  // Statuts : les mêmes dans tout le club, réglés au comité central (recopiés dans chaque entité : 058).
+  const club = useClubOptional();
+  const statutsDuClub = !!club && club.current.type !== 'central';
   const [newSec, setNewSec] = useState('');
   const [newSub, setNewSub] = useState<Record<string, string>>({});
   const [newStatus, setNewStatus] = useState('');
@@ -459,29 +464,49 @@ function Lists() {
       </section>
       <section>
         <h2>Types de statut</h2>
-        {data.statuses.map((s, i) => {
-          const used = data.tasks.filter((t) => t.statusId === s.id).length;
-          return (
-            <div key={s.id + s.label} className="panel row">
-              <input type="color" value={s.couleur} aria-label={`Couleur du statut ${s.label}`} onChange={(e) => update((d) => { d.statuses[i].couleur = e.target.value; }, `Couleur du statut « ${s.label} » modifiée`)} />
-              <input className="grow" defaultValue={s.label} aria-label={`Nom du statut ${s.label}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.label) update((d) => { d.statuses[i].label = v; }, `Statut « ${s.label} » renommé en « ${v} »`); }} />
-              <label className="inline" title="Une tâche dans ce statut compte comme terminée : bilan des tâches terminées dans l’ordre du jour, jamais en retard, archivée le lendemain de sa séance">
-                <input type="checkbox" checked={s.done} onChange={() => update((d) => { d.statuses[i].done = !s.done; }, `Statut « ${s.label} » : terminé = ${!s.done}`)} /> Terminée
-              </label>
-              <button className="icon-btn" disabled={i === 0} onClick={() => update((d) => { [d.statuses[i - 1], d.statuses[i]] = [d.statuses[i], d.statuses[i - 1]]; }, `Ordre des statuts modifié`)} aria-label="Monter"><Icone n="monter" /></button>
-              <button className="btn small danger" disabled={used > 0 || data.statuses.length <= 2} title={used ? `${used} tâche(s) ont ce statut` : ''} onClick={() => update((d) => { d.statuses = d.statuses.filter((x) => x.id !== s.id); }, `Suppression du statut « ${s.label} »`)}>Supprimer</button>
+        {statutsDuClub ? (
+          <>
+            <p className="muted">
+              Les statuts sont les mêmes dans tout le club : ils se règlent dans la console admin du comité central
+              {club.central ? ` (« ${club.central.nom} »)` : ''}, et chaque entité les reçoit tels quels.
+            </p>
+            <div className="statuts-club">
+              {data.statuses.map((s) => (
+                <span key={s.id} className="badge" style={{ background: s.couleur }} title={s.done ? 'Compte comme terminée' : undefined}>
+                  {s.label}{s.done ? ' ✓' : ''}
+                </span>
+              ))}
             </div>
-          );
-        })}
-        <div className="row">
-          <input placeholder="Nouveau statut (ex. En attente)" value={newStatus} onChange={(e) => setNewStatus(e.target.value)} />
-          <button className="btn primary" onClick={() => { if (!newStatus.trim()) return; update((d) => { d.statuses.splice(d.statuses.length - 1, 0, { id: uid('s'), label: newStatus.trim(), couleur: '#9333ea', done: false }); }, `Ajout du statut « ${newStatus.trim()} »`); setNewStatus(''); }}>Ajouter</button>
-        </div>
-        <p className="muted">
-          Case « Terminée » cochée : une tâche dans ce statut compte comme faite. Elle figure dans l’ordre du jour et le PV de
-          la séance suivante, parmi les tâches terminées (« ✓ fait » pour le premier statut terminé, sinon le nom du statut :
-          « À discuter », « Information »…), n’est jamais en retard et part aux archives le lendemain de cette séance.
-        </p>
+          </>
+        ) : (
+          <>
+            {club && <p className="muted">Ils valent pour toutes les entités du club : chacune reçoit ces statuts, dans cet ordre.</p>}
+            {data.statuses.map((s, i) => {
+              const used = data.tasks.filter((t) => t.statusId === s.id).length;
+              return (
+                <div key={s.id + s.label} className="panel row">
+                  <input type="color" value={s.couleur} aria-label={`Couleur du statut ${s.label}`} onChange={(e) => update((d) => { d.statuses[i].couleur = e.target.value; }, `Couleur du statut « ${s.label} » modifiée`)} />
+                  <input className="grow" defaultValue={s.label} aria-label={`Nom du statut ${s.label}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.label) update((d) => { d.statuses[i].label = v; }, `Statut « ${s.label} » renommé en « ${v} »`); }} />
+                  <label className="inline" title="Une tâche dans ce statut compte comme terminée : bilan des tâches terminées dans l’ordre du jour, jamais en retard, archivée le lendemain de sa séance">
+                    <input type="checkbox" checked={s.done} onChange={() => update((d) => { d.statuses[i].done = !s.done; }, `Statut « ${s.label} » : terminé = ${!s.done}`)} /> Terminée
+                  </label>
+                  <button className="icon-btn" disabled={i === 0} onClick={() => update((d) => { [d.statuses[i - 1], d.statuses[i]] = [d.statuses[i], d.statuses[i - 1]]; }, `Ordre des statuts modifié`)} aria-label="Monter"><Icone n="monter" /></button>
+                  <button className="btn small danger" disabled={used > 0 || data.statuses.length <= 2} title={used ? `${used} tâche(s) ont ce statut` : ''} onClick={() => update((d) => { d.statuses = d.statuses.filter((x) => x.id !== s.id); }, `Suppression du statut « ${s.label} »`)}>Supprimer</button>
+                </div>
+              );
+            })}
+            <div className="row">
+              <input placeholder="Nouveau statut (ex. En attente)" value={newStatus} onChange={(e) => setNewStatus(e.target.value)} />
+              <button className="btn primary" onClick={() => { if (!newStatus.trim()) return; update((d) => { d.statuses.splice(d.statuses.length - 1, 0, { id: uid('s'), label: newStatus.trim(), couleur: '#9333ea', done: false }); }, `Ajout du statut « ${newStatus.trim()} »`); setNewStatus(''); }}>Ajouter</button>
+            </div>
+            <p className="muted">
+              Case « Terminée » cochée : une tâche dans ce statut compte comme faite. Elle figure dans l’ordre du jour et le PV de
+              la séance suivante, parmi les tâches terminées (« ✓ fait » pour le premier statut terminé, sinon le nom du statut :
+              « À discuter », « Information »…), n’est jamais en retard et part aux archives le lendemain de cette séance.
+            </p>
+            {club && <p className="muted">Un statut retiré reste dans une entité tant que des tâches l’y utilisent.</p>}
+          </>
+        )}
         <p className="muted">« En retard » n'est pas un statut : il est calculé automatiquement quand le délai est dépassé et que la tâche n'est pas terminée.</p>
       </section>
     </div>
