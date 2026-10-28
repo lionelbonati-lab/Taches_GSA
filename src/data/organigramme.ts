@@ -250,7 +250,9 @@ export type OpOrga =
   | { type: 'nouveauPoste'; uniteId: string; nom: string; lien?: string }
   | { type: 'renommer'; uniteId: string; posteId: string; nom: string }
   | { type: 'supprimerPoste'; uniteId: string; posteId: string }
-  | { type: 'lier'; uniteId: string; posteId: string; lien: string | null };
+  | { type: 'lier'; uniteId: string; posteId: string; lien: string | null }
+  /** Rôle que le poste donne à son titulaire (null : celui d'un membre). */
+  | { type: 'rolePoste'; uniteId: string; posteId: string; role: string | null };
 
 /** Les entités du club et leurs données (modifiées sur place) ; `notes` : ce qui a suivi par les postes liés. */
 export interface Monde {
@@ -278,9 +280,29 @@ function entite(m: Monde, id: string) {
   return { u, d, postes: d.postes };
 }
 
-const tenus = (d: AppData, p: Person) => (d.postes ?? []).filter((x) => x.titulaire === p.id);
+const tenus = (d: Pick<AppData, 'postes'>, p: Person) => (d.postes ?? []).filter((x) => x.titulaire === p.id);
 /** Elle a encore une place dans la fiche : ★ ou un poste. */
 const reste = (d: AppData, p: Person) => p.actif && (p.roles.includes(ADMIN_ROLE_ID) || tenus(d, p).length > 0);
+
+/**
+ * Rôles que sa place donne à la personne (PERSONNES_DU_CLUB.md) : le rôle de chacun de ses postes (celui d'un membre si
+ * le poste n'en donne pas), celui d'un bénévole sans poste ; ★ : Admin en plus. Ajustables à la main, personne par
+ * personne : une place qui change ne touche plus à des rôles ajustés (rolesAutomatiques).
+ */
+export function rolesDeLaPlace(d: Pick<AppData, 'postes' | 'roles'>, p: Person): string[] {
+  const valide = (id?: string): id is string => !!id && id !== ADMIN_ROLE_ID && d.roles.some((r) => r.id === id);
+  const membre = roleResponsable(d.roles);
+  const postes = [...new Set(tenus(d, p).map((x) => (valide(x.role) ? x.role : membre)).filter((x): x is string => !!x))];
+  const etoile = p.roles.includes(ADMIN_ROLE_ID);
+  const base = postes.length || etoile ? postes : [roleBenevole(d.roles) ?? defaultRoleId(d.roles)];
+  return etoile ? [ADMIN_ROLE_ID, ...base] : base;
+}
+
+/** Ses rôles sont ceux de sa place (pas ajustés à la main) ; une fiche sans rôle aussi. */
+export function rolesAutomatiques(d: Pick<AppData, 'postes' | 'roles'>, p: Person) {
+  const auto = rolesDeLaPlace(d, p);
+  return !p.roles.length || (p.roles.length === auto.length && p.roles.every((r) => auto.includes(r)));
+}
 
 /**
  * Sa fiche dans l'entité (reprise, ou créée) ; une ancienne fiche reprend sans rôle ni fonction.
@@ -342,21 +364,28 @@ function retirerEtoile(d: AppData, p: Person) {
   return true;
 }
 
-/** Le poste se libère ; renvoie son titulaire d'avant (actif). */
+/** Le poste se libère (ses rôles suivent sa place, s'ils n'ont pas été ajustés) ; renvoie son titulaire d'avant (actif). */
 function retirerPoste(d: AppData, poste: Poste) {
   const p = poste.titulaire ? d.people.find((x) => x.id === poste.titulaire) : undefined;
+  const auto = !!p?.actif && rolesAutomatiques(d, p);
   poste.titulaire = undefined;
   if (p) enleverFonction(p, poste.nom);
+  if (p && auto) p.roles = rolesDeLaPlace(d, p);
   return p?.actif ? p : undefined;
 }
 
-/** `p` occupe le poste (un bénévole passe membre du comité) ; renvoie le titulaire qu'il remplace. */
+/**
+ * `p` occupe le poste : il reçoit le rôle du poste (rôles qui suivent sa place), sinon un bénévole passe membre du
+ * comité ; renvoie le titulaire qu'il remplace.
+ */
 function donnerPoste(d: AppData, poste: Poste, p: Person) {
   if (poste.titulaire === p.id && p.actif) return undefined;
+  const auto = rolesAutomatiques(d, p);
   const ancien = retirerPoste(d, poste);
   poste.titulaire = p.id;
   ajouterFonction(p, poste.nom);
-  if (!p.roles.includes(ADMIN_ROLE_ID)) {
+  if (auto) p.roles = rolesDeLaPlace(d, p);
+  else if (!p.roles.includes(ADMIN_ROLE_ID)) {
     const ben = roleBenevole(d.roles);
     const resp = roleResponsable(d.roles);
     if (resp && (!p.roles.length || p.roles.every((r) => r === ben))) p.roles = [resp];
@@ -668,6 +697,18 @@ export function appliquer(m: Monde, op: OpOrga): string {
     // Déjà supprimé (la place d'un poste à plusieurs s'en va avec son titulaire) : rien à faire.
     if (!po && op.type === 'supprimerPoste') return '';
     if (!po) throw new Error('Ce poste n’existe plus.');
+    if (op.type === 'rolePoste') {
+      const r = op.role ? A.d.roles.find((x) => x.id === op.role && x.id !== ADMIN_ROLE_ID) : undefined;
+      if (op.role && !r) throw new Error('Ce rôle n’existe pas dans l’entité.');
+      if ((po.role ?? null) === (r?.id ?? null)) return '';
+      // Son titulaire suit, si ses rôles sont ceux de sa place (pas ajustés à la main).
+      const t = po.titulaire ? A.d.people.find((x) => x.id === po.titulaire && x.actif) : undefined;
+      const auto = !!t && rolesAutomatiques(A.d, t);
+      if (r) po.role = r.id;
+      else delete po.role;
+      if (t && auto) t.roles = rolesDeLaPlace(A.d, t);
+      return `Poste « ${po.nom} » : rôle « ${r?.label ?? A.d.roles.find((x) => x.id === roleResponsable(A.d.roles))?.label ?? 'Membre'} »`;
+    }
     if (op.type === 'renommer') {
       const n = op.nom.trim();
       if (!n) throw new Error('Donne un nom au poste.');

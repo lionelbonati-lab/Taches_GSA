@@ -12,6 +12,7 @@ import type { ClubMembre, ColonnesMembres, FichesEntite, OrgUnit, Person } from 
 import { Initials, Modal } from '../components/ui';
 import { ImportCsv } from '../components/ImportCsv';
 import { AccessCell, CredentialsModal, type Shown } from '../components/Acces';
+import { RoleDeLaPlace } from '../components/Personnes';
 import { Icone } from '../components/icones';
 import { Deroulante } from '../components/Deroulante';
 import { IconeEntite, PastilleEntite } from '../components/IconesEntite';
@@ -576,6 +577,13 @@ function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnTyp
                 );
               })}
             </div>
+            {u.postes && (
+              <RoleDeLaPlace
+                d={{ roles, postes: u.postes }}
+                p={fiche}
+                onRevenir={busy ? undefined : (r) => void run(() => enregistrer(u, { ...fiche, roles: r }), `✅ « ${u.nom} » : rôle de sa place.`)}
+              />
+            )}
             <div className="row wrap">
               {cloud && (typeof a === 'string' ? <small className="error">Accès : {a}</small> : <AccessCell person={fiche} access={a ?? null} committeeId={u.id} soi={soi} onChange={() => chargerAcces(u.id)} onShow={setShown} />)}
               <span className="grow" />

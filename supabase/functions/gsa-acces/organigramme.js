@@ -9,13 +9,13 @@ var PERMISSIONS = [
   { id: "tasks.delete", label: "Supprimer des tâches", group: "Tâches", sectionScoped: true },
   { id: "tab.meetings", label: "Comité › Séances (liste des séances, excuses)", group: "Pages visibles" },
   { id: "tab.events", label: "Agenda › Événements", group: "Pages visibles" },
-  { id: "tab.people", label: "Organigramme : email et téléphone des personnes de l’entité (dans leur fiche)", group: "Pages visibles" },
+  { id: "tab.people", label: "Coordonnées (email, téléphone) des personnes du club", group: "Pages visibles" },
   { id: "tab.pv", label: "Comité › Ordre du jour", group: "Pages visibles" },
   { id: "tab.minutes", label: "Comité › PV (prise de notes, PV)", group: "Pages visibles" },
-  { id: "club.membres", label: "Membres du club (registre commun : coordonnées, IBAN, groupes)", group: "Pages visibles" },
+  { id: "club.membres", label: "Personnes du club : coordonnées, groupes, ajout et modification des personnes", group: "Pages visibles" },
   { id: "meetings.manage", label: "Gérer les séances de comité", group: "Gestion" },
   { id: "events.manage", label: "Gérer les événements", group: "Gestion" },
-  { id: "people.manage", label: "Gérer les personnes de l’entité (ajouter, modifier leur fiche)", group: "Gestion" },
+  { id: "people.manage", label: "Gérer les personnes du club (ajouter, modifier, retirer du club)", group: "Gestion" },
   { id: "polls.create", label: "Créer des sondages", group: "Gestion" },
   { id: "polls.manage", label: "Gérer tous les sondages (clôturer, supprimer)", group: "Gestion" },
   { id: "paiements.valider", label: "Paiements : peut viser (signer) les tickets, sur demande de la caisse", group: "Gestion" },
@@ -197,6 +197,18 @@ function entite(m, id) {
 }
 var tenus = (d, p) => (d.postes ?? []).filter((x) => x.titulaire === p.id);
 var reste = (d, p) => p.actif && (p.roles.includes(ADMIN_ROLE_ID) || tenus(d, p).length > 0);
+function rolesDeLaPlace(d, p) {
+  const valide = (id) => !!id && id !== ADMIN_ROLE_ID && d.roles.some((r) => r.id === id);
+  const membre = roleResponsable(d.roles);
+  const postes2 = [...new Set(tenus(d, p).map((x) => valide(x.role) ? x.role : membre).filter((x) => !!x))];
+  const etoile = p.roles.includes(ADMIN_ROLE_ID);
+  const base = postes2.length || etoile ? postes2 : [roleBenevole(d.roles) ?? defaultRoleId(d.roles)];
+  return etoile ? [ADMIN_ROLE_ID, ...base] : base;
+}
+function rolesAutomatiques(d, p) {
+  const auto = rolesDeLaPlace(d, p);
+  return !p.roles.length || p.roles.length === auto.length && p.roles.every((r) => auto.includes(r));
+}
 function fiche(d, q, parLien = false) {
   const p = ficheDe(d.people, q);
   if (p) {
@@ -248,16 +260,20 @@ function retirerEtoile(d, p) {
 }
 function retirerPoste(d, poste) {
   const p = poste.titulaire ? d.people.find((x) => x.id === poste.titulaire) : void 0;
+  const auto = !!p?.actif && rolesAutomatiques(d, p);
   poste.titulaire = void 0;
   if (p) enleverFonction(p, poste.nom);
+  if (p && auto) p.roles = rolesDeLaPlace(d, p);
   return p?.actif ? p : void 0;
 }
 function donnerPoste(d, poste, p) {
   if (poste.titulaire === p.id && p.actif) return void 0;
+  const auto = rolesAutomatiques(d, p);
   const ancien = retirerPoste(d, poste);
   poste.titulaire = p.id;
   ajouterFonction(p, poste.nom);
-  if (!p.roles.includes(ADMIN_ROLE_ID)) {
+  if (auto) p.roles = rolesDeLaPlace(d, p);
+  else if (!p.roles.includes(ADMIN_ROLE_ID)) {
     const ben = roleBenevole(d.roles);
     const resp = roleResponsable(d.roles);
     if (resp && (!p.roles.length || p.roles.every((r) => r === ben))) p.roles = [resp];
@@ -519,6 +535,17 @@ function appliquer(m, op) {
     const po = A.postes.find((x) => x.id === op.posteId);
     if (!po && op.type === "supprimerPoste") return "";
     if (!po) throw new Error("Ce poste n’existe plus.");
+    if (op.type === "rolePoste") {
+      const r = op.role ? A.d.roles.find((x) => x.id === op.role && x.id !== ADMIN_ROLE_ID) : void 0;
+      if (op.role && !r) throw new Error("Ce rôle n’existe pas dans l’entité.");
+      if ((po.role ?? null) === (r?.id ?? null)) return "";
+      const t2 = po.titulaire ? A.d.people.find((x) => x.id === po.titulaire && x.actif) : void 0;
+      const auto = !!t2 && rolesAutomatiques(A.d, t2);
+      if (r) po.role = r.id;
+      else delete po.role;
+      if (t2 && auto) t2.roles = rolesDeLaPlace(A.d, t2);
+      return `Poste « ${po.nom} » : rôle « ${r?.label ?? A.d.roles.find((x) => x.id === roleResponsable(A.d.roles))?.label ?? "Membre"} »`;
+    }
     if (op.type === "renommer") {
       const n = op.nom.trim();
       if (!n) throw new Error("Donne un nom au poste.");
@@ -701,6 +728,8 @@ function lireOp(x) {
       return { type: "supprimerPoste", uniteId: s(o.uniteId), posteId: s(o.posteId) };
     case "lier":
       return { type: "lier", uniteId: s(o.uniteId), posteId: s(o.posteId), lien: o.lien === null ? null : s(o.lien) };
+    case "rolePoste":
+      return { type: "rolePoste", uniteId: s(o.uniteId), posteId: s(o.posteId), role: o.role === null ? null : s(o.role) };
     case "placer": {
       const q = objet(o.qui);
       const couleur = texte(q.couleur, 7);

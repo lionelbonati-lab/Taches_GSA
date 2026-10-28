@@ -131,6 +131,8 @@ export function Aide() {
   if (chemin('/propositions')) geste('Proposer une idée pour l’appli, signaler un problème', vers('/propositions'), ' (menu du compte) : le comité central l’étudie et te répond sur la même page, dans « Mes propositions ».');
   const orga = club ? vers('/organigramme') : null;
   if (orga) geste('Voir qui fait quoi, et ses coordonnées', orga, ' : un clic sur une personne ouvre la fiche de la personne.');
+  if (orga && club?.units.some((u) => u.moiAdmin))
+    geste('Choisir le rôle que donne un poste', orga, ' : « Modifier l’organigramme », clic sur le nom du poste › « Rôle donné ». Son titulaire reçoit ce rôle (★ : Admin ; sans poste : bénévole), sauf si ses rôles ont été ajustés à la main sur sa fiche (« Revenir au rôle de sa place » les remet).');
   if (orga && can('people.manage')) geste('Ajouter une personne à l’entité', orga, ' : « Modifier l’organigramme », puis « + Ajouter une personne » en bas de la liste des postes de l’entité.');
   if (orga && club && club.units.length > 1)
     geste('Changer le comité dont dépend un groupe ou un événement', orga, ' : la roue dentée de sa fiche › « Dépend de » (comité central). Rien n’est déplacé ni copié : l’ancien comité garde les tâches d’avant (ses ordres du jour, PV et paiements aussi) ; le nouveau peut les consulter et en copier (« Anciennes tâches »). Les admins de l’entité peuvent lui retirer ce droit dans la même fiche (« Dépendances passées »). Revenir à l’ancien comité dans l’heure annule simplement le changement.');

@@ -7,7 +7,8 @@ import { accessAction, type AccessInfo } from '../data/cloud';
 import { emailKey, nomMembre } from '../data/membres';
 import { norm } from '../data/csv';
 import { defaultRoleId, directory, personKey, UNIT_TYPES } from '../data/units';
-import type { OrgMember, OrgUnit, Person, Unit } from '../data/types';
+import type { AppData, OrgMember, OrgUnit, Person, Unit } from '../data/types';
+import { rolesAutomatiques, rolesDeLaPlace } from '../data/organigramme';
 import { fullName, isDone, uid } from '../data/utils';
 import { Avatar, Initials, Modal } from './ui';
 import { AccessCell, CredentialsModal, type Shown } from './Acces';
@@ -267,6 +268,7 @@ function PersonModal({ person, central, access, accessErr, onAccessChange, onSho
             })}
           </div>
           {!admin && <small className="muted">Les rôles se changent par un admin de l’entité.</small>}
+          {!isNew && data.postes && <RoleDeLaPlace d={data} p={v} onRevenir={admin ? (roles) => set({ roles }) : undefined} />}
         </div>
       </div>
       {cloud && admin && !isNew && !reactiver && (
@@ -304,6 +306,26 @@ interface Candidat {
   info: string;
   /** Ses entités (annuaire), affichées avec leur icône. */
   postes?: { unit: Pick<Unit, 'type' | 'icone'>; texte: string }[];
+}
+
+/**
+ * Rôle donné par sa place dans l'organigramme (★, postes, bénévole ; PERSONNES_DU_CLUB.md) : rappelé sous ses rôles, ou
+ * « ajusté à la main », avec de quoi y revenir (`onRevenir`).
+ */
+export function RoleDeLaPlace({ d, p, onRevenir }: { d: Pick<AppData, 'postes' | 'roles'>; p: Person; onRevenir?: (roles: string[]) => void }) {
+  const attendus = rolesDeLaPlace(d, p);
+  const noms = attendus.map((id) => d.roles.find((r) => r.id === id)?.label).filter(Boolean).join(', ');
+  if (rolesAutomatiques(d, p)) return <small className="muted role-place">Rôle donné par sa place dans l’organigramme{noms ? ` : ${noms}` : ''}.</small>;
+  return (
+    <small className="muted role-place">
+      Rôles ajustés à la main (sa place donnerait : {noms || 'aucun'}).{' '}
+      {onRevenir && (
+        <button type="button" className="btn link small" onClick={() => onRevenir(attendus)}>
+          Revenir au rôle de sa place
+        </button>
+      )}
+    </small>
+  );
 }
 
 /** Ajouter une personne : quelqu'un du club (registre « Membres du club », sinon annuaire des entités) ou une nouvelle personne. */

@@ -178,6 +178,8 @@ export function lireOp(x: unknown): OpOrga {
       return { type: 'supprimerPoste', uniteId: s(o.uniteId), posteId: s(o.posteId) };
     case 'lier':
       return { type: 'lier', uniteId: s(o.uniteId), posteId: s(o.posteId), lien: o.lien === null ? null : s(o.lien) };
+    case 'rolePoste':
+      return { type: 'rolePoste', uniteId: s(o.uniteId), posteId: s(o.posteId), role: o.role === null ? null : s(o.role) };
     case 'placer': {
       const q = objet(o.qui);
       const couleur = texte(q.couleur, 7);

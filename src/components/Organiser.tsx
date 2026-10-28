@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react';
 import { useClub } from '../data/club';
+import { useStore } from '../data/store';
+import { ADMIN_ROLE_ID } from '../data/permissions';
 import { norm } from '../data/csv';
 import { emailKey } from '../data/membres';
 import { groupesLies } from '../data/liens';
-import { benevolesDe, et, fonctionsLibres, memeQui, nomDe, placesDu, zonesFiche, type Depuis, type LigneFiche, type OpOrga, type Qui, type Vers } from '../data/organigramme';
+import { benevolesDe, et, fonctionsLibres, memeQui, nomDe, placesDu, roleBenevole, roleResponsable, zonesFiche, type Depuis, type LigneFiche, type OpOrga, type Qui, type Vers } from '../data/organigramme';
 import { directory, UNIT_COLORS, UNIT_TYPES } from '../data/units';
 import { fmtRange, posteBesideName } from '../data/utils';
-import type { ClubMembre, OrgMember, OrgUnit, Poste } from '../data/types';
+import type { ClubMembre, OrgMember, OrgUnit, Poste, Role } from '../data/types';
 import { Initials, Modal, UnitMark } from './ui';
 import { Icone } from './icones';
 import { Deroulante } from './Deroulante';
@@ -766,7 +768,27 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
 }) {
   const [nom, setNom] = useState(poste.nom);
   const [lien, setLien] = useState(poste.lien ?? '');
+  const [role, setRole] = useState(poste.role ?? '');
   const [busy, setBusy] = useState(false);
+  // Rôle donné par le poste (PERSONNES_DU_CLUB.md) : les rôles de l'entité, sauf Admin (★) et celui d'un bénévole. Version
+  // réelle : avec la fonction « gsa-acces » à jour (étape 5).
+  const { cloud } = useStore();
+  const club = useClub();
+  const [roles, setRoles] = useState<Role[] | null>(null);
+  useEffect(() => {
+    if (cloud) return;
+    let vivant = true;
+    club
+      .fichesEntite(u.id)
+      .then((f) => vivant && setRoles(f.roles))
+      .catch(() => vivant && setRoles(null));
+    return () => {
+      vivant = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [u.id, cloud]);
+  const ben = roles ? roleBenevole(roles) : undefined;
+  const membre = roles?.find((r) => r.id === roleResponsable(roles));
   const places = placesDu(u.postes ?? [], poste);
   const tit = titulairesDu(u, poste);
   const vacantes = tit.length ? places.filter((x) => !tit.some((t) => t.posteId === x.id)) : [];
@@ -780,6 +802,7 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
     const ops: OpOrga[] = [];
     for (const x of places) if (nom.trim() && nom.trim() !== x.nom) ops.push({ type: 'renommer', uniteId: u.id, posteId: x.id, nom: nom.trim() });
     for (const x of places) if ((lien || null) !== (x.lien ?? null)) ops.push({ type: 'lier', uniteId: u.id, posteId: x.id, lien: lien || null });
+    for (const x of places) if ((role || null) !== (x.role ?? null)) ops.push({ type: 'rolePoste', uniteId: u.id, posteId: x.id, role: role || null });
     if (!ops.length) return onClose();
     void go(ops);
   };
@@ -824,6 +847,21 @@ export function PosteModal({ u, poste, units, faire, onPersonne, onClose }: {
             <span className="error">À pourvoir : glisse une personne sur la ligne du poste.</span>
           )}
         </div>
+        {roles && (
+          <label className="full">
+            Rôle donné
+            <Deroulante
+              aria-label="Rôle donné"
+              value={role}
+              onChange={setRole}
+              options={[
+                { value: '', label: `Celui d’un membre${membre ? ` (${membre.label})` : ''}` },
+                ...roles.filter((r) => r.id !== ADMIN_ROLE_ID && r.id !== ben).map((r) => ({ value: r.id, label: r.label, icone: <span className="statut-jeton" style={{ background: r.couleur }} /> })),
+              ]}
+            />
+            <small className="muted">Son titulaire reçoit ce rôle dans « {u.nom} » (ce qu’il y voit et y fait), sauf si ses rôles ont été ajustés à la main sur sa fiche.</small>
+          </label>
+        )}
         <label className="full">
           ⛓ Lié au ★ de
           <Deroulante value={lien} onChange={setLien} options={[{ value: '', label: '— Aucune entité —' }, ...autres.map((x) => ({ value: x.id, label: x.nom, icone: <PastilleEntite u={x} /> }))]} />

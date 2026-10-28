@@ -841,6 +841,8 @@ export interface Poste {
   titulaire?: string;
   /** Poste lié au ★ d'une autre entité (son identifiant) : son titulaire en est le ★, changer l'un change l'autre. */
   lien?: string;
+  /** Rôle (de l'entité) que le poste donne à son titulaire ; absent : celui d'un membre (« Membre », « Comité »…). */
+  role?: string;
 }
 
 /** Réglages communs de l'ordre du jour et du PV. */

@@ -640,6 +640,34 @@ test('personnes du club : la liste pour tout le monde, fiche en lecture ; retire
   expect(fiche2.actif).toBe(false);
 });
 
+test('organigramme : le rôle donné par un poste, ajustable sur la fiche de la personne', async ({ page }) => {
+  // Marc Lambert : postes Vice-président, Programme et Critérium du comité central, rôle « Comité » (celui de ses postes).
+  const rolesDe = (prenom: string) =>
+    page.evaluate((x) => (JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').people ?? []).find((p: { prenom: string }) => p.prenom === x)?.roles, prenom);
+  expect(await rolesDe('Marc')).toEqual(['comite']);
+  await allerA(page, '/organigramme');
+  await page.getByRole('button', { name: 'Modifier l’organigramme' }).click();
+  await page.locator('button.orgl-c1-nom-poste', { hasText: 'Programme' }).first().click();
+  const reglages = page.getByRole('dialog', { name: /Poste « Programme »/ });
+  await reglages.getByRole('combobox', { name: 'Rôle donné' }).click();
+  await page.getByRole('option', { name: 'Secrétaire' }).click();
+  await reglages.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(reglages).toHaveCount(0);
+  // Ses rôles suivent sa place : « Comité » (ses autres postes) et « Secrétaire » (Programme).
+  await expect.poll(async () => [...((await rolesDe('Marc')) ?? [])].sort()).toEqual(['comite', 'secretaire']);
+  // Sa fiche le dit ; ajustés à la main, ses rôles ne suivent plus, et « Revenir au rôle de sa place » les remet.
+  await allerA(page, '/membres-club');
+  await page.locator('.membres-table tr', { hasText: 'Lambert' }).first().click();
+  const fiche = page.getByRole('dialog', { name: /Marc Lambert/ });
+  const central = fiche.locator('.acces-ligne', { hasText: 'Comité central' });
+  await expect(central.locator('.role-place')).toContainText('Rôle donné par sa place dans l’organigramme : Comité, Secrétaire');
+  await central.getByRole('button', { name: 'Caissier' }).click();
+  await expect(central.locator('.role-place')).toContainText('Rôles ajustés à la main');
+  await central.getByRole('button', { name: 'Revenir au rôle de sa place' }).click();
+  await expect(central.locator('.role-place')).toContainText('Rôle donné par sa place');
+  await expect.poll(async () => [...((await rolesDe('Marc')) ?? [])].sort()).toEqual(['comite', 'secretaire']);
+});
+
 test('vue « moi » : les événements de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();

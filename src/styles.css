@@ -1610,6 +1610,8 @@ body.glisse-en-cours, body.glisse-en-cours * { cursor: grabbing !important; user
 .externe-registre h3, .externe-registre + .form h3 { margin: 12px 0 0; font-size: 1rem; }
 .externe-registre .login-list { max-height: 240px; overflow-y: auto; margin: 10px 0; }
 .externe-registre .login-user { text-align: left; }
+/* Fiche d'une personne : le rôle que lui donne sa place dans l'organigramme. */
+.role-place { display: block; margin-top: 6px; }
 
 .field-label { display: block; font-size: 0.85rem; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
 .swatches { display: flex; gap: 8px; flex-wrap: wrap; }
