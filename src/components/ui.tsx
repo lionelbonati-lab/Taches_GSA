@@ -55,7 +55,8 @@ export function UnitMark({ logo, couleur, icone, perso, className }: { logo?: st
 }
 
 export function StatusBadge({ task }: { task: Task }) {
-  const { data } = useStore();
+  // Vue « moi » : une tâche de l'une de mes autres entités garde son statut de chez elle.
+  const { dataMoi: data } = useStore();
   const s = data.statuses.find((x) => x.id === task.statusId);
   return (
     <span className="badges">

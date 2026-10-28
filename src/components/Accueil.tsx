@@ -53,7 +53,7 @@ export function useBlocsAccueil(): Element[] {
   return l.filter((b) => b.si).map(({ id, icone, label }) => ({ id, icone, label }));
 }
 
-/** Compteurs : un par statut de l'entité, puis « En retard ». */
+/** Compteurs : un par statut de mes entités (vue « moi » : statutsReunis), puis « En retard ». */
 export const compteursAccueil = (statuses: Status[]): Element[] => [
   ...statuses.map((s) => ({ id: s.id, label: s.label, couleur: s.couleur })),
   { id: 'retard', label: 'En retard', couleur: 'var(--late)' },
@@ -88,13 +88,13 @@ export function useMasqueAccueil(): Required<NonNullable<Prefs['accueilMasque']>
 
 /** Ce que la personne voit sur son accueil, sur cet appareil, dans son ordre. */
 export function useAccueil() {
-  const { prefs, data } = useStore();
+  const { prefs, dataMoi } = useStore();
   const tel = useTelephone();
   const blocs = useBlocsAccueil();
   const appareil: Appareil = tel ? 'telephone' : 'ordinateur';
   const masques = useMasqueAccueil()[appareil];
   const cMasques = prefs.compteursMasque?.[appareil] ?? [];
-  const compteurs = compteursAccueil(data.statuses);
+  const compteurs = compteursAccueil(dataMoi.statuses);
   return {
     appareil,
     blocs: ordonner(blocs.map((b) => b.id), prefs.accueilOrdre).filter((id) => !masques.includes(id)),
@@ -170,7 +170,7 @@ function Rangement({ titre, elements, masque, ordre, appareil, setMasque, setOrd
 
 /** Choix et ordre des blocs et des compteurs de l'accueil ; affichage séparé sur téléphone et sur ordinateur. */
 export function AccueilModal({ onClose }: { onClose: () => void }) {
-  const { prefs, data, can } = useStore();
+  const { prefs, dataMoi, can } = useStore();
   const setPrefs = useSetPrefsPartout();
   const blocs = useBlocsAccueil();
   const masque = useMasqueAccueil();
@@ -192,7 +192,7 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
       />
       <Rangement
         titre="Compteurs"
-        elements={compteursAccueil(data.statuses)}
+        elements={compteursAccueil(dataMoi.statuses)}
         masque={prefs.compteursMasque}
         ordre={prefs.compteursOrdre}
         appareil={appareil}

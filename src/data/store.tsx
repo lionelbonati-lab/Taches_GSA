@@ -354,9 +354,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         setToast('⚠️ Cette tâche n’est plus visible dans son entité.');
         return;
       }
-      return x.e.store.saveTask(modifDepuisIci(x.orig, avant, t, data.statuses, x.e.store.dataLocale.statuses), false);
+      return x.e.store.saveTask(modifDepuisIci(x.orig, avant, t, dataMoi.statuses, x.e.store.dataLocale.statuses), false);
     },
-    [chezElle, dataMoi.tasks, data.statuses],
+    [chezElle, dataMoi.tasks, dataMoi.statuses],
   );
 
   const saveTask = useCallback(

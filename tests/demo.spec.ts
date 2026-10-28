@@ -280,8 +280,8 @@ test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées
   const ligne = page.locator('main tr', { hasText: 'Louer les tables' });
   await expect(ligne.locator('.tsource')).toHaveText('Soirée récréative');
   await page.getByRole('button', { name: /^Filtres/ }).click();
-  await page.getByLabel('Entité').selectOption({ label: 'Comité central' });
-  await expect(ligne).toHaveCount(0);
+  // Le comité central de la démo n'a pas de tâches : il n'est pas proposé (le filtre ne mène jamais à une liste vide).
+  await expect(page.getByLabel('Entité').locator('option')).toHaveText(['Toutes entités', 'Soirée récréative']);
   await page.getByLabel('Entité').selectOption({ label: 'Soirée récréative' });
   await expect(ligne).toHaveCount(1);
 
@@ -1313,4 +1313,63 @@ test('accueil du comité central : pas de cartes « Prochaine édition » en hau
   await ligne.check();
   await page.getByRole('button', { name: 'Fermer', exact: true }).last().click();
   await expect(page.locator('.panel.edition').first()).toBeVisible();
+});
+
+test('vue « moi » : chaque tâche garde le statut de son entité (accueil, liste, filtre), même ouverte sur une autre', async ({ page }) => {
+  // Le comité central a un statut à lui, « Envoyé » ; la Soirée récréative ne l'a pas.
+  await allerA(page, '/admin/taches');
+  const nouveau = page.getByPlaceholder('Nouveau statut (ex. En attente)');
+  await nouveau.fill('Envoyé');
+  await page.locator('.row', { has: nouveau }).getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await expect(page.getByLabel('Nom du statut Envoyé')).toBeVisible();
+  await allerA(page, '/taches');
+  const fiche = await nouvelleTache(page, 'Poster les invitations');
+  await fiche.getByRole('combobox', { name: 'Statut' }).click();
+  await page.getByRole('option', { name: 'Envoyé' }).click();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // L'appli rouverte sur la Soirée : la tâche du comité central reste « Envoyé », sur l'accueil comme dans la liste.
+  await ouvrirEntite(page, 'Soirée récréative');
+  await allerA(page, '/');
+  await expect(page.locator('.stat', { hasText: 'Envoyé' }).locator('b')).toHaveText('1');
+  await allerA(page, '/taches');
+  const ligne = page.locator('main tr', { hasText: 'Poster les invitations' });
+  await expect(ligne.locator('.badge').first()).toHaveText('Envoyé');
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  await page.locator('.filters select', { has: page.locator('option', { hasText: 'Tous statuts' }) }).selectOption({ label: 'Envoyé' });
+  await expect(ligne).toHaveCount(1);
+  await expect(page.locator('main tbody tr')).toHaveCount(1);
+  // Ouverte, dans son entité : le même statut.
+  await ligne.getByText('Poster les invitations').click();
+  await expect(page.locator('.modal').first().getByRole('combobox', { name: 'Statut' })).toHaveText('Envoyé');
+});
+
+test('tâches : les filtres « Entité » et « Événement » ne proposent que des choix qui ont des tâches', async ({ page }) => {
+  // Une tâche de la Soirée récréative (événement qui dépend du comité central), vue depuis le comité central.
+  await ouvrirEntite(page, 'Soirée récréative');
+  await allerA(page, '/taches');
+  const fiche = await nouvelleTache(page, 'Louer la sono');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await ouvrirEntite(page, 'Comité central');
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  await page.getByLabel('Entité').selectOption({ label: 'Soirée récréative' });
+  // Événement : seulement ceux qui ont des tâches de la Soirée.
+  const evenement = page.getByLabel('Événement');
+  const choix = async () => ((await evenement.evaluate((e) => e.tagName)) === 'SELECT' ? evenement.locator('option').allTextContents() : (await evenement.click(), page.getByRole('option').allTextContents()));
+  const proposes = await choix();
+  expect(proposes.map((x) => x.trim())).toEqual(['Tous événements', 'Soirée récréative']);
+  if ((await evenement.evaluate((e) => e.tagName)) === 'SELECT') await evenement.selectOption({ label: 'Soirée récréative' });
+  else await page.getByRole('option', { name: 'Soirée récréative' }).click();
+  await expect(page.locator('main tr', { hasText: 'Louer la sono' })).toHaveCount(1);
+  // Entité : celles qui ont des tâches de cet événement ; aucune combinaison vide.
+  const entites = (await page.getByLabel('Entité').locator('option').allTextContents()).filter((x) => x !== 'Toutes entités');
+  expect(entites).toContain('Soirée récréative');
+  for (const nom of entites) {
+    await page.getByLabel('Entité').selectOption({ label: nom });
+    expect(await page.locator('main tbody tr').count()).toBeGreaterThan(0);
+  }
 });

@@ -321,7 +321,8 @@ export function Dashboard() {
               const done = tasks.filter((x) => isDone(x.d, x.t)).length;
               const x = u ? { date: u.date!, dateFin: u.dateFin } : e!;
               const quand = x.date <= jour ? 'en cours' : `dans ${daysUntil(x.date)} j`;
-              const lien = u ? `/taches?event=${encodeURIComponent(`u:${u.id}`)}` : `/taches?event=${encodeURIComponent(e!.id)}${plusieurs && ent.u ? `&entite=${encodeURIComponent(ent.u.id)}` : ''}`;
+              // Événement de l'agenda de l'une de mes autres entités : « x:<entité>:<id> » (filtre « Événement » des tâches).
+              const lien = `/taches?event=${encodeURIComponent(u ? `u:${u.id}` : !ent.ici && ent.u ? `x:${ent.u.id}:${e!.id}` : e!.id)}`;
               return (
                 <Link key={u ? `u:${u.id}` : `${ent.u?.id ?? ''}:${e!.id}`} to={lien} className="panel link-panel">
                   <strong>

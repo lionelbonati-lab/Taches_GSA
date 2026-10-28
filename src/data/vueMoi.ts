@@ -1,4 +1,4 @@
-import { avecPartagees, idPartagee, statutCorrespondant } from './partage';
+import { avecPartagees, idPartagee, memeStatut, statutCorrespondant } from './partage';
 import type { AppData, OrgUnit, Status, TachePartagee, Task, UnitType } from './types';
 
 // Vue « moi » : les tâches de toutes mes entités au même endroit. Celles de mes autres entités (ouvertes en arrière-plan,
@@ -18,12 +18,37 @@ export interface AutreEntite {
 const avecMoi = (ids: string[] | undefined, moi: string) => (ids?.includes(moi) ? ids : [...(ids ?? []), moi]);
 
 /**
+ * Statuts de toutes mes entités réunis (accueil, tâches, calendrier) : ceux de l'entité ouverte, puis ceux de mes autres
+ * entités qui n'y sont pas (même nom et même « terminé » : un seul), chacun après celui qui le précède chez lui. Un
+ * identifiant déjà pris par un autre statut devient « <entité>:<id> ».
+ */
+export function statutsReunis(ici: Status[], autres: { id: string; statuses: Status[] }[]): Status[] {
+  const r = [...ici];
+  for (const e of autres)
+    e.statuses.forEach((s, i) => {
+      if (r.some((x) => memeStatut(x, s))) return;
+      const avant = e.statuses.slice(0, i).reverse().find((y) => r.some((x) => memeStatut(x, y)));
+      const pos = avant ? r.findIndex((x) => memeStatut(x, avant)) + 1 : 0;
+      r.splice(pos, 0, { ...s, id: r.some((x) => x.id === s.id) ? `${e.id}:${s.id}` : s.id });
+    });
+  return r;
+}
+
+/** Statuts qu'une tâche de la vue « moi » peut prendre : ceux de son entité (`ici` : ceux de l'entité ouverte). */
+export function statutsDe(statuses: Status[], ici: Status[], t: Task): Status[] {
+  const ids = t.source?.statuts ?? ici.map((s) => s.id);
+  return statuses.filter((s) => ids.includes(s.id));
+}
+
+/**
  * Données de l'entité ouverte (`moi`, ma fiche `user`) avec les tâches que je vois dans mes autres entités (sauf celles
  * déjà partagées avec elle), tickets de paiement compris (ceux que j'y vois : caisse, demande, visa), qui s'ouvrent chez
  * elles. Ma fiche chez elles est remplacée par celle d'ici (pour info, à prendre, « ✓ Vu », demande d'un ticket) ; les
- * responsables, eux, le sont déjà (même personne).
+ * responsables, eux, le sont déjà (même personne). Statuts : ceux de toutes ces entités (statutsReunis) ; chaque tâche
+ * garde le sien, tel que dans son entité (`source.statuts` : ceux qu'elle peut prendre).
  */
 export function avecMesEntites(vue: AppData, autres: AutreEntite[], moi: string, units: OrgUnit[], user?: string): AppData {
+  const statuses = statutsReunis(vue.statuses, autres.map((e) => ({ id: e.id, statuses: e.data.statuses })));
   const deja = new Set(vue.tasks.map((t) => t.id));
   const liste: TachePartagee[] = [];
   const fiches: (string | undefined)[] = [];
@@ -35,16 +60,18 @@ export function avecMesEntites(vue: AppData, autres: AutreEntite[], moi: string,
       fiches.push(e.fiche);
     }
   }
-  if (!liste.length) return vue;
-  const avec = avecPartagees(vue, liste, moi, units);
+  if (!liste.length) return { ...vue, statuses };
+  const avec = avecPartagees({ ...vue, statuses }, liste, moi, units);
   const n = vue.tasks.length;
+  const statutsEntite = new Map(autres.map((e) => [e.id, e.data.statuses.map((s) => statuses.find((x) => memeStatut(x, s))!.id)]));
   return {
     ...avec,
     tasks: avec.tasks.map((t, i) => {
       if (i < n || !t.source) return t;
       const orig = liste[i - n].task;
       const fiche = fiches[i - n];
-      const x: Task = { ...t, source: { ...t.source, chezMoi: true } };
+      // Son événement (filtre « Événement ») : celui de l'agenda de son entité, ou une entité événement liée.
+      const x: Task = { ...t, evenementEntite: orig.evenementEntite, source: { ...t.source, chezMoi: true, statuts: statutsEntite.get(t.source.uniteId), eventId: orig.eventId } };
       // Ticket : le même circuit (caisse → visa → virement), affiché ici et traité chez lui.
       if (orig.paiement) x.paiement = fiche && user && orig.paiement.demandePar === fiche ? { ...orig.paiement, demandePar: user } : orig.paiement;
       if (!fiche || !user) return x;

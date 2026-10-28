@@ -178,8 +178,11 @@ export function libellePlace(sections: SectionLue[], u: { nom: string; type: Uni
 /** Statut correspondant dans une autre entité : même nom, sinon même état (terminé ou non). */
 export function statutCorrespondant<S extends Pick<Status, 'id' | 'label' | 'done'>>(list: S[], s?: Pick<Status, 'label' | 'done'>): S | undefined {
   if (!s) return undefined;
-  return list.find((x) => norm(x.label) === norm(s.label) && x.done === s.done) ?? list.find((x) => x.done === s.done);
+  return list.find((x) => memeStatut(x, s)) ?? list.find((x) => x.done === s.done);
 }
+
+/** Même statut dans deux entités : même nom (sans accents ni majuscules) et terminé ou non pareil. */
+export const memeStatut = (a: Pick<Status, 'label' | 'done'>, b: Pick<Status, 'label' | 'done'>) => norm(a.label) === norm(b.label) && a.done === b.done;
 
 /** Même personne dans deux entités : même fiche du registre « Membres du club », ou même adresse email. */
 export const memePersonne = (a: { membreId?: string; email: string }, b: { membreId?: string; email: string }) =>

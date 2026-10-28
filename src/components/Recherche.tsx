@@ -92,7 +92,7 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
         ? rechercherPartout(
             q,
             {
-              data: { ...data, tasks: dataMoi.tasks },
+              data: { ...data, tasks: dataMoi.tasks, statuses: dataMoi.statuses },
               moi: user,
               peutVoirTache: canSeeTask,
               sondages: sondagesMoi.map(({ p, ent }) => (ent.ici || !ent.u ? p : { ...p, id: idPartagee(ent.u.id, p.id) })),
@@ -124,7 +124,7 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
           )
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q, data, dataMoi.tasks, user, can, canSeeTask, club?.current, club?.mine, mes, sondagesMoi],
+    [q, data, dataMoi.tasks, dataMoi.statuses, user, can, canSeeTask, club?.current, club?.mine, mes, sondagesMoi],
   );
   const termes = useMemo(() => termesDe(q), [q]);
   // Groupes dans l'ordre fixe ; les premiers résultats de chacun, le reste sur demande.

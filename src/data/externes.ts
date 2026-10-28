@@ -26,10 +26,11 @@ export const evenementsDependants = (units: OrgUnit[], moi: OrgUnit) => entitesD
 
 /**
  * Tâche qui concerne l'événement `uniteId` (qui dépend du comité ouvert) : partagée par lui, ou du comité liée à lui ou
- * partagée avec lui (attribuée à lui : section des événements › l'événement).
+ * partagée avec lui (attribuée à lui : section des événements › l'événement). Vue « moi » : aussi une tâche de l'une de
+ * mes autres entités liée à lui ou partagée avec lui.
  */
 export const tacheDeLEvenement = (t: Task, uniteId: string) =>
-  t.source?.uniteId === uniteId || (!t.source && (t.evenementEntite?.uniteId === uniteId || !!t.partage?.includes(uniteId)));
+  t.source?.uniteId === uniteId || ((!t.source || !!t.source.chezMoi) && (t.evenementEntite?.uniteId === uniteId || !!t.partage?.includes(uniteId)));
 
 /**
  * Tâche du comité attribuée à une entité qui dépend de lui, depuis sa sous-section : la tâche lui est partagée et
