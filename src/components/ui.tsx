@@ -103,8 +103,12 @@ export function Empty({ children }: { children: ReactNode }) {
 export function RecurIcon({ task }: { task: Task }) {
   const club = useClubOptional();
   const avec = partageDe(task, club?.central?.id).map((id) => club?.units.find((u) => u.id === id)?.nom).filter(Boolean);
-  const partage = task.source
+  // Tâche de l'une de mes entités (vue « moi », vue du club) : partagée si elle l'est chez elle ; d'une autre entité :
+  // partagée avec l'entité ouverte, ou (vue du club) avec l'une des miennes (`via`).
+  const via = task.source?.via && club?.units.find((u) => u.id === task.source!.via)?.nom;
+  const partage = task.source && !task.source.chezMoi
     ? `Tâche de ${task.source.unite}, partagée avec cette entité`
+    : via ? `Tâche de ${task.source!.unite}, partagée avec ${via}`
     : avec.length ? `Partagée avec ${avec.join(', ')}` : task.partage?.length || task.auCentral ? 'Partagée avec d’autres entités' : '';
   return (
     <>
@@ -200,7 +204,7 @@ export function OrigineTag({ task }: { task: Task }) {
  * personnes et entités : combien l'ont vue sur combien (noms au survol ; personnes attendues, 052, si la page les a lues).
  */
 export function PourInfoTag({ task }: { task: Task }) {
-  const { data, user } = useStore();
+  const { data, user, versClub } = useStore();
   const club = useClubOptional();
   const n = nbPourInfo(task.pourInfo);
   if (!n || task.paiement) return null;
@@ -210,7 +214,7 @@ export function PourInfoTag({ task }: { task: Task }) {
       return <span className="badge pour-info revoir" title={`Elle a changé depuis ton « ✓ Vu » · pour info : ${noms}`}>✏️ À revoir</span>;
     return <span className="badge pour-info" title={`On te tient au courant, sans que tu t'en occupes · pour info : ${noms}`}><Icone n="voir" /> Pour info</span>;
   }
-  const b = bilanVu(task, club ? attendusLus(task, club.current.id) : undefined);
+  const b = bilanVu(task, club ? attendusLus(task, club.current.id, versClub) : undefined);
   const vu = texteVu(b);
   return (
     <span className="badge pour-info" title={`Pour info : ${noms}${vu ? ` · ${vu}` : ''}`}>

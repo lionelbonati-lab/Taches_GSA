@@ -29,34 +29,34 @@ export async function allerA(page: Page, chemin: string) {
   await page.evaluate((h) => { location.hash = h; }, `#${chemin}`);
 }
 
-/** Entités de la démo. */
-const ENTITES: Record<string, string> = { 'Comité central': 'u-central', 'Soirée récréative': 'u-soiree' };
+/**
+ * Session du club (PLAN_CLUB_SANS_ENTITE.md, étape 1) : l'appli ne s'appuie sur aucune entité. Ni entité de base
+ * retenue, ni attribut data-entite ; l'en-tête est celui du club.
+ */
+export async function verifierSansEntite(page: Page) {
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  await expect(page.locator('[data-entite]')).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('taches-gsa-demo-unite'))).toBeNull();
+}
 
 /**
- * L'entité ouverte est toujours `nom` (rien n'a changé d'entité). Vue « moi » : elle ne se choisit plus dans l'appli
- * (son logo et sa couleur seulement) ; l'appli la donne dans l'attribut data-entite.
+ * Nouvelle tâche ouverte depuis le bouton « + », titre et section remplis (pas encore enregistrée) ; `entite` : créée
+ * dans celle-ci (choisie dans la fenêtre), sinon dans celle proposée.
  */
-export async function verifierEntite(page: Page, nom: string) {
-  await expect(page.locator('.topbar .brand')).toBeVisible();
-  await expect(page.locator('.app')).toHaveAttribute('data-entite', ENTITES[nom]);
-}
-
-/** L'appli rouverte dans l'une de mes entités (celle de la connexion, comme après un lien reçu vers elle). */
-export async function ouvrirEntite(page: Page, nom: string) {
-  await expect(page.locator('.topbar .brand')).toBeVisible();
-  if ((await page.locator('.app').getAttribute('data-entite')) === ENTITES[nom]) return;
-  await page.evaluate((id) => localStorage.setItem('taches-gsa-demo-unite', id), ENTITES[nom]);
-  await page.reload();
-  await verifierEntite(page, nom);
-}
-
-/** Nouvelle tâche ouverte depuis le bouton « + », titre et section remplis (pas encore enregistrée). */
-export async function nouvelleTache(page: Page, titre: string) {
+export async function nouvelleTache(page: Page, titre: string, entite?: string) {
   await page.locator('.fab').click();
   await page.locator('.fab-menu button', { hasText: 'Nouvelle tâche' }).click();
   const fiche = page.locator('.modal').first();
   await expect(fiche).toBeVisible();
   await page.getByPlaceholder('Que faut-il faire ?').fill(titre);
+  if (entite) {
+    const choix = fiche.getByRole('combobox', { name: 'Entité' });
+    if (!(await choix.textContent())?.includes(entite)) {
+      await choix.click();
+      await page.getByRole('option', { name: new RegExp(entite) }).click();
+    }
+    await expect(choix).toHaveText(new RegExp(entite));
+  }
   await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ index: 1 });
   return fiche;
 }

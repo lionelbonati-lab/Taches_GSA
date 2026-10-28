@@ -6,6 +6,7 @@ import { useClubOptional } from '../data/club';
 import { applyDelaiRef, newTask } from '../data/utils';
 import { versProchaineSeance } from '../data/seances';
 import type { AppData, OrgUnit, Task } from '../data/types';
+import { estPartagee, idPartagee } from '../data/partage';
 
 // Fenêtre d'une tâche, chargée à la demande (préchargée juste après l'ouverture de l'appli, voir App.tsx).
 export const chargerFicheTache = () => import('./TaskModal');
@@ -14,12 +15,13 @@ const Fiche = lazy(() => chargerFicheTache().then((m) => ({ default: m.TaskModal
 /** `choixEntite` : nouvelle tâche, à créer dans l'entité ouverte ou dans l'une de mes autres entités (vue « moi »). */
 export function TaskModal(props: TaskModalProps & { choixEntite?: boolean }) {
   const { choixEntite, ...p } = props;
-  // Vue « moi » : tâche de l'une de mes autres entités, ouverte dans la sienne (ses personnes, ses statuts, ses droits).
+  // Vue « moi » : tâche de l'une de mes autres entités, ouverte dans la sienne (ses personnes, ses statuts, ses droits) ;
+  // vue du club, partagée par une autre entité avec l'une des miennes (`via`) : ouverte dans celle-ci, partagée.
   const src = p.task.source;
   if (src?.chezMoi) {
     return (
-      <DansEntite id={src.uniteId}>
-        <FicheChezElle {...p} id={src.id} />
+      <DansEntite id={src.via ?? src.uniteId}>
+        <FicheChezElle {...p} id={src.via ? idPartagee(src.uniteId, src.id) : src.id} />
       </DansEntite>
     );
   }
@@ -31,10 +33,10 @@ export function TaskModal(props: TaskModalProps & { choixEntite?: boolean }) {
   );
 }
 
-/** La tâche telle qu'enregistrée dans son entité (fermée si elle n'y est plus). */
+/** La tâche telle qu'enregistrée dans son entité, ou telle que partagée avec elle (fermée si elle n'y est plus). */
 function FicheChezElle({ id, ...props }: TaskModalProps & { id: string }) {
-  const { dataLocale } = useStore();
-  const task = dataLocale.tasks.find((t) => t.id === id);
+  const { data, dataLocale } = useStore();
+  const task = (estPartagee(id) ? data : dataLocale).tasks.find((t) => t.id === id);
   if (!task) return null;
   return (
     <Suspense fallback={null}>

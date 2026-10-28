@@ -43,7 +43,7 @@ export function useRecus(club: Club | null) {
     if (!c) return;
     const n = ++lecture.current;
     c.tachesPartagees()
-      .then((l) => n === lecture.current && setPartagees(c.arrierePlan ? l.filter((x) => avecEntite(x, c)) : l))
+      .then((l) => n === lecture.current && setPartagees(c.arrierePlan && !c.aEgalite ? l.filter((x) => avecEntite(x, c)) : l))
       .catch(() => {});
     const i = ++lecturePourInfo.current;
     c.tachesPourInfo()
@@ -76,8 +76,8 @@ export function useRecus(club: Club | null) {
         .catch(() => {});
     }
   }, []);
-  // Entité en arrière-plan (vue « moi ») : toutes les 5 minutes seulement.
-  const arriere = !!club?.arrierePlan;
+  // Entité en arrière-plan (vue « moi ») : toutes les 5 minutes seulement ; à égalité (vue du club) : comme l'entité ouverte.
+  const arriere = !!club?.arrierePlan && !club.aEgalite;
   useEffect(() => {
     chargerPartagees();
     const timer = setInterval(chargerPartagees, arriere ? 300_000 : 60_000);

@@ -134,4 +134,6 @@ export interface Store {
   reset: () => void;
   /** Remplace toutes les données par celles d'une sauvegarde (mise à niveau du format comprise). */
   restore: (d: AppData, label: string) => void;
+  /** Vue du club (storeClub.tsx) : la personne du club d'une place (fiche `fiche` de l'entité `uniteId`). */
+  versClub?: (uniteId: string, fiche: string) => string;
 }

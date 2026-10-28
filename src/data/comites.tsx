@@ -45,8 +45,9 @@ export function useComitesEtat(): Comites {
   const autres = useAutres(!club?.arrierePlan);
   const ici = club?.current;
   const [choix, setChoix] = useState<string | null>(null);
+  // Vue du club : aucune entité ouverte, toutes en arrière-plan.
   const tous = [
-    ...(ici && store?.user ? [{ u: ici, can: store.can }] : []),
+    ...(ici && store?.user && !club?.vueClub ? [{ u: ici, can: store.can }] : []),
     ...autres.filter((e) => e.store.user).map((e) => ({ u: e.club.current, can: e.store.can })),
   ];
   const avec = (p: Permission) => tous.filter((x) => x.can(p));

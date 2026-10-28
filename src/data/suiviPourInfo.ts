@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useState } from 'react';
 import { useClubOptional } from './club';
 import { cleVue, type Attendus } from './pourInfo';
+import { StoreCtx } from './storeCtx';
 import type { Task } from './types';
 
 // Suivi des « Pour info » (052) : les personnes attendues des tâches (avec un compte ; entités : qui les reçoit), lues sur le
@@ -19,11 +20,19 @@ const uniteDe = (t: Task, ici: string) => t.source?.uniteId ?? ici;
 const idDe = (t: Task) => t.source?.id ?? t.id;
 const cle = (t: Task, ici: string) => `${uniteDe(t, ici)}|${idDe(t)}|${t.updatedAt}`;
 
-/** Personnes attendues déjà lues pour la tâche, vues de l'entité ouverte `ici` ; undefined : pas (encore) connues. */
-export function attendusLus(t: Task, ici: string): Attendus | undefined {
+/**
+ * Personnes attendues déjà lues pour la tâche, vues de l'entité ouverte `ici` ; undefined : pas (encore) connues. Vue du
+ * club (`versClub`) : les personnes sous leur identifiant au club (comme ses « ✓ Vu », vueClub.ts).
+ */
+export function attendusLus(t: Task, ici: string, versClub?: (uniteId: string, fiche: string) => string): Attendus | undefined {
   const c = lus.get(cle(t, ici));
   if (!c) return undefined;
   const src = t.source?.uniteId;
+  if (src && versClub)
+    return [...new Set(c.attendus.map((k) => {
+      const [g, a, b] = k.split(':');
+      return g === 'p' ? `p:${versClub(src, a)}` : g === 'a' ? `p:${versClub(a, b)}` : k;
+    }))];
   return src ? c.attendus.map((k) => cleVue(k, src, ici)).filter((k): k is string => !!k) : c.attendus;
 }
 
@@ -33,6 +42,7 @@ export function attendusLus(t: Task, ici: string): Attendus | undefined {
  */
 export function useSuiviPourInfo(taches: Task[]): Record<string, Attendus> {
   const club = useClubOptional();
+  const versClub = useContext(StoreCtx)?.versClub;
   const ici = club?.current.id ?? '';
   const avec = taches.filter((t) => t.pourInfo && !t.paiement);
   const signature = avec.map((t) => cle(t, ici)).join(',');
@@ -69,10 +79,10 @@ export function useSuiviPourInfo(taches: Task[]): Record<string, Attendus> {
   return useMemo(() => {
     const out: Record<string, Attendus> = {};
     for (const t of avec) {
-      const a = attendusLus(t, ici);
+      const a = attendusLus(t, ici, versClub);
       if (a) out[t.id] = a;
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `avec` suit `signature`
-  }, [signature, ici, tour]);
+  }, [signature, ici, tour, versClub]);
 }

@@ -23,6 +23,7 @@ import { StoreCtx } from './storeCtx';
 import { Publier, useAutres, useRegistre } from './entites';
 import { avecMesEntites, modifDepuisIci, tacheAilleurs } from './vueMoi';
 import { fileIds } from './backup';
+import { DEFAULT_PREFS, useSessionOptional } from './session';
 
 export type { CloudMode, DemoMode } from './storeTypes';
 
@@ -30,8 +31,6 @@ export type { CloudMode, DemoMode } from './storeTypes';
 // Version réelle : mêmes données, synchronisées avec le serveur par CloudSync (voir cloud.ts).
 const KEY = 'taches-gsa-demo-v7';
 const USER_KEY = 'taches-gsa-user';
-
-const DEFAULT_PREFS: Prefs = { theme: 'auto', vueDefaut: 'mes', affichage: 'tableau' };
 
 /** Tâches et sondages partagés par d'autres entités, sections ajoutées pour eux : affichés, jamais enregistrés ici. */
 function sansPartagees(d: AppData) {
@@ -106,6 +105,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const club = useClubOptional();
   const clubRef = useRef(club);
   clubRef.current = club;
+  // Session du club (démo, étape 1) : réglages et lectures de la personne au club, une seule fois (session.tsx).
+  const session = useSessionOptional();
 
   // Version réelle, organigramme à glisser-déposer : personnes modifiées ici (fiche, console admin, import) → une fois
   // enregistrées, le serveur fait suivre les postes de l'entité et les postes liés (comme la démo, data/organigramme).
@@ -144,10 +145,17 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const myRoles = useMemo(() => userRoles(data.roles, user), [data.roles, user]);
   // Tâches partagées par d'autres entités : ajoutées aux données affichées (jamais enregistrées dans l'entité).
   const units = club?.units;
+  // Session du club : mes réglages et mes notifications vues, ceux du club (pages affichées chez elle, sa cloche).
+  const persoIci = useMemo(
+    () => (session && user && moi ? { prefs: session.prefs, lues: session.notifLues(moi) } : null),
+    [session, user, moi],
+  );
   const view = useMemo(() => {
     const avec = moi && units && partagees.length ? avecPartagees(data, partagees, moi, units) : data;
-    return moi && units ? avecSondages(avec, sondagesRecus, moi, units, user?.id ?? null) : avec;
-  }, [data, partagees, moi, units, sondagesRecus, user?.id]);
+    const v = moi && units ? avecSondages(avec, sondagesRecus, moi, units, user?.id ?? null) : avec;
+    if (!persoIci || !user) return v;
+    return { ...v, prefs: { ...v.prefs, [user.id]: persoIci.prefs }, notifLues: { ...v.notifLues, [user.id]: persoIci.lues } };
+  }, [data, partagees, moi, units, sondagesRecus, user, persoIci]);
 
   // Vue « moi » : mes autres entités sont ouvertes en arrière-plan (entites.tsx) ; les tâches que j'y vois s'ajoutent à
   // celles d'ici (dataMoi : tâches, accueil, calendrier, messages), s'ouvrent et s'enregistrent chez elles.
@@ -231,15 +239,17 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   );
 
 
-  const prefs = { ...DEFAULT_PREFS, ...(userId ? data.prefs[userId] : {}) };
+  const prefs = session ? session.prefs : { ...DEFAULT_PREFS, ...(userId ? data.prefs[userId] : {}) };
 
-  const setPrefs = useCallback(
+  const setPrefsIci = useCallback(
     (p: Partial<Prefs>) => {
       if (!userId) return;
       setData((prev) => ({ ...prev, prefs: { ...prev.prefs, [userId]: { ...DEFAULT_PREFS, ...prev.prefs[userId], ...p } } }));
     },
     [userId],
   );
+  // Session du club : enregistrés au club, plus dans l'entité.
+  const setPrefs = session ? session.setPrefs : setPrefsIci;
 
   // Tâche partagée par une autre entité : enregistrée dans la sienne ; ici, le journal et les notifications.
   const savePartagee = useCallback(
@@ -509,10 +519,13 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   const vuPourInfo = useCallback(
     async (cle: string, tacheId: string, uniteId?: string) => {
       if (!user || !userId) return;
-      setData((prev) => {
-        const p = { ...DEFAULT_PREFS, ...prev.prefs[userId] };
-        return p.pourInfoVus?.[cle] ? prev : { ...prev, prefs: { ...prev.prefs, [userId]: { ...p, pourInfoVus: { ...p.pourInfoVus, [cle]: today() } } } };
-      });
+      if (session) {
+        if (!session.prefs.pourInfoVus?.[cle]) session.setPrefs({ pourInfoVus: { ...session.prefs.pourInfoVus, [cle]: today() } });
+      } else
+        setData((prev) => {
+          const p = { ...DEFAULT_PREFS, ...prev.prefs[userId] };
+          return p.pourInfoVus?.[cle] ? prev : { ...prev, prefs: { ...prev.prefs, [userId]: { ...p, pourInfoVus: { ...p.pourInfoVus, [cle]: today() } } } };
+        });
       // Vue « moi » : tâche de l'une de mes autres entités : vue chez elle.
       const vue = uniteId ? dataMoi.tasks.find((y) => y.id === idPartagee(uniteId, tacheId)) : undefined;
       const ailleurs = vue && chezElle(vue);
@@ -548,7 +561,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         if (toutVu) d.notifications = [{ id: uid('n'), userId: auteur!, type: 'toutVu' as const, taskId: x.id, by: user.id, at: le, titre: x.titre }, ...(d.notifications ?? [])].slice(0, 300);
       }, `${fullName(user)} a ${deja ? 'revu' : 'vu'} la tâche « ${x.titre} » (pour info)`, { annulable: false });
     },
-    [user, userId, data, cloud, update, chargerPartagees, dataMoi.tasks, chezElle],
+    [user, userId, data, cloud, update, chargerPartagees, dataMoi.tasks, chezElle, session],
   );
 
   // Discussion (049) : version réelle, le serveur écrit le commentaire et prévient les personnes concernées, puis la tâche
@@ -641,6 +654,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       }
       ailleurs.forEach((l, id) => autreEntite(id)?.store.markNotifsRead(l));
       if (!userId || !keys.length) return;
+      // Session du club : vues au club (« <entité>|<clé> »).
+      if (session) return moi ? session.marquerLues(keys.map((k) => `${moi}|${k}`)) : undefined;
       setData((prev) => {
         const seen = new Set(prev.notifLues?.[userId] ?? []);
         if (keys.every((k) => seen.has(k))) return prev;
@@ -648,7 +663,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         return { ...prev, notifLues: { ...prev.notifLues, [userId]: [...seen].slice(-800) } };
       });
     },
-    [userId, autreEntite],
+    [userId, autreEntite, session, moi],
   );
 
   const discussionLue = useCallback(
@@ -658,6 +673,14 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const e = x && dernier ? autreEntite(x.uniteId) : undefined;
       if (x && e) e.store.discussionLue(x.id, dernier);
       if (!userId || !dernier) return;
+      // Session du club : lue au club (clé commune), avec ses notifications 💬 et 📣.
+      if (session) {
+        if (!moi) return;
+        session.lireDiscussion(cleCommune(cle, moi), dernier);
+        const notifs = (data.notifications ?? []).filter((n) => n.userId === userId && (n.type === 'comment' || n.type === 'mention') && n.taskId === cle);
+        if (notifs.length) session.marquerLues(notifs.map((n) => `${moi}|${n.id}`));
+        return;
+      }
       setData((prev) => {
         const lues = prev.discussionsLues?.[userId] ?? {};
         // Ses notifications 💬 et 📣 sont lues du même coup.
@@ -674,7 +697,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         };
       });
     },
-    [userId, autreEntite],
+    [userId, autreEntite, session, moi, data.notifications],
   );
 
   // Lue ici ou dans l'une de mes autres entités (ouverte en arrière-plan, ou d'après le serveur) : la plus récente.

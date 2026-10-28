@@ -6,6 +6,9 @@ par étape conseillée). Suite de `PERSONNES_DU_CLUB.md` (étapes 1 à 6 faites)
 
 ## Où on en est (28.10.2026)
 
+**Étape 1 faite (démo)** : voir « Fait à l'étape 1 » sous l'étape 1. La version réelle s'appuie encore sur une entité de base
+(jusqu'à l'étape 4) ; ce qui suit la décrit.
+
 - **Personnes** : une liste unique, « Personnes du club » (`gsa_club_membres`) ; un compte par personne (`gsa_club_comptes`,
   056). Dans chaque entité, une **place** (`Person` dans `people`, liée par `membreId`) porte ses rôles ; les tâches,
   votes, paiements, notifications… désignent la personne par l'identifiant de sa place **dans l'entité**.
@@ -55,7 +58,7 @@ migration appliquée par le président (éditeur SQL), aucun déploiement sans s
   fusionner.
 - Livrable : liste des fichiers à modifier, ajoutée à ce plan.
 
-### Étape 1 — Démo : la session du club
+### Étape 1 — Démo : la session du club ✅ (faite)
 
 - Nouvelle couche `SessionClub` (au-dessus des entités) : la personne du club (`membreId`), ses places, ses réglages,
   son profil, ses lectures ; stockage démo au club (une clé `taches-gsa-demo-perso`).
@@ -63,6 +66,36 @@ migration appliquée par le président (éditeur SQL), aucun déploiement sans s
   devient une façade sur la session (personne, droits réunis, vue réunie).
 - `useSetPrefsPartout`, « Mon profil » : écrivent au club ; fin de la recopie dans chaque entité.
 - Tests : démo ouverte sans entité ; mêmes réglages partout ; plus de `data-entite` (adapter `tests/outils.ts`).
+
+**Fait à l'étape 1 (28.10.2026)** — démo seulement, aucune migration, aucun déploiement :
+
+- `src/data/session.tsx` : `SessionClub` (contexte `SessionCtx`) : la personne du club (identifiant = sa fiche « Personnes
+  du club », `membreId`), ses places (entité → fiche), ses réglages, ses lectures (notifications vues « entité|clé »,
+  discussions lues par clé commune « entité:tâche »), « Mon profil » (`enregistrerProfil` : sa fiche du club, que ses
+  places suivent). Démo (`src/DemoApp.tsx`, `src/data/demoClub.ts`) : clé `taches-gsa-demo-perso` (une entrée par
+  personne) ; la première fois, **reprise** : les réglages de sa place au comité central (sinon de sa première place),
+  ses lectures de toutes ses entités réunies. L'ancienne clé `taches-gsa-demo-unite` est oubliée.
+- `src/DemoApp.tsx` : plus d'entité de base (`current`, `switchUnit`, `epoch` retirés) ; toutes mes entités ouvertes à
+  égalité en arrière-plan (`aEgalite` : elles gardent les tâches confiées à moi et se relisent comme l'entité ouverte
+  d'avant) ; au-dessus, le club « vu de la session » (`vueClub`, `current` = `CLUB_ID`, sans données à lui).
+- `src/data/storeClub.tsx` (`StoreClub`) : `useStore()` haut niveau = façade : `user` = la personne du club, `can` = droits
+  réunis (un droit dans l'une de mes entités ; pour une section, celui de son entité), `data` = vue réunie
+  (`src/data/vueClub.ts`), chaque action renvoyée à l'entité de la tâche (ou à celle des miennes avec qui elle est
+  partagée : `source.via`), « Annuler » dans l'entité de la dernière action. `src/data/vueClub.ts` : tâches
+  « x:<entité>:<id> », sections, séances, événements et emails « x:<entité>:<id> », places → personnes du club (choix
+  technique conseillé : les données des entités gardent leurs identifiants de place).
+- `src/data/store.tsx` : avec une session, réglages et lectures lus et écrits au club (plus dans `gsa_items` / les données
+  de l'entité) ; `useSetPrefsPartout` et « Mon profil » écrivent au club : fin de la recopie.
+- Écrans ajustés à la vue du club (sans entité ouverte) : `entites.tsx`, `comites.tsx`, `notifications.ts`, `Layout.tsx`
+  (plus de `data-entite` ; remboursement / paiement ouvert dans ma première entité qui a une caisse), `Tasks.tsx`,
+  `Dashboard.tsx`, `Calendar.tsx`, `Messages.tsx` (discussion ouverte dans son entité), `Recherche.tsx`, `PourInfo.tsx`,
+  `FicheTache.tsx`, `MonProfil.tsx`, `ui.tsx`, `Reprise.tsx`, `Agenda.tsx`, `suiviPourInfo.ts`, `recus.ts`, `vueMoi.ts`
+  (liens des notifications avec `&discussion=1`).
+- Tests (`tests/outils.ts`, `tests/demo.spec.ts`) : plus de `ouvrirEntite` / `verifierEntite` ; `verifierSansEntite` ;
+  nouvelle tâche dans l'entité choisie ; test « session du club » (sans entité de base, reprise des réglages, plus de
+  recopie) ; réglages et profil au club.
+- Restent pour l'étape 2 : écran à part `SansPlace`, « Accès désactivé dans X » (`App.tsx`, inactif dans la démo), entité
+  proposée à la création (aujourd'hui la première où l'on peut créer), rapport d'erreurs (au nom du « Club »), aide.
 
 ### Étape 2 — Démo : les écrans
 

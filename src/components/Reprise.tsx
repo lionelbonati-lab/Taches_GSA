@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
+import { useClubOptional } from '../data/club';
 import type { ClubEvent } from '../data/types';
 import { addDays, diffDays, fmtDate, fmtRange, offsetLabel, shortName } from '../data/utils';
 import { candidats, dateReprise, delaiRepris, nomReprise, reprendre, type Candidat } from '../data/reprise';
@@ -16,6 +17,7 @@ const JOUR = /^\d{4}-\d{2}-\d{2}$/;
  */
 export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, edition, onClose }: { event: ClubEvent; date?: string; dateFin?: string; edition: boolean; onClose: () => void }) {
   const { data, user, can, update, setToast } = useStore();
+  const club = useClubOptional();
   const navigate = useNavigate();
   const [date, setDate] = useState(dateDonnee ?? dateReprise(e));
   const [fin, setFin] = useState(finDonnee ?? (e.dateFin && e.dateFin > e.date ? addDays(date, diffDays(e.date, e.dateFin)) : ''));
@@ -60,7 +62,8 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, e
     }, `Reprise de l’événement « ${e.nom} » : « ${r.event.nom} » le ${fmtRange(r.event.date, r.event.dateFin)}${n ? `, ${n} tâche${n > 1 ? 's' : ''} reprise${n > 1 ? 's' : ''}` : ''}`);
     setToast(`✅ « ${r.event.nom} » ajouté${n ? ` avec ${n} tâche${n > 1 ? 's' : ''} à faire` : ''}.`);
     onClose();
-    if (n) navigate(`/taches?event=${r.event.id}`);
+    // Vue du club : ses tâches parmi celles de toutes mes entités (son entité dans le lien).
+    if (n) navigate(`/taches?event=${r.event.id}${club?.aEgalite ? `&entite=${encodeURIComponent(club.current.id)}` : ''}`);
   };
 
   const groupe = (titre: string, l: Candidat[]) => {

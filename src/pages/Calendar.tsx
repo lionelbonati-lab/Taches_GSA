@@ -63,6 +63,8 @@ function longDate(date: string) {
   return `${d.toLocaleDateString('fr-CH', { weekday: 'long' })} ${d.getDate()} ${d.toLocaleDateString('fr-CH', { month: 'long' })} ${d.getFullYear()}`;
 }
 
+const AUCUN: ClubEvent[] = [];
+
 export function Calendar() {
   // Vue « moi » : avec les tâches de mes autres entités.
   const { dataMoi: data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, setToast } = useStore();
@@ -125,10 +127,12 @@ export function Calendar() {
   }, [club?.current.id, unitsKey]);
   // Par entité : ses événements (ceux de l'entité ouverte sont déjà dans son agenda) et sa prochaine édition,
   // sauf si l'un de ses événements tombe déjà à cette date.
+  // Vue du club : aucune entité ouverte, les événements de chacune sont dans l'agenda du club.
+  const evIci = club?.vueClub ? AUCUN : data.events;
   const manifs = useMemo(
-    () => manifsAgenda(club?.units ?? [], club?.current.id, clubEvents, data.events),
+    () => manifsAgenda(club?.units ?? [], club?.current.id, clubEvents, evIci),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [club?.units, club?.current.id, clubEvents, data.events],
+    [club?.units, club?.current.id, clubEvents, evIci],
   );
   const masquees = prefs.manifsMasquees ?? [];
   const toggleManif = (id: string) => setPrefs({ manifsMasquees: masquees.includes(id) ? masquees.filter((x) => x !== id) : [...masquees, id] });
@@ -160,7 +164,7 @@ export function Calendar() {
       seances.forEach(({ m, u, ici }) => (ici ? can('tab.meetings') && push({ kind: 'meeting', key: m.id, date: m.date, m }) : push({ kind: 'meeting', key: `x:${u!.id}:${m.id}`, date: m.date, m, u })));
     // Événement sur plusieurs jours : une case par jour (31 au plus) ; qui se répète : chaque occurrence du mois affiché.
     if (seeEvents && kinds.includes('event'))
-      data.events.forEach((e) => {
+      evIci.forEach((e) => {
         const n = Math.min(duree(e), 30);
         for (const o of occurrencesEntre(e, from, to))
           for (let i = 0; i <= n; i++) push({ kind: 'event', key: `${e.id}@${o}:${i}`, date: addDays(o, i), e, o });

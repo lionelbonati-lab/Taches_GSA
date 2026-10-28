@@ -92,7 +92,8 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
         ? rechercherPartout(
             q,
             {
-              data: { ...data, tasks: dataMoi.tasks, statuses: dataMoi.statuses },
+              // Vue du club : séances, événements et personnes, ceux de chacune de mes entités (plus bas).
+              data: club?.vueClub ? { ...data, meetings: [], events: [], people: [] } : { ...data, tasks: dataMoi.tasks, statuses: dataMoi.statuses },
               moi: user,
               peutVoirTache: canSeeTask,
               sondages: sondagesMoi.map(({ p, ent }) => (ent.ici || !ent.u ? p : { ...p, id: idPartagee(ent.u.id, p.id) })),
@@ -171,7 +172,7 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={`Rechercher dans ${club ? `« ${club.current.nom} »` : 'l’appli'}…`}
+            placeholder={`Rechercher dans ${club?.vueClub ? 'tout le club' : club ? `« ${club.current.nom} »` : 'l’appli'}…`}
             aria-label="Rechercher"
             enterKeyHint="search"
             autoComplete="off"

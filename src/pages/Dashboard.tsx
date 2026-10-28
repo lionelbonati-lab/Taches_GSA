@@ -7,7 +7,7 @@ import { aLaDate, horaire, occurrenceDu } from '../data/repetition';
 import { BoutonVu, TaskCard } from './Tasks';
 import { TaskModal } from '../components/FicheTache';
 import { Empty, usePlusieursEntites } from '../components/ui';
-import { PourInfoRecues, clePourInfo, delaiRecu } from '../components/PourInfo';
+import { PourInfoRecues, clePourInfo, delaiRecu, useRecueDepuis } from '../components/PourInfo';
 import { attendDesVus, bilanVu, clesVu, modifieeDepuisMonVu, pourMoi, termineeChezElle, vuAvantModif } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { aPrendrePourMoi } from '../data/aPrendre';
@@ -18,6 +18,7 @@ import { useClubOptional } from '../data/club';
 import { EditionCard } from '../components/Edition';
 import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../components/Accueil';
 import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
+import { tacheDeMesEntites } from '../data/vueClub';
 import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
 import { IconeEntite } from '../components/IconesEntite';
@@ -37,7 +38,8 @@ export function Dashboard() {
   // Blocs et compteurs que la personne a choisi de voir sur cet appareil, dans son ordre (« Personnaliser »).
   const { appareil, blocs, compteurs } = useAccueil();
   // Mes tâches « Pour info » (auteur ou responsable), en cours : qui doit encore les voir (052 : personnes avec un compte).
-  const miennesInfo = data.tasks.filter((t) => !!user && t.pourInfo && !t.paiement && !t.source && !isDone(data, t) && (t.createdBy === user.id || t.responsables.includes(user.id)));
+  // Vue du club : celles de mes entités.
+  const miennesInfo = data.tasks.filter((t) => !!user && t.pourInfo && !t.paiement && tacheDeMesEntites(t, club) && !isDone(data, t) && (t.createdBy === user.id || t.responsables.includes(user.id)));
   const suivi = useSuiviPourInfo(miennesInfo);
   // Vue « moi » : les séances de toutes mes entités, chacune avec la pilule de son entité (comme les tâches).
   const seances = useSeancesMoi();
@@ -48,6 +50,7 @@ export function Dashboard() {
   const mesEvenements = mesEntites.filter((e) => e.store.can('tab.events'));
   const plusieurs = usePlusieursEntites();
   const comites = useComites();
+  const depuis = useRecueDepuis();
   if (!user) return null;
 
   const mine = data.tasks.filter((t) => t.responsables.includes(user.id));
@@ -112,7 +115,10 @@ export function Dashboard() {
   const recuesTout = pourInfo.filter((x) => !termineeChezElle(x)).sort((a, b) => (a.task.delai || '9999').localeCompare(b.task.delai || '9999'));
   // Modifiée depuis mon « ✓ Vu » (052) : elle revient, avec ✏️.
   const revoirIci = (t: Task) => vuAvantModif(t.pourInfoVus?.[`p:${user.id}`], t);
-  const revoirRecue = (x: TachePartagee) => !!club && modifieeDepuisMonVu(x.task, clesVu(x.task, x.uniteId, club.current.id, user.id, can('tasks.viewAll')));
+  const revoirRecue = (x: TachePartagee) => {
+    const d = depuis(x);
+    return !!d.fiche && modifieeDepuisMonVu(x.task, clesVu(x.task, x.uniteId, d.ici, d.fiche, d.voitTout));
+  };
   const infoIci = infoTout.filter((t) => !vus[t.id] || revoirIci(t));
   const infoRecues = recuesTout.filter((x) => !vus[clePourInfo(x)] || revoirRecue(x));
   const clesInfo = new Set([...infoTout.map((t) => t.id), ...recuesTout.map(clePourInfo)]);

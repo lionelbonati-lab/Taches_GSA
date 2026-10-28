@@ -25,6 +25,7 @@ import { Icone } from '../components/icones';
 import { Deroulante } from '../components/Deroulante';
 import { PastilleEntite } from '../components/IconesEntite';
 import { statutsDe } from '../data/vueMoi';
+import { idDans, tacheDeMesEntites } from '../data/vueClub';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
@@ -53,6 +54,19 @@ function evenementDuLien(params: URLSearchParams, ici?: string) {
   return v && u && u !== ici && !/^[ux]:/.test(v) ? `x:${u}:${v}` : v;
 }
 
+/**
+ * Filtre « Séance » d'un lien (vue du club) : la séance de l'entité du lien (« ?meeting=<id>&entite=<entité> »), sinon la
+ * seule de mes séances qui porte cet identifiant.
+ */
+function seanceDuLien(params: URLSearchParams, vueClub: boolean, seances: { id: string }[]) {
+  const v = params.get('meeting') ?? '';
+  const u = params.get('entite');
+  if (!vueClub || !v || v.startsWith('x:')) return v;
+  if (u) return idDans(u, v);
+  const l = seances.filter((m) => m.id.endsWith(`:${v}`));
+  return l.length === 1 ? l[0].id : v;
+}
+
 function ListeTaches() {
   // Vue « moi » : avec les tâches de mes autres entités (pastille de leur entité ; filtre « Entité »).
   const { dataMoi: data, data: vue, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, pourInfo, setToast } = useStore();
@@ -67,7 +81,7 @@ function ListeTaches() {
     ...EMPTY_FILTERS,
     entite: params.get('entite') ?? '',
     event: evenementDuLien(params, club?.current.id),
-    meeting: params.get('meeting') ?? '',
+    meeting: seanceDuLien(params, !!club?.vueClub, data.meetings),
     resp: params.get('resp') ?? '',
     statut: params.get('statut') ?? '',
     delai: params.get('delai') ?? '',
@@ -174,7 +188,7 @@ function ListeTaches() {
       // qu'on me propose (à prendre, tant qu'il reste une place).
       // Mes « Pour info » pas encore vus : les tâches dont je suis l'auteur ou responsable, que des personnes doivent encore voir.
       if (f.delai === 'pourinfo') {
-        if (!(t.createdBy === user.id || t.responsables.includes(user.id)) || !canSeeTask(t) || t.source || t.paiement || !t.pourInfo || !attendDesVus(bilanVu(t, suivi[t.id]))) return false;
+        if (!(t.createdBy === user.id || t.responsables.includes(user.id)) || !canSeeTask(t) || !tacheDeMesEntites(t, club) || t.paiement || !t.pourInfo || !attendDesVus(bilanVu(t, suivi[t.id]))) return false;
       } else if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
       if (sauf !== 'entite' && f.entite && entiteDe(t) !== f.entite) return false;
@@ -242,11 +256,18 @@ function ListeTaches() {
   const activeFilters = Object.entries(f).filter(([, v]) => v).length;
   // Filtre « Entité » : l'entité ouverte et celles des tâches d'ailleurs (mes autres entités, partagées) ; on n'y propose
   // que celles qui ont des tâches avec les autres filtres (événement compris), et de même pour le filtre « Événement ».
-  const entites = club ? [club.current, ...club.units.filter((u) => u.id !== club.current.id && data.tasks.some((t) => t.source?.uniteId === u.id))] : [];
+  // Vue du club : aucune entité ouverte ; mes entités et celles des tâches qu'elles reçoivent.
+  const entites = club
+    ? [
+        ...(club.vueClub ? club.mine.filter((u) => !u.archive) : [club.current]),
+        ...club.units.filter((u) => u.id !== club.current.id && !(club.vueClub && club.mine.some((m) => m.id === u.id && !m.archive)) && data.tasks.some((t) => t.source?.uniteId === u.id)),
+      ]
+    : [];
   const entitesChoix = entites.filter((u) => entitesAvec.has(u.id) || u.id === f.entite);
   const avecTaches = (v: string) => evenementsAvec.has(v) || v === f.event;
   const groupesEvenements = [
-    { groupe: `Événements de « ${club?.current.nom ?? ''} »`, options: data.events.filter((e) => avecTaches(e.id)).map((e) => ({ value: e.id, label: e.nom })) },
+    // Vue du club : ceux de chacune de mes entités (plus bas).
+    { groupe: `Événements de « ${club?.current.nom ?? ''} »`, options: club?.vueClub ? [] : data.events.filter((e) => avecTaches(e.id)).map((e) => ({ value: e.id, label: e.nom })) },
     ...autresEntites.map((x) => ({
       groupe: `Événements de « ${x.u!.nom} »`,
       icone: <PastilleEntite u={x.u!} />,

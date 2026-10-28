@@ -240,7 +240,7 @@ function CarteSeance({ m, cible, pilule, onPv, onEdit }: { m: Meeting; cible: bo
           {annuelle(m) ? <> · <Icone n="repetition" /> chaque année</> : ' · une seule fois'}
         </div>
         <Excuses m={m} past={past} />
-        <Link to={tachesDe(`meeting=${encodeURIComponent(m.id)}`, pilule && club?.current.id)}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
+        <Link to={tachesDe(`meeting=${encodeURIComponent(m.id)}`, pilule || club?.aEgalite ? club?.current.id : undefined)}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
         {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
           <div className="pv-archives">
             {(m.minutesArchives ?? []).map((pv, i) => (
@@ -578,7 +578,8 @@ function CarteEvenement({ serie, date, cible, pilule, onEdit, onReprise }: { ser
   const jours = diffDays(e.date, fin) + 1;
   const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
   const suite = data.events.find((x) => x.repriseDe === serie.id);
-  const ici = pilule ? club?.current.id : undefined;
+  // Vue du club : le lien dit toujours de quelle entité est l'événement.
+  const ici = pilule || club?.aEgalite ? club?.current.id : undefined;
   return (
     <article id={`cible-${serie.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
       <DateBlock date={e.date} fin={e.dateFin} />

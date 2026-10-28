@@ -321,9 +321,11 @@ export interface Task {
    * documents, sa répétition, sa séance (ici) et son partage se modifient d'ici (serveur à jour : 041) ; `seanceAilleurs` :
    * la séance à laquelle elle est liée hors de l'entité ouverte (pas modifiable d'ici). `chezMoi` : tâche de l'une de mes
    * autres entités (vue « moi », vueMoi.ts), qui s'ouvre et s'enregistre dans la sienne ; `statuts` : les statuts de son
-   * entité, parmi ceux de la vue « moi » ; `eventId` : son événement dans l'agenda de son entité.
+   * entité, parmi ceux de la vue « moi » ; `eventId` : son événement dans l'agenda de son entité. `via` (vue du club,
+   * sans entité ouverte) : tâche d'une entité qui n'est pas la mienne, partagée avec l'une des miennes (`via`), qui
+   * s'ouvre et s'enregistre par celle-ci.
    */
-  source?: { uniteId: string; unite: string; id: string; responsables: string[]; complet?: boolean; seanceAilleurs?: string; chezMoi?: boolean; statuts?: string[]; eventId?: string };
+  source?: { uniteId: string; unite: string; id: string; responsables: string[]; complet?: boolean; seanceAilleurs?: string; chezMoi?: boolean; statuts?: string[]; eventId?: string; via?: string };
   /** Tâche ajoutée par un membre du comité central (ancien accès « modifier / ajouter ») : son nom. */
   parCentral?: string;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
@@ -467,6 +469,8 @@ export interface TachePartagee {
    * copie, sans modification ; `comite` : le comité dont l'entité dépendait alors, `jusqua` : date du changement.
    */
   ancienne?: { comite: string; jusqua: string };
+  /** Vue du club (sans entité ouverte) : celle de mes entités qui l'a reçue (pour info), où elle s'ouvre. */
+  chez?: string;
 }
 
 /** Point sur une carte (degrés). */

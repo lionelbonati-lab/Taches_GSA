@@ -118,8 +118,10 @@ export function tacheAilleurs(cle: string) {
  */
 export function lienDepuisEntite(lien: string, uniteId: string, moi: string): { lien: string; ici: boolean } {
   if (lien.startsWith('/taches?delai=')) return { lien, ici: true };
-  const m = /^\/taches\?tache=([^&]+)$/.exec(lien);
+  // Avec sa discussion, son email programmé… (« &discussion=1 ») : la tâche vue d'ici, le reste tel quel.
+  const m = /^\/taches\?tache=([^&]+)(&.*)?$/.exec(lien);
   if (!m) return { lien, ici: false };
-  const x = tacheAilleurs(m[1]);
-  return { lien: `/taches?tache=${!x ? idPartagee(uniteId, m[1]) : x.uniteId === moi ? x.id : m[1]}`, ici: true };
+  const t = decodeURIComponent(m[1]);
+  const x = tacheAilleurs(t);
+  return { lien: `/taches?tache=${!x ? idPartagee(uniteId, t) : x.uniteId === moi ? x.id : t}${m[2] ?? ''}`, ici: true };
 }

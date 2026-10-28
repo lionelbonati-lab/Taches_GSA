@@ -24,7 +24,8 @@ import { cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 import { Icone, type IconeNom } from './icones';
 import { newTask } from '../data/utils';
-import { DansEntite } from '../data/entites';
+import { Chez, DansEntite } from '../data/entites';
+import type { OrgUnit } from '../data/types';
 import { pageParEntite, useComites } from '../data/comites';
 
 export function Layout() {
@@ -152,8 +153,7 @@ export function Layout() {
   const sortirLabel = <><Icone n={cloud ? 'sortir' : 'changer'} /> {cloud ? 'Se déconnecter' : 'Changer d’utilisateur'}</>;
 
   return (
-    // data-entite : l'entité sur laquelle l'appli s'appuie, qui ne s'affiche nulle part (tests de la démo).
-    <div className="app" data-entite={club?.current.id}>
+    <div className="app">
       <header className="topbar">
         <div className="brand">
           <AppLogo src={logoReady ? logo ?? null : undefined} size={30} />
@@ -286,11 +286,23 @@ export function Layout() {
 
       <Toast />
       {quick && canCreate && <TaskModal isNew choixEntite task={newTask(user.id, versProchaineSeance(data.meetings, undefined, club?.current.type))} onClose={() => setQuick(false)} />}
-      {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
+      {ticket && (
+        // Vue du club : le formulaire dans l'une de mes entités (sa caisse, ou celle qui reçoit ses tickets) ; une autre
+        // caisse se choisit dans la fenêtre.
+        <Chez id={club?.vueClub ? entiteDuTicket(club.mine)?.id : undefined}>
+          <TicketForm type={ticket} onClose={() => setTicket(null)} />
+        </Chez>
+      )}
       {reglerBarre && <BarreBasModal onClose={() => setReglerBarre(false)} />}
     </div>
   );
 }
+
+/** Remboursement, paiement (vue du club) : la première de mes entités qui a une caisse, sinon la première. */
+const entiteDuTicket = (mine: OrgUnit[]) => {
+  const l = mine.filter((u) => !u.archive);
+  return l.find((u) => u.membres.some((m) => m.caisse)) ?? l[0] ?? mine[0];
+};
 
 /** Version réelle : état de l'enregistrement sur le serveur. */
 /**

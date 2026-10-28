@@ -8,6 +8,8 @@ import { membresPropres, synchroLiens } from './liens';
 import { convertirPostes, lierEntite, suivre } from './organigramme';
 import { ajouterHistorique, changementsTache, nomsCites, type EntreeHistorique, type HistoriqueTache } from './historique';
 import type { ErreurAppli, RapportErreur } from './rapportErreurs';
+import { luesCommunes } from './commentaires';
+import type { PersoClub } from './session';
 import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUnit, Person, Status, Unit } from './types';
 
 // Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
@@ -17,7 +19,10 @@ import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUn
 export const CENTRAL_ID = 'u-central';
 const CLUB_KEY = 'taches-gsa-demo-club';
 export const ME_KEY = 'taches-gsa-demo-moi';
-export const UNIT_KEY = 'taches-gsa-demo-unite';
+/** Ancienne entité de base de la démo (avant la session du club) : oubliée. */
+const UNIT_KEY = 'taches-gsa-demo-unite';
+/** Session du club (session.tsx) : réglages et lectures de chaque personne, une seule fois pour tout le club. */
+const PERSO_KEY = 'taches-gsa-demo-perso';
 const MEMBRES_KEY = 'taches-gsa-demo-membres';
 const ORGAS_KEY = 'taches-gsa-demo-organigrammes';
 /** Historique des tâches (version réelle : gsa_historique, 050) : entité → tâche → entrées, de la plus récente à la plus ancienne. */
@@ -165,6 +170,12 @@ function checkVersion() {
 /** Entités du club (créées au premier passage, avec leurs données de départ). */
 export function loadUnits(): Unit[] {
   checkVersion();
+  // Session du club : plus d'entité de base retenue.
+  try {
+    localStorage.removeItem(UNIT_KEY);
+  } catch {
+    /* ignore */
+  }
   const saved = read<Unit[]>(CLUB_KEY);
   if (saved?.length) return saved;
   for (const u of SEED_UNITS) if (u.type !== 'central' && !read(unitStorageKey(u.id))) write(unitStorageKey(u.id), seedUnit(u));
@@ -398,13 +409,35 @@ export function saveMe(key: string | null) {
   }
 }
 
+/** Réglages et lectures de la personne `cle` (sa fiche du club), gardés au club ; null : pas encore repris. */
+export const lirePerso = (cle: string): PersoClub | null => read<Record<string, PersoClub>>(PERSO_KEY)?.[cle] ?? null;
+
+export function ecrirePerso(cle: string, p: PersoClub) {
+  write(PERSO_KEY, { ...read<Record<string, PersoClub>>(PERSO_KEY), [cle]: p });
+}
+
+/**
+ * Reprise, la première fois : les réglages de ma place au comité central (sinon de la première de mes places), mes
+ * notifications vues et mes discussions lues dans chacune de mes entités (`places` : entité → ma fiche), réunies.
+ */
+export function reprisePerso(places: Record<string, string>): PersoClub {
+  const ids = Object.keys(places).sort((a, b) => +(b === CENTRAL_ID) - +(a === CENTRAL_ID));
+  const donnees = ids.map((id) => ({ id, d: loadUnitData(id), f: places[id] }));
+  const avecPrefs = donnees.find((x) => x.d.prefs?.[x.f]);
+  return {
+    prefs: avecPrefs?.d.prefs[avecPrefs.f],
+    notifLues: donnees.flatMap((x) => (x.d.notifLues?.[x.f] ?? []).map((k) => `${x.id}|${k}`)).slice(-800),
+    discussionsLues: luesCommunes(Object.fromEntries(donnees.map((x) => [x.id, x.d.discussionsLues?.[x.f]]))),
+  };
+}
+
 /** Remet toute la démo à zéro (toutes les entités). */
 export function resetDemo() {
   try {
     const units = read<Unit[]>(CLUB_KEY) ?? SEED_UNITS;
     units.forEach((u) => localStorage.removeItem(unitStorageKey(u.id)));
     // Avec le dernier logo et la dernière couleur affichés (écran de connexion).
-    [CLUB_KEY, ME_KEY, UNIT_KEY, MEMBRES_KEY, ORGAS_KEY, HISTO_KEY, ERREURS_KEY, STATUTS_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
+    [CLUB_KEY, ME_KEY, UNIT_KEY, PERSO_KEY, MEMBRES_KEY, ORGAS_KEY, HISTO_KEY, ERREURS_KEY, STATUTS_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
   } catch {
     /* ignore */
   }

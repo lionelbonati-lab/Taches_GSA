@@ -5,6 +5,7 @@ import type { Store } from './storeTypes';
 import { computeNotifications, lireNotif, type NotifItem } from './notifs';
 import type { Meeting, OrgUnit, Poll, Prefs } from './types';
 import { sondagesVisibles } from './polls';
+import { useSessionOptional } from './session';
 
 // Vue « moi » : mes autres entités sont ouvertes en arrière-plan, chacune avec sa couche de données (sans écran). Leurs
 // tâches, discussions et notifications s'ajoutent à celles de l'entité ouverte (vueMoi.ts) ; une tâche de l'une d'elles
@@ -35,7 +36,7 @@ export class Registre {
   publier(e: Entite, jeton: object) {
     this.entites.set(e.id, { e, jeton });
     const s = e.store;
-    const sig = [s.data, s.dataLocale, s.user, s.myRoles, e.club, e.notifs.map((n) => `${n.key}${n.unread ? '*' : ''}`).join('|')];
+    const sig = [s.data, s.dataLocale, s.user, s.myRoles, s.annulable, s.refaisable, e.club, e.notifs.map((n) => `${n.key}${n.unread ? '*' : ''}`).join('|')];
     const avant = this.vues.get(e.id);
     if (avant && avant.sig.every((x, i) => x === sig[i])) return;
     this.vues.set(e.id, { sig, e });
@@ -109,7 +110,8 @@ export function useSeancesMoi(): SeanceMoi[] {
   const store = useContext(StoreCtx);
   const club = useContext(ClubCtx);
   const autres = useAutres(!club?.arrierePlan);
-  const meetings = store?.data.meetings;
+  // Vue du club : aucune entité ouverte, toutes en arrière-plan.
+  const meetings = club?.vueClub ? undefined : store?.data.meetings;
   const ici = club?.current;
   return useMemo(
     () => [
@@ -134,22 +136,27 @@ export function useMesEntites(): EntiteMoi[] {
   const club = useContext(ClubCtx);
   const autres = useAutres(!club?.arrierePlan);
   const ici = club?.current;
+  // Vue du club : aucune entité ouverte, toutes en arrière-plan.
+  const avecIci = !!store?.user && !club?.vueClub;
   return useMemo(
     () => [
-      ...(store?.user ? [{ u: ici, store, ici: true }] : []),
+      ...(avecIci && store ? [{ u: ici, store, ici: true }] : []),
       ...autres.filter((e) => e.store.user).map((e) => ({ u: e.club.current, store: e.store, ici: false })),
     ],
-    [store, ici, autres],
+    [store, ici, autres, avecIci],
   );
 }
 
 /**
- * Mes préférences (affichage, accueil, barre du bas, notifications) : enregistrées dans chacune de mes entités, pour être
- * les mêmes partout (pages affichées dans une autre entité, cloche, notifications envoyées par le serveur).
+ * Mes préférences (affichage, accueil, barre du bas, notifications) : les mêmes partout (pages affichées dans une autre
+ * entité, cloche, notifications envoyées par le serveur). Session du club : enregistrées une fois, au club ; sinon dans
+ * chacune de mes entités.
  */
 export function useSetPrefsPartout(): (p: Partial<Prefs>) => void {
+  const session = useSessionOptional();
   const mes = useMesEntites();
-  return useCallback((p: Partial<Prefs>) => mes.forEach((e) => e.store.setPrefs(p)), [mes]);
+  const partout = useCallback((p: Partial<Prefs>) => mes.forEach((e) => e.store.setPrefs(p)), [mes]);
+  return session ? session.setPrefs : partout;
 }
 
 /** Un sondage de l'une de mes entités (ou reçu par elle), avec son entité. */

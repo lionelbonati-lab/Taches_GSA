@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDiscussions, type DiscussionVue } from '../data/discussions';
 import { useClubOptional } from '../data/club';
@@ -6,6 +6,7 @@ import { PageIntro } from '../components/Nav';
 import { Discussion, quandMessage } from '../components/tache/Discussion';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
+import { Chez } from '../data/entites';
 
 // Onglet « Messages » : les discussions des tâches comme une messagerie. Chaque discussion reste celle de sa tâche (même
 // fenêtre que la bulle 💬 de la fiche) ; « Nouvelle discussion » en ouvre une sur une tâche qui n'en a pas encore.
@@ -68,19 +69,24 @@ export function Messages() {
         </Empty>
       )}
       {chat && (
-        <Discussion
-          titre={chat.titre}
-          liste={chat.liste}
-          cle={chat.cle}
-          tacheId={chat.tacheId}
-          uniteId={chat.uniteId}
-          onClose={() => ouvrir(null)}
-          actions={
-            <button type="button" className="icon-btn" title="Ouvrir la tâche" aria-label="Ouvrir la tâche" onClick={() => navigate(chat.lien)}>
-              <Icone n="taches" />
-            </button>
-          }
-        />
+        // Vue du club : dans son entité (ou celle des miennes qui la reçoit), avec ses personnes à mentionner.
+        <DansSonEntite d={chat} vueClub={!!club?.vueClub}>
+          {(d) => (
+            <Discussion
+              titre={d.titre}
+              liste={d.liste}
+              cle={d.cle}
+              tacheId={d.tacheId}
+              uniteId={d.uniteId}
+              onClose={() => ouvrir(null)}
+              actions={
+                <button type="button" className="icon-btn" title="Ouvrir la tâche" aria-label="Ouvrir la tâche" onClick={() => navigate(d.lien)}>
+                  <Icone n="taches" />
+                </button>
+              }
+            />
+          )}
+        </DansSonEntite>
       )}
       {nouvelle && (
         <ChoixTache
@@ -97,6 +103,14 @@ export function Messages() {
 }
 
 /** Une discussion de la liste : initiale de la tâche, titre, dernier message, moment et non lus. */
+/** Discussion ouverte (vue du club) dans l'entité qui l'enregistre, vue de chez elle ; sinon telle quelle. */
+function DansSonEntite({ d, vueClub, children }: { d: DiscussionVue; vueClub: boolean; children: (d: DiscussionVue) => ReactNode }) {
+  const chez = vueClub ? (d.via ?? d.uniteId) : undefined;
+  if (!chez) return <>{children(d)}</>;
+  const sienne = chez === d.uniteId;
+  return <Chez id={chez}>{children({ ...d, cle: sienne ? d.tacheId : d.cle, uniteId: sienne ? undefined : d.uniteId })}</Chez>;
+}
+
 function LigneDiscussion({ d, onOpen }: { d: DiscussionVue; onOpen: () => void }) {
   const der = d.liste.reduce((m, c) => (c.le > m.le ? c : m), d.liste[0]);
   return (

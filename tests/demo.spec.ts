@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { allerA, compter, expect, nouvelleTache, ouvrirDemo, ouvrirEntite, test, verifierEntite } from './outils';
+import { allerA, compter, expect, nouvelleTache, ouvrirDemo, test, verifierSansEntite } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
 
@@ -18,6 +18,52 @@ test('toutes les pages s’ouvrent sans erreur', async ({ page }) => {
       await expect(page.locator('.erreur-appli')).toHaveCount(0);
     });
   }
+});
+
+test('session du club : la démo sans entité de base, mes entités réunies ; mes réglages repris une fois, au club', async ({ page }) => {
+  // Données d'avant la session du club : la fiche de Julien Moreau au comité central a ses réglages (affichage Kanban),
+  // la démo retenait une entité de base.
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
+    const julien = d.people.find((p: { prenom: string }) => p.prenom === 'Julien').id;
+    d.prefs = { ...d.prefs, [julien]: { theme: 'auto', vueDefaut: 'mes', affichage: 'kanban' } };
+    localStorage.setItem('taches-gsa-demo-v7', JSON.stringify(d));
+    localStorage.removeItem('taches-gsa-demo-perso');
+    localStorage.setItem('taches-gsa-demo-unite', 'u-soiree');
+  });
+  await page.reload();
+  await verifierSansEntite(page);
+
+  // Ses réglages, repris de sa place au comité central, sont maintenant au club.
+  await allerA(page, '/taches');
+  await expect(page.getByRole('button', { name: 'Kanban', exact: true })).toHaveClass(/on/);
+  const perso = () =>
+    page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('taches-gsa-demo-perso') ?? '{}') as Record<string, { prefs?: { affichage?: string } }>).map((p) => p.prefs?.affichage));
+  await expect.poll(perso).toEqual(['kanban']);
+
+  // Ses tâches du comité central et de la Soirée récréative, à égalité, chacune avec la pilule de son entité.
+  await page.getByRole('button', { name: 'Tableau', exact: true }).click();
+  for (const [titre, entite] of [['Réserver la salle', 'Comité central'], ['Acheter les ballons', 'Soirée récréative']]) {
+    const fiche = await nouvelleTache(page, titre, entite);
+    await fiche.getByRole('button', { name: /^Créer$/ }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+    await expect(page.locator('main tr', { hasText: titre }).locator('.tsource')).toHaveText(entite);
+  }
+  await expect(page.locator('main tbody tr')).toHaveCount(2);
+
+  // Le réglage changé (« Tableau ») : au club seulement ; plus de recopie dans la fiche de chaque entité.
+  await expect.poll(perso).toEqual(['tableau']);
+  const dansLesEntites = await page.evaluate(() =>
+    ['taches-gsa-demo-v7', 'taches-gsa-demo-u-u-soiree'].map((k) => {
+      const d = JSON.parse(localStorage.getItem(k)!);
+      const julien = d.people.find((p: { prenom: string }) => p.prenom === 'Julien').id;
+      return d.prefs?.[julien]?.affichage;
+    }),
+  );
+  expect(dansLesEntites).toEqual(['kanban', undefined]);
+  await page.reload();
+  await expect(page.locator('main tbody tr')).toHaveCount(2);
+  await verifierSansEntite(page);
 });
 
 test('page lourde ouverte directement par son adresse', async ({ page, context }) => {
@@ -125,32 +171,27 @@ test('notification d’un message : la discussion s’ouvre dans Messages, la cr
 });
 
 test('discussion : mon message écrit depuis une autre de mes entités reste le mien', async ({ page }) => {
-  const entite = async (nom: string) => {
-    await ouvrirEntite(page, nom);
-    await page.goto('./?demo#/taches');
-  };
   // Julien Moreau, aussi membre de la Soirée récréative, y crée une tâche partagée avec le comité central.
-  await entite('Soirée récréative');
-  const fiche = await nouvelleTache(page, 'Choisir la musique');
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Choisir la musique', 'Soirée récréative');
   await fiche.locator('.chip', { hasText: 'Partager' }).click();
   await fiche.getByRole('button', { name: '🏛️ Comité central' }).click();
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // Il écrit dans la discussion depuis le comité central ; en tête, l'entité de la tâche.
-  await entite('Comité central');
-  await page.locator('main').getByText('Choisir la musique').filter({ visible: true }).first().click();
-  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
-  await expect(page.locator('.discussion-entite')).toHaveText('Tâche de « Soirée récréative »');
-  await page.getByLabel('Nouveau commentaire').fill('Une liste de chansons pour samedi ?');
-  await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
-  await expect(page.locator('.discussion-message.mien')).toHaveCount(1);
-  await page.keyboard.press('Escape');
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.modal')).toHaveCount(0);
+  // Un message qu'il y a écrit depuis sa place au comité central (avant la vue du club, ou d'un autre appareil).
+  const cle = 'taches-gsa-demo-u-u-soiree';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k)?.includes('Choisir la musique'), cle)).toBe(true);
+  await page.evaluate((k) => {
+    const julien = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).people.find((p: { prenom: string }) => p.prenom === 'Julien').id;
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const t = d.tasks.find((x: { titre: string }) => x.titre === 'Choisir la musique');
+    t.commentaires = [{ id: 'c-central', par: julien, u: 'u-central', nom: 'Julien Moreau', le: new Date().toISOString(), texte: 'Une liste de chansons pour samedi ?' }];
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await page.reload();
 
-  // De retour dans la Soirée : son message, à droite, ni non lu ni notifié ; il le corrige et le retire d'ici.
-  await entite('Soirée récréative');
+  // Son message, à droite, ni non lu ni notifié ; en tête, l'entité de la tâche ; il le corrige et le retire d'ici.
   const ligne = page.locator('main tr', { hasText: 'Choisir la musique' });
   await expect(ligne.locator('.discussion-tag')).toBeVisible();
   await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveCount(0);
@@ -177,10 +218,6 @@ test('discussion : mon message écrit depuis une autre de mes entités reste le 
 });
 
 test('discussion : une seule notification par personne, lue partout une fois lue', async ({ page }) => {
-  const entite = async (nom: string) => {
-    await ouvrirEntite(page, nom);
-    await page.goto('./?demo#/taches');
-  };
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();
     await page.locator('.login-user', { hasText: nom }).first().click();
@@ -204,62 +241,56 @@ test('discussion : une seule notification par personne, lue partout une fois lue
     return panneau;
   };
   // Julien Moreau : responsable de la tâche dans la Soirée récréative (partagée avec le comité central), où il a écrit.
-  await entite('Soirée récréative');
-  const fiche = await nouvelleTache(page, 'Choisir la musique');
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Choisir la musique', 'Soirée récréative');
   await fiche.locator('.chip', { hasText: 'Partager' }).click();
   await fiche.getByRole('button', { name: '🏛️ Comité central' }).click();
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await entite('Comité central');
   await ecrire('Je regarde ça.');
 
-  // Marc Lambert écrit depuis le comité central : Julien, concerné dans les deux entités, est prévenu une fois, dans la Soirée.
+  // Marc Lambert écrit depuis le comité central : Julien, concerné dans ses deux entités, est prévenu une fois, par la Soirée.
   await changer('Marc Lambert');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
   await ecrire('Bonne idée !');
   await changer('Julien Moreau');
-  await entite('Comité central');
-  // Pas encore lue : non lue au comité central aussi.
+  await page.goto('./?demo#/taches');
   const ligne = page.locator('main tr', { hasText: 'Choisir la musique' });
   await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveText('1');
-  // Vue « moi » : la cloche montre aussi celles de mes autres entités ; celle-ci une seule fois, avec le nom de la Soirée.
+  // La cloche : celle-ci une seule fois, avec le nom de la Soirée.
   const venue = (await notifications()).locator('.bell-item', { hasText: 'Choisir la musique' });
   await expect(venue).toHaveCount(1);
   await expect(venue).toContainText('Soirée récréative');
-  await page.keyboard.press('Escape');
-  await entite('Soirée récréative');
-  await expect(await notifications()).toContainText('Marc Lambert a commenté « Choisir la musique »');
+  await expect(venue).toContainText('Marc Lambert a commenté « Choisir la musique »');
   await page.keyboard.press('Escape');
   // De personne à personne : son message avec son nom, sans l'entité d'où il l'a écrit.
-  await page.locator('main').getByText('Choisir la musique').filter({ visible: true }).first().click();
+  await ligne.getByText('Choisir la musique').first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion (1 non lu)' }).click();
   await expect(page.locator('.discussion-message:not(.mien) .discussion-auteur')).toHaveText('Marc Lambert');
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // Lue dans la Soirée, elle est lue partout : plus rien de non lu au comité central.
-  await entite('Comité central');
+  // Lue une fois, elle est lue partout : liste, onglet Messages et cloche.
   await expect(ligne.locator('.discussion-tag')).toBeVisible();
   await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveCount(0);
   await expect(page.locator('.tabs .onglet-nb')).toHaveCount(0);
+  await expect((await notifications()).locator('.bell-item.unread', { hasText: 'Choisir la musique' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
 
-  // Et la cloche : prévenu dans la Soirée, message lu au comité central, la notification de la Soirée est lue aussi.
+  // Un nouveau message : sa notification, lue avec la discussion (ouverte depuis la tâche).
   await changer('Marc Lambert');
-  await verifierEntite(page, 'Comité central');
   await ecrire('Et la sono ?');
   await changer('Julien Moreau');
-  await entite('Soirée récréative');
   await expect((await notifications()).locator('.bell-item.unread', { hasText: 'Choisir la musique' })).toHaveCount(1);
   await page.keyboard.press('Escape');
-  await entite('Comité central');
+  await page.goto('./?demo#/taches');
   await page.locator('main').getByText('Choisir la musique').filter({ visible: true }).first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion (1 non lu)' }).click();
   await expect(page.locator('.discussion-message', { hasText: 'Et la sono ?' })).toHaveCount(1);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
-  await entite('Soirée récréative');
   await expect((await notifications()).locator('.bell-item', { hasText: 'Choisir la musique' }).first()).toBeVisible();
   await expect(page.getByRole('dialog', { name: 'Notifications' }).locator('.bell-item.unread', { hasText: 'Choisir la musique' })).toHaveCount(0);
   await page.keyboard.press('Escape');
@@ -274,19 +305,14 @@ test('discussion : une seule notification par personne, lue partout une fois lue
   await expect((await notifications()).locator('.bell-item', { hasText: 'a commenté « Choisir la musique »' })).toHaveCount(0);
 });
 
-test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées sans changer d’entité', async ({ page }) => {
-  const entite = async (nom: string) => {
-    await ouvrirEntite(page, nom);
-    await page.goto('./?demo#/taches');
-  };
+test('vue du club : les tâches de toutes mes entités, ouvertes et modifiées chez elles', async ({ page }) => {
   // Julien Moreau crée une tâche dans la Soirée récréative (pas partagée).
-  await entite('Soirée récréative');
-  const fiche = await nouvelleTache(page, 'Louer les tables');
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Louer les tables', 'Soirée récréative');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // Au comité central, elle est dans ses tâches, avec la pastille de son entité ; le filtre « Entité » la garde ou la retire.
-  await entite('Comité central');
+  // Dans ses tâches, avec la pastille de son entité ; le filtre « Entité » la garde ou la retire.
   const ligne = page.locator('main tr', { hasText: 'Louer les tables' });
   await expect(ligne.locator('.tsource')).toHaveText('Soirée récréative');
   await page.getByRole('button', { name: /^Filtres/ }).click();
@@ -295,7 +321,7 @@ test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées
   await page.getByLabel('Entité').selectOption({ label: 'Soirée récréative' });
   await expect(ligne).toHaveCount(1);
 
-  // Ouverte d'ici, dans son entité : modifiée, commentée, sans changer d'entité.
+  // Ouverte dans son entité : modifiée, commentée.
   await ligne.getByText('Louer les tables').first().click();
   const ouverte = page.locator('.modal').first();
   await expect(ouverte.getByPlaceholder('Que faut-il faire ?')).toHaveValue('Louer les tables');
@@ -303,7 +329,7 @@ test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées
   await ouverte.getByPlaceholder('Que faut-il faire ?').fill('Louer les tables et les bancs');
   await ouverte.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
   await expect(page.locator('main tr', { hasText: 'Louer les tables et les bancs' }).locator('.tsource')).toHaveText('Soirée récréative');
   await page.locator('main').getByText('Louer les tables et les bancs').filter({ visible: true }).first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
@@ -313,22 +339,22 @@ test('vue « moi » : les tâches de mes autres entités, ouvertes et modifiées
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
-  // La discussion est aussi dans Messages, d'ici.
+  // La discussion est aussi dans Messages.
   await page.goto('./?demo#/messages');
   await expect(page.locator('.messages-ligne', { hasText: 'Louer les tables et les bancs' })).toContainText('Combien de bancs ?');
 
-  // Enregistrée dans la Soirée : tâche d'ici là-bas, avec son message.
-  await entite('Soirée récréative');
-  const chezElle = page.locator('main tr', { hasText: 'Louer les tables et les bancs' });
-  await expect(chezElle).toHaveCount(1);
-  // Sa pilule : la Soirée elle-même (membre de plusieurs entités, chaque tâche porte celle de son entité).
-  await expect(chezElle.locator('.tsource')).toHaveText('Soirée récréative');
-  await chezElle.getByText('Louer les tables et les bancs').first().click();
-  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
-  await expect(page.locator('.discussion-message.mien')).toContainText('Combien de bancs ?');
+  // Enregistrée dans la Soirée, avec son message.
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const t = JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').tasks?.find((x: { titre: string }) => x.titre === 'Louer les tables et les bancs');
+        return t?.commentaires?.[0]?.texte;
+      }),
+    )
+    .toBe('Combien de bancs ?');
 });
 
-test('vue « moi » : nouvelle tâche créée dans une autre de mes entités, sans changer d’entité', async ({ page }) => {
+test('vue du club : nouvelle tâche créée dans l’une de mes entités, choisie dans la fenêtre', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Commander les boissons');
   const choix = fiche.getByRole('combobox', { name: 'Entité' });
@@ -341,19 +367,17 @@ test('vue « moi » : nouvelle tâche créée dans une autre de mes entités, sa
   await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ index: 1 });
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
   await expect(page.locator('main tr', { hasText: 'Commander les boissons' }).locator('.tsource')).toHaveText('Soirée récréative');
 
   // Enregistrée dans la Soirée, comme une tâche à elle.
-  await ouvrirEntite(page, 'Soirée récréative');
-  await page.goto('./?demo#/taches');
-  const chezElle = page.locator('main tr', { hasText: 'Commander les boissons' });
-  await expect(chezElle).toHaveCount(1);
-  // Sa pilule : la Soirée elle-même (membre de plusieurs entités, chaque tâche porte celle de son entité).
-  await expect(chezElle.locator('.tsource')).toHaveText('Soirée récréative');
+  await expect
+    .poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').tasks ?? []).some((t: { titre: string }) => t.titre === 'Commander les boissons')))
+    .toBe(true);
+  expect(await page.evaluate(() => localStorage.getItem('taches-gsa-demo-v7')?.includes('Commander les boissons') ?? false)).toBe(false);
 });
 
-test('vue « moi » : mon profil, le même dans toutes mes entités', async ({ page }) => {
+test('session du club : mon profil, dans ma fiche du club ; mes places suivent', async ({ page }) => {
   await page.goto('./?demo#/reglages');
   const profil = page.locator('section.mon-profil');
   await expect(profil).toContainText('Soirée récréative');
@@ -361,29 +385,44 @@ test('vue « moi » : mon profil, le même dans toutes mes entités', async ({ p
   await profil.getByLabel('Prénom').fill('Jules');
   await profil.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await expect(page.locator('.who-text strong')).toHaveText('Jules Moreau');
-  // Dans la Soirée récréative aussi, sans l'avoir modifié là-bas.
-  await ouvrirEntite(page, 'Soirée récréative');
+  // Une seule fiche, celle de « Personnes du club » ; ses places (comité central, Soirée récréative) la suivent.
+  const prenoms = () =>
+    page.evaluate(() => [
+      (JSON.parse(localStorage.getItem('taches-gsa-demo-membres') ?? '[]') as { prenom: string; nom: string }[]).find((m) => m.nom === 'Moreau')?.prenom,
+      JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').people?.find((p: { nom: string }) => p.nom === 'Moreau')?.prenom,
+      JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').people?.find((p: { nom: string }) => p.nom === 'Moreau')?.prenom,
+    ]);
+  await expect.poll(prenoms).toEqual(['Jules', 'Jules', 'Jules']);
+  await page.reload();
   await expect(page.locator('.who-text strong')).toHaveText('Jules Moreau');
-  await page.goto('./?demo#/reglages');
   await expect(page.locator('section.mon-profil').getByLabel('Prénom')).toHaveValue('Jules');
 });
 
-test('vue « moi » : mes réglages, les mêmes dans toutes mes entités ; la sauvegarde du club, une entité restaurée', async ({ page }) => {
+test('session du club : mes réglages, une seule fois, au club ; la sauvegarde du club, une entité restaurée', async ({ page }) => {
   await page.goto('./?demo#/reglages');
-  // Préférence enregistrée aussi dans la Soirée récréative (pages affichées chez elle, sa cloche).
+  await expect(page.locator('.page-intro')).toHaveCount(1);
   await page.getByLabel('Phrase d’explication en haut des pages').selectOption('non');
+  // Enregistrée au club (session), plus recopiée dans chacune de mes entités.
   await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const d = JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}');
-        const moi = d.people?.find((p: { prenom: string }) => p.prenom === 'Julien');
-        return d.prefs?.[moi?.id]?.explications;
-      }),
-    )
-    .toBe(false);
-  // Sauvegarde : dans la console admin, celle de tout le club.
+    .poll(() => page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('taches-gsa-demo-perso') ?? '{}') as Record<string, { prefs?: { explications?: boolean } }>).some((p) => p.prefs?.explications === false)))
+    .toBe(true);
+  expect(
+    await page.evaluate(() => {
+      const d = JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}');
+      const moi = d.people?.find((p: { prenom: string }) => p.prenom === 'Julien');
+      return d.prefs?.[moi?.id]?.explications;
+    }),
+  ).toBeUndefined();
+  // Les mêmes partout : dans la console admin d'une entité aussi, et après un rechargement.
+  await expect(page.locator('.page-intro')).toHaveCount(0);
   await page.locator('.who-btn').click();
   await page.getByRole('menuitem', { name: 'Console admin' }).click();
+  await expect(page.locator('main h1').first()).toBeVisible();
+  await expect(page.locator('.page-intro')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('main h1').first()).toBeVisible();
+  await expect(page.locator('.page-intro')).toHaveCount(0);
+  // Sauvegarde : dans la console admin, celle de tout le club.
   await page.getByRole('link', { name: /Sauvegarde/ }).click();
   const club = page.locator('section.sauvegarde-club');
   const [fichier] = await Promise.all([page.waitForEvent('download'), club.getByRole('button', { name: 'Télécharger la sauvegarde du club' }).click()]);
@@ -430,7 +469,6 @@ test('vue « moi » : les séances de toutes mes entités, réunies (page Séanc
   // Une réunion aujourd'hui dans la Soirée récréative, posée par son responsable depuis la page Séances, sans changer
   // d'entité : seule entité où il gère les séances, elle est indiquée dans la fenêtre.
   await changer('Pierre Favre');
-  await ouvrirEntite(page, 'Comité central');
   await allerA(page, '/comite');
   await expect(page.locator('.subtabs-entite')).toHaveCount(0);
   await page.getByRole('button', { name: '+ Nouvelle séance' }).click();
@@ -443,11 +481,10 @@ test('vue « moi » : les séances de toutes mes entités, réunies (page Séanc
   // Avec celles du comité central, chacune avec la pilule de son entité.
   await expect(page.locator('.agenda-item', { hasText: 'Séance de la Soirée' }).locator('.tsource')).toHaveText('Soirée récréative');
   await expect(page.locator('.agenda-item', { hasText: 'Comité d’octobre' }).locator('.tsource')).toHaveText('Comité central');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 
   // Julien, au comité central : sur l'accueil, la prochaine séance de chacune de ses entités.
   await changer('Julien Moreau');
-  await ouvrirEntite(page, 'Comité central');
   await allerA(page, '/');
   const bloc = page.locator('.bloc-seance');
   await expect(bloc.locator('h2')).toHaveText(/Prochaines séances/);
@@ -473,11 +510,11 @@ test('vue « moi » : les séances de toutes mes entités, réunies (page Séanc
   await expect(cible).toContainText('Séance de la Soirée');
   await expect(cible.locator('.tsource')).toHaveText('Soirée récréative');
   await expect(page.locator('main')).toContainText('Comité d’octobre');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 });
 
 test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut de la page ; console admin depuis le menu, entité choisie en haut', async ({ page }) => {
-  // Julien Moreau, président du comité central (ouvert), est ici aussi admin de la Soirée récréative.
+  // Julien Moreau, président du comité central, est ici aussi admin de la Soirée récréative.
   const cle = 'taches-gsa-demo-u-u-soiree';
   await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
   await page.evaluate((k) => {
@@ -486,7 +523,6 @@ test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut 
     localStorage.setItem(k, JSON.stringify(d));
   }, cle);
   await page.reload();
-  await ouvrirEntite(page, 'Comité central');
   // Une réunion de la Soirée, posée depuis les séances réunies.
   await allerA(page, '/comite');
   await page.getByRole('button', { name: '+ Nouvelle séance' }).click();
@@ -512,8 +548,8 @@ test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut 
   await page.locator('.subtabs').getByRole('link', { name: 'PV' }).click();
   await expect(comite).toHaveText(/Soirée récréative/);
   await expect(page.getByLabel('Séance', { exact: true })).toContainText('Réunion de la soirée');
-  // Le comité central reste l'entité ouverte ; choisi, son PV revient.
-  await verifierEntite(page, 'Comité central');
+  // Aucune entité ouverte : le comité central, choisi, son PV revient.
+  await verifierSansEntite(page);
   await comite.click();
   await page.getByRole('option', { name: /Comité central/ }).click();
   await expect(comite).toHaveText(/Comité central/);
@@ -532,28 +568,26 @@ test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut 
   await page.getByRole('link', { name: /Rôles et droits/ }).click();
   await expect(page.locator('main h1')).toContainText('Rôles et droits');
   await expect(entite).toHaveText(/Soirée récréative/);
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 });
 
 test('vue « moi » : console admin de mon entité, depuis le menu, sans l’ouvrir', async ({ page }) => {
-  // Pierre Favre : membre du comité central (ouvert), admin de la Soirée récréative seulement.
+  // Pierre Favre : membre du comité central, admin de la Soirée récréative seulement.
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
-  await ouvrirEntite(page, 'Comité central');
   await page.locator('.who-btn').click();
   await page.getByRole('menuitem', { name: 'Console admin' }).click();
   // Seule entité dont il est admin : pas de choix, elle est nommée.
   await expect(page.locator('.subtabs').getByRole('combobox')).toHaveCount(0);
   await expect(page.locator('.subtabs .subtabs-entite')).toHaveText(/Soirée récréative/);
   await expect(page.locator('main')).toContainText('Logo et icône de l’entité.');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 });
 
 test('vue « moi » : organigramme sans « Ouvrir », fiche du club d’une personne, son rôle dans mon entité modifié sur place', async ({ page }) => {
-  // Pierre Favre : membre du comité central (ouvert), admin de la Soirée récréative.
+  // Pierre Favre : membre du comité central, admin de la Soirée récréative.
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
-  await ouvrirEntite(page, 'Comité central');
   await allerA(page, '/organigramme');
   await expect(page.locator('main').getByText('Yannick Leroy').first()).toBeVisible();
   await expect(page.locator('main').getByTitle(/^Ouvrir «/)).toHaveCount(0);
@@ -570,7 +604,7 @@ test('vue « moi » : organigramme sans « Ouvrir », fiche du club d’une pers
       page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').people?.find((p: { prenom: string }) => p.prenom === 'Yannick')?.roles),
     )
     .toContain('caissier');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 });
 
 test('vue « moi » : remboursement envoyé à la caisse d’une autre de mes entités, puis retrouvé avec les autres', async ({ page }) => {
@@ -578,7 +612,6 @@ test('vue « moi » : remboursement envoyé à la caisse d’une autre de mes en
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user', { hasText: 'Marc Lambert' }).first().click();
-  await ouvrirEntite(page, 'Comité central');
   await page.locator('.fab').click();
   await page.locator('.fab-menu button', { hasText: 'Nouveau remboursement' }).click();
   const form = page.locator('.modal').first();
@@ -600,7 +633,7 @@ test('vue « moi » : remboursement envoyé à la caisse d’une autre de mes en
       ),
     )
     .toBe(true);
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
   // Retrouvé dans ses paiements et remboursements, avec ceux de ses autres entités ; il s'ouvre là.
   await allerA(page, '/taches?type=tickets');
   const ligne = page.locator('main').getByText('Gobelets pour le ravitaillement').first();
@@ -608,7 +641,7 @@ test('vue « moi » : remboursement envoyé à la caisse d’une autre de mes en
   await ligne.click();
   await expect(page.locator('.modal').first()).toContainText('Gobelets pour le ravitaillement');
   await expect(page.locator('.modal').first()).toContainText('CHF 12,50');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 });
 
 test('tâche confiée à une personne d’une autre entité : elle seule la voit, pas son entité', async ({ page }) => {
@@ -756,9 +789,8 @@ test('vue « moi » : les événements de toutes mes entités, réunis ; un nouv
     await page.locator('.login-user', { hasText: nom }).first().click();
     await expect(page.locator('.topbar .brand')).toBeVisible();
   };
-  // Pierre Favre, au comité central (ouvert), gère les événements de la Soirée récréative : il en pose un d'ici.
+  // Pierre Favre, membre du comité central, gère les événements de la Soirée récréative : il en pose un.
   await changer('Pierre Favre');
-  await ouvrirEntite(page, 'Comité central');
   await allerA(page, '/evenements');
   const soiree = page.locator('.agenda-item:not(.dependant)', { hasText: 'Salle des fêtes' });
   await expect(soiree.locator('.tsource')).toHaveText('Soirée récréative');
@@ -771,11 +803,10 @@ test('vue « moi » : les événements de toutes mes entités, réunis ; un nouv
   const apero = page.locator('.agenda-item', { hasText: 'Apéro des bénévoles' });
   await expect(apero.locator('.tsource')).toHaveText('Soirée récréative');
   await expect(apero.getByRole('button', { name: 'Modifier' })).toBeVisible();
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 
   // Julien Moreau, membre de la Soirée : sur son accueil, avec la pilule de son entité.
   await changer('Julien Moreau');
-  await ouvrirEntite(page, 'Comité central');
   await allerA(page, '/');
   const bloc = page.locator('.bloc-evenements');
   await expect(bloc.locator('.link-panel', { hasText: 'Apéro des bénévoles' }).locator('.tsource')).toHaveText('Soirée récréative');
@@ -787,9 +818,8 @@ test('vue « moi » : les sondages de toutes mes entités, réunis ; un nouveau 
     await page.locator('.login-user', { hasText: nom }).first().click();
     await expect(page.locator('.topbar .brand')).toBeVisible();
   };
-  // Pierre Favre crée des sondages au comité central (ouvert) et à la Soirée récréative : il pose celui-ci à la Soirée.
+  // Pierre Favre crée des sondages au comité central et à la Soirée récréative : il pose celui-ci à la Soirée.
   await changer('Pierre Favre');
-  await ouvrirEntite(page, 'Comité central');
   await allerA(page, '/sondages');
   await page.getByRole('button', { name: '+ Nouveau sondage' }).click();
   const fen = page.getByRole('dialog', { name: 'Nouveau sondage' });
@@ -805,11 +835,10 @@ test('vue « moi » : les sondages de toutes mes entités, réunis ; un nouveau 
   await page.locator('.seg').getByRole('button', { name: /^En cours/ }).click();
   const carte = page.locator('.poll', { hasText: 'Faut-il une tombola ?' });
   await expect(carte.locator('.tsource')).toHaveText('Soirée récréative');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 
   // Julien Moreau, membre de la Soirée : à voter sur son accueil et dans les sondages, sans changer d'entité.
   await changer('Julien Moreau');
-  await ouvrirEntite(page, 'Comité central');
   await allerA(page, '/');
   await expect(page.locator('a.link-panel', { hasText: 'Faut-il une tombola ?' }).locator('.tsource')).toHaveText('Soirée récréative');
   await allerA(page, '/sondages');
@@ -823,7 +852,7 @@ test('vue « moi » : les sondages de toutes mes entités, réunis ; un nouveau 
   await page.locator('.seg').getByRole('button', { name: /^En cours/ }).click();
   await expect(aVoter).toContainText('1/5 réponses');
   await expect(aVoter).toContainText('Oui (ton choix)');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
@@ -1139,7 +1168,7 @@ test('recherche globale (Ctrl+K) : tâche, séance, personne, dans toutes mes en
   await expect(yannick).toHaveCount(1);
   await yannick.click();
   await expect(page.getByRole('dialog', { name: 'Yannick Leroy' })).toBeVisible();
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
   await page.keyboard.press('Control+k');
@@ -1310,9 +1339,8 @@ test('discussion : mentionner quelqu’un avec @, notification 📣 sans 💬 en
   await expect(discussion.locator('.discussion-message:not(.mien) .mention.moi')).toHaveText(`@${moi}`);
 });
 
-test('accueil du comité central : pas de cartes « Prochaine édition » en haut, même ouvert sur un sous-comité', async ({ page }) => {
-  // Une notification peut ouvrir l'appli sur l'entité de la tâche : l'accueil ne change pas pour autant.
-  await ouvrirEntite(page, 'Soirée récréative');
+test('accueil : pas de cartes « Prochaine édition » en haut', async ({ page }) => {
+  // Julien Moreau, aussi membre d'une équipe d'événement (Soirée récréative) : l'accueil n'en affiche pas l'édition d'office.
   await page.goto('./?demo#/');
   await expect(page.getByRole('heading', { name: /^Bonjour/ })).toBeVisible();
   await expect(page.locator('.panel.edition')).toHaveCount(0);
@@ -1360,8 +1388,7 @@ test('statuts : les mêmes dans tout le club, réglés au comité central ; accu
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // L'appli rouverte sur la Soirée : la tâche du comité central reste « Envoyé », sur l'accueil comme dans la liste.
-  await ouvrirEntite(page, 'Soirée récréative');
+  // La tâche du comité central reste « Envoyé », sur l'accueil comme dans la liste (statuts de toutes mes entités réunis).
   await allerA(page, '/');
   await expect(page.locator('.stat', { hasText: 'Envoyé' }).locator('b')).toHaveText('1');
   await allerA(page, '/taches');
@@ -1377,14 +1404,11 @@ test('statuts : les mêmes dans tout le club, réglés au comité central ; accu
 });
 
 test('tâches : les filtres « Entité » et « Événement » ne proposent que des choix qui ont des tâches', async ({ page }) => {
-  // Une tâche de la Soirée récréative (événement qui dépend du comité central), vue depuis le comité central.
-  await ouvrirEntite(page, 'Soirée récréative');
+  // Une tâche de la Soirée récréative (événement qui dépend du comité central).
   await allerA(page, '/taches');
-  const fiche = await nouvelleTache(page, 'Louer la sono');
+  const fiche = await nouvelleTache(page, 'Louer la sono', 'Soirée récréative');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await ouvrirEntite(page, 'Comité central');
-  await allerA(page, '/taches');
   await page.getByRole('button', { name: 'Toutes', exact: true }).click();
   await page.getByRole('button', { name: /^Filtres/ }).click();
   await page.getByLabel('Entité').selectOption({ label: 'Soirée récréative' });
@@ -1405,7 +1429,7 @@ test('tâches : les filtres « Entité » et « Événement » ne proposent que 
   }
 });
 
-test('lien reçu vers une tâche d’une autre de mes entités : l’appli reste sur son entité de base et l’ouvre d’ici', async ({ page }) => {
+test('lien reçu vers une tâche de l’une de mes entités : ouverte d’ici, sans entité de base', async ({ page }) => {
   // Une tâche de la Soirée récréative confiée à Julien Moreau (comité central et Soirée).
   const cle = 'taches-gsa-demo-u-u-soiree';
   await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
@@ -1415,11 +1439,11 @@ test('lien reçu vers une tâche d’une autre de mes entités : l’appli reste
     d.tasks.push({ id: 'tlien', sectionId: d.sections[0].id, sousSection: '', titre: 'Réserver la sono', responsables: [julien.id], statusId: d.statuses[0].id, delai: '', remarque: '', checklist: [], createdBy: julien.id, updatedAt: new Date().toISOString() });
     localStorage.setItem(k, JSON.stringify(d));
   }, cle);
-  // Le lien (notification du téléphone, WhatsApp) porte l'entité de la tâche : l'appli ne s'appuie pas sur elle pour autant.
+  // Le lien (notification du téléphone, WhatsApp) porte l'entité de la tâche : l'appli ne s'appuie sur aucune entité.
   await page.goto('./?demo=u-soiree#/taches?tache=tlien');
   await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ?')).toHaveValue('Réserver la sono');
-  await verifierEntite(page, 'Comité central');
-  // Rouverte ensuite sans lien : toujours le comité central.
+  await verifierSansEntite(page);
+  // Rouverte ensuite sans lien : toujours sans entité de base.
   await page.goto('./?demo#/');
-  await verifierEntite(page, 'Comité central');
+  await verifierSansEntite(page);
 });

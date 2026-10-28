@@ -274,7 +274,20 @@ export interface Club {
   sauvegardeClub?: (par: string) => Promise<SauvegardeClub>;
   /** Vue « moi » : l'une de mes autres entités, ouverte en arrière-plan (sans écran ; entites.tsx). */
   arrierePlan?: boolean;
+  /**
+   * Vue du club : l'une de mes entités, ouvertes à égalité en arrière-plan. Elle garde tout ce qu'elle reçoit (tâches
+   * confiées à moi comprises : la vue du club ne les montre qu'une fois) et se relit comme l'entité ouverte d'avant.
+   */
+  aEgalite?: boolean;
+  /**
+   * Vue du club (PLAN_CLUB_SANS_ENTITE.md, étape 1) : l'appli ne s'appuie sur aucune entité. `current` est alors le club
+   * lui-même (CLUB_ID, sans données à lui) ; toutes mes entités sont ouvertes en arrière-plan, à égalité.
+   */
+  vueClub?: boolean;
 }
+
+/** Vue du club : identifiant du club lui-même (`current`), qui n'est aucune entité. */
+export const CLUB_ID = 'club';
 
 export const ClubCtx = createContext<Club | null>(null);
 

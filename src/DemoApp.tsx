@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
-import { ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, ecrireBrut, effacerErreursDemo, erreursDemo, reglerErreurDemo, signalerErreurDemo, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, lireHistoriqueDemo, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, surEcriture, synchroDemo, UNIT_KEY } from './data/demoClub';
+import { CLUB_ID, ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
+import { CENTRAL_ID, deleteMembre, ecrireBrut, ecrirePerso, effacerErreursDemo, erreursDemo, reglerErreurDemo, signalerErreurDemo, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, lireHistoriqueDemo, lirePerso, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, reprisePerso, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, surEcriture, synchroDemo } from './data/demoClub';
 import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData } from './data/units';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
-import { compactIban, emailKey, fusionMembre, ibanValide, nomMembre, nouveauMembre, vueMembre } from './data/membres';
+import { compactIban, coordonnees, emailKey, fusionMembre, ibanValide, nomMembre, nouveauMembre, vueMembre } from './data/membres';
 import { appliquer, estEtoile } from './data/organigramme';
 import { isDone, uid } from './data/utils';
 import { deleteFiles, getFile } from './data/files';
@@ -14,7 +14,7 @@ import { avecVote, cleVote, electorat, isOpen } from './data/polls';
 import { confieeA, fusionPartagee, tacheDans } from './data/partage';
 import { reponseAilleurs } from './data/aPrendre';
 import { ajouterVus, attendusDe, clesVu, dernierAttendu } from './data/pourInfo';
-import { appliquerCommentaire, destinatairesCommentaire, luesCommunes, notifsCommentaire, unParPersonne } from './data/commentaires';
+import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, unParPersonne } from './data/commentaires';
 import { changementsTache } from './data/historique';
 import { nettoyerAttribuee } from './data/externes';
 import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
@@ -22,14 +22,18 @@ import { App } from './App';
 import { Login } from './pages/Login';
 import { SansPlace, type TacheConfiee } from './pages/SansPlace';
 import { RegistreEntites } from './data/entites';
+import { StoreClub } from './data/storeClub';
+import { avecDiscussionLue, avecLues, prefsCompletes, SessionCtx, type PersoClub, type SessionClub } from './data/session';
 
 // Démo : le club et ses entités, toutes gardées dans ce navigateur.
-// On se connecte en choisissant une personne de l'annuaire du club ; elle retrouve les entités dont elle fait partie,
-// et, membre du comité central, celles qui lui sont ouvertes (consulter, ou aussi modifier / ajouter).
+// On se connecte au club en choisissant une personne de l'annuaire du club (PLAN_CLUB_SANS_ENTITE.md, étape 1) : sans
+// entité de base, toutes les entités où elle a une place sont ouvertes à égalité, en arrière-plan ; la session du club
+// (réglages, profil, lectures) et la vue du club (StoreClub) sont au-dessus.
 
-// Entité d'un lien reçu (WhatsApp…), sinon la dernière ouverte.
 // Relances « Pour info » de la démo (entité:tâche → heure) : une par heure, dans ce navigateur.
 const relancesDemo = new Map<string, number>();
+const AUCUN: PersoClub = {};
+const AUCUNE: Record<string, string> = {};
 
 /**
  * Personnes attendues sur une tâche « Pour info » de l'entité `uniteId` (démo ; version réelle : 052) : une personne « a un
@@ -49,16 +53,6 @@ function attendusDemo(t: Task, uniteId: string, units: Unit[]) {
   );
 }
 
-// Entité de base : le comité central (ou celle où la démo a été rouverte) ; un lien reçu vers une autre de mes entités
-// s'ouvre d'ici (LienRecu), sans changer d'entité.
-const readUnit = () => {
-  try {
-    return localStorage.getItem(UNIT_KEY);
-  } catch {
-    return null;
-  }
-};
-
 export function DemoApp() {
   const [units, setUnits] = useState<Unit[]>(() => {
     const u = loadUnits();
@@ -67,10 +61,7 @@ export function DemoApp() {
     return migrerLiens(u);
   });
   const [me, setMe] = useState<string | null>(() => loadMe());
-  const [unitId, setUnitId] = useState<string | null>(readUnit);
   const [version, setVersion] = useState(0);
-  // Fiches de l'entité ouverte modifiées depuis le registre des membres du club : l'écran les relit.
-  const [epoch, setEpoch] = useState(0);
 
   // Organigramme : membres de chaque entité, lus dans ses données.
   const org: OrgUnit[] = useMemo(
@@ -162,25 +153,12 @@ export function DemoApp() {
 
   const mineAll = useMemo(() => org.filter((u) => u.moi), [org]);
   const central = org.find((u) => u.type === 'central') ?? null;
-  const current =
-    mineAll.find((u) => u.id === unitId) ??
-    mineAll.find((u) => u.type === 'central' && !u.archive) ??
-    mineAll.find((u) => !u.archive) ??
-    mineAll[0];
-  const switchUnit = useCallback(
-    (id: string, hash = '#/') => {
-      if (!org.find((u) => u.id === id)?.moi) return;
-      try {
-        localStorage.setItem(UNIT_KEY, id);
-      } catch {
-        /* ignore */
-      }
-      setUnitId(id);
-      window.location.hash = hash;
-      setVersion((v) => v + 1);
-    },
-    [org],
-  );
+  // Mes entités, ouvertes à égalité (en arrière-plan) : celles qui ne sont pas archivées (sinon les archivées).
+  const mesEntites = useMemo(() => (mineAll.some((u) => !u.archive) ? mineAll.filter((u) => !u.archive) : mineAll), [mineAll]);
+  // Plus d'entité à ouvrir : l'appli réunit toutes les miennes ; reste la page demandée.
+  const switchUnit = useCallback((_id: string, hash = '#/') => {
+    window.location.hash = hash;
+  }, []);
 
   // Ma fiche du registre (comme le serveur, gsa_mon_membre) : celle de l'une de mes fiches d'entité, sinon même email.
   const monMembre = () => {
@@ -191,6 +169,101 @@ export function DemoApp() {
       if (m) return m;
     }
     return list.find((x) => !!me && emailKey(x.email) === me);
+  };
+
+  // Session du club : moi, personne du club (ma fiche « Personnes du club »), avec mes réglages et mes lectures, gardés
+  // au club (une seule fois) ; la première fois, repris de mes entités.
+  const membre = useMemo(
+    () => (me ? monMembre() : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [me, units, version],
+  );
+  const cleSession = membre?.id ?? me;
+  const persoDepart = useMemo(() => {
+    if (!cleSession) return null;
+    const p = lirePerso(cleSession);
+    if (p) return p;
+    const r = reprisePerso(mesFiches);
+    ecrirePerso(cleSession, r);
+    return r;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleSession]);
+  const [persoMaj, setPersoMaj] = useState<{ cle: string; p: PersoClub } | null>(null);
+  const perso = (persoMaj && persoMaj.cle === cleSession ? persoMaj.p : persoDepart) ?? AUCUN;
+  const lues = perso.discussionsLues ?? AUCUNE;
+  const changerPerso = useCallback(
+    (f: (p: PersoClub) => PersoClub) => {
+      if (!cleSession) return;
+      setPersoMaj((m) => {
+        const avant = (m?.cle === cleSession ? m.p : lirePerso(cleSession)) ?? {};
+        const p = f(avant);
+        if (p === avant) return m;
+        ecrirePerso(cleSession, p);
+        return { cle: cleSession, p };
+      });
+    },
+    [cleSession],
+  );
+  const personne: Person | null = useMemo(() => {
+    if (!me) return null;
+    const fiches = sortUnits(mesEntites).flatMap((u) => loadUnitData(u.id).people.filter((p) => p.actif && personKey(p, u.id) === me));
+    const f = fiches[0];
+    const c = membre ? coordonnees(membre) : f ? coordonnees(f) : { prenom: '', nom: '', email: '', telephone: '' };
+    return {
+      id: membre?.id ?? `moi:${me}`,
+      ...c,
+      couleur: membre?.couleur ?? f?.couleur ?? '#999',
+      poste: [...new Set(fiches.map((p) => p.poste).filter(Boolean))].join(', '),
+      roles: [],
+      actif: true,
+      membreId: membre?.id,
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me, membre, mesEntites, version]);
+  const session: SessionClub | null = useMemo(
+    () =>
+      personne && {
+        personne,
+        places: mesFiches,
+        prefs: prefsCompletes(perso.prefs),
+        setPrefs: (p) => changerPerso((x) => ({ ...x, prefs: { ...x.prefs, ...p } })),
+        notifLues: (u) => (perso.notifLues ?? []).filter((k) => k.startsWith(`${u}|`)).map((k) => k.slice(u.length + 1)),
+        marquerLues: (cles) => changerPerso((x) => {
+          const l = avecLues(x.notifLues, cles);
+          return l === x.notifLues ? x : { ...x, notifLues: l };
+        }),
+        discussionsLues: lues,
+        lireDiscussion: (cle, dernier) => changerPerso((x) => {
+          const l = avecDiscussionLue(x.discussionsLues, cle, dernier);
+          return l === x.discussionsLues ? x : { ...x, discussionsLues: l };
+        }),
+        // Ma fiche du club (comme « Mon IBAN ») : ses coordonnées passent dans mes places (saveMembres).
+        async enregistrerProfil(c) {
+          const m = monMembre();
+          if (!m) throw new Error('Tu n’es pas encore dans « Personnes du club » : demande à quelqu’un qui gère les personnes de t’y inscrire.');
+          saveMembres([{ ...m, ...coordonnees({ ...c, email: m.email }) }]);
+          refresh();
+        },
+        deconnecter: logout,
+      },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [personne, mesFiches, perso, changerPerso, logout, refresh],
+  );
+
+  // Toutes mes entités sont ouvertes en arrière-plan : celle dont les données sont réécrites hors de sa couche de données
+  // (club, autre entité, organigramme) les relit ; pas quand c'est elle qui les enregistre.
+  const [relire, setRelire] = useState<Record<string, number>>({});
+  const enCours = useRef<string | null>(null);
+  const relireUnite = useCallback((id: string) => setRelire((r) => ({ ...r, [id]: (r[id] ?? 0) + 1 })), []);
+  useEffect(() => surEcriture((id) => id !== enCours.current && queueMicrotask(() => relireUnite(id))), [relireUnite]);
+  const parElle = <T,>(id: string, f: () => T) => {
+    const avant = enCours.current;
+    enCours.current = id;
+    try {
+      return f();
+    } finally {
+      enCours.current = avant;
+    }
   };
 
   // Club vu d'une entité (`current`) : l'entité ouverte, ou l'une de mes autres entités en arrière-plan (vue « moi »).
@@ -209,10 +282,8 @@ export function DemoApp() {
       central,
       mine: mineAll.filter((u) => !u.archive || u.id === current.id),
       mesFiches,
-      // Discussions lues dans mes autres entités : lues ici aussi.
-      luesAilleurs: luesCommunes(
-        Object.fromEntries(Object.entries(mesFiches).flatMap(([u, f]) => (u === current.id ? [] : [[u, loadUnitData(u).discussionsLues?.[f]]]))),
-      ),
+      // Discussions lues : au club (session), une fois lues, elles le sont partout.
+      luesAilleurs: lues,
       canManage: !!central?.moiAdmin,
       // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
       liens: false,
@@ -232,7 +303,7 @@ export function DemoApp() {
         saveUnits(next);
         setUnits(next);
         // Organigramme : les postes qui portent son nom (« Camp de Pentecôte » au comité central) lui sont liés.
-        if (lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
+        lierEntiteDemo(id);
         return { unitId: id };
       },
       async updateUnit(id, patch) {
@@ -246,7 +317,7 @@ export function DemoApp() {
         }
         saveUnits(next);
         setUnits(next);
-        if (patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom && lierEntiteDemo(id).includes(current.id)) setEpoch((e) => e + 1);
+        if (patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom) lierEntiteDemo(id);
       },
       // Entité archivée supprimée définitivement (version réelle : action « supprimerUnite » de gsa-acces).
       async apercuSuppression(id): Promise<ApercuSuppression> {
@@ -297,7 +368,6 @@ export function DemoApp() {
         const next = units.filter((x) => x.id !== id);
         saveUnits(next);
         setUnits(next);
-        setEpoch((e) => e + 1);
         return undefined;
       },
       async placerCartes(places) {
@@ -337,13 +407,15 @@ export function DemoApp() {
         }
         for (const u of changees) propagerLiens(u.id);
         const apres = new Map(units.map((u) => [u.id, lireBrut(u.id)]));
-        if (changees.some((u) => u.id === current.id)) setEpoch((e) => e + 1);
         if (changees.length) refresh();
         return {
           message,
           annuler: async () => {
-            for (const u of units) if (apres.get(u.id) !== brut.get(u.id)) ecrireBrut(u.id, brut.get(u.id) ?? null);
-            setEpoch((e) => e + 1);
+            for (const u of units)
+              if (apres.get(u.id) !== brut.get(u.id)) {
+                ecrireBrut(u.id, brut.get(u.id) ?? null);
+                relireUnite(u.id);
+              }
             refresh();
           },
         };
@@ -370,8 +442,6 @@ export function DemoApp() {
         const d = loadUnitData(central.id);
         d.propositions = [p, ...(d.propositions ?? [])];
         saveUnitData(central.id, d);
-        // Comité central ouvert : l'écran relit ses données.
-        if (current.id === central.id) setEpoch((e) => e + 1);
       },
       organigrammesAnnuels: async () => loadOrganigrammes(),
       async mesPropositions() {
@@ -725,7 +795,6 @@ export function DemoApp() {
           saveMe(emailKey(moi.email));
           setMe(emailKey(moi.email));
         }
-        setEpoch((e) => e + 1);
         refresh();
       },
       // Retirée du club : ses places dans les entités (fiches retirées, postes libérés, comme « Retirer de l'entité ») ;
@@ -757,7 +826,6 @@ export function DemoApp() {
           for (const k of postes?.autres ?? []) propagerLiens(k);
         }
         deleteMembre(id);
-        if (touchees.some((u) => u.id === current.id)) setEpoch((e) => e + 1);
         refresh();
       },
       async monRegistre() {
@@ -798,7 +866,6 @@ export function DemoApp() {
         saveUnitData(uniteId, postes?.d ?? lie);
         propagerLiens(uniteId);
         for (const k of postes?.autres ?? []) propagerLiens(k);
-        if (uniteId === current.id) setEpoch((e) => e + 1);
         refresh();
       },
       // Démo : pas de comptes ni de mots de passe.
@@ -819,34 +886,20 @@ export function DemoApp() {
           }
         : undefined,
       arrierePlan,
+      // Vue du club : toutes mes entités sont ouvertes à égalité.
+      aEgalite: arrierePlan,
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org, central, mineAll, mesFiches, switchUnit, refresh, units, me, personnes, caissier]);
-  const club = useMemo(() => (current ? clubDe(current) : null), [clubDe, current]);
+  }, [org, central, mineAll, mesFiches, switchUnit, refresh, units, me, personnes, caissier, lues, relireUnite]);
+  // Le club lui-même, vu de la session : aucune entité ouverte (CLUB_ID), toutes les miennes en arrière-plan.
+  const clubSession = useMemo(() => {
+    const c = central ?? org[0];
+    if (!c) return null;
+    const u: OrgUnit = { id: CLUB_ID, nom: 'Club', type: 'central', couleur: c.couleur, logo: c.logo, couleurAppli: c.couleurAppli, membres: [], moi: true, moiAdmin: false };
+    return { ...clubDe(u), vueClub: true };
+  }, [clubDe, central, org]);
 
-  // Vue « moi » : plusieurs entités ouvertes à la fois. Celle dont les données sont réécrites hors de sa couche de données
-  // (club, autre entité, organigramme) les relit ; pas quand c'est elle qui les enregistre.
-  const [relire, setRelire] = useState<Record<string, number>>({});
-  const enCours = useRef<string | null>(null);
-  const relireUnite = useCallback((id: string) => setRelire((r) => ({ ...r, [id]: (r[id] ?? 0) + 1 })), []);
-  useEffect(() => surEcriture((id) => id !== enCours.current && queueMicrotask(() => relireUnite(id))), [relireUnite]);
-  const parElle = <T,>(id: string, f: () => T) => {
-    const avant = enCours.current;
-    enCours.current = id;
-    try {
-      return f();
-    } finally {
-      enCours.current = avant;
-    }
-  };
-
-  const personId = useMemo(() => {
-    if (!current || !me) return null;
-    return loadUnitData(current.id).people.find((p) => p.actif && personKey(p, current.id) === me)?.id ?? null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current?.id, me]);
-
-  // Couche de données d'une entité : l'entité ouverte, ou l'une de mes autres entités en arrière-plan.
+  // Couche de données de chacune de mes entités, ouvertes en arrière-plan.
   const demoDe = useCallback(
     (id: string, personne: string | null, epoque: number): DemoMode => ({
       load: () =>
@@ -883,31 +936,22 @@ export function DemoApp() {
     }),
     [logout, refresh, relireUnite],
   );
-  const relireIci = current ? relire[current.id] ?? 0 : 0;
-  const demo = useMemo(
-    () => (current ? demoDe(current.id, personId, epoch + relireIci) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [current?.id, personId, demoDe, epoch, relireIci],
-  );
-  // Vue « moi » : mes autres entités (non archivées), ouvertes en arrière-plan ; leurs tâches, discussions et
-  // notifications s'ajoutent à celles de l'entité ouverte (entites.tsx).
+  // Toutes mes entités, à égalité : leurs tâches, discussions et notifications sont réunies par la vue du club (StoreClub).
   const arriere = useMemo(
     () =>
-      me && current
-        ? mineAll
-            .filter((u) => u.id !== current.id && !u.archive)
-            .map((u) => {
-              const personne = loadUnitData(u.id).people.find((p) => p.actif && personKey(p, u.id) === me)?.id ?? null;
-              return { u, club: clubDe(u, true), demo: demoDe(u.id, personne, relire[u.id] ?? 0) };
-            })
+      me
+        ? mesEntites.map((u) => {
+            const personne = loadUnitData(u.id).people.find((p) => p.actif && personKey(p, u.id) === me)?.id ?? null;
+            return { u, personne, club: clubDe(u, true), demo: demoDe(u.id, personne, relire[u.id] ?? 0) };
+          })
         : [],
-    [me, current, mineAll, clubDe, demoDe, relire],
+    [me, mesEntites, clubDe, demoDe, relire],
   );
 
   // Personnes du club sans place dans l'organigramme, avec un accès : leurs tâches confiées (PERSONNES_DU_CLUB.md, étape 3).
   const aUnePlace = (m: ClubMembre) =>
     units.some((u) => loadUnitData(u.id).people.some((p) => p.actif && (p.membreId === m.id || (!!emailKey(m.email) && emailKey(p.email) === emailKey(m.email)))));
-  const moiSansPlace = !current && me?.startsWith('membre:') ? loadMembres().find((m) => `membre:${m.id}` === me && m.acces && !aUnePlace(m)) : undefined;
+  const moiSansPlace = !mesEntites.length && me?.startsWith('membre:') ? loadMembres().find((m) => `membre:${m.id}` === me && m.acces && !aUnePlace(m)) : undefined;
   if (moiSansPlace) {
     const taches: TacheConfiee[] = org
       .filter((u) => !u.archive)
@@ -932,7 +976,7 @@ export function DemoApp() {
     return <SansPlace membre={moiSansPlace} logo={central?.logo} taches={taches} modifier={modifier} sortir="Changer" onSortir={logout} />;
   }
 
-  if (!me || !club || !demo) {
+  if (!me || !session || !clubSession || !mesEntites.length) {
     return (
       <Login
         units={org}
@@ -950,17 +994,19 @@ export function DemoApp() {
   }
 
   return (
-    <RegistreEntites>
-      <ClubCtx.Provider value={club}>
-        <StoreProvider key={`${current.id}|${me}`} demo={demo}>
-          <App />
-        </StoreProvider>
-      </ClubCtx.Provider>
-      {arriere.map((x) => (
-        <ClubCtx.Provider key={`${x.u.id}|${me}`} value={x.club}>
-          <StoreProvider demo={x.demo} />
+    <SessionCtx.Provider value={session}>
+      <RegistreEntites>
+        {arriere.map((x) => (
+          <ClubCtx.Provider key={`${x.u.id}|${me}|${x.personne}`} value={x.club}>
+            <StoreProvider demo={x.demo} />
+          </ClubCtx.Provider>
+        ))}
+        <ClubCtx.Provider value={clubSession}>
+          <StoreClub key={me} attendues={arriere.map((x) => x.u.id)}>
+            <App />
+          </StoreClub>
         </ClubCtx.Provider>
-      ))}
-    </RegistreEntites>
+      </RegistreEntites>
+    </SessionCtx.Provider>
   );
 }

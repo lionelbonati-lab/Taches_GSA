@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { nonLus } from '../data/commentaires';
 import { useStore } from '../data/store';
+import { useRegistre } from '../data/entites';
 import { useClubOptional } from '../data/club';
 import { ciblesPourInfo, clesVu, modifieeDepuisMonVu, termineeChezElle, vusDeLEntite } from '../data/pourInfo';
 import type { TachePartagee } from '../data/types';
@@ -16,6 +17,21 @@ import { Historique } from './tache/Historique';
 
 export const clePourInfo = (x: TachePartagee) => `${x.uniteId}:${x.task.id}`;
 
+/**
+ * D'où je vois une tâche reçue pour info : l'entité ouverte et ma fiche, ou (vue du club) celle de mes entités qui l'a
+ * reçue (`x.chez`) et ma place chez elle, avec mon droit « Voir toutes les tâches » là.
+ */
+export function useRecueDepuis() {
+  const { user, can } = useStore();
+  const club = useClubOptional();
+  const registre = useRegistre();
+  return (x: TachePartagee) => {
+    if (!x.chez) return { ici: club?.current.id ?? '', nom: club?.current.nom ?? 'cette entité', fiche: user?.id, voitTout: can('tasks.viewAll') };
+    const e = registre?.get(x.chez);
+    return { ici: x.chez, nom: e?.club.current.nom ?? 'cette entité', fiche: e?.store.user?.id, voitTout: !!e?.store.can('tasks.viewAll') };
+  };
+}
+
 /** Délai d'une tâche reçue, avec le retard s'il y en a. */
 export function delaiRecu(x: TachePartagee) {
   if (!x.task.delai) return 'sans délai';
@@ -25,11 +41,11 @@ export function delaiRecu(x: TachePartagee) {
 
 /** `ouverte` : la tâche dépliée d'emblée (lien d'une notification), avec sa discussion si `discussion`. */
 export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: TachePartagee[]; ouverte?: string; discussion?: boolean; onClose: () => void }) {
-  const { user, can, vuPourInfo, setToast, discussionLueLe } = useStore();
+  const { user, vuPourInfo, setToast, discussionLueLe } = useStore();
+  const depuis = useRecueDepuis();
   // « ✓ Vu » noté pendant que la fenêtre est ouverte (la liste se relit ensuite).
   const [vuIci, setVuIci] = useState<string[]>([]);
   const club = useClubOptional();
-  const ici = club?.current.nom ?? 'cette entité';
   const [vue, setVue] = useState<string | null>(() => ouverte ?? (list.length === 1 ? clePourInfo(list[0]) : null));
   // Discussion ouverte (sa fenêtre) : clé de la tâche.
   const [chat, setChat] = useState<string | null>(() => (discussion && ouverte) || null);
@@ -61,20 +77,21 @@ export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: T
                 const liste = Array.isArray(t.checklist) ? t.checklist : [];
                 const liens = (t.documents ?? []).filter((d) => d.kind === 'lien' && d.url);
                 const resp = (t.responsables ?? []).map((id) => membres.find((m) => m.id === id)).filter((m) => !!m).map((m) => `${m.prenom} ${m.nom}`.trim());
-                const pourToi = !!user && !!t.pourInfo?.autres?.[club?.current.id ?? '']?.includes(user.id);
+                const d = depuis(x);
+                const pourToi = !!d.fiche && !!t.pourInfo?.autres?.[d.ici]?.includes(d.fiche);
                 // « ✓ Vu » enregistrés sur la tâche (046) : à côté des noms (entité : combien de ses personnes) ; le mien, à donner s'il manque.
                 const aussi = ciblesPourInfo(t.pourInfo, membres, club?.units ?? []).map((c) => {
                   const n = c.genre === 'unite' ? Object.keys(vusDeLEntite(t.pourInfoVus, c.id)).length : 0;
                   return `${c.texte}${c.genre === 'unite' ? (n ? ` (✓ ${n})` : '') : t.pourInfoVus?.[c.cle] ? ' ✓' : ''}`;
                 });
-                const miennes = user && club ? clesVu(t, x.uniteId, club.current.id, user.id, can('tasks.viewAll')) : [];
+                const miennes = d.fiche && club ? clesVu(t, x.uniteId, d.ici, d.fiche, d.voitTout) : [];
                 // Pas encore vue, ou modifiée depuis mon « ✓ Vu » (052) : à revoir.
                 const revoir = !vuIci.includes(k) && modifieeDepuisMonVu(t, miennes);
                 const aVoir = miennes.length > 0 && !vuIci.includes(k) && (miennes.some((c) => !t.pourInfoVus?.[c]) || revoir);
                 // Comme les notifications : la tâche vue d'ici (« x:<entité>:<tâche> »).
                 const cle = `x:${k}`;
                 const msgs = t.commentaires?.length ?? 0;
-                const nl = user ? nonLus(t.commentaires, discussionLueLe(cle), user.id, club?.current.id ?? '', x.uniteId, club?.mesFiches) : 0;
+                const nl = user ? nonLus(t.commentaires, discussionLueLe(cle), d.fiche ?? user.id, d.ici, x.uniteId, club?.mesFiches) : 0;
                 return (
                   <li key={k} className={termineeChezElle(x) ? 'pour-info-finie' : ''}>
                     <span className="pour-info-titre">
@@ -82,7 +99,7 @@ export function PourInfoRecues({ list, ouverte, discussion, onClose }: { list: T
                       <small className="muted">
                         {' '}· {termineeChezElle(x) ? '✓ ' : ''}{st?.label ?? '?'} · {delaiRecu(x)}
                         {liste.length > 0 && ` · ☑ ${liste.filter((c) => c.done).length}/${liste.length}`}
-                        {pourToi ? ' · pour toi' : ` · pour « ${ici} »`}
+                        {pourToi ? ' · pour toi' : ` · pour « ${d.nom} »`}
                         {revoir && ' · ✏️ modifiée depuis ton « ✓ Vu »'}
                         {nl > 0 && <> · <Icone n="message" /> {nl} non lu{nl > 1 ? 's' : ''}</>}
                       </small>
