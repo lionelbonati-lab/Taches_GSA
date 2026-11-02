@@ -1447,3 +1447,38 @@ test('lien reçu vers une tâche de l’une de mes entités : ouverte d’ici, s
   await page.goto('./?demo#/');
   await verifierSansEntite(page);
 });
+
+test('étiquettes : ses membres voient la tâche étiquetée, la liste montre l’étiquette et la filtre', async ({ page }) => {
+  // Julien Moreau (admin) crée l'étiquette « Bruntrutaine » ; Émilie Rossi (sans « voir toutes les tâches ») en est membre.
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
+  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Bruntrutaine');
+  await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await fen.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Émilie Rossi' }).click();
+  await expect(fen.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Émilie Rossi' })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Une tâche étiquetée, confiée à quelqu'un d'autre.
+  const fiche = await nouvelleTache(page, 'Réserver les tentes');
+  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Bruntrutaine' }).click();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const ligne = page.locator('main tr', { hasText: 'Réserver les tentes' });
+  await expect(ligne.locator('.badge.etiquette')).toHaveText('Bruntrutaine');
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  await page.getByLabel('Étiquette', { exact: true }).selectOption({ label: 'Bruntrutaine' });
+  await expect(page.locator('main tbody tr')).toHaveCount(1);
+
+  // Émilie Rossi la voit (« Toutes » : les tâches de ses étiquettes), avec qui s'en occupe.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Émilie Rossi' }).first().click();
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+  const vue = page.locator('main tr', { hasText: 'Réserver les tentes' });
+  await expect(vue).toHaveCount(1);
+  await expect(vue.locator('.badge.etiquette')).toHaveText('Bruntrutaine');
+  await expect(vue.locator('.avatars .avatar')).toHaveCount(1);
+});

@@ -1957,3 +1957,11 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 
 /* Réglages › Notifications : groupes (tâches, messagerie, agenda et sondages). */
 .form h3.notif-groupe { margin: 10px 0 -4px; font-size: 0.95rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+
+/* Étiquettes des tâches (événements, groupes) : pastilles, choix dans la fiche, réglage. */
+.etiquettes-tag { display: inline-flex; gap: 4px; flex-wrap: wrap; vertical-align: middle; }
+.badge.etiquette { color: #fff; }
+.etiquettes-choix .chips .chip.on { color: #fff; }
+.etiquette-reglage { display: flex; flex-direction: column; gap: 8px; }
+.etiquette-personnes { border: none; padding: 0; margin: 0; }
+.etiquette-personnes legend { font-size: 0.85rem; color: var(--muted); padding: 0; margin-bottom: 4px; }

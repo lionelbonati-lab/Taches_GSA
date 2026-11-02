@@ -8,6 +8,7 @@ import { emailsOf } from '../data/emails';
 import { deleteFiles } from '../data/files';
 import { TicketModal } from './Tickets';
 import { useStore } from '../data/store';
+import { dansEtiquette } from '../data/permissions';
 import { useClubOptional } from '../data/club';
 import { avecPartage, libellePlace, memePersonne, partageDe, TACHES_DEPENDANCE } from '../data/partage';
 import { nbPourInfo, pourMoi, recoiventDe, vuAvantModif } from '../data/pourInfo';
@@ -256,6 +257,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
   const submit = async () => {
     if (!t.titre.trim()) return setErr('Le titre de la tâche est obligatoire.');
     if (!t.sectionId) return setErr('Choisis une section.');
+    // Responsable d'une étiquette sans droit de créer dans la section : la tâche porte l'une de ses étiquettes.
+    if (isNew && !can('tasks.createAny', t.sectionId) && !can('tasks.editOwn', t.sectionId) && !dansEtiquette(t, user.id, data.etiquettes, true))
+      return setErr('Ajoute l’une de tes étiquettes : tu crées des tâches pour elles.');
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
       return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
     const fin = finAnticipee(data, isNew ? undefined : task, t);
@@ -545,6 +549,22 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion, entit
           Tâche
           <input autoFocus={isNew} value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ?" />
         </label>
+        {!!data.etiquettes?.length && (
+          <div className="full etiquettes-choix">
+            <span className="field-label"><Icone n="etiquette" /> Étiquettes</span>
+            <div className="chips">
+              {data.etiquettes.map((e) => {
+                const on = !!t.etiquettes?.includes(e.id);
+                return (
+                  <button key={e.id} type="button" className={`chip ${on ? 'on' : ''}`} style={on ? { background: e.couleur, borderColor: e.couleur } : { borderColor: e.couleur }} disabled={dis} aria-pressed={on}
+                    onClick={() => setT((x) => ({ ...x, etiquettes: on ? (x.etiquettes ?? []).filter((y) => y !== e.id) : [...(x.etiquettes ?? []), e.id] }))}>
+                    {e.nom}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
         {/* Section, Sous-section et Statut l'un sous l'autre, « Pour quand ? » à côté ; sur téléphone (une colonne), après eux. */}
         <div className="tache-colonne">
           {choixEntite && (

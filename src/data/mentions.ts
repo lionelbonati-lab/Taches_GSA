@@ -1,4 +1,4 @@
-import type { ActivityNotif, Person, Role, Task } from './types';
+import type { ActivityNotif, Etiquette, Person, Role, Task } from './types';
 import { userRoles, voitTache } from './permissions';
 import { normaliser } from './recherche';
 import { apercu } from './commentaires';
@@ -11,9 +11,9 @@ const LETTRE = /[\p{L}\p{N}]/u;
 const lettre = (c: string) => !!c && LETTRE.test(c);
 
 /** Personnes qu'on peut mentionner dans la discussion de la tâche `t` (de l'entité ouverte) : actives, qui la voient, sauf soi. */
-export const mentionnables = (t: Task, people: Person[], roles: Role[], moi: string) =>
+export const mentionnables = (t: Task, people: Person[], roles: Role[], moi: string, etiquettes?: Etiquette[]) =>
   people
-    .filter((p) => p.actif && p.id !== moi && fullName(p) && voitTache(t, p.id, userRoles(roles, p)))
+    .filter((p) => p.actif && p.id !== moi && fullName(p) && voitTache(t, p.id, userRoles(roles, p), etiquettes))
     .sort((a, b) => fullName(a).localeCompare(fullName(b), 'fr'));
 
 /** Morceaux du texte : texte simple, ou mention d'une personne (`id`) ; le nom le plus long l'emporte. */

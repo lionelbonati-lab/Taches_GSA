@@ -281,6 +281,8 @@ export interface Task {
    * (et son ordre du jour) et la modifie comme les siennes.
    */
   partage?: string[];
+  /** Étiquettes de la tâche (événement, groupe…) : leurs membres la voient, leurs responsables la gèrent. */
+  etiquettes?: string[];
   /** Ancienne case « Transmettre au comité central » : partagée avec le comité central. */
   auCentral?: boolean;
   /**
@@ -832,6 +834,19 @@ export interface AppData {
   propositions?: Proposition[];
   /** Organigramme à glisser-déposer (démo) : postes de la zone « Responsables » de la fiche ; absent : à déduire des fonctions. */
   postes?: Poste[];
+  /** Étiquettes des tâches (événements, groupes…), avec leurs membres et leurs responsables. */
+  etiquettes?: Etiquette[];
+}
+
+/** Étiquette du club (événement, groupe…) : ses membres voient les tâches qui la portent ; ses responsables les gèrent (créer, modifier, attribuer) et règlent ses membres. */
+export interface Etiquette {
+  id: string;
+  nom: string;
+  couleur: string;
+  /** Fiches des personnes qui voient ses tâches. */
+  membres: string[];
+  /** Fiches des personnes qui gèrent ses tâches et ses membres. */
+  responsables: string[];
 }
 
 /**

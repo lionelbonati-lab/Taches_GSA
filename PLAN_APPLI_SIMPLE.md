@@ -22,7 +22,7 @@ au club).
 Règles : publier à la fin de chaque étape ; tests Playwright ; données fictives seulement ; serveur : lecture seule
 d'abord, migrations appliquées par le président, aucun déploiement sans son accord ; jamais d'écriture destructive.
 
-- **A1 — Étiquettes (démo et version réelle, sans rien retirer)** : modèle (`etiquettes` : nom, couleur, membres,
+- **A1 — Étiquettes (démo et version réelle, sans rien retirer)** — *fait le 02.11.2026* (réglage : bouton « Étiquettes » de la page Tâches ; version réelle : rangées au comité central, `gsa_items` « etiquettes », sans migration) : modèle (`etiquettes` : nom, couleur, membres,
   responsables ; `Task.etiquettes`), console admin › Étiquettes (admins ; responsables : leurs membres), champ
   « Étiquettes » de la tâche, pastille sur les cartes et la liste, filtre « Étiquette », visibilité pour les membres,
   modification par les responsables.

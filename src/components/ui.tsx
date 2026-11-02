@@ -178,6 +178,22 @@ export function DocPollIcons({ task }: { task: Task }) {
 }
 
 /** Remboursement / paiement : montant et étape du circuit, dans les listes de tâches. */
+/** Étiquettes de la tâche (événement, groupe…), à leur couleur. */
+export function EtiquettesTag({ task }: { task: Task }) {
+  const { data } = useStore();
+  const liste = (task.etiquettes ?? []).map((id) => data.etiquettes?.find((e) => e.id === id)).filter((e) => !!e);
+  if (!liste.length) return null;
+  return (
+    <span className="etiquettes-tag">
+      {liste.map((e) => (
+        <span key={e.id} className="badge etiquette" style={{ background: e.couleur }} title={`Étiquette « ${e.nom} »`}>
+          {e.nom}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 export function TicketTag({ task }: { task: Task }) {
   const { data, user } = useStore();
   const p = task.paiement;

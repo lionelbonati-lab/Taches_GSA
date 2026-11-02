@@ -91,6 +91,7 @@ export function Aide() {
     geste('Préparer l’ordre du jour ou tenir le PV d’un autre de mes comités', vers('/ordre-du-jour') ?? vers('/pv'), ' : choisis le comité en haut de la page (« Comité »). Son ordre du jour et son PV s’affichent directement, avec tes droits chez lui ; le choix vaut pour les deux pages.');
   if (comites && comites.liste('admin.access').length > 1)
     geste('Régler l’une de mes entités (console admin)', vers('/admin'), ' (menu de ton compte, en haut à droite ; « Plus » sur téléphone) : choisis l’entité en haut de la page (« Entité »), parmi celles dont tu es admin. Ses rôles, ses sections, son apparence, son en-tête et sa sauvegarde s’affichent directement. « Mots de passe oubliés » est dans le même menu, quand des membres ont fait la demande.');
+  geste('Mettre une étiquette sur une tâche (événement, groupe…)', vers('/taches'), ' : dans la tâche, « Étiquettes » ; ses membres la voient (« Toutes »), avec qui s’en occupe. Admins et responsables d’étiquette : bouton « Étiquettes » de la page Tâches (membres, responsables) ; filtre « Étiquette ».');
   if (club && (comites?.canUn('admin.access') ?? can('admin.access')))
     geste('Ajouter ou changer un statut des tâches (À faire, Envoyé…)', vers('/admin'), ' : console admin du comité central › « Sections et statuts » (ses admins). Les statuts sont les mêmes dans toutes les entités du club : chacune les reçoit, et sa console les montre sans les changer.');
   if (club && club.units.length > 1)

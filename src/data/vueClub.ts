@@ -111,6 +111,7 @@ export function vueClub(entites: EntiteVue[], moi: Person, units: OrgUnit[], pre
         createdBy: t.createdBy && P(t.createdBy),
         meetingId: t.meetingId && idDans(e.id, t.meetingId),
         eventId: t.eventId && idDans(e.id, t.eventId),
+        etiquettes: t.etiquettes?.map((x) => idDans(u, x)),
         parentId: t.parentId && (estPartagee(t.parentId) ? t.parentId : idPartagee(e.id, t.parentId)),
         pourInfo: pourInfoClub(t.pourInfo, e.id, personneDe),
         pourInfoVus: vusClub(t.pourInfoVus, e.id, personneDe),
@@ -138,6 +139,10 @@ export function vueClub(entites: EntiteVue[], moi: Person, units: OrgUnit[], pre
   );
   const meetings = entites.flatMap((e) => e.data.meetings.map((m) => ({ ...m, id: idDans(e.id, m.id) })));
   const events = entites.flatMap((e) => e.data.events.map((x) => ({ ...x, id: idDans(e.id, x.id) })));
+  // Étiquettes de mes entités : leurs membres et responsables ramenés aux personnes du club.
+  const etiquettes = entites.flatMap((e) =>
+    (e.data.etiquettes ?? []).map((x) => ({ ...x, id: idDans(e.id, x.id), membres: x.membres.map((f) => personneDe(e.id, f)), responsables: x.responsables.map((f) => personneDe(e.id, f)) })),
+  );
   return {
     data: {
       people: [...people.values()],
@@ -146,6 +151,7 @@ export function vueClub(entites: EntiteVue[], moi: Person, units: OrgUnit[], pre
       tasks,
       meetings,
       events,
+      etiquettes,
       roles: [],
       log: [],
       prefs: { [moi.id]: prefs },

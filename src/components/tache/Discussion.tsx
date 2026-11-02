@@ -55,7 +55,7 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   const unite = uniteId ?? ici;
   // Mentions : personnes qu'on peut nommer (tâche d'ici seulement), suggestions pendant la frappe.
   const tache = unite === ici ? data.tasks.find((t) => t.id === tacheId && !t.source) : undefined;
-  const nommables = useMemo(() => (tache && user ? mentionnables(tache, data.people, data.roles, user.id) : []), [tache, data.people, data.roles, user]);
+  const nommables = useMemo(() => (tache && user ? mentionnables(tache, data.people, data.roles, user.id, data.etiquettes) : []), [tache, data.people, data.roles, data.etiquettes, user]);
   const zone = useRef<HTMLTextAreaElement | null>(null);
   const [suggestion, setSuggestion] = useState<{ debut: number; fin: number; liste: Person[]; i: number } | null>(null);
   // Messages des autres arrivés depuis la dernière lecture, à l'ouverture : le premier est repéré.

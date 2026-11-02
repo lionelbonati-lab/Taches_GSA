@@ -11,7 +11,8 @@ import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
 import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
-import { APrendreTag, Avatar, DocPollIcons, Empty, LinkIcon, PourInfoTag, OrigineTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
+import { APrendreTag, Avatar, DocPollIcons, Empty, EtiquettesTag, LinkIcon, PourInfoTag, OrigineTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
+import { EtiquettesModal } from '../components/Etiquettes';
 import { PourInfoRecues } from '../components/PourInfo';
 import { Chez, useMesEntites } from '../data/entites';
 import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
@@ -29,7 +30,7 @@ import { idDans, tacheDeMesEntites } from '../data/vueClub';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
-const EMPTY_FILTERS = { q: '', entite: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
+const EMPTY_FILTERS = { q: '', entite: '', etiquette: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
 
 /**
  * Notification d'un message (💬, 📣 : …&discussion=1) : la discussion s'ouvre dans « Messages », pas par-dessus la fiche ;
@@ -80,6 +81,7 @@ function ListeTaches() {
   const [f, setF] = useState({
     ...EMPTY_FILTERS,
     entite: params.get('entite') ?? '',
+    etiquette: params.get('etiquette') ?? '',
     event: evenementDuLien(params, club?.current.id),
     meeting: seanceDuLien(params, !!club?.vueClub, data.meetings),
     resp: params.get('resp') ?? '',
@@ -150,6 +152,7 @@ function ListeTaches() {
       ),
     );
   const [voirAnciennes, setVoirAnciennes] = useState(false);
+  const [reglerEtiquettes, setReglerEtiquettes] = useState(false);
   // Tâches d'autres entités pour info (lecture seule) ; lien d'une notification : /taches?pourinfo=<entité>:<tâche>.
   const [voirPourInfo, setVoirPourInfo] = useState(() => !!params.get('pourinfo'));
   // Reçue par l'une de mes autres entités (…&chez=<entité>) : sa liste, ouverte chez elle.
@@ -160,7 +163,8 @@ function ListeTaches() {
     if (params.get('pourinfo')) navigate('/taches', { replace: true });
   };
 
-  const viewAll = can('tasks.viewAll');
+  // « Toutes » : celles des sections « Voir toutes », et celles de mes étiquettes.
+  const viewAll = can('tasks.viewAll') || !!data.etiquettes?.some((e) => !!user && (e.membres.includes(user.id) || e.responsables.includes(user.id)));
   const effScope = viewAll ? scope : 'mes';
   /** Entité de la tâche (filtre « Entité »). */
   const entiteDe = (t: Task) => t.source?.uniteId ?? club?.current.id ?? '';
@@ -192,6 +196,7 @@ function ListeTaches() {
       } else if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
       if (sauf !== 'entite' && f.entite && entiteDe(t) !== f.entite) return false;
+      if (f.etiquette && !t.etiquettes?.includes(f.etiquette)) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
       if (f.resp && !t.responsables.includes(f.resp)) return false;
@@ -335,6 +340,9 @@ function ListeTaches() {
           )}
           {(pourInfo.length > 0 || voirPourInfo) && <button className="btn" title="Tâches d’autres entités du club, pour que tu sois au courant" onClick={() => setVoirPourInfo(true)}><Icone n="voir" /> Pour info ({pourInfo.length})</button>}
           {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}><Icone n="anciennes" /> Anciennes tâches ({anciennes.length})</button>}
+          {(can('admin.access') || !!data.etiquettes?.some((e) => !!user && e.responsables.includes(user.id))) && (
+            <button className="btn" onClick={() => setReglerEtiquettes(true)}><Icone n="etiquette" /> Étiquettes</button>
+          )}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
           {(creatableSections().length > 0 || autresCreation.length > 0) && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouvelle tâche</button>}
@@ -355,6 +363,12 @@ function ListeTaches() {
           <select value={f.entite} onChange={(e) => setF({ ...f, entite: e.target.value })} aria-label="Entité">
             <option value="">Toutes entités</option>
             {entitesChoix.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
+          </select>
+        )}
+        {!!data.etiquettes?.length && (
+          <select value={f.etiquette} onChange={(e) => setF({ ...f, etiquette: e.target.value })} aria-label="Étiquette">
+            <option value="">Toutes étiquettes</option>
+            {data.etiquettes.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
           </select>
         )}
         <select value={f.section} onChange={(e) => setF({ ...f, section: e.target.value, sous: '' })}>
@@ -447,7 +461,7 @@ function ListeTaches() {
                   <td>{sectionName(t.sectionId)}</td>
                   <td className="muted">{t.sousSection}</td>
                   <td>
-                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /> <TicketTag task={t} />
+                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /> <TicketTag task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
                     <Linked t={t} />
                   </td>
@@ -473,7 +487,7 @@ function ListeTaches() {
                 {col.map((t) => (
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t) && !t.paiement} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
-                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
+                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
                     <TicketTag task={t} />
                     <Linked t={t} />
                     <div className="kmeta">
@@ -491,6 +505,12 @@ function ListeTaches() {
       {effScope === 'mes' && <SuiviCentral />}
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} choixEntite={edit.isNew} openEmailId={edit.email} ouvrirDiscussion={edit.discussion} onClose={closeEdit} />}
       {voirAnciennes && anciennes && <AnciennesTaches list={anciennes} onClose={() => setVoirAnciennes(false)} />}
+      {/* Étiquettes : celles du club (comité central), réglées chez lui. */}
+      {reglerEtiquettes && (
+        <Chez id={club?.central?.id}>
+          <EtiquettesModal onClose={() => setReglerEtiquettes(false)} />
+        </Chez>
+      )}
       {voirPourInfo && (
         <Chez id={chezPourInfo}>
           <PourInfoDe ouverte={params.get('pourinfo') ?? undefined} discussion={params.has('discussion')} onClose={fermerPourInfo} />
@@ -534,7 +554,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
         <small className="muted">{sectionName}{t.sousSection && ` › ${t.sousSection}`}</small>
         <StatusBadge task={t} />
       </div>
-      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
+      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
       <TicketTag task={t} />
       <Linked t={t} />
       {t.remarque && <small className="muted clip">{t.remarque}</small>}

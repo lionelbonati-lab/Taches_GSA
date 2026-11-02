@@ -61,11 +61,11 @@ export interface UnitInfo {
 }
 
 /** Collections de l'appli enregistrées élément par élément. */
-const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions'] as const;
+const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions', 'etiquettes'] as const;
 /** Tables personne → valeur (réglages, notifications vues, discussions lues). */
 const MAP_KINDS = ['prefs', 'notifLues', 'discussionsLues'] as const;
 /** Listes dont l'ordre est choisi par l'utilisateur (sinon l'ordre d'ajout est conservé). */
-const ORDERED = new Set<string>(['people', 'statuses', 'sections', 'roles']);
+const ORDERED = new Set<string>(['people', 'statuses', 'sections', 'roles', 'etiquettes']);
 
 export interface Row {
   kind: string;

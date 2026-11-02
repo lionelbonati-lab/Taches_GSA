@@ -1,4 +1,4 @@
-import type { Permission, Person, Role, Task } from './types';
+import type { Etiquette, Permission, Person, Role, Task } from './types';
 import { pourMoi } from './pourInfo';
 import { proposeeA } from './aPrendre';
 
@@ -62,13 +62,25 @@ export function personnesDuRole<P extends Pick<Person, 'roles'>>(roles: Role[], 
   });
 }
 
+/** La tâche porte une étiquette dont la personne est membre (ou seulement responsable, `responsable`). */
+export function dansEtiquette(t: Pick<Task, 'etiquettes' | 'paiement'>, userId: string | undefined, etiquettes: Etiquette[] = [], responsable = false) {
+  if (!userId || t.paiement || !t.etiquettes?.length) return false;
+  return t.etiquettes.some((id) => {
+    const e = etiquettes.find((x) => x.id === id);
+    return !!e && (e.responsables.includes(userId) || (!responsable && e.membres.includes(userId)));
+  });
+}
+
+/** Responsable d'au moins une étiquette : peut créer des tâches qui la portent. */
+export const responsableEtiquette = (userId: string | undefined, etiquettes: Etiquette[] = []) => !!userId && etiquettes.some((e) => e.responsables.includes(userId));
+
 /**
  * Tâche que la personne voit, comme le serveur (migrations 029, 037, 038) : ses tâches (responsable, créées par soi,
- * pour info, à prendre) et celles des sections « Voir toutes » ; les tickets (remboursements, factures) à part : la
- * caisse, le demandeur et la personne qui vise (ou a visé).
+ * pour info, à prendre), celles de ses étiquettes et celles des sections « Voir toutes » ; les tickets (remboursements,
+ * factures) à part : la caisse, le demandeur et la personne qui vise (ou a visé).
  */
-export function voitTache(t: Task, userId: string | undefined, roles: Role[]) {
-  if ((!!userId && (t.responsables.includes(userId) || t.createdBy === userId)) || pourMoi(t, userId) || proposeeA(t, userId)) return true;
+export function voitTache(t: Task, userId: string | undefined, roles: Role[], etiquettes?: Etiquette[]) {
+  if ((!!userId && (t.responsables.includes(userId) || t.createdBy === userId)) || pourMoi(t, userId) || proposeeA(t, userId) || dansEtiquette(t, userId, etiquettes)) return true;
   const p = t.paiement;
   if (!p) return hasPermission(roles, 'tasks.viewAll', t.sectionId);
   return (!!userId && [p.demandePar, p.visa?.a, p.validation?.par].includes(userId)) || hasPermission(roles, 'paiements.payer');

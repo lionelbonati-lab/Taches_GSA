@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { makeSeed } from './seed';
-import { hasPermission, userRoles, voitTache } from './permissions';
+import { dansEtiquette, hasPermission, responsableEtiquette, userRoles, voitTache } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, postesFor, today, uid } from './utils';
 import type { ActivityNotif, AppData, OrgUnit, Permission, Person, Poll, Prefs, ScheduledEmail, Task, TaskDoc } from './types';
 import { clearFiles, deleteFiles, getFile, rangerFichiers, saveFile } from './files';
@@ -599,7 +599,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const x = data.tasks.find((y) => y.id === tacheId);
       if (!x) throw new Error('Tâche introuvable');
       const texte = (a.texte ?? '').trim();
-      const nommes = a.cle || x.source || !texte ? [] : mentionnes(texte, mentionnables(x, data.people, data.roles, user.id));
+      const nommes = a.cle || x.source || !texte ? [] : mentionnes(texte, mentionnables(x, data.people, data.roles, user.id, data.etiquettes));
       const mentionNotifs = notifsMention(nommes, x, user.id, texte, le);
       const mentionne = `${fullName(user)} a mentionné ${nommes.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ')} dans la discussion de « ${x.titre} »`;
       if (cloud) {
@@ -845,7 +845,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
 
   const can = (p: Permission, sectionId?: string) => hasPermission(myRoles, p, sectionId);
   const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
-  const canEditTask = (t: Task) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t));
+  // Responsable d'une étiquette de la tâche : il la gère comme les siennes.
+  const canEditTask = (t: Task) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t)) || dansEtiquette(t, user?.id, data.etiquettes, true);
+  const respEtiquette = responsableEtiquette(user?.id, data.etiquettes);
 
   // « ✓ Vu » donnés avant que le serveur ne les enregistre sur la tâche (046) : reportés sur la tâche, une fois par
   // ouverture de l'appli (refusé, par exemple serveur pas encore à jour : pas retenté).
@@ -928,7 +930,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     user,
     myRoles,
     can,
-    canSeeTask: (t) => !!t.source?.chezMoi || voitTache(t, user?.id, myRoles),
+    canSeeTask: (t) => !!t.source?.chezMoi || voitTache(t, user?.id, myRoles, data.etiquettes),
     canEditTask: (t) => {
       if (!t.source?.chezMoi) return canEditTask(t);
       const x = chezElle(t);
@@ -936,8 +938,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     },
     canDeleteTask: (t) => !t.source && can('tasks.delete', t.sectionId),
     autresResp: (t) => (moi && units ? texteAutres(autresResponsables(t, moi, data.people, units)) : ''),
-    canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
-    creatableSections: () => data.sections.filter((s) => can('tasks.createAny', s.id) || can('tasks.editOwn', s.id)),
+    canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec) || respEtiquette,
+    // Responsable d'une étiquette : toutes les sections, pour une tâche qui porte l'une de ses étiquettes (contrôlé à l'enregistrement).
+    creatableSections: () => data.sections.filter((s) => can('tasks.createAny', s.id) || can('tasks.editOwn', s.id) || respEtiquette),
     prefs,
     login,
     update,
