@@ -1,14 +1,13 @@
-import { Suspense, useEffect, useRef, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
-import { TaskModal, useAutresCreation } from './FicheTache';
+import { TaskModal } from './FicheTache';
 import { versProchaineSeance } from '../data/seances';
 import { TicketForm } from './Tickets';
 import { GENRES, type GenreTicket } from '../data/paiements';
 import { AppLogo, Avatar, Toast } from './ui';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
-import { LienRecu } from './LienRecu';
 import { Recherche } from './Recherche';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { rafraichirPush } from '../data/push';
@@ -24,9 +23,6 @@ import { cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 import { Icone, type IconeNom } from './icones';
 import { newTask } from '../data/utils';
-import { Chez, DansEntite } from '../data/entites';
-import type { OrgUnit } from '../data/types';
-import { pageParEntite, useComites } from '../data/comites';
 
 export function Layout() {
   const { data, user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
@@ -48,7 +44,7 @@ export function Layout() {
     setMenu(false);
     setCompte(false);
   }, [loc.pathname]);
-  // Rapport d'erreurs : les erreurs de l'appli partent aux admins du comité central, au nom de l'entité ouverte.
+  // Rapport d'erreurs : les erreurs de l'appli partent aux admins du club.
   const signalerErreur = club?.signalerErreur;
   useEffect(() => (signalerErreur ? brancherRapport(signalerErreur) : undefined), [signalerErreur]);
   // Raccourcis de l'application installée (appui long sur l'icône) : « Nouvelle tâche », « Remboursement », « Paiement ».
@@ -109,15 +105,14 @@ export function Layout() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, dueEmails.map((n) => n.key).join('|')]);
 
-  // Une seule appli pour tout le club : en-tête au logo et à la couleur du club (comité central), quelle que soit l'entité
-  // sur laquelle elle s'appuie. Le logo d'une entité va sur ses documents (ordre du jour, PV, bon de paiement).
-  const logo = club ? (club.central ?? club.current).logo : undefined;
+  // En-tête au logo et à la couleur du club (ses documents aussi : ordre du jour, PV, bon de paiement).
+  const logo = club?.espace.logo;
   const logoReady = !!logo || !club?.loading;
   useEffect(() => {
     if (logoReady) cacheLogo(logo);
   }, [logo, logoReady]);
 
-  const couleur = club ? (club.central ?? club.current).couleurAppli : undefined;
+  const couleur = club?.espace.couleurAppli;
   const couleurReady = !!couleur || !club?.loading;
   useEffect(() => {
     if (!couleurReady) return;
@@ -125,12 +120,9 @@ export function Layout() {
     applyAppColor(couleur);
   }, [couleur, couleurReady]);
 
-  // Vue « moi » : nouvelle tâche aussi dans l'une de mes autres entités (choisie dans la fenêtre).
-  const autresCreation = useAutresCreation();
-
   if (!user) return null;
   const rolesText = myRoles.map((r) => r.label).join(' + ') || 'Aucun rôle';
-  const canCreate = creatableSections().length > 0 || autresCreation.length > 0;
+  const canCreate = creatableSections().length > 0;
   // Bouton flottant « + » : tâche (ajout rapide), remboursement, paiement de facture.
   const ajouts = [
     ...(canCreate ? [{ label: 'Nouvelle tâche', icone: 'taches' as IconeNom, title: 'Ajout rapide d’une tâche', run: () => setQuick(true) }] : []),
@@ -172,7 +164,6 @@ export function Layout() {
         <BoutonAnnuler />
         <Recherche />
         <Bell />
-        <LienRecu />
         <div className="who">
           <InstallButton variant="compact" hideWhenUnavailable />
           <button
@@ -201,6 +192,7 @@ export function Layout() {
                 {pagesCompte.map((p) => (
                   <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="unit-item" role="menuitem"><Icone n={p.icon} /> {p.label}</NavLink>
                 ))}
+                <AutresEspaces className="unit-item" />
                 <button className="unit-item" role="menuitem" onClick={sortir}>{sortirLabel}</button>
               </div>
             </>
@@ -212,9 +204,7 @@ export function Layout() {
         <SousOnglets />
         <ErrorBoundary page={loc.pathname}>
           <Suspense fallback={<ChargementPage />}>
-            <DansComite>
-              <Outlet />
-            </DansComite>
+            <Outlet />
           </Suspense>
         </ErrorBoundary>
       </main>
@@ -278,6 +268,7 @@ export function Layout() {
                 <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="sheet-link"><Icone n={p.icon} /> {p.label}</NavLink>
               ))}
               <InstallButton variant="sheet" />
+              <AutresEspaces className="sheet-link" />
               <button className="sheet-link" onClick={sortir}>{sortirLabel}</button>
             </div>
           </div>
@@ -285,24 +276,30 @@ export function Layout() {
       )}
 
       <Toast />
-      {quick && canCreate && <TaskModal isNew choixEntite task={newTask(user.id, versProchaineSeance(data.meetings, undefined, club?.current.type))} onClose={() => setQuick(false)} />}
-      {ticket && (
-        // Vue du club : le formulaire dans l'une de mes entités (sa caisse, ou celle qui reçoit ses tickets) ; une autre
-        // caisse se choisit dans la fenêtre.
-        <Chez id={club?.vueClub ? entiteDuTicket(club.mine)?.id : undefined}>
-          <TicketForm type={ticket} onClose={() => setTicket(null)} />
-        </Chez>
-      )}
+      {quick && canCreate && <TaskModal isNew task={newTask(user.id, versProchaineSeance(data.meetings))} onClose={() => setQuick(false)} />}
+      {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
       {reglerBarre && <BarreBasModal onClose={() => setReglerBarre(false)} />}
     </div>
   );
 }
 
-/** Remboursement, paiement (vue du club) : la première de mes entités qui a une caisse, sinon la première. */
-const entiteDuTicket = (mine: OrgUnit[]) => {
-  const l = mine.filter((u) => !u.archive);
-  return l.find((u) => u.membres.some((m) => m.caisse)) ?? l[0] ?? mine[0];
-};
+/**
+ * Version réelle, en attendant la reprise des anciennes entités dans l'espace du club (PLAN_APPLI_SIMPLE.md, D3) : mes
+ * autres anciennes entités, à ouvrir une à la fois (leurs données restent sur le serveur).
+ */
+function AutresEspaces({ className }: { className: string }) {
+  const club = useClubOptional();
+  if (!club?.autresEspaces?.length || !club.ouvrirEspace) return null;
+  return (
+    <>
+      {club.autresEspaces.map((e) => (
+        <button key={e.id} className={className} role="menuitem" title="Ancienne entité, en attendant sa reprise dans l’espace du club" onClick={() => club.ouvrirEspace?.(e.id)}>
+          <Icone n="changer" /> Ouvrir « {e.nom} »
+        </button>
+      ))}
+    </>
+  );
+}
 
 /** Version réelle : état de l'enregistrement sur le serveur. */
 /**
@@ -352,24 +349,6 @@ function SyncBadge() {
     return <span className="sync-tag off" title="Les modifications seront envoyées dès le retour de la connexion">⚠<span className="sync-text"> Hors ligne{pending ? ` · ${pending} en attente` : ''}</span></span>;
   if (status === 'envoi') return <span className="sync-tag busy" title="Envoi au serveur">⏳<span className="sync-text"> Envoi…</span></span>;
   return <span className="sync-tag" title="Tout est enregistré sur le serveur">☁<span className="sync-text"> À jour</span></span>;
-}
-
-/**
- * Ordre du jour et PV d'un autre de mes comités que l'entité ouverte, console admin d'une autre de mes entités : affichés
- * dans la sienne (ses séances, ses tâches, mes droits chez elle), sans changer d'entité.
- */
-function DansComite({ children }: { children: ReactNode }) {
-  const comites = useComites();
-  const club = useClubOptional();
-  const { pathname } = useLocation();
-  const perm = pageParEntite(pathname)?.perm;
-  const choisi = perm ? comites?.choisi(perm) : undefined;
-  if (!choisi || choisi.id === club?.current.id) return <>{children}</>;
-  return (
-    <DansEntite key={choisi.id} id={choisi.id} sinon={<ChargementPage />}>
-      {children}
-    </DansEntite>
-  );
 }
 
 /** Page pas encore chargée (premier clic juste après l'ouverture) : rien pendant un instant, puis un mot d'attente. */

@@ -2,9 +2,8 @@ import { useEffect, useReducer, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Poll } from '../data/types';
-import { AUTRE_ID, POLL_TYPES, autreTextes, echeance, electeursDe, finSondage, isOpen, nomVotant, optionLabel, results, texteVotant } from '../data/polls';
+import { AUTRE_ID, POLL_TYPES, autreTextes, echeance, finSondage, isOpen, nomVotant, optionLabel, results, texteVotant } from '../data/polls';
 import { fmtDate, initials } from '../data/utils';
-import { useClubOptional } from '../data/club';
 import { PollEditor } from './PollEditor';
 import { EnvoyerLien } from './EnvoyerLien';
 import { lienAppli, texteSondage } from '../data/lienPartage';
@@ -23,12 +22,10 @@ export function useClotureAuto(polls: Poll[]) {
 }
 
 /** Sondage : vote, résultats (barres, tableau des disponibilités) et gestion. */
-/** `pilule` : le nom de son entité (sondages de toutes mes entités réunis). */
-export function PollCard({ poll, compact, highlight, pilule }: { poll: Poll; compact?: boolean; highlight?: boolean; pilule?: string }) {
+export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: boolean; highlight?: boolean }) {
   const { data, user, votePoll, closePoll, deletePoll, canManagePoll } = useStore();
-  const club = useClubOptional();
-  // Clé de vote de la personne connectée (sa fiche, ou `entité:fiche` pour un sondage ouvert à son entité).
-  const cle = poll.cleMoi;
+  // La personne connectée vote si elle est parmi les votants (sa réponse : sous sa fiche).
+  const cle = user && poll.votants.includes(user.id) ? user.id : undefined;
   const mine = cle ? poll.votes[cle] : undefined;
   const [sel, setSel] = useState<string[]>(mine ?? []);
   const myText = cle ? poll.textes?.[cle] ?? '' : '';
@@ -42,12 +39,11 @@ export function PollCard({ poll, compact, highlight, pilule }: { poll: Poll; com
   const voter = !!cle;
   const showForm = open && voter && (!mine || changing);
   const r = results(poll);
-  const electeurs = electeursDe(poll);
-  const qui = (id: string) => nomVotant(poll, id, data.people, club?.units, club?.current.id);
+  const electeurs = poll.votants;
+  const qui = (id: string) => nomVotant(id, data.people);
   const task = data.tasks.find((t) => t.id === poll.taskId);
   const waiting = electeurs.filter((id) => !poll.votes[id]);
   const manage = canManagePoll(poll);
-  const aussi = poll.source ? [] : (poll.entites ?? []).map((id) => club?.units.find((u) => u.id === id)?.nom).filter((x): x is string => !!x);
 
   const toggle = (id: string) =>
     setSel((s) => (poll.multiple ? (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]) : [id]));
@@ -58,18 +54,17 @@ export function PollCard({ poll, compact, highlight, pilule }: { poll: Poll; com
   return (
     <article id={`poll-${poll.id}`} className={`poll ${compact ? 'compact' : ''} ${highlight ? 'highlight' : ''}`}>
       <header className="poll-head">
-        <strong>📊 {poll.question}{pilule && !poll.source && <> <span className="tsource" title={`Sondage de « ${pilule} »`}>{pilule}</span></>}</strong>
+        <strong>📊 {poll.question}</strong>
         <span className="poll-badges">
           <span className={`pbadge ${open ? 'open' : 'closed'}`}>{open ? 'Ouvert' : 'Clôturé'}</span>
           {!compact && <span className="pbadge">{POLL_TYPES.find((t) => t.id === poll.type)?.label}</span>}
           {poll.anonyme && <span className="pbadge">Anonyme</span>}
-          {poll.source && <span className="pbadge" title={`Sondage de « ${poll.source.unite} », ouvert à ton entité`}>🤝 {poll.source.unite}</span>}
           {!compact && (
             <EnvoyerLien
               titre={`Sondage « ${poll.question} »`}
-              texte={texteSondage(poll, open, poll.source?.unite ?? club?.current.nom)}
-              lien={lienAppli(`/sondages?id=${encodeURIComponent(poll.id)}`, club?.current.id)}
-              acces={`Le lien ne donne aucun accès : seuls les votants du sondage${club ? ` dans « ${club.current.nom} »` : ''}, avec leur compte, peuvent l’ouvrir et répondre.`}
+              texte={texteSondage(poll, open)}
+              lien={lienAppli(`/sondages?id=${encodeURIComponent(poll.id)}`)}
+              acces="Le lien ne donne aucun accès : seuls les votants du sondage, avec leur compte, peuvent l’ouvrir et répondre."
             />
           )}
         </span>
@@ -86,7 +81,6 @@ export function PollCard({ poll, compact, highlight, pilule }: { poll: Poll; com
         {poll.clotureLe && ` · clôturé le ${fmtDate(poll.clotureLe)}`}
         {!compact && task && <> · tâche <Link to={`/taches?tache=${task.id}`}>« {task.titre} »</Link></>}
         {!compact && ` · créé par ${texteVotant(qui(poll.creePar))}`}
-        {!compact && aussi.length > 0 && ` · ouvert aussi aux membres de ${aussi.map((n) => `« ${n} »`).join(', ')}`}
       </p>
 
       {showForm ? (
@@ -130,12 +124,12 @@ export function PollCard({ poll, compact, highlight, pilule }: { poll: Poll; com
                     <b>{ids.length}</b>
                   </div>
                   <div className="poll-bar"><div style={{ width: `${pct}%` }} /></div>
-                  {!option.autre && !poll.anonyme && ids.length > 0 && !compact && <small className="muted">{ids.map((id) => initials(qui(id).personne)).join(', ')}</small>}
+                  {!option.autre && !poll.anonyme && ids.length > 0 && !compact && <small className="muted">{ids.map((id) => initials(qui(id))).join(', ')}</small>}
                   {textes.length > 0 && (
                     <ul className="poll-textes">
                       {textes.map((x) => (
                         <li key={x.id}>
-                          « {x.texte} »{!poll.anonyme && <small className="muted"> — {compact ? initials(qui(x.id).personne) : texteVotant(qui(x.id))}</small>}
+                          « {x.texte} »{!poll.anonyme && <small className="muted"> — {compact ? initials(qui(x.id)) : texteVotant(qui(x.id))}</small>}
                         </li>
                       ))}
                     </ul>

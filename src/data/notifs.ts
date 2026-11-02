@@ -1,16 +1,15 @@
 import { dueAt, emailState, fillTemplate } from './emails';
-import type { AppData, NotifPrefs, OrgUnit, Person, TachePartagee, Task } from './types';
+import type { AppData, NotifPrefs, Person, Task } from './types';
 import { nomsDestinataires } from './destinataires';
 import { echeance, isOpen } from './polls';
 import { finDeSemaine, jourSemaine } from './repetition';
-import { aPrendreOuverte, aPrendrePourMoi, attenteAilleurs, plusPersonne, sansReponse } from './aPrendre';
+import { aPrendreOuverte, aPrendrePourMoi, plusPersonne, sansReponse } from './aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './utils';
 import { hasPermission, userRoles } from './permissions';
 import { convoquesDe } from './seances';
 import { GENRES, chf, genre, holders, paiementTasks } from './paiements';
 import type { DemandeMdp } from './cloud';
-import { clesVu, modifieeDepuisMonVu, pourMoi, vuAvantModif } from './pourInfo';
-import { cleCommune } from './commentaires';
+import { cleVu, pourMoi, vuAvantModif } from './pourInfo';
 
 // Notifications (cloche 🔔) calculées à partir des données : dans l'appli (src/notifications.ts), et sur le serveur
 // pour les notifications sur téléphone, appli fermée (fonction « gsa-push », par `npm run fonction`).
@@ -58,10 +57,7 @@ export function ago(iso: string) {
   return d === 1 ? 'hier' : `il y a ${d} jours`;
 }
 
-export function computeNotifications(
-  data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = [], pourInfo: TachePartagee[] = [], units: OrgUnit[] = [], courante?: string,
-  autres: { mesFiches?: Record<string, string>; lues?: Record<string, string> } = {},
-): NotifItem[] {
+export function computeNotifications(data: AppData, user: Person, p: NotifPrefs, demandesMdp: DemandeMdp[] = []): NotifItem[] {
   const seen = new Set(data.notifLues?.[user.id] ?? []);
   const items: Omit<NotifItem, 'unread'>[] = [];
   const now = new Date().toISOString();
@@ -139,7 +135,7 @@ export function computeNotifications(
 
   if (p.sondage)
     for (const poll of data.polls ?? []) {
-      if (!isOpen(poll) || !poll.cleMoi || poll.votes[poll.cleMoi]) continue;
+      if (!isOpen(poll) || !poll.votants.includes(user.id) || poll.votes[user.id]) continue;
       items.push({
         key: `sondage:${poll.id}`,
         icon: '📊',
@@ -158,7 +154,7 @@ export function computeNotifications(
       const t = data.tasks.find((x) => x.id === e.taskId);
       if (!t || emailState(data, t, e) !== 'aEnvoyer') continue;
       const at = dueAt(t, e.quand)!;
-      const to = nomsDestinataires(data, e, units, courante);
+      const to = nomsDestinataires(data, e);
       items.push({
         key: `email:${e.id}:${at}`,
         icon: '📧',
@@ -170,7 +166,7 @@ export function computeNotifications(
       });
     }
 
-  // Comité central : propositions d'amélioration de l'appli pas encore étudiées, pour ses admins.
+  // Propositions d'amélioration de l'appli pas encore étudiées, pour les admins.
   if (p.assign && data.propositions?.length && hasPermission(userRoles(data.roles, user), 'admin.access'))
     for (const x of data.propositions) {
       if (x.statut !== 'nouvelle') continue;
@@ -185,7 +181,7 @@ export function computeNotifications(
       });
     }
 
-  // Mots de passe oubliés (version réelle) : pour les admins de l'entité, toujours affichés.
+  // Mots de passe oubliés (version réelle) : pour les admins, toujours affichés.
   if (hasPermission(userRoles(data.roles, user), 'admin.access'))
     for (const d of demandesMdp) {
       const fiche = data.people.find((x) => x.id === d.personId);
@@ -193,7 +189,7 @@ export function computeNotifications(
         key: `mdp:${d.id}`,
         icon: '🔑',
         text: `${fiche ? fullName(fiche) : d.email} a oublié son mot de passe`,
-        sub: d.peut ? 'demande un mot de passe provisoire' : 'à valider par un admin de son entité, du comité central ou un super-admin',
+        sub: d.peut ? 'demande un mot de passe provisoire' : 'à valider par un admin ou un super-admin',
         link: '/mots-de-passe',
         at: d.le,
         kind: 'alerte',
@@ -206,7 +202,7 @@ export function computeNotifications(
     for (const t of paiementTasks(data)) {
       const { etat, montant, demandePar, visa } = t.paiement;
       const g = genre(t.paiement);
-      const qui = t.paiement.externe ? `${t.paiement.externe.par} (${t.paiement.externe.unite})` : shortName(data.people.find((x) => x.id === demandePar));
+      const qui = shortName(data.people.find((x) => x.id === demandePar));
       const todo =
         etat === 'recu' && caisse ? { icon: '📥', text: `${g.nom} à traiter : « ${t.titre} »`, sub: `${chf(montant)} · ${qui} · visa à demander`, at: t.paiement.demandeLe }
         : etat === 'visa' && visa?.a === user.id && demandePar !== user.id ? { icon: '✍️', text: `Visa demandé (${g.nom.toLowerCase()}) : « ${t.titre} »`, sub: `${chf(montant)} · ${qui} · par ${shortName(data.people.find((x) => x.id === visa.par))}`, at: visa.le }
@@ -232,35 +228,29 @@ export function computeNotifications(
 
   // Un message où l'on est mentionné (📣) n'est pas annoncé une seconde fois en 💬.
   const mentions = new Set(p.messages ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === 'mention').map(memeMessage) : []);
-  const voitTout = hasPermission(userRoles(data.roles, user), 'tasks.viewAll');
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    // Écrite par moi depuis une autre de mes entités (« x:<entité>:<fiche> ») : rien à m'annoncer.
-    const [ailleurs, e, f] = (n.by ?? '').split(':');
-    if (ailleurs === 'x' && !!f && autres.mesFiches?.[e] === f) continue;
     // Messagerie (💬, 📣), tâches qui me sont confiées ou proposées, mes tâches modifiées : chacune sa case.
     const message = n.type === 'comment' || n.type === 'mention';
     const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'relance'].includes(n.type);
     if (message ? !p.messages : nouvelle ? !p.assign : !p.modif) continue;
     if (n.type === 'comment' && mentions.has(memeMessage(n))) continue;
-    // Discussion lue depuis dans l'une de mes autres entités (clé commune) : ses 💬 et 📣 sont lues ici aussi.
-    if ((n.type === 'comment' || n.type === 'mention') && courante && (autres.lues?.[cleCommune(n.taskId, courante)] ?? '') >= n.at) seen.add(n.id);
     if (n.type === 'comment' || n.type === 'mention' || n.type === 'relance') {
-      // Tâche d'ici, partagée (affichée ici) ou reçue pour info ; sinon (serveur : tâches partagées non lues), son titre.
+      // Tâche d'ici ; sinon (plus visible), son titre au moment de la notification.
       const ici = data.tasks.find((x) => x.id === n.taskId);
-      const recue = ici ? undefined : pourInfo.find((x) => `x:${x.uniteId}:${x.task.id}` === n.taskId);
-      const titre = ici?.titre ?? recue?.task.titre ?? n.titre;
+      const titre = ici?.titre ?? n.titre;
       if (titre === undefined) continue;
+      // Auteur : sa fiche ; ancienne notification écrite depuis une autre entité : son nom, gardé dessus.
+      const auteur = fullName(data.people.find((x) => x.id === n.by)) || (n as { byName?: string }).byName || '?';
       if (n.type === 'relance') {
         // Relance (052) d'une tâche « Pour info » : plus rien à faire si je l'ai vue entre-temps.
-        const vue = ici ? !!ici.pourInfoVus?.[`p:${user.id}`] : !!recue && !!courante && clesVu(recue.task, recue.uniteId, courante, user.id, voitTout).every((k) => recue.task.pourInfoVus?.[k]);
-        if (vue) continue;
+        if (ici?.pourInfoVus?.[cleVu(user.id)]) continue;
         items.push({
           key: n.id,
           icon: '🔔',
-          text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} te rappelle « ${titre} »`,
+          text: `${auteur} te rappelle « ${titre} »`,
           sub: 'pour info · pas encore marquée « ✓ Vu »',
-          link: recue ? `/taches?pourinfo=${recue.uniteId}:${recue.task.id}` : `/taches?tache=${n.taskId}`,
+          link: `/taches?tache=${n.taskId}`,
           at: n.at,
           kind: 'activite',
         });
@@ -269,9 +259,9 @@ export function computeNotifications(
       items.push({
         key: n.id,
         icon: n.type === 'mention' ? '📣' : '💬',
-        text: `${n.byName ?? fullName(data.people.find((x) => x.id === n.by))} ${n.type === 'mention' ? 'te mentionne dans' : 'a commenté'} « ${titre} »`,
+        text: `${auteur} ${n.type === 'mention' ? 'te mentionne dans' : 'a commenté'} « ${titre} »`,
         sub: n.detail,
-        link: recue ? `/taches?pourinfo=${recue.uniteId}:${recue.task.id}&discussion=1` : `/taches?tache=${n.taskId}&discussion=1`,
+        link: `/taches?tache=${n.taskId}&discussion=1`,
         at: n.at,
         kind: 'activite',
       });
@@ -281,7 +271,7 @@ export function computeNotifications(
     if (!t || (t.paiement && n.type === 'assign')) continue; // les tickets ont leur propre alerte
     // Tâche à prendre : plus rien à faire si quelqu'un s'en charge déjà (ou si elle est terminée).
     if (n.type === 'propose' && (!aPrendrePourMoi(t, user.id) || isDone(data, t))) continue;
-    const by = n.byName ?? fullName(data.people.find((x) => x.id === n.by));
+    const by = fullName(data.people.find((x) => x.id === n.by)) || (n as { byName?: string }).byName || '?';
     items.push({
       key: n.id,
       icon: n.type === 'assign' ? '🆕' : n.type === 'recur' ? '🔁' : n.type === 'info' ? '👁' : n.type === 'propose' || n.type === 'pris' ? '🙋' : n.type === 'refus' ? '🙅' : n.type === 'toutVu' ? '✅' : '✏️',
@@ -306,42 +296,12 @@ export function computeNotifications(
     });
   }
 
-  // Tâches d'autres entités pour info (la personne ou son entité mentionnée) : tant qu'elles ne sont pas terminées.
-  if (p.assign)
-    for (const x of pourInfo) {
-      const t = x.task;
-      if (x.statuts.find((s) => s.id === t.statusId)?.done) continue;
-      items.push({
-        key: `info:${x.uniteId}:${t.id}`,
-        icon: '👁',
-        text: `Pour info : « ${t.titre} »`,
-        sub: `${x.unite}${t.delai ? ` · délai : ${fmtDate(t.delai)}` : ''}`,
-        link: `/taches?pourinfo=${x.uniteId}:${t.id}`,
-        at: t.updatedAt,
-        kind: 'activite',
-      });
-    }
-
   // Tâches « Pour info » modifiées depuis mon « ✓ Vu » (052) : à revoir (une fois par modification).
   if (p.modif) {
     for (const t of data.tasks) {
-      if (!pourMoi(t, user.id) || isDone(data, t) || !vuAvantModif(t.pourInfoVus?.[`p:${user.id}`], t)) continue;
+      if (!pourMoi(t, user.id) || isDone(data, t) || !vuAvantModif(t.pourInfoVus?.[cleVu(user.id)], t)) continue;
       items.push({ key: `revoir:${t.id}:${t.contenuLe}`, icon: '✏️', text: `« ${t.titre} » a changé depuis ton « ✓ Vu »`, sub: 'pour info · à revoir', link: `/taches?tache=${t.id}`, at: t.contenuLe!, kind: 'activite' });
     }
-    if (courante)
-      for (const x of pourInfo) {
-        const t = x.task;
-        if (x.statuts.find((s) => s.id === t.statusId)?.done || !modifieeDepuisMonVu(t, clesVu(t, x.uniteId, courante, user.id, voitTout))) continue;
-        items.push({
-          key: `revoir:${x.uniteId}:${t.id}:${t.contenuLe}`,
-          icon: '✏️',
-          text: `« ${t.titre} » a changé depuis ton « ✓ Vu »`,
-          sub: `${x.unite} · pour info · à revoir`,
-          link: `/taches?pourinfo=${x.uniteId}:${t.id}`,
-          at: t.contenuLe!,
-          kind: 'activite',
-        });
-      }
   }
 
   return items
@@ -355,7 +315,7 @@ const nombre = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 
 /**
  * Résumé de la semaine (d'aujourd'hui à dimanche) : mes tâches à faire d'ici là (en retard comprises), les séances (droit
- * « Séances ») et les événements de l'entité (pas ceux qui se répètent : la routine), les sondages qui attendent ma
+ * « Séances ») et les événements (pas ceux qui se répètent : la routine), les sondages qui attendent ma
  * réponse. Rien s'il n'y a rien. « Cette semaine : 3 tâches à faire, Comité de novembre jeudi », le détail en dessous.
  */
 export function resumeSemaine(data: AppData, user: Person, mine: Task[]): Omit<NotifItem, 'unread' | 'at'> | null {
@@ -367,7 +327,7 @@ export function resumeSemaine(data: AppData, user: Person, mine: Task[]): Omit<N
     ? data.meetings.filter((m) => m.date >= auj && m.date <= fin).sort((a, b) => a.date.localeCompare(b.date))
     : [];
   const evenements = data.events.filter((e) => !e.repetition && e.date <= fin && (e.dateFin || e.date) >= auj).sort((a, b) => a.date.localeCompare(b.date));
-  const sondages = (data.polls ?? []).filter((x) => isOpen(x) && !!x.cleMoi && !x.votes[x.cleMoi]);
+  const sondages = (data.polls ?? []).filter((x) => isOpen(x) && x.votants.includes(user.id) && !x.votes[user.id]);
   if (!taches.length && !seances.length && !evenements.length && !sondages.length) return null;
   const quandEv = (e: { date: string }) => (e.date < auj ? 'en cours' : nomJour(e.date));
   const parts = [
@@ -398,7 +358,7 @@ export function resumeSemaine(data: AppData, user: Person, mine: Task[]): Omit<N
 function etatRefus(t: Task) {
   if (!aPrendreOuverte(t)) return 'quelqu’un s’en charge';
   if (plusPersonne(t)) return 'plus personne n’a à répondre : propose-la à d’autres';
-  const n = sansReponse(t).length + attenteAilleurs(t);
+  const n = sansReponse(t).length;
   return `${n} personne${n > 1 ? 's n’ont' : ' n’a'} pas encore répondu`;
 }
 

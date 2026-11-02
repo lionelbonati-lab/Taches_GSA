@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { accessAction, type CompteClub } from '../data/cloud';
 import { fmtDateTime } from '../data/utils';
-import { UNIT_TYPES } from '../data/units';
 import { CredentialsModal, type Shown } from '../components/Acces';
 import { AppLogo, Empty, Modal } from '../components/ui';
 import { nomAppli } from '../data/nomAppli';
 import { Icone } from '../components/icones';
 
-// Comptes du club (super-admins, hors des entités) : chaque compte, ses entités et sa fiche dans chacune ; nouveau mot de
+// Comptes du club (super-admins) : chaque compte, ses espaces sur le serveur (un seul après la reprise D3) et sa fiche dans chacun ; nouveau mot de
 // passe provisoire, blocage, fusion de deux comptes d'une même personne. Tout passe par la fonction gsa-acces
 // (comptes.ts), qui vérifie que l'appelant est super-admin.
 
@@ -89,7 +88,7 @@ export function Comptes({ intro }: { intro?: ReactNode }) {
       {liste && (
         <>
           <div className="row wrap comptes-outils">
-            <input type="search" placeholder="Rechercher un nom, une adresse, une entité…" value={texte} onChange={(e) => setTexte(e.target.value)} />
+            <input type="search" placeholder="Rechercher un nom, une adresse, un espace…" value={texte} onChange={(e) => setTexte(e.target.value)} />
           </div>
           <div className="chips">
             {(
@@ -125,13 +124,13 @@ export function Comptes({ intro }: { intro?: ReactNode }) {
               <div className="compte-entites">
                 {c.entites.length ? (
                   c.entites.map((e) => (
-                    <span key={e.committeeId} className={`etiquette ${e.actif && !e.archive ? '' : 'eteinte'}`} title={e.actif ? (e.archive ? 'Entité archivée' : '') : 'Fiche désactivée ou retirée : pas d’accès'}>
-                      {UNIT_TYPES[e.type]?.icon ?? '•'} {e.nom}
+                    <span key={e.committeeId} className={`etiquette ${e.actif && !e.archive ? '' : 'eteinte'}`} title={e.actif ? (e.archive ? 'Espace archivé' : '') : 'Fiche désactivée ou retirée : pas d’accès'}>
+                      {e.nom}
                       {e.owner ? ' 👑' : e.admin ? ' ★' : ''}
                     </span>
                   ))
                 ) : (
-                  <small className="muted">Aucune entité</small>
+                  <small className="muted">Aucun espace</small>
                 )}
               </div>
               <small className="muted">{c.derniere_connexion ? `Dernière connexion : ${fmtDateTime(c.derniere_connexion)}` : 'Jamais connecté'}</small>
@@ -184,7 +183,7 @@ function Fusion({ garder, autres, onClose, onDone }: { garder: CompteClub; autre
     try {
       const r = await accessAction<{ deplaces: number; communes: number; fichesEnDouble: number; supprime: boolean; raison?: string }>({ action: 'fusionner', userId: garder.user_id, absorber: autre.user_id });
       onDone(
-        `🔗 Fusion faite : ${r.deplaces} entité${r.deplaces > 1 ? 's' : ''} reprise${r.deplaces > 1 ? 's' : ''}` +
+        `🔗 Fusion faite : ${r.deplaces} espace${r.deplaces > 1 ? 's' : ''} repris` +
           (r.communes ? `, ${r.communes} en commun` : '') +
           (r.fichesEnDouble ? ` (dont ${r.fichesEnDouble} où la personne avait deux fiches : celle de ${garder.email} garde l’accès, l’autre reste sans compte)` : '') +
           `. ${r.supprime ? `Le compte ${autre.email} est supprimé.` : `Le compte ${autre.email} est bloqué (pas supprimé : ${r.raison}).`}`,
@@ -197,7 +196,7 @@ function Fusion({ garder, autres, onClose, onDone }: { garder: CompteClub; autre
   return (
     <Modal title="Fusionner deux comptes" onClose={onClose}>
       <p>
-        On garde <b>{garder.email}</b> ({nomCompte(garder)}). Le compte choisi ci-dessous y est fondu : ses entités, sa fiche dans chacune, les tickets envoyés à la
+        On garde <b>{garder.email}</b> ({nomCompte(garder)}). Le compte choisi ci-dessous y est fondu : ses espaces, sa fiche dans chacun, les tickets envoyés à la
         caisse centrale et les propositions passent à <b>{garder.email}</b>, puis il est supprimé.
       </p>
       <label className="full">
@@ -213,7 +212,7 @@ function Fusion({ garder, autres, onClose, onDone }: { garder: CompteClub; autre
       </label>
       {autre && (
         <p className="muted">
-          Entités de {autre.email} : {autre.entites.map((e) => e.nom).join(', ') || 'aucune'}.
+          Espaces de {autre.email} : {autre.entites.map((e) => e.nom).join(', ') || 'aucun'}.
           {autre.super_admin && ' Il est super-admin : ce droit passe au compte gardé.'}
         </p>
       )}
@@ -227,7 +226,7 @@ function Fusion({ garder, autres, onClose, onDone }: { garder: CompteClub; autre
   );
 }
 
-/** Super-admin sans entité du club : la page des comptes, seule. */
+/** Super-admin sans fiche dans le club : la page des comptes, seule. */
 export function ComptesSeuls({ email, onSignOut }: { email: string; onSignOut: () => void }) {
   return (
     <div className="comptes-seuls">
@@ -238,7 +237,7 @@ export function ComptesSeuls({ email, onSignOut }: { email: string; onSignOut: (
         <small className="muted">{email}</small>
         <button className="btn small" onClick={onSignOut}>Se déconnecter</button>
       </header>
-      <Comptes intro={<p className="page-intro">Tu es super-admin du club, sans entité : tu gères ici les comptes de tout le club.</p>} />
+      <Comptes intro={<p className="page-intro">Tu es super-admin du club, sans fiche : tu gères ici les comptes de tout le club.</p>} />
     </div>
   );
 }

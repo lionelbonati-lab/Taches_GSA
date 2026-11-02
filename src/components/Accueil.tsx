@@ -1,9 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useStore } from '../data/store';
-import { useClubOptional } from '../data/club';
-import { useSetPrefsPartout } from '../data/entites';
 import type { Prefs, Status } from '../data/types';
-import { hasEdition } from './Edition';
 import { Modal } from './ui';
 import { Icone, type IconeNom } from './icones';
 
@@ -32,12 +29,11 @@ type Element = { id: string; label: string; icone?: IconeNom; couleur?: string }
 
 /** Blocs de l'accueil que la personne peut afficher ou masquer, dans l'ordre d'origine. */
 export function useBlocsAccueil(): Element[] {
-  const { can, prefs } = useStore();
-  const club = useClubOptional();
+  const { can, prefs, data, user } = useStore();
   const jours = joursAFaire(prefs.aFaireJours);
+  // Étiquettes « événement » datées dont je suis membre : à l'accueil même sans le droit « Événements ».
+  const mesEvenements = !!user && !!data.etiquettes?.some((e) => e.type === 'evenement' && !!e.date && e.membres?.includes(user.id));
   const l: (Element & { si: boolean })[] = [
-    // Mes entités avec une édition (sous-comité, équipe d'événement), quelle que soit l'entité ouverte.
-    { id: 'edition', icone: 'date', label: 'Date de l’édition', si: !!club?.units.some((u) => u.moi && !u.archive && hasEdition(u)) },
     { id: 'compteurs', icone: 'compteur', label: 'Compteurs de mes tâches', si: true },
     { id: 'retard', icone: 'alerte', label: 'Mes tâches en retard', si: true },
     { id: 'aprendre', icone: 'main', label: 'À prendre (tâches qu’on me propose)', si: true },
@@ -45,13 +41,13 @@ export function useBlocsAccueil(): Element[] {
     { id: 'pourinfo', icone: 'voir', label: 'Pour info', si: true },
     { id: 'emails', icone: 'email', label: 'Mes emails à envoyer et programmés', si: true },
     { id: 'sondages', icone: 'sondage', label: 'Sondages à voter', si: true },
-    { id: 'seance', icone: 'seances', label: club?.current.type === 'equipe' ? 'Prochaine réunion' : 'Prochaine séance', si: can('tab.meetings') },
-    { id: 'evenements', icone: 'evenements', label: 'Prochains événements', si: can('tab.events') },
+    { id: 'seance', icone: 'seances', label: 'Prochaine séance', si: can('tab.meetings') },
+    { id: 'evenements', icone: 'evenements', label: 'Prochains événements', si: can('tab.events') || mesEvenements },
   ];
   return l.filter((b) => b.si).map(({ id, icone, label }) => ({ id, icone, label }));
 }
 
-/** Compteurs : un par statut de mes entités (vue « moi » : statutsReunis), puis « En retard ». */
+/** Compteurs : un par statut, puis « En retard ». */
 export const compteursAccueil = (statuses: Status[]): Element[] => [
   ...statuses.map((s) => ({ id: s.id, label: s.label, couleur: s.couleur })),
   { id: 'retard', label: 'En retard', couleur: 'var(--late)' },
@@ -73,26 +69,21 @@ export function ordonner(ids: string[], ordre?: string[]) {
 export const accueilPerso = (p: Prefs) =>
   !!(p.aFaireJours || p.aFaireToutes || p.accueilOrdre?.length || p.compteursOrdre?.length || p.accueilMasque?.telephone?.length || p.accueilMasque?.ordinateur?.length || p.compteursMasque?.telephone?.length || p.compteursMasque?.ordinateur?.length);
 
-/**
- * Blocs masqués tant que la personne n'a rien choisi : les dates d'édition pour le comité central (ses membres voient les
- * éditions dans « Prochains événements », plus bas ; en haut, elles prendraient la place des tâches).
- */
+/** Blocs masqués (rien tant que la personne n'a rien choisi). */
 export function useMasqueAccueil(): Required<NonNullable<Prefs['accueilMasque']>> {
   const { prefs } = useStore();
-  const club = useClubOptional();
-  const defaut = club?.central?.moi ? ['edition'] : [];
-  return { telephone: prefs.accueilMasque?.telephone ?? defaut, ordinateur: prefs.accueilMasque?.ordinateur ?? defaut };
+  return { telephone: prefs.accueilMasque?.telephone ?? [], ordinateur: prefs.accueilMasque?.ordinateur ?? [] };
 }
 
 /** Ce que la personne voit sur son accueil, sur cet appareil, dans son ordre. */
 export function useAccueil() {
-  const { prefs, dataMoi } = useStore();
+  const { prefs, data } = useStore();
   const tel = useTelephone();
   const blocs = useBlocsAccueil();
   const appareil: Appareil = tel ? 'telephone' : 'ordinateur';
   const masques = useMasqueAccueil()[appareil];
   const cMasques = prefs.compteursMasque?.[appareil] ?? [];
-  const compteurs = compteursAccueil(dataMoi.statuses);
+  const compteurs = compteursAccueil(data.statuses);
   return {
     appareil,
     blocs: ordonner(blocs.map((b) => b.id), prefs.accueilOrdre).filter((id) => !masques.includes(id)),
@@ -168,8 +159,7 @@ function Rangement({ titre, elements, masque, ordre, appareil, setMasque, setOrd
 
 /** Choix et ordre des blocs et des compteurs de l'accueil ; affichage séparé sur téléphone et sur ordinateur. */
 export function AccueilModal({ onClose }: { onClose: () => void }) {
-  const { prefs, dataMoi, can } = useStore();
-  const setPrefs = useSetPrefsPartout();
+  const { prefs, data, can, setPrefs } = useStore();
   const blocs = useBlocsAccueil();
   const masque = useMasqueAccueil();
   const { appareil } = useAccueil();
@@ -190,7 +180,7 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
       />
       <Rangement
         titre="Compteurs"
-        elements={compteursAccueil(dataMoi.statuses)}
+        elements={compteursAccueil(data.statuses)}
         masque={prefs.compteursMasque}
         ordre={prefs.compteursOrdre}
         appareil={appareil}

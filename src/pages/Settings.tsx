@@ -14,17 +14,10 @@ import { MesDonnees } from '../components/MesDonnees';
 import { MonProfil } from '../components/MonProfil';
 import { Icone } from '../components/icones';
 import { NotifsPush } from '../components/NotifsPush';
-import { useSetPrefsPartout } from '../data/entites';
-import { useComites } from '../data/comites';
-import { usePlusieursEntites } from '../components/ui';
 
 export function Settings() {
-  const { prefs, can, reset, login, cloud } = useStore();
+  const { prefs, setPrefs, can, reset, login, cloud } = useStore();
   const club = useClubOptional();
-  const comites = useComites();
-  const plusieurs = usePlusieursEntites();
-  // Vue « moi » : mes préférences sont les mêmes dans toutes mes entités.
-  const setPrefs = useSetPrefsPartout();
   const [pwd, setPwd] = useState<'ferme' | 'ouvert' | 'ok'>('ferme');
   const [accueil, setAccueil] = useState(false);
   const [barreBas, setBarreBas] = useState(false);
@@ -71,7 +64,6 @@ export function Settings() {
       {club && <MesDonnees />}
       <section className="panel form">
         <h2 className="full">Préférences personnelles</h2>
-        {plusieurs && <p className="muted full" style={{ margin: 0 }}>Les mêmes dans toutes tes entités.</p>}
         <label>
           Thème
           <select value={prefs.theme} onChange={(e) => setPrefs({ theme: e.target.value as typeof prefs.theme })}>
@@ -122,7 +114,7 @@ export function Settings() {
       </section>
       <section className="panel form">
         <h2 className="full">Notifications</h2>
-        <p className="muted full" style={{ margin: 0 }}>Choisis ce qui s’affiche dans la cloche 🔔 de l’en-tête{plusieurs ? ', pour toutes tes entités' : ''}.</p>
+        <p className="muted full" style={{ margin: 0 }}>Choisis ce qui s’affiche dans la cloche 🔔 de l’en-tête.</p>
         <h3 className="full notif-groupe">Tâches</h3>
         <label className="inline full"><input type="checkbox" checked={n.assign} onChange={(e) => setN({ assign: e.target.checked })} /> 🆕 Une tâche m’est confiée par quelqu’un d’autre, 👁 on me la met « pour info », ou 🙋 on me la propose (et quelqu’un prend ou décline une tâche que j’ai proposée)</label>
         <label className="inline full"><input type="checkbox" checked={n.modif} onChange={(e) => setN({ modif: e.target.checked })} /> ✏️ Une de mes tâches est modifiée par quelqu’un d’autre, ou reconduite</label>
@@ -140,7 +132,7 @@ export function Settings() {
         <h3 className="full notif-groupe">Agenda et sondages</h3>
         <label className="inline full"><input type="checkbox" checked={n.semaine} onChange={(e) => setN({ semaine: e.target.checked })} /> 📅 Résumé de ma semaine, le lundi matin : tâches à faire d’ici dimanche, séances, événements, sondages</label>
         <label className="inline full"><input type="checkbox" checked={n.sondage} onChange={(e) => setN({ sondage: e.target.checked })} /> 📊 Un sondage attend ma réponse</label>
-        {(comites ? comites.canUn('tab.meetings') : can('tab.meetings')) && (
+        {can('tab.meetings') && (
           <>
             <label className="inline"><input type="checkbox" checked={n.seance} onChange={(e) => setN({ seance: e.target.checked })} /> 🗓️ Prochaine séance de comité</label>
             <label>
@@ -176,7 +168,7 @@ export function Settings() {
         <h2>Données de démonstration</h2>
         <p className="muted">Les modifications sont conservées uniquement dans ce navigateur. La réinitialisation recharge les données de départ (tableau du club) et efface tout ce qui a été saisi : télécharge d’abord une sauvegarde (Console admin › Sauvegarde).</p>
         <div className="row wrap">
-          <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration (toutes les entités du club) ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
+          <button className="btn danger" onClick={() => { if (confirm('Réinitialiser toutes les données de démonstration ? Tout ce qui a été saisi sera effacé (pense à télécharger une sauvegarde avant).')) { reset(); login(null); } }}>Réinitialiser la démo</button>
           <button className="btn" onClick={() => switchMode('reel')}><Icone n="verrou" /> Passer à la version réelle</button>
         </div>
       </section>}

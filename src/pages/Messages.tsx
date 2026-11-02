@@ -1,12 +1,10 @@
-import { useState, type ReactNode } from 'react';
+import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useDiscussions, type DiscussionVue } from '../data/discussions';
-import { useClubOptional } from '../data/club';
 import { PageIntro } from '../components/Nav';
 import { Discussion, quandMessage } from '../components/tache/Discussion';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
-import { Chez } from '../data/entites';
 
 // Onglet « Messages » : les discussions des tâches comme une messagerie. Chaque discussion reste celle de sa tâche (même
 // fenêtre que la bulle 💬 de la fiche) ; « Nouvelle discussion » en ouvre une sur une tâche qui n'en a pas encore.
@@ -19,31 +17,23 @@ const cherche = (q: string, ...textes: (string | undefined)[]) => {
   return !m || textes.some((t) => !!t && norme(t).includes(m));
 };
 
-/** La discussion d'une clé : la même, sinon la même tâche vue autrement (d'une autre de mes entités, ou d'ici). */
-function trouver(toutes: DiscussionVue[], cle: string, ici: string) {
-  const exacte = toutes.find((d) => d.cle === cle);
-  if (exacte) return exacte;
-  const [, unite, id] = /^x:([^:]+):(.+)$/.exec(cle) ?? [];
-  if (unite) return toutes.find((d) => d.tacheId === id && (d.uniteId ?? ici) === unite);
-  return toutes.find((d) => d.tacheId === cle && (!d.uniteId || d.uniteId === ici));
-}
+/** La discussion d'une clé : la tâche (ancien lien : « x:<entité>:<tâche> »). */
+const trouver = (toutes: DiscussionVue[], cle: string) => toutes.find((d) => d.cle === cle) ?? toutes.find((d) => cle.endsWith(`:${d.cle}`));
 
 export function Messages() {
   const { toutes, nonLus } = useDiscussions();
-  const club = useClubOptional();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const [filtre, setFiltre] = useState<Filtre>('toutes');
   const [q, setQ] = useState('');
   const [nouvelle, setNouvelle] = useState(false);
-  // Discussion ouverte : dans l'adresse (?d=…), pour que « retour » du téléphone la ferme. Lien d'une notification : la
-  // tâche vue de l'entité qui l'a reçue (« x:<entité>:<tâche> », ou son identifiant dans cette entité).
+  // Discussion ouverte : dans l'adresse (?d=…), pour que « retour » du téléphone la ferme.
   const ouverte = params.get('d');
   const ouvrir = (cle: string | null) => setParams(cle ? { d: cle } : {}, { replace: !cle });
-  const chat = ouverte ? trouver(toutes, ouverte, club?.current.id ?? '') : undefined;
+  const chat = ouverte ? trouver(toutes, ouverte) : undefined;
 
   const avecMessages = toutes.filter((d) => d.liste.length).sort((a, b) => b.dernier.localeCompare(a.dernier));
-  const liste = avecMessages.filter((d) => (filtre === 'toutes' || d.nonLus > 0) && cherche(q, d.titre, d.entite, ...d.liste.map((c) => c.texte), ...d.liste.map((c) => c.nom)));
+  const liste = avecMessages.filter((d) => (filtre === 'toutes' || d.nonLus > 0) && cherche(q, d.titre, ...d.liste.map((c) => c.texte), ...d.liste.map((c) => c.nom)));
 
   return (
     <div className="narrow">
@@ -69,24 +59,17 @@ export function Messages() {
         </Empty>
       )}
       {chat && (
-        // Vue du club : dans son entité (ou celle des miennes qui la reçoit), avec ses personnes à mentionner.
-        <DansSonEntite d={chat} vueClub={!!club?.vueClub}>
-          {(d) => (
-            <Discussion
-              titre={d.titre}
-              liste={d.liste}
-              cle={d.cle}
-              tacheId={d.tacheId}
-              uniteId={d.uniteId}
-              onClose={() => ouvrir(null)}
-              actions={
-                <button type="button" className="icon-btn" title="Ouvrir la tâche" aria-label="Ouvrir la tâche" onClick={() => navigate(d.lien)}>
-                  <Icone n="taches" />
-                </button>
-              }
-            />
-          )}
-        </DansSonEntite>
+        <Discussion
+          titre={chat.titre}
+          liste={chat.liste}
+          tacheId={chat.cle}
+          onClose={() => ouvrir(null)}
+          actions={
+            <button type="button" className="icon-btn" title="Ouvrir la tâche" aria-label="Ouvrir la tâche" onClick={() => navigate(chat.lien)}>
+              <Icone n="taches" />
+            </button>
+          }
+        />
       )}
       {nouvelle && (
         <ChoixTache
@@ -103,14 +86,6 @@ export function Messages() {
 }
 
 /** Une discussion de la liste : initiale de la tâche, titre, dernier message, moment et non lus. */
-/** Discussion ouverte (vue du club) dans l'entité qui l'enregistre, vue de chez elle ; sinon telle quelle. */
-function DansSonEntite({ d, vueClub, children }: { d: DiscussionVue; vueClub: boolean; children: (d: DiscussionVue) => ReactNode }) {
-  const chez = vueClub ? (d.via ?? d.uniteId) : undefined;
-  if (!chez) return <>{children(d)}</>;
-  const sienne = chez === d.uniteId;
-  return <Chez id={chez}>{children({ ...d, cle: sienne ? d.tacheId : d.cle, uniteId: sienne ? undefined : d.uniteId })}</Chez>;
-}
-
 function LigneDiscussion({ d, onOpen }: { d: DiscussionVue; onOpen: () => void }) {
   const der = d.liste.reduce((m, c) => (c.le > m.le ? c : m), d.liste[0]);
   return (
@@ -124,7 +99,7 @@ function LigneDiscussion({ d, onOpen }: { d: DiscussionVue; onOpen: () => void }
           </span>
           <span className="messages-bas">
             <span className="messages-apercu">
-              {d.entite && <span className="tsource">{d.entite}</span>} <b>{der.nom.split(' ')[0]}</b> : {der.texte}
+              <b>{der.nom.split(' ')[0]}</b> : {der.texte}
             </span>
             {d.nonLus > 0 && <span className="messages-nb" aria-label={`${d.nonLus} non lu${d.nonLus > 1 ? 's' : ''}`}>{d.nonLus}</span>}
           </span>
@@ -137,7 +112,7 @@ function LigneDiscussion({ d, onOpen }: { d: DiscussionVue; onOpen: () => void }
 /** Nouvelle discussion : choisir la tâche (en cours) dont on ouvre la discussion. */
 function ChoixTache({ taches, onChoix, onClose }: { taches: DiscussionVue[]; onChoix: (cle: string) => void; onClose: () => void }) {
   const [q, setQ] = useState('');
-  const liste = taches.filter((d) => cherche(q, d.titre, d.entite)).sort((a, b) => a.titre.localeCompare(b.titre, 'fr'));
+  const liste = taches.filter((d) => cherche(q, d.titre)).sort((a, b) => a.titre.localeCompare(b.titre, 'fr'));
   return (
     <Modal title="Nouvelle discussion" onClose={onClose}>
       <p className="muted" style={{ marginTop: 0 }}>Sur quelle tâche ? Les personnes concernées par la tâche seront prévenues de ton message.</p>
@@ -147,7 +122,6 @@ function ChoixTache({ taches, onChoix, onClose }: { taches: DiscussionVue[]; onC
           <li key={d.cle}>
             <button type="button" onClick={() => onChoix(d.cle)}>
               <span>{d.titre}</span>
-              {d.entite && <span className="tsource">{d.entite}</span>}
               {d.liste.length > 0 && <small className="muted"><Icone n="message" /> {d.liste.length}</small>}
             </button>
           </li>

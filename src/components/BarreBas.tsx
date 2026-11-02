@@ -1,5 +1,4 @@
 import { useStore } from '../data/store';
-import { useSetPrefsPartout } from '../data/entites';
 import { BARRE_MAX, barreDuBas } from '../data/navigation';
 import { useNavigation } from './Nav';
 import { Modal } from './ui';
@@ -7,11 +6,10 @@ import { Icone } from './icones';
 
 /**
  * Téléphone : choix des rubriques de la barre du bas (jusqu'à BARRE_MAX, à côté de « Plus ») et de leur ordre. Les
- * autres restent dans « Plus ». Le réglage suit la personne sur tous ses appareils et dans toutes ses entités.
+ * autres restent dans « Plus ». Le réglage suit la personne sur tous ses appareils.
  */
 export function BarreBasModal({ onClose }: { onClose: () => void }) {
-  const { prefs } = useStore();
-  const setPrefs = useSetPrefsPartout();
+  const { prefs, setPrefs } = useStore();
   const { rubriques } = useNavigation();
   const choisies = barreDuBas(rubriques, prefs.barreBas).map((r) => r.id);
   const lignes = [...choisies.map((id) => rubriques.find((r) => r.id === id)!), ...rubriques.filter((r) => !choisies.includes(r.id))];

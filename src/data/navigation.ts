@@ -1,6 +1,5 @@
 import type { IconeNom } from '../components/icones';
-import type { Permission, UnitType } from './types';
-import { UNIT_TYPES } from './units';
+import type { Permission } from './types';
 
 // Navigation : quelques rubriques, chacune avec ses pages (sous-onglets). Les adresses des pages ne changent pas
 // (liens déjà envoyés, raccourcis installés). Le texte « aide » s'affiche en haut de la page et dans « Comment ça marche ? ».
@@ -54,7 +53,7 @@ const RUBRIQUES: NavRubrique[] = [
     mobile: true,
     pages: [
       { to: '/agenda', label: 'Calendrier', icon: 'calendrier', aide: 'Le mois en un coup d’œil : séances, événements, échéances des tâches et fins de sondage. Clique sur un jour pour le détail.' },
-      { to: '/evenements', label: 'Événements', icon: 'evenements', perm: 'tab.events', aide: 'Les manifestations de tes entités, avec l’avancement des tâches qui les préparent.' },
+      { to: '/evenements', label: 'Événements', icon: 'evenements', perm: 'tab.events', aide: 'Les manifestations du club, avec l’avancement des tâches qui les préparent.' },
     ],
   },
   {
@@ -63,7 +62,7 @@ const RUBRIQUES: NavRubrique[] = [
     icon: 'seances',
     mobile: true,
     pages: [
-      { to: '/comite', label: 'Séances', icon: 'seances', perm: 'tab.meetings', aide: 'Les séances à venir de tes comités : date, lieu (placé sur une carte au besoin), excusés, ordre du jour et PV archivés. Les séances passées sont repliées en bas.' },
+      { to: '/comite', label: 'Séances', icon: 'seances', perm: 'tab.meetings', aide: 'Les séances à venir du comité : date, lieu (placé sur une carte au besoin), excusés, ordre du jour et PV archivés. Les séances passées sont repliées en bas.' },
       {
         to: '/ordre-du-jour',
         label: 'Ordre du jour',
@@ -84,22 +83,15 @@ const RUBRIQUES: NavRubrique[] = [
     id: 'sondages',
     label: 'Sondages',
     icon: 'sondage',
-    pages: [{ to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli. Ceux de toutes tes entités sont réunis ici.' }],
+    pages: [{ to: '/sondages', label: 'Sondages', icon: 'sondage', aide: 'Décider entre deux séances : pose une question, chacun vote depuis l’appli.' }],
   },
   {
-    // Le club : son organigramme (où l'on ouvre l'une de ses entités : ses réglages, sa console admin) et l'annuaire.
+    // Le club : l'annuaire, avec les rôles et les étiquettes de chacun.
     id: 'personnes',
     label: 'Club',
-    icon: 'organigramme',
+    icon: 'membres',
     pages: [
-      {
-        to: '/organigramme',
-        label: 'Organigramme',
-        icon: 'organigramme',
-        club: true,
-        aide: 'Le comité central, les sous-comités, groupes et équipes, et qui y fait quoi. Un clic sur une personne : sa fiche du club, avec ses places et son rôle dans chaque entité.',
-      },
-      { to: '/membres-club', label: 'Personnes du club', icon: 'membres', registre: true, aide: 'Les personnes du club, avec ou sans accès à l’appli : une fiche par personne, ses places dans les entités (l’organigramme) et, dans tes entités, son rôle et son accès.' },
+      { to: '/membres-club', label: 'Personnes du club', icon: 'membres', registre: true, aide: 'Les personnes du club, avec ou sans accès à l’appli : une fiche par personne, avec ses rôles et ses étiquettes (événements, groupes).' },
     ],
   },
 ];
@@ -110,14 +102,14 @@ export const PAGES_COMPTE: NavPage[] = [
     to: '/reglages',
     label: 'Réglages',
     icon: 'reglages',
-    aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage et les notifications (les mêmes dans toutes tes entités).',
+    aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage et les notifications.',
   },
   {
     to: '/admin',
     label: 'Console admin',
     icon: 'admin',
     perm: 'admin.access',
-    aide: 'Les réglages de l’une de tes entités, réservés à ses admins (choisie en haut de la page) : rôles et droits, sections et statuts, apparence, en-tête des documents, imports, historique et sauvegarde.',
+    aide: 'Les réglages de l’appli, réservés aux admins : rôles et droits, sections, statuts et étiquettes, apparence, en-tête des documents, imports, historique et sauvegarde.',
   },
   {
     to: '/mots-de-passe',
@@ -125,21 +117,21 @@ export const PAGES_COMPTE: NavPage[] = [
     icon: 'cle',
     perm: 'admin.access',
     demandes: true,
-    aide: 'Des membres de l’entité choisie en haut de la page ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion. Une seule validation suffit, quelle que soit leur entité.',
+    aide: 'Des membres ont oublié leur mot de passe et n’ont pas pu utiliser le lien par e-mail. Vérifie que la demande vient bien d’eux, puis donne-leur un mot de passe provisoire : ils choisiront le leur à la connexion.',
   },
   {
     to: '/comptes',
     label: 'Comptes du club',
     icon: 'comptes',
     superAdmin: true,
-    aide: 'Super-admin : tous les comptes du club et leurs entités. Nouveau mot de passe provisoire, blocage, et fusion de deux comptes d’une même personne.',
+    aide: 'Super-admin : tous les comptes du club. Nouveau mot de passe provisoire, blocage, et fusion de deux comptes d’une même personne.',
   },
   {
     to: '/propositions',
     label: 'Proposer une amélioration',
     icon: 'idee',
     club: true,
-    aide: 'Une idée pour l’appli, ou quelque chose qui ne marche pas ? Écris-le ici : le comité central l’étudie et te répond sur cette page.',
+    aide: 'Une idée pour l’appli, ou quelque chose qui ne marche pas ? Écris-le ici : les admins l’étudient et te répondent sur cette page.',
   },
   { to: '/aide', label: 'Comment ça marche ?', icon: 'aide', aide: 'Où trouver quoi, et les gestes courants.' },
 ];
@@ -154,19 +146,17 @@ export function libellePage(to: string): string {
   return p ? (p.dans ? `${libellePage(p.dans)} › ${p.label}` : p.label) : to;
 }
 
-type Acces = { can: (p: Permission) => boolean; club: boolean; registre: boolean; type: UnitType; demandes?: boolean; superAdmin?: boolean };
+type Acces = { can: (p: Permission) => boolean; club: boolean; registre: boolean; demandes?: boolean; superAdmin?: boolean };
 
-/** Rubriques et pages visibles, avec les noms de l'entité ouverte (« Séances », « Réunions », « Membres »…). */
-export function navigation({ can, club, registre, type, demandes = false, superAdmin = false }: Acces) {
+/** Rubriques et pages visibles selon les droits. */
+export function navigation({ can, club, registre, demandes = false, superAdmin = false }: Acces) {
   const visible = (p: NavPage) =>
     (!p.perm || can(p.perm)) && (!p.club || club) && (!p.registre || registre) && (!p.demandes || demandes) && (!p.superAdmin || superAdmin);
-  const nom = (p: NavPage): NavPage =>
-    p.to === '/comite' && type === 'equipe' ? { ...p, label: 'Réunions' } : p;
   const rubriques = RUBRIQUES.map((r) => {
-    const pages = r.pages.filter(visible).map(nom);
+    const pages = r.pages.filter(visible);
     // Une seule page : la rubrique prend son nom (ex. « Sondages » sans les séances).
     const seule = pages.length === 1 && r.pages.length > 1 ? pages[0] : null;
-    const label = seule ? seule.label : r.id === 'comite' ? UNIT_TYPES[type].seances : r.label;
+    const label = seule ? seule.label : r.label;
     return { ...r, label, icon: seule ? seule.icon : r.icon, pages };
   }).filter((r) => r.pages.length > 0);
   return { rubriques, compte: PAGES_COMPTE.filter(visible) };

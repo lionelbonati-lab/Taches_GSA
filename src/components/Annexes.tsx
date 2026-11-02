@@ -213,7 +213,7 @@ function PagesPdf({ d, valeur, disabled, onValider }: { d: TaskDoc; valeur: stri
 export const annexeInfo = (a: Annexe, pages?: Record<string, string>) =>
   [
     a.t.titre,
-    a.d.kind === 'lien' ? a.d.url : a.t.source ? `fichier de « ${a.t.source.unite} »` : !annexeVisible(a.d) ? 'fichier à part' : '',
+    a.d.kind === 'lien' ? a.d.url : !annexeVisible(a.d) ? 'fichier à part' : '',
     pages?.[a.d.id] && pagesValides(pages[a.d.id]) ? `pages ${pages[a.d.id]} jointes` : '',
   ]
     .filter(Boolean)

@@ -8,8 +8,8 @@ import { nomAppli } from '../data/nomAppli';
 import { lienMailto } from '../data/lienPartage';
 import { Icone } from './icones';
 
-// Accès à la version réelle : un compte par personne du club, donné une fois (PERSONNES_DU_CLUB.md) ; ses places dans
-// l'organigramme lui ouvrent leurs entités, sans place elle voit les tâches qui lui sont confiées. Mot de passe provisoire
+// Accès à la version réelle : un compte par personne du club, donné une fois (PERSONNES_DU_CLUB.md) ; sa fiche dans
+// l'appli lui ouvre l'espace du club, sans fiche elle voit les tâches qui lui sont confiées. Mot de passe provisoire
 // à transmettre, à changer à la première connexion.
 
 export interface Shown {
@@ -53,7 +53,7 @@ export function CompteDuClub({ clubId, membre }: { clubId: string; membre: ClubM
     }
   };
   const nom = nomMembre(membre);
-  const effet = etat.places ? 'ses places dans l’organigramme lui ouvrent leurs entités' : 'sans place dans l’organigramme, elle y voit les tâches qui lui sont confiées';
+  const effet = etat.places ? 'sa fiche lui ouvre l’appli du club' : 'sans fiche dans l’appli, elle y voit les tâches qui lui sont confiées';
   return (
     <section className="compte-club">
       <span className="field-label">Accès à l’appli</span>
@@ -71,7 +71,7 @@ export function CompteDuClub({ clubId, membre }: { clubId: string; membre: ClubM
       )}
       {!etat.peutDonner && !etat.moi && (
         <small className="muted">
-          {etat.etoiles.length ? `★ de ${etat.etoiles.join(', ')} : son accès se règle par un admin de cette entité ou du comité central.` : 'Compte du propriétaire ou d’un super-admin : réservé aux super-admins.'}
+          {etat.etoiles.length ? 'Admin : son accès se règle par un autre admin.' : 'Compte du propriétaire ou d’un super-admin : réservé aux super-admins.'}
         </small>
       )}
       <span className="row wrap">
@@ -86,7 +86,7 @@ export function CompteDuClub({ clubId, membre }: { clubId: string; membre: ClubM
           </button>
         )}
         {etat.compte && etat.peutDonner && !etat.moi && (
-          <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${nom} à l’appli ? Ses places restent dans l’organigramme.`) && act('retirerCompteClub')}>
+          <button className="btn small danger" disabled={busy} onClick={() => confirm(`Retirer l’accès de ${nom} à l’appli ? Sa fiche reste (rôles, étiquettes).`) && act('retirerCompteClub')}>
             Retirer l’accès
           </button>
         )}

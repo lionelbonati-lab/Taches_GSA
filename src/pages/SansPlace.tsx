@@ -1,21 +1,21 @@
-import type { ClubMembre, OrgUnit, Status, Task } from '../data/types';
+import type { ClubMembre, Status, Task } from '../data/types';
+import type { EspaceConfie } from '../data/cloud';
 import { AppLogo, Empty } from '../components/ui';
 import { nomAppli } from '../data/nomAppli';
 import { fmtDate } from '../data/utils';
-import { PastilleEntite } from '../components/IconesEntite';
 import { Deroulante } from '../components/Deroulante';
 
-/** Une tâche confiée à la personne, dans son entité, avec les statuts de celle-ci. */
+/** Une tâche confiée à la personne, dans son espace, avec ses statuts. */
 export interface TacheConfiee {
-  unite: OrgUnit;
+  unite: EspaceConfie;
   tache: Task;
   statuts: Status[];
 }
 
 /**
- * Personne du club sans place dans l'organigramme, avec un accès à l'appli (PERSONNES_DU_CLUB.md, étape 3) : seulement
- * les tâches qui lui sont confiées (son nom sur la tâche), dans toutes les entités ; elle en change le statut et coche
- * leur checklist, enregistrés dans leur entité. Version réelle : CloudApp, avec le serveur à jour (056).
+ * Version réelle, en attendant la reprise (PLAN_APPLI_SIMPLE.md, D3) : personne du club avec un compte, mais sans fiche
+ * dans l'appli (056) : seulement les tâches qui lui sont confiées (son nom sur la tâche) ; elle en change le statut et
+ * coche leur checklist, enregistrés sur le serveur. Version réelle seulement (CloudApp).
  */
 export function SansPlace({ membre, logo, taches, erreur, modifier, sortir, onSortir }: {
   membre: Pick<ClubMembre, 'prenom' | 'nom'>;
@@ -41,15 +41,15 @@ export function SansPlace({ membre, logo, taches, erreur, modifier, sortir, onSo
       <main className="narrow">
         <h1>Mes tâches</h1>
         <p className="muted">
-          Tu n’as pas de place dans l’organigramme du club : tu vois ici les tâches qui te sont confiées, dans toutes ses entités. Change leur statut et
-          coche leur checklist au fur et à mesure.
+          Tu n’as pas encore de fiche dans l’appli : tu vois ici les tâches qui te sont confiées. Change leur statut et coche leur checklist au fur et à
+          mesure.
         </p>
         {erreur && <p className="error">{erreur}</p>}
         {!liste.length && <Empty>Aucune tâche ne t’est confiée pour l’instant.</Empty>}
         {liste.map(({ unite, tache: t, statuts }) => (
           <section key={`${unite.id}:${t.id}`} className={`panel tache-confiee${fini({ unite, tache: t, statuts }) ? ' finie' : ''}`}>
             <small className="muted tache-confiee-entite">
-              <PastilleEntite u={unite} /> {unite.nom}
+              <span className="role-pill" style={{ background: unite.couleur ?? '#475569' }}>{unite.nom}</span>
             </small>
             <h2>{t.titre}</h2>
             {t.delai && <p className="muted">Pour le {fmtDate(t.delai)}</p>}

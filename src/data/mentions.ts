@@ -5,12 +5,12 @@ import { apercu } from './commentaires';
 import { fullName, uid } from './utils';
 
 // Mentions « @Prénom Nom » dans la discussion d'une tâche : la personne mentionnée est prévenue (📣), même si elle n'est
-// ni responsable ni autrice de la tâche. Seulement les personnes actives de l'entité de la tâche qui la voient.
+// ni responsable ni autrice de la tâche. Seulement les personnes actives qui voient la tâche.
 
 const LETTRE = /[\p{L}\p{N}]/u;
 const lettre = (c: string) => !!c && LETTRE.test(c);
 
-/** Personnes qu'on peut mentionner dans la discussion de la tâche `t` (de l'entité ouverte) : actives, qui la voient, sauf soi. */
+/** Personnes qu'on peut mentionner dans la discussion de la tâche `t` : actives, qui la voient, sauf soi. */
 export const mentionnables = (t: Task, people: Person[], roles: Role[], moi: string, etiquettes?: Etiquette[]) =>
   people
     .filter((p) => p.actif && p.id !== moi && fullName(p) && voitTache(t, p.id, userRoles(roles, p), etiquettes))
@@ -53,7 +53,7 @@ export function proposer(people: Person[], cherche: string, max = 6) {
     .slice(0, max);
 }
 
-/** Notifications 📣 des personnes mentionnées dans un nouveau commentaire sur la tâche `t` (vue d'ici). */
+/** Notifications 📣 des personnes mentionnées dans un nouveau commentaire sur la tâche `t`. */
 export const notifsMention = (ids: string[], t: Pick<Task, 'id' | 'titre'>, moi: string, texte: string, le: string): ActivityNotif[] =>
   ids.map((userId) => ({ id: uid('n'), userId, type: 'mention', taskId: t.id, by: moi, at: le, titre: t.titre, detail: apercu(texte.trim()) }));
 

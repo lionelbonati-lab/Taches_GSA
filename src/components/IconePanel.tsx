@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useStore } from '../data/store';
-import type { OrgUnit } from '../data/types';
+import type { Espace } from '../data/club';
 import { getMode } from '../data/mode';
 import { isImage } from '../data/logo';
 import { NOM_MAX, NOM_ORIGINE, nomPropre } from '../data/nomAppli';
@@ -21,11 +21,11 @@ import {
 
 type Etat = { deposee: VersionIcone | null; publiee: { version: string | null; refusee?: string } | null };
 
-/** Console admin du comité central : nom et icône de l'appli installée (icône tirée du logo du club), version réelle. */
-export function IconePanel({ club }: { club: OrgUnit }) {
+/** Console admin : nom et icône de l'appli installée (icône tirée du logo du club), version réelle. */
+export function IconePanel({ espace: club, peut }: { espace: Espace; peut: boolean }) {
   const { update, setToast } = useStore();
   const reel = getMode() === 'reel';
-  const allowed = !!club.moiAdmin;
+  const allowed = peut;
   const logo = isImage(club.logo) ? club.logo : undefined;
   const couleur = couleurRaccourcis(club.couleurAppli);
   const [etat, setEtat] = useState<Etat | null>(null);
@@ -82,7 +82,7 @@ export function IconePanel({ club }: { club: OrgUnit }) {
       <section className="panel icone-panel">
         <h2>Nom et icône de l’appli installée</h2>
         <p className="muted">
-          Dans la version réelle, les admins du comité central peuvent changer le nom de l’appli et remplacer l’icône d’origine (logo du G.S. Ajoie) par le logo du club.
+          Dans la version réelle, les admins peuvent changer le nom de l’appli et remplacer l’icône d’origine (logo du G.S. Ajoie) par le logo du club.
         </p>
       </section>
     );
@@ -204,7 +204,7 @@ export function IconePanel({ club }: { club: OrgUnit }) {
           {!logo && <p className="muted small-note">Mets d’abord un logo du club ci-dessus.</p>}
         </div>
       ) : (
-        <p className="muted small-note">Seuls les admins (★) du comité central changent le nom et l’icône de l’appli.</p>
+        <p className="muted small-note">Seuls les admins changent le nom et l’icône de l’appli.</p>
       )}
 
       {etat && deposee && (

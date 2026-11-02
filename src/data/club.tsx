@@ -1,254 +1,68 @@
 import { createContext, useContext } from 'react';
-import type { Carte, ClubMembre, FichesEntite, MonRegistre, NouvelleProposition, OrganigrammeAnnuel, OrgUnit, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, VisaVerifie, TachePartagee, Task, TicketCentral, Unit, UnitType, AgendaClubEvent } from './types';
-import { uid } from './utils';
-import type { OpOrga } from './organigramme';
+import type { ClubMembre, MonRegistre, NouvelleProposition, Proposition, Task, VisaVerifie } from './types';
 import type { DemandeMdp } from './cloud';
-import type { ActionCommentaire } from './commentaires';
 import type { HistoriqueTache } from './historique';
 import type { ErreurAppli, RapportErreur } from './rapportErreurs';
 import type { SauvegardeClub } from './backup';
 
-// Le club et ses entités (comité central, sous-comités, groupes, équipes d'événement).
-// L'appli travaille sur les données d'une entité à la fois ; ce contexte donne l'organigramme,
-// le changement d'entité et ce qui passe d'une entité à l'autre (tâches partagées, tickets).
-// Démo : DemoApp (données dans le navigateur) ; version réelle : CloudApp (serveur).
+// Le club autour de son espace (PLAN_APPLI_SIMPLE.md) : un seul espace de travail (tâches, séances, événements,
+// sondages…, dans la couche de données, store.tsx), et ce qui est au club : son nom et son logo, « Personnes du club »,
+// les propositions, le rapport d'erreurs, les mots de passe oubliés, la sauvegarde.
+// Démo : DemoApp (données dans le navigateur) ; version réelle : CloudClub (serveur).
 
-/** Personne qui rejoint une nouvelle entité (prise dans l'annuaire du club ou nouvelle). */
-export interface NewMember {
-  prenom: string;
+/** L'espace du club : nom, logo, couleur et icône (en-tête de l'appli, documents). */
+export interface Espace {
+  id: string;
   nom: string;
-  email: string;
-  telephone?: string;
-  couleur: string;
-  poste: string;
-}
-
-/** Fiche d'une personne dans la nouvelle entité. */
-export const toPerson = (m: NewMember, roles: string[]): Person => ({
-  id: uid('p'),
-  prenom: m.prenom,
-  nom: m.nom,
-  email: m.email,
-  telephone: m.telephone ?? '',
-  couleur: m.couleur,
-  poste: m.poste,
-  roles,
-  actif: true,
-});
-
-export interface NewUnit {
-  nom: string;
-  type: UnitType;
-  couleur: string;
-  /** Icône choisie dans la bibliothèque (sinon celle du type). */
+  logo?: string;
+  /** Couleur de l'appli (#rrggbb) ; sans choix : le bleu d'origine. */
+  couleurAppli?: string;
+  /** Icône choisie dans la bibliothèque (pastille de l'en-tête des documents). */
   icone?: string;
-  description?: string;
-  date?: string;
-  dateFin?: string;
-  /** Entité dont elle dépend dans l'organigramme (sinon le comité central). */
-  dependDe?: string;
-  /** Président ou responsable : admin de la nouvelle entité. */
-  chef: NewMember;
-  /** Postes de départ, à pourvoir (organigramme ; un comité : secrétaire et caissier). */
-  postes?: string[];
-  /** Autres membres de départ. */
-  membres: NewMember[];
-}
-
-/** Résultat de la création : accès du président (version réelle). */
-export interface CreatedUnit {
-  unitId: string;
-  email?: string;
-  password?: string;
-  existant?: boolean;
-  /** Entité créée, mais une étape a échoué (accès à créer depuis l’onglet Membres de l’entité). */
-  avertissement?: string;
-}
-
-/** Ce que la suppression définitive d'une entité archivée effacerait. */
-export interface ApercuSuppression {
-  nom: string;
-  taches: number;
-  tickets: number;
-  seances: number;
-  evenements: number;
-  sondages: number;
-  personnes: number;
-  /** Comptes qui y ont accès (version réelle). */
-  acces?: number;
-  fichiers: number;
-  /** Entités actives dont « Dépend de » la désigne (elles dépendront du comité central). */
-  dependantes: string[];
-  /** Postes liés ⛓ à elle dans les autres entités (déliés, ils restent). */
-  postesLies: number;
 }
 
 export interface Club {
-  /** Toutes les entités du club, avec leurs membres (archivées comprises). */
-  units: OrgUnit[];
-  /** Entité ouverte. */
-  current: OrgUnit;
-  central: OrgUnit | null;
-  /** Entités dont l'utilisateur fait partie (hors archivées, sauf l'entité ouverte). */
-  mine: OrgUnit[];
-  /** Ma fiche dans chacune de mes entités (entité → fiche) : mes messages écrits d'ailleurs restent les miens. */
-  mesFiches: Record<string, string>;
-  /** Discussions lues dans mes autres entités (clé commune → date, luesCommunes) : lues ici aussi. */
-  luesAilleurs: Record<string, string>;
-  /** Admin du comité central : crée et modifie les entités du club. */
-  canManage: boolean;
-  /** Toute une entité parmi les membres d'une autre : tenu à jour par le serveur (migration 020) ou par la démo. */
-  liens: boolean;
+  espace: Espace;
   loading: boolean;
-  error: string;
-  /** Ouvre une autre entité ; `hash` : page à afficher ensuite (par défaut l'accueil). */
-  switchUnit: (id: string, hash?: string) => void;
-  refresh: () => void;
-  createUnit: (u: NewUnit) => Promise<CreatedUnit>;
-  updateUnit: (id: string, patch: Partial<Pick<Unit, 'nom' | 'type' | 'couleur' | 'description' | 'date' | 'dateFin' | 'archive' | 'central' | 'logo' | 'couleurAppli' | 'icone' | 'dependDe' | 'tachesDependance' | 'historiqueDependance' | 'carte' | 'rangement'>>) => Promise<void>;
-  /** Entité archivée : ce que sa suppression définitive effacerait (admins du comité central). */
-  apercuSuppression: (id: string) => Promise<ApercuSuppression>;
-  /**
-   * Supprime définitivement une entité archivée et toutes ses données (`nom` : son nom, retapé pour confirmer).
-   * Renvoie un avertissement si une étape secondaire a échoué (fichiers, postes liés).
-   */
-  supprimerUnite: (id: string, nom: string) => Promise<string | undefined>;
-  /** Place des cartes dans l'organigramme (null : leur place dans l'arbre). Admins de l'entité ou du comité central. */
-  placerCartes: (places: Record<string, Carte | null>) => Promise<void>;
-  /** Change la date de la prochaine édition de l'entité ouverte (ses admins, son droit « Gérer les événements », le comité central). */
-  setEditionDate: (date: string, dateFin?: string) => Promise<void>;
-  /**
-   * Envoie un ticket à rembourser à la caisse qui reçoit ceux de l'entité ouverte : celle du comité dont elle dépend
-   * s'il a un caissier, sinon la caisse centrale (caisseDe ; membre d'une autre entité que celle de la caisse).
-   */
-  ticketCentral: (t: TicketCentral) => Promise<void>;
-  /** Tickets envoyés à une autre caisse (comité dont l'entité dépend, caisse centrale) par la personne connectée. */
-  mesTicketsCentraux: () => Promise<SuiviTicket[]>;
-  /**
-   * Ticket visé qui porte ce n° de visa, dans toutes les entités du club (« Vérifier un visa ») ; null : inconnu, visa
-   * retiré ou ticket supprimé. Version réelle : gsa_verifier_visa (migration 043).
-   */
+  /** Nom, logo, couleur, icône de l'espace (console admin › Apparence). */
+  modifierEspace: (patch: Partial<Omit<Espace, 'id'>>) => Promise<void>;
+  /** Ticket visé qui porte ce n° de visa ; null : inconnu, visa retiré ou ticket supprimé (version réelle : 043). */
   verifierVisa: (code: string) => Promise<VisaVerifie | null>;
-  /** Événements de toutes les entités du club (agenda ; sans description). */
-  agendaClub: () => Promise<AgendaClubEvent[]>;
-  /** Tâches que d'autres entités du club partagent avec l'entité ouverte. */
-  tachesPartagees: () => Promise<TachePartagee[]>;
-  /**
-   * Anciennes tâches des entités qui dépendent de l'entité ouverte depuis leur dernier changement de dépendance
-   * (lecture et copie) ; null : le serveur ne les gère pas encore (migration 030).
-   */
-  anciennesTaches: () => Promise<TachePartagee[] | null>;
-  /**
-   * Tâches d'autres entités du club « pour info » de l'entité ouverte (l'entité, ou l'une de ses personnes, mentionnée),
-   * en lecture seule ; null : le serveur ne les gère pas encore (migration 037).
-   */
-  tachesPourInfo: () => Promise<TachePartagee[] | null>;
-  /**
-   * Séances du comité dont dépend l'entité ouverte, pour y lier une tâche (son ordre du jour et son PV) ; null : le
-   * serveur ne les donne pas encore (migration 032).
-   */
-  seancesComite: () => Promise<SeancesDuComite | null>;
-  /**
-   * Sections des entités qui dépendent de l'entité ouverte, pour y ranger une tâche qui leur est attribuée ; null : le
-   * serveur ne les donne pas encore (migration 033).
-   */
-  sectionsDependantes: () => Promise<SectionsDependantes | null>;
-  /**
-   * Enregistre une tâche de l'entité ouverte dans l'entité `uniteId` qui dépend d'elle (attribuée depuis sa sous-section),
-   * partagée avec l'entité ouverte. `statut` : son statut ici, pour retrouver le même chez elle.
-   */
-  attribuerTache: (uniteId: string, task: Task, statut: { label: string; done: boolean }) => Promise<void>;
-  /** Enregistre, dans son entité, une tâche partagée modifiée depuis l'entité ouverte. */
-  modifierTachePartagee: (uniteId: string, task: Task) => Promise<void>;
-  /**
-   * « 🙋 Je m'en charge » (prend) ou « Pas dispo » sur une tâche à prendre de l'entité `uniteId`, partagée avec l'entité
-   * ouverte et proposée ici à la personne connectée (040) : réponse enregistrée dans l'entité de la tâche.
-   */
-  repondreTachePartagee: (uniteId: string, tacheId: string, prend: boolean) => Promise<void>;
-  /**
-   * « ✓ Vu » de la personne connectée sur une tâche de l'entité `uniteId` pour info de l'entité ouverte (elle-même, ou
-   * l'entité pour ses admins et les rôles « Voir toutes les tâches ») ou partagée avec elle : enregistré sur la tâche,
-   * pour son auteur (version réelle : gsa_pour_info_vu, 046).
-   */
-  vuPourInfo: (uniteId: string, tacheId: string) => Promise<void>;
-  /**
-   * Discussion (049) sur une tâche de l'entité `uniteId` partagée avec l'entité ouverte ou reçue pour info : commentaire
-   * ajouté, corrigé ou retiré dans l'entité de la tâche ; ses personnes concernées sont prévenues.
-   */
-  commenter: (uniteId: string, tacheId: string, a: ActionCommentaire) => Promise<void>;
-  /**
-   * Historique (050) d'une tâche de l'entité `uniteId` (l'entité ouverte, ou une autre dont la tâche est partagée avec elle
-   * ou reçue pour info) : de la modification la plus récente à la plus ancienne.
-   */
-  historique: (uniteId: string, tacheId: string) => Promise<HistoriqueTache>;
-  /** Rapport d'erreurs (051) : erreur de l'appli signalée aux admins du comité central (sans réponse ni échec). */
+  /** Historique (050) d'une tâche : de la modification la plus récente à la plus ancienne. */
+  historique: (tacheId: string) => Promise<HistoriqueTache>;
+  /** Rapport d'erreurs (051) : erreur de l'appli signalée aux admins (sans réponse ni échec). */
   signalerErreur: (r: RapportErreur) => Promise<void>;
-  /** Erreurs signalées dans le club, à regarder d'abord (admins du comité central). */
+  /** Erreurs signalées, à regarder d'abord (admins). */
   erreurs: () => Promise<ErreurAppli[]>;
-  /** Erreur marquée réglée (ou rouverte). */
   reglerErreur: (id: string, reglee: boolean) => Promise<void>;
   /** Efface les erreurs réglées ; renvoie leur nombre. */
   effacerErreurs: () => Promise<number>;
   /**
-   * Personnes qui reçoivent une tâche de l'entité `uniteId` au titre des entités mentionnées en entier pour info (leurs
-   * admins et rôles « Voir toutes les tâches », avec un compte) : entité → fiches ; null : le serveur ne le dit pas
-   * encore (046).
+   * Suivi des « Pour info » (052) : tâche → personnes attendues (clés « p:fiche » : fiches actives avec un compte).
+   * null : le serveur ne le dit pas encore.
    */
-  destinatairesPourInfo: (uniteId: string, tacheId: string) => Promise<Record<string, string[]> | null>;
+  suiviPourInfo: (tacheIds: string[]) => Promise<Record<string, string[]> | null>;
   /**
-   * Suivi des « Pour info » (052) de tâches de l'entité `uniteId` : tâche → personnes attendues (clés « p:… », « a:… »,
-   * « u:… » ; voir Attendus). null : le serveur ne le dit pas encore.
-   */
-  suiviPourInfo: (uniteId: string, tacheIds: string[]) => Promise<Record<string, string[]> | null>;
-  /**
-   * Relance (052) d'une tâche « Pour info » de l'entité ouverte (`tache` : celle de la fenêtre, pour la démo) : les personnes
-   * attendues qui ne l'ont pas vue sont prévenues. `n` : combien ; `ici` (démo) : celles de l'entité ouverte, que l'appli
-   * prévient elle-même.
+   * Relance (052) d'une tâche « Pour info » (`tache` : celle de la fenêtre, pour la démo) : les personnes attendues qui ne
+   * l'ont pas vue sont prévenues. `n` : combien ; `ici` (démo) : celles que l'appli prévient elle-même.
    */
   relancerPourInfo: (tacheId: string, tache: Task) => Promise<{ n: number; ici: string[] }>;
-  /** Sondages d'autres entités ouverts à l'entité ouverte ; null : le serveur ne les gère pas encore (migration 021). */
-  sondagesPartages: () => Promise<SondagePartage[] | null>;
-  /** Réponse de la personne connectée à un sondage d'une autre entité, enregistrée dans son entité. */
-  voterSondagePartage: (uniteId: string, pollId: string, choix: string[], texte?: string) => Promise<void>;
-  /**
-   * Moteur de l'organigramme (postes, postes liés, personnes glissées) ; absent : le serveur n'est pas encore à jour
-   * (migration 023), l'organigramme est en lecture seule. Renvoie ce qui a été fait et de quoi l'annuler.
-   */
-  organiser?: (op: OpOrga) => Promise<{ message: string; annuler: () => Promise<void> }>;
-  /**
-   * Version réelle : personnes de l'entité ouverte modifiées ailleurs que dans l'organigramme (fiche, console admin),
-   * déjà enregistrées ; `avant` : ses fiches d'avant. Le serveur fait suivre ses postes et les postes liés.
-   */
-  suivrePostes?: (avant: Person[]) => Promise<void>;
-  /**
-   * Organigrammes des années enregistrées (une photo par année, la dernière prise pendant l'année), du plus récent au
-   * plus ancien ; null : le serveur ne les tient pas encore (migration 026). Lecture seule, pour tout le club.
-   */
-  organigrammesAnnuels: () => Promise<OrganigrammeAnnuel[] | null>;
-  /** Envoie une proposition d'amélioration de l'appli au comité central (tout membre du club). */
+  /** Envoie une proposition d'amélioration de l'appli (tout membre du club). */
   proposerAmelioration: (p: NouvelleProposition) => Promise<void>;
-  /** Propositions envoyées par la personne connectée, avec leur suivi ; null : le serveur ne les gère pas encore (migration 022). */
+  /** Propositions envoyées par la personne connectée, avec leur suivi ; null : le serveur ne les gère pas encore (022). */
   mesPropositions: () => Promise<Proposition[] | null>;
   /**
-   * Personnes du club (liste unique, PERSONNES_DU_CLUB.md) : `voir` la liste (tout le monde) ; `coordonnees` (email,
-   * téléphone : droit « voir les coordonnées » dans l'une de ses entités) ; `gerer` (ajouter, modifier, retirer du club :
-   * droit « Gérer les personnes » dans l'une de ses entités). Version réelle : calculés par le serveur (055).
+   * Personnes du club (liste unique) : `voir` la liste (tout le monde) ; `coordonnees` (email, téléphone) ; `gerer`
+   * (ajouter, modifier, retirer du club). Selon les rôles de la personne ; version réelle : calculés par le serveur (055).
    */
   personnes: { voir: boolean; coordonnees: boolean; gerer: boolean };
-  /**
-   * Caissier du club (rôle qui donne expressément « paiements.payer » dans l'une de ses entités) : lit la liste des
-   * membres, avec leurs IBAN (eux seuls).
-   */
+  /** Caissier (rôle qui donne expressément « paiements.payer ») : lit les IBAN de la liste des membres. */
   caissier: boolean;
   /** Liste des membres : données masquées par une personne vides, IBAN aux caissiers (et à la personne elle-même). */
   membres: () => Promise<ClubMembre[]>;
-  /** Enregistre des membres (nouveaux ou modifiés) ; leurs coordonnées passent dans les fiches liées des entités. */
+  /** Enregistre des membres (nouveaux ou modifiés) ; leurs coordonnées passent dans les fiches liées. */
   saveMembres: (list: ClubMembre[]) => Promise<void>;
-  /**
-   * Retire une personne du club : ses places dans les entités (fiches retirées, postes libérés) et son accès ; ses tâches
-   * gardent son nom. Ses places ★ : admins de l'entité ou du comité central ; jamais le seul ★ d'une entité (version
-   * réelle : serveur à jour, 056 ; avant, refusé tant qu'elle a une place).
-   */
+  /** Retire une personne du club : sa fiche (désactivée) et son accès ; ses tâches gardent son nom. */
   deleteMembre: (id: string) => Promise<void>;
   /** Ma fiche du registre (mon IBAN, ma confidentialité) ; null : je n'y suis pas. */
   monRegistre: () => Promise<MonRegistre | null>;
@@ -256,38 +70,22 @@ export interface Club {
   enregistrerMonIban: (iban: string) => Promise<string>;
   /** Masque (ou non) mes données personnelles (email, téléphone, IBAN) dans la liste des membres. */
   setConfidentialite: (masquer: boolean) => Promise<void>;
-  /** Fiches et rôles d'une entité dont on est admin (accès gérés depuis la page « Membres du club »). */
-  fichesEntite: (uniteId: string) => Promise<FichesEntite>;
-  /** Enregistre une fiche (rôles, retrait, réactivation, ajout) dans une entité dont on est admin ; ses postes suivent. */
-  enregistrerFiche: (uniteId: string, p: Person) => Promise<void>;
-  /** Version réelle : demandes « mot de passe oublié » des membres de l'entité ouverte (pour ses admins). */
+  /** Version réelle : demandes « mot de passe oublié » (pour les admins). */
   demandesMdp: DemandeMdp[];
   /** Valide une demande : mot de passe provisoire à transmettre, à changer à la connexion. */
   approuverMdp: (id: string) => Promise<{ email: string; password: string }>;
   refuserMdp: (id: string) => Promise<void>;
-  /** Super-admin du club (hors des entités) : page « Comptes du club ». */
+  /** Super-admin du club : page « Comptes du club ». */
   superAdmin: boolean;
-  /**
-   * Sauvegarde de tout le club (console admin › Sauvegarde) : toutes ses entités, avec leurs fichiers joints, et « Personnes
-   * du club ». Super-admins (démo : admins du comité central) ; absent pour les autres.
-   */
+  /** Sauvegarde de tout le club (console admin › Sauvegarde), avec « Personnes du club » ; absente pour les autres. */
   sauvegardeClub?: (par: string) => Promise<SauvegardeClub>;
-  /** Vue « moi » : l'une de mes autres entités, ouverte en arrière-plan (sans écran ; entites.tsx). */
-  arrierePlan?: boolean;
   /**
-   * Vue du club : l'une de mes entités, ouvertes à égalité en arrière-plan. Elle garde tout ce qu'elle reçoit (tâches
-   * confiées à moi comprises : la vue du club ne les montre qu'une fois) et se relit comme l'entité ouverte d'avant.
+   * Version réelle, en attendant la reprise des anciennes entités dans l'espace du club (PLAN_APPLI_SIMPLE.md, D3) : mes
+   * autres anciennes entités, à ouvrir une à la fois (leurs données restent sur le serveur, intactes).
    */
-  aEgalite?: boolean;
-  /**
-   * Vue du club (PLAN_CLUB_SANS_ENTITE.md, étape 1) : l'appli ne s'appuie sur aucune entité. `current` est alors le club
-   * lui-même (CLUB_ID, sans données à lui) ; toutes mes entités sont ouvertes en arrière-plan, à égalité.
-   */
-  vueClub?: boolean;
+  autresEspaces?: { id: string; nom: string }[];
+  ouvrirEspace?: (id: string) => void;
 }
-
-/** Vue du club : identifiant du club lui-même (`current`), qui n'est aucune entité. */
-export const CLUB_ID = 'club';
 
 export const ClubCtx = createContext<Club | null>(null);
 

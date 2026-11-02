@@ -13,13 +13,20 @@ import { CloudClub } from './CloudClub';
 import { AppLogo } from './components/ui';
 import { FirstPassword, Message, NewPassword, RealLogin, Setup, WhoAreYou } from './pages/Real';
 import { ComptesSeuls } from './pages/Comptes';
-import { entiteDeBase } from './data/units';
-import { RegistreEntites } from './data/entites';
 import { SansPlace, type TacheConfiee } from './pages/SansPlace';
 import { isImage } from './data/logo';
 
-// Version réelle : connexion, mise en route, puis l'appli avec les données du serveur, appuyée sur l'une de mes entités
-// (toujours la même : entiteDeBase) ; les autres sont chargées en arrière-plan (vue « moi »).
+// Version réelle : connexion, mise en route, puis l'appli avec les données de l'espace du club, sur le serveur
+// (PLAN_APPLI_SIMPLE.md). En attendant la reprise des anciennes entités dans l'espace du club (D3), l'appli ouvre le comité
+// central (l'espace du club) s'il est parmi mes accès, sinon la première de mes anciennes entités ; les autres restent sur
+// le serveur, intactes, et s'ouvrent une à la fois (menu du compte).
+
+/** Espace ouvert d'office : le comité central (l'espace du club), sinon la première de mes anciennes entités, par nom. */
+function espaceDeBase(list: Membership[]): Membership | undefined {
+  const actifs = list.filter((x) => !x.info.archive);
+  const l = (actifs.length ? actifs : list).slice().sort((a, b) => +(a.type !== 'central') - +(b.type !== 'central') || a.committeeName.localeCompare(b.committeeName, 'fr'));
+  return l[0];
+}
 
 type Phase =
   | { k: 'chargement'; text: string }
@@ -38,6 +45,8 @@ export function CloudApp() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [phase, setPhase] = useState<Phase>({ k: 'chargement', text: 'Connexion…' });
   const run = useRef(0);
+  // Mes accès (avec ma fiche) : l'espace ouvert et mes autres anciennes entités (D3 : reprises dans l'espace du club).
+  const [acces, setAcces] = useState<Membership[]>([]);
 
   useEffect(() => {
     // Lien « mot de passe oublié » (?mdp=…) : vérifié d'abord, il ouvre la session.
@@ -91,11 +100,10 @@ export function CloudApp() {
         if (sansPlace) return setPhase({ k: 'sansPlace', compte: sansPlace });
         // Sans entité : le super-admin du club a la page des comptes.
         if (!list.length) return setPhase({ k: 'aucunComite', superAdmin: await estSuperAdmin() });
-        // Toujours la même entité de base (le comité central d'abord), avec ma fiche ; un lien reçu vers une autre de mes
-        // entités (notification, WhatsApp…) s'ouvre ensuite d'ici (LienRecu), sans changer d'entité.
+        // L'espace du club (le comité central) d'abord, avec ma fiche.
         const avecFiche = list.filter((x) => x.personId);
-        const m = entiteDeBase((avecFiche.length ? avecFiche : list).map((x) => ({ ...x, nom: x.committeeName, archive: !!x.info.archive })))!;
-        await open(s, m);
+        setAcces(avecFiche.filter((x) => !x.info.archive));
+        await open(s, espaceDeBase(avecFiche.length ? avecFiche : list)!);
       } catch (e) {
         if (id === run.current) setPhase({ k: 'erreur', text: (e as Error).message });
       }
@@ -116,7 +124,7 @@ export function CloudApp() {
   const email = session?.user.email ?? '';
   const userId = session?.user.id ?? '';
   const retry = () => session && start(session);
-  // Passage à une autre de mes entités : ma fiche a été retirée de l'entité de base, ou celle-ci archivée (App).
+  // Passage à une autre de mes anciennes entités (menu du compte, en attendant la reprise D3).
   const switchTo = useCallback(
     (m: Membership) => {
       if (session) void open(session, m).catch((e) => setPhase({ k: 'erreur', text: (e as Error).message }));
@@ -146,7 +154,7 @@ export function CloudApp() {
       if (phase.superAdmin) return <ComptesSeuls email={email} onSignOut={signOut} />;
       return (
         <Message title="Pas encore d’accès" onSignOut={signOut}>
-          <p>Le compte <b>{email}</b> n’a encore de place dans aucune entité du club. Demande à quelqu’un qui gère les personnes du club de te donner l’accès (« Personnes du club » : ta fiche, « Donner l’accès »).</p>
+          <p>Le compte <b>{email}</b> n’a pas encore accès à l’appli du club. Demande à quelqu’un qui gère les personnes du club de te donner l’accès (« Personnes du club » : ta fiche, « Donner l’accès »).</p>
         </Message>
       );
     case 'sansPlace':
@@ -163,7 +171,7 @@ export function CloudApp() {
     case 'pasPret':
       return (
         <Message title={phase.m.committeeName} onSignOut={signOut}>
-          <p>Aucune donnée accessible pour l’instant : l’entité n’est pas encore mise en route, ou ton accès a été désactivé.</p>
+          <p>Aucune donnée accessible pour l’instant : l’espace n’est pas encore mis en route, ou ton accès a été désactivé.</p>
           <p>Renseigne-toi auprès du président.</p>
           <p><button className="btn" onClick={retry}>Réessayer</button></p>
         </Message>
@@ -183,13 +191,11 @@ export function CloudApp() {
       // Déconnexion en cours : la session disparaît avant le rechargement de la page.
       if (!session) return null;
       return (
-        <RegistreEntites>
-          <CloudClub m={phase.cloud.membership} userId={userId} email={phase.cloud.email} signOut={signOut} onSwitch={switchTo}>
-            <StoreProvider cloud={phase.cloud}>
-              <App />
-            </StoreProvider>
-          </CloudClub>
-        </RegistreEntites>
+        <CloudClub m={phase.cloud.membership} autres={acces.filter((x) => x.committeeId !== phase.cloud.membership.committeeId)} userId={userId} onSwitch={switchTo}>
+          <StoreProvider key={phase.cloud.membership.committeeId} cloud={phase.cloud}>
+            <App />
+          </StoreProvider>
+        </CloudClub>
       );
   }
 }

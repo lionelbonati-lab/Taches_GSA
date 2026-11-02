@@ -24,39 +24,25 @@ export async function ouvrirDemo(page: Page) {
   await expect(page.locator('.topbar .brand')).toBeVisible();
 }
 
-/** Va sur une page de l'appli sans la recharger (l'entité ouverte reste). */
+/** Va sur une page de l'appli sans la recharger. */
 export async function allerA(page: Page, chemin: string) {
   await page.evaluate((h) => { location.hash = h; }, `#${chemin}`);
 }
 
-/**
- * Session du club (PLAN_CLUB_SANS_ENTITE.md, étape 1) : l'appli ne s'appuie sur aucune entité. Ni entité de base
- * retenue, ni attribut data-entite ; l'en-tête est celui du club.
- */
-export async function verifierSansEntite(page: Page) {
+/** Un seul espace (PLAN_APPLI_SIMPLE.md, D1) : ni choix d'entité, ni attribut data-entite ; l'en-tête est celui du club. */
+export async function verifierUnSeulEspace(page: Page) {
   await expect(page.locator('.topbar .brand')).toBeVisible();
   await expect(page.locator('[data-entite]')).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('taches-gsa-demo-unite'))).toBeNull();
 }
 
-/**
- * Nouvelle tâche ouverte depuis le bouton « + », titre et section remplis (pas encore enregistrée) ; `entite` : créée
- * dans celle-ci (choisie dans la fenêtre), sinon dans celle proposée.
- */
-export async function nouvelleTache(page: Page, titre: string, entite?: string) {
+/** Nouvelle tâche ouverte depuis le bouton « + », titre et section remplis (pas encore enregistrée). */
+export async function nouvelleTache(page: Page, titre: string) {
   await page.locator('.fab').click();
   await page.locator('.fab-menu button', { hasText: 'Nouvelle tâche' }).click();
   const fiche = page.locator('.modal').first();
   await expect(fiche).toBeVisible();
   await page.getByPlaceholder('Que faut-il faire ?').fill(titre);
-  if (entite) {
-    const choix = fiche.getByRole('combobox', { name: 'Entité' });
-    if (!(await choix.textContent())?.includes(entite)) {
-      await choix.click();
-      await page.getByRole('option', { name: new RegExp(entite) }).click();
-    }
-    await expect(choix).toHaveText(new RegExp(entite));
-  }
   await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ index: 1 });
   return fiche;
 }

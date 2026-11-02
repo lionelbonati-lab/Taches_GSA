@@ -1,13 +1,11 @@
-import type { AppData, OrgUnit, Person, Poll, Task } from './types';
+import type { AppData, Person, Poll, Task } from './types';
 import { fmtDate, fmtDateTime, fullName, isDone } from './utils';
-import { UNIT_TYPES } from './units';
 import { echeance, isOpen } from './polls';
 
 // Recherche globale (loupe de l'en-tête) : tâches, séances, PV et ordres du jour archivés, sondages, événements,
-// personnes de toutes mes entités (vue « moi » : rechercherPartout) et entités du club. Sans accents ni majuscules ;
-// tous les mots doivent se trouver.
+// personnes et étiquettes. Sans accents ni majuscules ; tous les mots doivent se trouver.
 
-export type GenreResultat = 'tache' | 'seance' | 'archive' | 'sondage' | 'evenement' | 'personne' | 'entite';
+export type GenreResultat = 'tache' | 'seance' | 'archive' | 'sondage' | 'evenement' | 'personne' | 'etiquette';
 
 export const GENRES_RESULTAT: Record<GenreResultat, string> = {
   tache: 'Tâches',
@@ -16,7 +14,7 @@ export const GENRES_RESULTAT: Record<GenreResultat, string> = {
   sondage: 'Sondages',
   evenement: 'Événements',
   personne: 'Personnes',
-  entite: 'Entités du club',
+  etiquette: 'Étiquettes',
 };
 
 export interface Resultat {
@@ -98,9 +96,8 @@ export interface Contexte {
   seances: boolean;
   evenements: boolean;
   coordonnees: boolean;
-  /** Entité ouverte et entités du club (sans club : pas de personnes ni d'entités). */
-  courante?: OrgUnit;
-  entites?: OrgUnit[];
+  /** Personnes du club : leur liste est ouverte (sinon pas de personnes). */
+  personnes?: boolean;
   /** Texte des PV et ordres du jour archivés (sans balises), par identifiant. */
   texteArchive: (id: string, html: string) => string;
 }
@@ -171,37 +168,21 @@ export function rechercher(q: string, c: Contexte): Resultat[] {
       [e.lieu ?? '', e.description ?? ''],
     );
 
-  if (c.courante)
+  if (c.personnes)
     for (const p of data.people) {
       if (!p.actif) continue;
       ajouter(
-        { genre: 'personne', id: p.id, titre: fullName(p), detail: [p.poste, p.autresPostes].filter(Boolean).join(', '), lien: `/organigramme?entite=${c.courante.id}&personne=${p.id}`, date: '' },
+        { genre: 'personne', id: p.id, titre: fullName(p), detail: [p.poste, p.autresPostes].filter(Boolean).join(', '), lien: `/membres-club?q=${encodeURIComponent(fullName(p))}`, date: '' },
         [fullName(p)],
         [p.poste ?? '', p.autresPostes ?? '', ...(c.coordonnees ? [p.email ?? '', p.telephone ?? ''] : [])],
       );
     }
 
-  // Mes entités : dans l'organigramme (vue « moi » : on ne change pas d'entité).
-  for (const u of c.entites ?? []) ajouter({ genre: 'entite', id: u.id, titre: u.nom, detail: UNIT_TYPES[u.type]?.label, lien: '/organigramme', date: '' }, [u.nom]);
+  // Étiquettes (événements, groupes) : leurs tâches.
+  for (const e of data.etiquettes ?? [])
+    ajouter({ genre: 'etiquette', id: e.id, titre: e.nom, detail: [e.type === 'evenement' ? 'Événement' : 'Groupe', e.date && fmtDate(e.date)].filter(Boolean).join(' · '), lien: `/taches?etiquette=${e.id}`, date: e.date ?? '' }, [e.nom]);
 
   return trier(out);
 }
 
 const trier = (l: Resultat[]) => l.sort((a, b) => b.score - a.score || b.date.localeCompare(a.date) || a.titre.localeCompare(b.titre, 'fr'));
-
-/** Lien d'un résultat de l'une de mes autres entités : la carte de cette entité (séances, archives, événements). */
-const lienChez = (lien: string | undefined, u: string) => (lien && /^\/(comite|evenements)\?/.test(lien) ? `${lien}&entite=${encodeURIComponent(u)}` : lien);
-
-/**
- * Vue « moi » : la recherche dans toutes mes entités. `ici` : l'entité sur laquelle s'appuie l'appli, avec les tâches et
- * les sondages déjà réunis de toutes ; `autres` : le reste de chacune des autres (séances, événements, personnes), à
- * son nom.
- */
-export function rechercherPartout(q: string, ici: Contexte, autres: { u: OrgUnit; c: Contexte }[]): Resultat[] {
-  return trier([
-    ...rechercher(q, ici),
-    ...autres.flatMap(({ u, c }) =>
-      rechercher(q, c).map((r) => ({ ...r, id: `${u.id}:${r.id}`, detail: [r.detail, u.nom].filter(Boolean).join(' · '), lien: lienChez(r.lien, u.id) })),
-    ),
-  ]);
-}

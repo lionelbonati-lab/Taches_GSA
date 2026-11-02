@@ -1,26 +1,23 @@
 import { useStore } from '../../data/store';
-import { useClubOptional } from '../../data/club';
 import type { Recurrence, Task } from '../../data/types';
-import { RECURRENCES, addDays, applyDelaiRef, fmtDate, fullName, nextDate, nextOccurrence, nextResponsables, postesFor, today } from '../../data/utils';
+import { RECURRENCES, addDays, applyDelaiRef, fmtDate, fullName, nextOccurrence, nextResponsables, postesFor, today } from '../../data/utils';
 import { motSeance, seanceApres, seancePourSuivante } from '../../data/seances';
 import type { SetT } from './Quand';
 
-type Props = { t: Task; setT: SetT; task: Task; isNew: boolean; dis: boolean; complet: boolean; ouverte: boolean };
+type Props = { t: Task; setT: SetT; task: Task; isNew: boolean; dis: boolean; ouverte: boolean };
 
 /** Fiche d'une tâche : « 🔁 Répétition » et ce que sera l'occurrence suivante (séance, délai, responsables). */
-export function Repetition({ t, setT, task, isNew, dis, complet, ouverte }: Props) {
+export function Repetition({ t, setT, task, isNew, dis, ouverte }: Props) {
   const { data } = useStore();
-  const club = useClubOptional();
   const postes = postesFor(data, t, isNew ? undefined : task) ?? [];
-  // Répétition : « à chaque comité » (le mot des séances de l'entité) ; séance et délai de l'occurrence suivante.
-  const mot = motSeance(club?.current.type).toLowerCase();
-  // Tâche partagée : c'est son entité qui crée l'occurrence suivante (selon ses séances, ses postes).
-  const prochaine = t.recurrence && !t.source ? seancePourSuivante(data, t) : undefined;
+  // Répétition : « à chaque comité » ; séance et délai de l'occurrence suivante.
+  const mot = motSeance().toLowerCase();
+  const prochaine = t.recurrence ? seancePourSuivante(data, t) : undefined;
   const seanceLiee = data.meetings.find((m) => m.id === t.meetingId);
-  const delaiSuivant = t.recurrence && !t.source ? nextOccurrence(data, t, prochaine?.meeting).delai : t.recurrence && t.recurrence !== 'seance' && t.delai ? nextDate(t.delai, t.recurrence) : '';
+  const delaiSuivant = t.recurrence ? nextOccurrence(data, t, prochaine?.meeting).delai : '';
   const repeter = (r: Recurrence | undefined) =>
     setT((x) => {
-      if (r !== 'seance' || x.source || x.meetingId || x.seanceComite) return { ...x, recurrence: r };
+      if (r !== 'seance' || x.meetingId) return { ...x, recurrence: r };
       // À chaque séance : la tâche va d'abord à la prochaine séance prévue.
       const s = seanceApres(data.meetings, addDays(today(), -1));
       return s && !s.nouvelle ? applyDelaiRef(data, { ...x, recurrence: r, meetingId: s.meeting.id }) : { ...x, recurrence: r };
@@ -30,22 +27,15 @@ export function Repetition({ t, setT, task, isNew, dis, complet, ouverte }: Prop
       {ouverte && (
         <label className="full">
           🔁 Répétition
-          <select value={t.recurrence ?? ''} disabled={dis || !complet} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
+          <select value={t.recurrence ?? ''} disabled={dis} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
             <option value="">Aucune (tâche unique)</option>
-            {/* Tâche partagée : « à chaque séance » (celles de son entité), seulement si elle l'est déjà. */}
-            {RECURRENCES.filter((r) => r.id !== 'seance' || !t.source || t.recurrence === 'seance').map((r) => (
-              <option key={r.id} value={r.id}>🔁 {r.id !== 'seance' ? r.label : t.source ? `À chaque séance de « ${t.source.unite} »` : `À chaque ${mot}`}</option>
+            {RECURRENCES.map((r) => (
+              <option key={r.id} value={r.id}>🔁 {r.id !== 'seance' ? r.label : `À chaque ${mot}`}</option>
             ))}
           </select>
         </label>
       )}
-      {t.recurrence && t.source && (
-        <p className="full recur-note">
-          🔁 Quand cette tâche sera terminée, « {t.source.unite} » créera automatiquement la suivante
-          {delaiSuivant ? <> pour le <b>{fmtDate(delaiSuivant)}</b></> : t.recurrence === 'seance' ? ' pour sa séance suivante' : ' (sans délai)'}, dès que l’un de ses membres ouvrira l’appli.
-        </p>
-      )}
-      {t.recurrence && !t.source && (
+      {t.recurrence && (
         <p className="full recur-note">
           🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement
           {t.recurrence !== 'seance' ? (

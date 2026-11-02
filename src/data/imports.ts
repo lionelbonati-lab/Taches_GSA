@@ -1,10 +1,9 @@
 import type { LigneImport } from '../components/ImportCsv';
 import { lireDate, liste, norm, type Colonne } from './csv';
-import { emailKey, groupesClub, nomMembre, nouveauMembre, trouverMembre } from './membres';
-import { ADMIN_ROLE_ID } from './permissions';
-import { defaultRoleId, UNIT_COLORS } from './units';
-import type { AppData, ClubEvent, ClubMembre, OrgUnit, Person, Task } from './types';
-import { uid } from './utils';
+import { emailKey, nomMembre, nouveauMembre, trouverMembre } from './membres';
+import { ADMIN_ROLE_ID, defaultRoleId } from './permissions';
+import type { AppData, ClubEvent, ClubMembre, Person, Task } from './types';
+import { COULEURS, uid } from './utils';
 
 // Imports CSV : ce que chaque ligne deviendra (nouveau, mise à jour, ignoré, erreur), avant de valider.
 // Une personne déjà connue (même email, sinon même prénom et nom) est mise à jour : les cellules remplies
@@ -31,17 +30,15 @@ const libelles = (c: string[]) => c.map((k) => LIBELLES[k] ?? k).join(', ');
 // ---------- Registre des membres du club ----------
 // Pas d'IBAN : seule la personne elle-même enregistre le sien (Réglages).
 
-export type ColRegistre = 'prenom' | 'nom' | 'email' | 'telephone' | 'groupes';
+export type ColRegistre = 'prenom' | 'nom' | 'email' | 'telephone';
 export const COLS_REGISTRE: Colonne<ColRegistre>[] = [
   { key: 'prenom', label: 'Prénom', required: true, exemple: 'Prénom' },
   { key: 'nom', label: 'Nom', aliases: ['Nom de famille'], required: true, exemple: 'Nom' },
   { key: 'email', label: 'Email', aliases: ['E-mail', 'Adresse email', 'Courriel', 'Mail'], exemple: 'prenom.nom@exemple.ch', aide: 'reconnaît une personne déjà inscrite' },
   { key: 'telephone', label: 'Téléphone', aliases: ['Tél', 'Tel', 'Portable', 'Natel', 'Mobile'], exemple: '079 000 00 00' },
-  { key: 'groupes', label: 'Groupes', aliases: ['Groupe'], exemple: 'École de cyclisme', aide: 'noms des groupes de l’organigramme, séparés par des virgules' },
 ];
 
-export function analyserRegistre(lignes: Record<ColRegistre, string>[], existants: ClubMembre[], units: OrgUnit[]): LigneImport<ClubMembre>[] {
-  const groupes = groupesClub(units);
+export function analyserRegistre(lignes: Record<ColRegistre, string>[], existants: ClubMembre[]): LigneImport<ClubMembre>[] {
   const travail = existants.map((m) => ({ ...m }));
   const deja = new Set<string>();
   return lignes.map((l) => {
@@ -49,20 +46,10 @@ export function analyserRegistre(lignes: Record<ColRegistre, string>[], existant
     if (!nomMembre(l)) return { statut: 'erreur', texte: l.email || '—', detail: 'Prénom ou nom manquant' };
     if (l.email && !emailOk(l.email)) return { statut: 'erreur', texte, detail: `Adresse email invalide : « ${l.email} »` };
     const avertissements: string[] = [];
-    let ids: string[] | undefined;
-    if (l.groupes) {
-      ids = [];
-      for (const g of liste(l.groupes)) {
-        const u = groupes.find((x) => norm(x.nom) === norm(g));
-        if (u) ids.push(u.id);
-        else avertissements.push(`Groupe inconnu : « ${g} »`);
-      }
-      if (!ids.length) ids = undefined;
-    }
-    const champs: Partial<ClubMembre> = { prenom: l.prenom, nom: l.nom, email: l.email, telephone: l.telephone, groupes: ids };
+    const champs: Partial<ClubMembre> = { prenom: l.prenom, nom: l.nom, email: l.email, telephone: l.telephone };
     const m = trouverMembre(travail, l);
     if (!m) {
-      const n = nouveauMembre({ ...champs, couleur: UNIT_COLORS[travail.length % UNIT_COLORS.length] });
+      const n = nouveauMembre({ ...champs, couleur: COULEURS[travail.length % COULEURS.length] });
       travail.push(n);
       deja.add(n.id);
       return { statut: 'nouveau', texte, avertissements, valeur: n };
@@ -77,7 +64,7 @@ export function analyserRegistre(lignes: Record<ColRegistre, string>[], existant
 /** Dernière version de chaque membre (une personne sur plusieurs lignes). */
 export const derniers = <T extends { id: string }>(list: T[]) => [...new Map(list.map((x) => [x.id, x])).values()];
 
-// ---------- Personnes d'une entité (poste, rôles) ----------
+// ---------- Personnes (poste, rôles) ----------
 
 export type ColPersonne = 'prenom' | 'nom' | 'email' | 'telephone' | 'poste' | 'roles';
 export const COLS_PERSONNES: Colonne<ColPersonne>[] = [
@@ -86,11 +73,11 @@ export const COLS_PERSONNES: Colonne<ColPersonne>[] = [
   { key: 'email', label: 'Email', aliases: ['E-mail', 'Adresse email', 'Courriel', 'Mail'], exemple: 'prenom.nom@exemple.ch', aide: 'reconnaît une personne déjà présente (ici ou ailleurs dans le club)' },
   { key: 'telephone', label: 'Téléphone', aliases: ['Tél', 'Tel', 'Portable', 'Natel', 'Mobile'], exemple: '079 000 00 00' },
   { key: 'poste', label: 'Poste', aliases: ['Fonction'], exemple: 'Bénévole' },
-  { key: 'roles', label: 'Rôle', aliases: ['Rôles'], exemple: 'Membre', aide: 'noms des rôles de l’entité, séparés par des virgules (vide : rôle de base)' },
+  { key: 'roles', label: 'Rôle', aliases: ['Rôles'], exemple: 'Membre', aide: 'noms des rôles du club, séparés par des virgules (vide : rôle de base)' },
 ];
 
 /**
- * Personnes à ajouter ou mettre à jour dans l'entité. Les rôles indiqués s'ajoutent à ceux de la personne ;
+ * Personnes à ajouter ou mettre à jour. Les rôles indiqués s'ajoutent à ceux de la personne ;
  * le rôle Admin n'est donné que par un admin. `registre` : membres du club, pour relier les nouvelles fiches.
  */
 export function analyserPersonnes(lignes: Record<ColPersonne, string>[], d: AppData, opts: { admin: boolean; registre?: ClubMembre[] }): LigneImport<Person>[] {
@@ -120,7 +107,7 @@ export function analyserPersonnes(lignes: Record<ColPersonne, string>[], d: AppD
         poste: l.poste,
         roles: roles.length ? [...new Set(roles)] : [defaultRoleId(d.roles)],
         actif: true,
-        couleur: m?.couleur ?? UNIT_COLORS[travail.length % UNIT_COLORS.length],
+        couleur: m?.couleur ?? COULEURS[travail.length % COULEURS.length],
         ...(m ? { membreId: m.id } : {}),
       };
       travail.push(n);

@@ -92,7 +92,7 @@ export function Minutes() {
   const [depotEtat, setDepotEtat] = useState<{ seance: string; ouverte: boolean; pdf: 'encours' | 'ok' | 'erreur' } | null>(null);
   const sheetRef = useRef<HTMLDivElement>(null);
   usePiedImprime(sheetRef);
-  // En-tête commun à tous les documents de l'entité (console admin).
+  // En-tête commun à tous les documents du club (console admin).
   const logo = useUnitLogo();
   const entete = useEntete();
 
@@ -123,7 +123,7 @@ export function Minutes() {
   const committee = committeeOf(data);
   const person = (id: string) => data.people.find((p) => p.id === id);
   // Titre : le nom du comité (comme l'ordre du jour) ; avec la date de la séance pour nommer le PDF, l'archive et l'email.
-  const nomComite = club?.current.nom ?? 'Comité';
+  const nomComite = club?.espace.nom ?? 'Comité';
   const titre = s1 ? `${nomComite} ${shortDate(s1.date)}` : nomComite;
   const secretaire = data.people.find((p) => p.actif && p.roles.includes('secretaire'));
   const version = m.version ?? 0;
@@ -173,7 +173,7 @@ export function Minutes() {
     changes.length &&
     setMinutes((x, d) => {
       x.journal = [...(x.journal ?? []), { taskId: t.id, titre: t.titre, changes, at: new Date().toISOString() }];
-      if (avant && !avant.source) retenir(x, d, t.id, avant);
+      if (avant) retenir(x, d, t.id, avant);
     }, { suite });
 
   // Modifications faites dans la fiche tâche ouverte depuis le PV : enregistrées une fois la tâche sauvegardée.
@@ -183,9 +183,9 @@ export function Minutes() {
     // Inscrit au PV avec la modification de la tâche : « Annuler » les défait ensemble.
     const tache = pending.tache;
     if (pending.isNew) {
-      if (t) setMinutes((x, d) => { x.nouvelles = [...(x.nouvelles ?? []), t.id]; if (!t.source) retenir(x, d, t.id, null); }, { suite: true });
+      if (t) setMinutes((x, d) => { x.nouvelles = [...(x.nouvelles ?? []), t.id]; retenir(x, d, t.id, null); }, { suite: true });
     } else if (!t && pending.before) {
-      setMinutes((x, d) => { x.supprimees = [...(x.supprimees ?? []), pending.before!.titre]; if (tache && !tache.source) retenir(x, d, tache.id, tache); }, { suite: true });
+      setMinutes((x, d) => { x.supprimees = [...(x.supprimees ?? []), pending.before!.titre]; if (tache) retenir(x, d, tache.id, tache); }, { suite: true });
     } else if (t && pending.before) {
       record(t, diffTask(data, pending.before, t), tache, true);
     }
@@ -286,7 +286,7 @@ export function Minutes() {
       sectionId,
       responsables: [],
       // Pour la séance suivante (pas encore passée), le jour même : elle figure à son ordre du jour.
-      ...versProchaineSeance(data.meetings, s1?.date, club?.current.type),
+      ...versProchaineSeance(data.meetings, s1?.date),
     });
     setEdit({ task: t, isNew: true });
     setPending({ id: t.id, isNew: true });
@@ -340,7 +340,7 @@ export function Minutes() {
     if (!s1) return;
     const n = retour.length;
     const gardees = new Set<string>();
-    remettreTaches(data.tasks.filter((t) => !t.source), () => gardees.add('x'));
+    remettreTaches(data.tasks, () => gardees.add('x'));
     if (
       !confirm(
         `Remettre le PV du ${s1.titre} à zéro ?
@@ -958,7 +958,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
   );
 }
 
-/** Réglage de l'entité : page web où déposer le PV validé, ouverte par « Valider et archiver ». */
+/** Réglage du club : page web où déposer le PV validé, ouverte par « Valider et archiver ». */
 function ReglageDepot() {
   const { data, update } = useStore();
   const actuel = data.reglagesOdj?.depotPv ?? '';
@@ -981,7 +981,7 @@ function ReglageDepot() {
     <div className="depot-pv">
       <p className="muted">
         Adresse de la page où déposer le PV (dossier partagé du club, formulaire d’envoi…). « Valider et archiver » l’ouvre dans une nouvelle fenêtre
-        et crée le PDF du PV, à y déposer. Commune à tous les PV de l’entité.
+        et crée le PDF du PV, à y déposer. Commune à tous les PV du club.
       </p>
       <form className="row wrap" onSubmit={(e) => { e.preventDefault(); enregistrer(val); }}>
         <input className="grow" type="text" inputMode="url" autoComplete="url" placeholder="https://…" value={val} onChange={(e) => { setVal(e.target.value); setErr(''); }} aria-label="Adresse de la page de dépôt du PV" />

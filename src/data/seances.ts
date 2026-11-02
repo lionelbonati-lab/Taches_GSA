@@ -1,6 +1,5 @@
-import type { AppData, Meeting, Person, Recurrence, Task, UnitType } from './types';
-import { UNIT_TYPES } from './units';
-import { ADMIN_ROLE_ID, hasPermission, userRoles } from './permissions';
+import type { AppData, Meeting, Person, Recurrence, Task } from './types';
+import { hasPermission, userRoles } from './permissions';
 import { addDays, fmtDate, isDone, localNow, nextOccurrence, today, uid } from './utils';
 
 // Séances qui reviennent chaque année : une séance revient l'année suivante le même mois (sauf si elle est
@@ -8,13 +7,11 @@ import { addDays, fmtDate, isDone, localNow, nextOccurrence, today, uid } from '
 // celle du même mois l'année suivante.
 
 /**
- * Convoqués aux séances du comité (PERSONNES_DU_CLUB.md) : ses ★ et les titulaires de ses postes ; ni ses bénévoles, ni
- * les personnes à qui une tâche est seulement confiée. Organigramme sans postes (pas encore converti) : le droit « Séances ».
+ * Convoqués aux séances du comité : les personnes actives dont un rôle donne le droit « Séances » (admins compris) ; ni
+ * les membres, ni les bénévoles, ni les personnes à qui une tâche est seulement confiée.
  */
-export function convoquesDe(data: Pick<AppData, 'people' | 'roles' | 'postes'>): Person[] {
-  if (!data.postes) return data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
-  const titulaires = new Set(data.postes.map((x) => x.titulaire).filter(Boolean));
-  return data.people.filter((p) => p.actif && (p.roles.includes(ADMIN_ROLE_ID) || titulaires.has(p.id)));
+export function convoquesDe(data: Pick<AppData, 'people' | 'roles'>): Person[] {
+  return data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings'));
 }
 
 export const MOIS = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
@@ -25,8 +22,8 @@ export const duMois = (date: string) => {
   return `${/^[aeiouéè]/i.test(mois) ? 'd’' : 'de '}${mois}`;
 };
 
-/** Mot d'une séance selon l'entité : « Comité », « Séance », « Réunion ». */
-export const motSeance = (type: UnitType = 'central') => UNIT_TYPES[type].seances.replace(/s$/, '');
+/** Mot d'une séance : « Comité » (« Comité de mars 2027 »). */
+export const motSeance = () => 'Comité';
 
 /** Nom d'une séance d'après son mois : « Comité de mars 2027 », « Réunion d’avril 2027 ». */
 export const nomSeance = (date: string, mot = 'Comité') => `${mot} ${duMois(date)} ${date.slice(0, 4)}`;
@@ -106,8 +103,7 @@ export function finAnticipee(data: AppData, avant: Task | undefined, apres: Task
   const jour = today();
   const limite = r === 'seance' ? data.meetings.map((m) => m.date).filter((d) => d >= jour).sort()[0] : addDays(jour, AVANCE[r]);
   if (!limite || apres.delai <= limite) return undefined;
-  // Tâche partagée : c'est son entité qui crée la suivante (selon ses séances).
-  const suivante = apres.source ? '' : nextOccurrence(data, apres, seancePourSuivante(data, apres)?.meeting).delai;
+  const suivante = nextOccurrence(data, apres, seancePourSuivante(data, apres)?.meeting).delai;
   return `« ${apres.titre} » est prévue pour le ${fmtDate(apres.delai)}.\n\nElle se répète : la terminer maintenant crée déjà la suivante${suivante ? `, pour le ${fmtDate(suivante)}` : ''}.\n\nC’est bien celle-ci qui est faite ?`;
 }
 
@@ -116,12 +112,12 @@ export function finAnticipee(data: AppData, avant: Task | undefined, apres: Task
  * dont on rédige le PV), le jour même ; elle figure aussi à son ordre du jour. Sans séance prévue dans l'Agenda : rien
  * (aujourd'hui) pour un comité, aucun délai pour un groupe ou une équipe d'événement (`type`).
  */
-export function versProchaineSeance(meetings: Meeting[], apres?: string, type?: UnitType): Partial<Task> {
+export function versProchaineSeance(meetings: Meeting[], apres?: string): Partial<Task> {
   const maintenant = localNow();
   const m = meetings
     .filter((x) => (!apres || x.date > apres) && `${x.date}T${x.heure || '23:59'}` > maintenant)
     .sort((a, b) => parDate(a, b) || (a.heure ?? '').localeCompare(b.heure ?? ''))[0];
-  return m ? { meetingId: m.id, delaiRef: { type: 'meeting', joursAvant: 0 }, delai: m.date } : type === 'groupe' || type === 'equipe' ? { delai: '' } : {};
+  return m ? { meetingId: m.id, delaiRef: { type: 'meeting', joursAvant: 0 }, delai: m.date } : {};
 }
 
 /**

@@ -1,6 +1,5 @@
 import { useMemo, useRef, useState, type KeyboardEvent } from 'react';
 import { useStore } from '../data/store';
-import { useClubOptional } from '../data/club';
 import type { ScheduledEmail, Task } from '../data/types';
 import {
   EMAIL_DELAIS, PLACEHOLDERS, STATE_LABEL, dueAt, emailState, emailsOf, fillTemplate, localNow, mailtoHref, newEmail, whenLabel,
@@ -17,7 +16,6 @@ const STATE_ICON: Record<EmailState, string> = { programme: '🕓', aEnvoyer: '�
 /** « nouveau » : la fenêtre d'un nouvel email s'ouvre tout de suite (bouton « Ajouter : 📧 Email » de la tâche). */
 export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task; isNew: boolean; openEmailId?: string; nouveau?: boolean }) {
   const { data, user, canEditTask, setEmailStatus, deleteEmail } = useStore();
-  const club = useClubOptional();
   const [edit, setEdit] = useState<{ e: ScheduledEmail; isNew: boolean } | null>(() =>
     nouveau && user && !isNew ? { e: newEmail(data.tasks.find((t) => t.id === task.id) ?? task, user.id), isNew: true } : null,
   );
@@ -26,7 +24,7 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
   const list = emailsOf(data, task.id);
   const current = data.tasks.find((t) => t.id === task.id) ?? task;
   const canManage = (e: ScheduledEmail) => e.creePar === user.id || canEditTask(current);
-  const names = (e: ScheduledEmail) => nomsDestinataires(data, e, club?.units ?? [], club?.current.id).join(', ') || '—';
+  const names = (e: ScheduledEmail) => nomsDestinataires(data, e).join(', ') || '—';
   const sending = list.find((e) => e.id === send);
 
   return (
@@ -86,7 +84,6 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
 /** Création / modification d'un email programmé. */
 function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: ScheduledEmail; isNew: boolean; onClose: () => void }) {
   const { data, saveEmail } = useStore();
-  const club = useClubOptional();
   const [e, setE] = useState<ScheduledEmail>(email);
   const [err, setErr] = useState('');
   const msgRef = useRef<HTMLTextAreaElement>(null);
@@ -105,7 +102,7 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
   };
 
   const submit = () => {
-    if (!recipients(data, e, club?.units, club?.current.id).length) return setErr('Choisis au moins un destinataire avec une adresse email.');
+    if (!recipients(data, e).length) return setErr('Choisis au moins un destinataire avec une adresse email.');
     if (!e.objet.trim()) return setErr('L’objet est obligatoire.');
     if (e.quand.type === 'date' && !e.quand.date) return setErr('Choisis la date d’envoi.');
     saveEmail({ ...e, objet: e.objet.trim(), statut: 'programme' }, isNew);
@@ -169,8 +166,8 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
         </div>
         <details className="full email-preview">
           <summary>Aperçu</summary>
-          <p><b>Objet :</b> {fillTemplate(data, task, e, e.objet, club?.current.id)}</p>
-          <pre>{fillTemplate(data, task, e, e.message, club?.current.id)}</pre>
+          <p><b>Objet :</b> {fillTemplate(data, task, e, e.objet)}</p>
+          <pre>{fillTemplate(data, task, e, e.message)}</pre>
         </details>
       </div>
       {err && <p className="error">{err}</p>}
@@ -184,21 +181,18 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
 }
 
 /**
- * Destinataires : les choix en puces (✕ pour retirer) et un champ de recherche — une personne d'ici, une entité du club
- * (toutes ses personnes) ou une personne d'une autre entité ; une adresse tapée s'ajoute aussi (Entrée, virgule).
+ * Destinataires : les choix en puces (✕ pour retirer) et un champ de recherche — une personne, une étiquette
+ * (tous ses membres) ; une adresse tapée s'ajoute aussi (Entrée, virgule).
  */
 function ChoixDestinataires({ task, email, onChange }: { task: Task; email: ScheduledEmail; onChange: (e: ScheduledEmail) => void }) {
   const { data } = useStore();
-  const club = useClubOptional();
-  const units = club?.units;
-  const courante = club?.current.id;
   const [q, setQ] = useState('');
   const [ouvert, setOuvert] = useState(false);
   const [actif, setActif] = useState(0);
-  const tous = useMemo(() => candidats(data.people, units ?? [], courante), [data.people, units, courante]);
-  const liste = choisis(data, email, units ?? [], courante);
+  const tous = useMemo(() => candidats(data.people, data.etiquettes), [data.people, data.etiquettes]);
+  const liste = choisis(data, email);
   const exclus = new Set(liste.map((d) => d.cle));
-  const nb = recipients(data, email, units, courante).length;
+  const nb = recipients(data, email).length;
   const adresse = q.trim();
   const nouvelleAdresse = EMAIL_RE.test(adresse) && !liste.some((d) => d.email?.toLowerCase() === adresse.toLowerCase());
   // Champ vide : les responsables de la tâche pas encore choisis.
@@ -256,7 +250,7 @@ function ChoixDestinataires({ task, email, onChange }: { task: Task; email: Sche
             <span key={d.cle} className={`chip dest dest-${d.genre} ${d.alerte ? 'alerte' : ''}`} title={[d.detail, d.genre === 'personne' ? d.email : '', d.alerte].filter(Boolean).join(' · ')}>
               {d.texte}
               {d.genre === 'personne' && task.responsables.includes(d.id) && ' ★'}
-              {d.genre === 'unite' && <small className="muted"> · {d.detail}</small>}
+              {d.genre === 'etiquette' && <small className="muted"> · {d.detail}</small>}
               {d.alerte && <small className="dest-alerte"> ⚠ {d.alerte}</small>}
               <button type="button" className="chip-x" aria-label={`Retirer ${d.texte}`} onClick={() => onChange(retirer(email, d))}>✕</button>
             </span>
@@ -274,7 +268,7 @@ function ChoixDestinataires({ task, email, onChange }: { task: Task; email: Sche
           aria-activedescendant={montre && options.length ? `dest-opt-${i}` : undefined}
           autoComplete="off"
           value={q}
-          placeholder={club ? '🔍 Une personne, une entité ou une adresse email' : '🔍 Une personne ou une adresse email'}
+          placeholder="🔍 Une personne, une étiquette ou une adresse email"
           onChange={(ev) => saisir(ev.target.value)}
           onFocus={() => setOuvert(true)}
           onBlur={() => {
@@ -310,7 +304,7 @@ function ChoixDestinataires({ task, email, onChange }: { task: Task; email: Sche
       </div>
       <small className="muted">
         {nb ? `${nb} adresse${nb > 1 ? 's' : ''} email` : 'Aucune adresse pour l’instant'}
-        {club ? ' · une entité envoie à toutes ses personnes' : ''} · ★ responsable de la tâche
+        {' · une étiquette envoie à tous ses membres'} · ★ responsable de la tâche
       </small>
     </fieldset>
   );
@@ -319,12 +313,11 @@ function ChoixDestinataires({ task, email, onChange }: { task: Task; email: Sche
 /** Envoi : ouvre l'email déjà rempli dans la messagerie, puis le marque comme envoyé. */
 export function EmailSend({ task, email, onClose }: { task: Task; email: ScheduledEmail; onClose: () => void }) {
   const { data, setEmailStatus } = useStore();
-  const club = useClubOptional();
   const [opened, setOpened] = useState(false);
   const [copied, setCopied] = useState(false);
-  const to = recipients(data, email, club?.units, club?.current.id);
-  const objet = fillTemplate(data, task, email, email.objet, club?.current.id);
-  const body = fillTemplate(data, task, email, email.message, club?.current.id);
+  const to = recipients(data, email);
+  const objet = fillTemplate(data, task, email, email.objet);
+  const body = fillTemplate(data, task, email, email.message);
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(`À : ${to.join(', ')}\nObjet : ${objet}\n\n${body}`);
@@ -352,7 +345,7 @@ export function EmailSend({ task, email, onClose }: { task: Task; email: Schedul
         <button className="btn" onClick={copy}>{copied ? '✓ Copié' : 'Copier le texte'}</button>
         <span className="grow" />
         <button className="btn" onClick={onClose}>Plus tard</button>
-        <a className={`btn ${opened ? '' : 'primary'}`} href={mailtoHref(data, task, email, to, club?.current.id)} onClick={() => setOpened(true)}><Icone n="email" /> Ouvrir dans ma messagerie</a>
+        <a className={`btn ${opened ? '' : 'primary'}`} href={mailtoHref(data, task, email, to)} onClick={() => setOpened(true)}><Icone n="email" /> Ouvrir dans ma messagerie</a>
         <button className={`btn ${opened ? 'primary' : ''}`} onClick={done}><Icone n="ok" /> Marquer comme envoyé</button>
       </div>
     </Modal>

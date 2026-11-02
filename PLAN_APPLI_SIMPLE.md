@@ -60,3 +60,30 @@ base de test : `outils/base-test/LISEZMOI.md`.
 - **A1 (02.11.2026)** : étiquettes des tâches (modèle, fiche, pastilles, filtre, membres qui voient ; responsables, à
   retirer en D1) ; version réelle : rangées au comité central, `gsa_items` « etiquettes », sans migration.
 - `PLAN_CLUB_SANS_ENTITE.md`, étape 1 (session du club dans la démo) : remplacée par le démontage (D1 la retire).
+- **D1 (02.11.2026)** : démontage fait, sans migration ni déploiement.
+  - **Un seul espace** : une seule couche de données (`store.tsx`) et les services du club (`club.tsx` : l'espace, les
+    personnes du club, propositions, sauvegarde…). Supprimés : session et façade du club, vue du club et vue « moi »,
+    organigramme (page, lignes, règles serveur), partage et tâches reçues, dépendances et anciennes tâches, tâches
+    confiées à d'autres entités, choix d'entité, caisse centrale, icônes et suppression d'entités (26 fichiers). L'ancienne
+    adresse `#/organigramme` mène à « Personnes du club ».
+  - **Étiquettes** `{ id, nom, couleur, type: 'evenement' | 'groupe', date?, dateFin?, membres }`, sans responsables :
+    réglées par le bouton « Étiquettes » (page Tâches) ou la console admin (« Sections, statuts et étiquettes ») ; membres
+    aussi sur la fiche de la personne ; les membres voient les tâches. Événement daté : agenda (et export), accueil
+    (« Prochains événements », avec ses tâches), recherche ; « Pour info », « À prendre » et emails : ses membres d'un coup.
+  - **Démo** (version 9) : la démo d'avant (v8, une entité par clé) est reprise une fois (`data/repriseEntites.ts`) :
+    chaque entité devient une étiquette (groupe → groupe, sinon événement avec sa date), ses tâches viennent dans
+    l'espace avec l'étiquette (sections : une section à son nom, ses sections en sous-sections), ses personnes au club
+    (même fiche, sinon même adresse ou même nom ; sinon nouvelle, rôle « Membre ») et membres de l'étiquette ; réglages,
+    lectures, connexion et historique suivent. Données de départ : l'École de cyclisme, le Groupe compétition, la
+    Bruntrutaine et la Soirée récréative en étiquettes, leurs personnes au club. Ces règles servent de modèle à D3.
+  - **Version réelle, en attendant D3** : elle s'ouvre sur l'espace du comité central (ses données ne sont que lues et
+    enregistrées comme avant ; le nom, le logo… se fusionnent avec ce qui est sur le serveur, rien n'est effacé) ; les
+    autres entités restent intactes et s'ouvrent encore une à la fois (menu du compte, « Ouvrir « … » »). Une personne
+    sans fiche voit ses tâches confiées (inchangé).
+  - **À reprendre en D4** : les fonctions serveur gardent leur code généré d'avant (`gsa-push` : `notifs.js` et
+    `index.ts`, `gsa-agenda` : `agenda.js`, `gsa-acces` : `organigramme.js`) ; les modules sources (`pushServeur.ts`,
+    `agendaServeur.ts`, `notifs.ts`) ont changé : `npm run fonction` (qui ne génère plus `organigramme.js`) puis ajuster
+    `gsa-push/index.ts`, et redéployer avec l'accord du président.
+  - **Tests** réécrits (34, dont la reprise de la démo d'avant, les étiquettes datées dans l'agenda et l'accueil, une
+    personne « Quelqu'un d'autre » qui reçoit une fiche et retrouve ses tâches) ; README et aide mis à jour pour
+    l'essentiel (le reste en D5).

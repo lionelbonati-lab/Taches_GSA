@@ -95,7 +95,7 @@ export function MesDonnees() {
             <input type="checkbox" checked={mien.prive} disabled={busy} onChange={(e) => masquer(e.target.checked)} />
             Masquer mes données personnelles (email, téléphone, IBAN) dans la liste des membres du club
           </label>
-          <small className="muted">Elles restent sur ta fiche dans les entités dont tu fais partie (pour leurs admins), et tes demandes de remboursement gardent l’IBAN que tu y indiques.</small>
+          <small className="muted">Elles restent sur ta fiche dans l’appli (pour les admins), et tes demandes de remboursement gardent l’IBAN que tu y indiques.</small>
         </>
       )}
       {msg && <p className="backup-ok">{msg}</p>}

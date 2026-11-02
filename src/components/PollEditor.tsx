@@ -1,25 +1,19 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { Poll, PollType } from '../data/types';
-import { OUINON, POLL_TYPES, autreOption, committeeOf, electorat, finSondage, nouveauSondage } from '../data/polls';
+import { OUINON, POLL_TYPES, autreOption, committeeOf, finSondage, nouveauSondage } from '../data/polls';
 import { fullName, nomPoste, today, uid } from '../data/utils';
 import { Modal } from './ui';
-import { estPartagee } from '../data/partage';
-import { useClubOptional } from '../data/club';
 import { ZoneTexte } from './ZoneTexte';
-import { IconeEntite } from './IconesEntite';
-import { ChampEntite, type ChoixEntiteFenetre } from './ChoixEntite';
 
 const emptyOptions = (type: PollType): Poll['options'] =>
   type === 'ouinon' ? OUINON : type === 'dates'
     ? [{ id: uid('o'), label: '', date: '', heure: '' }, { id: uid('o'), label: '', date: '', heure: '' }]
     : [{ id: uid('o'), label: '' }, { id: uid('o'), label: '' }];
 
-/** Création / modification d'un sondage. */
-/** `nouveau` : nouveau sondage déjà préparé ; `entite` : l'entité où le créer, choisie dans la fenêtre (vue « moi »). */
-export function PollEditor({ poll, nouveau, entite, taskId, onClose }: { poll?: Poll; nouveau?: Poll; entite?: ChoixEntiteFenetre<Poll>; taskId?: string; onClose: () => void }) {
-  const { data, user, savePoll, sondagesEntites } = useStore();
-  const club = useClubOptional();
+/** Création / modification d'un sondage ; `nouveau` : nouveau sondage déjà préparé. */
+export function PollEditor({ poll, nouveau, taskId, onClose }: { poll?: Poll; nouveau?: Poll; taskId?: string; onClose: () => void }) {
+  const { data, user, savePoll } = useStore();
   const [p, setP] = useState<Poll>(() => poll ?? nouveau ?? nouveauSondage(data, user?.id ?? '', undefined, taskId));
   // Réponse « Autre » (texte libre) : gardée à part, ajoutée en dernier à l'enregistrement.
   const [autre, setAutre] = useState(() => !!poll?.options.some((o) => o.autre));
@@ -28,15 +22,14 @@ export function PollEditor({ poll, nouveau, entite, taskId, onClose }: { poll?: 
   const setOpt = (id: string, patch: Partial<Poll['options'][number]>) => set({ options: p.options.map((o) => (o.id === id ? { ...o, ...patch } : o)) });
   const people = data.people.filter((x) => x.actif);
   const task = data.tasks.find((t) => t.id === p.taskId);
-  // Autres entités du club dont tous les membres peuvent voter aussi (celles déjà choisies restent, même archivées).
-  const entites = club && (sondagesEntites || p.entites?.length) ? club.units.filter((u) => u.id !== club.current.id && (!u.archive || p.entites?.includes(u.id))) : [];
-  const total = club && p.entites?.length ? electorat(p, club.current.id, people, club.units).cles.length : p.votants.length;
+  // Étiquettes : leurs membres ajoutés d'un coup aux votants.
+  const etiquettes = (data.etiquettes ?? []).filter((e) => people.some((x) => e.membres?.includes(x.id)));
   // Votants à ajouter : soi-même d'abord.
   const aAjouter = people.filter((x) => !p.votants.includes(x.id)).sort((a, b) => Number(b.id === user?.id) - Number(a.id === user?.id));
   const basculeVotant = (id: string) => set({ votants: p.votants.includes(id) ? p.votants.filter((v) => v !== id) : [...p.votants, id] });
-  const basculeEntite = (id: string) => {
-    const l = p.entites?.includes(id) ? p.entites.filter((x) => x !== id) : [...(p.entites ?? []), id];
-    set({ entites: l.length ? l : undefined });
+  const ajouterEtiquette = (id: string) => {
+    const e = etiquettes.find((x) => x.id === id);
+    if (e) set({ votants: [...new Set([...p.votants, ...people.filter((x) => e.membres.includes(x.id)).map((x) => x.id)])] });
   };
 
   const submit = () => {
@@ -44,7 +37,7 @@ export function PollEditor({ poll, nouveau, entite, taskId, onClose }: { poll?: 
     const base = p.type === 'ouinon' ? OUINON : p.options.filter((o) => !o.autre && (p.type === 'dates' ? !!o.date : !!o.label.trim()));
     const options = autre ? [...base, autreOption(p.type)] : base;
     if (base.length < 2) return setErr(p.type === 'dates' ? 'Propose au moins deux dates.' : 'Propose au moins deux réponses.');
-    if (!p.votants.length && !p.entites?.length) return setErr('Choisis au moins un votant ou une entité.');
+    if (!p.votants.length) return setErr('Choisis au moins un votant.');
     const fin = finSondage(p);
     const finAvant = poll ? finSondage(poll) : null;
     if (fin !== null && fin <= Date.now() && fin !== finAvant)
@@ -56,7 +49,6 @@ export function PollEditor({ poll, nouveau, entite, taskId, onClose }: { poll?: 
   return (
     <Modal title={poll ? 'Modifier le sondage' : 'Nouveau sondage'} onClose={onClose} wide>
       <div className="form">
-        <ChampEntite choix={entite} v={p} label="Entité" />
         <label className="full">
           Question
           <input autoFocus value={p.question} onChange={(e) => set({ question: e.target.value })} placeholder="Ex. Qui est disponible pour le souper ?" />
@@ -132,11 +124,17 @@ export function PollEditor({ poll, nouveau, entite, taskId, onClose }: { poll?: 
         </label>
 
         <fieldset className="full qui">
-          <legend>{entites.length ? `Votants de « ${club!.current.nom} »` : 'Votants'} ({p.votants.length})</legend>
-          <div className="row">
+          <legend>Votants ({p.votants.length})</legend>
+          <div className="row wrap">
             <button type="button" className="btn small" onClick={() => set({ votants: committeeOf(data).map((x) => x.id) })}>Comité</button>
             <button type="button" className="btn small" onClick={() => set({ votants: people.map((x) => x.id) })}>Tout le monde</button>
             <button type="button" className="btn small" onClick={() => set({ votants: [] })}>Personne</button>
+            {etiquettes.length > 0 && (
+              <select className="chip-add" value="" aria-label="Ajouter les membres d’une étiquette" onChange={(e) => e.target.value && ajouterEtiquette(e.target.value)}>
+                <option value="">＋ Membres d’une étiquette…</option>
+                {etiquettes.map((e) => <option key={e.id} value={e.id}>{e.nom} ({e.membres.length})</option>)}
+              </select>
+            )}
           </div>
           <div className="chips">
             {p.votants.map((id) => {
@@ -159,21 +157,6 @@ export function PollEditor({ poll, nouveau, entite, taskId, onClose }: { poll?: 
           <label className="inline"><input type="checkbox" checked={p.anonyme} onChange={(e) => set({ anonyme: e.target.checked })} /> Réponses anonymes (on voit qui a répondu, pas ce qu’il a choisi)</label>
         </fieldset>
 
-        {entites.length > 0 && (
-          <fieldset className="full poll-entites">
-            <legend>Ouvrir aussi à d’autres entités</legend>
-            <small className="muted">Tous leurs membres votent, depuis leur entité (le sondage y apparaît). Qui rejoint ou quitte l’entité vote ou ne vote plus ; une personne de plusieurs entités ne vote qu’une fois.</small>
-            <div className="chips">
-              {entites.map((u) => (
-                <button type="button" key={u.id} className={`chip ${p.entites?.includes(u.id) ? 'on' : ''}`} onClick={() => basculeEntite(u.id)}>
-                  <IconeEntite u={u} /> {u.nom} <small>({u.membres.filter((m) => !m.viaEntite).length})</small>
-                </button>
-              ))}
-            </div>
-            {!!p.entites?.length && <small className="muted">{total} votant{total > 1 ? 's' : ''} en tout.</small>}
-          </fieldset>
-        )}
-
         {taskId || task ? (
           <p className="muted full" style={{ margin: 0 }}>🧩 Rattaché à la tâche « {task?.titre} »</p>
         ) : (
@@ -181,7 +164,7 @@ export function PollEditor({ poll, nouveau, entite, taskId, onClose }: { poll?: 
             Section de l’ordre du jour
             <select value={p.sectionId ?? ''} onChange={(e) => set({ sectionId: e.target.value || undefined })}>
               <option value="">— Aucune (bloc « Sondages ») —</option>
-              {data.sections.filter((sec) => !estPartagee(sec.id)).map((sec) => <option key={sec.id} value={sec.id}>{sec.nom}</option>)}
+              {data.sections.map((sec) => <option key={sec.id} value={sec.id}>{sec.nom}</option>)}
             </select>
           </label>
         )}

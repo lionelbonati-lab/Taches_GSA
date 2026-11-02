@@ -1,17 +1,16 @@
 import type { RealtimeChannel } from '@supabase/supabase-js';
 import { supabase, supabaseUrl } from '../lib/supabase';
-import type { AppData, Carte, CentralAccess, ClubMembre, FichesEntite, MonRegistre, NouvelleProposition, OrgMember, OrganigrammeAnnuel, OrgUnit, Person, Poste, Proposition, Role, SondagePartage, SuiviTicket, SeancesDuComite, SectionsDependantes, Status, TachePartagee, Task, TicketCentral, UnitType, VisaVerifie, AgendaClubEvent, TachesDependance, PeriodeDependance } from './types';
-import { lireCarte, lireHistorique, lireRangement, lireTachesDependance, UNIT_COLORS } from './units';
+import type { AppData, ClubMembre, MonRegistre, NouvelleProposition, Proposition, Status, Task, VisaVerifie } from './types';
+import type { Espace } from './club';
 import { isImage } from './logo';
 import { isCouleur } from './couleur';
-import type { OpOrga } from './organigramme';
 import type { OptionsAbonnement } from './agendaIcs';
 import type { HistoriqueTache } from './historique';
 import type { ErreurAppli, RapportErreur } from './rapportErreurs';
 import { fichiersDe, type EntiteSauvegardee, type SauvegardeClub } from './backup';
 import { lireFichierDe } from './files';
 
-// Version réelle : synchronisation des données du comité avec Supabase.
+// Version réelle : synchronisation des données de l'espace du club avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
 // gsa_items. Après chaque modification, seuls les éléments changés sont envoyés (en petits lots, avec
 // une file d'attente gardée hors ligne) ; les modifications des autres membres arrivent en direct (Realtime).
@@ -21,43 +20,36 @@ export function sb() {
   return supabase;
 }
 
+/**
+ * Accès du compte à un espace (table gsa_members). En attendant la reprise (PLAN_APPLI_SIMPLE.md, D3), le serveur garde
+ * les anciennes entités du club : l'espace du club est le comité central (type « central »), les autres restent intactes.
+ */
 export interface Membership {
   committeeId: string;
   committeeName: string;
   personId: string | null;
   owner: boolean;
-  /** Entité du club : comité central, sous-comité, groupe, équipe d'événement. */
-  type: UnitType;
-  /** Comité central dont dépend l'entité. */
+  /** Ancien type d'entité (« central » : l'espace du club). */
+  type: string;
+  /** Club de l'espace (le comité central pour une ancienne entité). */
   parentId: string | null;
   info: UnitInfo;
 }
 
-/** Fiche d'une entité (colonne info de la table committees). */
+/**
+ * Fiche d'un espace (colonne info de la table committees). Les autres champs (anciennes entités : dépendance, carte de
+ * l'organigramme…) restent tels quels sur le serveur : modifierEspace ne change que ceux qu'on lui donne.
+ */
 export interface UnitInfo {
   couleur?: string;
-  description?: string;
-  date?: string;
-  dateFin?: string;
   archive?: boolean;
-  /** Ancien réglage « Accès du comité central » (006), plus proposé : gardé tel quel. */
-  central?: CentralAccess;
   /** Logo (data URL PNG, JPEG ou WebP, 200 Ko au plus : contrôlé par le serveur). */
   logo?: string;
   /** Couleur de l'appli (#rrggbb). */
   couleurAppli?: string;
   /** Icône choisie dans la bibliothèque de l'appli (sa clé). */
   icone?: string;
-  /** Entité dont elle dépend dans l'organigramme (et ses tâches, selon tachesDependance : 027). */
-  dependDe?: string;
-  /** Ses tâches dans l'entité dont elle dépend : « toutes », « rien » ; sans valeur : celles partagées avec elle (027). */
-  tachesDependance?: TachesDependance;
-  /** Périodes terminées de sa dépendance (tenues par le serveur, 030 ; seul le droit de copie de la dernière change d'ici). */
-  historiqueDependance?: PeriodeDependance[];
-  /** Place de sa carte dans l'organigramme, posée à la main (affichage seulement). */
-  carte?: Carte;
-  /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (affichage seulement). */
-  rangement?: string[];
+  [autre: string]: unknown;
 }
 
 /** Collections de l'appli enregistrées élément par élément. */
@@ -465,21 +457,11 @@ export function rattraper() {
   window.dispatchEvent(new Event(RATTRAPER));
 }
 
-/** Mes discussions lues dans chacune de mes entités (`fiches` : entité → ma fiche) ; rien en cas d'échec. */
-export async function discussionsLuesDe(fiches: Record<string, string>): Promise<Record<string, unknown>> {
-  const ids = Object.keys(fiches);
-  if (!ids.length) return {};
-  const { data, error } = await sb().from('gsa_items').select('committee_id, id, data').eq('kind', 'discussionsLues').eq('deleted', false)
-    .in('committee_id', ids).in('id', [...new Set(Object.values(fiches))]);
-  if (error) return {};
-  return Object.fromEntries((data ?? []).filter((r) => fiches[r.committee_id as string] === r.id).map((r) => [r.committee_id as string, r.data]));
-}
-
-/** Comités auxquels le compte connecté a accès. */
+/** Espaces (comité central, anciennes entités) auxquels le compte connecté a accès. */
 export async function myMemberships(userId: string): Promise<Membership[]> {
   const { data, error } = await sb().from('gsa_members').select('committee_id, person_id, owner, committees(name, type, parent_id, info)').eq('user_id', userId);
   if (error) throw new Error(error.message);
-  type C = { name?: string; type?: UnitType; parent_id?: string | null; info?: UnitInfo | null };
+  type C = { name?: string; type?: string; parent_id?: string | null; info?: UnitInfo | null };
   return (data ?? []).map((m) => {
     const raw = m.committees as C | C[] | null;
     const c = (Array.isArray(raw) ? raw[0] : raw) ?? {};
@@ -495,119 +477,34 @@ export async function myMemberships(userId: string): Promise<Membership[]> {
   });
 }
 
-/** Clé d'une icône de la bibliothèque (une clé inconnue de cette version de l'appli affiche l'icône du type). */
+/** Clé d'une icône de la bibliothèque (une clé inconnue de cette version de l'appli est ignorée). */
 const lireIcone = (x: unknown) => (typeof x === 'string' && /^[a-z0-9-]{1,40}$/.test(x) ? x : undefined);
-const unitColor = (type: UnitType, info: UnitInfo) => info.couleur ?? (type === 'central' ? UNIT_COLORS[0] : UNIT_COLORS[1]);
 
-/** Entité telle que la connaît le compte sans l'organigramme (pendant le chargement, ou s'il échoue). */
-export function membershipUnit(m: Membership): OrgUnit {
+/** L'espace tel que le connaît le compte : nom, logo, couleur, icône. */
+export function espaceDe(m: Pick<Membership, 'committeeId' | 'committeeName' | 'info'>): Espace {
   return {
     id: m.committeeId,
     nom: m.committeeName,
-    type: m.type,
-    parentId: m.parentId ?? undefined,
-    couleur: unitColor(m.type, m.info),
-    description: m.info.description,
-    date: m.info.date,
-    dateFin: m.info.dateFin,
-    archive: !!m.info.archive,
-    central: m.info.central,
     logo: isImage(m.info.logo) ? m.info.logo : undefined,
     couleurAppli: isCouleur(m.info.couleurAppli) ? m.info.couleurAppli : undefined,
     icone: lireIcone(m.info.icone),
-    dependDe: typeof m.info.dependDe === 'string' ? m.info.dependDe : undefined,
-    tachesDependance: lireTachesDependance(m.info.tachesDependance),
-    historiqueDependance: lireHistorique(m.info.historiqueDependance),
-    carte: lireCarte(m.info.carte),
-    rangement: lireRangement(m.info.rangement),
-    membres: [],
-    moi: true,
-    moiAdmin: false,
   };
 }
 
 /**
- * Organigramme du club : toutes ses entités et leurs membres. `postes` : le serveur tient les postes des fiches
- * (migration 023 : organigramme à glisser-déposer).
+ * Nom, logo, couleur, icône de l'espace (admins) : sa fiche est relue, seuls ces champs changent (les autres restent tels
+ * quels). Renvoie la fiche enregistrée.
  */
-export async function fetchOrg(clubId: string): Promise<{ units: OrgUnit[]; postes: boolean }> {
-  const { data, error } = await sb().rpc('gsa_organigramme', { club: clubId });
+export async function modifierEspace(id: string, patch: Partial<Omit<Espace, 'id'>>): Promise<{ nom: string; info: UnitInfo }> {
+  const { data: lu, error: e1 } = await sb().from('committees').select('name, info').eq('id', id).single();
+  if (e1) throw new Error(e1.message);
+  const info: UnitInfo = { ...((lu?.info as UnitInfo | null) ?? {}) };
+  for (const k of ['logo', 'couleurAppli', 'icone'] as const) if (k in patch) info[k] = patch[k] || undefined;
+  const nom = patch.nom?.trim() || (lu?.name as string);
+  const { data, error } = await sb().from('committees').update({ name: nom, info }).eq('id', id).select('id');
   if (error) throw new Error(error.message);
-  const rows = (data ?? []) as LigneOrg[];
-  return { units: lireOrg(rows), postes: rows.some((u) => 'postes' in u) };
-}
-
-/** Une entité telle que la donnent gsa_organigramme et les photos de l'organigramme (026). */
-type LigneOrg = { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; moi: boolean; moiAdmin: boolean; membres: OrgMember[]; sections?: { id: string; nom: string }[] | null; liens?: string[] | null; postes?: Poste[] | null };
-
-function lireOrg(rows: LigneOrg[]): OrgUnit[] {
-  return rows.map((u) => {
-    const info = u.info ?? {};
-    return {
-      id: u.id,
-      nom: u.nom,
-      type: u.type,
-      parentId: u.parentId ?? undefined,
-      couleur: unitColor(u.type, info),
-      description: info.description,
-      date: info.date,
-      dateFin: info.dateFin,
-      archive: !!info.archive,
-      central: info.central,
-      logo: isImage(info.logo) ? info.logo : undefined,
-      couleurAppli: isCouleur(info.couleurAppli) ? info.couleurAppli : undefined,
-      icone: lireIcone(info.icone),
-      dependDe: typeof info.dependDe === 'string' ? info.dependDe : undefined,
-      tachesDependance: lireTachesDependance(info.tachesDependance),
-      historiqueDependance: lireHistorique(info.historiqueDependance),
-      carte: lireCarte(info.carte),
-      rangement: lireRangement(info.rangement),
-      membres: (u.membres ?? []).map((m) => ({ ...m, autresPostes: m.autresPostes ?? undefined, membreId: m.membreId ?? undefined, viaEntite: m.viaEntite ?? undefined, viaFiche: m.viaFiche ?? undefined })),
-      moi: !!u.moi,
-      moiAdmin: !!u.moiAdmin,
-      sections: u.sections ?? undefined,
-      // Avant la migration 020 : pas de liens (undefined) ; ensuite, [] pour une entité sans lien.
-      liens: Array.isArray(u.liens) ? u.liens : undefined,
-      postes: Array.isArray(u.postes) ? u.postes : undefined,
-    };
-  });
-}
-
-/**
- * Photo de l'organigramme de l'année en cours, prise par le serveur (migration 026) ; rien n'est écrit s'il n'a pas
- * changé. Une année passée ne change plus.
- */
-export async function photographierOrganigramme(club: string) {
-  const { error } = await sb().rpc('gsa_photo_organigramme', { club });
-  if (error) throw new Error(error.message);
-}
-
-/** Organigrammes des années enregistrées, de la plus récente à la plus ancienne ; null : pas encore de migration 026. */
-export async function fetchOrganigrammesAnnuels(club: string): Promise<OrganigrammeAnnuel[] | null> {
-  const { data, error } = await sb().from('gsa_organigrammes').select('annee, maj, data').eq('club_id', club).order('annee', { ascending: false });
-  if (error) return null;
-  return (data ?? []).map((r) => ({ annee: r.annee as number, maj: r.maj as string, units: lireOrg(Array.isArray(r.data) ? (r.data as LigneOrg[]) : []) }));
-}
-
-/** Nom et fiche d'une entité (admins de l'entité ou du comité central). */
-export async function updateCommittee(id: string, patch: { name: string; type: UnitType; info: UnitInfo }) {
-  const { data, error } = await sb().from('committees').update(patch).eq('id', id).select('id');
-  if (error) throw new Error(error.message);
-  if (!data?.length) throw new Error('Modification refusée : réservée aux admins de l’entité et du comité central.');
-}
-
-/** Ticket envoyé depuis une entité à la caisse qui reçoit les siens (photo déjà déposée dans le dossier de cette caisse ; 030). */
-export async function sendCentralTicket(source: string, ticket: TicketCentral) {
-  const { data, error } = await sb().rpc('gsa_ticket_central', { source, ticket });
-  if (error) throw new Error(error.message);
-  return data as string;
-}
-
-/** Tickets que la personne connectée a envoyés à une autre caisse (comité dont l'entité dépend, caisse centrale), avec leur état. */
-export async function myCentralTickets(): Promise<SuiviTicket[]> {
-  const { data, error } = await sb().rpc('gsa_mes_tickets_centraux');
-  if (error) throw new Error(error.message);
-  return (data ?? []) as SuiviTicket[];
+  if (!data?.length) throw new Error('Modification refusée : réservée aux admins.');
+  return { nom, info };
 }
 
 /** Ticket visé qui porte ce n° de visa (membres du club) ; null : inconnu, visa retiré ou ticket supprimé. */
@@ -620,22 +517,9 @@ export async function verifyVisa(code: string): Promise<VisaVerifie | null> {
   return (data as VisaVerifie | null) ?? null;
 }
 
-/** Date de la prochaine édition d'une entité (contrôlée par le serveur : gsa_date_edition). */
-export async function setEditionDate(c: string, debut: string, fin?: string) {
-  const { error } = await sb().rpc('gsa_date_edition', { c, debut, fin: fin ?? null });
-  if (error) throw new Error(error.message);
-}
-
-/** Agenda du club : événements de toutes ses entités (gsa_agenda_club). */
-export async function fetchAgendaClub(club: string): Promise<AgendaClubEvent[]> {
-  const { data, error } = await sb().rpc('gsa_agenda_club', { club });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as AgendaClubEvent[];
-}
-
 // ---------- Abonnement à l'agenda par lien privé (migration 045, fonction gsa-agenda) ----------
 
-/** Lien privé de la personne connectée pour une entité : jeton, choix, dernière lecture par un agenda. */
+/** Lien privé de la personne connectée pour l'espace : jeton, choix, dernière lecture par un agenda. */
 export interface AbonnementAgenda { jeton: string; options: OptionsAbonnement; luLe: string | null }
 
 /** Erreur lisible : abonnement pas encore installé sur le serveur (migration 045). */
@@ -675,7 +559,7 @@ function registreErreur(e: { message: string; code?: string }): Error {
     : e.message);
 }
 
-/** L'utilisateur a-t-il accès au registre du club (droit « club.membres » ou admin d'une entité) ? */
+/** L'utilisateur a-t-il accès au registre du club (droit « club.membres » ou admin) ? */
 export async function membresAcces(club: string): Promise<boolean> {
   const { data, error } = await sb().rpc('gsa_membres_acces', { club });
   return !error && data === true;
@@ -698,13 +582,13 @@ export async function personnesDroits(club: string): Promise<{ voir: boolean; co
  */
 export async function fetchMembres(club: string): Promise<ClubMembre[]> {
   const { data, error } = await sb().rpc('gsa_membres_liste', { club });
-  if (!error) return ((data ?? []) as ClubMembre[]).map((m) => ({ ...m, groupes: m.groupes ?? [] }));
+  if (!error) return (data ?? []) as ClubMembre[];
   if (!absente(error)) throw registreErreur(error);
   const out: ClubMembre[] = [];
   for (let from = 0; ; from += 1000) {
     const { data, error } = await sb().from('gsa_club_membres').select('id,data').eq('club_id', club).range(from, from + 999);
     if (error) throw registreErreur(error);
-    out.push(...(data ?? []).map((r: { id: string; data: Omit<ClubMembre, 'id'> }) => ({ ...r.data, groupes: r.data.groupes ?? [], id: r.id })));
+    out.push(...(data ?? []).map((r: { id: string; data: Omit<ClubMembre, 'id'> }) => ({ ...r.data, id: r.id })));
     if ((data ?? []).length < 1000) return out;
   }
 }
@@ -747,32 +631,15 @@ export async function maConfidentialite(club: string, masquer: boolean) {
   if (error) throw new Error(absente(error) ? PAS_034 : error.message);
 }
 
-/** Caissier du club (rôle qui donne « paiements.payer » dans l'une de ses entités) ; faux avant la migration 034. */
+/** Caissier du club (rôle qui donne « paiements.payer ») ; faux avant la migration 034. */
 export async function caissierClub(club: string): Promise<boolean> {
   const { data, error } = await sb().rpc('gsa_caissier_club', { club });
   return !error && data === true;
 }
 
-/** Fiches et rôles d'une entité dont on est membre (gestion des accès depuis la page « Membres du club »). */
-export async function fichesEntite(unite: string): Promise<FichesEntite> {
-  const { data, error } = await sb().from('gsa_items').select('kind, id, pos, data').eq('committee_id', unite).in('kind', ['roles', 'people']).eq('deleted', false).order('pos');
-  if (error) throw new Error(error.message);
-  const rows = (data ?? []) as { kind: string; data: unknown }[];
-  return {
-    roles: rows.filter((r) => r.kind === 'roles').map((r) => r.data as Role),
-    people: rows.filter((r) => r.kind === 'people').map((r) => r.data as Person),
-  };
-}
-
-/** Enregistre une fiche dans une entité (ses admins) ; le serveur la lie au registre et vérifie les rôles. */
-export async function enregistrerFiche(unite: string, p: Person, pos: number) {
-  const { error } = await sb().from('gsa_items').upsert({ committee_id: unite, kind: 'people', id: p.id, pos, data: p, deleted: false }, { onConflict: 'committee_id,kind,id' });
-  if (error) throw new Error(error.message);
-}
-
 /**
- * Retire une personne du club : avec le serveur à jour (056, fonction gsa-acces), ses places, son accès et sa fiche ;
- * avant, sa fiche seulement (refusé tant qu'elle a une place).
+ * Retire une personne du club : avec le serveur à jour (056, fonction gsa-acces), sa fiche (désactivée), son accès et sa
+ * fiche du registre ; avant, sa fiche du registre seulement (refusé tant qu'elle a une fiche active).
  */
 export async function deleteMembre(club: string, id: string): Promise<string[]> {
   try {
@@ -793,7 +660,7 @@ export async function deleteMembre(club: string, id: string): Promise<string[]> 
 export async function sauvegardeClub(club: string, nom: string, par: string): Promise<SauvegardeClub> {
   const { data, error } = await sb().rpc('gsa_sauvegarde_club', { club });
   if (error) throw new Error(absente(error) ? 'Le serveur n’est pas encore à jour : la sauvegarde du club demande la migration 057.' : error.message);
-  const d = data as { entites: { id: string; nom: string; type: UnitType; parentId: string | null; info: UnitInfo | null; lignes: Row[] }[]; personnes: ClubMembre[] };
+  const d = data as { entites: { id: string; nom: string; type: string; parentId: string | null; info: UnitInfo | null; lignes: Row[] }[]; personnes: ClubMembre[] };
   const entites: EntiteSauvegardee[] = [];
   for (const e of d.entites ?? []) {
     const donnees = fromRows(e.lignes ?? []);
@@ -872,10 +739,12 @@ export async function mesComptesClub(): Promise<MonCompteClub[] | null> {
   return (data ?? []) as MonCompteClub[];
 }
 
-type LigneConfiee = { unite: LigneOrg; tache: Task; statuts: Status[] };
-const lireConfiee = (x: LigneConfiee) => ({ unite: lireOrg([{ ...x.unite, moi: false, moiAdmin: false, membres: [] }])[0], tache: x.tache, statuts: x.statuts });
+/** Espace d'une tâche confiée (son identifiant, son nom et sa couleur). */
+export interface EspaceConfie { id: string; nom: string; couleur?: string }
+type LigneConfiee = { unite: { id: string; nom: string; info?: UnitInfo | null }; tache: Task; statuts: Status[] };
+const lireConfiee = (x: LigneConfiee) => ({ unite: { id: x.unite.id, nom: x.unite.nom, couleur: typeof x.unite.info?.couleur === 'string' ? x.unite.info.couleur : undefined } as EspaceConfie, tache: x.tache, statuts: x.statuts });
 
-/** Tâches confiées à la personne connectée, sur son nom, dans les entités du club (056). */
+/** Tâches confiées à la personne connectée, sur son nom, dans les espaces du club (056). */
 export async function mesTachesConfiees(club: string) {
   const { data, error } = await sb().rpc('gsa_mes_taches_confiees', { club });
   if (error) throw new Error(error.message);
@@ -887,61 +756,6 @@ export async function modifierTacheConfiee(club: string, unite: string, tache: s
   const { data, error } = await sb().rpc('gsa_modifier_tache_confiee', { club, unite, tache, statut: patch.statut ?? null, coches: patch.coches ?? null });
   if (error) throw new Error(error.message);
   return data as Task;
-}
-
-/** Tâches que d'autres entités du club partagent avec l'entité (migration 019). */
-export async function fetchTachesPartagees(unite: string): Promise<TachePartagee[]> {
-  const { data, error } = await sb().rpc('gsa_taches_partagees', { unite });
-  if (error) throw new Error(error.message);
-  return (data ?? []) as TachePartagee[];
-}
-
-/** Séances du comité dont dépend l'entité, pour y lier une tâche (032) ; null si le serveur ne les donne pas encore. */
-export async function fetchSeancesComite(unite: string): Promise<SeancesDuComite | null> {
-  const { data, error } = await sb().rpc('gsa_seances_comite', { unite });
-  if (error) {
-    if (error.code === 'PGRST202' || error.code === '42883') return null;
-    throw new Error(error.message);
-  }
-  const r = (data ?? {}) as Partial<SeancesDuComite>;
-  return { comite: typeof r.comite === 'string' ? r.comite : '', seances: Array.isArray(r.seances) ? r.seances : [] };
-}
-
-/** Sections des entités qui dépendent de l'entité (033) ; null si le serveur ne les donne pas encore. */
-export async function fetchSectionsDependantes(unite: string): Promise<SectionsDependantes | null> {
-  const { data, error } = await sb().rpc('gsa_sections_dependantes', { unite });
-  if (error) {
-    if (error.code === 'PGRST202' || error.code === '42883') return null;
-    throw new Error(error.message);
-  }
-  const out: SectionsDependantes = {};
-  for (const r of Array.isArray(data) ? (data as { uniteId?: unknown; sections?: unknown }[]) : []) {
-    if (typeof r?.uniteId !== 'string' || !Array.isArray(r.sections)) continue;
-    out[r.uniteId] = (r.sections as { id?: unknown; nom?: unknown }[])
-      .filter((x) => typeof x?.id === 'string' && typeof x.nom === 'string')
-      .map((x) => ({ id: x.id as string, nom: x.nom as string }));
-  }
-  return out;
-}
-
-/** Anciennes tâches des entités qui dépendent de l'entité (lecture et copie, 030) ; null si le serveur ne les gère pas encore. */
-export async function fetchAnciennesTaches(unite: string): Promise<TachePartagee[] | null> {
-  const { data, error } = await sb().rpc('gsa_anciennes_taches', { unite });
-  if (error) {
-    if (error.code === 'PGRST202' || error.code === '42883') return null;
-    throw new Error(error.message);
-  }
-  return (data ?? []) as TachePartagee[];
-}
-
-/** Tâches d'autres entités « pour info » de l'entité (037) ; null si le serveur ne les donne pas encore. */
-export async function fetchTachesPourInfo(unite: string): Promise<TachePartagee[] | null> {
-  const { data, error } = await sb().rpc('gsa_taches_pour_info', { unite });
-  if (error) {
-    if (error.code === 'PGRST202' || error.code === '42883') return null;
-    throw new Error(error.message);
-  }
-  return Array.isArray(data) ? (data as TachePartagee[]) : [];
 }
 
 /** Copie des données d'une entité gardée par le serveur (036) : chaque nuit si elles ont changé, 30 jours. */
@@ -981,48 +795,10 @@ export async function copierMaintenant(unite: string): Promise<boolean | null> {
   return data === true;
 }
 
-/** Sondages d'autres entités ouverts à l'entité (migration 021) ; null si le serveur ne les gère pas encore. */
-export async function fetchSondagesPartages(unite: string): Promise<SondagePartage[] | null> {
-  const { data, error } = await sb().rpc('gsa_sondages_partages', { unite });
-  if (error) {
-    // Fonction absente : migration 021 pas encore appliquée.
-    if (error.code === 'PGRST202' || error.code === '42883') return null;
-    throw new Error(error.message);
-  }
-  return (data ?? []) as SondagePartage[];
-}
-
-/** Réponse à un sondage d'une autre entité, enregistrée dans son entité (le serveur retrouve la clé de vote). */
-export async function voterSondagePartage(unite: string, source: string, sondage: string, choix: string[], texte?: string) {
-  const { error } = await sb().rpc('gsa_voter_sondage_partage', { unite, source, sondage, choix, texte: texte?.trim() || null });
-  if (error) throw new Error(error.message);
-}
-
-/** Modification d'une tâche partagée, enregistrée dans son entité (le serveur ne garde que les champs modifiables). */
-export async function saveTachePartagee(unite: string, source: string, task: Task) {
-  const { error } = await sb().rpc('gsa_modifier_tache_partagee', { unite, source, tache: task.id, modif: task });
-  if (error) throw new Error(error.message);
-}
-
-/**
- * Tâche du comité `unite` attribuée à l'entité `cible` qui dépend de lui : enregistrée chez elle, partagée avec le comité
- * (gsa_attribuer_tache, 035). `statut` : celui du comité, pour retrouver le même chez elle.
- */
-export async function attribuerTache(unite: string, cible: string, task: Task, statut: { label: string; done: boolean }) {
-  const { error } = await sb().rpc('gsa_attribuer_tache', { unite, cible, tache: task, statut });
-  if (error) throw new Error(absente(error) ? 'Le serveur ne sait pas encore enregistrer une tâche dans l’entité qui dépend du comité (mise à jour 035 à appliquer).' : error.message);
-}
-
 /** « 🙋 Je m'en charge » sur une tâche à prendre de l'entité `unite` : la personne connectée en devient responsable (038). */
 export async function prendreTache(unite: string, tache: string) {
   const { error } = await sb().rpc('gsa_prendre_tache', { unite, tache });
   if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore les tâches à prendre (mise à jour 038 à appliquer).' : error.message);
-}
-
-/** « 🙋 Je m'en charge » ou « Pas dispo » sur une tâche à prendre de l'entité `source`, partagée avec `unite` (040). */
-export async function repondreTachePartagee(unite: string, source: string, tache: string, prend: boolean) {
-  const { error } = await sb().rpc('gsa_repondre_partagee', { unite, source, tache, prend });
-  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore les tâches à prendre partagées (mise à jour 040 à appliquer).' : error.message);
 }
 
 /** « Pas dispo » sur une tâche à prendre de l'entité `unite` (039). */
@@ -1096,16 +872,6 @@ export async function effacerErreursAppli(entite: string) {
   return Number(data) || 0;
 }
 
-/** Personnes qui reçoivent la tâche au titre des entités mentionnées en entier : entité → fiches ; null sans 046. */
-export async function pourInfoDestinataires(unite: string, tache: string) {
-  const { data, error } = await sb().rpc('gsa_pour_info_destinataires', { unite, tache });
-  if (error) {
-    if (absente(error)) return null;
-    throw new Error(error.message);
-  }
-  return (data ?? {}) as Record<string, string[]>;
-}
-
 /**
  * Personnes attendues (052) sur les tâches « Pour info » `taches` de l'entité `unite` : tâche → clés qui attendent un
  * « ✓ Vu » (avec un compte ; entités : qui les reçoit). null sans 052.
@@ -1157,20 +923,8 @@ export async function linkMyPerson(committeeId: string, userId: string, personId
   if (error) throw new Error(error.message);
 }
 
-/** Fonction serveur gsa-acces : entités, organigramme, comptes du club. */
+/** Fonction serveur gsa-acces : comptes du club, mots de passe oubliés, personnes du club. */
 export type AccessRequest =
-  | { action: 'creerUnite'; committeeId: string; unite: { nom: string; type: UnitType; info: UnitInfo }; rows: Row[]; chefId: string }
-  /** Entité archivée supprimée définitivement (`committeeId` : comité central) ; `apercu` : ce qui serait supprimé. */
-  | { action: 'supprimerUnite'; committeeId: string; uniteId: string; apercu?: boolean; nom?: string }
-  /** Organigramme câblé : `committeeId` est l'entité dont l'appelant est admin (comité central, ou l'entité elle-même). */
-  /**
-   * Organigramme à glisser-déposer (supabase/functions/gsa-acces/orga.ts) : `committeeId` est l'entité ouverte (son club
-   * est celui de la modification) ; pour « suivre » et « lierEntite », l'entité concernée.
-   */
-  | { action: 'organiser'; committeeId: string; op: OpOrga }
-  | { action: 'annulerOrga'; committeeId: string; jeton: string }
-  | { action: 'postes' | 'lierEntite'; committeeId: string }
-  | { action: 'suivre'; committeeId: string; avant: Person[] }
   /** Comptes du club (supabase/functions/gsa-acces/comptes.ts, migration 025). */
   | { action: 'approuverMdp' | 'refuserMdp'; demandeId: string }
   | { action: 'comptes' }
@@ -1237,7 +991,7 @@ export interface CompteClub {
   bloque: boolean;
   provisoire: boolean;
   super_admin: boolean;
-  entites: { committeeId: string; nom: string; type: UnitType; archive: boolean; personId: string | null; owner: boolean; fiche: string | null; actif: boolean; admin: boolean }[];
+  entites: { committeeId: string; nom: string; type: string; archive: boolean; personId: string | null; owner: boolean; fiche: string | null; actif: boolean; admin: boolean }[];
   demande: string | null;
   demande_le: string | null;
 }

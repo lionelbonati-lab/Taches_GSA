@@ -84,13 +84,13 @@ export function emailsOf(data: AppData, taskId: string) {
     .sort((a, b) => ((task && dueAt(task, a.quand)) ?? '9').localeCompare((task && dueAt(task, b.quand)) ?? '9'));
 }
 
-/** Lien vers la tâche dans l'appli, ouverte dans l'entité `unite` (voir lienPartage.ts). */
-export function appLink(taskId: string, unite?: string) {
-  return lienAppli(`/taches?tache=${encodeURIComponent(taskId)}`, unite);
+/** Lien vers la tâche dans l'appli (voir lienPartage.ts). */
+export function appLink(taskId: string) {
+  return lienAppli(`/taches?tache=${encodeURIComponent(taskId)}`);
 }
 
-/** Remplace les champs {tâche}, {délai}… par les valeurs de la tâche ; `unite` : entité ouverte (pour {lien}). */
-export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text: string, unite?: string) {
+/** Remplace les champs {tâche}, {délai}… par les valeurs de la tâche. */
+export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text: string) {
   const person = (id: string) => data.people.find((p) => p.id === id);
   const values: Record<string, string> = {
     '{tâche}': task.titre,
@@ -100,15 +100,15 @@ export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text:
     '{statut}': data.statuses.find((s) => s.id === task.statusId)?.label ?? '',
     '{remarque}': task.remarque,
     // Seulement s'il sert : le serveur (notifications appli fermée) n'a pas l'adresse de l'appli.
-    '{lien}': text.includes('{lien}') ? appLink(task.id, unite) : '',
+    '{lien}': text.includes('{lien}') ? appLink(task.id) : '',
     '{expéditeur}': fullName(person(e.creePar)),
   };
   return text.replace(/\{[^}]+\}/g, (k) => values[k] ?? k);
 }
 
 /** Lien qui ouvre l'email rempli dans la messagerie ; `to` : les adresses (voir recipients, destinataires.ts). */
-export function mailtoHref(data: AppData, task: Task, e: ScheduledEmail, to: string[], unite?: string) {
-  return lienMailto(to.join(','), fillTemplate(data, task, e, e.objet, unite), fillTemplate(data, task, e, e.message, unite));
+export function mailtoHref(data: AppData, task: Task, e: ScheduledEmail, to: string[]) {
+  return lienMailto(to.join(','), fillTemplate(data, task, e, e.objet), fillTemplate(data, task, e, e.message));
 }
 
 /** Emails à reconduire avec l'occurrence suivante d'une tâche récurrente. */

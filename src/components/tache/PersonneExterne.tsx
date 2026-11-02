@@ -1,21 +1,20 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useClubOptional } from '../../data/club';
-import { nomMembre, nouveauMembre, trouverMembre } from '../../data/membres';
+import { useStore } from '../../data/store';
+import { ficheDe, nomMembre, nouveauMembre, trouverMembre } from '../../data/membres';
 import { norm } from '../../data/csv';
-import { directory } from '../../data/units';
-import { memePersonne } from '../../data/partage';
 import type { ClubMembre, PersonneHors } from '../../data/types';
 import { uid } from '../../data/utils';
 import { Initials, Modal } from '../ui';
 
-// Tâche : une personne qui n'a pas de place dans l'organigramme (une personne du club sans entité, ou quelqu'un
-// d'extérieur). Ce sont les tâches qui font partie des entités, pas les personnes : son nom est noté sur la tâche
-// (respHors), sans fiche dans l'entité. Liste unique (PERSONNES_DU_CLUB.md) : une nouvelle personne entre dans
-// « Personnes du club » pour qui gère les personnes. Sans accès à l'appli, elle ne voit pas la tâche.
+// Tâche : une personne qui n'a pas de fiche dans l'appli (une personne du club sans accès, ou quelqu'un d'extérieur) :
+// son nom est noté sur la tâche (respHors). Liste unique : une nouvelle personne entre dans « Personnes du club » pour
+// qui gère les personnes. Sans accès à l'appli, elle ne voit pas la tâche.
 
 /** Choisir ou écrire la personne ; `deja` : celles déjà sur la tâche. */
 export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHors[]; onAjoutee: (p: PersonneHors) => void; onClose: () => void }) {
   const club = useClubOptional();
+  const { data } = useStore();
   const [registre, setRegistre] = useState<ClubMembre[]>([]);
   const [q, setQ] = useState('');
   const [prenom, setPrenom] = useState('');
@@ -31,12 +30,11 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [club?.personnes.voir]);
 
-  // Membres du registre qui ne sont dans aucune entité (ceux des entités sont proposés dans la tâche, sous leur nom).
-  const annuaire = club ? directory(club.units.filter((u) => !u.archive)) : [];
-  const cle = (m: ClubMembre) => ({ membreId: m.id, email: m.email });
+  // Personnes du club sans fiche active dans l'appli (celles qui en ont une sont proposées dans la tâche, sous leur nom).
+  const aUneFiche = (m: ClubMembre) => !!ficheDe(m, data.people)?.actif;
   const needle = norm(q);
   const sansEntite = registre
-    .filter((m) => !annuaire.some((e) => e.postes.some((x) => memePersonne(cle(m), x.member))) && !deja.some((p) => p.membreId === m.id))
+    .filter((m) => !aUneFiche(m) && !deja.some((p) => p.membreId === m.id))
     .filter((m) => !needle || norm(`${m.prenom} ${m.nom} ${m.email}`).includes(needle))
     .sort((a, b) => nomMembre(a).localeCompare(nomMembre(b), 'fr'));
 
@@ -48,10 +46,9 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setErr('Adresse email invalide.');
     if (deja.some((p) => norm(nomMembre(p)) === norm(`${prenom} ${nom}`))) return setErr('Elle est déjà sur la tâche.');
     const p: PersonneHors = { id: uid('ph'), prenom: prenom.trim(), nom: nom.trim(), ...(email.trim() ? { email: email.trim() } : {}) };
-    // Déjà au club : elle-même (avec une place dans une entité : à choisir dans la liste, sous le nom de son entité).
+    // Déjà au club : elle-même (avec une fiche dans l'appli : à choisir dans la liste « Ajouter… »).
     const connue = trouverMembre(registre, p);
-    if (connue && annuaire.some((x) => x.postes.some((y) => memePersonne(cle(connue), y.member))))
-      return setErr(`${nomMembre(connue)} a une place dans l’organigramme : choisis-la dans la liste « Ajouter… », sous le nom de son entité.`);
+    if (connue && aUneFiche(connue)) return setErr(`${nomMembre(connue)} a une fiche dans l’appli : choisis-la dans la liste « Ajouter… ».`);
     if (connue) return onAjoutee({ ...p, membreId: connue.id });
     if (club && gerer) {
       const m = nouveauMembre(p);
@@ -70,12 +67,12 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
   return (
     <Modal title="Quelqu’un d’autre" onClose={onClose}>
       <p className="muted">
-        Une personne qui n’a pas de place dans l’organigramme : son nom est noté sur la tâche, qui reste dans son entité
+        Une personne qui n’a pas de fiche dans l’appli : son nom est noté sur la tâche
         {gerer ? ' ; une nouvelle personne entre aussi dans « Personnes du club »' : ''}. Sans accès à l’appli, elle ne la voit pas.
       </p>
       {registre.length > 0 && (
         <section className="externe-registre">
-          <h3>Personnes du club sans entité</h3>
+          <h3>Personnes du club sans fiche dans l’appli</h3>
           <input className="login-search" type="search" placeholder="Rechercher un nom, un email…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Rechercher un membre du club" />
           <div className="login-list">
             {sansEntite.slice(0, 50).map((m) => (
@@ -92,7 +89,7 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
                 </span>
               </button>
             ))}
-            {!sansEntite.length && <p className="muted">{needle ? `Personne ne correspond à « ${q} ».` : 'Tous les membres du club sont déjà dans une entité.'}</p>}
+            {!sansEntite.length && <p className="muted">{needle ? `Personne ne correspond à « ${q} ».` : 'Toutes les personnes du club ont déjà une fiche dans l’appli.'}</p>}
           </div>
         </section>
       )}

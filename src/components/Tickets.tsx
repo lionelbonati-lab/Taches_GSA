@@ -2,8 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { caisseDe } from '../data/units';
-import type { AppData, MonRegistre, Paiement, SceauPose, SuiviTicket, Task, TaskDoc, Timbre, VisaVerifie } from '../data/types';
+import type { AppData, MonRegistre, Paiement, SceauPose, Task, TaskDoc, Timbre, VisaVerifie } from '../data/types';
 import { compactIban, formatIban, ibanValide } from '../data/membres';
 import {
   COULEURS_TIMBRE, ETATS, GENRES, caissiers, holders, chf, demandeur, genre, genreDe, nomDe, peutOuvrirTicket, responsablesPour, sectionFinances, signataires, statutPour, timbreDe, viseDirect, visaDans,
@@ -21,15 +20,9 @@ import { Modal } from './ui';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from './Entete';
 import { ZoneTexte } from './ZoneTexte';
 import { Icone } from './icones';
-import { Deroulante } from './Deroulante';
-import { PastilleEntite } from './IconesEntite';
-import { DansEntite } from '../data/entites';
 
 // Remboursements et paiements de factures : des tâches de la section des finances, ouvertes dans cette fenêtre
 // (circuit caisse → visa → virement) au lieu du formulaire de tâche.
-
-/** Événement de la fenêtre après un envoi à la caisse centrale (le suivi se recharge). */
-const ENVOI_CENTRAL = 'gsa-envoi-caisse-centrale';
 
 const parseMontant = (s: string) => {
   const n = parseFloat(s.replace(/['’\s]/g, '').replace(',', '.'));
@@ -56,7 +49,7 @@ export function TicketModal({ task, onClose }: { task: Task; onClose: () => void
   const g = genre(t.paiement);
   return createPortal(
     <Modal title={`${g.icon} ${g.nom}`} onClose={onClose} wide>
-      {/* Bon de paiement imprimé : en-tête de l'entité (console admin), puis le titre. */}
+      {/* Bon de paiement imprimé : en-tête du club (console admin), puis le titre. */}
       <div className="print-only bon-entete">
         <DocEntete e={entete} logo={logo} />
         <h2>Bon de paiement · {g.nom}</h2>
@@ -87,47 +80,6 @@ export function CircuitPaiements({ total }: { total?: number }) {
       {caisse && <LienEntete className="btn small entete-bon" />}
       {total !== undefined && <p className="muted small">Total : <strong>{chf(total)}</strong></p>}
     </div>
-  );
-}
-
-/** Demandes envoyées à une autre caisse (comité dont l'entité dépend, ou caisse centrale) : elles n'y sont pas, on en suit l'état. */
-export function SuiviCentral() {
-  const club = useClubOptional();
-  const [list, setList] = useState<SuiviTicket[]>([]);
-  // Rechargé après chaque envoi (formulaire ouvert depuis le bouton « + », sur n'importe quelle page).
-  const [version, setVersion] = useState(0);
-  useEffect(() => {
-    const k = () => setVersion((v) => v + 1);
-    window.addEventListener(ENVOI_CENTRAL, k);
-    return () => window.removeEventListener(ENVOI_CENTRAL, k);
-  }, []);
-  useEffect(() => {
-    if (!club) return;
-    let actif = true;
-    club
-      .mesTicketsCentraux()
-      .then((l) => actif && setList(l))
-      .catch(() => actif && setList([]));
-    return () => {
-      actif = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [version, club?.current.id]);
-  if (!list.length) return null;
-  return (
-    <section className="suivi-central">
-      <h2>Envoyés à une autre caisse</h2>
-      <ul>
-        {list.map((t) => (
-          <li key={t.id}>
-            <span className={`ticket-etat ${t.etat}`}>{ETATS[t.etat].icon} {ETATS[t.etat].label}</span>
-            <strong>{GENRES[genreDe({ type: t.type ?? undefined })].icon} {t.titre}</strong>
-            <span>{chf(t.montant)} · {fmtDate(t.le.slice(0, 10))}{t.caisse ? ` · caisse ${t.caisse}` : ''}{t.etat === 'paye' && t.payeLe ? ` · payé le ${fmtDate(t.payeLe.slice(0, 10))}` : ''}</span>
-            {t.motif && <small className="muted">Motif : « {t.motif} »</small>}
-          </li>
-        ))}
-      </ul>
-    </section>
   );
 }
 
@@ -217,7 +169,7 @@ function TicketCard({ t, onEdit, onClose }: { t: Ticket; onEdit: () => void; onC
   const pourMoi = p.etat === 'visa' && p.visa?.a === moi && !mien;
   // Facture envoyée sans visa par une personne qui a le droit de signature : elle peut encore la viser elle-même.
   const [direct, setDirect] = useState(false);
-  const peutDirect = p.etat === 'recu' && mien && genreDe(p) === 'facture' && !p.externe && viseDirect(data, user, p.beneficiaire);
+  const peutDirect = p.etat === 'recu' && mien && genreDe(p) === 'facture' && viseDirect(data, user, p.beneficiaire);
   const save = useSaveTicket();
   const now = () => new Date().toISOString();
   const sceau = sceauDe(data, t);
@@ -401,7 +353,7 @@ function DemandeVisa({ t, onClose }: { t: Ticket; onClose: () => void }) {
       <input placeholder="Message (facultatif)" value={message} onChange={(e) => setMessage(e.target.value)} />
       <button className="btn small primary" disabled={!a} onClick={envoyer}>Envoyer la demande</button>
       <button className="btn small" onClick={onClose}>Annuler</button>
-      <small className="muted">Seuls les membres du comité de l’entité peuvent viser, jamais le demandeur ({demandeur(data, t.paiement)}).</small>
+      <small className="muted">Seuls les membres du comité peuvent viser, jamais le demandeur ({demandeur(data, t.paiement)}).</small>
     </div>
   );
 }
@@ -484,7 +436,7 @@ function VerifierVisa() {
         <div className="visa-verifie">
           <p className="ticket-ok">✅ <strong>Visa {v.code} enregistré dans l’appli</strong></p>
           <dl className="ticket-infos">
-            {v.entite && <><dt>Entité</dt><dd>{v.entite}</dd></>}
+            {v.entite && <><dt>Espace</dt><dd>{v.entite}</dd></>}
             <dt>{GENRES[v.type].icon} {GENRES[v.type].nom}</dt><dd>{v.titre}</dd>
             <dt>Montant</dt><dd><strong>{chf(v.montant)}</strong></dd>
             <dt>{GENRES[v.type].a}</dt><dd>{v.beneficiaire}</dd>
@@ -685,66 +637,38 @@ function VisaModal({ t, direct, onClose, onVise }: { t: Ticket; direct?: boolean
   );
 }
 
-const CENTRALE = '__caisse-centrale__';
 const AUTRE = '__autre__';
 
-type TicketFormProps = { ticket?: Ticket; type?: GenreTicket; onClose: () => void; onEnvoye?: () => void };
-/** Ce qui est déjà écrit, repris quand on choisit la caisse d'une autre de mes entités. */
-type Ecrit = { titre: string; montant: string; beneficiaire: string; echeance: string; iban: string; remarque: string };
+type TicketFormProps = { ticket?: Ticket; type?: GenreTicket; onClose: () => void };
 
-/**
- * Nouvelle demande (remboursement ou paiement de facture) ou modification, tant que la caisse ne l'a pas fait viser.
- * Vue « moi » : la caisse de l'une de mes autres entités se choisit dans la fenêtre, qui s'affiche alors dans cette
- * entité (ses caissiers, sa section des finances), avec ce qui est déjà écrit.
- */
-export function TicketForm(props: TicketFormProps) {
-  const club = useClubOptional();
-  const [chez, setChez] = useState<{ id: string; ecrit: Ecrit; n: number } | null>(null);
-  const versCaisse = (id: string, ecrit: Ecrit) => setChez((c) => ({ id, ecrit, n: (c?.n ?? 0) + 1 }));
-  const form = <FormulaireTicket key={chez?.n ?? 0} {...props} ecrit={chez?.ecrit} versCaisse={club && !props.ticket ? versCaisse : undefined} />;
-  if (!chez || !club || chez.id === club.current.id) return form;
-  return (
-    <DansEntite id={chez.id} sinon={form}>
-      {form}
-    </DansEntite>
-  );
-}
-
-function FormulaireTicket({ ticket, type, onClose, onEnvoye, ecrit, versCaisse }: TicketFormProps & { ecrit?: Ecrit; versCaisse?: (id: string, ecrit: Ecrit) => void }) {
-  const { data, user, update, cloud, setToast } = useStore();
+/** Nouvelle demande (remboursement ou paiement de facture) ou modification, tant que la caisse ne l'a pas fait viser. */
+export function TicketForm({ ticket, type, onClose }: TicketFormProps) {
+  const { data, user, update, setToast } = useStore();
   const club = useClubOptional();
   const genreT: GenreTicket = ticket ? genreDe(ticket.paiement) : (type ?? 'remboursement');
   const facture = genreT === 'facture';
   const g = GENRES[genreT];
-  // Caisse destinataire : celle de l'entité ouverte, celle d'une autre entité dont on est membre (le ticket y est créé),
-  // ou celle qui reçoit les tickets de l'entité ouverte (le comité dont elle dépend s'il a un caissier, sinon la caisse
-  // centrale : caisseDe) pour qui n'en est pas membre ; seulement là où un caissier est désigné.
+  // Caisse : celle du club, seulement si un caissier est désigné.
   const nomsCaisse = caissiers(data).map((p) => fullName(p));
   const ici = nomsCaisse.length > 0;
-  const autres = club && versCaisse ? club.mine.filter((u) => u.id !== club.current.id && u.membres.some((m) => m.caisse)) : [];
-  const central = club ? caisseDe(club.units, club.current) : undefined;
-  const centrale = !ticket && !!central && !central.moi && central.id !== club?.current.id && central.membres.some((m) => m.caisse);
-  const nomCentrale = central ? (central.type === 'central' ? `Caisse centrale (${central.nom})` : `Caisse de « ${central.nom} »`) : '';
-  const [vers, setVers] = useState<'ici' | 'centrale'>(!ici && centrale ? 'centrale' : 'ici');
-  const versCentrale = vers === 'centrale' && centrale;
-  const bloque = !ticket && !(versCentrale || ici);
-  const [titre, setTitre] = useState(ticket?.titre ?? ecrit?.titre ?? '');
-  const [montant, setMontant] = useState(ticket ? String(ticket.paiement.montant) : ecrit?.montant ?? '');
+  const bloque = !ticket && !ici;
+  const [titre, setTitre] = useState(ticket?.titre ?? '');
+  const [montant, setMontant] = useState(ticket ? String(ticket.paiement.montant) : '');
   // Remboursement : soi-même par défaut ; facture : le créancier, à saisir.
-  const [beneficiaire, setBeneficiaire] = useState(ticket?.paiement.beneficiaire ?? ecrit?.beneficiaire ?? (facture ? '' : fullName(user ?? undefined)));
-  const [echeance, setEcheance] = useState(ticket?.delai ?? ecrit?.echeance ?? '');
-  const [iban, setIban] = useState(ticket?.paiement.iban ?? ecrit?.iban ?? '');
-  const [remarque, setRemarque] = useState(ticket?.remarque ?? ecrit?.remarque ?? '');
+  const [beneficiaire, setBeneficiaire] = useState(ticket?.paiement.beneficiaire ?? (facture ? '' : fullName(user ?? undefined)));
+  const [echeance, setEcheance] = useState(ticket?.delai ?? '');
+  const [iban, setIban] = useState(ticket?.paiement.iban ?? '');
+  const [remarque, setRemarque] = useState(ticket?.remarque ?? '');
   const [docs, setDocsState] = useState<TaskDoc[]>(ticket?.documents ?? []);
   const setDocs = (fn: (d: TaskDoc[]) => TaskDoc[]) => setDocsState(fn);
   const track = useRef<DocTracking>({ added: [], removed: [] });
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   // Facture envoyée par une personne qui a le droit de signature (ex. le président) : elle la vise avant l'envoi.
-  const direct = facture && !versCentrale && ici && !ticket?.paiement.externe && viseDirect(data, user, beneficiaire);
+  const direct = facture && ici && viseDirect(data, user, beneficiaire);
   const [viserAvant, setViserAvant] = useState(true);
   const [brouillon, setBrouillon] = useState<Ticket | null>(null);
-  // « À rembourser à » : soi-même, une personne de l'entité, ou un autre nom saisi.
+  // « À rembourser à » : soi-même, une personne du club, ou un autre nom saisi.
   const moiNom = fullName(user ?? undefined);
   const noms = [...new Set(data.people.filter((p) => p.actif).map((p) => fullName(p)))]
     .filter((n) => n && n !== moiNom)
@@ -773,34 +697,12 @@ function FormulaireTicket({ ticket, type, onClose, onEnvoye, ecrit, versCaisse }
     if (mien?.iban && v !== moiNom && compactIban(iban) === mien.iban) setIban('');
     if (mien?.iban && v === moiNom && !iban.trim()) setIban(formatIban(mien.iban));
   };
-  // Organigramme chargé après l'ouverture du formulaire : la caisse du comité reste le choix d'office d'une entité sans caissier.
-  useEffect(() => {
-    if (!ici && centrale && vers === 'ici' && !docs.length) setVers('centrale');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ici, centrale]);
-
   const cancel = () => {
     deleteFiles(track.current.added);
     onClose();
   };
-  const choisirCaisse = (id: string) => {
-    if (!club) return;
-    if (id === CENTRALE || id === club.current.id) {
-      const v = id === CENTRALE ? 'centrale' : 'ici';
-      if (v === vers) return;
-      // Les photos déjà ajoutées sont dans le dossier de l'autre caisse : on les retire.
-      deleteFiles(track.current.added);
-      track.current.added = [];
-      setDocsState([]);
-      setVers(v);
-      return;
-    }
-    // Caisse de l'une de mes autres entités : la fenêtre s'y affiche, avec ce qui est écrit (sans les photos, rangées ici).
-    deleteFiles(track.current.added);
-    versCaisse?.(id, { titre, montant, beneficiaire, echeance, iban, remarque });
-  };
   const submit = async () => {
-    if (bloque) return setErr('Choisis la caisse à laquelle envoyer la demande.');
+    if (bloque) return setErr('Le club n’a pas encore de caissier : la demande ne peut pas être envoyée.');
     const m = parseMontant(montant);
     if (!titre.trim()) return setErr(facture ? 'Indique l’objet de la facture.' : 'Indique l’objet de la dépense.');
     if (!(m > 0)) return setErr('Indique le montant (ex. 42.50).');
@@ -822,20 +724,6 @@ function FormulaireTicket({ ticket, type, onClose, onEnvoye, ecrit, versCaisse }
         setBusy(false);
       }
     }
-    if (versCentrale && club) {
-      setBusy(true);
-      club
-        .ticketCentral({ type: facture ? 'facture' : undefined, delai: facture && echeance ? echeance : undefined, titre: titre.trim(), montant: m, beneficiaire: beneficiaire.trim(), iban: iban.trim().toUpperCase() || undefined, remarque: remarque.trim(), documents: docs })
-        .then(() => {
-          deleteFiles(track.current.removed);
-          window.dispatchEvent(new Event(ENVOI_CENTRAL));
-          onEnvoye?.();
-          onClose();
-        })
-        .catch((e: Error) => setErr(e.message))
-        .finally(() => setBusy(false));
-      return;
-    }
     const now = new Date().toISOString();
     const paiement: Paiement = {
       ...(facture ? { type: 'facture' as const } : {}),
@@ -845,7 +733,6 @@ function FormulaireTicket({ ticket, type, onClose, onEnvoye, ecrit, versCaisse }
       demandePar: ticket?.paiement.demandePar ?? user.id,
       demandeLe: ticket?.paiement.demandeLe ?? now,
     };
-    if (ticket?.paiement.externe) paiement.externe = ticket.paiement.externe;
     if (iban.trim()) paiement.iban = iban.trim().toUpperCase();
     const t = {
       ...(ticket ?? { id: uid('t'), sectionId: sectionFinances(data), sousSection: g.sous, delai: '', checklist: [], createdBy: user.id }),
@@ -871,18 +758,11 @@ function FormulaireTicket({ ticket, type, onClose, onEnvoye, ecrit, versCaisse }
     onClose();
   };
 
-  const options = club && !ticket ? [...(ici ? [club.current] : []), ...autres] : [];
-  const choix = options.length + (centrale ? 1 : 0);
-  const caisseCentrale = central ? central.membres.filter((m) => m.caisse).map((m) => `${m.prenom} ${m.nom}`.trim()) : [];
   const note = ticket
     ? ''
-    : versCentrale
-      ? `${nomCentrale} : ${caisseCentrale.join(', ')}. Tu en suivras l’état dans « Mes tâches » (Envoyés à une autre caisse).`
-      : ici
-        ? `${club ? `Caisse ${club.current.nom}` : 'Caisse'} : ${nomsCaisse.join(', ')}.`
-        : `${club?.current.nom ?? 'Cette entité'} n’a pas encore de caissier (rôle « Caissier » à attribuer par un admin, dans la fiche de la personne : organigramme, clic sur son nom). ${
-            choix ? 'Envoie ta demande à l’une des caisses proposées.' : 'Aucune caisse ne peut recevoir ta demande pour l’instant.'
-          }`;
+    : ici
+      ? `Caisse : ${nomsCaisse.join(', ')}.`
+      : 'Le club n’a pas encore de caissier (rôle « Caissier » à donner par un admin, dans la fiche de la personne : « Personnes du club », clic sur son nom). Aucune caisse ne peut recevoir ta demande pour l’instant.';
 
   return (
     <Modal title={ticket ? `Modifier ${g.ce}` : `${g.icon} ${g.nouveau}`} onClose={cancel}>
@@ -895,28 +775,11 @@ function FormulaireTicket({ ticket, type, onClose, onEnvoye, ecrit, versCaisse }
             {note && <span className="muted"><br />{note}</span>}
           </p>
         )}
-        {club && (choix > 1 || (choix === 1 && bloque)) && (
-          <label className="full">
-            Envoyer à la caisse de
-            <Deroulante
-              aria-label="Envoyer à la caisse de"
-              value={versCentrale ? CENTRALE : ici ? club.current.id : ''}
-              onChange={choisirCaisse}
-              options={[
-                bloque && { value: '', label: 'Choisir la caisse…', disabled: true },
-                ...options.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> })),
-                centrale && { value: CENTRALE, label: nomCentrale, icone: <PastilleEntite u={central!} /> },
-              ]}
-            />
-            {choix > 1 && <small className="muted">À choisir avant d’ajouter la photo.</small>}
-          </label>
-        )}
         <DocsField
           docs={docs}
           setDocs={setDocs}
           disabled={bloque}
           track={track.current}
-          idPrefix={versCentrale ? (cloud ? `${central!.id}/tk-` : 'tk-') : undefined}
           legende={facture ? '📄 La facture' : '🧾 Photo du ticket'}
         />
         <label className="full">

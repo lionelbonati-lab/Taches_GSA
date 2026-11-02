@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { allerA, compter, expect, nouvelleTache, ouvrirDemo, test, verifierSansEntite } from './outils';
+import { allerA, compter, expect, nouvelleTache, ouvrirDemo, test, verifierUnSeulEspace } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
 
@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('toutes les pages s’ouvrent sans erreur', async ({ page }) => {
-  const pages = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/ordre-du-jour', '/pv', '/sondages', '/organigramme', '/membres-club', '/reglages', '/admin', '/admin/droits', '/propositions', '/mots-de-passe', '/aide'];
+  const pages = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/ordre-du-jour', '/pv', '/sondages', '/membres-club', '/reglages', '/admin', '/admin/droits', '/propositions', '/mots-de-passe', '/aide'];
   for (const h of pages) {
     await test.step(h, async () => {
       await page.goto('./?demo#' + h);
@@ -18,62 +18,78 @@ test('toutes les pages s’ouvrent sans erreur', async ({ page }) => {
       await expect(page.locator('.erreur-appli')).toHaveCount(0);
     });
   }
+  // L'ancienne adresse de l'organigramme mène aux personnes du club.
+  await page.goto('./?demo#/organigramme');
+  await expect(page).toHaveURL(/#\/membres-club$/);
 });
 
-test('session du club : la démo sans entité de base, mes entités réunies ; mes réglages repris une fois, au club', async ({ page }) => {
-  // Données d'avant la session du club : la fiche de Julien Moreau au comité central a ses réglages (affichage Kanban),
-  // la démo retenait une entité de base.
+test('un seul espace : la démo d’avant reprise, ses entités devenues des étiquettes avec leurs tâches et leurs personnes', async ({ page }) => {
+  // Démo d'avant (v8) : le comité central et la Soirée récréative, chacune dans sa clé ; une tâche de la Soirée, partagée,
+  // confiée à Lina Bovet (au bar de la Soirée, pas au comité), et l'entité ouverte retenue.
   await page.evaluate(() => {
-    const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
-    const julien = d.people.find((p: { prenom: string }) => p.prenom === 'Julien').id;
-    d.prefs = { ...d.prefs, [julien]: { theme: 'auto', vueDefaut: 'mes', affichage: 'kanban' } };
-    localStorage.setItem('taches-gsa-demo-v7', JSON.stringify(d));
-    localStorage.removeItem('taches-gsa-demo-perso');
+    const central = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
+    const julien = central.people.find((p: { prenom: string }) => p.prenom === 'Julien');
+    const soiree = {
+      schema: central.schema,
+      sections: [{ id: 's-org', nom: 'Organisation', sousSections: [] }],
+      statuses: central.statuses,
+      roles: central.roles,
+      people: [
+        { ...julien, id: 'x1' },
+        { id: 'x2', prenom: 'Lina', nom: 'Bovet', email: 'lina.bovet@gsajoie.example', telephone: '', couleur: '#0d9488', poste: 'Bar', roles: ['responsable'], actif: true },
+      ],
+      tasks: [
+        { id: 'tv8', sectionId: 's-org', sousSection: '', titre: 'Louer la sono', responsables: ['x2'], statusId: central.statuses[0].id, delai: '', remarque: '', checklist: [], createdBy: 'x1', updatedAt: new Date().toISOString(), partage: ['u-central'], source: 'u-soiree' },
+      ],
+      events: [],
+      meetings: [],
+      polls: [],
+      emails: [],
+      prefs: {},
+      log: [],
+    };
+    localStorage.setItem('taches-gsa-demo-u-u-soiree', JSON.stringify(soiree));
+    localStorage.setItem('taches-gsa-demo-club', JSON.stringify([{ id: 'u-central', nom: 'Comité central', type: 'central' }, { id: 'u-soiree', nom: 'Soirée récréative', type: 'evenement', date: '2026-11-28' }]));
     localStorage.setItem('taches-gsa-demo-unite', 'u-soiree');
+    localStorage.setItem('taches-gsa-demo-version', '8');
   });
   await page.reload();
-  await verifierSansEntite(page);
+  await verifierUnSeulEspace(page);
 
-  // Ses réglages, repris de sa place au comité central, sont maintenant au club.
+  // Les anciennes clés sont oubliées ; la tâche est dans l'espace, avec l'étiquette de son entité, sans les champs du partage.
+  const etat = await page.evaluate(() => ({
+    anciennes: ['taches-gsa-demo-club', 'taches-gsa-demo-u-u-soiree', 'taches-gsa-demo-unite'].map((k) => localStorage.getItem(k)),
+    version: localStorage.getItem('taches-gsa-demo-version'),
+    tache: JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.find((t: { titre: string }) => t.titre === 'Louer la sono'),
+  }));
+  expect(etat.anciennes).toEqual([null, null, null]);
+  expect(etat.version).toBe('9');
+  expect(etat.tache.etiquettes).toEqual(['et-u-soiree']);
+  expect(etat.tache.partage).toBeUndefined();
+  expect(etat.tache.source).toBeUndefined();
+
   await allerA(page, '/taches');
-  await expect(page.getByRole('button', { name: 'Kanban', exact: true })).toHaveClass(/on/);
-  const perso = () =>
-    page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('taches-gsa-demo-perso') ?? '{}') as Record<string, { prefs?: { affichage?: string } }>).map((p) => p.prefs?.affichage));
-  await expect.poll(perso).toEqual(['kanban']);
+  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await expect(page.locator('main tr', { hasText: 'Louer la sono' }).locator('.badge.etiquette')).toHaveText('Soirée récréative');
 
-  // Ses tâches du comité central et de la Soirée récréative, à égalité, chacune avec la pilule de son entité.
-  await page.getByRole('button', { name: 'Tableau', exact: true }).click();
-  for (const [titre, entite] of [['Réserver la salle', 'Comité central'], ['Acheter les ballons', 'Soirée récréative']]) {
-    const fiche = await nouvelleTache(page, titre, entite);
-    await fiche.getByRole('button', { name: /^Créer$/ }).click();
-    await expect(page.locator('.modal')).toHaveCount(0);
-    await expect(page.locator('main tr', { hasText: titre }).locator('.tsource')).toHaveText(entite);
-  }
-  await expect(page.locator('main tbody tr')).toHaveCount(2);
-
-  // Le réglage changé (« Tableau ») : au club seulement ; plus de recopie dans la fiche de chaque entité.
-  await expect.poll(perso).toEqual(['tableau']);
-  const dansLesEntites = await page.evaluate(() =>
-    ['taches-gsa-demo-v7', 'taches-gsa-demo-u-u-soiree'].map((k) => {
-      const d = JSON.parse(localStorage.getItem(k)!);
-      const julien = d.people.find((p: { prenom: string }) => p.prenom === 'Julien').id;
-      return d.prefs?.[julien]?.affichage;
-    }),
-  );
-  expect(dansLesEntites).toEqual(['kanban', undefined]);
-  await page.reload();
-  await expect(page.locator('main tbody tr')).toHaveCount(2);
-  await verifierSansEntite(page);
+  // Lina Bovet est au club, membre de l'étiquette ; sa tâche est la sienne.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  const lina = page.locator('.login-user', { hasText: 'Lina Bovet' });
+  await expect(lina.locator('.role-pill')).toHaveText('Soirée récréative');
+  await lina.click();
+  await allerA(page, '/taches');
+  await expect(page.locator('main tr', { hasText: 'Louer la sono' })).toHaveCount(1);
+  await verifierUnSeulEspace(page);
 });
 
 test('page lourde ouverte directement par son adresse', async ({ page, context }) => {
   const autre = await context.newPage();
   const erreurs: string[] = [];
   autre.on('pageerror', (e) => erreurs.push(e.message));
-  await autre.goto('./?demo#/organigramme');
+  await autre.goto('./?demo#/pv');
   await expect(autre.locator('main h1, main h2').first()).toBeVisible();
   await expect(autre.locator('.erreur-appli')).toHaveCount(0);
-  expect(autre.url()).toContain('organigramme');
+  expect(autre.url()).toContain('#/pv');
   expect(erreurs).toEqual([]);
   await page.close();
 });
@@ -170,53 +186,6 @@ test('notification d’un message : la discussion s’ouvre dans Messages, la cr
   await expect(page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true })).toBeVisible();
 });
 
-test('discussion : mon message écrit depuis une autre de mes entités reste le mien', async ({ page }) => {
-  // Julien Moreau, aussi membre de la Soirée récréative, y crée une tâche partagée avec le comité central.
-  await page.goto('./?demo#/taches');
-  const fiche = await nouvelleTache(page, 'Choisir la musique', 'Soirée récréative');
-  await fiche.locator('.chip', { hasText: 'Partager' }).click();
-  await fiche.getByRole('button', { name: '🏛️ Comité central' }).click();
-  await fiche.getByRole('button', { name: /^Créer$/ }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-
-  // Un message qu'il y a écrit depuis sa place au comité central (avant la vue du club, ou d'un autre appareil).
-  const cle = 'taches-gsa-demo-u-u-soiree';
-  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k)?.includes('Choisir la musique'), cle)).toBe(true);
-  await page.evaluate((k) => {
-    const julien = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).people.find((p: { prenom: string }) => p.prenom === 'Julien').id;
-    const d = JSON.parse(localStorage.getItem(k)!);
-    const t = d.tasks.find((x: { titre: string }) => x.titre === 'Choisir la musique');
-    t.commentaires = [{ id: 'c-central', par: julien, u: 'u-central', nom: 'Julien Moreau', le: new Date().toISOString(), texte: 'Une liste de chansons pour samedi ?' }];
-    localStorage.setItem(k, JSON.stringify(d));
-  }, cle);
-  await page.reload();
-
-  // Son message, à droite, ni non lu ni notifié ; en tête, l'entité de la tâche ; il le corrige et le retire d'ici.
-  const ligne = page.locator('main tr', { hasText: 'Choisir la musique' });
-  await expect(ligne.locator('.discussion-tag')).toBeVisible();
-  await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveCount(0);
-  await page.getByRole('button', { name: /^Notifications/ }).click();
-  await expect(page.getByRole('dialog', { name: 'Notifications' })).not.toContainText('Choisir la musique');
-  await page.keyboard.press('Escape');
-  await ligne.getByText('Choisir la musique').first().click();
-  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
-  const discussion = page.getByRole('dialog', { name: 'Choisir la musique' }).getByRole('region', { name: 'Discussion' });
-  await expect(discussion.locator('.discussion-entite')).toHaveText('Tâche de « Soirée récréative »');
-  // De personne à personne : ni son nom ni l'entité d'où il a écrit.
-  await expect(discussion.locator('.discussion-message.mien')).toContainText('Une liste de chansons pour samedi ?');
-  await expect(discussion.locator('.discussion-message.mien')).not.toContainText('Comité central');
-  await expect(discussion.locator('.discussion-auteur')).toHaveCount(0);
-  await expect(discussion.locator('.discussion-nouveaux')).toHaveCount(0);
-  await discussion.getByRole('button', { name: 'Corriger' }).click();
-  await discussion.getByLabel('Corriger le commentaire').fill('Une liste de chansons pour la soirée ?');
-  await discussion.getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(discussion.locator('.discussion-message.mien')).toContainText('Une liste de chansons pour la soirée ?');
-  await expect(discussion.locator('.discussion-message.mien')).toContainText('corrigé');
-  page.once('dialog', (d) => void d.accept());
-  await discussion.getByRole('button', { name: 'Retirer' }).click();
-  await expect(discussion.locator('.discussion-message')).toHaveCount(0);
-});
-
 test('discussion : une seule notification par personne, lue partout une fois lue', async ({ page }) => {
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();
@@ -240,30 +209,27 @@ test('discussion : une seule notification par personne, lue partout une fois lue
     await expect(panneau).toBeVisible();
     return panneau;
   };
-  // Julien Moreau : responsable de la tâche dans la Soirée récréative (partagée avec le comité central), où il a écrit.
+  // Julien Moreau : responsable de la tâche, où il a écrit.
   await page.goto('./?demo#/taches');
-  const fiche = await nouvelleTache(page, 'Choisir la musique', 'Soirée récréative');
-  await fiche.locator('.chip', { hasText: 'Partager' }).click();
-  await fiche.getByRole('button', { name: '🏛️ Comité central' }).click();
+  const fiche = await nouvelleTache(page, 'Choisir la musique');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await ecrire('Je regarde ça.');
 
-  // Marc Lambert écrit depuis le comité central : Julien, concerné dans ses deux entités, est prévenu une fois, par la Soirée.
+  // Marc Lambert écrit : Julien est prévenu une fois.
   await changer('Marc Lambert');
-  await verifierSansEntite(page);
+  await verifierUnSeulEspace(page);
   await ecrire('Bonne idée !');
   await changer('Julien Moreau');
   await page.goto('./?demo#/taches');
   const ligne = page.locator('main tr', { hasText: 'Choisir la musique' });
   await expect(ligne.locator('.discussion-tag .pastille-nonlu')).toHaveText('1');
-  // La cloche : celle-ci une seule fois, avec le nom de la Soirée.
+  // La cloche : celle-ci une seule fois.
   const venue = (await notifications()).locator('.bell-item', { hasText: 'Choisir la musique' });
   await expect(venue).toHaveCount(1);
-  await expect(venue).toContainText('Soirée récréative');
   await expect(venue).toContainText('Marc Lambert a commenté « Choisir la musique »');
   await page.keyboard.press('Escape');
-  // De personne à personne : son message avec son nom, sans l'entité d'où il l'a écrit.
+  // De personne à personne : son message avec son nom.
   await ligne.getByText('Choisir la musique').first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion (1 non lu)' }).click();
   await expect(page.locator('.discussion-message:not(.mien) .discussion-auteur')).toHaveText('Marc Lambert');
@@ -305,115 +271,39 @@ test('discussion : une seule notification par personne, lue partout une fois lue
   await expect((await notifications()).locator('.bell-item', { hasText: 'a commenté « Choisir la musique »' })).toHaveCount(0);
 });
 
-test('vue du club : les tâches de toutes mes entités, ouvertes et modifiées chez elles', async ({ page }) => {
-  // Julien Moreau crée une tâche dans la Soirée récréative (pas partagée).
-  await page.goto('./?demo#/taches');
-  const fiche = await nouvelleTache(page, 'Louer les tables', 'Soirée récréative');
-  await fiche.getByRole('button', { name: /^Créer$/ }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-
-  // Dans ses tâches, avec la pastille de son entité ; le filtre « Entité » la garde ou la retire.
-  const ligne = page.locator('main tr', { hasText: 'Louer les tables' });
-  await expect(ligne.locator('.tsource')).toHaveText('Soirée récréative');
-  await page.getByRole('button', { name: /^Filtres/ }).click();
-  // Le comité central de la démo n'a pas de tâches : il n'est pas proposé (le filtre ne mène jamais à une liste vide).
-  await expect(page.getByLabel('Entité').locator('option')).toHaveText(['Toutes entités', 'Soirée récréative']);
-  await page.getByLabel('Entité').selectOption({ label: 'Soirée récréative' });
-  await expect(ligne).toHaveCount(1);
-
-  // Ouverte dans son entité : modifiée, commentée.
-  await ligne.getByText('Louer les tables').first().click();
-  const ouverte = page.locator('.modal').first();
-  await expect(ouverte.getByPlaceholder('Que faut-il faire ?')).toHaveValue('Louer les tables');
-  await expect(ouverte).not.toContainText('partagée avec');
-  await ouverte.getByPlaceholder('Que faut-il faire ?').fill('Louer les tables et les bancs');
-  await ouverte.getByRole('button', { name: 'Enregistrer', exact: true }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  await verifierSansEntite(page);
-  await expect(page.locator('main tr', { hasText: 'Louer les tables et les bancs' }).locator('.tsource')).toHaveText('Soirée récréative');
-  await page.locator('main').getByText('Louer les tables et les bancs').filter({ visible: true }).first().click();
-  await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
-  await page.getByLabel('Nouveau commentaire').fill('Combien de bancs ?');
-  await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
-  await expect(page.locator('.discussion-message.mien')).toContainText('Combien de bancs ?');
-  await page.keyboard.press('Escape');
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.modal')).toHaveCount(0);
-  // La discussion est aussi dans Messages.
-  await page.goto('./?demo#/messages');
-  await expect(page.locator('.messages-ligne', { hasText: 'Louer les tables et les bancs' })).toContainText('Combien de bancs ?');
-
-  // Enregistrée dans la Soirée, avec son message.
-  await expect
-    .poll(() =>
-      page.evaluate(() => {
-        const t = JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').tasks?.find((x: { titre: string }) => x.titre === 'Louer les tables et les bancs');
-        return t?.commentaires?.[0]?.texte;
-      }),
-    )
-    .toBe('Combien de bancs ?');
-});
-
-test('vue du club : nouvelle tâche créée dans l’une de mes entités, choisie dans la fenêtre', async ({ page }) => {
-  await page.goto('./?demo#/taches');
-  const fiche = await nouvelleTache(page, 'Commander les boissons');
-  const choix = fiche.getByRole('combobox', { name: 'Entité' });
-  await expect(choix).toHaveText(/Comité central/);
-  await choix.click();
-  await page.getByRole('option', { name: /Soirée récréative/ }).click();
-  // La fenêtre passe dans la Soirée : le titre suit, la section se choisit parmi les siennes.
-  await expect(choix).toHaveText(/Soirée récréative/);
-  await expect(fiche.getByPlaceholder('Que faut-il faire ?')).toHaveValue('Commander les boissons');
-  await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ index: 1 });
-  await fiche.getByRole('button', { name: /^Créer$/ }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  await verifierSansEntite(page);
-  await expect(page.locator('main tr', { hasText: 'Commander les boissons' }).locator('.tsource')).toHaveText('Soirée récréative');
-
-  // Enregistrée dans la Soirée, comme une tâche à elle.
-  await expect
-    .poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').tasks ?? []).some((t: { titre: string }) => t.titre === 'Commander les boissons')))
-    .toBe(true);
-  expect(await page.evaluate(() => localStorage.getItem('taches-gsa-demo-v7')?.includes('Commander les boissons') ?? false)).toBe(false);
-});
-
-test('session du club : mon profil, dans ma fiche du club ; mes places suivent', async ({ page }) => {
+test('mon profil : ma fiche et « Personnes du club » mises à jour ensemble', async ({ page }) => {
   await page.goto('./?demo#/reglages');
   const profil = page.locator('section.mon-profil');
-  await expect(profil).toContainText('Soirée récréative');
-  await expect(profil.getByLabel('Email')).toBeDisabled();
+  // Un seul espace : l'email de la fiche se corrige aussi (la connexion à la démo se fait par la fiche).
+  await expect(profil.getByRole('textbox', { name: /^Email/ })).toBeEditable();
   await profil.getByLabel('Prénom').fill('Jules');
   await profil.getByRole('button', { name: 'Enregistrer', exact: true }).click();
   await expect(page.locator('.who-text strong')).toHaveText('Jules Moreau');
-  // Une seule fiche, celle de « Personnes du club » ; ses places (comité central, Soirée récréative) la suivent.
   const prenoms = () =>
     page.evaluate(() => [
       (JSON.parse(localStorage.getItem('taches-gsa-demo-membres') ?? '[]') as { prenom: string; nom: string }[]).find((m) => m.nom === 'Moreau')?.prenom,
       JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').people?.find((p: { nom: string }) => p.nom === 'Moreau')?.prenom,
-      JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').people?.find((p: { nom: string }) => p.nom === 'Moreau')?.prenom,
     ]);
-  await expect.poll(prenoms).toEqual(['Jules', 'Jules', 'Jules']);
+  await expect.poll(prenoms).toEqual(['Jules', 'Jules']);
   await page.reload();
   await expect(page.locator('.who-text strong')).toHaveText('Jules Moreau');
   await expect(page.locator('section.mon-profil').getByLabel('Prénom')).toHaveValue('Jules');
 });
 
-test('session du club : mes réglages, une seule fois, au club ; la sauvegarde du club, une entité restaurée', async ({ page }) => {
+test('mes réglages, dans l’espace ; la sauvegarde du club, puis sa restauration', async ({ page }) => {
   await page.goto('./?demo#/reglages');
   await expect(page.locator('.page-intro')).toHaveCount(1);
   await page.getByLabel('Phrase d’explication en haut des pages').selectOption('non');
-  // Enregistrée au club (session), plus recopiée dans chacune de mes entités.
   await expect
-    .poll(() => page.evaluate(() => Object.values(JSON.parse(localStorage.getItem('taches-gsa-demo-perso') ?? '{}') as Record<string, { prefs?: { explications?: boolean } }>).some((p) => p.prefs?.explications === false)))
-    .toBe(true);
-  expect(
-    await page.evaluate(() => {
-      const d = JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}');
-      const moi = d.people?.find((p: { prenom: string }) => p.prenom === 'Julien');
-      return d.prefs?.[moi?.id]?.explications;
-    }),
-  ).toBeUndefined();
-  // Les mêmes partout : dans la console admin d'une entité aussi, et après un rechargement.
+    .poll(() =>
+      page.evaluate(() => {
+        const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}');
+        const julien = d.people.find((p: { prenom: string }) => p.prenom === 'Julien').id;
+        return d.prefs?.[julien]?.explications;
+      }),
+    )
+    .toBe(false);
+  // Les mêmes partout : dans la console admin aussi, et après un rechargement.
   await expect(page.locator('.page-intro')).toHaveCount(0);
   await page.locator('.who-btn').click();
   await page.getByRole('menuitem', { name: 'Console admin' }).click();
@@ -422,7 +312,8 @@ test('session du club : mes réglages, une seule fois, au club ; la sauvegarde d
   await page.reload();
   await expect(page.locator('main h1').first()).toBeVisible();
   await expect(page.locator('.page-intro')).toHaveCount(0);
-  // Sauvegarde : dans la console admin, celle de tout le club.
+
+  // Sauvegarde du club : un seul espace, ses étiquettes, et « Personnes du club » sans IBAN.
   await page.getByRole('link', { name: /Sauvegarde/ }).click();
   const club = page.locator('section.sauvegarde-club');
   const [fichier] = await Promise.all([page.waitForEvent('download'), club.getByRole('button', { name: 'Télécharger la sauvegarde du club' }).click()]);
@@ -431,258 +322,28 @@ test('session du club : mes réglages, une seule fois, au club ; la sauvegarde d
   const chemin = (await fichier.path())!;
   const contenu = JSON.parse(readFileSync(chemin, 'utf8'));
   expect(contenu.version).toBe(2);
-  const soiree = contenu.entites.find((e: { nom: string }) => e.nom === 'Soirée récréative');
-  expect(soiree.data.events.some((e: { lieu?: string }) => e.lieu === 'Salle des fêtes')).toBe(true);
-  expect(contenu.entites.length).toBeGreaterThan(2);
+  expect(contenu.entites.length).toBe(1);
+  expect(contenu.entites[0].data.etiquettes.map((e: { nom: string }) => e.nom)).toContain('Soirée récréative');
   expect(contenu.personnes.length).toBeGreaterThan(0);
   expect(contenu.personnes.some((m: { iban?: string }) => 'iban' in m)).toBe(false);
 
-  // Restaurer la Soirée seule, depuis la sauvegarde du club : un événement ajouté depuis disparaît, le comité central ne bouge pas.
+  // Restaurer : un événement ajouté depuis disparaît.
   await page.evaluate(() => {
-    const d = JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}');
+    const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}');
     d.events = [...(d.events ?? []), { ...d.events[0], id: 'ev-apres', nom: 'Ajouté après la sauvegarde' }];
-    localStorage.setItem('taches-gsa-demo-u-u-soiree', JSON.stringify(d));
+    localStorage.setItem('taches-gsa-demo-v7', JSON.stringify(d));
   });
-  const central = await page.evaluate(() => localStorage.getItem('taches-gsa-demo-v7'));
-  // Par son admin, Pierre Favre (pas admin du comité central : pas de sauvegarde du club pour lui).
-  await page.getByRole('button', { name: 'Changer', exact: true }).click();
-  await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
-  await page.locator('.who-btn').click();
-  await page.getByRole('menuitem', { name: 'Console admin' }).click();
-  await page.getByRole('link', { name: /Sauvegarde/ }).click();
-  await expect(page.locator('section.sauvegarde-club')).toContainText('se télécharge par un super-admin');
-  await expect(page.getByRole('heading', { name: 'Restaurer « Soirée récréative »' })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('heading', { name: 'Restaurer « Comité central »' })).toBeVisible();
   page.once('dialog', (d) => void d.accept());
   await page.getByLabel('Fichier de sauvegarde').setInputFiles(chemin);
-  await expect(page.locator('.backup-ok', { hasText: '« Soirée récréative » restaurée' })).toBeVisible();
-  const apres = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}'));
-  expect(apres.events.some((e: { id: string }) => e.id === 'ev-apres')).toBe(false);
-  expect(await page.evaluate(() => localStorage.getItem('taches-gsa-demo-v7'))).toBe(central);
-});
-
-test('vue « moi » : les séances de toutes mes entités, réunies (page Séances, accueil, agenda)', async ({ page }) => {
-  const changer = async (nom: string) => {
-    await page.getByRole('button', { name: 'Changer', exact: true }).click();
-    await page.locator('.login-user', { hasText: nom }).first().click();
-    await expect(page.locator('.topbar .brand')).toBeVisible();
-  };
-  // Une réunion aujourd'hui dans la Soirée récréative, posée par son responsable depuis la page Séances, sans changer
-  // d'entité : seule entité où il gère les séances, elle est indiquée dans la fenêtre.
-  await changer('Pierre Favre');
-  await allerA(page, '/comite');
-  await expect(page.locator('.subtabs-entite')).toHaveCount(0);
-  await page.getByRole('button', { name: '+ Nouvelle séance' }).click();
-  const fen = page.getByRole('dialog', { name: 'Nouvelle séance' });
-  await expect(fen.locator('.champ-entite')).toContainText('Soirée récréative');
-  await expect(fen.getByLabel('Titre')).toHaveValue(/^Réunion /);
-  await fen.getByLabel('Titre').fill('Séance de la Soirée');
-  await fen.getByRole('button', { name: 'Enregistrer', exact: true }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  // Avec celles du comité central, chacune avec la pilule de son entité.
-  await expect(page.locator('.agenda-item', { hasText: 'Séance de la Soirée' }).locator('.tsource')).toHaveText('Soirée récréative');
-  await expect(page.locator('.agenda-item', { hasText: 'Comité d’octobre' }).locator('.tsource')).toHaveText('Comité central');
-  await verifierSansEntite(page);
-
-  // Julien, au comité central : sur l'accueil, la prochaine séance de chacune de ses entités.
-  await changer('Julien Moreau');
-  await allerA(page, '/');
-  const bloc = page.locator('.bloc-seance');
-  await expect(bloc.locator('h2')).toHaveText(/Prochaines séances/);
-  // Dans l'ordre chronologique, chacune avec la pilule de son entité (comme les tâches).
-  const cartes = bloc.locator('.link-panel');
-  await expect(cartes).toHaveCount(2);
-  await expect(cartes.first()).toContainText('Séance de la Soirée');
-  await expect(cartes.first().locator('.tsource')).toHaveText('Soirée récréative');
-  await expect(cartes.nth(1).locator('.tsource')).toHaveText('Comité central');
-  // Les tâches aussi : celles du comité central portent son nom.
-  await allerA(page, '/taches');
-  const fiche = await nouvelleTache(page, 'Réserver la salle');
-  await fiche.getByRole('button', { name: /^Créer$/ }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  await expect(page.locator('main tr', { hasText: 'Réserver la salle' }).locator('.tsource')).toHaveText('Comité central');
-
-  // Dans l'agenda aussi, avec le nom de son entité ; ouverte, elle mène à sa carte dans les séances réunies.
-  await allerA(page, '/agenda');
-  const ligne = page.locator('.cal-side .cal-row', { hasText: 'Séance de la Soirée' });
-  await expect(ligne.locator('.tsource')).toHaveText('Soirée récréative');
-  await ligne.click();
-  const cible = page.locator('.agenda-item.cible');
-  await expect(cible).toContainText('Séance de la Soirée');
-  await expect(cible.locator('.tsource')).toHaveText('Soirée récréative');
-  await expect(page.locator('main')).toContainText('Comité d’octobre');
-  await verifierSansEntite(page);
-});
-
-test('vue « moi » : ordre du jour et PV de mes deux comités, choisis en haut de la page ; console admin depuis le menu, entité choisie en haut', async ({ page }) => {
-  // Julien Moreau, président du comité central, est ici aussi admin de la Soirée récréative.
-  const cle = 'taches-gsa-demo-u-u-soiree';
-  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
-  await page.evaluate((k) => {
-    const d = JSON.parse(localStorage.getItem(k)!);
-    d.people.find((p: { prenom: string }) => p.prenom === 'Julien').roles = ['admin'];
-    localStorage.setItem(k, JSON.stringify(d));
-  }, cle);
-  await page.reload();
-  // Une réunion de la Soirée, posée depuis les séances réunies.
-  await allerA(page, '/comite');
-  await page.getByRole('button', { name: '+ Nouvelle séance' }).click();
-  const fen = page.getByRole('dialog', { name: 'Nouvelle séance' });
-  const choix = fen.getByRole('combobox', { name: 'Comité' });
-  await expect(choix).toHaveText(/Comité central/);
-  await choix.click();
-  await page.getByRole('option', { name: /Soirée récréative/ }).click();
-  await expect(choix).toHaveText(/Soirée récréative/);
-  await expect(fen.getByLabel('Titre')).toHaveValue(/^Réunion /);
-  await fen.getByLabel('Titre').fill('Réunion de la soirée');
-  await fen.getByRole('button', { name: 'Enregistrer', exact: true }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  // Ordre du jour : celui du comité central d'abord ; la Soirée, choisie en haut de la page, s'affiche directement.
-  await page.locator('.subtabs').getByRole('link', { name: 'Ordre du jour' }).click();
-  const comite = page.locator('.subtabs').getByRole('combobox', { name: 'Comité' });
-  await expect(comite).toHaveText(/Comité central/);
-  await comite.click();
-  await page.getByRole('option', { name: /Soirée récréative/ }).click();
-  await expect(comite).toHaveText(/Soirée récréative/);
-  await expect(page.locator('main')).toContainText('Réunion de la soirée');
-  // Son PV aussi, toujours dans la Soirée.
-  await page.locator('.subtabs').getByRole('link', { name: 'PV' }).click();
-  await expect(comite).toHaveText(/Soirée récréative/);
-  await expect(page.getByLabel('Séance', { exact: true })).toContainText('Réunion de la soirée');
-  // Aucune entité ouverte : le comité central, choisi, son PV revient.
-  await verifierSansEntite(page);
-  await comite.click();
-  await page.getByRole('option', { name: /Comité central/ }).click();
-  await expect(comite).toHaveText(/Comité central/);
-  await expect(page.getByLabel('Séance', { exact: true })).not.toContainText('Réunion de la soirée');
-
-  // Console admin : dans le menu du compte ; l'entité se choisit en haut de la console (plus dans les Réglages).
-  await page.locator('.who-btn').click();
-  await page.getByRole('menuitem', { name: 'Console admin' }).click();
-  const entite = page.locator('.subtabs').getByRole('combobox', { name: 'Entité' });
-  await expect(entite).toHaveText(/Comité central/);
-  await expect(page.locator('main')).toContainText('Logo, icône et couleur du comité');
-  await entite.click();
-  await page.getByRole('option', { name: /Soirée récréative/ }).click();
-  await expect(entite).toHaveText(/Soirée récréative/);
-  await expect(page.locator('main')).toContainText('Logo et icône de l’entité.');
-  await page.getByRole('link', { name: /Rôles et droits/ }).click();
-  await expect(page.locator('main h1')).toContainText('Rôles et droits');
-  await expect(entite).toHaveText(/Soirée récréative/);
-  await verifierSansEntite(page);
-});
-
-test('vue « moi » : console admin de mon entité, depuis le menu, sans l’ouvrir', async ({ page }) => {
-  // Pierre Favre : membre du comité central, admin de la Soirée récréative seulement.
-  await page.getByRole('button', { name: 'Changer', exact: true }).click();
-  await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
-  await page.locator('.who-btn').click();
-  await page.getByRole('menuitem', { name: 'Console admin' }).click();
-  // Seule entité dont il est admin : pas de choix, elle est nommée.
-  await expect(page.locator('.subtabs').getByRole('combobox')).toHaveCount(0);
-  await expect(page.locator('.subtabs .subtabs-entite')).toHaveText(/Soirée récréative/);
-  await expect(page.locator('main')).toContainText('Logo et icône de l’entité.');
-  await verifierSansEntite(page);
-});
-
-test('vue « moi » : organigramme sans « Ouvrir », fiche du club d’une personne, son rôle dans mon entité modifié sur place', async ({ page }) => {
-  // Pierre Favre : membre du comité central, admin de la Soirée récréative.
-  await page.getByRole('button', { name: 'Changer', exact: true }).click();
-  await page.locator('.login-user', { hasText: 'Pierre Favre' }).first().click();
-  await allerA(page, '/organigramme');
-  await expect(page.locator('main').getByText('Yannick Leroy').first()).toBeVisible();
-  await expect(page.locator('main').getByTitle(/^Ouvrir «/)).toHaveCount(0);
-  await page.locator('main').getByText('Yannick Leroy').first().click();
-  await page.getByRole('dialog', { name: 'Yannick Leroy' }).getByRole('button', { name: 'Fiche complète' }).click();
-  // Sa fiche du club : ses places, et son rôle dans la Soirée (dont Pierre est admin), modifiable sur place.
-  const fiche = page.getByRole('dialog', { name: 'Yannick Leroy' });
-  await expect(fiche.locator('.acces-ligne', { hasText: 'Comité central' })).toBeVisible();
-  const soiree = fiche.locator('.acces-ligne', { hasText: 'Soirée récréative' });
-  await soiree.getByRole('button', { name: 'Caissier' }).click();
-  // Enregistré dans la Soirée, sans l'avoir ouverte.
+  await expect(page.locator('.backup-ok', { hasText: '« Comité central » restaurée' })).toBeVisible();
   await expect
-    .poll(() =>
-      page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-soiree') ?? '{}').people?.find((p: { prenom: string }) => p.prenom === 'Yannick')?.roles),
-    )
-    .toContain('caissier');
-  await verifierSansEntite(page);
+    .poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').events ?? []).some((e: { id: string }) => e.id === 'ev-apres')))
+    .toBe(false);
 });
 
-test('vue « moi » : remboursement envoyé à la caisse d’une autre de mes entités, puis retrouvé avec les autres', async ({ page }) => {
-  // Marc Lambert : membre du comité central et du CO Bruntrutaine (caisse : Valérie Lefèvre).
-  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
-  await page.getByRole('button', { name: 'Changer', exact: true }).click();
-  await page.locator('.login-user', { hasText: 'Marc Lambert' }).first().click();
-  await page.locator('.fab').click();
-  await page.locator('.fab-menu button', { hasText: 'Nouveau remboursement' }).click();
-  const form = page.locator('.modal').first();
-  await form.getByLabel('Objet de la dépense').fill('Gobelets pour le ravitaillement');
-  // La caisse du CO : la fenêtre s'y affiche, avec ce qui est déjà écrit.
-  await form.getByRole('combobox', { name: 'Envoyer à la caisse de' }).click();
-  await page.getByRole('option', { name: /CO Bruntrutaine/ }).click();
-  await expect(form).toContainText('Valérie Lefèvre');
-  await expect(form.getByLabel('Objet de la dépense')).toHaveValue('Gobelets pour le ravitaillement');
-  await form.locator('fieldset.docs input[type=file]').first().setInputFiles({ name: 'ticket.png', mimeType: 'image/png', buffer: png });
-  await expect(form.locator('.doc-list li')).toHaveCount(1);
-  await form.getByLabel('Montant (CHF)').fill('12.50');
-  await form.getByRole('button', { name: 'Envoyer à la caisse' }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        (JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-bruntrutaine') ?? '{}').tasks ?? []).some((t: { titre: string; paiement?: unknown }) => t.titre === 'Gobelets pour le ravitaillement' && !!t.paiement),
-      ),
-    )
-    .toBe(true);
-  await verifierSansEntite(page);
-  // Retrouvé dans ses paiements et remboursements, avec ceux de ses autres entités ; il s'ouvre là.
-  await allerA(page, '/taches?type=tickets');
-  const ligne = page.locator('main').getByText('Gobelets pour le ravitaillement').first();
-  await expect(ligne).toBeVisible();
-  await ligne.click();
-  await expect(page.locator('.modal').first()).toContainText('Gobelets pour le ravitaillement');
-  await expect(page.locator('.modal').first()).toContainText('CHF 12,50');
-  await verifierSansEntite(page);
-});
-
-test('tâche confiée à une personne d’une autre entité : elle seule la voit, pas son entité', async ({ page }) => {
-  // Antoine Mercier : moniteur de l'École de cyclisme, sans fiche au comité central.
-  const fiche = await nouvelleTache(page, 'Préparer les dossards');
-  await fiche.getByRole('combobox', { name: 'Ajouter une personne' }).click();
-  await page.getByRole('option', { name: /Antoine Mercier/ }).click();
-  await expect(fiche.locator('.qui .chip', { hasText: 'Antoine Mercier' })).toBeVisible();
-  // La tâche n'est pas partagée avec son entité.
-  await expect(fiche.locator('.partage .chip.on')).toHaveCount(0);
-  await fiche.getByRole('button', { name: /^Créer$/ }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  const enregistree = await page.evaluate(() =>
-    (JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').tasks ?? []).find((t: { titre: string }) => t.titre === 'Préparer les dossards'),
-  );
-  expect(enregistree.partage ?? []).not.toContain('u-ecole');
-  expect(enregistree.respPartage['u-ecole']).toHaveLength(1);
-  // Antoine la retrouve dans ses tâches et la modifie ; elle reste au comité central.
-  await page.getByRole('button', { name: 'Changer', exact: true }).click();
-  await page.locator('.login-user', { hasText: 'Antoine Mercier' }).first().click();
-  await allerA(page, '/taches');
-  await page.locator('main').getByText('Préparer les dossards').first().click();
-  const chez = page.locator('.modal').first();
-  await chez.locator('textarea').first().fill('Numéros 1 à 120');
-  await chez.getByRole('button', { name: /^Enregistrer$/ }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  await expect
-    .poll(() =>
-      page.evaluate(() => (JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').tasks ?? []).find((t: { titre: string }) => t.titre === 'Préparer les dossards')?.remarque),
-    )
-    .toBe('Numéros 1 à 120');
-  // Simon Vincent, moniteur de l'École (il voit toutes ses tâches), ne la voit pas : elle n'est confiée qu'à Antoine.
-  await page.getByRole('button', { name: 'Changer', exact: true }).click();
-  await page.locator('.login-user', { hasText: 'Simon Vincent' }).first().click();
-  await allerA(page, '/taches');
-  await page.locator('main').getByRole('button', { name: 'Toutes', exact: true }).click();
-  await expect(page.locator('main').getByRole('button', { name: 'Toutes', exact: true })).toHaveClass(/on/);
-  await expect(page.locator('main').getByText('Préparer les dossards')).toHaveCount(0);
-});
-
-test('tâche : quelqu’un sans place dans l’organigramme, son nom sur la tâche ; avec un accès, ses tâches seulement', async ({ page }) => {
+test('tâche : quelqu’un sans fiche dans l’appli, son nom sur la tâche ; avec une fiche, la tâche devient la sienne', async ({ page }) => {
   const avant = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').people.length);
   const fiche = await nouvelleTache(page, 'Tenir le stand de crêpes');
   await fiche.getByRole('combobox', { name: 'Ajouter une personne' }).click();
@@ -696,41 +357,40 @@ test('tâche : quelqu’un sans place dans l’organigramme, son nom sur la tâc
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   const d = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}'));
-  // Pas de fiche dans le comité : son nom est sur la tâche ; elle entre dans « Personnes du club » (Julien gère les personnes).
+  // Pas de fiche dans l'appli : son nom est sur la tâche ; elle entre dans « Personnes du club » (Julien gère les personnes).
   expect(d.people.length).toBe(avant);
   const claire = await page.evaluate(() => (JSON.parse(localStorage.getItem('taches-gsa-demo-membres') ?? '[]') as { id: string; prenom: string }[]).find((m) => m.prenom === 'Claire'));
   expect(claire).toBeTruthy();
   expect(d.tasks.find((t: { titre: string }) => t.titre === 'Tenir le stand de crêpes').respHors).toEqual([expect.objectContaining({ prenom: 'Claire', nom: 'Dumas', membreId: claire!.id })]);
 
-  // Accès à l'appli donné sur sa fiche du club : sans place, elle ne voit que ses tâches confiées, et les fait avancer.
+  // Une fiche dans l'appli, donnée depuis « Personnes du club » : la tâche notée à son nom devient la sienne.
   await allerA(page, '/membres-club');
   await page.locator('.membres-table tr', { hasText: 'Dumas' }).first().click();
   const sa = page.getByRole('dialog', { name: /Claire Dumas/ });
-  await sa.getByText('Accès à l’appli : sans place dans l’organigramme').click();
-  await sa.getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(sa).toHaveCount(0);
-  await page.getByRole('button', { name: 'Changer', exact: true }).click();
-  await page.locator('.login-user', { hasText: 'Claire Dumas' }).click();
-  await expect(page.getByRole('heading', { name: 'Mes tâches' })).toBeVisible();
-  const carte = page.locator('.tache-confiee', { hasText: 'Tenir le stand de crêpes' });
-  await carte.getByRole('combobox', { name: /Statut/ }).click();
-  await page.getByRole('option', { name: 'Terminé' }).click();
-  await expect(carte).toHaveClass(/finie/);
+  await sa.getByRole('button', { name: 'Lui donner une fiche dans l’appli' }).click();
+  await expect(sa.getByText(/Claire Dumas a une fiche dans l’appli/)).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
   await expect
     .poll(() =>
       page.evaluate(() => {
         const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}');
+        const claire = d.people.find((p: { prenom: string }) => p.prenom === 'Claire');
         const t = d.tasks.find((x: { titre: string }) => x.titre === 'Tenir le stand de crêpes');
-        return d.statuses.find((x: { id: string }) => x.id === t.statusId)?.done;
+        return !!claire && t.responsables.includes(claire.id) && !t.respHors;
       }),
     )
     .toBe(true);
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Claire Dumas' }).click();
+  await allerA(page, '/taches');
+  await expect(page.locator('main tr', { hasText: 'Tenir le stand de crêpes' })).toHaveCount(1);
 });
 
 test('personnes du club : la liste pour tout le monde, fiche en lecture ; retirer quelqu’un du club', async ({ page }) => {
-  // Simon Vincent, moniteur de l'École (coordonnées, sans « Gérer les personnes ») : la liste et les fiches, en lecture.
+  // Marc Lambert, au comité (sans « Gérer les personnes ») : la liste et les fiches, en lecture.
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
-  await page.locator('.login-user', { hasText: 'Simon Vincent' }).first().click();
+  await page.locator('.login-user', { hasText: 'Marc Lambert' }).first().click();
   await allerA(page, '/membres-club');
   await expect(page.locator('main h1')).toContainText('Personnes du club');
   await expect(page.getByRole('button', { name: '+ Nouvelle personne' })).toHaveCount(0);
@@ -741,7 +401,7 @@ test('personnes du club : la liste pour tout le monde, fiche en lecture ; retire
   await expect(fiche.getByRole('button', { name: 'Retirer du club' })).toHaveCount(0);
   await fiche.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
 
-  // Julien Moreau (« Gérer les personnes ») retire Hugo Morel du club : sa place au CO Bruntrutaine aussi.
+  // Julien Moreau (« Gérer les personnes ») retire Hugo Morel du club : sa fiche dans l'appli aussi.
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user', { hasText: 'Julien Moreau' }).first().click();
   await allerA(page, '/membres-club');
@@ -750,109 +410,9 @@ test('personnes du club : la liste pour tout le monde, fiche en lecture ; retire
   await page.getByRole('dialog', { name: /Hugo Morel/ }).getByRole('button', { name: 'Retirer du club' }).click();
   await expect(page.locator('.membres-table tr', { hasText: 'Hugo' })).toHaveCount(0);
   const fiche2 = await page.evaluate(() =>
-    (JSON.parse(localStorage.getItem('taches-gsa-demo-u-u-bruntrutaine') ?? '{}').people ?? []).find((p: { prenom: string }) => p.prenom === 'Hugo'),
+    (JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').people ?? []).find((p: { prenom: string }) => p.prenom === 'Hugo'),
   );
   expect(fiche2.actif).toBe(false);
-});
-
-test('organigramme : le rôle donné par un poste, ajustable sur la fiche de la personne', async ({ page }) => {
-  // Marc Lambert : postes Vice-président, Programme et Critérium du comité central, rôle « Comité » (celui de ses postes).
-  const rolesDe = (prenom: string) =>
-    page.evaluate((x) => (JSON.parse(localStorage.getItem('taches-gsa-demo-v7') ?? '{}').people ?? []).find((p: { prenom: string }) => p.prenom === x)?.roles, prenom);
-  expect(await rolesDe('Marc')).toEqual(['comite']);
-  await allerA(page, '/organigramme');
-  await page.getByRole('button', { name: 'Modifier l’organigramme' }).click();
-  await page.locator('button.orgl-c1-nom-poste', { hasText: 'Programme' }).first().click();
-  const reglages = page.getByRole('dialog', { name: /Poste « Programme »/ });
-  await reglages.getByRole('combobox', { name: 'Rôle donné' }).click();
-  await page.getByRole('option', { name: 'Secrétaire' }).click();
-  await reglages.getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(reglages).toHaveCount(0);
-  // Ses rôles suivent sa place : « Comité » (ses autres postes) et « Secrétaire » (Programme).
-  await expect.poll(async () => [...((await rolesDe('Marc')) ?? [])].sort()).toEqual(['comite', 'secretaire']);
-  // Sa fiche le dit ; ajustés à la main, ses rôles ne suivent plus, et « Revenir au rôle de sa place » les remet.
-  await allerA(page, '/membres-club');
-  await page.locator('.membres-table tr', { hasText: 'Lambert' }).first().click();
-  const fiche = page.getByRole('dialog', { name: /Marc Lambert/ });
-  const central = fiche.locator('.acces-ligne', { hasText: 'Comité central' });
-  await expect(central.locator('.role-place')).toContainText('Rôle donné par sa place dans l’organigramme : Comité, Secrétaire');
-  await central.getByRole('button', { name: 'Caissier' }).click();
-  await expect(central.locator('.role-place')).toContainText('Rôles ajustés à la main');
-  await central.getByRole('button', { name: 'Revenir au rôle de sa place' }).click();
-  await expect(central.locator('.role-place')).toContainText('Rôle donné par sa place');
-  await expect.poll(async () => [...((await rolesDe('Marc')) ?? [])].sort()).toEqual(['comite', 'secretaire']);
-});
-
-test('vue « moi » : les événements de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {
-  const changer = async (nom: string) => {
-    await page.getByRole('button', { name: 'Changer', exact: true }).click();
-    await page.locator('.login-user', { hasText: nom }).first().click();
-    await expect(page.locator('.topbar .brand')).toBeVisible();
-  };
-  // Pierre Favre, membre du comité central, gère les événements de la Soirée récréative : il en pose un.
-  await changer('Pierre Favre');
-  await allerA(page, '/evenements');
-  const soiree = page.locator('.agenda-item:not(.dependant)', { hasText: 'Salle des fêtes' });
-  await expect(soiree.locator('.tsource')).toHaveText('Soirée récréative');
-  await page.getByRole('button', { name: '+ Nouvel événement' }).click();
-  const fen = page.getByRole('dialog', { name: 'Nouvel événement' });
-  await expect(fen.locator('.champ-entite')).toContainText('Soirée récréative');
-  await fen.getByPlaceholder('Ajouter un titre').fill('Apéro des bénévoles');
-  await fen.getByRole('button', { name: 'Enregistrer', exact: true }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  const apero = page.locator('.agenda-item', { hasText: 'Apéro des bénévoles' });
-  await expect(apero.locator('.tsource')).toHaveText('Soirée récréative');
-  await expect(apero.getByRole('button', { name: 'Modifier' })).toBeVisible();
-  await verifierSansEntite(page);
-
-  // Julien Moreau, membre de la Soirée : sur son accueil, avec la pilule de son entité.
-  await changer('Julien Moreau');
-  await allerA(page, '/');
-  const bloc = page.locator('.bloc-evenements');
-  await expect(bloc.locator('.link-panel', { hasText: 'Apéro des bénévoles' }).locator('.tsource')).toHaveText('Soirée récréative');
-});
-
-test('vue « moi » : les sondages de toutes mes entités, réunis ; un nouveau dans l’une d’elles', async ({ page }) => {
-  const changer = async (nom: string) => {
-    await page.getByRole('button', { name: 'Changer', exact: true }).click();
-    await page.locator('.login-user', { hasText: nom }).first().click();
-    await expect(page.locator('.topbar .brand')).toBeVisible();
-  };
-  // Pierre Favre crée des sondages au comité central et à la Soirée récréative : il pose celui-ci à la Soirée.
-  await changer('Pierre Favre');
-  await allerA(page, '/sondages');
-  await page.getByRole('button', { name: '+ Nouveau sondage' }).click();
-  const fen = page.getByRole('dialog', { name: 'Nouveau sondage' });
-  const choix = fen.getByRole('combobox', { name: 'Entité' });
-  await expect(choix).toHaveText(/Comité central/);
-  await fen.getByLabel('Question').fill('Faut-il une tombola ?');
-  await choix.click();
-  await page.getByRole('option', { name: /Soirée récréative/ }).click();
-  await expect(choix).toHaveText(/Soirée récréative/);
-  await expect(fen.getByLabel('Question')).toHaveValue('Faut-il une tombola ?');
-  await fen.getByRole('button', { name: 'Créer le sondage' }).click();
-  await expect(page.locator('.modal')).toHaveCount(0);
-  await page.locator('.seg').getByRole('button', { name: /^En cours/ }).click();
-  const carte = page.locator('.poll', { hasText: 'Faut-il une tombola ?' });
-  await expect(carte.locator('.tsource')).toHaveText('Soirée récréative');
-  await verifierSansEntite(page);
-
-  // Julien Moreau, membre de la Soirée : à voter sur son accueil et dans les sondages, sans changer d'entité.
-  await changer('Julien Moreau');
-  await allerA(page, '/');
-  await expect(page.locator('a.link-panel', { hasText: 'Faut-il une tombola ?' }).locator('.tsource')).toHaveText('Soirée récréative');
-  await allerA(page, '/sondages');
-  await page.locator('.seg').getByRole('button', { name: /^À voter/ }).click();
-  const aVoter = page.locator('.poll', { hasText: 'Faut-il une tombola ?' });
-  await expect(aVoter.locator('.tsource')).toHaveText('Soirée récréative');
-  await aVoter.locator('.poll-choice', { hasText: 'Oui' }).click();
-  await aVoter.getByRole('button', { name: 'Envoyer ma réponse' }).click();
-  // Réponse enregistrée chez la Soirée : le sondage passe dans « En cours », avec ma réponse.
-  await expect(page.locator('.seg').getByRole('button', { name: /^À voter/ })).toHaveText('À voter (0)');
-  await page.locator('.seg').getByRole('button', { name: /^En cours/ }).click();
-  await expect(aVoter).toContainText('1/5 réponses');
-  await expect(aVoter).toContainText('Oui (ton choix)');
-  await verifierSansEntite(page);
 });
 
 test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async ({ page }) => {
@@ -1141,14 +701,14 @@ test('les données de la démo restent après un rechargement', async ({ page })
   await expect(page.locator('.annuler-btn')).toHaveCount(0);
 });
 
-test('recherche globale (Ctrl+K) : tâche, séance, personne, dans toutes mes entités', async ({ page }) => {
+test('recherche globale (Ctrl+K) : tâche, séance, personne, étiquette', async ({ page }) => {
   const fiche = await nouvelleTache(page, 'Commander les maillots');
   await fiche.locator('textarea').first().fill('Tailles à demander avant la Fête de Noël');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
   await page.keyboard.press('Control+k');
-  const champ = page.getByRole('searchbox', { name: 'Rechercher' });
+  const champ = page.locator('.modal.recherche').getByRole('searchbox', { name: 'Rechercher' });
   await expect(champ).toBeFocused();
   await champ.fill('maillot');
   await expect(page.locator('.recherche-item').first()).toBeVisible();
@@ -1162,15 +722,19 @@ test('recherche globale (Ctrl+K) : tâche, séance, personne, dans toutes mes en
   const nom = (await page.locator('.who-text strong').first().textContent()) ?? '';
   await champ.fill(nom.split(' ').slice(1).join(' ') || nom);
   await expect(page.locator('.recherche-liste section', { has: page.locator('h3', { hasText: 'Personnes' }) }).locator('.recherche-item').first()).toBeVisible();
-  // Dans toutes mes entités : une personne de la Soirée récréative seulement, au nom de son entité, ouverte sur place.
+  // Une personne : la liste des personnes du club, filtrée sur elle.
   await champ.fill('yannick');
-  const yannick = page.locator('.recherche-item', { hasText: 'Yannick Leroy' }).filter({ hasText: 'Soirée récréative' });
+  const yannick = page.locator('.recherche-item', { hasText: 'Yannick Leroy' });
   await expect(yannick).toHaveCount(1);
   await yannick.click();
-  await expect(page.getByRole('dialog', { name: 'Yannick Leroy' })).toBeVisible();
-  await verifierSansEntite(page);
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page).toHaveURL(/#\/membres-club\?q=/);
+  await expect(page.locator('.membres-table tr', { hasText: 'Leroy' }).first()).toBeVisible();
+  await verifierUnSeulEspace(page);
+  // Une étiquette : ses tâches.
+  await page.keyboard.press('Control+k');
+  await champ.fill('bruntrutaine');
+  await page.locator('.recherche-liste section', { has: page.locator('h3', { hasText: 'Étiquettes' }) }).locator('.recherche-item', { hasText: 'Bruntrutaine' }).click();
+  await expect(page).toHaveURL(/#\/taches\?etiquette=et-u-bruntrutaine/);
   await page.keyboard.press('Control+k');
   await expect(champ).toBeFocused();
   // Entrée : ouvre le premier résultat
@@ -1339,47 +903,46 @@ test('discussion : mentionner quelqu’un avec @, notification 📣 sans 💬 en
   await expect(discussion.locator('.discussion-message:not(.mien) .mention.moi')).toHaveText(`@${moi}`);
 });
 
-test('accueil : pas de cartes « Prochaine édition » en haut', async ({ page }) => {
-  // Julien Moreau, aussi membre d'une équipe d'événement (Soirée récréative) : l'accueil n'en affiche pas l'édition d'office.
-  await page.goto('./?demo#/');
-  await expect(page.getByRole('heading', { name: /^Bonjour/ })).toBeVisible();
-  await expect(page.locator('.panel.edition')).toHaveCount(0);
-  // Plus de demandes au comité central (on partage la tâche avec lui).
-  await expect(page.locator('main')).not.toContainText(/Demandes (au comité central|reçues)/);
-  // Le bloc reste au choix de chacun (⚙️ Mon accueil), masqué d'origine.
-  await page.getByRole('button', { name: 'Personnaliser l’accueil' }).click();
-  await expect(page.locator('.modal')).not.toContainText('Demandes');
-  const ligne = page.getByRole('checkbox', { name: 'Date de l’édition — Ordinateur' });
-  await expect(ligne).not.toBeChecked();
-  await ligne.check();
-  await page.getByRole('button', { name: 'Fermer', exact: true }).last().click();
-  await expect(page.locator('.panel.edition').first()).toBeVisible();
+test('étiquette « événement » datée : à l’accueil et dans l’agenda, avec ses tâches', async ({ page }) => {
+  const d = new Date();
+  const jour = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
+  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Marché de Noël');
+  await fen.getByLabel('Type de la nouvelle étiquette').selectOption('evenement');
+  await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await fen.getByLabel('Date de l’étiquette Marché de Noël').fill(jour);
+  await expect(fen.getByLabel('Dernier jour de l’étiquette Marché de Noël')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  const fiche = await nouvelleTache(page, 'Monter le stand');
+  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Marché de Noël' }).click();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Accueil : dans « Prochains événements » ; un clic montre ses tâches.
+  await allerA(page, '/');
+  const carte = page.locator('a.link-panel', { hasText: 'Marché de Noël' });
+  await expect(carte).toContainText('en cours');
+  await carte.click();
+  await expect(page).toHaveURL(/#\/taches\?etiquette=/);
+  await expect(page.locator('main tbody tr')).toHaveCount(1);
+  await expect(page.locator('main tr', { hasText: 'Monter le stand' })).toHaveCount(1);
+
+  // Agenda : à sa date.
+  await allerA(page, '/agenda');
+  await expect(page.locator('.k-etiquette', { hasText: 'Marché de Noël' }).first()).toBeVisible();
 });
 
-test('statuts : les mêmes dans tout le club, réglés au comité central ; accueil, liste, filtre et fiche d’accord', async ({ page }) => {
-  // Julien Moreau, président du comité central, est ici aussi admin de la Soirée récréative.
-  const cle = 'taches-gsa-demo-u-u-soiree';
-  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
-  await page.evaluate((k) => {
-    const d = JSON.parse(localStorage.getItem(k)!);
-    d.people.find((p: { prenom: string }) => p.prenom === 'Julien').roles = ['admin'];
-    localStorage.setItem(k, JSON.stringify(d));
-  }, cle);
-  await page.reload();
-  // Le comité central ajoute un statut, « Envoyé ».
+test('statuts : réglés dans la console admin ; accueil, liste, filtre et fiche d’accord', async ({ page }) => {
   await allerA(page, '/admin/taches');
-  await expect(page.locator('.subtabs').getByRole('combobox', { name: 'Entité' })).toHaveText(/Comité central/);
+  await expect(page.locator('.subtabs').getByRole('combobox', { name: 'Entité' })).toHaveCount(0);
   const nouveau = page.getByPlaceholder('Nouveau statut (ex. En attente)');
   await nouveau.fill('Envoyé');
   await page.locator('.row', { has: nouveau }).getByRole('button', { name: 'Ajouter', exact: true }).click();
   await expect(page.getByLabel('Nom du statut Envoyé')).toBeVisible();
-  // La Soirée le reçoit : dans sa console, les statuts du club, sans pouvoir les changer.
-  const entite = page.locator('.subtabs').getByRole('combobox', { name: 'Entité' });
-  await entite.click();
-  await page.getByRole('option', { name: /Soirée récréative/ }).click();
-  await expect(page.locator('.statuts-club')).toContainText('Envoyé');
-  await expect(page.getByPlaceholder('Nouveau statut (ex. En attente)')).toHaveCount(0);
-  await expect(page.locator('main')).toContainText('se règlent dans la console admin du comité central');
 
   await allerA(page, '/taches');
   const fiche = await nouvelleTache(page, 'Poster les invitations');
@@ -1388,7 +951,6 @@ test('statuts : les mêmes dans tout le club, réglés au comité central ; accu
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // La tâche du comité central reste « Envoyé », sur l'accueil comme dans la liste (statuts de toutes mes entités réunis).
   await allerA(page, '/');
   await expect(page.locator('.stat', { hasText: 'Envoyé' }).locator('b')).toHaveText('1');
   await allerA(page, '/taches');
@@ -1398,62 +960,51 @@ test('statuts : les mêmes dans tout le club, réglés au comité central ; accu
   await page.locator('.filters select', { has: page.locator('option', { hasText: 'Tous statuts' }) }).selectOption({ label: 'Envoyé' });
   await expect(ligne).toHaveCount(1);
   await expect(page.locator('main tbody tr')).toHaveCount(1);
-  // Ouverte, dans son entité : le même statut.
   await ligne.getByText('Poster les invitations').click();
   await expect(page.locator('.modal').first().getByRole('combobox', { name: 'Statut' })).toHaveText('Envoyé');
 });
 
-test('tâches : les filtres « Entité » et « Événement » ne proposent que des choix qui ont des tâches', async ({ page }) => {
-  // Une tâche de la Soirée récréative (événement qui dépend du comité central).
+test('tâches : le filtre « Étiquette » ; « Événement » ne propose que des choix qui ont des tâches', async ({ page }) => {
   await allerA(page, '/taches');
-  const fiche = await nouvelleTache(page, 'Louer la sono', 'Soirée récréative');
+  const fiche = await nouvelleTache(page, 'Louer la sono');
+  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Soirée récréative' }).click();
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const autre = await nouvelleTache(page, 'Commander les flyers');
+  await autre.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await page.getByRole('button', { name: 'Toutes', exact: true }).click();
   await page.getByRole('button', { name: /^Filtres/ }).click();
-  await page.getByLabel('Entité').selectOption({ label: 'Soirée récréative' });
-  // Événement : seulement ceux qui ont des tâches de la Soirée.
-  const evenement = page.getByLabel('Événement');
-  const choix = async () => ((await evenement.evaluate((e) => e.tagName)) === 'SELECT' ? evenement.locator('option').allTextContents() : (await evenement.click(), page.getByRole('option').allTextContents()));
-  const proposes = await choix();
-  expect(proposes.map((x) => x.trim())).toEqual(['Tous événements', 'Soirée récréative']);
-  if ((await evenement.evaluate((e) => e.tagName)) === 'SELECT') await evenement.selectOption({ label: 'Soirée récréative' });
-  else await page.getByRole('option', { name: 'Soirée récréative' }).click();
+  // Plus de filtre « Entité ».
+  await expect(page.getByLabel('Entité')).toHaveCount(0);
+  await page.getByLabel('Étiquette', { exact: true }).selectOption({ label: 'Soirée récréative' });
+  await expect(page.locator('main tbody tr')).toHaveCount(1);
   await expect(page.locator('main tr', { hasText: 'Louer la sono' })).toHaveCount(1);
-  // Entité : celles qui ont des tâches de cet événement ; aucune combinaison vide.
-  const entites = (await page.getByLabel('Entité').locator('option').allTextContents()).filter((x) => x !== 'Toutes entités');
-  expect(entites).toContain('Soirée récréative');
-  for (const nom of entites) {
-    await page.getByLabel('Entité').selectOption({ label: nom });
-    expect(await page.locator('main tbody tr').count()).toBeGreaterThan(0);
-  }
+  // Aucune tâche n'est rattachée à un événement : rien à choisir.
+  expect((await page.getByLabel('Événement').locator('option').allTextContents()).map((x) => x.trim())).toEqual(['Tous événements']);
 });
 
-test('lien reçu vers une tâche de l’une de mes entités : ouverte d’ici, sans entité de base', async ({ page }) => {
-  // Une tâche de la Soirée récréative confiée à Julien Moreau (comité central et Soirée).
-  const cle = 'taches-gsa-demo-u-u-soiree';
-  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
-  await page.evaluate((k) => {
-    const d = JSON.parse(localStorage.getItem(k)!);
+test('lien d’avant, avec son entité : la tâche s’ouvre dans l’espace du club', async ({ page }) => {
+  await page.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
     const julien = d.people.find((p: { prenom: string }) => p.prenom === 'Julien');
     d.tasks.push({ id: 'tlien', sectionId: d.sections[0].id, sousSection: '', titre: 'Réserver la sono', responsables: [julien.id], statusId: d.statuses[0].id, delai: '', remarque: '', checklist: [], createdBy: julien.id, updatedAt: new Date().toISOString() });
-    localStorage.setItem(k, JSON.stringify(d));
-  }, cle);
-  // Le lien (notification du téléphone, WhatsApp) porte l'entité de la tâche : l'appli ne s'appuie sur aucune entité.
+    localStorage.setItem('taches-gsa-demo-v7', JSON.stringify(d));
+  });
+  // Un lien envoyé avant D1 (notification, WhatsApp) porte l'entité de la tâche : elle est ignorée.
   await page.goto('./?demo=u-soiree#/taches?tache=tlien');
   await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ?')).toHaveValue('Réserver la sono');
-  await verifierSansEntite(page);
-  // Rouverte ensuite sans lien : toujours sans entité de base.
+  await verifierUnSeulEspace(page);
   await page.goto('./?demo#/');
-  await verifierSansEntite(page);
+  await verifierUnSeulEspace(page);
 });
 
 test('étiquettes : ses membres voient la tâche étiquetée, la liste montre l’étiquette et la filtre', async ({ page }) => {
-  // Julien Moreau (admin) crée l'étiquette « Bruntrutaine » ; Émilie Rossi (sans « voir toutes les tâches ») en est membre.
+  // Julien Moreau (admin) crée l'étiquette « Camp d’été » ; Émilie Rossi (sans « voir toutes les tâches ») en est membre.
   await allerA(page, '/taches');
   await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
   const fen = page.getByRole('dialog', { name: 'Étiquettes' });
-  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Bruntrutaine');
+  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Camp d’été');
   await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
   await fen.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Émilie Rossi' }).click();
   await expect(fen.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Émilie Rossi' })).toHaveAttribute('aria-pressed', 'true');
@@ -1462,13 +1013,13 @@ test('étiquettes : ses membres voient la tâche étiquetée, la liste montre l�
 
   // Une tâche étiquetée, confiée à quelqu'un d'autre.
   const fiche = await nouvelleTache(page, 'Réserver les tentes');
-  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Bruntrutaine' }).click();
+  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Camp d’été' }).click();
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   const ligne = page.locator('main tr', { hasText: 'Réserver les tentes' });
-  await expect(ligne.locator('.badge.etiquette')).toHaveText('Bruntrutaine');
+  await expect(ligne.locator('.badge.etiquette')).toHaveText('Camp d’été');
   await page.getByRole('button', { name: /^Filtres/ }).click();
-  await page.getByLabel('Étiquette', { exact: true }).selectOption({ label: 'Bruntrutaine' });
+  await page.getByLabel('Étiquette', { exact: true }).selectOption({ label: 'Camp d’été' });
   await expect(page.locator('main tbody tr')).toHaveCount(1);
 
   // Émilie Rossi la voit (« Toutes » : les tâches de ses étiquettes), avec qui s'en occupe.
@@ -1479,6 +1030,6 @@ test('étiquettes : ses membres voient la tâche étiquetée, la liste montre l�
   await page.getByRole('button', { name: 'Toutes', exact: true }).click();
   const vue = page.locator('main tr', { hasText: 'Réserver les tentes' });
   await expect(vue).toHaveCount(1);
-  await expect(vue.locator('.badge.etiquette')).toHaveText('Bruntrutaine');
+  await expect(vue.locator('.badge.etiquette')).toHaveText('Camp d’été');
   await expect(vue.locator('.avatars .avatar')).toHaveCount(1);
 });

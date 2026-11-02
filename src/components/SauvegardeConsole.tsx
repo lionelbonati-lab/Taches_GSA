@@ -10,14 +10,13 @@ import { Icone } from './icones';
 type Message = { ok: boolean; text: string } | null;
 
 /**
- * Console admin › Sauvegarde : celle de tout le club, dans un seul fichier (super-admins ; démo : admins du comité central),
- * la restauration de l'entité de la console (ses admins), depuis la sauvegarde du club ou celle de l'entité, et les copies
- * du serveur (version réelle).
+ * Console admin › Sauvegarde : celle de tout le club, dans un seul fichier (super-admins ; démo : admins), la restauration
+ * (admins), depuis la sauvegarde du club ou un ancien fichier, et les copies du serveur (version réelle).
  */
 export function SauvegardeConsole() {
   const { user, restore, cloud } = useStore();
   const club = useClubOptional();
-  const nom = club?.current.nom ?? 'l’entité';
+  const nom = club?.espace.nom ?? 'l’espace du club';
   const [busy, setBusy] = useState(false);
   const [msgClub, setMsgClub] = useState<Message>(null);
   const [msg, setMsg] = useState<Message>(null);
@@ -46,11 +45,11 @@ export function SauvegardeConsole() {
     setMsg(null);
     try {
       const s = await lireSauvegarde(file);
-      const b = partieDe(s, club?.current.id ?? '', nom);
+      const b = partieDe(s, club?.espace.id ?? '', nom);
       if (!b) throw new Error(`Cette sauvegarde du club ne contient pas « ${nom} ».`);
       const quand = fmtDateTime(b.exportedAt);
       const ou = cloud ? 'pour tous ses membres' : 'dans ce navigateur';
-      if (!confirm(`Remplacer toutes les données de « ${nom} » (${ou}) par celles de la sauvegarde du ${quand} ?\n${backupSummary(b)}\n\nLes autres entités ne changent pas.`)) return;
+      if (!confirm(`Remplacer toutes les données de « ${nom} » (${ou}) par celles de la sauvegarde du ${quand} ?\n${backupSummary(b)}`)) return;
       setBusy(true);
       // Version réelle : l'état actuel est d'abord copié par le serveur (036), pour pouvoir revenir en arrière.
       if (cloud) await copierMaintenant(cloud.membership.committeeId).catch(() => null);
@@ -72,10 +71,10 @@ export function SauvegardeConsole() {
         {club?.sauvegardeClub ? (
           <>
             <p className="muted">
-              Un seul fichier avec toutes les entités du club, archivées comprises : tâches, séances, PV, sondages, emails, personnes, rôles, réglages et
-              fichiers joints, et « Personnes du club » (sans IBAN).{' '}
+              Un seul fichier avec tout le club : tâches, séances, PV, sondages, emails, étiquettes, personnes, rôles, réglages et fichiers joints, et
+              « Personnes du club » (sans IBAN){cloud ? ' ; en attendant la reprise, aussi les anciennes entités' : ''}.{' '}
               {cloud
-                ? 'Le serveur garde en plus une copie de chaque entité chaque nuit (30 jours).'
+                ? 'Le serveur garde en plus une copie chaque nuit (30 jours).'
                 : 'Dans la démo, les données ne sont que dans ce navigateur : la sauvegarde sert aussi à passer à un autre appareil, ou à reprendre les données dans la version réelle.'}
             </p>
             <div className="row wrap">
@@ -85,13 +84,13 @@ export function SauvegardeConsole() {
             {msgClub && <p className={msgClub.ok ? 'backup-ok' : 'error'}>{msgClub.text}</p>}
           </>
         ) : (
-          <p className="muted">La sauvegarde de tout le club se télécharge par un super-admin du club{cloud ? '' : ' (dans la démo : un admin du comité central)'}.</p>
+          <p className="muted">La sauvegarde de tout le club se télécharge par un super-admin du club{cloud ? '' : ' (dans la démo : un admin)'}.</p>
         )}
       </section>
       <section className="panel backup">
         <h2>Restaurer « {nom} »</h2>
         <p className="muted">
-          Depuis la sauvegarde du club (seule « {nom} » est remise, les autres entités ne changent pas), ou depuis une sauvegarde de l’entité seule.
+          Depuis la sauvegarde du club, ou depuis un ancien fichier de sauvegarde.
           {cloud && ' L’état actuel est d’abord copié par le serveur : tu pourras revenir en arrière (copies automatiques, ci-dessous).'}
         </p>
         <div className="row wrap">

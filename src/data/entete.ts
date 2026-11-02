@@ -1,18 +1,18 @@
-import type { AppData, Entete, Unit } from './types';
+import type { AppData, Entete } from './types';
 import { isImage } from './logo';
 
-// En-tête des documents imprimés (ordre du jour, PV, bon de paiement) : un seul pour toute l'entité,
+// En-tête des documents imprimés (ordre du jour, PV, bon de paiement) : un seul pour tout le club,
 // réglé dans la console admin (données partagées « entete »).
 
-/** Texte par défaut : nom du club, et de l'entité hors comité central. */
-export const defaultTexte = (unit?: Pick<Unit, 'nom' | 'type'>) => (!unit || unit.type === 'central' ? 'G.S. Ajoie – Comité' : `G.S. Ajoie – ${unit.nom}`);
+/** Texte par défaut : le nom du club. */
+export const defaultTexte = () => 'G.S. Ajoie – Comité';
 
 export const defaultEntete = (texte: string): Entete => ({ image: 'logo', taille: 'petite', texte, disposition: 'gauche', couleur: '#1d4ed8', trait: false });
 
 /** Ancien réglage par document (avant l'en-tête unique) : celui de l'ordre du jour d'abord. */
 const ancien = (data: AppData) => data.entetes?.odj ?? data.entetes?.pv ?? data.entetes?.bon;
 
-/** En-tête de l'entité, le même pour tous ses documents ; sans réglage : logo et nom de l'entité. */
+/** En-tête du club, le même pour tous ses documents ; sans réglage : logo et nom du club. */
 export const enteteDe = (data: AppData, texte: string): Entete => ({ ...defaultEntete(texte), ...(data.entete ?? ancien(data)) });
 
 /** En-tête réglé par un admin (sinon : celui par défaut). */

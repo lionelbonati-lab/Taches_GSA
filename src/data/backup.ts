@@ -1,11 +1,11 @@
-import type { AppData, ClubMembre, UnitType } from './types';
+import type { AppData, ClubMembre } from './types';
 import { clearFiles, getFile, saveFile } from './files';
 import { nomAppli } from './nomAppli';
 
 // Sauvegarde complète des données (un fichier .json) : tâches, séances, PV, sondages, emails, personnes, rôles, réglages…
-// et le contenu des fichiers joints. Celle de tout le club (console admin, super-admins) réunit toutes ses entités et
-// « Personnes du club » ; on en restaure une entité à la fois (ses admins). L'ancien fichier d'une seule entité se
-// restaure toujours. Sert aussi à passer d'un appareil à l'autre et à reprendre les données de la démo dans la version réelle.
+// et le contenu des fichiers joints. Celle de tout le club (console admin) réunit l'espace du club (version réelle, avant
+// la reprise : aussi les anciennes entités) et « Personnes du club » ; on en restaure l'espace (ses admins). L'ancien
+// fichier d'une seule entité se restaure toujours. Sert aussi à passer d'un appareil à l'autre et à reprendre les données de la démo dans la version réelle.
 
 export interface Backup {
   app: 'taches-gsa';
@@ -62,11 +62,11 @@ export async function readBackup(file: File): Promise<Backup> {
   return { ...json, files: json.files ?? {} };
 }
 
-/** Une entité dans la sauvegarde du club. */
+/** Un espace dans la sauvegarde du club (version réelle, avant la reprise : chacune des anciennes entités). */
 export interface EntiteSauvegardee {
   id: string;
   nom: string;
-  type: UnitType;
+  type: string;
   parentId?: string;
   archive?: boolean;
   schema: number;
@@ -74,7 +74,7 @@ export interface EntiteSauvegardee {
   files: Backup['files'];
 }
 
-/** Sauvegarde de tout le club : chacune de ses entités (données et fichiers joints) et « Personnes du club » (sans IBAN). */
+/** Sauvegarde de tout le club : son espace (données et fichiers joints) et « Personnes du club » (sans IBAN). */
 export interface SauvegardeClub {
   app: 'taches-gsa';
   version: 2;
@@ -110,7 +110,7 @@ export function downloadSauvegardeClub(s: SauvegardeClub) {
 export function resumeClub(s: SauvegardeClub) {
   const n = (f: (e: EntiteSauvegardee) => number) => s.entites.reduce((t, e) => t + f(e), 0);
   return [
-    `${s.entites.length} entité(s)`,
+    ...(s.entites.length > 1 ? [`${s.entites.length} espaces`] : []),
     `${n((e) => e.data.tasks.length)} tâches`,
     `${n((e) => e.data.meetings.length)} séances`,
     `${s.personnes.length} personnes du club`,

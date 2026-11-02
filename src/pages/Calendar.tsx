@@ -1,49 +1,41 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, Poll, Task } from '../data/types';
-import { useClubOptional } from '../data/club';
-import { UNIT_TYPES } from '../data/units';
-import { addDays, diffDays, fmtDate, fmtRange, isDone, isLate, newTask, parentOf, today, uid } from '../data/utils';
-import { isOpen } from '../data/polls';
-import { TaskModal, useAutresCreation } from '../components/FicheTache';
-import { Avatar, EntiteTag, StatusBadge, usePlusieursEntites } from '../components/ui';
+import type { ClubEvent, Etiquette, Meeting, Poll, Task } from '../data/types';
+import { addDays, diffDays, fmtDate, fmtRange, isDone, isLate, newTask, parentOf, today } from '../data/utils';
+import { isOpen, sondagesVisibles } from '../data/polls';
+import { TaskModal } from '../components/FicheTache';
+import { Avatar, StatusBadge } from '../components/ui';
 import { MeetingModal, newMeeting, useAgendaActions } from './Agenda';
 import { ChoixPortee, EventModal, newEvent, useEventActions } from '../components/EventModal';
 import { aLaDate, duree, fmtHeure, horaire, libelleRepetition, occurrencesEntre } from '../data/repetition';
 import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
 import { PageIntro } from '../components/Nav';
-import { useMesEntites, useSeancesMoi, useSondagesMoi } from '../data/entites';
-import { NouveauDans } from '../components/ChoixEntite';
 import { motSeance } from '../data/seances';
-import { useComites } from '../data/comites';
 import { Icone, type IconeNom } from '../components/icones';
-import { IconeEntite } from '../components/IconesEntite';
 import { ExportAgenda } from '../components/ExportAgenda';
-import { manifsAgenda } from '../data/agendaIcs';
+import { etiquettesDatees } from '../data/agendaIcs';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
-// Agenda du club : les événements des autres entités et la prochaine édition des manifestations (sous-comités,
-// équipes d'événement) apparaissent dans l'agenda de toutes les entités, à la couleur de l'entité ; chacun choisit
-// les entités à afficher (réglage personnel, propre à chaque entité).
+// Les étiquettes « événement » datées (Bruntrutaine, soirée…) y figurent à leur couleur ; un clic ouvre leurs tâches.
 
-type Kind = 'meeting' | 'event' | 'task' | 'poll' | 'manif';
+type Kind = 'meeting' | 'event' | 'task' | 'poll' | 'etiquette';
 type Item =
-  /** `u` : séance de l'une de mes autres entités (vue « moi »), ouverte dans la sienne. */
-  | { kind: 'meeting'; key: string; date: string; m: Meeting; u?: OrgUnit }
+  | { kind: 'meeting'; key: string; date: string; m: Meeting }
   /** `o` : premier jour de l'occurrence (événement qui se répète : l'une d'elles). */
   | { kind: 'event'; key: string; date: string; e: ClubEvent; o: string }
   | { kind: 'task'; key: string; date: string; t: Task }
   | { kind: 'poll'; key: string; date: string; p: Poll }
-  /** Agenda du club : prochaine édition d'une manifestation, ou événement d'une autre entité (`e`). */
-  | { kind: 'manif'; key: string; date: string; u: OrgUnit; e?: AgendaClubEvent; o?: string };
+  /** Étiquette « événement » datée : chacun de ses jours. */
+  | { kind: 'etiquette'; key: string; date: string; et: Etiquette };
 
-const ICONE: Record<Kind, IconeNom> = { meeting: 'seances', event: 'evenements', task: 'taches', poll: 'sondage', manif: 'agendaClub' };
+const ICONE: Record<Kind, IconeNom> = { meeting: 'seances', event: 'evenements', task: 'taches', poll: 'sondage', etiquette: 'etiquette' };
 const KINDS: { id: Kind; label: string }[] = [
   { id: 'meeting', label: 'Séances' },
   { id: 'event', label: 'Événements' },
+  { id: 'etiquette', label: 'Étiquettes' },
   { id: 'task', label: 'Tâches' },
   { id: 'poll', label: 'Sondages' },
 ];
@@ -63,18 +55,14 @@ function longDate(date: string) {
   return `${d.toLocaleDateString('fr-CH', { weekday: 'long' })} ${d.getDate()} ${d.toLocaleDateString('fr-CH', { month: 'long' })} ${d.getFullYear()}`;
 }
 
-const AUCUN: ClubEvent[] = [];
-
 export function Calendar() {
-  // Vue « moi » : avec les tâches de mes autres entités.
-  const { dataMoi: data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, setToast } = useStore();
-  const club = useClubOptional();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, saveTask, setToast } = useStore();
   const { saveMeeting } = useAgendaActions();
   const { saveEvent, saveOccurrence } = useEventActions();
   const navigate = useNavigate();
   const [month, setMonth] = useState(monthOf(today()));
   const [selected, setSelected] = useState(today());
-  const [kinds, setKinds] = useState<Kind[]>(['meeting', 'event', 'task', 'poll']);
+  const [kinds, setKinds] = useState<Kind[]>(['meeting', 'event', 'etiquette', 'task', 'poll']);
   const [scope, setScope] = useState<'mes' | 'toutes'>(prefs.vueDefaut);
   const [showDone, setShowDone] = useState(false);
   const [menu, setMenu] = useState<string | null>(null);
@@ -96,46 +84,16 @@ export function Calendar() {
     return () => document.removeEventListener('mousedown', close);
   }, [menu]);
 
-  // Vue « moi » : avec les séances de mes autres entités (où je vois les séances).
-  const seances = useSeancesMoi();
-  // Et leurs sondages (date limite).
-  const sondages = useSondagesMoi();
-  const plusieurs = usePlusieursEntites();
-  const comites = useComites();
-  const seeMeetings = can('tab.meetings') || seances.some((x) => !x.ici);
+  const sondages = sondagesVisibles(data.polls ?? [], user?.id, can('polls.manage'));
+  const seeMeetings = can('tab.meetings');
   const seeEvents = can('tab.events');
   const addMeeting = can('meetings.manage');
   const addEvent = can('events.manage');
-  // Nouvelle séance, nouvel événement : aussi dans l'une de mes autres entités (choisie dans la fenêtre).
-  const mes = useMesEntites();
-  const gerSeances = mes.filter((e) => e.store.can('meetings.manage'));
-  const gerEvenements = mes.filter((e) => e.store.can('events.manage'));
   const [nouveau, setNouveau] = useState<{ kind: 'meeting' | 'event'; date: string } | null>(null);
-  // Vue « moi » : aussi dans l'une de mes autres entités (choisie dans la fenêtre).
-  const autresCreation = useAutresCreation();
-  const addTask = creatableSections().length > 0 || autresCreation.length > 0;
+  const addTask = creatableSections().length > 0;
   const viewAll = can('tasks.viewAll');
-  // Agenda du club : événements de toutes les entités, lus sur le serveur (relus si une date d'édition change).
-  const [clubEvents, setClubEvents] = useState<AgendaClubEvent[]>([]);
-  const unitsKey = (club?.units ?? []).map((u) => `${u.id}:${u.date ?? ''}:${u.dateFin ?? ''}:${u.archive ? 1 : 0}`).join();
-  useEffect(() => {
-    if (!club) return;
-    let on = true;
-    club.agendaClub().then((r) => on && setClubEvents(r), () => on && setClubEvents([]));
-    return () => { on = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [club?.current.id, unitsKey]);
-  // Par entité : ses événements (ceux de l'entité ouverte sont déjà dans son agenda) et sa prochaine édition,
-  // sauf si l'un de ses événements tombe déjà à cette date.
-  // Vue du club : aucune entité ouverte, les événements de chacune sont dans l'agenda du club.
-  const evIci = club?.vueClub ? AUCUN : data.events;
-  const manifs = useMemo(
-    () => manifsAgenda(club?.units ?? [], club?.current.id, clubEvents, evIci),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [club?.units, club?.current.id, clubEvents, evIci],
-  );
-  const masquees = prefs.manifsMasquees ?? [];
-  const toggleManif = (id: string) => setPrefs({ manifsMasquees: masquees.includes(id) ? masquees.filter((x) => x !== id) : [...masquees, id] });
+  // Étiquettes « événement » datées : toutes avec le droit « Événements », sinon celles dont je suis membre.
+  const etiquettes = etiquettesDatees(data.etiquettes).filter((e) => seeEvents || (!!user && e.membres?.includes(user.id)));
   const effScope = viewAll ? scope : 'mes';
 
   // Jours affichés : semaines complètes (lundi → dimanche) couvrant le mois.
@@ -160,37 +118,32 @@ export function Calendar() {
     };
     const mine = (t: Task) => t.responsables.includes(user.id);
     const visible = (t: Task) => (effScope === 'mes' ? mine(t) : canSeeTask(t)) && (showDone || !isDone(data, t));
-    if (kinds.includes('meeting'))
-      seances.forEach(({ m, u, ici }) => (ici ? can('tab.meetings') && push({ kind: 'meeting', key: m.id, date: m.date, m }) : push({ kind: 'meeting', key: `x:${u!.id}:${m.id}`, date: m.date, m, u })));
+    if (seeMeetings && kinds.includes('meeting')) data.meetings.forEach((m) => push({ kind: 'meeting', key: m.id, date: m.date, m }));
     // Événement sur plusieurs jours : une case par jour (31 au plus) ; qui se répète : chaque occurrence du mois affiché.
     if (seeEvents && kinds.includes('event'))
-      evIci.forEach((e) => {
+      data.events.forEach((e) => {
         const n = Math.min(duree(e), 30);
         for (const o of occurrencesEntre(e, from, to))
           for (let i = 0; i <= n; i++) push({ kind: 'event', key: `${e.id}@${o}:${i}`, date: addDays(o, i), e, o });
       });
-    manifs.forEach(({ u, events, edition }) => {
-      if (masquees.includes(u.id)) return;
-      const span = (key: string, x: { date: string; dateFin?: string }, e?: AgendaClubEvent) => {
-        const n = Math.min(duree(x), 30);
-        for (let i = 0; i <= n; i++) push({ kind: 'manif', key: `${key}:${i}`, date: addDays(x.date, i), u, e, o: x.date });
-      };
-      if (edition) span(`m-${u.id}`, { date: u.date!, dateFin: u.dateFin });
-      events.forEach((e) => occurrencesEntre(e, from, to).forEach((o) => span(`c-${u.id}-${e.id}@${o}`, aLaDate(e, o), e)));
-    });
+    if (kinds.includes('etiquette'))
+      etiquettes.forEach((et) => {
+        const n = Math.min(duree({ date: et.date!, dateFin: et.dateFin }), 30);
+        for (let i = 0; i <= n; i++) push({ kind: 'etiquette', key: `et-${et.id}:${i}`, date: addDays(et.date!, i), et });
+      });
     if (kinds.includes('poll'))
-      sondages.forEach(({ p, ent }) => p.dateLimite && (isOpen(p) || showDone) && push({ kind: 'poll', key: `${ent.u?.id ?? ''}:${p.id}`, date: p.dateLimite, p }));
+      sondages.forEach((p) => p.dateLimite && (isOpen(p) || showDone) && push({ kind: 'poll', key: p.id, date: p.dateLimite, p }));
     for (const t of data.tasks) {
       if (!visible(t)) continue;
       if (kinds.includes('task') && t.delai) push({ kind: 'task', key: t.id, date: t.delai, t });
     }
     // Par genre ; séances et événements : toute la journée d'abord, puis par heure.
-    const rank: Record<Kind, number> = { meeting: 0, manif: 1, event: 2, poll: 3, task: 4 };
-    const heure = (it: Item) => (it.kind === 'meeting' ? it.m.heure : it.kind === 'event' || it.kind === 'manif' ? it.e?.heure : it.kind === 'poll' ? it.p.heureLimite : '') ?? '';
+    const rank: Record<Kind, number> = { meeting: 0, etiquette: 1, event: 2, poll: 3, task: 4 };
+    const heure = (it: Item) => (it.kind === 'meeting' ? it.m.heure : it.kind === 'event' ? it.e.heure : it.kind === 'poll' ? it.p.heureLimite : '') ?? '';
     map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind] || heure(a).localeCompare(heure(b))));
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, user, days, kinds, effScope, showDone, seances, sondages, seeEvents, canSeeTask, manifs, masquees.join()]);
+  }, [data, user, days, kinds, effScope, showDone, seeMeetings, seeEvents, canSeeTask]);
 
   if (!user) return null;
 
@@ -207,34 +160,26 @@ export function Calendar() {
     else setTask({ t: newTask(user.id, { delai: date }), isNew: true });
   };
   const addChoices = [
-    gerSeances.length > 0 && { kind: 'meeting' as const, label: 'Séance de comité' },
+    addMeeting && { kind: 'meeting' as const, label: 'Séance de comité' },
     addTask && { kind: 'task' as const, label: 'Tâche' },
-    gerEvenements.length > 0 && { kind: 'event' as const, label: 'Événement' },
+    addEvent && { kind: 'event' as const, label: 'Événement' },
   ].filter(Boolean) as { kind: 'meeting' | 'task' | 'event'; label: string }[];
 
   const open = (it: Item) => {
     if (it.kind === 'task') setTask({ t: it.t, isNew: false });
     else if (it.kind === 'meeting') {
-      // Séance de l'un de mes autres comités : sa carte dans les séances (et son ordre du jour, son PV choisis).
-      if (it.u) {
-        comites?.choisir(it.u.id);
-        navigate(`/comite?seance=${encodeURIComponent(it.m.id)}`);
-      } else if (addMeeting) setMeeting(it.m);
-      else {
-        if (club) comites?.choisir(club.current.id);
-        navigate(`/comite?seance=${encodeURIComponent(it.m.id)}`);
-      }
+      if (addMeeting) setMeeting(it.m);
+      else navigate(`/comite?seance=${encodeURIComponent(it.m.id)}`);
     }
     else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : navigate('/evenements'));
-    // Événement de l'une de mes entités : sa carte dans les événements réunis ; d'une autre entité du club : l'organigramme.
-    else if (it.kind === 'manif')
-      navigate(club?.mine.some((u) => u.id === it.u.id) ? `/evenements${it.e ? `?id=${encodeURIComponent(it.e.id)}&entite=${encodeURIComponent(it.u.id)}` : ''}` : '/organigramme');
+    // Étiquette « événement » : ses tâches.
+    else if (it.kind === 'etiquette') navigate(`/taches?etiquette=${encodeURIComponent(it.et.id)}`);
     else navigate(`/sondages?id=${encodeURIComponent(it.p.id)}`);
   };
 
   // ---------- Glisser-déposer : changer la date ----------
   const canMove = (it: Item) =>
-    it.kind === 'meeting' ? addMeeting && !it.u : it.kind === 'event' ? addEvent : it.kind === 'task' ? canEditTask(it.t) : false;
+    it.kind === 'meeting' ? addMeeting : it.kind === 'event' ? addEvent : it.kind === 'task' ? canEditTask(it.t) : false;
   const move = (it: Item, date: string) => {
     if (it.date === date) return;
     const when = fmtDate(date);
@@ -269,16 +214,16 @@ export function Calendar() {
       }
       case 'task': return it.t.titre;
       case 'poll': return `Fin : ${it.p.question}`;
-      case 'manif': {
-        const n = duree(it.e ?? { date: it.u.date!, dateFin: it.u.dateFin }) + 1;
-        const i = diffDays(it.o ?? it.u.date!, it.date) + 1;
-        return `${it.e ? `${i === 1 && it.e.heure ? `${fmtHeure(it.e.heure)} ` : ''}${it.e.nom}` : it.u.nom}${n > 1 ? ` (${i}/${n})` : ''}`;
+      case 'etiquette': {
+        const n = duree({ date: it.et.date!, dateFin: it.et.dateFin }) + 1;
+        const i = diffDays(it.et.date!, it.date) + 1;
+        return `${it.et.nom}${n > 1 ? ` (${i}/${n})` : ''}`;
       }
     }
   };
   const chipTitle = (it: Item) => {
     switch (it.kind) {
-      case 'meeting': return `Séance${it.u ? ` de « ${it.u.nom} »` : ''} : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
+      case 'meeting': return `Séance : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
       case 'event': {
         const x = aLaDate(it.e, it.o);
         return `Événement : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
@@ -288,23 +233,19 @@ export function Calendar() {
         return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · rattachée à « ${p.titre} »` : ''}`;
       }
       case 'poll': return `Sondage : ${it.p.question} (date limite${it.p.heureLimite ? ` ${it.p.heureLimite.replace(':', 'h')}` : ''})`;
-      case 'manif': {
-        if (!it.e) return `Prochaine édition : ${it.u.nom} · ${fmtRange(it.u.date, it.u.dateFin)}`;
-        const x = aLaDate(it.e, it.o ?? it.e.date);
-        return `${it.u.nom} : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
-      }
+      case 'etiquette': return `Étiquette « ${it.et.nom} » : ${fmtRange(it.et.date, it.et.dateFin)} · un clic ouvre ses tâches`;
     }
   };
   const chipClass = (it: Item) => {
     const late = it.kind === 'task' && isLate(data, it.t);
     const done = it.kind === 'task' && isDone(data, it.t);
-    return `cal-chip k-${it.kind}${it.kind === 'meeting' && it.u ? ' autre' : ''}${late ? ' late' : ''}${done ? ' done' : ''}`;
+    return `cal-chip k-${it.kind}${late ? ' late' : ''}${done ? ' done' : ''}`;
   };
   const chipStyle = (it: Item) =>
     it.kind === 'task'
       ? { borderLeftColor: data.statuses.find((s) => s.id === it.t.statusId)?.couleur }
-      : it.kind === 'manif' || (it.kind === 'meeting' && it.u)
-        ? ({ '--c': it.u!.couleur } as React.CSSProperties)
+      : it.kind === 'etiquette'
+        ? ({ '--c': it.et.couleur } as React.CSSProperties)
         : undefined;
 
   const dayItems = byDay.get(selected) ?? [];
@@ -339,32 +280,9 @@ export function Calendar() {
           {month !== monthOf(today()) && <button className="btn small" onClick={() => goMonth(monthOf(today()))}>Aujourd’hui</button>}
         </div>
         <div className="cal-filters">
-          {KINDS.filter((k) => (k.id !== 'meeting' || seeMeetings) && (k.id !== 'event' || seeEvents)).map((k) => (
+          {KINDS.filter((k) => (k.id !== 'meeting' || seeMeetings) && (k.id !== 'event' || seeEvents) && (k.id !== 'etiquette' || etiquettes.length > 0)).map((k) => (
             <button key={k.id} className={`chip small ${kinds.includes(k.id) ? 'on' : ''}`} onClick={() => toggleKind(k.id)}><Icone n={ICONE[k.id]} /> {k.label}</button>
           ))}
-          {manifs.length > 0 && (
-            <details className="cal-manifs">
-              <summary className={`chip small ${manifs.some((x) => !masquees.includes(x.u.id)) ? 'on' : ''}`}>
-                <Icone n="agendaClub" /> Agenda du club {manifs.filter((x) => !masquees.includes(x.u.id)).length}/{manifs.length} ▾
-              </summary>
-              <div className="cal-manifs-panel">
-                <small className="muted">Entités dont les dates (prochaine édition, événements) sont affichées dans cet agenda :</small>
-                {manifs.map(({ u, events, edition, own }) => (
-                  <label key={u.id} className="inline small-check">
-                    <input type="checkbox" checked={!masquees.includes(u.id)} onChange={() => toggleManif(u.id)} />
-                    <span className="dot" style={{ background: u.couleur }} /> {u.nom}{own ? ' (cette entité)' : ''}{' '}
-                    <small className="muted">
-                      {[edition && `édition ${fmtRange(u.date, u.dateFin)}`, events.length > 0 && `${events.length} événement${events.length > 1 ? 's' : ''}`].filter(Boolean).join(' · ')}
-                    </small>
-                  </label>
-                ))}
-                <div className="row">
-                  <button className="btn small" onClick={() => setPrefs({ manifsMasquees: [] })}>Toutes</button>
-                  <button className="btn small" onClick={() => setPrefs({ manifsMasquees: manifs.map((x) => x.u.id) })}>Aucune</button>
-                </div>
-              </div>
-            </details>
-          )}
           <label className="inline small-check"><input type="checkbox" checked={showDone} onChange={() => setShowDone(!showDone)} /> Terminées</label>
         </div>
       </div>
@@ -416,7 +334,7 @@ export function Calendar() {
                       draggable={canMove(it)}
                       onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDrag(it); }}
                       onDragEnd={() => { setDrag(null); setOver(null); }}
-                      onClick={(e) => { e.stopPropagation(); setSelected(d); if (it.kind !== 'manif') open(it); }}
+                      onClick={(e) => { e.stopPropagation(); setSelected(d); open(it); }}
                     >
                       {chipText(it)}
                     </button>
@@ -441,12 +359,10 @@ export function Calendar() {
             <ul className="cal-list">
               {dayItems.map((it) => (
                 <li key={it.key}>
-                  <button className={`cal-row k-${it.kind}`} style={it.kind === 'manif' || (it.kind === 'meeting' && it.u) ? chipStyle(it) : undefined} onClick={() => open(it)}>
+                  <button className={`cal-row k-${it.kind}`} style={it.kind === 'etiquette' ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
-                        {it.kind === 'manif' && (!it.e || it.u.icone) ? <IconeEntite u={it.u} /> : <Icone n={it.kind === 'manif' ? 'evenements' : ICONE[it.kind]} />} {chipText(it)}
-                        {it.kind === 'meeting' && (it.u || plusieurs) && <> <span className="tsource">{(it.u ?? club?.current)?.nom}</span></>}
-                        {it.kind === 'task' && <> <EntiteTag task={it.t} /></>}
+                        <Icone n={ICONE[it.kind]} /> {chipText(it)}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}
@@ -454,13 +370,7 @@ export function Calendar() {
                         {it.kind === 'event' && it.e.repetition && <>{(horaire(it.e) || it.e.lieu) && ' · '}<Icone n="repetition" /> {libelleRepetition(it.e)}</>}
                         {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
                         {it.kind === 'poll' && `date limite pour répondre${it.p.heureLimite ? ` à ${it.p.heureLimite.replace(':', 'h')}` : ''}${it.p.clotureAuto === false ? ' (indicative)' : ', clôture automatique'}`}
-                        {it.kind === 'manif' &&
-                          (it.e
-                            ? <>
-                                {[it.u.nom, fmtRange(it.o ?? it.e.date, aLaDate(it.e, it.o ?? it.e.date).dateFin), horaire(it.e), it.e.lieu].filter(Boolean).join(' · ')}
-                                {it.e.repetition && <> · <Icone n="repetition" /> {libelleRepetition(it.e)}</>}
-                              </>
-                            : `${UNIT_TYPES[it.u.type].label}${it.u.id === club?.current.id ? ' (cette entité)' : ''} · prochaine édition ${fmtRange(it.u.date, it.u.dateFin)}`)}
+                        {it.kind === 'etiquette' && `Événement (étiquette) · ${fmtRange(it.et.date, it.et.dateFin)} · ${data.tasks.filter((t) => t.etiquettes?.includes(it.et.id)).length} tâche(s)`}
                       </small>
                     </span>
                     {it.kind === 'task' && <StatusBadge task={it.t} />}
@@ -474,22 +384,13 @@ export function Calendar() {
         </aside>
       </div>
 
-      {task && <TaskModal task={task.t} isNew={task.isNew} choixEntite onClose={() => setTask(null)} />}
+      {task && <TaskModal task={task.t} isNew={task.isNew} onClose={() => setTask(null)} />}
       {meeting && <MeetingModal meeting={meeting} onClose={() => setMeeting(null)} />}
       {event && <EventModal event={event.e} jour={event.jour} onClose={() => setEvent(null)} />}
-      {nouveau?.kind === 'meeting' && (
-        <NouveauDans entites={gerSeances} cree={(e, v?: Meeting) => { const m = newMeeting(e.store.data.meetings, v?.date || nouveau.date, motSeance(e.u?.type)); return v ? { ...m, heure: v.heure, lieu: v.lieu, lieuGeo: v.lieuGeo } : m; }}>
-          {(m, choix) => <MeetingModal meeting={m} entite={choix} onClose={() => setNouveau(null)} />}
-        </NouveauDans>
-      )}
-      {nouveau?.kind === 'event' && (
-        <NouveauDans entites={gerEvenements} cree={(_e, v?: ClubEvent) => (v ? { ...v, id: uid('e') } : newEvent(nouveau.date))}>
-          {(e, choix) => <EventModal event={e} entite={choix} onClose={() => setNouveau(null)} />}
-        </NouveauDans>
-      )}
+      {nouveau?.kind === 'meeting' && <MeetingModal meeting={newMeeting(data.meetings, nouveau.date, motSeance())} onClose={() => setNouveau(null)} />}
+      {nouveau?.kind === 'event' && <EventModal event={newEvent(nouveau.date)} onClose={() => setNouveau(null)} />}
       {exporter && (
         <ExportAgenda
-          manifs={manifs.filter((x) => !masquees.includes(x.u.id))}
           defauts={{ seances: kinds.includes('meeting'), evenements: kinds.includes('event'), taches: kinds.includes('task') ? effScope : 'non', sondages: kinds.includes('poll') }}
           onClose={() => setExporter(false)}
         />

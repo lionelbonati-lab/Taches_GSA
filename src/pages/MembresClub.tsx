@@ -1,39 +1,36 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { useClub } from '../data/club';
 import { useStore } from '../data/store';
 import { downloadCsv, norm } from '../data/csv';
 import { COLS_REGISTRE, analyserRegistre, derniers } from '../data/imports';
-import { compactIban, emailKey, formatIban, groupesClub, nomMembre, nouveauMembre, postesDe } from '../data/membres';
-import { ADMIN_ROLE_ID } from '../data/permissions';
-import { defaultRoleId } from '../data/units';
+import { compactIban, emailKey, ficheDe, formatIban, nomMembre, nouveauMembre } from '../data/membres';
+import { ADMIN_ROLE_ID, defaultRoleId, userRoles } from '../data/permissions';
 import { uid } from '../data/utils';
-import type { ClubMembre, ColonnesMembres, FichesEntite, OrgMember, OrgUnit, Person } from '../data/types';
+import type { ClubMembre, ColonnesMembres, Person } from '../data/types';
 import { Initials, Modal } from '../components/ui';
 import { ImportCsv } from '../components/ImportCsv';
 import { CompteDuClub } from '../components/Acces';
-import { RoleDeLaPlace } from '../components/Personnes';
 import { Icone } from '../components/icones';
-import { Deroulante } from '../components/Deroulante';
-import { IconeEntite, PastilleEntite } from '../components/IconesEntite';
 
-// Personnes du club : la liste unique du club (une fiche par personne, avec ou sans accès à l'appli ; PERSONNES_DU_CLUB.md).
-// Tout le monde la voit (noms et entités) ; les coordonnées, avec le droit « voir les coordonnées » dans l'une de ses
-// entités ; ajouter, modifier, retirer du club : droit « Gérer les personnes » dans l'une de ses entités. IBAN : les
-// caissiers seulement. Chacun choisit ses colonnes (ordre, affichage, tri) et peut masquer ses données personnelles
-// (Réglages). Les admins d'une entité y règlent aussi les rôles et l'accès de chacun chez eux.
+// Personnes du club : la liste unique du club (une fiche par personne, avec ou sans accès à l'appli). Tout le monde la voit
+// (noms, postes, rôles, étiquettes) ; les coordonnées, avec le droit « voir les coordonnées » ; ajouter, modifier, retirer du
+// club : droit « Gérer les personnes ». IBAN : les caissiers seulement. Chacun choisit ses colonnes (ordre, affichage,
+// tri) et peut masquer ses données personnelles (Réglages). Sur la fiche : les rôles dans l'appli (admins), le poste,
+// les étiquettes (droit « Gérer sections, statuts et étiquettes ») et l'accès à l'appli.
 
-type Col = 'nom' | 'prenom' | 'telephone' | 'email' | 'postes' | 'groupes' | 'iban';
+type Col = 'nom' | 'prenom' | 'telephone' | 'email' | 'poste' | 'roles' | 'etiquettes' | 'iban';
 const COLONNES: { key: Col; label: string }[] = [
   { key: 'nom', label: 'Nom' },
   { key: 'prenom', label: 'Prénom' },
   { key: 'telephone', label: 'Téléphone' },
   { key: 'email', label: 'E-mail' },
-  { key: 'postes', label: 'Postes' },
-  { key: 'groupes', label: 'Groupes' },
+  { key: 'poste', label: 'Poste' },
+  { key: 'roles', label: 'Rôles' },
+  { key: 'etiquettes', label: 'Étiquettes' },
   { key: 'iban', label: 'IBAN' },
 ];
 const libelle = (k: Col) => COLONNES.find((c) => c.key === k)!.label;
-const PAR_DEFAUT: ColonnesMembres = { ordre: COLONNES.map((c) => c.key), masquees: ['groupes'], tri: { col: 'nom' } };
+const PAR_DEFAUT: ColonnesMembres = { ordre: COLONNES.map((c) => c.key), masquees: ['roles'], tri: { col: 'nom' } };
 
 /** Colonnes de la personne : ses choix, complétés (IBAN : caissiers seulement ; email et téléphone : droit aux coordonnées). */
 function colonnesDe(c: ColonnesMembres | undefined, caisse: boolean, coords: boolean) {
@@ -45,7 +42,7 @@ function colonnesDe(c: ColonnesMembres | undefined, caisse: boolean, coords: boo
   return { ordre, visibles: visibles.length ? visibles : (['nom'] as Col[]), tri };
 }
 
-// Les colonnes suivent la personne d'une entité à l'autre dans ce navigateur (les réglages, eux, sont par entité).
+// Les colonnes suivent la personne dans ce navigateur, même avant que ses réglages soient enregistrés.
 const CLE_LOCALE = 'gsa-membres-colonnes';
 function lireLocal(qui: string): ColonnesMembres | undefined {
   try {
@@ -71,7 +68,7 @@ const Masque = () => <span className="muted" title="Données masquées par la pe
 
 export function MembresClub() {
   const club = useClub();
-  const { user, prefs, setPrefs } = useStore();
+  const { user, prefs, setPrefs, data } = useStore();
   const [list, setList] = useState<ClubMembre[] | null>(null);
   const [err, setErr] = useState('');
   const [q, setQ] = useState('');
@@ -90,7 +87,7 @@ export function MembresClub() {
           setErr('');
         })
         .catch((e: Error) => setErr(e.message)),
-    // Le registre se relit après chaque enregistrement (pas à chaque rafraîchissement de l'organigramme).
+    // Le registre se relit après chaque enregistrement.
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
@@ -105,32 +102,38 @@ export function MembresClub() {
   };
   const trier = (k: Col) => sauverColonnes({ ordre: cols.ordre, masquees: (choix ?? PAR_DEFAUT).masquees, tri: { col: k, desc: cols.tri.col === k ? !cols.tri.desc : false } });
 
-  const units = club.units;
-  const groupes = groupesClub(units);
-  const postes = useMemo(() => {
-    const actives = units.filter((u) => !u.archive);
-    return new Map((list ?? []).map((m) => [m.id, postesDe(m, actives)]));
-  }, [list, units]);
-  const postesTexte = (m: ClubMembre) => (postes.get(m.id) ?? []).map((p) => `${p.unit.nom}${p.member.poste ? ` (${p.member.poste})` : ''}`).join(', ');
-  const groupesDe = (m: ClubMembre) => m.groupes.map((g) => units.find((u) => u.id === g)).filter((u): u is OrgUnit => !!u);
+  // Sa fiche dans l'appli (active) : son poste, ses rôles, ses étiquettes.
+  const etiquettes = data.etiquettes ?? [];
+  const fiche = (m: ClubMembre) => {
+    const f = ficheDe(m, data.people);
+    return f?.actif ? f : undefined;
+  };
+  const etiquettesDe = (m: ClubMembre) => {
+    const f = fiche(m);
+    return f ? etiquettes.filter((e) => e.membres?.includes(f.id)) : [];
+  };
+  const rolesDe = (m: ClubMembre) => userRoles(data.roles, fiche(m));
   const enregistrer = async (maj: ClubMembre[]) => {
     await club.saveMembres(maj);
     await load();
   };
 
   const valeur = (m: ClubMembre, k: Col): string =>
-    k === 'postes' ? postesTexte(m) : k === 'groupes' ? groupesDe(m).map((u) => u.nom).join(', ') : k === 'iban' ? compactIban(m.iban ?? '') : m[k];
+    k === 'poste' ? fiche(m)?.poste ?? ''
+    : k === 'roles' ? rolesDe(m).map((r) => r.label).join(', ')
+    : k === 'etiquettes' ? etiquettesDe(m).map((e) => e.nom).join(', ')
+    : k === 'iban' ? compactIban(m.iban ?? '')
+    : m[k];
   const needle = norm(q);
   const vus = (list ?? [])
     .filter((m) => {
-      const n = postes.get(m.id)?.length ?? 0;
-      if (filtre === 'poste') return n > 0;
-      if (filtre === 'sans') return n === 0;
-      if (filtre === 'aucun-groupe') return !m.groupes.length;
-      if (filtre) return m.groupes.includes(filtre);
+      if (filtre === 'appli') return !!fiche(m);
+      if (filtre === 'sans') return !fiche(m);
+      if (filtre.startsWith('e:')) return etiquettesDe(m).some((e) => e.id === filtre.slice(2));
+      if (filtre.startsWith('r:')) return rolesDe(m).some((r) => r.id === filtre.slice(2));
       return true;
     })
-    .filter((m) => !needle || norm(`${m.prenom} ${m.nom} ${m.email} ${m.telephone}`).includes(needle))
+    .filter((m) => !needle || norm(`${m.prenom} ${m.nom} ${m.email} ${m.telephone} ${fiche(m)?.poste ?? ''}`).includes(needle))
     .sort((a, b) => {
       const x = valeur(a, cols.tri.col as Col);
       const y = valeur(b, cols.tri.col as Col);
@@ -142,14 +145,15 @@ export function MembresClub() {
 
   const exporter = () =>
     downloadCsv('personnes-du-club.csv', [
-      ['Prénom', 'Nom', ...(coords ? ['Email', 'Téléphone'] : []), ...(caisse ? ['IBAN'] : []), 'Groupes', 'Postes'],
+      ['Prénom', 'Nom', ...(coords ? ['Email', 'Téléphone'] : []), ...(caisse ? ['IBAN'] : []), 'Poste', 'Rôles', 'Étiquettes'],
       ...vus.map((m) => [
         m.prenom,
         m.nom,
         ...(coords ? [m.email, m.telephone] : []),
         ...(caisse ? [formatIban(m.iban ?? '')] : []),
-        groupesDe(m).map((u) => u.nom).join(', '),
-        postesTexte(m),
+        valeur(m, 'poste'),
+        valeur(m, 'roles'),
+        valeur(m, 'etiquettes'),
       ]),
     ]);
 
@@ -160,14 +164,9 @@ export function MembresClub() {
     if (m.masque && (k === 'email' || k === 'telephone' || k === 'iban')) return <Masque />;
     if (k === 'email' || k === 'telephone') return m[k];
     if (k === 'iban') return <span className="mono">{ibanCourt(m.iban)}</span>;
-    if (k === 'groupes') return groupesDe(m).map((u) => <span key={u.id} className="badge" style={{ background: u.couleur }}>{u.nom}</span>);
-    return (
-      <small className="postes-entites">
-        {(postes.get(m.id) ?? []).map((p, i) => (
-          <span key={i}><IconeEntite u={p.unit} /> {p.unit.nom}{p.member.poste ? ` · ${p.member.poste}` : ''}</span>
-        ))}
-      </small>
-    );
+    if (k === 'etiquettes') return etiquettesDe(m).map((e) => <span key={e.id} className="badge etiquette" style={{ background: e.couleur }}>{e.nom}</span>);
+    if (k === 'roles') return rolesDe(m).map((r) => <span key={r.id} className="badge" style={{ background: r.couleur }}>{r.label}</span>);
+    return fiche(m)?.poste ?? '';
   };
 
   return (
@@ -184,10 +183,10 @@ export function MembresClub() {
         )}
       </div>
       <p className="muted">
-        Les personnes font partie du club : une fiche par personne, avec ou sans accès à l’appli (licenciés, parents, bénévoles…).
-        L’organigramme les place dans les entités ; prénom, nom, email et téléphone sont les mêmes partout : modifiés ici, ils changent
-        partout. Clic sur une personne : sa fiche et ses places dans les entités{gerer ? '' : ' (en lecture)'}.
-        {!coords && ' Les coordonnées sont visibles avec le droit « voir les coordonnées » dans l’une de tes entités.'}
+        Les personnes du club : une fiche par personne, avec ou sans accès à l’appli (licenciés, parents, bénévoles…). Prénom, nom, email
+        et téléphone sont les mêmes partout : modifiés ici, ils changent partout. Clic sur une personne : sa fiche, avec ses rôles et ses
+        étiquettes dans l’appli{gerer ? '' : ' (en lecture)'}.
+        {!coords && ' Les coordonnées sont visibles avec le droit « voir les coordonnées ».'}
         {caisse ? ' L’IBAN n’est visible que des caissiers ; chacun enregistre le sien dans ses Réglages.' : ''} Chacun peut masquer ses
         données personnelles dans cette liste (Réglages).
       </p>
@@ -196,15 +195,21 @@ export function MembresClub() {
       {list && (
         <>
           <div className="filters open">
-            <input className="search" type="search" placeholder="Rechercher un nom, un email, un téléphone…" value={q} onChange={(e) => setQ(e.target.value)} />
+            <input className="search" type="search" placeholder="Rechercher un nom, un email, un téléphone, un poste…" value={q} onChange={(e) => setQ(e.target.value)} />
             <select value={filtre} onChange={(e) => setFiltre(e.target.value)} aria-label="Filtrer">
               <option value="">Toutes les personnes ({list.length})</option>
-              <option value="poste">Avec un poste dans une entité</option>
-              <option value="sans">Sans poste</option>
-              {groupes.map((g) => (
-                <option key={g.id} value={g.id}>Groupe : {g.nom} ({list.filter((m) => m.groupes.includes(g.id)).length})</option>
-              ))}
-              {groupes.length > 0 && <option value="aucun-groupe">Sans groupe</option>}
+              <option value="appli">Avec une fiche dans l’appli</option>
+              <option value="sans">Sans fiche dans l’appli</option>
+              {data.roles.length > 0 && (
+                <optgroup label="Rôle">
+                  {data.roles.map((r) => <option key={r.id} value={`r:${r.id}`}>{r.label}</option>)}
+                </optgroup>
+              )}
+              {etiquettes.length > 0 && (
+                <optgroup label="Étiquette">
+                  {etiquettes.map((e) => <option key={e.id} value={`e:${e.id}`}>{e.nom}</option>)}
+                </optgroup>
+              )}
             </select>
           </div>
           <div className="table-scroll">
@@ -243,7 +248,6 @@ export function MembresClub() {
         <MembreModal
           membre={edit}
           list={list}
-          postes={postes.get(edit.id) ?? []}
           lecture={!gerer}
           onSave={(m) => enregistrer([m])}
           onDelete={async (id) => {
@@ -259,7 +263,7 @@ export function MembresClub() {
             colonnes={COLS_REGISTRE}
             modele="modele-membres-du-club.csv"
             aide={<p className="muted">Une ligne par personne. Une personne déjà inscrite (même email, sinon même prénom et nom) est mise à jour : les cellules remplies remplacent ses valeurs, les cellules vides ne changent rien. Pas d’IBAN : chacun enregistre le sien dans ses Réglages.</p>}
-            analyser={(lignes) => analyserRegistre(lignes, list, units)}
+            analyser={(lignes) => analyserRegistre(lignes, list)}
             appliquer={async (vals) => {
               const maj = derniers(vals);
               await enregistrer(maj);
@@ -269,44 +273,6 @@ export function MembresClub() {
         </Modal>
       )}
     </div>
-  );
-}
-
-/**
- * Fiche du club d'une personne de l'organigramme (PERSONNES_DU_CLUB.md) : ses coordonnées et ses places dans les entités,
- * avec son rôle dans chacune. `sinon` : quand la liste du club n'est pas lisible (version réelle, sans le droit, jusqu'aux
- * migrations) ou que la personne n'y est pas encore.
- */
-export function FicheClub({ m, onClose, sinon }: { m: Pick<OrgMember, 'membreId' | 'email'>; onClose: () => void; sinon: ReactNode }) {
-  const club = useClub();
-  const [list, setList] = useState<ClubMembre[] | null | undefined>(undefined);
-  const voir = club.personnes.voir;
-  useEffect(() => {
-    if (!voir) return setList(null);
-    let vivant = true;
-    club
-      .membres()
-      .then((l) => vivant && setList(l))
-      .catch(() => vivant && setList(null));
-    return () => {
-      vivant = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [voir]);
-  if (list === undefined) return null;
-  const e = emailKey(m.email);
-  const membre = list?.find((x) => (!!m.membreId && x.id === m.membreId) || (!!e && emailKey(x.email) === e));
-  if (!list || !membre) return <>{sinon}</>;
-  return (
-    <MembreModal
-      membre={membre}
-      list={list}
-      postes={postesDe(membre, club.units.filter((u) => !u.archive))}
-      lecture={!club.personnes.gerer}
-      onSave={(x) => club.saveMembres([x])}
-      onDelete={(id) => club.deleteMembre(id)}
-      onClose={onClose}
-    />
   );
 }
 
@@ -362,10 +328,9 @@ function ColonnesModal({ ordre, visibles, onSave, onReset, onClose }: { ordre: C
   );
 }
 
-function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose }: {
+function MembreModal({ membre, list, lecture, onSave, onDelete, onClose }: {
   membre: ClubMembre;
   list: ClubMembre[];
-  postes: ReturnType<typeof postesDe>;
   /** Sans le droit « Gérer les personnes » : la fiche en lecture. */
   lecture: boolean;
   onSave: (m: ClubMembre) => Promise<void>;
@@ -373,12 +338,12 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
   onClose: () => void;
 }) {
   const club = useClub();
-  const { cloud } = useStore();
+  const { cloud, data } = useStore();
   const [v, setV] = useState<ClubMembre>(membre);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
   const nouveau = !list.some((m) => m.id === membre.id);
-  const groupes = groupesClub(club.units);
+  const fiche = ficheDe(membre, data.people);
   const set = (patch: Partial<ClubMembre>) => setV((x) => ({ ...x, ...patch }));
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -398,12 +363,12 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
       const autre = v.email.trim() && list.find((m) => m.id !== v.id && emailKey(m.email) === emailKey(v.email));
       if (autre) return setErr(`Cette adresse est déjà celle de ${nomMembre(autre)}.`);
     }
-    void run(() => onSave({ ...nouveauMembre(v), iban: membre.iban }));
+    void run(() => onSave({ ...nouveauMembre(v), ...(v.groupes?.length ? { groupes: v.groupes } : {}), iban: membre.iban }));
   };
   return (
     <Modal title={nouveau ? 'Nouvelle personne du club' : nomMembre(membre)} onClose={onClose}>
       {membre.masque && (
-        <p className="lien-note">🔒 {nomMembre(membre)} a masqué ses données personnelles : son email et son téléphone ne s’affichent pas ici et ne s’y modifient pas (seulement depuis sa fiche dans une entité).</p>
+        <p className="lien-note">🔒 {nomMembre(membre)} a masqué ses données personnelles : son email et son téléphone ne s’affichent pas ici et ne s’y modifient pas.</p>
       )}
       <fieldset className="form" disabled={lecture}>
         <label>Prénom<input value={v.prenom} onChange={(e) => set({ prenom: e.target.value })} /></label>
@@ -422,31 +387,10 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
             <small className="muted">Seule la personne elle-même enregistre ou modifie son IBAN (Réglages).</small>
           </p>
         )}
-        {!nouveau && !postes.length && !cloud && (
-          <label className="full inline">
-            <input type="checkbox" checked={!!v.acces} onChange={(e) => set({ acces: e.target.checked || undefined })} />
-            Accès à l’appli : sans place dans l’organigramme, elle y voit les tâches qui lui sont confiées
-          </label>
-        )}
-        {groupes.length > 0 && (
-          <div className="full">
-            <span className="field-label">Groupes</span>
-            <div className="chips">
-              {groupes.map((g) => {
-                const on = v.groupes.includes(g.id);
-                return (
-                  <button key={g.id} type="button" className={`chip role-chip ${on ? 'on' : ''}`} style={on ? { background: g.couleur, borderColor: g.couleur } : {}} onClick={() => set({ groupes: on ? v.groupes.filter((x) => x !== g.id) : [...v.groupes, g.id] })}>
-                    {g.nom}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </fieldset>
-      {!nouveau && cloud && !lecture && club.central && <CompteDuClub clubId={club.central.id} membre={membre} />}
-      {!nouveau && <AccesMembre membre={membre} postes={postes} />}
-      {nouveau && <p className="muted small-note">Une fois la fiche enregistrée, place la personne dans l’organigramme, ou ouvre sa fiche pour l’ajouter à une entité (rôle, accès à l’appli).</p>}
+      {!nouveau && cloud && !lecture && <CompteDuClub clubId={club.espace.id} membre={membre} />}
+      {!nouveau && <FicheAppli membre={membre} fiche={fiche} />}
+      {nouveau && <p className="muted small-note">Une fois la fiche enregistrée, ouvre-la pour donner à la personne une fiche dans l’appli (rôle, étiquettes).</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         {!nouveau && !lecture && (
@@ -455,9 +399,7 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
             disabled={busy || !!membre.moi}
             title={membre.moi ? 'Pas toi-même' : ''}
             onClick={() =>
-              confirm(
-                `Retirer ${nomMembre(membre)} du club ?${postes.length ? ` Ses places dans les entités (${postes.map((p) => p.unit.nom).join(', ')}) et son accès à l’appli sont retirés.` : ''} Ses tâches gardent son nom.`,
-              ) && void run(() => onDelete(membre.id))
+              confirm(`Retirer ${nomMembre(membre)} du club ?${fiche?.actif ? ' Sa fiche dans l’appli est désactivée et son accès retiré.' : ''} Ses tâches gardent son nom.`) && void run(() => onDelete(membre.id))
             }
           >
             Retirer du club
@@ -471,183 +413,110 @@ function MembreModal({ membre, list, postes, lecture, onSave, onDelete, onClose 
   );
 }
 
-/** Fiche de ce membre dans une entité : liée au registre, sinon même email. */
-const ficheDe = (f: FichesEntite, m: ClubMembre) => {
-  const e = emailKey(m.email);
-  const liees = f.people.filter((p) => p.membreId === m.id || (!p.membreId && e && emailKey(p.email) === e));
-  return liees.find((p) => p.actif) ?? liees[0];
-};
-
 /**
- * Places du membre dans les entités du club : rôles, retrait, ajout ou réactivation (son compte, s'il en a un, suit ses
- * places). Modifiables dans les entités dont la personne connectée est admin ; les autres en lecture.
+ * Sa fiche dans l'appli : son poste, ses rôles (admins), ses étiquettes (droit « Gérer sections, statuts et étiquettes »),
+ * ou de quoi lui en donner une (droit « Gérer les personnes », rôle « Membre » d'office) ; la retirer (désactivée : ses
+ * tâches gardent son nom) ou la réactiver.
  */
-function AccesMembre({ membre, postes }: { membre: ClubMembre; postes: ReturnType<typeof postesDe> }) {
+function FicheAppli({ membre, fiche }: { membre: ClubMembre; fiche?: Person }) {
   const club = useClub();
-  const { cloud } = useStore();
-  const [fiches, setFiches] = useState<Record<string, FichesEntite | string>>({});
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState('');
+  const { data, can, update, user } = useStore();
   const [msg, setMsg] = useState('');
-  const [ajout, setAjout] = useState('');
-  const [role, setRole] = useState('');
-  const miennes = club.units.filter((u) => u.moiAdmin && !u.archive);
-  const ici = new Set(postes.map((p) => p.unit.id));
-  const possibles = miennes.filter((u) => !ici.has(u.id));
-
-  const chargerFiches = useCallback(
-    async (id: string) => {
-      try {
-        const f = await club.fichesEntite(id);
-        setFiches((x) => ({ ...x, [id]: f }));
-        return f;
-      } catch (e) {
-        setFiches((x) => ({ ...x, [id]: (e as Error).message }));
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [],
-  );
-  const admins = postes.filter((p) => p.unit.moiAdmin).map((p) => p.unit.id).join(',');
-  useEffect(() => {
-    for (const id of admins ? admins.split(',') : []) void chargerFiches(id);
-  }, [admins, chargerFiches]);
-  // Entité choisie pour l'ajout : ses rôles (rôle de base proposé).
-  useEffect(() => {
-    if (!ajout) return;
-    const f = fiches[ajout];
-    if (f && typeof f !== 'string') setRole(defaultRoleId(f.roles));
-    else if (!f) void chargerFiches(ajout);
-  }, [ajout, fiches, chargerFiches]);
-
-  const run = async (fn: () => Promise<void>, ok: string) => {
-    setBusy(true);
-    setErr('');
-    setMsg('');
-    try {
-      await fn();
-      setMsg(ok);
-    } catch (e) {
-      setErr((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+  const admin = can('admin.access');
+  const gererEtiquettes = can('settings.lists');
+  const gerer = club.personnes.gerer || can('people.manage');
+  const etiquettes = data.etiquettes ?? [];
+  const admins = data.people.filter((p) => p.actif && p.roles.includes(ADMIN_ROLE_ID));
+  const nom = nomMembre(membre);
+  const changer = (f: (p: Person) => Person, action: string, ok: string) => {
+    if (!fiche) return;
+    update((d) => {
+      d.people = d.people.map((p) => (p.id === fiche.id ? f(p) : p));
+    }, action);
+    setMsg(ok);
   };
-  const enregistrer = async (u: OrgUnit, p: Person) => {
-    await club.enregistrerFiche(u.id, p);
-    await chargerFiches(u.id);
+  const donner = () => {
+    if (fiche) return changer((p) => ({ ...p, actif: true }), `${nom} réactivé(e) dans l’appli`, `✅ ${nom} a de nouveau une fiche active.`);
+    const p: Person = { id: uid('p'), prenom: membre.prenom, nom: membre.nom, email: membre.email, telephone: membre.telephone, couleur: membre.couleur, poste: '', roles: [defaultRoleId(data.roles)], actif: true, membreId: membre.id };
+    update((d) => {
+      d.people.push(p);
+      // Son nom noté sur des tâches (« Quelqu'un d'autre ») : elle en devient responsable, avec sa fiche.
+      d.tasks.forEach((t) => {
+        if (!t.respHors?.some((y) => y.membreId === membre.id)) return;
+        const reste = t.respHors.filter((y) => y.membreId !== membre.id);
+        t.responsables = [...new Set([...t.responsables, p.id])];
+        t.respHors = reste.length ? reste : undefined;
+      });
+    }, `${nom} ajouté(e) dans l’appli`);
+    setMsg(`✅ ${nom} a une fiche dans l’appli (rôle « ${data.roles.find((r) => r.id === p.roles[0])?.label ?? ''} »).`);
   };
-  const ajouter = () => {
-    const u = miennes.find((x) => x.id === ajout);
-    const f = fiches[ajout];
-    if (!u || !f || typeof f === 'string' || !role) return;
-    const avant = ficheDe(f, membre);
-    const p: Person = avant
-      ? { ...avant, actif: true, exclu: undefined, roles: avant.roles.includes(role) ? avant.roles : [...avant.roles, role] }
-      : { id: uid('p'), prenom: membre.prenom, nom: membre.nom, email: membre.email, telephone: membre.telephone, couleur: membre.couleur, poste: '', roles: [role], actif: true, membreId: membre.id };
-    void run(async () => {
-      await enregistrer(u, p);
-      setAjout('');
-    }, `✅ ${nomMembre(membre)} ${avant ? 'réactivé(e) dans' : 'ajouté(e) à'} « ${u.nom} ». Son poste se règle dans l’organigramme.`);
-  };
-
-  if (!postes.length && !possibles.length) return null;
+  if (!fiche?.actif) {
+    return (
+      <div className="acces-membre">
+        <span className="field-label">Dans l’appli</span>
+        <p className="muted small-note">{fiche ? 'Fiche désactivée : ses tâches gardent son nom.' : 'Pas de fiche dans l’appli : on peut noter son nom sur une tâche (« Quelqu’un d’autre »), sans qu’elle la voie.'}</p>
+        {gerer && <button className="btn small primary" onClick={donner}>{fiche ? 'Réactiver sa fiche' : 'Lui donner une fiche dans l’appli'}</button>}
+        {msg && <p className="ok-note">{msg}</p>}
+      </div>
+    );
+  }
+  const soi = fiche.id === user?.id;
+  const dernierAdmin = fiche.roles.includes(ADMIN_ROLE_ID) && admins.length <= 1;
   return (
     <div className="acces-membre">
-      <span className="field-label">Places dans les entités</span>
-      {!postes.length && <p className="muted small-note">Aucune place dans une entité du club.</p>}
-      {postes.map(({ unit: u, member: om }) => {
-        const f = fiches[u.id];
-        const fiche = f && typeof f !== 'string' ? ficheDe(f, membre) : undefined;
-        const tete = (
-          <div className="acces-tete">
-            <strong><IconeEntite u={u} /> {u.nom}</strong>
-            {om.poste && <small className="muted"> · {om.poste}</small>}
-          </div>
-        );
-        if (!u.moiAdmin)
-          return (
-            <div key={u.id} className="acces-ligne">
-              {tete}
-              <small className="muted">{om.roles.join(', ') || '—'} · géré par les admins de « {u.nom} »</small>
-            </div>
-          );
-        if (!fiche)
-          return (
-            <div key={u.id} className="acces-ligne">
-              {tete}
-              <small className={typeof f === 'string' ? 'error' : 'muted'}>{typeof f === 'string' ? f : 'Chargement…'}</small>
-            </div>
-          );
-        const roles = (f as FichesEntite).roles;
-        const admins = (f as FichesEntite).people.filter((p) => p.actif && p.roles.includes(ADMIN_ROLE_ID));
-        const soi = !!membre.moi;
-        const dernierAdmin = fiche.roles.includes(ADMIN_ROLE_ID) && admins.length <= 1;
-        return (
-          <div key={u.id} className="acces-ligne">
-            {tete}
-            <div className="chips">
-              {roles.map((r) => {
-                const on = fiche.roles.includes(r.id);
-                // Garde-fous (comme la fiche de l'entité) : le rôle Admin ne se retire ni à soi-même ni au dernier admin,
-                // et ne se donne pas à une fiche liée ; au moins un rôle.
-                const bloque = busy || (on && fiche.roles.length === 1) || (r.id === ADMIN_ROLE_ID && ((on && (soi || dernierAdmin)) || (!on && !!fiche.viaEntite)));
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className={`chip role-chip ${on ? 'on' : ''}`}
-                    style={on ? { background: r.couleur, borderColor: r.couleur } : {}}
-                    disabled={bloque}
-                    onClick={() => void run(() => enregistrer(u, { ...fiche, roles: on ? fiche.roles.filter((x) => x !== r.id) : [...fiche.roles, r.id] }), `✅ Rôles enregistrés dans « ${u.nom} ».`)}
-                  >
-                    {r.label}
-                  </button>
-                );
-              })}
-            </div>
-            {u.postes && (
-              <RoleDeLaPlace
-                d={{ roles, postes: u.postes }}
-                p={fiche}
-                onRevenir={busy ? undefined : (r) => void run(() => enregistrer(u, { ...fiche, roles: r }), `✅ « ${u.nom} » : rôle de sa place.`)}
-              />
-            )}
-            <div className="row wrap">
-              <span className="grow" />
-              <button
-                className="btn small danger"
-                disabled={busy || soi || dernierAdmin}
-                title={soi ? 'Pas toi-même' : dernierAdmin ? 'Il reste toujours au moins un admin' : ''}
-                onClick={() =>
-                  confirm(`Retirer ${nomMembre(membre)} de « ${u.nom} » ?${cloud ? ' Son accès à cette entité est aussi coupé.' : ''} Ses tâches restent ; tu pourras le réactiver d’ici.`) &&
-                  void run(() => enregistrer(u, { ...fiche, actif: false, ...(fiche.viaEntite ? { exclu: true } : {}) }), `✅ ${nomMembre(membre)} retiré(e) de « ${u.nom} ».`)
-                }
-              >
-                Retirer de l’entité
+      <span className="field-label">Dans l’appli</span>
+      <label className="inline">
+        Poste
+        <input defaultValue={fiche.poste} disabled={!gerer} aria-label="Poste"
+          onBlur={(e) => { const x = e.target.value.trim(); if (x !== fiche.poste) changer((p) => ({ ...p, poste: x }), `${nom} : poste « ${x} »`, '✅ Poste enregistré.'); }} />
+      </label>
+      <div>
+        <small className="muted">Rôles{admin ? '' : ' (réglés par les admins)'} :</small>
+        <div className="chips">
+          {data.roles.map((r) => {
+            const on = fiche.roles.includes(r.id);
+            // Garde-fous : le rôle Admin ne se retire ni à soi-même ni au dernier admin ; au moins un rôle.
+            const bloque = !admin || (on && fiche.roles.length === 1) || (r.id === ADMIN_ROLE_ID && on && (soi || dernierAdmin));
+            return (
+              <button key={r.id} type="button" className={`chip role-chip ${on ? 'on' : ''}`} style={on ? { background: r.couleur, borderColor: r.couleur } : {}} disabled={bloque} aria-pressed={on}
+                onClick={() => changer((p) => ({ ...p, roles: on ? p.roles.filter((x) => x !== r.id) : [...p.roles, r.id] }), `${nom} : rôles modifiés`, '✅ Rôles enregistrés.')}>
+                {r.label}
               </button>
-            </div>
+            );
+          })}
+        </div>
+      </div>
+      {etiquettes.length > 0 && (
+        <div>
+          <small className="muted">Étiquettes (elle en voit les tâches){gererEtiquettes ? '' : ' :'}</small>
+          <div className="chips">
+            {etiquettes.map((e) => {
+              const on = !!e.membres?.includes(fiche.id);
+              return (
+                <button key={e.id} type="button" className={`chip ${on ? 'on' : ''}`} style={on ? { background: e.couleur, borderColor: e.couleur } : { borderColor: e.couleur }} disabled={!gererEtiquettes} aria-pressed={on}
+                  onClick={() => {
+                    update((d) => {
+                      d.etiquettes = (d.etiquettes ?? []).map((x) => (x.id !== e.id ? x : { ...x, membres: on ? (x.membres ?? []).filter((y) => y !== fiche.id) : [...(x.membres ?? []), fiche.id] }));
+                    }, `Étiquette « ${e.nom} » : ${nom} ${on ? 'retiré(e)' : 'ajouté(e)'}`);
+                    setMsg('✅ Étiquettes enregistrées.');
+                  }}>
+                  {e.nom}
+                </button>
+              );
+            })}
           </div>
-        );
-      })}
-      {possibles.length > 0 && (
-        <div className="acces-ajout row wrap">
-          <Deroulante value={ajout} onChange={setAjout} aria-label="Ajouter à une entité" options={[{ value: '', label: 'Ajouter à une entité…' }, ...possibles.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))]} />
-          {ajout && typeof fiches[ajout] === 'object' && (
-            <>
-              <select value={role} onChange={(e) => setRole(e.target.value)} aria-label="Rôle">
-                {(fiches[ajout] as FichesEntite).roles.map((r) => <option key={r.id} value={r.id}>{r.label}</option>)}
-              </select>
-              <button className="btn small primary" disabled={busy || !role} onClick={ajouter}>
-                {ficheDe(fiches[ajout] as FichesEntite, membre) ? 'Réactiver' : 'Ajouter'}
-              </button>
-            </>
-          )}
-          {ajout && typeof fiches[ajout] === 'string' && <small className="error">{fiches[ajout] as string}</small>}
+        </div>
+      )}
+      {gerer && (
+        <div className="row wrap">
+          <span className="grow" />
+          <button className="btn small danger" disabled={soi || dernierAdmin} title={soi ? 'Pas toi-même' : dernierAdmin ? 'Il reste toujours au moins un admin' : ''}
+            onClick={() => confirm(`Désactiver la fiche de ${nom} dans l’appli ? Ses tâches gardent son nom ; tu pourras la réactiver d’ici.`) && changer((p) => ({ ...p, actif: false }), `${nom} désactivé(e) dans l’appli`, `✅ Fiche de ${nom} désactivée.`)}>
+            Désactiver sa fiche
+          </button>
         </div>
       )}
       {msg && <p className="ok-note">{msg}</p>}
-      {err && <p className="error">{err}</p>}
     </div>
   );
 }

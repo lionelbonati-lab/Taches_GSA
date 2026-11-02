@@ -5,17 +5,17 @@ import { addDays, fmtDateTime, today } from '../data/utils';
 import { lienAppli } from '../data/lienPartage';
 import { nomAppli } from '../data/nomAppli';
 import { calendrierIcs } from '../data/ics';
-import { elementsChoisis, HORIZON_AGENDA, listesAgenda, nomAgenda, type ChoixAgenda, type ManifAgenda, type OptionsAbonnement, type TachesAgenda } from '../data/agendaIcs';
+import { elementsChoisis, etiquettesDatees, HORIZON_AGENDA, listesAgenda, nomAgenda, type ChoixAgenda, type OptionsAbonnement, type TachesAgenda } from '../data/agendaIcs';
 import { abonnerAgenda, fetchAbonnementAgenda, lienAbonnementAgenda, supprimerAbonnementAgenda, type AbonnementAgenda } from '../data/cloud';
 import { copier } from './EnvoyerLien';
 import { Modal } from './ui';
 import { Icone } from './icones';
 
-// « Exporter vers mon agenda » (page Agenda) : séances, événements, dates du club, délais des tâches et fins de sondage
+// « Exporter vers mon agenda » (page Agenda) : séances, événements, étiquettes « événement », délais des tâches et fins de sondage
 // dans son agenda personnel. Un fichier .ics (une copie : les changements faits ensuite n'y arrivent pas) ou, dans la
 // version réelle, un lien privé que l'agenda relit tout seul (migration 045, fonction gsa-agenda).
 
-export function ExportAgenda({ onClose, manifs, defauts }: { onClose: () => void; manifs: ManifAgenda[]; defauts: { seances: boolean; evenements: boolean; taches: TachesAgenda; sondages: boolean } }) {
+export function ExportAgenda({ onClose, defauts }: { onClose: () => void; defauts: { seances: boolean; evenements: boolean; taches: TachesAgenda; sondages: boolean } }) {
   const { data, user, can, canSeeTask, mode } = useStore();
   const club = useClubOptional();
   const seeMeetings = can('tab.meetings');
@@ -23,29 +23,29 @@ export function ExportAgenda({ onClose, manifs, defauts }: { onClose: () => void
   const viewAll = can('tasks.viewAll');
   const [seances, setSeances] = useState(defauts.seances && seeMeetings);
   const [evenements, setEvenements] = useState(defauts.evenements && seeEvents);
-  const [duClub, setDuClub] = useState(manifs.length > 0);
+  const datees = etiquettesDatees(data.etiquettes).length > 0;
+  const [duClub, setDuClub] = useState(datees);
   const [taches, setTaches] = useState<TachesAgenda>(viewAll || defauts.taches !== 'toutes' ? defauts.taches : 'mes');
   const [sondages, setSondages] = useState(defauts.sondages);
   const [periode, setPeriode] = useState<'avenir' | 'tout'>('avenir');
 
   const jour = today();
-  const unite = club?.current.id;
+  const unite = club?.espace.id;
   const listes = useMemo(
-    () => listesAgenda({ data, userId: user?.id, voit: canSeeTask, manifs, taches, depuis: periode === 'avenir' ? jour : undefined, lien: (chemin) => lienAppli(chemin, unite) }),
+    () => listesAgenda({ data, userId: user?.id, voit: canSeeTask, taches, depuis: periode === 'avenir' ? jour : undefined, lien: (chemin) => lienAppli(chemin) }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data, user, manifs, taches, periode, jour, unite],
+    [data, user, taches, periode, jour],
   );
   const choix: ChoixAgenda = { seances, evenements, club: duClub, taches, sondages };
   const choisis = elementsChoisis(listes, choix);
 
   const telecharger = () => {
-    const entite = club?.current.nom;
-    const ics = calendrierIcs(nomAgenda(nomAppli(), entite), choisis, { depuis: periode === 'avenir' ? jour : '1970-01-01', horizon: addDays(jour, HORIZON_AGENDA) });
+    const ics = calendrierIcs(nomAgenda(nomAppli()), choisis, { depuis: periode === 'avenir' ? jour : '1970-01-01', horizon: addDays(jour, HORIZON_AGENDA) });
     const url = URL.createObjectURL(new Blob([ics], { type: 'text/calendar;charset=utf-8' }));
     const a = document.createElement('a');
     a.href = url;
     // Nom sans accents ni caractères spéciaux : certains navigateurs refusent sinon le nom proposé.
-    a.download = `agenda-${(entite ?? nomAppli()).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '').toLowerCase()}.ics`;
+    a.download = `agenda-${nomAppli().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w-]+/g, '-').replace(/-{2,}/g, '-').replace(/^-|-$/g, '').toLowerCase()}.ics`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -62,7 +62,7 @@ export function ExportAgenda({ onClose, manifs, defauts }: { onClose: () => void
         <legend>À mettre dans l’agenda</legend>
         {seeMeetings && <label className="inline"><input type="checkbox" checked={seances} onChange={(e) => setSeances(e.target.checked)} /> <Icone n="seances" /> Séances {n(listes.seances.length)}</label>}
         {seeEvents && <label className="inline"><input type="checkbox" checked={evenements} onChange={(e) => setEvenements(e.target.checked)} /> <Icone n="evenements" /> Événements {n(listes.evenements.length)}</label>}
-        {manifs.length > 0 && <label className="inline"><input type="checkbox" checked={duClub} onChange={(e) => setDuClub(e.target.checked)} /> <Icone n="agendaClub" /> Agenda du club {n(listes.club.length)}</label>}
+        {datees && <label className="inline"><input type="checkbox" checked={duClub} onChange={(e) => setDuClub(e.target.checked)} /> <Icone n="etiquette" /> Étiquettes « événement » {n(listes.club.length)}</label>}
         <label className="inline"><input type="checkbox" checked={sondages} onChange={(e) => setSondages(e.target.checked)} /> <Icone n="sondage" /> Fins de sondage {n(listes.sondages.length)}</label>
         <div className="row">
           <span><Icone n="taches" /> Délais des tâches</span>
@@ -189,7 +189,7 @@ function Abonnement({ unite, choix }: { unite: string; choix: ChoixAgenda }) {
             </div>
           )}
           <p className="muted small-note">
-            {abo.luLe ? `Dernière lecture par ton agenda : ${fmtDateTime(abo.luLe)}.` : 'Pas encore lu par un agenda.'} Garde ce lien pour toi : qui l’a voit ces dates, sans rien pouvoir modifier. Si tu n’es plus membre de l’entité, il ne donne plus rien.
+            {abo.luLe ? `Dernière lecture par ton agenda : ${fmtDateTime(abo.luLe)}.` : 'Pas encore lu par un agenda.'} Garde ce lien pour toi : qui l’a voit ces dates, sans rien pouvoir modifier. Si tu n’es plus membre du club, il ne donne plus rien.
           </p>
           <div className="row">
             <button className="btn small" disabled={busy} onClick={() => confirm('Remplacer le lien par un nouveau ? L’ancien ne marchera plus : il faudra mettre le nouveau dans ton agenda.') && enregistrer(true)}><Icone n="recharger" /> Nouveau lien</button>

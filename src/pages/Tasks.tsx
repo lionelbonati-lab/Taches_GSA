@@ -1,36 +1,27 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { Status, Task } from '../data/types';
+import type { Task } from '../data/types';
 import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, newTask, parentOf, recurrenceLabel, today } from '../data/utils';
 import { finDeSemaine } from '../data/repetition';
 import { sortedMeetings } from '../data/agenda';
 import { finAnticipee, versProchaineSeance } from '../data/seances';
-import { TaskModal, useAutresCreation } from '../components/FicheTache';
-import { CircuitPaiements, SuiviCentral } from '../components/Tickets';
-import { AnciennesTaches, useAnciennesTaches } from '../components/AnciennesTaches';
+import { TaskModal } from '../components/FicheTache';
+import { CircuitPaiements } from '../components/Tickets';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
-import { APrendreTag, Avatar, DocPollIcons, Empty, EtiquettesTag, LinkIcon, PourInfoTag, OrigineTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
+import { APrendreTag, Avatar, DocPollIcons, Empty, EtiquettesTag, LinkIcon, PourInfoTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 import { EtiquettesModal } from '../components/Etiquettes';
-import { PourInfoRecues } from '../components/PourInfo';
-import { Chez, useMesEntites } from '../data/entites';
 import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { PageIntro } from '../components/Nav';
 import { AvisLien } from '../components/EnvoyerLien';
-import { useClubOptional } from '../data/club';
-import { editionDe, evenementsDependants, tacheDeLEvenement } from '../data/externes';
 import { Icone } from '../components/icones';
-import { Deroulante } from '../components/Deroulante';
-import { PastilleEntite } from '../components/IconesEntite';
-import { statutsDe } from '../data/vueMoi';
-import { idDans, tacheDeMesEntites } from '../data/vueClub';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
-const EMPTY_FILTERS = { q: '', entite: '', etiquette: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
+const EMPTY_FILTERS = { q: '', etiquette: '', section: '', sous: '', resp: '', statut: '', event: '', meeting: '', delai: '', parent: '', type: '' };
 
 /**
  * Notification d'un message (💬, 📣 : …&discussion=1) : la discussion s'ouvre dans « Messages », pas par-dessus la fiche ;
@@ -40,50 +31,21 @@ const EMPTY_FILTERS = { q: '', entite: '', etiquette: '', section: '', sous: '',
 export function Tasks() {
   const [params] = useSearchParams();
   const tache = params.get('tache');
-  const pourInfo = params.get('pourinfo');
-  if (params.has('discussion') && (tache || pourInfo)) return <Navigate to={`/messages?d=${encodeURIComponent(tache ?? `x:${pourInfo}`)}`} replace />;
+  if (params.has('discussion') && tache) return <Navigate to={`/messages?d=${encodeURIComponent(tache)}`} replace />;
   return <ListeTaches />;
 }
 
-/**
- * Filtre « Événement » d'un lien : tel quel, ou (anciens liens de l'accueil) l'événement de l'agenda de l'une de mes autres
- * entités, « ?event=<id>&entite=<entité> ».
- */
-function evenementDuLien(params: URLSearchParams, ici?: string) {
-  const v = params.get('event') ?? '';
-  const u = params.get('entite');
-  return v && u && u !== ici && !/^[ux]:/.test(v) ? `x:${u}:${v}` : v;
-}
-
-/**
- * Filtre « Séance » d'un lien (vue du club) : la séance de l'entité du lien (« ?meeting=<id>&entite=<entité> »), sinon la
- * seule de mes séances qui porte cet identifiant.
- */
-function seanceDuLien(params: URLSearchParams, vueClub: boolean, seances: { id: string }[]) {
-  const v = params.get('meeting') ?? '';
-  const u = params.get('entite');
-  if (!vueClub || !v || v.startsWith('x:')) return v;
-  if (u) return idDans(u, v);
-  const l = seances.filter((m) => m.id.endsWith(`:${v}`));
-  return l.length === 1 ? l[0].id : v;
-}
-
 function ListeTaches() {
-  // Vue « moi » : avec les tâches de mes autres entités (pastille de leur entité ; filtre « Entité »).
-  const { dataMoi: data, data: vue, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask, pourInfo, setToast } = useStore();
-  // Nouvelle tâche : aussi dans l'une de mes autres entités (choisie dans la fenêtre).
-  const autresCreation = useAutresCreation();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask } = useStore();
   const [params] = useSearchParams();
-  const club = useClubOptional();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
     params.get('statut') || params.get('delai') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
   );
   const [f, setF] = useState({
     ...EMPTY_FILTERS,
-    entite: params.get('entite') ?? '',
     etiquette: params.get('etiquette') ?? '',
-    event: evenementDuLien(params, club?.current.id),
-    meeting: seanceDuLien(params, !!club?.vueClub, data.meetings),
+    event: params.get('event') ?? '',
+    meeting: params.get('meeting') ?? '',
     resp: params.get('resp') ?? '',
     statut: params.get('statut') ?? '',
     delai: params.get('delai') ?? '',
@@ -95,16 +57,16 @@ function ListeTaches() {
   const suivi = useSuiviPourInfo(data.tasks);
   const navigate = useNavigate();
   // Lien depuis une notification : /taches?tache=<id> ouvre directement la tâche.
-  // …&email=<id> ouvre en plus l'email programmé à envoyer, …&discussion=1 sa discussion (💬). Lien envoyé (WhatsApp…, entité en u : lienPartage.ts) : seulement
-  // une tâche que la personne voit dans sa liste.
+  // …&email=<id> ouvre en plus l'email programmé à envoyer, …&discussion=1 sa discussion (💬). Seulement une tâche que la
+  // personne voit.
   const lienTache = params.get('tache');
-  const ouvrable = (x: Task) => x.id === lienTache && (!params.get('u') || canSeeTask(x));
+  const ouvrable = (x: Task) => x.id === lienTache && canSeeTask(x);
   const depuisLien = () => ({ isNew: false, email: params.get('email') ?? undefined, discussion: params.has('discussion') });
   const [edit, setEdit] = useState<{ task: Task; isNew: boolean; email?: string; discussion?: boolean } | null>(() => {
     const t = data.tasks.find(ouvrable);
     return t ? { task: t, ...depuisLien() } : null;
   });
-  // Tâche partagée par une autre entité : elle arrive un peu après l'ouverture de l'appli ; on l'ouvre alors.
+  // Version réelle : la tâche peut arriver un peu après l'ouverture de l'appli ; on l'ouvre alors.
   const attendue = useRef(edit ? null : lienTache);
   useEffect(() => {
     const t = attendue.current ? data.tasks.find(ouvrable) : undefined;
@@ -126,83 +88,45 @@ function ListeTaches() {
   const seancePassee = derniereSeancePassee(data);
   const [dragId, setDragId] = useState<string | null>(null);
   const view = prefs.affichage;
-  // Anciennes tâches des entités qui dépendent depuis peu de l'entité ouverte (lecture et copie).
-  const anciennes = useAnciennesTaches();
-  // Événements qui dépendent de l'entité ouverte (nouvelle tâche liée à l'un d'eux) ; filtre « Événement » : aussi ceux de
-  // mes autres entités et ceux qui dépendent d'elles (vue « moi »).
-  const dependants = club ? evenementsDependants(club.units, club.current) : [];
-  const mesEntites = useMesEntites();
-  const autresEntites = mesEntites.filter((e) => !e.ici && e.u);
-  const dependantsMoi = club ? [...new Map(mesEntites.flatMap((e) => (e.u ? evenementsDependants(club.units, e.u) : [])).map((u) => [u.id, u])).values()] : [];
-  const lienEvenement = (v: string): Partial<Task> => {
-    if (v.startsWith('x:')) return {};
-    if (!v.startsWith('u:')) return { eventId: v || undefined };
-    const u = dependants.find((x) => x.id === v.slice(2));
-    return u ? { evenementEntite: editionDe(u) } : {};
-  };
-  // Nouvelle tâche : pour la séance filtrée (le jour même), liée à l'événement filtré ; sans filtre, pour la prochaine séance.
+  // Nouvelle tâche : pour la séance filtrée (le jour même), liée à l'événement filtré, avec l'étiquette filtrée ; sans
+  // filtre, pour la prochaine séance.
   const nouvelleTache = () =>
     applyDelaiRef(
       data,
-      newTask(
-        user!.id,
-        f.meeting
-          ? { ...lienEvenement(f.event), meetingId: f.meeting, delaiRef: { type: 'meeting', joursAvant: 0 } }
-          : f.event ? lienEvenement(f.event) : versProchaineSeance(data.meetings, undefined, club?.current.type),
-      ),
+      newTask(user!.id, {
+        ...(f.meeting
+          ? { eventId: f.event || undefined, meetingId: f.meeting, delaiRef: { type: 'meeting', joursAvant: 0 } }
+          : f.event ? { eventId: f.event } : versProchaineSeance(data.meetings)),
+        ...(f.etiquette ? { etiquettes: [f.etiquette] } : {}),
+      }),
     );
-  const [voirAnciennes, setVoirAnciennes] = useState(false);
   const [reglerEtiquettes, setReglerEtiquettes] = useState(false);
-  // Tâches d'autres entités pour info (lecture seule) ; lien d'une notification : /taches?pourinfo=<entité>:<tâche>.
-  const [voirPourInfo, setVoirPourInfo] = useState(() => !!params.get('pourinfo'));
-  // Reçue par l'une de mes autres entités (…&chez=<entité>) : sa liste, ouverte chez elle.
-  const [chezPourInfo, setChezPourInfo] = useState(() => params.get('chez') ?? undefined);
-  const fermerPourInfo = () => {
-    setVoirPourInfo(false);
-    setChezPourInfo(undefined);
-    if (params.get('pourinfo')) navigate('/taches', { replace: true });
-  };
-
   // « Toutes » : celles des sections « Voir toutes », et celles de mes étiquettes.
-  const viewAll = can('tasks.viewAll') || !!data.etiquettes?.some((e) => !!user && (e.membres.includes(user.id) || e.responsables.includes(user.id)));
+  const viewAll = can('tasks.viewAll') || !!data.etiquettes?.some((e) => !!user && e.membres?.includes(user.id));
   const effScope = viewAll ? scope : 'mes';
-  /** Entité de la tâche (filtre « Entité »). */
-  const entiteDe = (t: Task) => t.source?.uniteId ?? club?.current.id ?? '';
-  /**
-   * Choix du filtre « Événement » qui concernent la tâche : un événement de l'agenda de l'entité ouverte (son id), de l'agenda
-   * de l'une de mes autres entités (« x:<entité>:<id> »), ou une entité événement qui dépend de l'une de mes entités
-   * (« u:<entité> » : ses tâches, et celles liées à elle ou partagées avec elle).
-   */
-  const evenementsDe = (t: Task) => [
-    ...(t.eventId && !t.source ? [t.eventId] : []),
-    ...(t.source?.chezMoi && t.source.eventId ? [`x:${t.source.uniteId}:${t.source.eventId}`] : []),
-    ...dependantsMoi.filter((u) => tacheDeLEvenement(t, u.id)).map((u) => `u:${u.id}`),
-  ];
   const sectionName = (id: string) => data.sections.find((s) => s.id === id)?.nom ?? '';
   const statusOf = (t: Task) => data.statuses.find((s) => s.id === t.statusId);
   const respNames = (t: Task) => t.responsables.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
 
-  const { list, nArchivees, entitesAvec, evenementsAvec } = useMemo(() => {
-    if (!user) return { list: [], nArchivees: 0, entitesAvec: new Set<string>(), evenementsAvec: new Set<string>() };
+  const { list, nArchivees, evenementsAvec } = useMemo(() => {
+    if (!user) return { list: [], nArchivees: 0, evenementsAvec: new Set<string>() };
     const q = f.q.trim().toLowerCase();
-    // Tous les filtres, sauf `sauf` : les choix des filtres « Entité » et « Événement » sont ceux qui ont des tâches avec
-    // les autres filtres (les deux ne se contredisent jamais).
-    const garde = (t: Task, sauf?: 'entite' | 'event') => {
+    // Tous les filtres, sauf `sauf` : les choix du filtre « Événement » sont ceux qui ont des tâches avec les autres filtres.
+    const garde = (t: Task, sauf?: 'event') => {
       // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état, les tâches pour info et celles
       // qu'on me propose (à prendre, tant qu'il reste une place).
       // Mes « Pour info » pas encore vus : les tâches dont je suis l'auteur ou responsable, que des personnes doivent encore voir.
       if (f.delai === 'pourinfo') {
-        if (!(t.createdBy === user.id || t.responsables.includes(user.id)) || !canSeeTask(t) || !tacheDeMesEntites(t, club) || t.paiement || !t.pourInfo || !attendDesVus(bilanVu(t, suivi[t.id]))) return false;
+        if (!(t.createdBy === user.id || t.responsables.includes(user.id)) || !canSeeTask(t) || t.paiement || !t.pourInfo || !attendDesVus(bilanVu(t, suivi[t.id]))) return false;
       } else if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
-      if (sauf !== 'entite' && f.entite && entiteDe(t) !== f.entite) return false;
       if (f.etiquette && !t.etiquettes?.includes(f.etiquette)) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
       if (f.resp && !t.responsables.includes(f.resp)) return false;
       if (f.parent && t.id !== f.parent && t.parentId !== f.parent) return false;
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
-      if (sauf !== 'event' && f.event && !evenementsDe(t).includes(f.event)) return false;
+      if (sauf !== 'event' && f.event && t.eventId !== f.event) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
       if (f.delai && ['passe', '7', '30', 'semaine'].includes(f.delai) && !t.delai) return false;
       if (f.delai) {
@@ -230,8 +154,7 @@ function ListeTaches() {
       if (archivee(t)) nArchivees++;
       return montree(t);
     });
-    const entitesAvec = new Set(data.tasks.filter((t) => garde(t, 'entite') && montree(t)).map(entiteDe));
-    const evenementsAvec = new Set(data.tasks.filter((t) => garde(t, 'event') && montree(t)).flatMap(evenementsDe));
+    const evenementsAvec = new Set(data.tasks.filter((t) => garde(t, 'event') && montree(t)).flatMap((t) => (t.eventId ? [t.eventId] : [])));
     const val = (t: Task): string | number => {
       switch (sort.key) {
         case 'section': return sectionName(t.sectionId);
@@ -242,9 +165,9 @@ function ListeTaches() {
         case 'delai': return t.delai || (sort.dir === 1 ? '9999' : '0000'); // sans délai : en fin de liste
       }
     };
-    return { list: res.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir), nArchivees, entitesAvec, evenementsAvec };
+    return { list: res.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir), nArchivees, evenementsAvec };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, user, effScope, f, sort, hideDone, view, archives, seancePassee, suivi, club]);
+  }, [data, user, effScope, f, sort, hideDone, view, archives, seancePassee, suivi]);
 
   // Filtre « Toutes séances » : les séances à venir et celles qui ont encore des tâches dans la liste (archives : celles
   // de leurs tâches) ; pas les anciennes séances, dont les tâches terminées sont archivées.
@@ -255,40 +178,12 @@ function ListeTaches() {
 
   if (!user) return null;
   const sec = data.sections.find((s) => s.id === f.section);
-  // Sous-sections de la section, et celles de ses tâches hors de la liste (ex. section d'une entité à qui elles sont attribuées).
+  // Sous-sections de la section, et celles de ses tâches hors de la liste.
   const sousDe = (x?: typeof sec) =>
     x ? [...new Set([...x.sousSections, ...data.tasks.filter((t) => t.sectionId === x.id && t.sousSection).map((t) => t.sousSection)])] : [];
   const activeFilters = Object.entries(f).filter(([, v]) => v).length;
-  // Filtre « Entité » : l'entité ouverte et celles des tâches d'ailleurs (mes autres entités, partagées) ; on n'y propose
-  // que celles qui ont des tâches avec les autres filtres (événement compris), et de même pour le filtre « Événement ».
-  // Vue du club : aucune entité ouverte ; mes entités et celles des tâches qu'elles reçoivent.
-  const entites = club
-    ? [
-        ...(club.vueClub ? club.mine.filter((u) => !u.archive) : [club.current]),
-        ...club.units.filter((u) => u.id !== club.current.id && !(club.vueClub && club.mine.some((m) => m.id === u.id && !m.archive)) && data.tasks.some((t) => t.source?.uniteId === u.id)),
-      ]
-    : [];
-  const entitesChoix = entites.filter((u) => entitesAvec.has(u.id) || u.id === f.entite);
-  const avecTaches = (v: string) => evenementsAvec.has(v) || v === f.event;
-  const groupesEvenements = [
-    // Vue du club : ceux de chacune de mes entités (plus bas).
-    { groupe: `Événements de « ${club?.current.nom ?? ''} »`, options: club?.vueClub ? [] : data.events.filter((e) => avecTaches(e.id)).map((e) => ({ value: e.id, label: e.nom })) },
-    ...autresEntites.map((x) => ({
-      groupe: `Événements de « ${x.u!.nom} »`,
-      icone: <PastilleEntite u={x.u!} />,
-      options: x.store.data.events.filter((e) => avecTaches(`x:${x.u!.id}:${e.id}`)).map((e) => ({ value: `x:${x.u!.id}:${e.id}`, label: e.nom })),
-    })),
-    {
-      groupe: autresEntites.length ? 'Qui dépendent de mes entités' : 'Qui dépendent de ce comité',
-      options: dependantsMoi.filter((u) => avecTaches(`u:${u.id}`)).map((u) => ({ value: `u:${u.id}`, label: u.nom, icone: <PastilleEntite u={u} /> })),
-    },
-  ].filter((g) => g.options.length);
-
-  // Kanban : une tâche ne prend que les statuts de son entité (vue « moi »).
-  const deposer = (t: Task, s: Status) => {
-    if (statutsDe(data.statuses, vue.statuses, t).some((x) => x.id === s.id)) setStatus(t, s.id);
-    else setToast(`« ${s.label} » n’est pas un statut de « ${t.source?.unite ?? club?.current.nom ?? ''} ».`);
-  };
+  // Filtre « Événement » : ceux qui ont des tâches avec les autres filtres.
+  const evenementsChoix = data.events.filter((e) => evenementsAvec.has(e.id) || e.id === f.event);
 
   const setStatus = (t: Task, statusId: string) => {
     if (t.statusId === statusId || !canEditTask(t) || t.paiement) return; // remboursement / paiement : suit son circuit
@@ -298,11 +193,12 @@ function ListeTaches() {
   };
 
   const exportCsv = () => {
-    const head = ['Section', 'Sous-section', 'Tâche', 'Tâche principale', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Répétition', 'Remarque', 'Sous-tâches'];
+    const head = ['Section', 'Sous-section', 'Tâche', 'Tâche principale', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Étiquettes', 'Répétition', 'Remarque', 'Sous-tâches'];
     const subs = (t: Task) => t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join(' | ');
     const rows = list.map((t) => [
       sectionName(t.sectionId), t.sousSection, t.titre, parentOf(data, t)?.titre ?? '', respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
-      data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '', t.seanceComite?.titre ?? '', t.evenementEntite?.nom ?? '', recurrenceLabel(t.recurrence), t.remarque, subs(t),
+      data.events.find((e) => e.id === t.eventId)?.nom ?? '', data.meetings.find((m) => m.id === t.meetingId)?.titre ?? '',
+      (t.etiquettes ?? []).map((id) => data.etiquettes?.find((e) => e.id === id)?.nom).filter(Boolean).join(', '), recurrenceLabel(t.recurrence), t.remarque, subs(t),
     ]);
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const a = document.createElement('a');
@@ -338,14 +234,10 @@ function ListeTaches() {
               {archives ? '← Tâches en cours' : <><Icone n="archives" /> Archives ({nArchivees})</>}
             </button>
           )}
-          {(pourInfo.length > 0 || voirPourInfo) && <button className="btn" title="Tâches d’autres entités du club, pour que tu sois au courant" onClick={() => setVoirPourInfo(true)}><Icone n="voir" /> Pour info ({pourInfo.length})</button>}
-          {!!anciennes?.length && <button className="btn" title="Tâches d’avant le changement de dépendance d’une entité : à consulter et copier" onClick={() => setVoirAnciennes(true)}><Icone n="anciennes" /> Anciennes tâches ({anciennes.length})</button>}
-          {(can('admin.access') || !!data.etiquettes?.some((e) => !!user && e.responsables.includes(user.id))) && (
-            <button className="btn" onClick={() => setReglerEtiquettes(true)}><Icone n="etiquette" /> Étiquettes</button>
-          )}
+          {can('settings.lists') && <button className="btn" onClick={() => setReglerEtiquettes(true)}><Icone n="etiquette" /> Étiquettes</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
-          {(creatableSections().length > 0 || autresCreation.length > 0) && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouvelle tâche</button>}
+          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouvelle tâche</button>}
         </div>
       </div>
       <PageIntro />
@@ -359,12 +251,6 @@ function ListeTaches() {
 
       <div className={`filters ${showFilters ? 'open' : ''}`}>
         <input className="search" placeholder="🔍 Rechercher…" value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} />
-        {entites.length > 1 && (
-          <select value={f.entite} onChange={(e) => setF({ ...f, entite: e.target.value })} aria-label="Entité">
-            <option value="">Toutes entités</option>
-            {entitesChoix.map((u) => <option key={u.id} value={u.id}>{u.nom}</option>)}
-          </select>
-        )}
         {!!data.etiquettes?.length && (
           <select value={f.etiquette} onChange={(e) => setF({ ...f, etiquette: e.target.value })} aria-label="Étiquette">
             <option value="">Toutes étiquettes</option>
@@ -390,14 +276,10 @@ function ListeTaches() {
           {data.statuses.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
           <option value="retard">⚠ En retard</option>
         </select>
-        {groupesEvenements.length > 1 ? (
-          <Deroulante value={f.event} onChange={(v) => setF({ ...f, event: v })} aria-label="Événement" options={[{ value: '', label: 'Tous événements' }, ...groupesEvenements]} />
-        ) : (
-          <select value={f.event} onChange={(e) => setF({ ...f, event: e.target.value })} aria-label="Événement">
-            <option value="">Tous événements</option>
-            {groupesEvenements[0]?.options.map((e) => <option key={e.value} value={e.value}>{e.label}</option>)}
-          </select>
-        )}
+        <select value={f.event} onChange={(e) => setF({ ...f, event: e.target.value })} aria-label="Événement">
+          <option value="">Tous événements</option>
+          {evenementsChoix.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+        </select>
         <select value={f.meeting} onChange={(e) => setF({ ...f, meeting: e.target.value })}>
           <option value="">Toutes séances</option>
           {seancesFiltre.map((m) => <option key={m.id} value={m.id}>{m.titre}</option>)}
@@ -461,7 +343,7 @@ function ListeTaches() {
                   <td>{sectionName(t.sectionId)}</td>
                   <td className="muted">{t.sousSection}</td>
                   <td>
-                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /> <TicketTag task={t} />
+                    <strong>{t.titre}</strong> <RecurIcon task={t} /> <DocPollIcons task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /> <TicketTag task={t} />
                     {t.checklist.length > 0 && <small className="muted"> · ☑ {t.checklist.filter((c) => c.done).length}/{t.checklist.length}</small>}
                     <Linked t={t} />
                   </td>
@@ -482,12 +364,12 @@ function ListeTaches() {
           {data.statuses.map((s) => {
             const col = list.filter((t) => t.statusId === s.id);
             return (
-              <div key={s.id} className="kcol" onDragOver={(e) => e.preventDefault()} onDrop={() => { const t = list.find((x) => x.id === dragId); if (t) deposer(t, s); setDragId(null); }}>
+              <div key={s.id} className="kcol" onDragOver={(e) => e.preventDefault()} onDrop={() => { const t = list.find((x) => x.id === dragId); if (t) setStatus(t, s.id); setDragId(null); }}>
                 <div className="khead" style={{ borderColor: s.couleur }}>{s.label} <span className="count">{col.length}</span></div>
                 {col.map((t) => (
                   <div key={t.id} className={`kcard ${isLate(data, t) ? 'late' : ''}`} draggable={canEditTask(t) && !t.paiement} onDragStart={() => setDragId(t.id)} onClick={() => setEdit({ task: t, isNew: false })}>
                     <small className="muted">{sectionName(t.sectionId)} › {t.sousSection}</small>
-                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
+                    <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
                     <TicketTag task={t} />
                     <Linked t={t} />
                     <div className="kmeta">
@@ -502,20 +384,8 @@ function ListeTaches() {
         </div>
       )}
 
-      {effScope === 'mes' && <SuiviCentral />}
-      {edit && <TaskModal task={edit.task} isNew={edit.isNew} choixEntite={edit.isNew} openEmailId={edit.email} ouvrirDiscussion={edit.discussion} onClose={closeEdit} />}
-      {voirAnciennes && anciennes && <AnciennesTaches list={anciennes} onClose={() => setVoirAnciennes(false)} />}
-      {/* Étiquettes : celles du club (comité central), réglées chez lui. */}
-      {reglerEtiquettes && (
-        <Chez id={club?.central?.id}>
-          <EtiquettesModal onClose={() => setReglerEtiquettes(false)} />
-        </Chez>
-      )}
-      {voirPourInfo && (
-        <Chez id={chezPourInfo}>
-          <PourInfoDe ouverte={params.get('pourinfo') ?? undefined} discussion={params.has('discussion')} onClose={fermerPourInfo} />
-        </Chez>
-      )}
+      {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} ouvrirDiscussion={edit.discussion} onClose={closeEdit} />}
+      {reglerEtiquettes && <EtiquettesModal onClose={() => setReglerEtiquettes(false)} />}
     </div>
   );
 }
@@ -531,7 +401,7 @@ export const BoutonVu = ({ onVu }: { onVu: () => void }) => (
 
 /** `onVu` : tâche « pour info » de l'accueil, que l'on retire avec « ✓ Vu ». */
 export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () => void; onStatus: (t: Task, s: string) => void; onVu?: () => void }) {
-  const { dataMoi: data, data: vue, user, canEditTask, prendreTache, pasDispo, setToast } = useStore();
+  const { data, user, canEditTask, prendreTache, pasDispo, setToast } = useStore();
   const [prise, setPrise] = useState(false);
   const editable = canEditTask(t) && !t.paiement; // remboursement / paiement : suit son circuit
   // Tâche à prendre qu'on me propose : « Je m'en charge » ou « Pas dispo » directement sur la carte. Après « Pas dispo », elle
@@ -554,7 +424,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
         <small className="muted">{sectionName}{t.sousSection && ` › ${t.sousSection}`}</small>
         <StatusBadge task={t} />
       </div>
-      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <OrigineTag task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
+      <strong>{t.titre} <RecurIcon task={t} /> <DocPollIcons task={t} /> <EtiquettesTag task={t} /> <PourInfoTag task={t} /> <APrendreTag task={t} /></strong>
       <TicketTag task={t} />
       <Linked t={t} />
       {t.remarque && <small className="muted clip">{t.remarque}</small>}
@@ -574,8 +444,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
       {onVu && <BoutonVu onVu={onVu} />}
       {editable && (
         <div className="status-tap" onClick={(e) => e.stopPropagation()}>
-          {/* Les statuts de son entité (vue « moi »). */}
-          {statutsDe(data.statuses, vue.statuses, t).map((s) => (
+          {data.statuses.map((s) => (
             <button key={s.id} className={t.statusId === s.id ? 'on' : ''} style={t.statusId === s.id ? { background: s.couleur, borderColor: s.couleur } : {}} onClick={() => onStatus(t, s.id)}>
               {s.label}
             </button>
@@ -588,7 +457,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
 
 /** Repères : « ↳ tâche principale » pour une tâche liée, « x/y tâches rattachées » pour une tâche principale. */
 export function Linked({ t }: { t: Task }) {
-  const { dataMoi: data } = useStore();
+  const { data } = useStore();
   const parent = parentOf(data, t);
   const kids = childrenOf(data, t.id);
   if (parent) return <small className="linked-to" title={`Tâche rattachée à « ${parent.titre} »`}>↳ {parent.titre}</small>;
@@ -599,10 +468,4 @@ export function Linked({ t }: { t: Task }) {
       <Icone n="rattacher" /> {done}/{kids.length} tâches rattachées
     </small>
   );
-}
-
-/** Tâches pour info reçues par l'entité (l'ouverte, ou l'une de mes autres : Chez). */
-function PourInfoDe(props: { ouverte?: string; discussion?: boolean; onClose: () => void }) {
-  const { pourInfo } = useStore();
-  return <PourInfoRecues list={pourInfo} {...props} />;
 }

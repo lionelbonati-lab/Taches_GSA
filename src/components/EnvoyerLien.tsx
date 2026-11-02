@@ -1,6 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useClubOptional } from '../data/club';
 import { getMode } from '../data/mode';
 import { lienEmail, lienWhatsApp } from '../data/lienPartage';
 import { Modal } from './ui';
@@ -97,10 +95,7 @@ function FenetreLien({ titre, texte, lien, acces, onClose }: { titre: string; te
  * Lien reçu (WhatsApp…) qui ne mène à rien ici : élément d'une autre entité, supprimé, ou que le rôle ne permet pas
  * de voir. Les éléments partagés par d'autres entités arrivent après l'ouverture : on attend un peu avant de le dire.
  */
-export function AvisLien({ trouve, nom, introuvable }: { trouve: boolean; nom: string; introuvable: string }) {
-  const club = useClubOptional();
-  const [params] = useSearchParams();
-  const u = params.get('u');
+export function AvisLien({ trouve, introuvable }: { trouve: boolean; nom: string; introuvable: string }) {
   const [attente, setAttente] = useState(true);
   const [ferme, setFerme] = useState(false);
   useEffect(() => {
@@ -108,12 +103,11 @@ export function AvisLien({ trouve, nom, introuvable }: { trouve: boolean; nom: s
     return () => clearTimeout(id);
   }, []);
   if (trouve || ferme) return null;
-  // D'une autre de mes entités : ses tâches et ses sondages sont réunis ici (vue « moi »), le temps qu'elle se charge.
-  const autre = club && u && u !== club.current.id ? club.units.find((x) => x.id === u && !club.mine.some((m) => m.id === x.id)) : undefined;
-  if (!autre && attente) return null;
+  // Version réelle : la tâche ou le sondage peut arriver un peu après l'ouverture de l'appli.
+  if (attente) return null;
   return (
     <p className="partage-banner avis-lien" role="status">
-      {autre ? <>Ce lien mène à {nom} de « {autre.nom} », une entité dont tu ne fais pas partie.</> : <>{introuvable}</>}
+      {introuvable}
       <button type="button" className="icon-btn" aria-label="Masquer" onClick={() => setFerme(true)}>✕</button>
     </p>
   );

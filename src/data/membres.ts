@@ -1,10 +1,10 @@
-import type { AppData, ClubMembre, OrgUnit, Person } from './types';
+import type { AppData, ClubMembre, Person } from './types';
 import { norm } from './csv';
 import { uid } from './utils';
 
-// Registre « Membres du club » : une fiche par personne pour tout le club (avec ou sans accès à l'appli).
-// Les fiches des entités (Person) y sont liées par membreId ; prénom, nom, email et téléphone sont communs.
-// Version réelle : le serveur fait le lien et recopie les coordonnées (016) ; démo : demoClub.ts fait de même.
+// Registre « Personnes du club » : une fiche par personne pour tout le club (avec ou sans accès à l'appli).
+// Les fiches de l'appli (Person, avec leurs rôles) y sont liées par membreId ; prénom, nom, email et téléphone sont
+// communs. Version réelle : le serveur fait le lien et recopie les coordonnées (016) ; démo : demoClub.ts fait de même.
 
 export type Coordonnees = Pick<ClubMembre, 'prenom' | 'nom' | 'email' | 'telephone'>;
 
@@ -47,12 +47,11 @@ export function trouverMembre<T extends Coordonnees>(list: T[], q: Partial<Coord
   return list.find((x) => norm(`${x.prenom} ${x.nom}`) === n && (!e || !emailKey(x.email)));
 }
 
-/** Postes du membre dans les entités du club (fiches actives liées, ou de même email). */
-export function postesDe(m: ClubMembre, units: OrgUnit[]) {
+/** Fiche de l'appli du membre (liée, ou de même email), active d'abord. */
+export function ficheDe(m: Pick<ClubMembre, 'id' | 'email'>, people: Person[]): Person | undefined {
   const e = emailKey(m.email);
-  return units.flatMap((unit) =>
-    unit.membres.filter((x) => x.membreId === m.id || (!x.membreId && e && emailKey(x.email) === e)).map((member) => ({ unit, member })),
-  );
+  const liees = people.filter((x) => x.membreId === m.id || (!x.membreId && e && emailKey(x.email) === e));
+  return liees.find((x) => x.actif) ?? liees[0];
 }
 
 /** Recopie les coordonnées du registre dans les fiches liées ; vrai si une fiche a changé. */
@@ -106,5 +105,3 @@ export function ibanValide(s: string): boolean {
   return r === 1;
 }
 
-/** Groupes de l'organigramme (entités de type « groupe », hors archivées). */
-export const groupesClub = (units: OrgUnit[]) => units.filter((u) => u.type === 'groupe' && !u.archive);

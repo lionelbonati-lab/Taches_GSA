@@ -8,8 +8,6 @@ import { fmtDate, fullName } from '../data/utils';
 import { PageIntro, useNavigation } from '../components/Nav';
 import { Empty } from '../components/ui';
 import { ZoneTexte } from '../components/ZoneTexte';
-import { Chez } from '../data/entites';
-import { useComites } from '../data/comites';
 
 // Propositions d'amélioration de l'appli : tout membre du club en envoie au comité central et en suit la réponse ;
 // les admins du comité central les reçoivent (données du comité central), les étudient et y répondent.
@@ -30,15 +28,11 @@ export const STATUTS_PROPOSITION: Record<Proposition['statut'], { label: string;
 
 const EN_COURS: Proposition['statut'][] = ['nouvelle', 'etudiee', 'retenue'];
 
-/** Admin du comité central : reçoit et traite les propositions, chez lui (vue « moi » : sans changer d'entité). */
-function useComiteCentralAdmin() {
-  return useComites()?.liste('admin.access').find((u) => u.type === 'central');
-}
-
 export function Propositions() {
   const club = useClub();
-  const central = useComiteCentralAdmin();
-  const { setToast } = useStore();
+  const { setToast, can } = useStore();
+  // Admins du club : reçoivent et traitent les propositions (données de l'espace du club).
+  const recoit = can('admin.access');
   const { mesPropositions, proposerAmelioration } = club;
   const [mes, setMes] = useState<Proposition[] | null | undefined>(undefined);
   const [err, setErr] = useState('');
@@ -51,7 +45,7 @@ export function Propositions() {
       .catch((e: Error) => setErr(e.message));
   }, [mesPropositions]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(charger, [club.current.id]);
+  useEffect(charger, [club.espace.id]);
 
   return (
     <div className="narrow propositions">
@@ -85,21 +79,16 @@ export function Propositions() {
         </section>
       )}
 
-      {central && (
-        <Chez id={central.id}>
-          <Recues />
-        </Chez>
-      )}
+      {recoit && <Recues />}
     </div>
   );
 }
 
 function Formulaire({ envoyer }: { envoyer: (p: { genre: Proposition['genre']; texte: string; page?: string }) => Promise<void> }) {
-  const club = useClub();
   const loc = useLocation();
   const { rubriques } = useNavigation();
   // Pages de l'appli, à choisir ; la page d'où l'on vient (menu du compte) est proposée d'office.
-  const pages = [...new Set([...rubriques.flatMap((r) => r.pages.map((p) => p.to)), '/organigramme'])];
+  const pages = [...new Set([...rubriques.flatMap((r) => r.pages.map((p) => p.to))])];
   const depuis = (loc.state as { depuis?: string } | null)?.depuis;
   const [genre, setGenre] = useState<Proposition['genre']>('idee');
   const [texte, setTexte] = useState('');
@@ -152,7 +141,7 @@ function Formulaire({ envoyer }: { envoyer: (p: { genre: Proposition['genre']; t
         </select>
       </label>
       <p className="muted small-note full">
-        Envoyée au comité central, avec ton nom et ton entité ({club.current.nom}). Tu en suis la réponse ci-dessous.
+        Envoyée au comité central, avec ton nom. Tu en suis la réponse ci-dessous.
       </p>
       {err && <p className="error full">{err}</p>}
       <div className="full row">

@@ -1,7 +1,5 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { useStore } from '../data/store';
-import { useClubOptional } from '../data/club';
-import { partageDe } from '../data/partage';
 import type { Task } from '../data/types';
 import { delaiTarget, fmtDate, fullName, initials, isDone, isLate, offsetLabel, recurrenceLabel } from '../data/utils';
 import { cachedLogo, isImage } from '../data/logo';
@@ -10,8 +8,7 @@ import { bilanVu, ciblesPourInfo, nbPourInfo, pourMoi, texteVu, vuAvantModif } f
 import { attendusLus } from '../data/suiviPourInfo';
 import { nonLus } from '../data/commentaires';
 import { Icone, type IconeNom } from './icones';
-import { ICONES_ENTITE, IconeBiblio, IconeEntite } from './IconesEntite';
-import { aPrendreOuverte, aPrendrePourMoi, ailleurs, nombreAPrendre, plusPersonne, prisAilleurs, volontaires } from '../data/aPrendre';
+import { aPrendreOuverte, aPrendrePourMoi, nombreAPrendre, plusPersonne, volontaires } from '../data/aPrendre';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   const { data } = useStore();
@@ -23,7 +20,7 @@ export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
   );
 }
 
-/** Pastille d'une personne qui n'est pas dans les données ouvertes (annuaire du club, organigramme). */
+/** Pastille d'une personne qui n'est pas dans les données ouvertes (personnes du club). */
 export function Initials({ prenom, nom, couleur, size = 28 }: { prenom: string; nom: string; couleur: string; size?: number }) {
   const p = { prenom, nom } as Parameters<typeof initials>[0];
   const txt = initials(p);
@@ -34,7 +31,7 @@ export function Initials({ prenom, nom, couleur, size = 28 }: { prenom: string; 
   );
 }
 
-/** Logo du club ou de l'entité, sinon l'icône de l'appli ; logo pas encore connu (`src` absent) : le dernier affiché sur cet appareil. */
+/** Logo du club, sinon l'icône de l'appli ; logo pas encore connu (`src` absent) : le dernier affiché sur cet appareil. */
 export function AppLogo({ src, size }: { src?: string | null; size: number }) {
   const logo = isImage(src) ? src : src === undefined ? cachedLogo() : undefined;
   return logo ? (
@@ -44,19 +41,8 @@ export function AppLogo({ src, size }: { src?: string | null; size: number }) {
   );
 }
 
-/** Pastille d'une entité : son logo, sinon l'icône de son type sur sa couleur. */
-/** Pastille d'une entité : son logo, sinon son icône (`perso` : celle choisie dans la bibliothèque, sinon `icone`). */
-export function UnitMark({ logo, couleur, icone, perso, className }: { logo?: string; couleur: string; icone: IconeNom; perso?: string; className: string }) {
-  return isImage(logo) ? (
-    <span className={`${className} has-logo`} style={{ borderColor: couleur }}><img src={logo} alt="" draggable={false} /></span>
-  ) : (
-    <span className={className} style={{ background: couleur }}>{perso && ICONES_ENTITE[perso] ? <IconeBiblio cle={perso} /> : <Icone n={icone} />}</span>
-  );
-}
-
 export function StatusBadge({ task }: { task: Task }) {
-  // Vue « moi » : une tâche de l'une de mes autres entités garde son statut de chez elle.
-  const { dataMoi: data } = useStore();
+  const { data } = useStore();
   const s = data.statuses.find((x) => x.id === task.statusId);
   return (
     <span className="badges">
@@ -96,52 +82,9 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>;
 }
 
-/**
- * Petits repères (icônes dessinées) : tâche récurrente, partagée entre entités, à l'ordre du jour d'une séance du comité
- * dont l'entité dépend, rattachée à un événement qui dépend du comité ; épingle : délai calé sur un événement / une séance.
- */
+/** Petit repère (icône dessinée) : tâche récurrente. */
 export function RecurIcon({ task }: { task: Task }) {
-  const club = useClubOptional();
-  const avec = partageDe(task, club?.central?.id).map((id) => club?.units.find((u) => u.id === id)?.nom).filter(Boolean);
-  // Tâche de l'une de mes entités (vue « moi », vue du club) : partagée si elle l'est chez elle ; d'une autre entité :
-  // partagée avec l'entité ouverte, ou (vue du club) avec l'une des miennes (`via`).
-  const via = task.source?.via && club?.units.find((u) => u.id === task.source!.via)?.nom;
-  const partage = task.source && !task.source.chezMoi
-    ? `Tâche de ${task.source.unite}, partagée avec cette entité`
-    : via ? `Tâche de ${task.source!.unite}, partagée avec ${via}`
-    : avec.length ? `Partagée avec ${avec.join(', ')}` : task.partage?.length || task.auCentral ? 'Partagée avec d’autres entités' : '';
-  return (
-    <>
-      {task.recurrence && <span className="ticon" title={`Tâche récurrente : ${recurrenceLabel(task.recurrence).toLowerCase()}`}><Icone n="repetition" /></span>}
-      {partage && <span className="ticon" title={partage}><Icone n="partage" /></span>}
-      {task.seanceComite && (
-        <span className="ticon" title={`À l’ordre du jour de « ${task.seanceComite.titre} » (${club?.units.find((u) => u.id === task.seanceComite!.uniteId)?.nom ?? 'comité'})`}><Icone n="comite" /></span>
-      )}
-      {task.evenementEntite && !task.source && (
-        <span className="ticon" title={`Rattachée à « ${task.evenementEntite.nom} »${task.evenementEntite.date ? ` (${fmtDate(task.evenementEntite.date)})` : ''}, qui dépend de ce comité`}>
-          <IconeEntite u={club?.units.find((u) => u.id === task.evenementEntite!.uniteId) ?? { type: 'equipe' }} />
-        </span>
-      )}
-      <EntiteTag task={task} />
-    </>
-  );
-}
-
-/** Membre de plusieurs entités du club (vue « moi ») : chaque tâche, chaque séance porte le nom de son entité. */
-export function usePlusieursEntites() {
-  const club = useClubOptional();
-  return !!club && club.mine.length > 1;
-}
-
-/**
- * Pilule de l'entité d'une tâche : celle d'où elle vient (partagée, ou de l'une de mes autres entités) ; pour qui fait
- * partie de plusieurs entités, aussi celle de l'entité ouverte.
- */
-export function EntiteTag({ task }: { task: Task }) {
-  const club = useClubOptional();
-  const plusieurs = usePlusieursEntites();
-  const nom = task.source?.unite ?? (plusieurs ? club?.current.nom : undefined);
-  return nom ? <span className="tsource" title={`Tâche de « ${nom} »`}>{nom}</span> : null;
+  return task.recurrence ? <span className="ticon" title={`Tâche récurrente : ${recurrenceLabel(task.recurrence).toLowerCase()}`}><Icone n="repetition" /></span> : null;
 }
 
 export function LinkIcon({ task }: { task: Task }) {
@@ -153,14 +96,12 @@ export function LinkIcon({ task }: { task: Task }) {
 
 export function DocPollIcons({ task }: { task: Task }) {
   const { data, user, discussionLueLe } = useStore();
-  const club = useClubOptional();
   const n = task.documents?.length ?? 0;
   const polls = (data.polls ?? []).filter((p) => p.taskId === task.id).length;
   const emails = (data.emails ?? []).filter((e) => e.taskId === task.id && e.statut === 'programme').length;
   // Discussion : bulle s'il y a des messages, avec le nombre de ceux pas encore lus.
   const msgs = task.commentaires?.length ?? 0;
-  const ici = club?.current.id ?? '';
-  const nl = user && msgs ? nonLus(task.commentaires, discussionLueLe(task.id), user.id, ici, task.source?.uniteId ?? ici, club?.mesFiches) : 0;
+  const nl = user && msgs ? nonLus(task.commentaires, discussionLueLe(task.id), user.id) : 0;
   return (
     <>
       {msgs > 0 && (
@@ -198,8 +139,7 @@ export function TicketTag({ task }: { task: Task }) {
   const { data, user } = useStore();
   const p = task.paiement;
   if (!p) return null;
-  // Ticket de l'une de mes autres entités : seulement ceux que j'y vois (vue « moi »).
-  const ferme = !task.source?.chezMoi && !peutOuvrirTicket(data, task, user?.id);
+  const ferme = !peutOuvrirTicket(data, task, user?.id);
   return (
     <small className={`ticket-tag ticket-etat ${p.etat}`} title={`${genre(p).nom} · ${ETATS[p.etat].label}${ferme ? ' · réservé à la caisse, au demandeur et à la personne qui vise' : ''}`}>
       {ferme && <><Icone n="verrou" /> </>}{chf(p.montant)} · {ETATS[p.etat].icon} {ETATS[p.etat].court}
@@ -207,34 +147,25 @@ export function TicketTag({ task }: { task: Task }) {
   );
 }
 
-/** Origine d'une tâche : copiée d'une ancienne tâche d'une entité, ou ajoutée par le comité central dans une entité. */
-export function OrigineTag({ task }: { task: Task }) {
-  const c = task.copieDe;
-  if (c) return <span className="badge proposal" title={`Copiée depuis le comité « ${c.comite} », le ${fmtDate(c.le)} (ancienne tâche de « ${c.entite} »)`}><Icone n="copier" /> Copiée{c.comite ? ` · ${c.comite}` : ''}</span>;
-  if (task.parCentral) return <span className="badge proposal" title={`Tâche ajoutée par ${task.parCentral} (comité central)`}><Icone n="comite" /> Comité central</span>;
-  return null;
-}
-
 /**
  * « Pour info » : la tâche est montrée à la personne connectée (✏️ À revoir : modifiée depuis son « ✓ Vu »), ou à des
- * personnes et entités : combien l'ont vue sur combien (noms au survol ; personnes attendues, 052, si la page les a lues).
+ * personnes : combien l'ont vue sur combien (noms au survol ; personnes attendues, 052, si la page les a lues).
  */
 export function PourInfoTag({ task }: { task: Task }) {
-  const { data, user, versClub } = useStore();
-  const club = useClubOptional();
+  const { data, user } = useStore();
   const n = nbPourInfo(task.pourInfo);
   if (!n || task.paiement) return null;
-  const noms = ciblesPourInfo(task.pourInfo, data.people, club?.units ?? []).map((c) => c.texte).join(', ');
+  const noms = ciblesPourInfo(task.pourInfo, data.people).map((c) => c.texte).join(', ');
   if (pourMoi(task, user?.id)) {
     if (user && vuAvantModif(task.pourInfoVus?.[`p:${user.id}`], task))
       return <span className="badge pour-info revoir" title={`Elle a changé depuis ton « ✓ Vu » · pour info : ${noms}`}>✏️ À revoir</span>;
     return <span className="badge pour-info" title={`On te tient au courant, sans que tu t'en occupes · pour info : ${noms}`}><Icone n="voir" /> Pour info</span>;
   }
-  const b = bilanVu(task, club ? attendusLus(task, club.current.id, versClub) : undefined);
+  const b = bilanVu(task, attendusLus(task));
   const vu = texteVu(b);
   return (
     <span className="badge pour-info" title={`Pour info : ${noms}${vu ? ` · ${vu}` : ''}`}>
-      <Icone n="voir" /> {b.complet && b.total ? `${b.n}/${b.total}` : n}
+      <Icone n="voir" /> {b.total ? `${b.n}/${b.total}` : n}
     </span>
   );
 }
@@ -245,9 +176,7 @@ export function APrendreTag({ task }: { task: Task }) {
   if (!aPrendreOuverte(task) || isDone(data, task)) return null;
   const n = nombreAPrendre(task.aPrendre);
   const nom = (id: string) => fullName(data.people.find((p) => p.id === id));
-  // Tâche partagée : proposée aussi dans d'autres entités (comptées seulement).
-  const nAilleurs = ailleurs(task).reduce((k, [, a]) => k + a.personnes.length, 0);
-  const noms = [...task.aPrendre!.personnes.map(nom), ...(nAilleurs ? [`${nAilleurs} personne${nAilleurs > 1 ? 's' : ''} d’une autre entité`] : [])].join(', ');
+  const noms = task.aPrendre!.personnes.map(nom).join(', ');
   const refus = task.aPrendre!.refus ?? [];
   const titre = aPrendrePourMoi(task, user?.id)
     ? 'On te la propose : ouvre-la et clique « Je m’en charge »'
@@ -256,7 +185,7 @@ export function APrendreTag({ task }: { task: Task }) {
   const personne = plusPersonne(task);
   return (
     <span className={`badge a-prendre${personne ? ' personne' : ''}`} title={personne ? `${titre}. Plus personne n’a à répondre : propose-la à d’autres.` : titre}>
-      <Icone n={personne ? 'refuser' : 'main'} /> {personne ? 'Personne de dispo' : 'À prendre'}{n > 1 ? ` ${volontaires(task).length + prisAilleurs(task)}/${n}` : ''}
+      <Icone n={personne ? 'refuser' : 'main'} /> {personne ? 'Personne de dispo' : 'À prendre'}{n > 1 ? ` ${volontaires(task).length}/${n}` : ''}
     </span>
   );
 }

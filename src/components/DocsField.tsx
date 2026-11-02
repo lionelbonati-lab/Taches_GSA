@@ -133,7 +133,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
               </button>
               {!compact && (
                 <small className="muted">
-                  {d.kind === 'lien' ? 'lien' : fmtSize(d.taille)} · {d.parNom ?? fullName(data.people.find((p) => p.id === d.par))} · {fmtDate(d.le.slice(0, 10))}
+                  {d.kind === 'lien' ? 'lien' : fmtSize(d.taille)} · {fullName(data.people.find((p) => p.id === d.par)) || (d as { parNom?: string }).parNom} · {fmtDate(d.le.slice(0, 10))}
                 </small>
               )}
               {!disabled && <button type="button" className="icon-btn" onClick={() => remove(d)} aria-label={`Retirer ${d.nom}`}>✕</button>}

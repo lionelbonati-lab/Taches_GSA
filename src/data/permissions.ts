@@ -23,12 +23,28 @@ export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMIS
   { id: 'polls.manage', label: 'Gérer tous les sondages (clôturer, supprimer)', group: 'Gestion' },
   { id: 'paiements.valider', label: 'Paiements : peut viser (signer) les tickets, sur demande de la caisse', group: 'Gestion' },
   { id: 'paiements.payer', label: 'Caisse : reçoit les tickets, demande les visas, fait les virements', group: 'Gestion' },
-  { id: 'settings.lists', label: 'Gérer sections / statuts', group: 'Administration' },
+  { id: 'settings.lists', label: 'Gérer sections, statuts et étiquettes', group: 'Administration' },
   { id: 'admin.access', label: 'Accès console admin', group: 'Administration' },
 ];
 
 export const ALL_PERMISSIONS = PERMISSIONS.map((p) => p.id);
 export const ADMIN_ROLE_ID = 'admin';
+
+/** Rôle « Externe » (prestataire, aide ponctuelle…) : seulement ses propres tâches. */
+export const EXTERNE_PERMS: Permission[] = ['tasks.editOwn'];
+export const EXTERNE_COULEUR = '#64748b';
+
+/** Rôle « Membre » : personne du club qui suit ses tâches (et celles de ses étiquettes) et voit l'agenda. */
+export const MEMBRE_ROLE_ID = 'membre';
+export const MEMBRE_PERMS: Permission[] = ['tasks.editOwn', 'tab.events'];
+
+/** Rôle donné d'office à une nouvelle personne : « Membre », sinon le rôle non admin le moins étendu. */
+export function defaultRoleId(roles: Role[]) {
+  const membre = roles.find((r) => r.id === MEMBRE_ROLE_ID);
+  if (membre) return membre.id;
+  const autres = roles.filter((r) => r.id !== ADMIN_ROLE_ID).sort((a, b) => a.permissions.length - b.permissions.length);
+  return autres[0]?.id ?? ADMIN_ROLE_ID;
+}
 
 export const userRoles = (roles: Role[], p?: Person | null) => (p ? roles.filter((r) => p.roles.includes(r.id)) : []);
 
@@ -62,17 +78,11 @@ export function personnesDuRole<P extends Pick<Person, 'roles'>>(roles: Role[], 
   });
 }
 
-/** La tâche porte une étiquette dont la personne est membre (ou seulement responsable, `responsable`). */
-export function dansEtiquette(t: Pick<Task, 'etiquettes' | 'paiement'>, userId: string | undefined, etiquettes: Etiquette[] = [], responsable = false) {
+/** La tâche porte une étiquette dont la personne est membre. */
+export function dansEtiquette(t: Pick<Task, 'etiquettes' | 'paiement'>, userId: string | undefined, etiquettes: Etiquette[] = []) {
   if (!userId || t.paiement || !t.etiquettes?.length) return false;
-  return t.etiquettes.some((id) => {
-    const e = etiquettes.find((x) => x.id === id);
-    return !!e && (e.responsables.includes(userId) || (!responsable && e.membres.includes(userId)));
-  });
+  return t.etiquettes.some((id) => !!etiquettes.find((x) => x.id === id)?.membres.includes(userId));
 }
-
-/** Responsable d'au moins une étiquette : peut créer des tâches qui la portent. */
-export const responsableEtiquette = (userId: string | undefined, etiquettes: Etiquette[] = []) => !!userId && etiquettes.some((e) => e.responsables.includes(userId));
 
 /**
  * Tâche que la personne voit, comme le serveur (migrations 029, 037, 038) : ses tâches (responsable, créées par soi,

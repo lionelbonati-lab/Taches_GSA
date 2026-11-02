@@ -38,10 +38,10 @@ export function ImportsEntite() {
           modele="modele-membres-entite.csv"
           aide={
             <p className="muted">
-              Une ligne par personne, avec son poste et son rôle dans cette entité. Une personne déjà présente (même email, sinon même prénom et nom)
+              Une ligne par personne, avec son poste et son rôle dans l’appli. Une personne déjà présente (même email, sinon même prénom et nom)
               est mise à jour : cellules remplies, rôles ajoutés à ceux qu’elle a déjà ; une personne retirée est réactivée.
               {club && ' Ses coordonnées sont celles de sa fiche dans « Personnes du club » (communes à tout le club).'} L’accès à l’appli se crée ensuite
-              dans sa fiche (organigramme : clic sur son nom).
+              dans sa fiche (« Personnes du club » : clic sur son nom).
             </p>
           }
           analyser={(lignes) => analyserPersonnes(lignes, data, { admin, registre })}
@@ -63,7 +63,7 @@ export function ImportsEntite() {
           key="taches"
           colonnes={COLS_TACHES}
           modele="modele-taches.csv"
-          aide={<p className="muted">Une ligne par tâche. Section, statut et responsables doivent exister dans l’entité (sinon : valeur par défaut, signalée dans l’aperçu). Une tâche de même titre dans la même section n’est pas reprise.</p>}
+          aide={<p className="muted">Une ligne par tâche. Section, statut et responsables doivent exister dans l’appli (sinon : valeur par défaut, signalée dans l’aperçu). Une tâche de même titre dans la même section n’est pas reprise.</p>}
           analyser={(lignes) => analyserTaches(lignes, data, user?.id ?? '')}
           appliquer={(vals) => {
             update((d) => {

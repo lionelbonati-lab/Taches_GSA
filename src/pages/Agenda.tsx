@@ -2,28 +2,21 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { AgendaClubEvent, ClubEvent, Meeting, OrgUnit, PvArchive, Task } from '../data/types';
+import type { ClubEvent, Etiquette, Meeting, PvArchive, Task } from '../data/types';
 import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
 import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu } from '../data/repetition';
 import { EventModal, newEvent } from '../components/EventModal';
-import { EditionCard, hasEdition } from '../components/Edition';
 import { RepriseModal } from '../components/Reprise';
 import { reprenable } from '../data/reprise';
-import { Empty, Modal, usePlusieursEntites } from '../components/ui';
+import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
-import { IconeEntite } from '../components/IconesEntite';
-import { ChampEntite, NouveauDans, type ChoixEntiteFenetre } from '../components/ChoixEntite';
-import { Chez, useMesEntites, type EntiteMoi } from '../data/entites';
-import { useComites } from '../data/comites';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
 import { useUnitLogo } from '../components/Entete';
 import { PageIntro } from '../components/Nav';
-import { useClubOptional } from '../data/club';
 import { aPlanifier, aRenommer, annuelle, convoquesDe, duMois, finDeSerie, motSeance, nomSeance, serieDuMois, seuleDuMois, titreSelonDate } from '../data/seances';
-import { UNIT_TYPES } from '../data/units';
-import { evenementsDependants, tacheDeLEvenement } from '../data/externes';
+import { etiquettesDatees, memeEvenement } from '../data/agendaIcs';
 import { useAnnexesArchive, useOuvrirDocs } from '../components/Annexes';
 import { margesArchive, policeArchive } from '../data/styleDocs';
 import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
@@ -52,8 +45,8 @@ export function useAgendaActions() {
   };
 }
 
-/** Mot des séances de l'entité ouverte : « Comité », « Séance », « Réunion ». */
-export const useMotSeance = () => motSeance(useClubOptional()?.current.type);
+/** Mot des séances : « Comité ». */
+export const useMotSeance = () => motSeance();
 
 /**
  * Arrivée depuis la recherche (« ?seance=… », « ?id=… ») : la carte visée, mise en évidence et amenée à l'écran.
@@ -61,11 +54,11 @@ export const useMotSeance = () => motSeance(useClubOptional()?.current.type);
  */
 function useCible(param: string) {
   const [params, setParams] = useSearchParams();
-  const [cible, setCible] = useState<{ id: string; archive?: boolean; entite?: string } | null>(null);
+  const [cible, setCible] = useState<{ id: string; archive?: boolean } | null>(null);
   useEffect(() => {
     const id = params.get(param) ?? params.get('archive');
     if (!id) return;
-    setCible({ id, archive: !params.get(param), entite: params.get('entite') ?? undefined });
+    setCible({ id, archive: !params.get(param) });
     setParams({}, { replace: true });
   }, [params, param, setParams]);
   useEffect(() => {
@@ -74,11 +67,8 @@ function useCible(param: string) {
   return cible;
 }
 
-/** La carte visée (`?entite=` : celle de cette entité, les mêmes numéros pouvant servir dans plusieurs entités). */
-const estCible = (cible: { id: string; entite?: string } | null, id: string, u?: string) => !!cible && cible.id === id && (!cible.entite || !u || cible.entite === u);
-
-/** Lien vers les tâches d'une séance, d'un événement : de son entité seulement (filtre « Entité »). */
-const tachesDe = (filtre: string, u: string | undefined) => `/taches?${filtre}${u ? `&entite=${encodeURIComponent(u)}` : ''}`;
+/** La carte visée. */
+const estCible = (cible: { id: string } | null, id: string) => !!cible && cible.id === id;
 
 /**
  * Nouvelle séance, nommée d'après son mois (« Comité de mars 2027 ») et qui revient chaque année.
@@ -103,7 +93,7 @@ function Excuses({ m, past }: { m: Meeting; past: boolean }) {
   const [motif, setMotif] = useState('');
   const list = m.excuses ?? [];
   const mine = user ? list.find((e) => e.personId === user.id) : undefined;
-  // Convoqués : ★ et postes du comité (PERSONNES_DU_CLUB.md).
+  // Convoqués : les personnes dont un rôle donne le droit « Séances ».
   const convoque = !!user && convoquesDe(data).some((p) => p.id === user.id);
   const set = (excuse: boolean) => {
     if (!user) return;
@@ -140,107 +130,82 @@ function Excuses({ m, past }: { m: Meeting; past: boolean }) {
   );
 }
 
-/** Archive ouverte (PV ou ordre du jour) d'une séance ; `u` : son entité. */
-type VuePv = { meeting: Meeting; pv: PvArchive; kind: 'odj' | 'pv'; u?: string };
+/** Archive ouverte (PV ou ordre du jour) d'une séance. */
+type VuePv = { meeting: Meeting; pv: PvArchive; kind: 'odj' | 'pv' };
 
-/**
- * Séances de tous mes comités (vue « moi »), chacune avec la pilule de son entité : elle s'y affiche, s'y modifie et
- * mène à son ordre du jour et à son PV (ce comité choisi), sans changer d'entité.
- */
+/** Séances du comité : chacune mène à ses tâches, son ordre du jour et son PV. */
 export function Meetings() {
-  const mes = useMesEntites().filter((e) => e.store.can('tab.meetings'));
-  const plusieurs = usePlusieursEntites();
-  const [edit, setEdit] = useState<{ m: Meeting; u?: string } | null>(null);
+  const { data, can } = useStore();
+  const [edit, setEdit] = useState<Meeting | null>(null);
   const [nouvelle, setNouvelle] = useState(false);
   const [viewPv, setViewPv] = useState<VuePv | null>(null);
-  const gerables = mes.filter((e) => e.store.can('meetings.manage'));
+  const gerer = can('meetings.manage');
   // Les séances passées sont repliées en bas (archives des PV et ordres du jour), les plus récentes d'abord.
   const jour = today();
-  const toutes = mes
-    .flatMap((e) => e.store.data.meetings.map((m) => ({ m, e })))
-    .sort((a, b) => a.m.date.localeCompare(b.m.date) || (a.m.heure ?? '').localeCompare(b.m.heure ?? '') || Number(b.e.ici) - Number(a.e.ici));
-  const aVenir = toutes.filter((x) => x.m.date >= jour);
-  const passees = toutes.filter((x) => x.m.date < jour).reverse();
+  const toutes = [...data.meetings].sort((a, b) => a.date.localeCompare(b.date) || (a.heure ?? '').localeCompare(b.heure ?? ''));
+  const aVenir = toutes.filter((m) => m.date >= jour);
+  const passees = toutes.filter((m) => m.date < jour).reverse();
   const cible = useCible('seance');
   useEffect(() => {
     if (!cible?.archive) return;
-    for (const { m, e } of toutes) {
-      if (cible.entite && e.u && cible.entite !== e.u.id) continue;
+    for (const m of toutes) {
       const pv = m.minutesArchives?.find((x) => x.id === cible.id);
       const odj = m.pvArchives?.find((x) => x.id === cible.id);
-      if (pv || odj) return setViewPv({ meeting: m, pv: (pv ?? odj)!, kind: pv ? 'pv' : 'odj', u: e.u?.id });
+      if (pv || odj) return setViewPv({ meeting: m, pv: (pv ?? odj)!, kind: pv ? 'pv' : 'odj' });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cible]);
 
-  const carte = ({ m, e }: { m: Meeting; e: EntiteMoi }) => (
-    <Chez key={`${e.u?.id ?? ''}:${m.id}`} id={e.u?.id}>
-      <CarteSeance
-        m={m}
-        cible={estCible(cible, m.id, e.u?.id)}
-        pilule={plusieurs ? e.u?.nom : undefined}
-        onPv={(pv, kind) => setViewPv({ meeting: m, pv, kind, u: e.u?.id })}
-        onEdit={() => setEdit({ m, u: e.u?.id })}
-      />
-    </Chez>
+  const carte = (m: Meeting) => (
+    <CarteSeance key={m.id} m={m} cible={estCible(cible, m.id)} onPv={(pv, kind) => setViewPv({ meeting: m, pv, kind })} onEdit={() => setEdit(m)} />
   );
 
   return (
     <div>
       <div className="page-head">
-        <h1>{mes.length > 1 ? 'Séances de mes comités' : 'Séances du comité'}</h1>
-        {gerables.length > 0 && <button className="btn primary" onClick={() => setNouvelle(true)}>+ Nouvelle séance</button>}
+        <h1>Séances du comité</h1>
+        {gerer && <button className="btn primary" onClick={() => setNouvelle(true)}>+ Nouvelle séance</button>}
       </div>
       <PageIntro />
-      {gerables.map((e) => (
-        <Chez key={e.u?.id ?? ''} id={e.u?.id}>
-          <Renommer nom={gerables.length > 1 ? e.u?.nom : undefined} />
-          <AnneeProchaine nom={gerables.length > 1 ? e.u?.nom : undefined} />
-        </Chez>
-      ))}
+      {gerer && (
+        <>
+          <Renommer />
+          <AnneeProchaine />
+        </>
+      )}
       <div className="agenda">
         {aVenir.map(carte)}
         {!aVenir.length && <Empty>{passees.length ? 'Aucune séance à venir.' : 'Aucune séance.'}</Empty>}
       </div>
       {passees.length > 0 && (
-        <details className="seances-passees" open={passees.some((x) => estCible(cible, x.m.id, x.e.u?.id)) || undefined}>
+        <details className="seances-passees" open={passees.some((m) => estCible(cible, m.id)) || undefined}>
           <summary><Icone n="archives" /> Séances passées ({passees.length})</summary>
           <div className="agenda">{passees.map(carte)}</div>
         </details>
       )}
-      {viewPv && (
-        <Chez id={viewPv.u}>
-          <ArchiveSeance vue={viewPv} onClose={() => setViewPv(null)} />
-        </Chez>
-      )}
-      {edit && (
-        <Chez id={edit.u}>
-          <MeetingModal meeting={edit.m} onClose={() => setEdit(null)} />
-        </Chez>
-      )}
-      {nouvelle && <NouvelleSeance gerables={gerables} onClose={() => setNouvelle(false)} />}
+      {viewPv && <ArchiveSeance vue={viewPv} onClose={() => setViewPv(null)} />}
+      {edit && <MeetingModal meeting={edit} onClose={() => setEdit(null)} />}
+      {nouvelle && <MeetingModal meeting={newMeeting(data.meetings, today(), motSeance())} onClose={() => setNouvelle(false)} />}
     </div>
   );
 }
 
-/** Carte d'une séance, dans son entité : ses tâches, ses excusés, ses archives, mes droits chez elle. */
-function CarteSeance({ m, cible, pilule, onPv, onEdit }: { m: Meeting; cible: boolean; pilule?: string; onPv: (pv: PvArchive, kind: 'odj' | 'pv') => void; onEdit: () => void }) {
+/** Carte d'une séance : ses tâches, ses excusés, ses archives. */
+function CarteSeance({ m, cible, onPv, onEdit }: { m: Meeting; cible: boolean; onPv: (pv: PvArchive, kind: 'odj' | 'pv') => void; onEdit: () => void }) {
   const { data, can } = useStore();
-  const club = useClubOptional();
-  const comites = useComites();
   const tasks = data.tasks.filter((t) => t.meetingId === m.id);
   const past = m.date < today();
   return (
     <article id={`cible-${m.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
       <DateBlock date={m.date} />
       <div className="grow">
-        <strong>{m.titre}</strong>{pilule && <> <span className="tsource" title={`Séance de « ${pilule} »`}>{pilule}</span></>}
+        <strong>{m.titre}</strong>
         <div className="muted">
           {m.heure && `${m.heure.replace(':', 'h')} · `}<LieuSeance m={m} vide="" />{!past && ` · dans ${daysUntil(m.date)} j`}
           {annuelle(m) ? <> · <Icone n="repetition" /> chaque année</> : ' · une seule fois'}
         </div>
         <Excuses m={m} past={past} />
-        <Link to={tachesDe(`meeting=${encodeURIComponent(m.id)}`, pilule || club?.aEgalite ? club?.current.id : undefined)}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
+        <Link to={`/taches?meeting=${encodeURIComponent(m.id)}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
         {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
           <div className="pv-archives">
             {(m.minutesArchives ?? []).map((pv, i) => (
@@ -254,7 +219,7 @@ function CarteSeance({ m, cible, pilule, onPv, onEdit }: { m: Meeting; cible: bo
               </button>
             ))}
             {can('tab.minutes') && (
-              <Link className="chip" to={`/pv?seance=${m.id}`} onClick={() => club && comites?.choisir(club.current.id)}>
+              <Link className="chip" to={`/pv?seance=${m.id}`}>
                 <Icone n="notes" /> {m.minutes ? 'Reprendre le PV' : 'Prendre les notes du PV'}
               </Link>
             )}
@@ -266,7 +231,7 @@ function CarteSeance({ m, cible, pilule, onPv, onEdit }: { m: Meeting; cible: bo
   );
 }
 
-/** PV ou ordre du jour archivé d'une séance, dans son entité (supprimable selon mes droits chez elle). */
+/** PV ou ordre du jour archivé d'une séance (supprimable selon mes droits). */
 function ArchiveSeance({ vue, onClose }: { vue: VuePv; onClose: () => void }) {
   const { can, update } = useStore();
   return (
@@ -285,16 +250,6 @@ function ArchiveSeance({ vue, onClose }: { vue: VuePv; onClose: () => void }) {
       onClose={onClose}
     />
   );
-}
-
-/** Nouvelle séance : dans l'un de mes comités où je gère les séances, choisi dans la fenêtre (« Comité »). */
-function NouvelleSeance({ gerables, onClose }: { gerables: EntiteMoi[]; onClose: () => void }) {
-  // Nommée d'après son mois chez le comité choisi ; date, heure et lieu déjà saisis suivent.
-  const cree = (e: EntiteMoi, v?: Meeting): Meeting => {
-    const m = newMeeting(e.store.data.meetings, v?.date || today(), motSeance(e.u?.type));
-    return v ? { ...m, heure: v.heure, lieu: v.lieu, lieuGeo: v.lieuGeo } : m;
-  };
-  return <NouveauDans entites={gerables} cree={cree}>{(m, choix) => <MeetingModal meeting={m} entite={choix} onClose={onClose} />}</NouveauDans>;
 }
 
 /** « jeudi 8 avril 2027 » (sans la virgule que certains navigateurs ajoutent après le jour). */
@@ -377,7 +332,7 @@ function Renommer({ nom }: { nom?: string }) {
 }
 
 /** Fiche d'une séance : son nom suit le mois de la date ; elle revient chaque année, sauf si on décoche. */
-export function MeetingModal({ meeting, entite, onClose }: { meeting: Meeting; entite?: ChoixEntiteFenetre<Meeting>; onClose: () => void }) {
+export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: () => void }) {
   const { data } = useStore();
   const { saveMeeting, removeMeeting } = useAgendaActions();
   const mot = useMotSeance();
@@ -432,7 +387,6 @@ export function MeetingModal({ meeting, entite, onClose }: { meeting: Meeting; e
   return (
     <Modal title={isNew ? 'Nouvelle séance' : 'Séance'} onClose={onClose}>
       <div className="form">
-        <ChampEntite choix={entite} v={v} label="Comité" />
         <label>
           Titre
           <input value={v.titre} onChange={(e) => set({ titre: e.target.value })} />
@@ -490,86 +444,95 @@ export function MeetingModal({ meeting, entite, onClose }: { meeting: Meeting; e
 }
 
 /**
- * Événements de toutes mes entités (vue « moi »), chacun avec la pilule de son entité : il s'y affiche, s'y modifie et
- * s'y reprend, sans changer d'entité. Avec les événements du club qui dépendent de mes comités.
+ * Événements de l'agenda, et les étiquettes « événement » datées (Bruntrutaine, soirée…) avec l'avancement de leurs
+ * tâches. Un événement de l'agenda et une étiquette du même jour, de même nom, vont ensemble.
  */
 export function Events() {
-  const mes = useMesEntites().filter((e) => e.store.can('tab.events'));
-  const plusieurs = usePlusieursEntites();
-  const club = useClubOptional();
-  const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string; u?: string } | null>(null);
+  const { data, can } = useStore();
+  const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string } | null>(null);
   const [nouveau, setNouveau] = useState(false);
   // Événement passé repris pour une nouvelle édition, avec ses tâches (Reprise.tsx).
-  const [reprise, setReprise] = useState<{ e: ClubEvent; u?: string } | null>(null);
-  const gerables = mes.filter((e) => e.store.can('events.manage'));
+  const [reprise, setReprise] = useState<ClubEvent | null>(null);
   const cible = useCible('id');
   // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
   const jour = today();
   const affiche = (e: ClubEvent) => (e.repetition ? (occurrenceDu(e, jour) ?? derniereOccurrence(e) ?? e.date) : e.date);
-  // Avec les événements du club qui dépendent de chacun de mes comités, à leur date (sans date : à la fin).
-  const liste = mes
-    .flatMap((ent) => [
-      ...ent.store.data.events.map((e) => ({ date: affiche(e), e, u: undefined, ent })),
-      ...(club && ent.u ? evenementsDependants(club.units, ent.u) : []).map((u) => ({ date: u.date || '9999', e: undefined, u, ent })),
-    ])
-    .sort((a, b) => a.date.localeCompare(b.date) || Number(!!a.u) - Number(!!b.u) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? '') || Number(b.ent.ici) - Number(a.ent.ici));
+  const etiquettes = etiquettesDatees(data.etiquettes);
+  const etiquetteDe = (e: ClubEvent) => etiquettes.find((et) => memeEvenement(et, e));
+  const seules = etiquettes.filter((et) => !data.events.some((e) => memeEvenement(et, e)));
+  const liste = [
+    ...data.events.map((e) => ({ date: affiche(e), e, et: etiquetteDe(e) })),
+    ...seules.map((et) => ({ date: et.date!, e: undefined, et })),
+  ].sort((a, b) => a.date.localeCompare(b.date) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? ''));
 
   return (
     <div>
       <div className="page-head">
         <h1>Événements</h1>
-        {gerables.length > 0 && <button className="btn primary" onClick={() => setNouveau(true)}>+ Nouvel événement</button>}
+        {can('events.manage') && <button className="btn primary" onClick={() => setNouveau(true)}>+ Nouvel événement</button>}
       </div>
       <PageIntro />
-      {mes.map((ent) => (
-        <Chez key={ent.u?.id ?? ''} id={ent.u?.id}>
-          <EditionCard pilule={plusieurs ? ent.u?.nom : undefined} />
-        </Chez>
-      ))}
       <div className="agenda">
-        {liste.map(({ e: serie, u, date, ent }) => (
-          <Chez key={`${ent.u?.id ?? ''}:${u ? `u:${u.id}` : serie?.id}`} id={ent.u?.id}>
-            {u ? (
-              <EvenementDependant u={u} pilule={plusieurs ? ent.u?.nom : undefined} />
-            ) : (
-              serie && (
-                <CarteEvenement
-                  serie={serie}
-                  date={date}
-                  cible={estCible(cible, serie.id, ent.u?.id)}
-                  pilule={plusieurs ? ent.u?.nom : undefined}
-                  onEdit={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined, u: ent.u?.id })}
-                  onReprise={() => setReprise({ e: serie, u: ent.u?.id })}
-                />
-              )
-            )}
-          </Chez>
-        ))}
+        {liste.map(({ e: serie, et, date }) =>
+          serie ? (
+            <CarteEvenement
+              key={serie.id}
+              serie={serie}
+              date={date}
+              etiquette={et}
+              cible={estCible(cible, serie.id)}
+              onEdit={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}
+              onReprise={() => setReprise(serie)}
+            />
+          ) : (
+            et && <CarteEtiquette key={`et:${et.id}`} et={et} />
+          ),
+        )}
         {!liste.length && <Empty>Aucun événement.</Empty>}
       </div>
-      {edit && (
-        <Chez id={edit.u}>
-          <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />
-        </Chez>
-      )}
-      {nouveau && (
-        <NouveauDans entites={gerables} cree={(_e, v?: ClubEvent) => (v ? { ...v, id: uid('e') } : newEvent())}>
-          {(e, choix) => <EventModal event={e} entite={choix} onClose={() => setNouveau(false)} />}
-        </NouveauDans>
-      )}
-      {reprise && (
-        <Chez id={reprise.u}>
-          <RepriseChez event={reprise.e} onClose={() => setReprise(null)} />
-        </Chez>
-      )}
+      {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
+      {nouveau && <EventModal event={newEvent()} onClose={() => setNouveau(false)} />}
+      {reprise && <RepriseModal event={reprise} onClose={() => setReprise(null)} />}
     </div>
   );
 }
 
-/** Carte d'un événement (à la date `date` s'il se répète), dans son entité : avancement de ses tâches, mes droits chez elle. */
-function CarteEvenement({ serie, date, cible, pilule, onEdit, onReprise }: { serie: ClubEvent; date: string; cible: boolean; pilule?: string; onEdit: () => void; onReprise: () => void }) {
+/** Tâches d'une étiquette : avancement et lien. */
+function TachesEtiquette({ et }: { et: Etiquette }) {
+  const { data } = useStore();
+  const taches = data.tasks.filter((t) => t.etiquettes?.includes(et.id));
+  return (
+    <div className="etiquette-taches">
+      <span className="badge etiquette" style={{ background: et.couleur }}>{et.nom}</span>{' '}
+      <small className="muted">{et.membres?.length ?? 0} membre{(et.membres?.length ?? 0) > 1 ? 's' : ''}</small>
+      {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
+      <Link to={`/taches?etiquette=${encodeURIComponent(et.id)}`}>Tâches de l’étiquette →</Link>
+    </div>
+  );
+}
+
+/** Étiquette « événement » datée, sans événement du même jour dans l'agenda : ses tâches. */
+function CarteEtiquette({ et }: { et: Etiquette }) {
+  const jour = today();
+  const fin = endOf({ date: et.date!, dateFin: et.dateFin });
+  const past = fin < jour;
+  const jours = diffDays(et.date!, fin) + 1;
+  const quand = past ? '' : et.date! <= jour ? 'en cours' : `dans ${daysUntil(et.date!)} j`;
+  return (
+    <article className={`panel agenda-item etiquette-evenement ${past ? 'past' : ''}`} style={{ '--c': et.couleur } as React.CSSProperties}>
+      <DateBlock date={et.date!} fin={et.dateFin} />
+      <div className="grow">
+        <strong>{et.nom}</strong>
+        <div className="muted">{['Événement (étiquette)', jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
+        <TachesEtiquette et={et} />
+      </div>
+    </article>
+  );
+}
+
+/** Carte d'un événement (à la date `date` s'il se répète) : avancement de ses tâches ; `etiquette` : celle du même jour. */
+function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise }: { serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: () => void }) {
   const { data, can } = useStore();
-  const club = useClubOptional();
   const jour = today();
   const e = aLaDate(serie, date);
   const tasks = data.tasks.filter((t) => t.eventId === e.id);
@@ -578,19 +541,18 @@ function CarteEvenement({ serie, date, cible, pilule, onEdit, onReprise }: { ser
   const jours = diffDays(e.date, fin) + 1;
   const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
   const suite = data.events.find((x) => x.repriseDe === serie.id);
-  // Vue du club : le lien dit toujours de quelle entité est l'événement.
-  const ici = pilule || club?.aEgalite ? club?.current.id : undefined;
   return (
     <article id={`cible-${serie.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
       <DateBlock date={e.date} fin={e.dateFin} />
       <div className="grow">
-        <strong>{e.nom}</strong>{pilule && <> <span className="tsource" title={`Événement de « ${pilule} »`}>{pilule}</span></>}
+        <strong>{e.nom}</strong>
         <div className="muted">{[horaire(e), e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
         {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
         <p>{e.description}</p>
         <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
-        <Link to={tachesDe(`event=${encodeURIComponent(e.id)}`, ici)}>Voir les tâches →</Link>
-        {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}${ici ? `&entite=${encodeURIComponent(ici)}` : ''}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
+        <Link to={`/taches?event=${encodeURIComponent(e.id)}`}>Voir les tâches →</Link>
+        {etiquette && <TachesEtiquette et={etiquette} />}
+        {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
       </div>
       {can('events.manage') && (
         <div className="agenda-actions">
@@ -602,58 +564,6 @@ function CarteEvenement({ serie, date, cible, pilule, onEdit, onReprise }: { ser
           )}
         </div>
       )}
-    </article>
-  );
-}
-
-/** Reprise d'un événement passé, dans son entité (une équipe d'événement : sa prochaine édition). */
-function RepriseChez({ event, onClose }: { event: ClubEvent; onClose: () => void }) {
-  const club = useClubOptional();
-  return <RepriseModal event={event} edition={hasEdition(club?.current)} onClose={onClose} />;
-}
-
-/**
- * Événement du club qui dépend du comité ouvert : sa prochaine édition, sa description, ses propres événements à venir
- * et l'avancement des tâches qui le concernent ici (partagées par lui, ou du comité liées à lui ou partagées avec lui).
- */
-function EvenementDependant({ u, pilule }: { u: OrgUnit; pilule?: string }) {
-  const { data, externes } = useStore();
-  const agenda = externes.agenda ?? [];
-  const club = useClubOptional();
-  if (!club) return null;
-  const jour = today();
-  const fin = u.date ? endOf({ date: u.date, dateFin: u.dateFin }) : '';
-  const past = !!fin && fin < jour;
-  const jours = u.date ? diffDays(u.date, fin) + 1 : 0;
-  const quand = !u.date ? 'date de la prochaine édition à fixer' : past ? '' : u.date <= jour ? 'en cours' : `dans ${daysUntil(u.date)} j`;
-  // Ses événements à venir (qui se répète : sa prochaine occurrence), hors celui de l'édition.
-  const siens = agenda
-    .filter((e) => e.uniteId === u.id)
-    .map((e) => (e.repetition ? (occurrenceDu(e, jour) ? aLaDate(e, occurrenceDu(e, jour)!) : undefined) : e))
-    .filter((e): e is AgendaClubEvent => !!e && endOf(e) >= jour && !(e.date === u.date && (e.dateFin ?? '') === (u.dateFin ?? '')))
-    .sort((a, b) => a.date.localeCompare(b.date));
-  const taches = data.tasks.filter((t) => tacheDeLEvenement(t, u.id));
-  return (
-    <article className={`panel agenda-item dependant ${past ? 'past' : ''}`} style={{ '--c': u.couleur } as React.CSSProperties}>
-      {u.date ? <DateBlock date={u.date} fin={u.dateFin} /> : <div className="dateblock vide" title="Date à fixer"><b>?</b><span>date</span></div>}
-      <div className="grow">
-        <strong><IconeEntite u={u} /> {u.nom}</strong> <span className="chip dependant-tag" title={`« Dépend de » : ${club.current.nom}`}>{pilule ? `dépend de « ${pilule} »` : 'dépend de ce comité'}</span>
-        <div className="muted">{[UNIT_TYPES[u.type].label, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
-        {u.description && <p>{u.description}</p>}
-        {siens.length > 0 && (
-          <ul className="dependant-events">
-            {siens.map((e) => (
-              <li key={e.id}>
-                <Icone n="evenements" /> {e.nom} · {[fmtRange(e.date, e.dateFin), horaire(e), e.lieu].filter(Boolean).join(' · ')}
-                {e.repetition && <> · <Icone n="repetition" /> {libelleRepetition(e)}</>}
-              </li>
-            ))}
-          </ul>
-        )}
-        {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
-        <Link to={tachesDe(`event=${encodeURIComponent(`u:${u.id}`)}`, pilule && club.current.id)}>Voir les tâches →</Link>
-        {!taches.length && <small className="muted"> Aucune pour l’instant : range une tâche sous « Événements » › « {u.nom} », ou rattache-la à lui (« <Icone n="rattacher" /> Rattacher à… » ou « Pour quand ? ») ; ou il partage les siennes.</small>}
-      </div>
     </article>
   );
 }

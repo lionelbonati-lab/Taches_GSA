@@ -1,7 +1,6 @@
 import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from '../../data/store';
-import { useClubOptional } from '../../data/club';
-import { COMMENTAIRE_MAX, deMoi, dernierMessage, parMoi, type ActionCommentaire } from '../../data/commentaires';
+import { COMMENTAIRE_MAX, dernierMessage, parMoi, type ActionCommentaire } from '../../data/commentaires';
 import { decouper, mentionEnCours, mentionnables, proposer } from '../../data/mentions';
 import type { Commentaire, Person } from '../../data/types';
 import { addDays, fmtDate, fmtDateTime, fullName, localNow } from '../../data/utils';
@@ -9,7 +8,6 @@ import { AvecLiens } from '../Liens';
 import { ZoneTexte } from '../ZoneTexte';
 import { Modal } from '../ui';
 import { Icone } from '../icones';
-import { PastilleEntite } from '../IconesEntite';
 
 const p2 = (n: number) => String(n).padStart(2, '0');
 /** Jour local d'un message (AAAA-MM-JJ), pour les séparateurs « Aujourd'hui », « Hier », « 12.10.2026 ». */
@@ -33,35 +31,30 @@ export const quandMessage = (iso: string) => {
 
 /**
  * Discussion sur une tâche (049), dans sa propre fenêtre, comme une messagerie : les messages en bulles (les miens à
- * droite), du plus ancien au plus récent, ouverte sur le dernier, et le champ de saisie en bas ; de personne à personne
- * (l'auteur sans son entité), avec en tête l'entité de la tâche (personnes de plusieurs entités, tâche d'ailleurs).
- * Chacun corrige ou retire les siens ; un admin de l'entité de la tâche retire n'importe lequel. Les personnes concernées
- * sont prévenues (🔔).
+ * droite), du plus ancien au plus récent, ouverte sur le dernier, et le champ de saisie en bas. Chacun corrige ou retire
+ * les siens ; un admin retire n'importe lequel. Les personnes concernées sont prévenues (🔔).
  * Ouverte, elle est lue (pastille des cartes) ; les messages arrivés depuis la dernière lecture suivent un repère.
- * `cle` : la tâche vue d'ici (lecture, notifications) ; `uniteId` : entité de la tâche quand ce n'est pas l'entité
- * ouverte (`tacheId` : son identifiant là-bas). `actions` : boutons de plus dans l'en-tête (ex. ouvrir la tâche).
- * « @ » propose les personnes de l'entité qui voient la tâche (tâche d'ici) : mentionnées, elles sont prévenues 📣.
+ * `actions` : boutons de plus dans l'en-tête (ex. ouvrir la tâche).
+ * « @ » propose les personnes qui voient la tâche : mentionnées, elles sont prévenues 📣.
  */
-export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, onClose }: { titre: string; liste?: Commentaire[]; cle: string; tacheId: string; uniteId?: string; actions?: ReactNode; onClose: () => void }) {
+export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { titre: string; liste?: Commentaire[]; tacheId: string; actions?: ReactNode; onClose: () => void }) {
   const { data, user, can, commenter, discussionLue, discussionLueLe } = useStore();
-  const club = useClubOptional();
+  const cle = tacheId;
   const [texte, setTexte] = useState('');
   const [corrige, setCorrige] = useState<{ id: string; texte: string } | null>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState('');
   const fil = useRef<HTMLDivElement>(null);
   const repere = useRef<HTMLLIElement>(null);
-  const ici = club?.current.id ?? '';
-  const unite = uniteId ?? ici;
-  // Mentions : personnes qu'on peut nommer (tâche d'ici seulement), suggestions pendant la frappe.
-  const tache = unite === ici ? data.tasks.find((t) => t.id === tacheId && !t.source) : undefined;
+  // Mentions : personnes qu'on peut nommer, suggestions pendant la frappe.
+  const tache = data.tasks.find((t) => t.id === tacheId);
   const nommables = useMemo(() => (tache && user ? mentionnables(tache, data.people, data.roles, user.id, data.etiquettes) : []), [tache, data.people, data.roles, data.etiquettes, user]);
   const zone = useRef<HTMLTextAreaElement | null>(null);
   const [suggestion, setSuggestion] = useState<{ debut: number; fin: number; liste: Person[]; i: number } | null>(null);
   // Messages des autres arrivés depuis la dernière lecture, à l'ouverture : le premier est repéré.
   const [nonLus] = useState(() => {
     const lu = discussionLueLe(cle);
-    const l = user ? liste.filter((c) => !parMoi(c, user.id, ici, unite, club?.mesFiches) && (!lu || c.le > lu)) : [];
+    const l = user ? liste.filter((c) => !parMoi(c, user.id) && (!lu || c.le > lu)) : [];
     return { premier: l[0]?.id, nombre: l.length };
   });
   const dernier = dernierMessage(liste);
@@ -78,23 +71,16 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
     ouverte.current = true;
   }, [liste.length]);
   if (!user) return null;
-  const moderer = unite === ici && can('admin.access');
-  // Entité de la tâche : pour qui est dans plusieurs entités, ou si la tâche est d'ailleurs.
-  const proprietaire = club?.units.find((u) => u.id === unite);
-  const montrerEntite = !!proprietaire && (unite !== ici || club!.mine.length > 1);
+  const moderer = can('admin.access');
   const tactile = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
   const agir = async (a: ActionCommentaire, ensuite?: () => void) => {
     setBusy(true);
     setErr('');
     try {
-      await commenter(tacheId, a, uniteId);
+      await commenter(tacheId, a);
       ensuite?.();
     } catch (e) {
-      const m = e instanceof Error ? e.message : String(e);
-      // Serveur sans la mise à jour 053 : un message écrit d'ailleurs ne se corrige ou ne se retire que depuis son entité.
-      const c = a.cle ? liste.find((x) => x.id === a.cle) : undefined;
-      const d = c && club?.units.find((u) => u.id === (c.u ?? unite))?.nom;
-      setErr(c && /pas le tien/.test(m) && !deMoi(c, user.id, ici, unite) ? `Le serveur ne le permet pas encore (mise à jour 053 à appliquer) : fais-le depuis « ${d ?? 'l’entité d’où tu l’as écrit'} ».` : m);
+      setErr(e instanceof Error ? e.message : String(e));
     }
     setBusy(false);
   };
@@ -155,18 +141,12 @@ export function Discussion({ titre, liste = [], cle, tacheId, uniteId, actions, 
   return (
     <Modal title={titre} icone="message" onClose={onClose} className="chat" actions={actions}>
       <section className="discussion" aria-label="Discussion">
-        {montrerEntite && (
-          <p className="discussion-entite">
-            <PastilleEntite u={proprietaire} /> Tâche de « {proprietaire.nom} »
-          </p>
-        )}
         <div ref={fil} className="discussion-fil">
           {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par la tâche sont prévenues 🔔.</p>}
           <ul className="discussion-liste">
             {liste.map((c, i) => {
-              // De personne à personne : les miens à droite, même écrits depuis une autre de mes entités (ils se corrigent
-              // d'ici) ; les autres avec le nom de leur auteur, sans son entité.
-              const mien = parMoi(c, user.id, ici, unite, club?.mesFiches);
+              // De personne à personne : les miens à droite ; les autres avec le nom de leur auteur.
+              const mien = parMoi(c, user.id);
               const jour = jourDe(c.le);
               return (
                 <Fragment key={c.id}>

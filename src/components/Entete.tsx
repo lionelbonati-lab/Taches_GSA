@@ -24,10 +24,9 @@ const DISPOSITIONS: { id: Entete['disposition']; label: string }[] = [
 ];
 const COULEURS = ['#1d4ed8', '#0f172a', '#047857', '#b91c1c', '#7c3aed', '#c2410c'];
 
-/** Logo affiché par l'entité ouverte : le sien, sinon celui du club. */
+/** Logo du club (documents). */
 export function useUnitLogo() {
-  const club = useClubOptional();
-  return club?.current.logo ?? club?.central?.logo;
+  return useClubOptional()?.espace.logo;
 }
 
 /** En-tête tel qu'il s'imprime. */
@@ -47,11 +46,10 @@ export function DocEntete({ e, logo }: { e: Entete; logo?: string }) {
   );
 }
 
-/** En-tête de l'entité ouverte, tel que ses documents l'impriment. */
+/** En-tête du club, tel que ses documents l'impriment. */
 export function useEntete() {
   const { data } = useStore();
-  const club = useClubOptional();
-  return enteteDe(data, defaultTexte(club?.current));
+  return enteteDe(data, defaultTexte());
 }
 
 /** Là où un document s'imprime : l'en-tête se règle dans la console admin (lien pour ses admins). */
@@ -61,12 +59,11 @@ export function LienEntete({ className = 'btn small' }: { className?: string }) 
   return <Link to="/admin/entete" className={className} title="Le même pour l’ordre du jour, le PV et le bon de paiement"><Icone n="modifier" /> En-tête (console admin)</Link>;
 }
 
-/** Console admin : l'en-tête de tous les documents de l'entité, avec aperçu. */
+/** Console admin : l'en-tête de tous les documents du club, avec aperçu. */
 export function EnteteReglage() {
   const { data, update, setToast } = useStore();
-  const club = useClubOptional();
   const logo = useUnitLogo();
-  const texte = defaultTexte(club?.current);
+  const texte = defaultTexte();
   const actuel = enteteDe(data, texte);
   const [e, setE] = useState<Entete>(actuel);
   const [err, setErr] = useState('');
@@ -92,7 +89,7 @@ export function EnteteReglage() {
         <div className="full">
           <span className="field-label">Image</span>
           <div className="row wrap">
-            <label className="inline"><input type="radio" name="entete-image" checked={e.image === 'logo'} onChange={() => set({ image: 'logo' })} /> {isImage(logo) ? 'Logo de l’entité' : 'Logo (pas encore de logo : console admin › Apparence)'}</label>
+            <label className="inline"><input type="radio" name="entete-image" checked={e.image === 'logo'} onChange={() => set({ image: 'logo' })} /> {isImage(logo) ? 'Logo du club' : 'Logo (pas encore de logo : console admin › Apparence)'}</label>
             <label className="inline"><input type="radio" name="entete-image" checked={e.image === 'perso'} onChange={() => set({ image: 'perso' })} /> Image propre (ex. papier à lettres)</label>
             <label className="inline"><input type="radio" name="entete-image" checked={e.image === 'aucune'} onChange={() => set({ image: 'aucune' })} /> Aucune</label>
           </div>

@@ -16,7 +16,7 @@ const texteErreur = (e: ErreurAppli) =>
   [
     e.message,
     `${e.nombre} fois, ${e.personnes} personne${e.personnes > 1 ? 's' : ''} · du ${fmtDateTime(e.premiere)} au ${fmtDateTime(e.derniere)}`,
-    `Page : ${e.page ?? '?'} · Entité : ${e.entite ?? '?'} · Version : ${e.version ?? '?'}`,
+    `Page : ${e.page ?? '?'} · Espace : ${e.entite ?? '?'} · Version : ${e.version ?? '?'}`,
     `Appareil : ${e.navigateur ?? '?'}`,
     e.pile ?? '',
   ]

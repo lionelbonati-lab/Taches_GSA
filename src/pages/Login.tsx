@@ -1,47 +1,50 @@
 import { useState } from 'react';
 import { InstallButton } from '../components/InstallButton';
 import { switchMode } from '../data/mode';
-import { directory } from '../data/units';
-import type { OrgUnit } from '../data/types';
+import type { AppData } from '../data/types';
 import { AppLogo, Initials } from '../components/ui';
-import { posteBesideName } from '../data/utils';
+import { fullName, posteBesideName } from '../data/utils';
+import { userRoles, ADMIN_ROLE_ID } from '../data/permissions';
 import { nomAppli } from '../data/nomAppli';
 import { Icone } from '../components/icones';
 
-/** Démo : connexion en choisissant une personne de l'annuaire du club (sans mot de passe). */
-export function Login({ units, sansPlace = [], onPick, onReset }: {
-  units: OrgUnit[];
-  /** Personnes du club sans place dans l'organigramme, avec un accès (leurs tâches confiées). */
-  sansPlace?: { key: string; prenom: string; nom: string; couleur: string }[];
-  onPick: (key: string) => void;
-  onReset: () => void;
-}) {
+/** Démo : connexion en choisissant une personne du club (sans mot de passe). */
+export function Login({ data, logo, onPick, onReset }: { data: AppData; logo?: string; onPick: (id: string) => void; onReset: () => void }) {
   const [q, setQ] = useState('');
-  // Dans l'ordre de l'organigramme (président d'abord) ; personnes fictives, avec leurs postes dans le club.
-  const people = directory(units.filter((u) => !u.archive), false).filter((e) => `${e.prenom} ${e.nom} ${e.postes.map((p) => `${p.unit.nom} ${p.member.poste}`).join(' ')}`.toLowerCase().includes(q.trim().toLowerCase()));
+  const etiquettes = data.etiquettes ?? [];
+  // Les admins d'abord, puis le comité (droit « Séances »), puis les autres ; personnes fictives, avec leurs postes.
+  const rang = (id: string) => {
+    const p = data.people.find((x) => x.id === id)!;
+    return p.roles.includes(ADMIN_ROLE_ID) ? 0 : userRoles(data.roles, p).some((r) => r.permissions.includes('tab.meetings')) ? 1 : 2;
+  };
+  const people = data.people
+    .filter((p) => p.actif)
+    .map((p) => ({ p, roles: userRoles(data.roles, p), siennes: etiquettes.filter((e) => e.membres.includes(p.id)) }))
+    .filter(({ p, roles, siennes }) => `${fullName(p)} ${p.poste} ${p.autresPostes ?? ''} ${roles.map((r) => r.label).join(' ')} ${siennes.map((e) => e.nom).join(' ')}`.toLowerCase().includes(q.trim().toLowerCase()))
+    .sort((a, b) => rang(a.p.id) - rang(b.p.id));
   return (
     <div className="login">
       <div className="login-card wide">
-        <AppLogo src={units.find((u) => u.type === 'central')?.logo ?? null} size={56} />
+        <AppLogo src={logo ?? null} size={56} />
         <h1>{nomAppli()}</h1>
         <p className="muted">
-          Démonstration – choisis une personne pour te connecter : son poste et ses entités sont indiqués.
+          Démonstration – choisis une personne pour te connecter : son poste, ses rôles et ses étiquettes sont indiqués.
           <br />
           Personnes fictives, aucun mot de passe, aucune donnée réelle.
         </p>
-        <input className="login-search" type="search" placeholder="Rechercher une personne, un poste, une entité…" value={q} onChange={(e) => setQ(e.target.value)} />
+        <input className="login-search" type="search" placeholder="Rechercher une personne, un poste, un rôle, une étiquette…" value={q} onChange={(e) => setQ(e.target.value)} />
         <div className="login-list">
-          {people.map((e) => (
-            <button key={e.key} className="login-user" onClick={() => onPick(e.key)}>
-              <Initials prenom={e.prenom} nom={e.nom} couleur={e.couleur} size={40} />
+          {people.map(({ p, roles, siennes }) => (
+            <button key={p.id} className="login-user" onClick={() => onPick(p.id)}>
+              <Initials prenom={p.prenom} nom={p.nom} couleur={p.couleur} size={40} />
               <span>
-                <strong>{e.prenom} {e.nom}</strong>
-                <small>{e.postes.map((p) => posteBesideName(`${e.prenom} ${e.nom}`, p.member.poste)).filter(Boolean).join(' · ')}</small>
+                <strong>{fullName(p)}</strong>
+                <small>{[posteBesideName(fullName(p), p.poste), roles.map((r) => r.label).join(' + ')].filter(Boolean).join(' · ')}</small>
               </span>
               <span className="role-pills">
-                {e.postes.map((p) => (
-                  <span key={p.unit.id} className="role-pill" style={{ background: p.unit.couleur }} title={`${p.unit.nom} · ${p.member.roles.join(' + ')}`}>
-                    {p.unit.nom}{p.member.admin ? ' ★' : ''}
+                {siennes.map((e) => (
+                  <span key={e.id} className="role-pill" style={{ background: e.couleur }} title={`${e.type === 'evenement' ? 'Événement' : 'Groupe'} · ${e.nom}`}>
+                    {e.nom}
                   </span>
                 ))}
               </span>
@@ -49,29 +52,11 @@ export function Login({ units, sansPlace = [], onPick, onReset }: {
           ))}
           {!people.length && <p className="muted">Personne ne correspond à « {q} ».</p>}
         </div>
-        {sansPlace.length > 0 && (
-          <>
-            <p className="muted small-note">Sans place dans l’organigramme (seulement les tâches qui leur sont confiées) :</p>
-            <div className="login-list">
-              {sansPlace
-                .filter((e) => `${e.prenom} ${e.nom}`.toLowerCase().includes(q.trim().toLowerCase()))
-                .map((e) => (
-                  <button key={e.key} className="login-user" onClick={() => onPick(e.key)}>
-                    <Initials prenom={e.prenom} nom={e.nom} couleur={e.couleur} size={40} />
-                    <span>
-                      <strong>{e.prenom} {e.nom}</strong>
-                      <small>Ses tâches confiées</small>
-                    </span>
-                  </button>
-                ))}
-            </div>
-          </>
-        )}
-        <p className="muted small-note">★ = président ou responsable de l’entité. Chaque comité, groupe ou équipe a ses propres tâches, invisibles des autres.</p>
+        <p className="muted small-note">Pastilles : les étiquettes (événements, groupes) dont la personne est membre ; elle en voit les tâches.</p>
         <InstallButton variant="compact" hideWhenUnavailable />
         <div className="login-foot">
           <button className="btn link" onClick={() => switchMode('reel')}><Icone n="verrou" /> Version réelle (membres du comité)</button>
-          <button className="btn link" onClick={() => confirm('Réinitialiser toutes les données de démonstration (toutes les entités) ?') && onReset()}>Réinitialiser la démo</button>
+          <button className="btn link" onClick={() => confirm('Réinitialiser toutes les données de démonstration ?') && onReset()}>Réinitialiser la démo</button>
         </div>
       </div>
     </div>

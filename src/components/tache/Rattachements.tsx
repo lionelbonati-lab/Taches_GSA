@@ -4,7 +4,7 @@ import type { Task } from '../../data/types';
 import { childrenOf, fmtDate, isDone, isLate, newTask } from '../../data/utils';
 import { Avatar, StatusBadge } from '../ui';
 import { Icone } from '../icones';
-import { EvenementLie, SeanceIci, SeanceLiee, type SetT } from './Quand';
+import { EvenementLie, SeanceLiee, type SetT } from './Quand';
 
 type Props = {
   t: Task;
@@ -13,7 +13,6 @@ type Props = {
   isNew: boolean;
   dis: boolean;
   editable: boolean;
-  complet: boolean;
   /** Tâches rattachées à celle-ci. */
   kids: Task[];
   /** Ouvre une autre tâche par-dessus la fiche (rattachée, ou nouvelle). */
@@ -21,24 +20,23 @@ type Props = {
 };
 
 /** Fiche d'une tâche : « 🧩 Rattachements » (événement, séance, tâche principale, tâches rattachées). */
-export function Rattachements({ t, setT, task, isNew, dis, editable, complet, kids, ouvrir }: Props) {
+export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvrir }: Props) {
   const { data, user, linkTask } = useStore();
   const [linking, setLinking] = useState(false);
   if (!user) return null;
   const parentChoices = data.tasks
-    .filter((x) => !x.source && (x.id === t.parentId || (x.id !== task.id && !x.parentId && !isDone(data, x))))
+    .filter((x) => !x.paiement && (x.id === t.parentId || (x.id !== task.id && !x.parentId && !isDone(data, x))))
     .sort((a, b) => a.titre.localeCompare(b.titre));
-  const linkable = data.tasks.filter((x) => !x.source && x.id !== task.id && !x.parentId && !childrenOf(data, x.id).length && !isDone(data, x));
+  const linkable = data.tasks.filter((x) => !x.paiement && x.id !== task.id && !x.parentId && !childrenOf(data, x.id).length && !isDone(data, x));
   const bySection = <T extends Task>(list: T[]) =>
     data.sections.map((sec) => ({ sec, list: list.filter((x) => x.sectionId === sec.id) })).filter((g) => g.list.length);
   return (
     <fieldset className="full liens">
       <legend>🧩 Rattachements</legend>
       <div className="form">
-        {t.source && <SeanceIci t={t} setT={setT} disabled={dis || !complet} />}
-        {!t.source && <EvenementLie t={t} setT={setT} disabled={dis} />}
-        {!t.source && <SeanceLiee t={t} setT={setT} disabled={dis} />}
-        {!t.source && !kids.length && (
+        <EvenementLie t={t} setT={setT} disabled={dis} />
+        <SeanceLiee t={t} setT={setT} disabled={dis} />
+        {!kids.length && (
           <label className="full">
             Tâche principale
             <select
@@ -58,7 +56,7 @@ export function Rattachements({ t, setT, task, isNew, dis, editable, complet, ki
             </select>
           </label>
         )}
-        {!t.source && !t.parentId && !isNew && (
+        {!t.parentId && !isNew && (
           <div className="full linked">
             <span className="field-label">Tâches rattachées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</span>
             {kids.length > 0 && (

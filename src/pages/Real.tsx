@@ -121,10 +121,10 @@ function MotDePasseOublie({ email, setEmail, invalide }: { email: string; setEma
       text: /security purposes|only request this|seconds/i.test(error.message)
         ? 'Un e-mail vient déjà d’être demandé : patiente une minute avant de recommencer.'
         : /rate limit|too many/i.test(error.message)
-          ? 'Trop d’e-mails demandés pour l’instant : réessaie plus tard, ou demande aux admins de tes entités.'
+          ? 'Trop d’e-mails demandés pour l’instant : réessaie plus tard, ou demande aux admins du club.'
           : /fetch|network/i.test(error.message)
             ? 'Pas de connexion au serveur. Vérifie ta connexion Internet.'
-            : 'L’envoi d’e-mails ne fonctionne pas pour l’instant : demande plutôt aux admins de tes entités (bouton ci-dessous).',
+            : 'L’envoi d’e-mails ne fonctionne pas pour l’instant : demande plutôt aux admins du club (bouton ci-dessous).',
     });
   };
   const admins = async () => {
@@ -132,7 +132,7 @@ function MotDePasseOublie({ email, setEmail, invalide }: { email: string; setEma
     setMsg(null);
     try {
       await demanderMdp(adresse);
-      setMsg({ ok: true, text: `Demande envoyée aux admins de tes entités (si un compte existe pour ${adresse}). L’un d’eux te transmettra un mot de passe provisoire, de vive voix ou par message : tu choisiras le tien à la connexion.` });
+      setMsg({ ok: true, text: `Demande envoyée aux admins du club (si un compte existe pour ${adresse}). L’un d’eux te transmettra un mot de passe provisoire, de vive voix ou par message : tu choisiras le tien à la connexion.` });
     } catch (e) {
       setMsg({ ok: false, text: /fetch|network/i.test((e as Error).message) ? 'Pas de connexion au serveur. Vérifie ta connexion Internet.' : 'Demande impossible pour l’instant : contacte directement le président ou un admin de ton entité.' });
     } finally {
@@ -147,11 +147,11 @@ function MotDePasseOublie({ email, setEmail, invalide }: { email: string; setEma
       </label>
       <div className="mdp-oublie-actions">
         <button className="btn" disabled={!valide || !!busy} onClick={lien}>{busy === 'lien' ? 'Envoi…' : <><Icone n="email" /> Recevoir un lien par email</>}</button>
-        <button className="btn" disabled={!valide || !!busy} onClick={admins}>{busy === 'admins' ? 'Envoi…' : <><Icone n="email" /> Demander aux admins de mes entités</>}</button>
+        <button className="btn" disabled={!valide || !!busy} onClick={admins}>{busy === 'admins' ? 'Envoi…' : <><Icone n="email" /> Demander aux admins du club</>}</button>
       </div>
       {msg && <p className={msg.ok ? 'ok-note' : 'error'} role="status">{msg.text}</p>}
       <p className="muted small-note">
-        Pas encore de compte ? Les accès sont créés par le président (ou un admin) depuis l’organigramme, dans la fiche de chaque personne : demande-lui un accès.
+        Pas encore de compte ? Les accès sont créés par le président (ou un admin) depuis « Personnes du club », dans la fiche de chaque personne : demande-lui un accès.
       </p>
     </div>
   );
@@ -385,7 +385,7 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
               {backup.data.people.filter((p) => p.actif).map((p) => <option key={p.id} value={p.id}>{fullName(p)}{posteBesideName(fullName(p), p.poste) && ` – ${p.poste}`}</option>)}
             </select>
           </label>
-          <p className="muted small-note">Pense à corriger ensuite les noms et les adresses email dans l’organigramme (clic sur chaque personne) : ce sont elles qui serviront à créer les accès des membres.</p>
+          <p className="muted small-note">Pense à corriger ensuite les noms et les adresses email dans « Personnes du club » (clic sur chaque personne) : ce sont elles qui serviront à créer les accès des membres.</p>
           <button className="btn primary" disabled={!!busy || !me} onClick={doImport}>Importer</button>
           {!busy && <button className="btn link" onClick={() => { setBackup(null); setStep('choix'); }}>← Retour</button>}
         </>

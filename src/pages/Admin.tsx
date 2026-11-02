@@ -4,12 +4,12 @@ import { useStore } from '../data/store';
 import { PERMISSIONS, PERMISSION_GROUPS } from '../data/permissions';
 import type { Permission, Role } from '../data/types';
 import { fmtDateTime, fullName, uid } from '../data/utils';
-import { EXTERNE_COULEUR, EXTERNE_PERMS } from '../data/units';
+import { EXTERNE_COULEUR, EXTERNE_PERMS } from '../data/permissions';
 import { Modal } from '../components/ui';
 import { useClubOptional } from '../data/club';
 import { ImportsEntite } from '../components/ImportsEntite';
 import { LogoPanel } from '../components/LogoPanel';
-import { ICONES_ENTITE } from '../components/IconesEntite';
+import { EtiquettesModal } from '../components/Etiquettes';
 import { PageIntro } from '../components/Nav';
 import { COULEURS_APPLI } from '../data/couleur';
 import { EnteteReglage } from '../components/Entete';
@@ -22,22 +22,21 @@ import { lastBackupAt } from '../data/backup';
 type Partie = { id: string; icon: IconeNom; titre: string; carte: string; aide: string; resume: string; contenu: ReactNode };
 
 /**
- * Console admin (menu du compte ; « Plus » sur téléphone), pour l'entité choisie en haut de la page : une page d'accueil
- * qui explique chaque partie, puis une adresse par partie (/admin/droits…).
+ * Console admin (menu du compte ; « Plus » sur téléphone) : une page d'accueil qui explique chaque partie, puis une
+ * adresse par partie (/admin/droits…).
  */
 export function Admin() {
   const { partie } = useParams();
-  const { dataLocale: data, prefs } = useStore();
+  const { data, prefs } = useStore();
   const club = useClubOptional();
-  const u = club?.current;
-  const central = !u || u.type === 'central';
-  // Personnes de l'entité : dans l'organigramme du club (« Club › Organigramme »).
-  const personnes = !!club;
+  const u = club?.espace;
+  // Personnes : « Personnes du club » (leur fiche : rôles et accès).
+  const personnes = !!club?.personnes.voir;
 
-  // Couleur de l'appli : celle du club (comité central), pour tout le monde.
-  const couleur = central ? u?.couleurAppli : undefined;
+  // Couleur de l'appli, pour tout le monde.
+  const couleur = u?.couleurAppli;
   const nomCouleur = couleur ? COULEURS_APPLI.find((x) => x.c === couleur.toLowerCase())?.nom.toLowerCase() ?? 'personnalisée' : 'bleu d’origine';
-  const entete = enteteDe(data, defaultTexte(u));
+  const entete = enteteDe(data, defaultTexte());
   const enteteTexte = entete.texte.split('\n').map((l) => l.trim()).find(Boolean);
   const parties: Partie[] = [
     {
@@ -45,19 +44,17 @@ export function Admin() {
       icon: 'cle' as const,
       titre: 'Rôles et droits',
       carte: 'Ce que chaque rôle (Secrétaire, Caissier…) permet de voir et de faire.',
-      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ' (organigramme du club : clic sur son nom)' : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.`,
+      aide: `Chaque personne reçoit un ou plusieurs rôles (Secrétaire, Caissier…) dans sa fiche${personnes ? ' (« Personnes du club » : clic sur son nom)' : ''} ; ici, tu coches ce que chaque rôle permet de voir et de faire.`,
       resume: `${data.roles.length} rôles`,
       contenu: <Roles />,
     },
     {
       id: 'taches',
       icon: 'rangement' as const,
-      titre: 'Sections et statuts',
-      carte: central ? 'Le rangement des tâches (sections, sous-sections) et leurs étapes (À faire, En cours…), pour tout le club.' : 'Le rangement des tâches (sections, sous-sections) ; leurs étapes sont celles du club.',
-      aide: central
-        ? 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV) et leurs étapes (À faire, En cours, Terminé…), les mêmes dans toutes les entités du club.'
-        : 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV). Leurs étapes (À faire, En cours, Terminé…) sont les mêmes dans tout le club : le comité central les règle.',
-      resume: `${data.sections.length} sections · ${data.statuses.length} statuts`,
+      titre: 'Sections, statuts et étiquettes',
+      carte: 'Le rangement des tâches (sections, sous-sections), leurs étapes (À faire, En cours…) et leurs étiquettes (événements, groupes).',
+      aide: 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV), leurs étapes (À faire, En cours, Terminé…) et leurs étiquettes : un événement (avec sa date) ou un groupe, dont les membres voient les tâches.',
+      resume: `${data.sections.length} sections · ${data.statuses.length} statuts · ${data.etiquettes?.length ?? 0} étiquettes`,
       contenu: <Lists />,
     },
     ...(u
@@ -66,11 +63,9 @@ export function Admin() {
             id: 'apparence',
             icon: 'miseEnForme' as const,
             titre: 'Apparence',
-            carte: central ? 'Logo, icône et couleur du comité ; nom et icône de l’appli.' : 'Logo et icône de l’entité.',
-            aide: central
-              ? 'Logo et couleur de l’appli pour tout le club, icône du comité (organigramme, agenda, accueil), et le nom et l’icône de l’appli installée sur les téléphones.'
-              : 'Logo de l’entité (ses documents, sa pastille) et son icône (organigramme, agenda, événements, accueil). L’appli garde le logo et la couleur du club.',
-            resume: `${u.logo ? 'Logo choisi' : central ? 'Pas de logo' : 'Logo du club'} · icône ${u.icone && ICONES_ENTITE[u.icone] ? ICONES_ENTITE[u.icone][0].toLowerCase() : 'du type'}${central ? ` · couleur ${nomCouleur}` : ''}`,
+            carte: 'Logo et couleur de l’appli ; nom et icône de l’appli installée.',
+            aide: 'Logo et couleur de l’appli pour tout le club, et le nom et l’icône de l’appli installée sur les téléphones.',
+            resume: `${u.logo ? 'Logo choisi' : 'Pas de logo'} · couleur ${nomCouleur}`,
             contenu: <LogoPanel />,
           },
         ]
@@ -80,7 +75,7 @@ export function Admin() {
       icon: 'entete' as const,
       titre: 'En-tête des documents',
       carte: 'Le haut de page de l’ordre du jour, du PV et du bon de paiement : logo ou image, texte, couleur.',
-      aide: 'Le même en-tête pour tous les documents imprimés de l’entité : ordre du jour, PV et bon de paiement. Chacun les imprime avec cet en-tête.',
+      aide: 'Le même en-tête pour tous les documents imprimés : ordre du jour, PV et bon de paiement. Chacun les imprime avec cet en-tête.',
       resume: `${entete.image === 'logo' ? 'Logo' : entete.image === 'perso' ? 'Image propre' : 'Sans image'}${enteteTexte ? ` · « ${enteteTexte} »` : ''}${enteteRegle(data) ? '' : ' (par défaut)'}`,
       contenu: <EnteteReglage />,
     },
@@ -98,7 +93,7 @@ export function Admin() {
       icon: 'historique' as const,
       titre: 'Historique',
       carte: 'Qui a fait quoi, et quand.',
-      aide: 'Toutes les modifications faites dans l’entité : qui a fait quoi, et quand.',
+      aide: 'Toutes les modifications faites dans l’appli : qui a fait quoi, et quand.',
       resume: data.log[0] ? `Dernière : ${fmtDateTime(data.log[0].at)}` : 'Aucune modification',
       contenu: <Log />,
     },
@@ -106,12 +101,12 @@ export function Admin() {
       id: 'sauvegarde',
       icon: 'sauvegarde' as const,
       titre: 'Sauvegarde',
-      carte: club?.sauvegardeClub ? 'Tout le club dans un seul fichier ; restaurer l’entité.' : 'Restaurer l’entité depuis une sauvegarde ou une copie du serveur.',
-      aide: 'La sauvegarde de tout le club (toutes ses entités, leurs fichiers joints et « Personnes du club »), téléchargée par un super-admin, et la restauration de l’entité choisie, par ses admins.',
+      carte: club?.sauvegardeClub ? 'Tout le club dans un seul fichier ; restaurer.' : 'Restaurer depuis une sauvegarde ou une copie du serveur.',
+      aide: 'La sauvegarde de tout le club (ses données, leurs fichiers joints et « Personnes du club ») et la restauration, par les admins.',
       resume: lastBackupAt() ? `Dernière ici : ${fmtDateTime(lastBackupAt()!)}` : club?.sauvegardeClub ? 'Aucune depuis ce navigateur' : 'Restauration',
       contenu: <SauvegardeConsole />,
     },
-    ...(club && central
+    ...(club
       ? [
           {
             id: 'erreurs',
@@ -146,12 +141,12 @@ export function Admin() {
       <PageIntro />
       <div className="admin-cartes">
         {personnes && (
-          <Link to="/organigramme?modifier" className="panel admin-carte">
+          <Link to="/membres-club" className="panel admin-carte">
             <span className="admin-carte-icone" aria-hidden><Icone n="personnes" /></span>
             <span>
               <b>Personnes et accès</b>
-              <span className="muted">« + Ajouter une personne » sous l’entité ; un clic sur une personne ouvre la fiche : poste, rôle, accès à l’appli.</span>
-              <small>Organigramme du club (« Club › Organigramme ») · {data.people.filter((x) => x.actif).length} personnes</small>
+              <span className="muted">Un clic sur une personne ouvre sa fiche : coordonnées, rôles, étiquettes, accès à l’appli.</span>
+              <small>« Club › Personnes du club » · {data.people.filter((x) => x.actif).length} personnes avec une fiche</small>
             </span>
           </Link>
         )}
@@ -171,7 +166,7 @@ export function Admin() {
 }
 
 function Roles() {
-  const { dataLocale: data, update } = useStore();
+  const { data, update } = useStore();
   const [edit, setEdit] = useState<{ role: Role; isNew: boolean } | null>(null);
   const [creating, setCreating] = useState(false);
 
@@ -253,7 +248,7 @@ function Roles() {
 const MODELE_EXTERNE = '@externe';
 
 function NewRole({ onClose, onCreate }: { onClose: () => void; onCreate: (label: string, base: string) => void }) {
-  const { dataLocale: data } = useStore();
+  const { data } = useStore();
   const [label, setLabel] = useState('');
   const [base, setBase] = useState('comite');
   const exists = data.roles.some((r) => r.label.toLowerCase() === label.trim().toLowerCase());
@@ -290,7 +285,7 @@ function NewRole({ onClose, onCreate }: { onClose: () => void; onCreate: (label:
 }
 
 function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
-  const { dataLocale: data, update } = useStore();
+  const { data, update } = useStore();
   const [label, setLabel] = useState(role.label);
   const [couleur, setCouleur] = useState(role.couleur);
   const [sections, setSections] = useState<string[]>(role.sections);
@@ -357,7 +352,7 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
       </div>
       <div className="modal-foot">
         {!lock && (
-          <button className="btn danger" disabled={members.length > 0} title={members.length ? 'Retire d’abord ce rôle aux personnes concernées (leur fiche : organigramme du club)' : ''} onClick={remove}>
+          <button className="btn danger" disabled={members.length > 0} title={members.length ? 'Retire d’abord ce rôle aux personnes concernées (leur fiche : « Personnes du club »)' : ''} onClick={remove}>
             Supprimer
           </button>
         )}
@@ -372,10 +367,8 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
 }
 
 function Lists() {
-  const { dataLocale: data, update, setToast } = useStore();
-  // Statuts : les mêmes dans tout le club, réglés au comité central (recopiés dans chaque entité : 058).
-  const club = useClubOptional();
-  const statutsDuClub = !!club && club.current.type !== 'central';
+  const { data, update, setToast } = useStore();
+  const [etiquettes, setEtiquettes] = useState(false);
   const [newSec, setNewSec] = useState('');
   const [newSub, setNewSub] = useState<Record<string, string>>({});
   const [newStatus, setNewStatus] = useState('');
@@ -464,23 +457,7 @@ function Lists() {
       </section>
       <section>
         <h2>Types de statut</h2>
-        {statutsDuClub ? (
-          <>
-            <p className="muted">
-              Les statuts sont les mêmes dans tout le club : ils se règlent dans la console admin du comité central
-              {club.central ? ` (« ${club.central.nom} »)` : ''}, et chaque entité les reçoit tels quels.
-            </p>
-            <div className="statuts-club">
-              {data.statuses.map((s) => (
-                <span key={s.id} className="badge" style={{ background: s.couleur }} title={s.done ? 'Compte comme terminée' : undefined}>
-                  {s.label}{s.done ? ' ✓' : ''}
-                </span>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            {club && <p className="muted">Ils valent pour toutes les entités du club : chacune reçoit ces statuts, dans cet ordre.</p>}
+        <>
             {data.statuses.map((s, i) => {
               const used = data.tasks.filter((t) => t.statusId === s.id).length;
               return (
@@ -504,17 +481,21 @@ function Lists() {
               la séance suivante, parmi les tâches terminées (« ✓ fait » pour le premier statut terminé, sinon le nom du statut :
               « À discuter », « Information »…), n’est jamais en retard et part aux archives le lendemain de cette séance.
             </p>
-            {club && <p className="muted">Un statut retiré reste dans une entité tant que des tâches l’y utilisent.</p>}
-          </>
-        )}
+        </>
         <p className="muted">« En retard » n'est pas un statut : il est calculé automatiquement quand le délai est dépassé et que la tâche n'est pas terminée.</p>
+        <h2>Étiquettes</h2>
+        <p className="muted">
+          Un événement (avec sa date, dans l’agenda et à l’accueil) ou un groupe ; ses membres voient les tâches qui le portent. {data.etiquettes?.length ?? 0} étiquette(s).
+        </p>
+        <button className="btn" onClick={() => setEtiquettes(true)}><Icone n="etiquette" /> Régler les étiquettes</button>
+        {etiquettes && <EtiquettesModal onClose={() => setEtiquettes(false)} />}
       </section>
     </div>
   );
 }
 
 function Log() {
-  const { dataLocale: data } = useStore();
+  const { data } = useStore();
   return (
     <table className="table">
       <thead><tr><th>Date</th><th>Utilisateur</th><th>Action</th></tr></thead>

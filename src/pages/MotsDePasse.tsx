@@ -80,8 +80,7 @@ export function MotsDePasse() {
             </div>
           ) : (
             <small className="muted">
-              Compte d’un admin d’une autre entité du club (ou de son propriétaire) : un admin de cette entité, du comité central ou un super-admin du club doit valider la
-              demande.
+              Compte d’un admin : un autre admin du club ou un super-admin doit valider la demande.
             </small>
           )}
         </div>

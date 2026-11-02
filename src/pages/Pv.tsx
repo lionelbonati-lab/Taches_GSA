@@ -36,7 +36,7 @@ export const DEFAULT_PV: PvSettings = {
   detail: 'complet',
   club: 'G.S. Ajoie – Comité',
   afficherClub: true,
-  parts: { presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true, partagees: true },
+  parts: { presences: true, retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true, notes: true },
   tri: 'delai',
   sectionsVides: true,
   colonnes: { sousSection: true, echeance: true, statut: true, remarque: true, checklist: true, documents: true, pourInfo: true },
@@ -77,7 +77,6 @@ interface ContexteOdj {
   titre: string;
   committee: Person[];
   excusesTxt: string;
-  autresResp: (t: Task) => string;
   /** Personnes attendues des tâches « Pour info » (052), pour « vue par 3 sur 4 ». */
   attendus?: Record<string, string[]>;
 }
@@ -109,10 +108,8 @@ const letter = (i: number) => {
  * liste numérotée, annexes, version texte.
  */
 function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
-  const { data, s0, s1, s2, titre, committee, excusesTxt, autresResp, attendus } = c;
-  // Tâches partagées par d'autres entités : dans l'ordre du jour comme les autres (rangées sous leur événement,
-  // la section qui porte le nom de l'entité, ou la section choisie), sauf si on les retire.
-  const odj = s.parts.partagees ? data : { ...data, tasks: data.tasks.filter((t) => !t.source) };
+  const { data, s0, s1, s2, titre, committee, excusesTxt, attendus } = c;
+  const odj = data;
   const person = (id: string) => data.people.find((p) => p.id === id);
 
   // ---------- Sélection des tâches (partagée avec l'onglet PV) ----------
@@ -171,8 +168,7 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
   const annexes = s.annexes ? annexesDe(tachesOdj, s1?.odjAnnexesExclues ?? []) : [];
   // Sous-tâche : case, intitulé et initiales de la personne chargée.
   const checkText = (_t: Task, ch: ChecklistItem) => `${ch.done ? '☑' : '☐'} ${ch.label}`;
-  // Tâche partagée : aussi les responsables des autres entités (noms complets).
-  const respText = (t: Task) => [t.responsables.map((id) => initials(person(id))).join(', '), autresResp(t)].filter(Boolean).join(' · ') || '—';
+  const respText = (t: Task) => t.responsables.map((id) => initials(person(id))).join(', ') || '—';
 
   const firstOpen = data.statuses.find((x) => !x.done)?.id;
   const pollItem = (p: Poll): OItem => ({ key: p.id, poll: p, children: [] });
@@ -384,7 +380,7 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir }: {
 const SANS_PDF = 'aucun';
 
 /**
- * « Envoyer par email » : le texte du mail selon un profil, le PDF joint selon un autre (choix mémorisés pour l'entité).
+ * « Envoyer par email » : le texte du mail selon un profil, le PDF joint selon un autre (choix mémorisés pour le club).
  * Un lien vers la messagerie (mailto) ne peut pas joindre de fichier : le partage de l'appareil joint le PDF au mail ;
  * sinon le PDF est téléchargé et le mail s'ouvre, prêt, dans la messagerie.
  */
@@ -404,12 +400,12 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
   const style = data.reglagesOdj?.style;
   // Choix enregistré : un profil qui existe encore (ou « Pas de PDF ») ; sinon les réglages affichés.
   const valide = (id: string | undefined, pdf = false) => (id && (profils.some((p) => p.id === id) || (pdf && id === SANS_PDF)) ? id : '');
-  // Pas encore ses propres choix : ceux d'avant, communs à l'entité, s'ils désignent des profils repris.
+  // Pas encore ses propres choix : ceux d'avant, communs au club, s'ils désignent des profils repris.
   const choixEnvoi = prefs.envoiOdj ?? data.reglagesOdj?.envoi;
   const [texteId, setTexteId] = useState(() => valide(choixEnvoi?.texte));
   const [pdfId, setPdfId] = useState(() => valide(choixEnvoi?.pdf, true));
   const [lieuChoix, setLieuChoix] = useState<LienLieu>(() => data.reglagesOdj?.envoi?.lieu ?? 'google');
-  // Profils choisis : mémorisés pour soi (ce sont ses profils) ; lien du lieu : pour l'entité, avec le droit de changer
+  // Profils choisis : mémorisés pour soi (ce sont ses profils) ; lien du lieu : pour le club, avec le droit de changer
   // l'ordre du jour. La prochaine fois, les mêmes choix.
   const choisir = (k: 'texte' | 'pdf' | 'lieu', v: string) => {
     if (k !== 'lieu') {
@@ -581,7 +577,7 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
         {edite ? (
           <p className="muted small">Ordre du jour modifié à la main : le mail et le PDF reprennent cette version.</p>
         ) : profils.length ? (
-          canEdit && <p className="muted small">Choix mémorisés pour l’entité : la prochaine fois, les mêmes profils.</p>
+          canEdit && <p className="muted small">Choix mémorisés pour le club : la prochaine fois, les mêmes profils.</p>
         ) : (
           <p className="muted small">Pas encore de profil : « Profils », dans les réglages de l’ordre du jour, pour en enregistrer (par exemple un texte court pour le mail, le document complet pour le PDF).</p>
         )}
@@ -607,7 +603,7 @@ function EnvoiOdj({ c, s, joursApres, nomDoc, edite, canEdit, onClose }: {
 }
 
 export function Pv() {
-  const { data, user, prefs, setPrefs, update, updateSilent, can, autresResp } = useStore();
+  const { data, user, prefs, setPrefs, update, updateSilent, can } = useStore();
   const club = useClubOptional();
   const attendus = useSuiviPourInfo(data.tasks);
   const s = withDefaults(prefs.pv);
@@ -629,10 +625,9 @@ export function Pv() {
   const sheetRef = useRef<HTMLDivElement>(null);
   const [msg, setMsg] = useState('');
   const [envoi, setEnvoi] = useState(false);
-  // En-tête commun à tous les documents de l'entité (console admin).
+  // En-tête commun à tous les documents du club (console admin).
   const logo = useUnitLogo();
 
-  const nbPartagees = data.tasks.filter((t) => t.source).length;
   // Convoqués : ★ et postes du comité (PERSONNES_DU_CLUB.md).
   const committee: Person[] = convoquesDe(data);
   const canEdit = can('tab.pv');
@@ -660,7 +655,7 @@ export function Pv() {
   const [ouverte, setOuverte] = useState<Task | null>(null);
   useEffect(() => setDraft(null), [s1Id]);
 
-  // Marge après la séance suivante : réglage commun à l'entité (le PV reprend les mêmes tâches).
+  // Marge après la séance suivante : réglage commun au club (le PV reprend les mêmes tâches).
   const joursApres = data.reglagesOdj?.joursApres ?? 0;
   const setJoursApres = (n: number) =>
     update((d) => {
@@ -668,9 +663,9 @@ export function Pv() {
     }, n ? `Ordre du jour : aussi les tâches jusqu’à ${joursApresTexte(n)} après la séance suivante` : 'Ordre du jour : plus de tâches après la séance suivante');
 
   // Titre : le nom du comité ; avec la date de la séance pour nommer le document (PDF, archive, email).
-  const titre = club?.current.nom ?? 'Comité';
+  const titre = club?.espace.nom ?? 'Comité';
   const nomDoc = s1 ? `${titre} ${shortDate(s1.date)}` : titre;
-  const ctx: ContexteOdj = { data, s0, s1, s2, titre, committee, excusesTxt, autresResp, attendus };
+  const ctx: ContexteOdj = { data, s0, s1, s2, titre, committee, excusesTxt, attendus };
   const contenu = contenuOdj(ctx, s, joursApres);
   const { odj, tachesOdj, annexes } = contenu;
   const exclues = s1?.odjAnnexesExclues ?? [];
@@ -822,12 +817,11 @@ export function Pv() {
               ['bilan', 'Tâches terminées depuis la dernière séance'],
               ['sondages', 'Sondages en cours et récents'],
               ['notes', 'Cadre de notes et décisions'],
-              ...(nbPartagees || !s.parts.partagees ? [['partagees', `Tâches partagées par d’autres entités${nbPartagees ? ` (${nbPartagees})` : ''}`]] : []),
             ] as [keyof PvSettings['parts'], string][]).map(([k, label]) => (
               <div key={k}>
                 <label className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
                 {k === 'avantSuivante' && s.parts.avantSuivante && (
-                  <label className="inline odj-marge" title="Une tâche à faire juste après la séance suivante est mieux vue dès cette séance. Réglage commun à l’entité, repris par le PV.">
+                  <label className="inline odj-marge" title="Une tâche à faire juste après la séance suivante est mieux vue dès cette séance. Réglage commun au club, repris par le PV.">
                     et jusqu’à
                     <select value={joursApres} disabled={!canEdit} onChange={(e) => setJoursApres(Number(e.target.value))}>
                       {[...new Set([...JOURS_APRES, joursApres])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{joursApresTexte(n)}</option>)}

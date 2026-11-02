@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { ago, useNotifications, type Notif } from '../notifications';
 import { Icone } from './icones';
-import { useOuvrirLien } from './LienRecu';
 
 /** Cloche de notifications (en-tête) : rappels d'échéance, retards, séance et activité. */
 export function Bell() {
   const { markNotifsRead } = useStore();
   const { items, unread } = useNotifications();
   const [open, setOpen] = useState(false);
-  const ouvrir = useOuvrirLien();
+  const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,8 +27,7 @@ export function Bell() {
   const go = (n: Notif) => {
     markNotifsRead([n.key]);
     setOpen(false);
-    // De l'une de mes autres entités : ouverte d'ici, sans changer d'entité (useOuvrirLien).
-    ouvrir(n.link, n.entite);
+    navigate(n.link);
   };
 
   return (
@@ -61,7 +60,7 @@ export function Bell() {
               ))}
             </ul>
           )}
-          <button className="bell-foot" onClick={() => { setOpen(false); ouvrir('/reglages'); }}><Icone n="reglages" /> Réglages des notifications</button>
+          <button className="bell-foot" onClick={() => { setOpen(false); navigate('/reglages'); }}><Icone n="reglages" /> Réglages des notifications</button>
         </div>
       )}
     </div>

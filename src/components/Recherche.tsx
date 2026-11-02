@@ -3,9 +3,8 @@ import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
-import { GENRES_RESULTAT, passages, rechercherPartout, termesDe, type GenreResultat, type Resultat } from '../data/recherche';
-import { useMesEntites, useSondagesMoi } from '../data/entites';
-import { idPartagee } from '../data/partage';
+import { GENRES_RESULTAT, passages, rechercher, termesDe, type GenreResultat, type Resultat } from '../data/recherche';
+import { sondagesVisibles } from '../data/polls';
 import { Icone, type IconeNom } from './icones';
 
 const ICONES: Record<GenreResultat, IconeNom> = {
@@ -15,7 +14,7 @@ const ICONES: Record<GenreResultat, IconeNom> = {
   sondage: 'sondage',
   evenement: 'evenements',
   personne: 'personnes',
-  entite: 'organigramme',
+  etiquette: 'etiquette',
 };
 const PAR_GROUPE = 5;
 
@@ -75,11 +74,8 @@ export function Recherche() {
 }
 
 function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) => void; onClose: () => void }) {
-  const { data, dataMoi, user, can, canSeeTask } = useStore();
+  const { data, user, can, canSeeTask } = useStore();
   const club = useClubOptional();
-  // Vue « moi » : toutes mes entités (tâches et sondages déjà réunis ; séances, événements et personnes de chacune).
-  const mes = useMesEntites();
-  const sondagesMoi = useSondagesMoi();
   const navigate = useNavigate();
   const [ouverts, setOuverts] = useState<Set<GenreResultat>>(new Set());
   const [sel, setSel] = useState(0);
@@ -89,43 +85,19 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
   const resultats = useMemo(
     () =>
       user
-        ? rechercherPartout(
-            q,
-            {
-              // Vue du club : séances, événements et personnes, ceux de chacune de mes entités (plus bas).
-              data: club?.vueClub ? { ...data, meetings: [], events: [], people: [] } : { ...data, tasks: dataMoi.tasks, statuses: dataMoi.statuses },
-              moi: user,
-              peutVoirTache: canSeeTask,
-              sondages: sondagesMoi.map(({ p, ent }) => (ent.ici || !ent.u ? p : { ...p, id: idPartagee(ent.u.id, p.id) })),
-              seances: can('tab.meetings'),
-              evenements: can('tab.events'),
-              coordonnees: can('tab.people'),
-              courante: club?.current,
-              entites: club?.mine,
-              texteArchive,
-            },
-            mes.flatMap((e) =>
-              e.ici || !e.u || !e.store.user
-                ? []
-                : [{
-                    u: e.u,
-                    c: {
-                      data: { ...e.store.data, tasks: [] },
-                      moi: e.store.user,
-                      peutVoirTache: () => false,
-                      sondages: [],
-                      seances: e.store.can('tab.meetings'),
-                      evenements: e.store.can('tab.events'),
-                      coordonnees: e.store.can('tab.people'),
-                      courante: e.u,
-                      texteArchive,
-                    },
-                  }],
-            ),
-          )
+        ? rechercher(q, {
+            data,
+            moi: user,
+            peutVoirTache: canSeeTask,
+            sondages: sondagesVisibles(data.polls ?? [], user.id, can('polls.manage')),
+            seances: can('tab.meetings'),
+            evenements: can('tab.events'),
+            coordonnees: can('tab.people'),
+            personnes: !!club?.personnes.voir,
+            texteArchive,
+          })
         : [],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [q, data, dataMoi.tasks, dataMoi.statuses, user, can, canSeeTask, club?.current, club?.mine, mes, sondagesMoi],
+    [q, data, user, can, canSeeTask, club?.personnes.voir],
   );
   const termes = useMemo(() => termesDe(q), [q]);
   // Groupes dans l'ordre fixe ; les premiers résultats de chacun, le reste sur demande.
@@ -172,7 +144,7 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
             type="search"
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder={`Rechercher dans ${club?.vueClub ? 'tout le club' : club ? `« ${club.current.nom} »` : 'l’appli'}…`}
+            placeholder="Rechercher dans l’appli…"
             aria-label="Rechercher"
             enterKeyHint="search"
             autoComplete="off"
@@ -182,8 +154,7 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
         <div className="recherche-liste" ref={liste}>
           {termes.join('').length < 2 ? (
             <p className="recherche-vide">
-              Tâches (titre, remarque, checklist, documents), séances, PV et ordres du jour archivés, sondages, événements, personnes
-              {club ? ' de toutes tes entités, et entités du club' : ''}. Sans tenir compte des accents ni des majuscules.
+              Tâches (titre, remarque, checklist, documents), séances, PV et ordres du jour archivés, sondages, événements, personnes, étiquettes. Sans tenir compte des accents ni des majuscules.
             </p>
           ) : !resultats.length ? (
             <p className="recherche-vide">Rien trouvé pour « {q.trim()} ».</p>

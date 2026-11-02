@@ -1,777 +1,170 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { StoreProvider, type DemoMode } from './data/store';
-import { CLUB_ID, ClubCtx, toPerson, type ApercuSuppression, type Club, type CreatedUnit, type NewUnit } from './data/club';
-import { CENTRAL_ID, deleteMembre, ecrireBrut, ecrirePerso, effacerErreursDemo, erreursDemo, reglerErreurDemo, signalerErreurDemo, initMembres, initPostes, lierEntiteDemo, lierFiches, lireBrut, lireHistoriqueDemo, lirePerso, loadMe, loadMembres, loadOrganigrammes, loadUnitData, loadUnits, migrerLiens, photographierDemo, propagerLiens, reprisePerso, resetDemo, saveMe, saveMembres, saveUnitData, saveUnits, signatureMembres, suivrePostes, surEcriture, synchroDemo } from './data/demoClub';
-import { caisseDe, defaultRoleId, nouvelHistorique, orgMembers, parentDans, personKey, reglageTaches, sortUnits, unitData } from './data/units';
+import { ClubCtx, type Club, type Espace } from './data/club';
+import {
+  deleteMembre,
+  effacerErreursDemo,
+  erreursDemo,
+  initMembres,
+  lierFiches,
+  lireHistoriqueDemo,
+  loadEspace,
+  loadInfoEspace,
+  loadMembres,
+  loadMoi,
+  reglerErreurDemo,
+  resetDemo,
+  saveEspace,
+  saveInfoEspace,
+  saveMembres,
+  saveMoi,
+  signalerErreurDemo,
+  verifierVersion,
+} from './data/demoClub';
 import { ADMIN_ROLE_ID, hasPermission, userRoles } from './data/permissions';
-import { compactIban, coordonnees, emailKey, fusionMembre, ibanValide, nomMembre, nouveauMembre, vueMembre } from './data/membres';
-import { appliquer, estEtoile } from './data/organigramme';
-import { isDone, uid } from './data/utils';
-import { deleteFiles, getFile } from './data/files';
-import { fichiersDe, fileIds, type EntiteSauvegardee } from './data/backup';
-import type { AgendaClubEvent, AppData, ClubMembre, OrgUnit, Permission, Person, Proposition, SeancesDuComite, SectionsDependantes, SondagePartage, SuiviTicket, TachePartagee, Task, Unit } from './data/types';
-import { avecVote, cleVote, electorat, isOpen } from './data/polls';
-import { confieeA, fusionPartagee, tacheDans } from './data/partage';
-import { reponseAilleurs } from './data/aPrendre';
-import { ajouterVus, attendusDe, clesVu, dernierAttendu } from './data/pourInfo';
-import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, unParPersonne } from './data/commentaires';
-import { changementsTache } from './data/historique';
-import { nettoyerAttribuee } from './data/externes';
-import { GENRES, caissiers, sectionFinances, statutPour, visaDans, type Ticket } from './data/paiements';
+import { compactIban, emailKey, fusionMembre, ibanValide, nomMembre, vueMembre } from './data/membres';
+import { uid } from './data/utils';
+import { getFile } from './data/files';
+import { fichiersDe } from './data/backup';
+import { attendusDe } from './data/pourInfo';
+import { visaDans } from './data/paiements';
+import type { AppData, ClubMembre, Permission, Person, Proposition } from './data/types';
 import { App } from './App';
 import { Login } from './pages/Login';
-import { SansPlace, type TacheConfiee } from './pages/SansPlace';
-import { RegistreEntites } from './data/entites';
-import { StoreClub } from './data/storeClub';
-import { avecDiscussionLue, avecLues, prefsCompletes, SessionCtx, type PersoClub, type SessionClub } from './data/session';
 
-// Démo : le club et ses entités, toutes gardées dans ce navigateur.
-// On se connecte au club en choisissant une personne de l'annuaire du club (PLAN_CLUB_SANS_ENTITE.md, étape 1) : sans
-// entité de base, toutes les entités où elle a une place sont ouvertes à égalité, en arrière-plan ; la session du club
-// (réglages, profil, lectures) et la vue du club (StoreClub) sont au-dessus.
+// Démo : l'espace du club, gardé dans ce navigateur (demoClub.ts). On se connecte en choisissant une personne du club,
+// sans mot de passe ; l'appli s'ouvre sur l'espace du club, avec une seule couche de données (store.tsx).
 
-// Relances « Pour info » de la démo (entité:tâche → heure) : une par heure, dans ce navigateur.
+// Relances « Pour info » de la démo (tâche → heure) : une par heure, dans ce navigateur.
 const relancesDemo = new Map<string, number>();
-const AUCUN: PersoClub = {};
-const AUCUNE: Record<string, string> = {};
+/** Fiches de l'espace au dernier enregistrement (rôles, actives) : changées, mes droits au club sont relus. */
+let personnesVues: string | null = null;
 
-/**
- * Personnes attendues sur une tâche « Pour info » de l'entité `uniteId` (démo ; version réelle : 052) : une personne « a un
- * compte » si sa fiche est active et a un email ; une entité mentionnée en entier, ses rôles « Voir toutes les tâches ».
- */
-function attendusDemo(t: Task, uniteId: string, units: Unit[]) {
-  const lues = new Map<string, AppData | undefined>();
-  const de = (e: string) => {
-    if (!lues.has(e)) lues.set(e, units.some((x) => x.id === e && !x.archive) ? loadUnitData(e) : undefined);
-    return lues.get(e);
-  };
-  return attendusDe(
-    t,
-    uniteId,
-    (e, f) => !!de(e)?.people.some((p) => p.id === f && p.actif && !!p.email),
-    (e) => { const d = de(e); return d ? d.people.filter((p) => p.actif && !!p.email && hasPermission(userRoles(d.roles, p), 'tasks.viewAll')).map((p) => p.id) : []; },
-  );
+/** Au premier passage : la démo à la version du jour (reprise de l'ancienne), « Personnes du club » créé. */
+function preparer() {
+  verifierVersion();
+  initMembres();
+  return true;
 }
 
 export function DemoApp() {
-  const [units, setUnits] = useState<Unit[]>(() => {
-    const u = loadUnits();
-    initMembres(u);
-    initPostes(u);
-    return migrerLiens(u);
-  });
-  const [me, setMe] = useState<string | null>(() => loadMe());
+  const [pret] = useState(preparer);
+  const [me, setMe] = useState<string | null>(() => (pret ? loadMoi() : null));
+  // Données de l'espace réécrites hors de l'écran (« Personnes du club », propositions…) : la couche de données les relit.
   const [version, setVersion] = useState(0);
+  const relire = useCallback(() => setVersion((v) => v + 1), []);
+  const [espace, setEspace] = useState<Espace>(loadInfoEspace);
 
-  // Organigramme : membres de chaque entité, lus dans ses données.
-  const org: OrgUnit[] = useMemo(
-    () =>
-      sortUnits(units).map((u) => {
-        const d = loadUnitData(u.id);
-        const mine = me ? d.people.find((p) => p.actif && personKey(p, u.id) === me) : undefined;
-        return {
-          ...u,
-          membres: orgMembers(d),
-          moi: !!mine,
-          moiAdmin: !!mine?.roles.includes(ADMIN_ROLE_ID),
-          sections: u.type === 'central' ? d.sections.map((s) => ({ id: s.id, nom: s.nom })) : undefined,
-          liens: d.membresDe?.length ? d.membresDe.map((l) => l.uniteId) : undefined,
-          postes: d.postes,
-        };
-      }),
-    // `version` : relire après une modification faite dans une autre entité.
+  // Ma fiche et mes droits, lus dans l'espace (relus après une modification faite hors de l'écran).
+  const moi = useMemo(() => {
+    if (!me) return null;
+    const d = loadEspace();
+    const fiche = d.people.find((p) => p.id === me && p.actif);
+    return fiche ? { d, fiche, roles: userRoles(d.roles, fiche) } : null;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [units, me, version],
-  );
+  }, [me, version]);
+  const droit = useCallback((p: Permission) => !!moi && hasPermission(moi.roles, p), [moi]);
+  const admin = droit('admin.access');
 
-  // Ma fiche dans chacune de mes entités : mes messages écrits d'ailleurs restent les miens.
-  const mesFiches = useMemo(
-    () =>
-      Object.fromEntries(
-        me
-          ? units.flatMap((u) => {
-              const p = loadUnitData(u.id).people.find((x) => personKey(x, u.id) === me);
-              return p ? [[u.id, p.id]] : [];
-            })
-          : [],
-      ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [units, me, version],
-  );
-
-  const refresh = useCallback(() => setVersion((v) => v + 1), []);
-  // Historique de l'organigramme : photo de l'année en cours, reprise à chaque changement.
-  useEffect(() => photographierDemo(org), [org]);
   const logout = useCallback(() => {
-    saveMe(null);
+    saveMoi(null);
     setMe(null);
   }, []);
 
-  // Registre des membres du club : droit « club.membres » (ou admin) dans l'une des entités.
-  const membresAcces = useMemo(
-    () =>
-      !!me &&
-      units.some((u) => {
-        const d = loadUnitData(u.id);
-        const p = d.people.find((x) => x.actif && personKey(x, u.id) === me);
-        return !!p && hasPermission(userRoles(d.roles, p), 'club.membres');
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [units, me, version],
-  );
-
-  // Personnes du club (PERSONNES_DU_CLUB.md) : la liste pour tout le monde ; coordonnées et gestion selon un droit dans
-  // l'une de mes entités (« voir les coordonnées », « Gérer les personnes »), ou le droit « Membres du club ».
+  // Personnes du club : la liste pour tout le monde ; coordonnées et gestion selon les rôles.
   const personnes = useMemo(() => {
-    const droit = (perm: Permission) =>
-      !!me &&
-      units.some((u) => {
-        if (u.archive) return false;
-        const d = loadUnitData(u.id);
-        const p = d.people.find((x) => x.actif && personKey(x, u.id) === me);
-        return !!p && hasPermission(userRoles(d.roles, p), perm);
-      });
-    // Gérer les personnes : leurs coordonnées aussi (on ne gère pas ce qu'on ne voit pas).
-    const gerer = membresAcces || droit('people.manage');
-    return { voir: !!me, coordonnees: gerer || droit('tab.people'), gerer };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [units, me, version, membresAcces]);
+    const gerer = droit('club.membres') || droit('people.manage');
+    return { voir: !!moi, coordonnees: gerer || droit('tab.people'), gerer };
+  }, [moi, droit]);
+  // Caissier : un rôle qui donne expressément « paiements.payer » (hors Admin).
+  const caissier = !!moi && moi.roles.some((r) => !r.locked && r.permissions.includes('paiements.payer'));
 
-  // Caissier du club : un rôle qui donne expressément « paiements.payer » (hors Admin) dans l'une de ses entités.
-  const caissier = useMemo(
-    () =>
-      !!me &&
-      units.some((u) => {
-        if (u.archive) return false;
-        const d = loadUnitData(u.id);
-        const p = d.people.find((x) => x.actif && personKey(x, u.id) === me);
-        return !!p && d.roles.some((r) => p.roles.includes(r.id) && !r.locked && r.permissions.includes('paiements.payer'));
-      }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [units, me, version],
-  );
-
-  const mineAll = useMemo(() => org.filter((u) => u.moi), [org]);
-  const central = org.find((u) => u.type === 'central') ?? null;
-  // Mes entités, ouvertes à égalité (en arrière-plan) : celles qui ne sont pas archivées (sinon les archivées).
-  const mesEntites = useMemo(() => (mineAll.some((u) => !u.archive) ? mineAll.filter((u) => !u.archive) : mineAll), [mineAll]);
-  // Plus d'entité à ouvrir : l'appli réunit toutes les miennes ; reste la page demandée.
-  const switchUnit = useCallback((_id: string, hash = '#/') => {
-    window.location.hash = hash;
-  }, []);
-
-  // Ma fiche du registre (comme le serveur, gsa_mon_membre) : celle de l'une de mes fiches d'entité, sinon même email.
-  const monMembre = () => {
+  // Ma fiche du registre (comme le serveur, gsa_mon_membre) : celle liée à ma fiche, sinon même email.
+  const monMembre = useCallback((): ClubMembre | undefined => {
+    if (!moi) return undefined;
     const list = loadMembres();
-    for (const u of sortUnits(units)) {
-      const p = loadUnitData(u.id).people.find((x) => x.membreId && personKey(x, u.id) === me);
-      const m = p && list.find((x) => x.id === p.membreId);
-      if (m) return m;
-    }
-    return list.find((x) => !!me && emailKey(x.email) === me);
-  };
+    return list.find((m) => m.id === moi.fiche.membreId) ?? list.find((m) => !!emailKey(m.email) && emailKey(m.email) === emailKey(moi.fiche.email));
+  }, [moi]);
 
-  // Session du club : moi, personne du club (ma fiche « Personnes du club »), avec mes réglages et mes lectures, gardés
-  // au club (une seule fois) ; la première fois, repris de mes entités.
-  const membre = useMemo(
-    () => (me ? monMembre() : undefined),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [me, units, version],
-  );
-  const cleSession = membre?.id ?? me;
-  const persoDepart = useMemo(() => {
-    if (!cleSession) return null;
-    const p = lirePerso(cleSession);
-    if (p) return p;
-    const r = reprisePerso(mesFiches);
-    ecrirePerso(cleSession, r);
-    return r;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cleSession]);
-  const [persoMaj, setPersoMaj] = useState<{ cle: string; p: PersoClub } | null>(null);
-  const perso = (persoMaj && persoMaj.cle === cleSession ? persoMaj.p : persoDepart) ?? AUCUN;
-  const lues = perso.discussionsLues ?? AUCUNE;
-  const changerPerso = useCallback(
-    (f: (p: PersoClub) => PersoClub) => {
-      if (!cleSession) return;
-      setPersoMaj((m) => {
-        const avant = (m?.cle === cleSession ? m.p : lirePerso(cleSession)) ?? {};
-        const p = f(avant);
-        if (p === avant) return m;
-        ecrirePerso(cleSession, p);
-        return { cle: cleSession, p };
-      });
+  /** Modifie les données de l'espace hors de l'écran, puis la couche de données les relit. */
+  const changerEspace = useCallback(
+    (f: (d: AppData) => void) => {
+      const d = loadEspace();
+      f(d);
+      saveEspace(d);
+      relire();
     },
-    [cleSession],
-  );
-  const personne: Person | null = useMemo(() => {
-    if (!me) return null;
-    const fiches = sortUnits(mesEntites).flatMap((u) => loadUnitData(u.id).people.filter((p) => p.actif && personKey(p, u.id) === me));
-    const f = fiches[0];
-    const c = membre ? coordonnees(membre) : f ? coordonnees(f) : { prenom: '', nom: '', email: '', telephone: '' };
-    return {
-      id: membre?.id ?? `moi:${me}`,
-      ...c,
-      couleur: membre?.couleur ?? f?.couleur ?? '#999',
-      poste: [...new Set(fiches.map((p) => p.poste).filter(Boolean))].join(', '),
-      roles: [],
-      actif: true,
-      membreId: membre?.id,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [me, membre, mesEntites, version]);
-  const session: SessionClub | null = useMemo(
-    () =>
-      personne && {
-        personne,
-        places: mesFiches,
-        prefs: prefsCompletes(perso.prefs),
-        setPrefs: (p) => changerPerso((x) => ({ ...x, prefs: { ...x.prefs, ...p } })),
-        notifLues: (u) => (perso.notifLues ?? []).filter((k) => k.startsWith(`${u}|`)).map((k) => k.slice(u.length + 1)),
-        marquerLues: (cles) => changerPerso((x) => {
-          const l = avecLues(x.notifLues, cles);
-          return l === x.notifLues ? x : { ...x, notifLues: l };
-        }),
-        discussionsLues: lues,
-        lireDiscussion: (cle, dernier) => changerPerso((x) => {
-          const l = avecDiscussionLue(x.discussionsLues, cle, dernier);
-          return l === x.discussionsLues ? x : { ...x, discussionsLues: l };
-        }),
-        // Ma fiche du club (comme « Mon IBAN ») : ses coordonnées passent dans mes places (saveMembres).
-        async enregistrerProfil(c) {
-          const m = monMembre();
-          if (!m) throw new Error('Tu n’es pas encore dans « Personnes du club » : demande à quelqu’un qui gère les personnes de t’y inscrire.');
-          saveMembres([{ ...m, ...coordonnees({ ...c, email: m.email }) }]);
-          refresh();
-        },
-        deconnecter: logout,
-      },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [personne, mesFiches, perso, changerPerso, logout, refresh],
+    [relire],
   );
 
-  // Toutes mes entités sont ouvertes en arrière-plan : celle dont les données sont réécrites hors de sa couche de données
-  // (club, autre entité, organigramme) les relit ; pas quand c'est elle qui les enregistre.
-  const [relire, setRelire] = useState<Record<string, number>>({});
-  const enCours = useRef<string | null>(null);
-  const relireUnite = useCallback((id: string) => setRelire((r) => ({ ...r, [id]: (r[id] ?? 0) + 1 })), []);
-  useEffect(() => surEcriture((id) => id !== enCours.current && queueMicrotask(() => relireUnite(id))), [relireUnite]);
-  const parElle = <T,>(id: string, f: () => T) => {
-    const avant = enCours.current;
-    enCours.current = id;
-    try {
-      return f();
-    } finally {
-      enCours.current = avant;
-    }
-  };
-
-  // Club vu d'une entité (`current`) : l'entité ouverte, ou l'une de mes autres entités en arrière-plan (vue « moi »).
-  const clubDe = useCallback((current: OrgUnit, arrierePlan = false): Club => {
-    // Tâche `t` de l'entité `u` vue de `current` : partagée avec elle (tacheDans), ou confiée à moi seulement (confieeA,
-    // comme le serveur : 054).
-    const vueDe = (t: Task, u: Unit) => {
-      const vue = tacheDans(t, u, parentDans(units.filter((x) => !x.archive), u)?.id, current.id, reglageTaches(org, u));
-      if (vue) return vue;
-      const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
-      return confieeA(t, org, current.id, fiche) ? 'modifiable' : null;
-    };
-    return {
-      units: org,
-      current,
-      central,
-      mine: mineAll.filter((u) => !u.archive || u.id === current.id),
-      mesFiches,
-      // Discussions lues : au club (session), une fois lues, elles le sont partout.
-      luesAilleurs: lues,
-      canManage: !!central?.moiAdmin,
-      // Remplacés par les dépendances (030) : plus d'entité entière ajoutée parmi les membres d'une autre.
-      liens: false,
+  const club: Club = useMemo(
+    () => ({
+      espace,
       loading: false,
-      error: '',
-      switchUnit,
-      refresh,
-      async createUnit(n: NewUnit): Promise<CreatedUnit> {
-        const id = uid('u-');
-        const base = unitData(n.type, [], 'p1', n.nom);
-        const chef = toPerson(n.chef, [ADMIN_ROLE_ID]);
-        base.people = [chef, ...n.membres.filter((m) => m.email.toLowerCase() !== n.chef.email.toLowerCase()).map((m) => toPerson(m, [defaultRoleId(base.roles)]))];
-        base.log[0].userId = chef.id;
-        base.postes = (n.postes ?? []).map((nom) => ({ id: uid('po'), nom }));
-        saveUnitData(id, lierFiches(id, base));
-        const next = [...units, { id, nom: n.nom, type: n.type, parentId: central?.id ?? CENTRAL_ID, couleur: n.couleur, icone: n.icone, description: n.description, date: n.date, dateFin: n.dateFin, dependDe: n.dependDe }];
-        saveUnits(next);
-        setUnits(next);
-        // Organigramme : les postes qui portent son nom (« Camp de Pentecôte » au comité central) lui sont liés.
-        lierEntiteDemo(id);
-        return { unitId: id };
+      async modifierEspace(patch) {
+        if (!admin) throw new Error('Réservé aux admins.');
+        const e: Espace = { ...espace, ...patch, nom: patch.nom?.trim() || espace.nom };
+        saveInfoEspace(e);
+        setEspace(e);
       },
-      async updateUnit(id, patch) {
-        let next = units.map((u) => (u.id === id ? { ...u, ...patch } : u));
-        // Historique des dépendances, tenu comme par le serveur (030).
-        const u0 = org.find((u) => u.id === id);
-        if (u0) {
-          const taches = loadUnitData(id).tasks.filter((t) => !t.paiement).map((t) => t.id);
-          const h = nouvelHistorique(units, next, id, { reglage: reglageTaches(org, u0), taches });
-          next = next.map((u) => (u.id === id ? { ...u, historiqueDependance: h } : u));
-        }
-        saveUnits(next);
-        setUnits(next);
-        if (patch.nom && patch.nom !== units.find((u) => u.id === id)?.nom) lierEntiteDemo(id);
+      // Comme le serveur (043) : ticket visé ou payé seulement.
+      verifierVisa: async (code) => visaDans(loadEspace(), code, espace.nom),
+      // Historique d'une tâche (version réelle : gsa_historique_tache, 050).
+      historique: async (tacheId) => lireHistoriqueDemo(tacheId),
+      // Rapport d'erreurs (version réelle : gsa_signaler_erreur, gsa_erreurs_liste…, 051), gardé dans ce navigateur.
+      signalerErreur: async (r) => {
+        if (me) signalerErreurDemo(espace.nom, me, r);
       },
-      // Entité archivée supprimée définitivement (version réelle : action « supprimerUnite » de gsa-acces).
-      async apercuSuppression(id): Promise<ApercuSuppression> {
-        const u = units.find((x) => x.id === id);
-        if (!u || u.type === 'central') throw new Error('Entité introuvable.');
-        const d = loadUnitData(id);
-        return {
-          nom: u.nom,
-          taches: d.tasks.filter((t) => !t.paiement).length,
-          tickets: d.tasks.filter((t) => t.paiement).length,
-          seances: d.meetings.length,
-          evenements: d.events.length,
-          sondages: (d.polls ?? []).length,
-          personnes: d.people.length,
-          fichiers: fileIds(d).length,
-          dependantes: units.filter((x) => !x.archive && x.id !== id && x.dependDe === id).map((x) => x.nom),
-          postesLies: units.filter((x) => x.id !== id).reduce((n, x) => n + (loadUnitData(x.id).postes ?? []).filter((p) => p.lien === id).length, 0),
-        };
+      erreurs: async () => {
+        if (!admin) throw new Error('Réservé aux admins.');
+        return erreursDemo();
       },
-      async supprimerUnite(id, nom) {
-        const u = units.find((x) => x.id === id);
-        if (!u || u.type === 'central') throw new Error('Entité introuvable.');
-        if (!central?.moiAdmin) throw new Error('Réservé aux administrateurs du comité central.');
-        if (!u.archive) throw new Error('Seule une entité archivée se supprime : archive-la d’abord.');
-        if (nom.trim() !== u.nom.trim()) throw new Error('Le nom tapé n’est pas celui de l’entité : rien n’a été supprimé.');
-        if (id === current.id) throw new Error('Ouvre une autre entité pour supprimer celle-ci.');
-        const d = loadUnitData(id);
-        const fichiers = fileIds(d);
-        await deleteFiles(fichiers);
-        ecrireBrut(id, null);
-        // Postes liés ⛓ à elle : déliés (le poste et son titulaire restent).
-        for (const x of units) {
-          if (x.id === id) continue;
-          const dx = loadUnitData(x.id);
-          if (!dx.postes?.some((p) => p.lien === id)) continue;
-          dx.postes = dx.postes.map(({ lien, ...p }) => (lien === id ? p : { ...p, lien }));
-          saveUnitData(x.id, dx);
-        }
-        // Registre « Membres du club » : plus dans ce groupe.
-        const membres = loadMembres().filter((m) => m.groupes.includes(id));
-        if (membres.length) saveMembres(membres.map((m) => ({ ...m, groupes: m.groupes.filter((g) => g !== id) })));
-        if (central) {
-          const dc = loadUnitData(central.id);
-          const fiche = dc.people.find((p) => personKey(p, central.id) === me);
-          dc.log.unshift({ id: uid('l'), at: new Date().toISOString(), userId: fiche?.id ?? '', action: `Entité « ${u.nom} » supprimée définitivement (archivée ; ses données, ses accès et ${fichiers.length} fichier(s))` });
-          saveUnitData(central.id, dc);
-        }
-        const next = units.filter((x) => x.id !== id);
-        saveUnits(next);
-        setUnits(next);
-        return undefined;
+      reglerErreur: async (id, reglee) => {
+        if (!admin) throw new Error('Réservé aux admins.');
+        reglerErreurDemo(id, reglee);
       },
-      async placerCartes(places) {
-        const next = units.map((u) => (u.id in places ? { ...u, carte: places[u.id] ?? undefined } : u));
-        saveUnits(next);
-        setUnits(next);
+      effacerErreurs: async () => {
+        if (!admin) throw new Error('Réservé aux admins.');
+        return effacerErreursDemo();
       },
-      async setEditionDate(date, dateFin) {
-        const next = units.map((u) => (u.id === current.id ? { ...u, date, dateFin: dateFin && dateFin > date ? dateFin : undefined } : u));
-        saveUnits(next);
-        setUnits(next);
+      // Personnes attendues (version réelle : gsa_pour_info_suivi, 052) : fiche active avec un email.
+      async suiviPourInfo(tacheIds) {
+        const d = loadEspace();
+        const compte = (f: string) => d.people.some((p) => p.id === f && p.actif && !!p.email);
+        return Object.fromEntries(d.tasks.filter((t) => tacheIds.includes(t.id) && t.pourInfo && !t.paiement).map((t) => [t.id, attendusDe(t, compte)]));
       },
-      // Organigramme à glisser-déposer (voir data/organigramme.ts ; version réelle : par la fonction « gsa-acces »).
-      organiser: async (op) => {
-        const brut = new Map(units.map((u) => [u.id, lireBrut(u.id)]));
-        // Personne pas encore au club : sa fiche du registre d'abord, pour la retrouver d'une entité à l'autre.
-        if (op.type === 'placer' && !op.qui.membreId && !emailKey(op.qui.email)) {
-          if (!op.qui.prenom.trim() && !op.qui.nom.trim()) throw new Error('Indique au moins son prénom ou son nom.');
-          const n = nouveauMembre({ prenom: op.qui.prenom, nom: op.qui.nom, couleur: op.qui.couleur });
-          saveMembres([n]);
-          op = { ...op, qui: { ...op.qui, membreId: n.id } };
-        }
-        const data = new Map(units.map((u) => [u.id, loadUnitData(u.id)]));
-        const avant = new Map([...data].map(([id, d]) => [id, JSON.stringify(d)]));
-        const message = appliquer({ units, data, notes: [] }, op);
-        const changees = units.filter((u) => JSON.stringify(data.get(u.id)) !== avant.get(u.id));
-        // Comme le serveur le fera : les fiches touchées directement, par leurs admins ou ceux du comité central (lier un
-        // poste : aussi l'entité liée, si elle change). Celles qui suivent par un poste lié suivent : c'est le principe du lien.
-        const directes = new Set(op.type === 'placer' ? [op.depuis?.uniteId, op.vers.zone === 'corbeille' ? undefined : op.vers.uniteId] : op.type === 'lier' ? [op.uniteId, op.lien] : [op.uniteId]);
-        for (const u of changees)
-          if (directes.has(u.id) && !central?.moiAdmin && !org.find((x) => x.id === u.id)?.moiAdmin) throw new Error(`Réservé aux admins de « ${u.nom} » ou du comité central.`);
-        if (central && changees.some((u) => u.id === central.id) && !data.get(central.id)!.people.some(estEtoile)) throw new Error('Le comité central garde au moins un ★.');
-        for (const u of changees) {
-          const d = data.get(u.id)!;
-          const n = synchroDemo(u.id, d);
-          saveUnitData(u.id, lierFiches(u.id, n ?? d));
-        }
-        for (const u of changees) propagerLiens(u.id);
-        const apres = new Map(units.map((u) => [u.id, lireBrut(u.id)]));
-        if (changees.length) refresh();
-        return {
-          message,
-          annuler: async () => {
-            for (const u of units)
-              if (apres.get(u.id) !== brut.get(u.id)) {
-                ecrireBrut(u.id, brut.get(u.id) ?? null);
-                relireUnite(u.id);
-              }
-            refresh();
-          },
-        };
+      // Relance (version réelle : gsa_pour_info_relancer, 052) : la couche de données prévient les personnes (`ici`).
+      async relancerPourInfo(tacheId, t) {
+        if (!moi) throw new Error('Connecte-toi d’abord.');
+        if (t.paiement || !t.pourInfo) throw new Error('Tâche introuvable');
+        if (Date.now() - (relancesDemo.get(tacheId) ?? 0) < 3600e3) throw new Error('Déjà relancée il y a moins d’une heure');
+        const d = loadEspace();
+        const ici = attendusDe(t, (f) => d.people.some((p) => p.id === f && p.actif && !!p.email)).filter((k) => !t.pourInfoVus?.[k]).map((k) => k.slice(2));
+        relancesDemo.set(tacheId, Date.now());
+        return { n: ici.length, ici };
       },
-      // Proposition d'amélioration de l'appli, rangée au comité central (version réelle : gsa_proposer_amelioration).
+      // Proposition d'amélioration de l'appli, rangée dans l'espace (version réelle : gsa_proposer_amelioration).
       async proposerAmelioration(r) {
-        if (!central || !me) throw new Error('Pas de comité central.');
+        if (!moi) throw new Error('Connecte-toi d’abord.');
         const texte = r.texte.trim().slice(0, 4000);
         if (!texte) throw new Error('La proposition est vide');
-        // Nom : sa fiche dans l'entité ouverte, sinon au comité central, sinon dans une autre entité.
-        const ids = [current.id, central.id, ...units.map((u) => u.id)];
-        const fiche = ids.map((id) => loadUnitData(id).people.find((p) => p.actif && personKey(p, id) === me)).find((p) => !!p);
         const p: Proposition = {
           id: uid('am'),
           genre: r.genre,
           texte,
           page: r.page || undefined,
           le: new Date().toISOString(),
-          par: `${fiche?.prenom ?? ''} ${fiche?.nom ?? ''}`.trim() || 'Membre du club',
-          unite: current.nom,
-          auteur: me,
+          par: nomMembre(moi.fiche) || 'Membre du club',
+          auteur: moi.fiche.id,
           statut: 'nouvelle',
         };
-        const d = loadUnitData(central.id);
-        d.propositions = [p, ...(d.propositions ?? [])];
-        saveUnitData(central.id, d);
+        changerEspace((d) => {
+          d.propositions = [p, ...(d.propositions ?? [])];
+        });
       },
-      organigrammesAnnuels: async () => loadOrganigrammes(),
       async mesPropositions() {
-        if (!central || !me) return [];
-        return (loadUnitData(central.id).propositions ?? []).filter((p) => p.auteur === me).sort((a, b) => b.le.localeCompare(a.le));
-      },
-      // Remboursement / paiement demandé par un membre d'une autre entité à la caisse qui reçoit ses tickets : celle du
-      // comité dont elle dépend s'il a un caissier, sinon la caisse centrale (version réelle : gsa_ticket_central, 030).
-      async ticketCentral(r) {
-        const cible = caisseDe(org, current);
-        if (!cible || !me) throw new Error('Pas de comité central.');
-        if (cible.moi) throw new Error(`Membre de « ${cible.nom} » : envoie le ticket depuis « ${cible.nom} »`);
-        const d = loadUnitData(cible.id);
-        const caisse = caissiers(d).map((p) => p.id);
-        if (!caisse.length) throw new Error(`La caisse de « ${cible.nom} » n’a pas encore de caissier`);
-        const fiche = loadUnitData(current.id).people.find((p) => personKey(p, current.id) === me);
-        const par = `${fiche?.prenom ?? ''} ${fiche?.nom ?? ''}`.trim() || 'Membre';
-        const now = new Date().toISOString();
-        const t: Ticket = {
-          id: uid('tk'),
-          sectionId: sectionFinances(d),
-          sousSection: GENRES[r.type === 'facture' ? 'facture' : 'remboursement'].sous,
-          titre: r.titre.trim(),
-          responsables: caisse,
-          statusId: statutPour(d, 'recu'),
-          delai: r.type === 'facture' && r.delai ? r.delai : '',
-          remarque: r.remarque.trim(),
-          checklist: [],
-          documents: r.documents.map((x) => ({ ...x, par: '' })),
-          createdBy: '',
-          updatedAt: now,
-          paiement: {
-            ...(r.type === 'facture' ? { type: 'facture' as const } : {}),
-            montant: r.montant,
-            beneficiaire: r.beneficiaire.trim(),
-            iban: r.iban || undefined,
-            etat: 'recu',
-            demandePar: '',
-            demandeLe: now,
-            externe: { uniteId: current.id, unite: current.nom, par, email: fiche?.email?.trim().toLowerCase(), userId: me },
-          },
-        };
-        d.tasks.unshift(t);
-        d.log.unshift({ id: uid('l'), at: now, userId: '', action: `${r.type === 'facture' ? 'Paiement de facture' : 'Remboursement'} demandé par « ${current.nom} » (${par}) : « ${t.titre} » (${r.montant.toFixed(2)} CHF)` });
-        saveUnitData(cible.id, d);
-      },
-      // Agenda du club : événements de toutes les entités (version réelle : gsa_agenda_club).
-      async agendaClub(): Promise<AgendaClubEvent[]> {
-        return units
-          .filter((u) => !u.archive)
-          .flatMap((u) => loadUnitData(u.id).events.map((e) => ({ uniteId: u.id, id: e.id, nom: e.nom, date: e.date, dateFin: e.dateFin, heure: e.heure, heureFin: e.heureFin, lieu: e.lieu, repetition: e.repetition, sauf: e.sauf })))
-          .filter((e) => /^\d{4}-\d{2}-\d{2}$/.test(e.date))
-          .sort((a, b) => a.date.localeCompare(b.date));
-      },
-      // Tâches que les autres entités partagent avec l'entité ouverte (version réelle : gsa_taches_partagees, 019).
-      async tachesPartagees(): Promise<TachePartagee[]> {
-        const actives = units.filter((u) => !u.archive);
-        return actives
-          .filter((u) => u.id !== current.id)
-          .flatMap((u) => {
-            const d = loadUnitData(u.id);
-            const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
-            return d.tasks
-              .filter((t) => vueDe(t, u) === 'modifiable')
-              .map((t) => ({ uniteId: u.id, unite: u.nom, type: u.type, task: t, statuts, v: 41 }));
-          });
-      },
-      // Séances du comité dont dépend l'entité ouverte, pour y lier une tâche (version réelle : gsa_seances_comite, 032).
-      async seancesComite(): Promise<SeancesDuComite> {
-        const comite = parentDans(units.filter((u) => !u.archive), current);
-        if (!comite) return { comite: '', seances: [] };
-        const seances = loadUnitData(comite.id)
-          .meetings.filter((m) => /^\d{4}-\d{2}-\d{2}$/.test(m.date))
-          .map(({ id, titre, date, heure }) => ({ id, titre, date, heure }))
-          .sort((a, b) => a.date.localeCompare(b.date));
-        return { comite: comite.id, seances };
-      },
-      // Sections des entités qui dépendent de l'entité ouverte (version réelle : gsa_sections_dependantes, 033).
-      async sectionsDependantes(): Promise<SectionsDependantes> {
-        const actives = units.filter((u) => !u.archive);
-        return Object.fromEntries(
-          actives
-            .filter((u) => u.id !== current.id && parentDans(actives, u)?.id === current.id)
-            .map((u) => [u.id, loadUnitData(u.id).sections.map(({ id, nom }) => ({ id, nom }))]),
-        );
-      },
-      // Anciennes tâches des entités qui dépendent maintenant de l'entité ouverte : lecture et copie (version réelle :
-      // gsa_anciennes_taches, 030). Sans pièces jointes (leur nombre seulement).
-      async anciennesTaches(): Promise<TachePartagee[]> {
-        const actives = units.filter((u) => !u.archive);
-        return actives
-          .filter((u) => u.id !== current.id && u.historiqueDependance?.length && parentDans(actives, u)?.id === current.id)
-          .flatMap((u) => {
-            const d = loadUnitData(u.id);
-            const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
-            const fin = u.historiqueDependance![u.historiqueDependance!.length - 1];
-            return d.tasks
-              .filter((t) => tacheDans(t, u, current.id, current.id, reglageTaches(org, u)) === 'ancienne')
-              .map(({ documents, ...t }) => ({ uniteId: u.id, unite: u.nom, type: u.type, ancienne: { comite: fin.nom, jusqua: fin.jusqua }, task: { ...t, pieces: documents?.length ?? 0 }, statuts }));
-          });
-      },
-      // Tâches des autres entités pour info de l'entité ouverte ou de l'une de ses personnes (version réelle :
-      // gsa_taches_pour_info, 037). Lecture seule ; jamais les tickets.
-      async tachesPourInfo(): Promise<TachePartagee[]> {
-        return units
-          .filter((u) => u.id !== current.id && !u.archive)
-          .flatMap((u) => {
-            const d = loadUnitData(u.id);
-            const statuts = d.statuses.map(({ id, label, done }) => ({ id, label, done }));
-            return d.tasks
-              .filter((t) => !t.paiement && (t.pourInfo?.unites?.includes(current.id) || !!t.pourInfo?.autres?.[current.id]?.length))
-              .map(({ documents = [], ...t }) => ({
-                uniteId: u.id,
-                unite: u.nom,
-                type: u.type,
-                // Liens transmis ; fichiers comptés seulement (consultables dans l'entité de la tâche).
-                task: { ...t, documents: documents.filter((x) => x.kind === 'lien'), pieces: documents.filter((x) => x.kind !== 'lien').length },
-                statuts,
-              }));
-          });
-      },
-      // Modification depuis l'entité ouverte, enregistrée dans l'entité de la tâche (version réelle : gsa_modifier_tache_partagee).
-      async modifierTachePartagee(uniteId, task) {
-        const u = units.find((x) => x.id === uniteId);
-        const d = loadUnitData(uniteId);
-        const old = d.tasks.find((t) => t.id === task.id);
-        const vue = u && old && !u.archive ? vueDe(old, u) : null;
-        if (vue === 'ancienne') throw new Error(`Ancienne tâche de « ${u!.nom} » : elle se consulte et se copie, sans modification`);
-        if (!u || !old || vue !== 'modifiable') throw new Error('Cette tâche n’est plus partagée avec cette entité.');
-        const t = fusionPartagee(old, task, current.id, uniteId, { entites: units, centralId: central?.id, meetings: loadUnitData(current.id).meetings });
-        // Contenu modifié : date posée comme le fait le serveur (052).
-        const ch = changementsTache(old, t);
-        if (ch && Object.keys(ch.champs).some((k) => k !== 'pourInfo')) t.contenuLe = new Date().toISOString();
-        d.tasks = d.tasks.map((x) => (x.id === old.id ? t : x));
-        saveUnitData(uniteId, d);
-      },
-      // Réponse à une tâche à prendre partagée, proposée ici à la personne connectée (version réelle : gsa_repondre_partagee, 040).
-      async repondreTachePartagee(uniteId, tacheId, prend) {
-        const u = units.find((x) => x.id === uniteId);
-        const d = loadUnitData(uniteId);
-        const old = d.tasks.find((t) => t.id === tacheId);
-        if (!u || u.archive || !old || vueDe(old, u) !== 'modifiable')
-          throw new Error('Cette tâche n’est plus partagée avec cette entité.');
-        const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
-        if (!fiche) throw new Error('Réservé aux membres de l’entité.');
-        const terminee = !!d.statuses.find((s) => s.id === old.statusId)?.done;
-        const t = reponseAilleurs(old, current.id, fiche.id, prend, terminee);
-        if (t === old) return;
-        d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...t, modifiePar: `${fiche.prenom} ${fiche.nom} (${current.nom})`.trim(), contenuLe: new Date().toISOString() } : x));
-        saveUnitData(uniteId, d);
-      },
-      // « ✓ Vu » sur une tâche d'une autre entité, pour info d'ici ou partagée (version réelle : gsa_pour_info_vu, 046).
-      async vuPourInfo(uniteId, tacheId) {
-        const u = units.find((x) => x.id === uniteId);
-        const d = loadUnitData(uniteId);
-        const old = d.tasks.find((t) => t.id === tacheId);
-        const ici = loadUnitData(current.id);
-        const fiche = ici.people.find((x) => x.actif && personKey(x, current.id) === me);
-        if (!fiche) throw new Error('Réservé aux membres de l’entité.');
-        if (!u || u.archive || !old) throw new Error('Tâche introuvable');
-        const cles = clesVu(old, uniteId, current.id, fiche.id, hasPermission(userRoles(ici.roles, fiche), 'tasks.viewAll'));
-        if (!cles.length) throw new Error('Cette tâche n’est pas « pour info » pour toi');
-        const le = new Date().toISOString();
-        const vus = ajouterVus(old.pourInfoVus, cles, le, old.contenuLe);
-        if (vus === old.pourInfoVus) return;
-        d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, pourInfoVus: vus } : x));
-        // Dernier « ✓ Vu » attendu : l'auteur est prévenu, dans l'entité de la tâche (version réelle : 052).
-        if (old.createdBy && d.people.some((p) => p.id === old.createdBy && p.actif) && dernierAttendu(old.pourInfoVus, vus, attendusDemo(old, uniteId, units)))
-          d.notifications = [
-            { id: uid('n'), userId: old.createdBy, type: 'toutVu' as const, taskId: old.id, by: `x:${current.id}:${fiche.id}`, byName: `${`${fiche.prenom} ${fiche.nom}`.trim()} (${current.nom})`, at: le, titre: old.titre },
-            ...(d.notifications ?? []),
-          ].slice(0, 300);
-        saveUnitData(uniteId, d);
-      },
-      // Historique d'une tâche (version réelle : gsa_historique_tache, 050 ; la démo ne vérifie pas qui la lit).
-      historique: async (uniteId, tacheId) => lireHistoriqueDemo(uniteId, tacheId),
-      // Rapport d'erreurs (version réelle : gsa_signaler_erreur, gsa_erreurs_liste…, 051), gardé dans ce navigateur.
-      signalerErreur: async (r) => {
-        if (me) signalerErreurDemo(current.nom, me, r);
-      },
-      erreurs: async () => {
-        if (!central?.moiAdmin) throw new Error('Réservé aux admins du comité central.');
-        return erreursDemo();
-      },
-      reglerErreur: async (id, reglee) => {
-        if (!central?.moiAdmin) throw new Error('Réservé aux admins du comité central.');
-        reglerErreurDemo(id, reglee);
-      },
-      effacerErreurs: async () => {
-        if (!central?.moiAdmin) throw new Error('Réservé aux admins du comité central.');
-        return effacerErreursDemo();
-      },
-      // Discussion sur une tâche d'une autre entité, partagée avec l'entité ouverte ou reçue pour info (version réelle :
-      // gsa_commenter, 049). Les personnes prévenues dans les autres entités le sont ici ; celles d'ici, par le store.
-      async commenter(uniteId, tacheId, a) {
-        const u = units.find((x) => x.id === uniteId);
-        const d = loadUnitData(uniteId);
-        const old = d.tasks.find((t) => t.id === tacheId);
-        const ici = loadUnitData(current.id);
-        const fiche = ici.people.find((x) => x.actif && personKey(x, current.id) === me);
-        if (!fiche) throw new Error('Réservé aux membres de l’entité.');
-        if (!u || u.archive || !old) throw new Error('Tâche introuvable');
-        if (old.paiement) throw new Error('Pas de discussion sur un ticket de paiement');
-        const partagee = vueDe(old, u) === 'modifiable';
-        if (!partagee && !clesVu(old, uniteId, current.id, fiche.id, hasPermission(userRoles(ici.roles, fiche), 'tasks.viewAll')).length)
-          throw new Error('Tu ne vois pas cette tâche');
-        const nom = `${fiche.prenom} ${fiche.nom}`.trim();
-        const le = new Date().toISOString();
-        const commentaires = appliquerCommentaire(old.commentaires, a, { moi: fiche.id, nom, depuis: current.id, unite: uniteId, admin: false, le, mesFiches });
-        d.tasks = d.tasks.map((x) => (x.id === old.id ? { ...x, commentaires: commentaires.length ? commentaires : undefined } : x));
-        saveUnitData(uniteId, d);
-        if (a.cle) return;
-        // Comme le serveur : fiches actives des entités pas archivées, sans les miennes, une notification par personne.
-        const donnees = (e: string) => (e === uniteId ? d : loadUnitData(e));
-        const actives = Object.fromEntries(
-          Object.entries(destinatairesCommentaire(old, uniteId, fiche.id, current.id))
-            .filter(([e]) => units.some((x) => x.id === e && !x.archive))
-            .map(([e, l]) => {
-              const people = donnees(e).people;
-              return [e, l.filter((f) => people.some((p) => p.id === f && p.actif && personKey(p, e) !== me))];
-            }),
-        );
-        const qui = (e: string, f: string) => {
-          const p = donnees(e).people.find((x) => x.id === f);
-          return p && personKey(p, e);
-        };
-        for (const [e, fiches] of Object.entries(unParPersonne(actives, uniteId, current.id, qui))) {
-          if (e === current.id) continue;
-          const de = donnees(e);
-          const notifs = notifsCommentaire(fiches, { entite: e, unite: uniteId, tache: old.id, titre: old.titre, moi: fiche.id, depuis: current.id, nom, texte: a.texte ?? '', le });
-          if (!notifs.length) continue;
-          de.notifications = [...notifs, ...(de.notifications ?? [])].slice(0, 300);
-          saveUnitData(e, de);
-        }
-      },
-      async suiviPourInfo(uniteId, tacheIds) {
-        const d = loadUnitData(uniteId);
-        return Object.fromEntries(d.tasks.filter((t) => tacheIds.includes(t.id) && t.pourInfo && !t.paiement).map((t) => [t.id, attendusDemo(t, uniteId, units)]));
-      },
-      // Relance (version réelle : gsa_pour_info_relancer, 052) : les personnes des autres entités prévenues dans leur entité,
-      // celles d'ici par le store.
-      async relancerPourInfo(tacheId, t) {
-        const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
-        if (!fiche) throw new Error('Réservé aux membres de l’entité.');
-        if (t.paiement || !t.pourInfo) throw new Error('Tâche introuvable');
-        const cle = `${current.id}:${tacheId}`;
-        if (Date.now() - (relancesDemo.get(cle) ?? 0) < 3600e3) throw new Error('Déjà relancée il y a moins d’une heure');
-        const le = new Date().toISOString();
-        const nom = `${`${fiche.prenom} ${fiche.nom}`.trim()} (${current.nom})`;
-        const parEntite = new Map<string, string[]>();
-        for (const k of attendusDemo(t, current.id, units).filter((x) => !t.pourInfoVus?.[x])) {
-          const [g, a, b] = k.split(':');
-          const [e, f] = g === 'p' ? [current.id, a] : [a, b];
-          if (!parEntite.get(e)?.includes(f)) parEntite.set(e, [...(parEntite.get(e) ?? []), f]);
-        }
-        for (const [e, fiches] of parEntite) {
-          if (e === current.id) continue;
-          const de = loadUnitData(e);
-          const notifs = fiches.map((f) => ({ id: uid('n'), userId: f, type: 'relance' as const, taskId: `x:${cle}`, by: `x:${current.id}:${fiche.id}`, byName: nom, at: le, titre: t.titre }));
-          de.notifications = [...notifs, ...(de.notifications ?? [])].slice(0, 300);
-          saveUnitData(e, de);
-        }
-        relancesDemo.set(cle, Date.now());
-        return { n: [...parEntite.values()].reduce((n, l) => n + l.length, 0), ici: parEntite.get(current.id) ?? [] };
-      },
-      async destinatairesPourInfo(uniteId, tacheId) {
-        const t = loadUnitData(uniteId).tasks.find((x) => x.id === tacheId);
-        const r: Record<string, string[]> = {};
-        for (const e of t && !t.paiement ? (t.pourInfo?.unites ?? []) : []) {
-          const d = units.some((x) => x.id === e && !x.archive) ? loadUnitData(e) : undefined;
-          r[e] = d ? d.people.filter((p) => p.actif && hasPermission(userRoles(d.roles, p), 'tasks.viewAll')).map((p) => p.id) : [];
-        }
-        return r;
-      },
-      // Tâche attribuée à une entité qui dépend de l'entité ouverte : enregistrée chez elle (version réelle :
-      // gsa_attribuer_tache, 035).
-      async attribuerTache(uniteId, task, statut) {
-        const actives = units.filter((x) => !x.archive);
-        const u = actives.find((x) => x.id === uniteId);
-        if (!u || u.id === current.id || parentDans(actives, u)?.id !== current.id) throw new Error(`Cette entité ne dépend pas de « ${current.nom} »`);
-        const d = loadUnitData(uniteId);
-        d.tasks.unshift(nettoyerAttribuee(task, d, statut, u));
-        saveUnitData(uniteId, d);
-      },
-      // Sondages des autres entités ouverts à l'entité ouverte (version réelle : gsa_sondages_partages, 021).
-      async sondagesPartages(): Promise<SondagePartage[]> {
-        return units
-          .filter((u) => u.id !== current.id && !u.archive)
-          .flatMap((u) => (loadUnitData(u.id).polls ?? []).filter((p) => p.entites?.includes(current.id)).map((poll) => ({ uniteId: u.id, unite: u.nom, poll })));
-      },
-      // Réponse enregistrée dans l'entité du sondage, sous la clé de vote de la personne (version réelle : gsa_voter_sondage_partage).
-      async voterSondagePartage(uniteId, pollId, choix, texte) {
-        const u = units.find((x) => x.id === uniteId);
-        const d = loadUnitData(uniteId);
-        const p = d.polls?.find((x) => x.id === pollId);
-        if (!u || u.archive || !p || !p.entites?.includes(current.id)) throw new Error('Ce sondage n’est plus ouvert à cette entité.');
-        if (!isOpen(p)) throw new Error('Ce sondage est clôturé.');
-        const fiche = loadUnitData(current.id).people.find((x) => x.actif && personKey(x, current.id) === me);
-        const cle = fiche && cleVote(electorat(p, uniteId, d.people.filter((x) => x.actif), org), current.id, fiche);
-        if (!cle) throw new Error('Tu ne fais pas partie des votants de ce sondage.');
-        d.polls = d.polls!.map((x) => (x.id === pollId ? { ...x, ...avecVote(x, cle, choix, texte) } : x));
-        saveUnitData(uniteId, d);
-      },
-      async mesTicketsCentraux(): Promise<SuiviTicket[]> {
-        if (!me) return [];
-        return units.flatMap((c) => loadUnitData(c.id)
-          .tasks.filter((t): t is Ticket => !!t.paiement && t.paiement.externe?.userId === me)
-          .map((t) => ({
-            id: t.id,
-            type: t.paiement.type === 'facture' ? ('facture' as const) : null,
-            titre: t.titre,
-            montant: t.paiement.montant,
-            beneficiaire: t.paiement.beneficiaire,
-            etat: t.paiement.etat,
-            le: t.paiement.demandeLe,
-            unite: t.paiement.externe!.unite,
-            caisse: c.nom,
-            viseLe: t.paiement.validation?.le,
-            payeLe: t.paiement.paye?.le,
-            motif: t.paiement.refus?.motif,
-          })))
-          .sort((a, b) => b.le.localeCompare(a.le));
-      },
-      // Comme le serveur (043) : dans toutes les entités du club, ticket visé ou payé seulement.
-      async verifierVisa(code) {
-        for (const u of units) {
-          const v = visaDans(loadUnitData(u.id), code, u.nom);
-          if (v) return v;
-        }
-        return null;
+        if (!moi) return [];
+        return (loadEspace().propositions ?? []).filter((p) => p.auteur === moi.fiche.id).sort((a, b) => b.le.localeCompare(a.le));
       },
       personnes,
       caissier,
@@ -787,46 +180,22 @@ export function DemoApp() {
         // IBAN et confidentialité gardés, comme les coordonnées masquées (sauf par la personne elle-même).
         const avant = loadMembres();
         const mid = monMembre()?.id;
-        const list = l.map((m) => fusionMembre(avant.find((x) => x.id === m.id), m, m.id === mid));
-        // Adresse de la personne connectée changée : elle reste connectée.
-        const moi = list.find((m) => emailKey(avant.find((x) => x.id === m.id)?.email) === me && emailKey(m.email) && emailKey(m.email) !== me);
-        saveMembres(list);
-        if (moi) {
-          saveMe(emailKey(moi.email));
-          setMe(emailKey(moi.email));
-        }
-        refresh();
+        saveMembres(l.map((m) => fusionMembre(avant.find((x) => x.id === m.id), m, m.id === mid)));
+        relire();
       },
-      // Retirée du club : ses places dans les entités (fiches retirées, postes libérés, comme « Retirer de l'entité ») ;
-      // ses tâches gardent son nom.
+      // Retirée du club : sa fiche désactivée (ses tâches gardent son nom) et sa fiche du registre retirée.
       async deleteMembre(id) {
         if (!personnes.gerer) throw new Error('Réservé aux personnes qui ont le droit « Gérer les personnes ».');
         const m = loadMembres().find((x) => x.id === id);
-        if (!m) return;
-        if (emailKey(m.email) && emailKey(m.email) === me) throw new Error('Tu ne peux pas te retirer toi-même du club.');
+        if (!m || !moi) return;
+        if (m.id === monMembre()?.id) throw new Error('Tu ne peux pas te retirer toi-même du club.');
+        const d = loadEspace();
         const sienne = (p: Person) => p.actif && (p.membreId === id || (!p.membreId && !!emailKey(m.email) && emailKey(p.email) === emailKey(m.email)));
-        const touchees = units.filter((u) => loadUnitData(u.id).people.some(sienne));
-        for (const u of touchees) {
-          const d = loadUnitData(u.id);
-          const admins = d.people.filter((p) => p.actif && p.roles.includes(ADMIN_ROLE_ID));
-          // Une place ★ : réservé aux admins de l'entité ou du comité central (comme le serveur, 056).
-          if (admins.some(sienne) && !central?.moiAdmin && !org.find((x) => x.id === u.id)?.moiAdmin)
-            throw new Error(`${nomMembre(m)} est ★ de « ${u.nom} » : réservé aux admins de cette entité ou du comité central.`);
-          if (!u.archive && admins.length && admins.every(sienne)) throw new Error(`${nomMembre(m)} est le seul admin de « ${u.nom} » : désigne d’abord un autre responsable (★).`);
-        }
-        for (const u of touchees) {
-          const ancien = loadUnitData(u.id);
-          const d = loadUnitData(u.id);
-          d.people = d.people.map((p) => (sienne(p) ? { ...p, actif: false } : p));
-          const n = synchroDemo(u.id, d);
-          const lie = lierFiches(u.id, n ?? d);
-          const postes = suivrePostes(u.id, ancien, lie);
-          saveUnitData(u.id, postes?.d ?? lie);
-          propagerLiens(u.id);
-          for (const k of postes?.autres ?? []) propagerLiens(k);
-        }
+        const admins = d.people.filter((p) => p.actif && p.roles.includes(ADMIN_ROLE_ID));
+        if (admins.some(sienne) && !admin) throw new Error(`${nomMembre(m)} est admin : réservé aux admins.`);
+        if (admins.length && admins.every(sienne)) throw new Error(`${nomMembre(m)} est le seul admin : donne d’abord le rôle Admin à quelqu’un d’autre.`);
         deleteMembre(id);
-        refresh();
+        relire();
       },
       async monRegistre() {
         const m = monMembre();
@@ -846,87 +215,45 @@ export function DemoApp() {
         if (!m) throw new Error('Tu n’es pas encore dans « Personnes du club » : demande à quelqu’un qui gère les personnes de t’y inscrire.');
         saveMembres([{ ...m, prive: masquer }]);
       },
-      async fichesEntite(uniteId) {
-        if (!org.find((u) => u.id === uniteId)?.moiAdmin) throw new Error('Réservé aux admins de l’entité.');
-        const d = loadUnitData(uniteId);
-        return { roles: d.roles, people: d.people };
-      },
-      // Comme une fiche modifiée dans l'entité : liée au registre, ses postes et les postes liés suivent.
-      async enregistrerFiche(uniteId, p) {
-        const u = org.find((x) => x.id === uniteId);
-        if (!u?.moiAdmin) throw new Error(`Réservé aux admins de « ${u?.nom ?? 'l’entité'} ».`);
-        const ancien = loadUnitData(uniteId);
-        const d: AppData = loadUnitData(uniteId);
-        const i = d.people.findIndex((x) => x.id === p.id);
-        if (i >= 0) d.people[i] = p;
-        else d.people.push(p);
-        const n = synchroDemo(uniteId, d);
-        const lie = lierFiches(uniteId, n ?? d);
-        const postes = suivrePostes(uniteId, ancien, lie);
-        saveUnitData(uniteId, postes?.d ?? lie);
-        propagerLiens(uniteId);
-        for (const k of postes?.autres ?? []) propagerLiens(k);
-        refresh();
-      },
       // Démo : pas de comptes ni de mots de passe.
       demandesMdp: [],
       approuverMdp: () => Promise.reject(new Error('Pas de mots de passe dans la démo.')),
       refuserMdp: () => Promise.resolve(),
       superAdmin: false,
-      // Sauvegarde de tout le club : les admins du comité central (version réelle : les super-admins).
-      sauvegardeClub: central?.moiAdmin
+      // Sauvegarde de tout le club : les admins (version réelle : les super-admins).
+      sauvegardeClub: admin
         ? async (par) => {
-            const entites: EntiteSauvegardee[] = [];
-            for (const x of units) {
-              const data = loadUnitData(x.id);
-              entites.push({ id: x.id, nom: x.nom, type: x.type, parentId: x.parentId, archive: x.archive || undefined, schema: data.schema ?? 0, data, files: await fichiersDe(data, getFile) });
-            }
+            const data = loadEspace();
             const personnes = loadMembres().map(({ iban: _iban, ...m }) => m);
-            return { app: 'taches-gsa', version: 2, exportedAt: new Date().toISOString(), exportedBy: par, club: { id: central.id, nom: central.nom }, entites, personnes };
+            return {
+              app: 'taches-gsa',
+              version: 2,
+              exportedAt: new Date().toISOString(),
+              exportedBy: par,
+              club: { id: espace.id, nom: espace.nom },
+              entites: [{ id: espace.id, nom: espace.nom, type: 'central', schema: data.schema ?? 0, data, files: await fichiersDe(data, getFile) }],
+              personnes,
+            };
           }
         : undefined,
-      arrierePlan,
-      // Vue du club : toutes mes entités sont ouvertes à égalité.
-      aEgalite: arrierePlan,
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [org, central, mineAll, mesFiches, switchUnit, refresh, units, me, personnes, caissier, lues, relireUnite]);
-  // Le club lui-même, vu de la session : aucune entité ouverte (CLUB_ID), toutes les miennes en arrière-plan.
-  const clubSession = useMemo(() => {
-    const c = central ?? org[0];
-    if (!c) return null;
-    const u: OrgUnit = { id: CLUB_ID, nom: 'Club', type: 'central', couleur: c.couleur, logo: c.logo, couleurAppli: c.couleurAppli, membres: [], moi: true, moiAdmin: false };
-    return { ...clubDe(u), vueClub: true };
-  }, [clubDe, central, org]);
+    }),
+    [espace, admin, me, moi, personnes, caissier, monMembre, changerEspace, relire],
+  );
 
-  // Couche de données de chacune de mes entités, ouvertes en arrière-plan.
-  const demoDe = useCallback(
-    (id: string, personne: string | null, epoque: number): DemoMode => ({
-      load: () =>
-        parElle(id, () => {
-          const d = loadUnitData(id);
-          const n = synchroDemo(id, d);
-          if (n) saveUnitData(id, lierFiches(id, n));
-          return n ?? d;
-        }),
-      // Comme le serveur : fiches liées au registre ; liens « Membres de » tenus à jour, dans l'entité (relue si elle a
-      // changé) et dans celles qui la comptent parmi leurs membres.
-      // Organigramme à glisser-déposer : ses postes et les postes liés suivent les personnes modifiées ici.
-      save: (d) =>
-        parElle(id, () => {
-          const ancien = loadUnitData(id);
-          const avant = signatureMembres(ancien.people);
-          const n = synchroDemo(id, d);
-          const postes = suivrePostes(id, ancien, lierFiches(id, n ?? d));
-          const next = postes?.d ?? lierFiches(id, n ?? d);
-          saveUnitData(id, next);
-          const autres = signatureMembres(next.people) !== avant && propagerLiens(id);
-          for (const k of postes?.autres ?? []) propagerLiens(k);
-          if (n || postes?.ici) relireUnite(id);
-          if (autres || n || postes?.ici || postes?.autres.length) refresh();
-        }),
-      epoch: epoque,
-      personId: personne,
+  // Couche de données de l'espace ; ses fiches restent liées à « Personnes du club » (comme le serveur).
+  const demo: DemoMode = useMemo(
+    () => ({
+      load: loadEspace,
+      save: (d) => {
+        const { change } = lierFiches(d);
+        saveEspace(d);
+        // Fiches liées au registre, ou personnes modifiées (rôles…) : relues (mes droits au club aussi).
+        const sig = JSON.stringify(d.people.map((p) => [p.id, p.actif, p.roles, p.membreId]));
+        if (change || (personnesVues !== null && sig !== personnesVues)) queueMicrotask(relire);
+        personnesVues = sig;
+      },
+      epoch: version,
+      personId: me,
       logout,
       reset: () => {
         resetDemo();
@@ -934,56 +261,19 @@ export function DemoApp() {
         window.location.reload();
       },
     }),
-    [logout, refresh, relireUnite],
-  );
-  // Toutes mes entités, à égalité : leurs tâches, discussions et notifications sont réunies par la vue du club (StoreClub).
-  const arriere = useMemo(
-    () =>
-      me
-        ? mesEntites.map((u) => {
-            const personne = loadUnitData(u.id).people.find((p) => p.actif && personKey(p, u.id) === me)?.id ?? null;
-            return { u, personne, club: clubDe(u, true), demo: demoDe(u.id, personne, relire[u.id] ?? 0) };
-          })
-        : [],
-    [me, mesEntites, clubDe, demoDe, relire],
+    [me, version, logout, relire],
   );
 
-  // Personnes du club sans place dans l'organigramme, avec un accès : leurs tâches confiées (PERSONNES_DU_CLUB.md, étape 3).
-  const aUnePlace = (m: ClubMembre) =>
-    units.some((u) => loadUnitData(u.id).people.some((p) => p.actif && (p.membreId === m.id || (!!emailKey(m.email) && emailKey(p.email) === emailKey(m.email)))));
-  const moiSansPlace = !mesEntites.length && me?.startsWith('membre:') ? loadMembres().find((m) => `membre:${m.id}` === me && m.acces && !aUnePlace(m)) : undefined;
-  if (moiSansPlace) {
-    const taches: TacheConfiee[] = org
-      .filter((u) => !u.archive)
-      .flatMap((u) => {
-        const d = loadUnitData(u.id);
-        return d.tasks.filter((t) => !t.paiement && t.respHors?.some((p) => p.membreId === moiSansPlace.id)).map((t) => ({ unite: u, tache: t, statuts: d.statuses }));
-      });
-    const modifier = (uniteId: string, tacheId: string, patch: Partial<Pick<Task, 'statusId' | 'checklist'>>) => {
-      const d = loadUnitData(uniteId);
-      const t = d.tasks.find((x) => x.id === tacheId);
-      if (!t || !t.respHors?.some((p) => p.membreId === moiSansPlace.id)) return;
-      const now = new Date().toISOString();
-      const nom = nomMembre(moiSansPlace);
-      const next: Task = { ...t, ...patch, updatedAt: now, modifiePar: nom, contenuLe: now };
-      if (patch.statusId) next.termineeLe = d.statuses.find((s) => s.id === patch.statusId)?.done ? (isDone(d, t) ? t.termineeLe : now.slice(0, 10)) : undefined;
-      const quoi = patch.statusId ? `statut « ${d.statuses.find((s) => s.id === patch.statusId)?.label ?? ''} »` : 'checklist';
-      d.tasks = d.tasks.map((x) => (x.id === t.id ? next : x));
-      d.log = [{ id: uid('l'), at: now, userId: '', action: `${nom} (sans place dans l’organigramme) : « ${t.titre} » › ${quoi}` }, ...(d.log ?? [])].slice(0, 300);
-      saveUnitData(uniteId, d);
-      refresh();
-    };
-    return <SansPlace membre={moiSansPlace} logo={central?.logo} taches={taches} modifier={modifier} sortir="Changer" onSortir={logout} />;
-  }
-
-  if (!me || !session || !clubSession || !mesEntites.length) {
+  if (!me || !moi) {
+    const d = loadEspace();
     return (
       <Login
-        units={org}
-        sansPlace={loadMembres().filter((m) => m.acces && !aUnePlace(m)).map((m) => ({ key: `membre:${m.id}`, prenom: m.prenom, nom: m.nom, couleur: m.couleur }))}
-        onPick={(key) => {
-          saveMe(key);
-          setMe(key);
+        data={d}
+        logo={espace.logo}
+        onPick={(id) => {
+          saveMoi(id);
+          setMe(id);
+          relire();
         }}
         onReset={() => {
           resetDemo();
@@ -994,19 +284,10 @@ export function DemoApp() {
   }
 
   return (
-    <SessionCtx.Provider value={session}>
-      <RegistreEntites>
-        {arriere.map((x) => (
-          <ClubCtx.Provider key={`${x.u.id}|${me}|${x.personne}`} value={x.club}>
-            <StoreProvider demo={x.demo} />
-          </ClubCtx.Provider>
-        ))}
-        <ClubCtx.Provider value={clubSession}>
-          <StoreClub key={me} attendues={arriere.map((x) => x.u.id)}>
-            <App />
-          </StoreClub>
-        </ClubCtx.Provider>
-      </RegistreEntites>
-    </SessionCtx.Provider>
+    <ClubCtx.Provider value={club}>
+      <StoreProvider key={me} demo={demo}>
+        <App />
+      </StoreProvider>
+    </ClubCtx.Provider>
   );
 }

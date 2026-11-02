@@ -1,39 +1,36 @@
 import { makeSeed } from './seed';
-import { people as centralPeople } from './seedData';
 import { migrate } from './migrate';
-import { parentDans, statutsDuClub, unitData } from './units';
 import { clearFiles } from './files';
 import { appliquerMembres, coordonnees, emailKey, memesCoordonnees, nomMembre, nouveauMembre } from './membres';
-import { membresPropres, synchroLiens } from './liens';
-import { convertirPostes, lierEntite, suivre } from './organigramme';
 import { ajouterHistorique, changementsTache, nomsCites, type EntreeHistorique, type HistoriqueTache } from './historique';
 import type { ErreurAppli, RapportErreur } from './rapportErreurs';
-import { luesCommunes } from './commentaires';
-import type { PersoClub } from './session';
-import type { AppData, ClubEvent, ClubMembre, Meeting, OrganigrammeAnnuel, OrgUnit, Person, Status, Unit } from './types';
+import { repriseEntites, type AncienneEntite } from './repriseEntites';
+import type { Espace } from './club';
+import type { AppData, ClubMembre, Prefs } from './types';
 
-// Démo : le club et ses entités, chacune avec ses données gardées dans ce navigateur.
-// Le site est public : les personnes sont fictives (noms inventés, adresses @gsajoie.example, pas de téléphones),
-// et aucune tâche : chaque testeur part de zéro.
+// Démo : l'espace du club, gardé dans ce navigateur, avec « Personnes du club », l'historique des tâches et le rapport
+// d'erreurs. Le site est public : les personnes sont fictives (noms inventés, adresses @gsajoie.example, pas de
+// téléphones), et aucune tâche : chaque testeur part de zéro.
 
-export const CENTRAL_ID = 'u-central';
-const CLUB_KEY = 'taches-gsa-demo-club';
-export const ME_KEY = 'taches-gsa-demo-moi';
-/** Ancienne entité de base de la démo (avant la session du club) : oubliée. */
-const UNIT_KEY = 'taches-gsa-demo-unite';
-/** Session du club (session.tsx) : réglages et lectures de chaque personne, une seule fois pour tout le club. */
-const PERSO_KEY = 'taches-gsa-demo-perso';
+/** L'espace du club (l'ancien comité central de la démo : ses identifiants restent). */
+export const ESPACE_ID = 'u-central';
+const ESPACE_KEY = 'taches-gsa-demo-v7';
+/** Nom, logo, couleur et icône de l'espace. */
+const INFO_KEY = 'taches-gsa-demo-espace';
+/** Personne connectée : sa fiche dans l'espace. */
+const MOI_KEY = 'taches-gsa-demo-connecte';
 const MEMBRES_KEY = 'taches-gsa-demo-membres';
-const ORGAS_KEY = 'taches-gsa-demo-organigrammes';
-/** Historique des tâches (version réelle : gsa_historique, 050) : entité → tâche → entrées, de la plus récente à la plus ancienne. */
+/** Historique des tâches (version réelle : gsa_historique, 050) : espace → tâche → entrées, de la plus récente à la plus ancienne. */
 const HISTO_KEY = 'taches-gsa-demo-historique';
 const ERREURS_KEY = 'taches-gsa-demo-erreurs';
-/** Statuts du club : ceux du comité central, les mêmes dans toutes les entités (version réelle : 058). */
-const STATUTS_KEY = 'taches-gsa-demo-statuts';
-/** Ancienne connexion de la démo (fiche du comité central). */
-const OLD_USER_KEY = 'taches-gsa-user';
 
-export const unitStorageKey = (id: string) => (id === CENTRAL_ID ? 'taches-gsa-demo-v7' : `taches-gsa-demo-u-${id}`);
+/** Clés de la démo d'avant (une entité par clé, organigramme, session du club) : reprises une fois, puis oubliées. */
+const ANCIENNES = {
+  entites: 'taches-gsa-demo-club',
+  entite: (id: string) => `taches-gsa-demo-u-${id}`,
+  moi: 'taches-gsa-demo-moi',
+  autres: ['taches-gsa-demo-unite', 'taches-gsa-demo-perso', 'taches-gsa-demo-organigrammes', 'taches-gsa-demo-statuts', 'taches-gsa-user'],
+};
 
 const read = <T,>(key: string): T | null => {
   try {
@@ -50,195 +47,138 @@ const write = (key: string, v: unknown) => {
     /* stockage plein ou indisponible */
   }
 };
-
-// ---------- Entités de départ ----------
-
-const SEED_UNITS: Unit[] = [
-  { id: CENTRAL_ID, nom: 'Comité central', type: 'central', couleur: '#1d4ed8', description: 'Direction du club.' },
-  { id: 'u-ecole', nom: 'École de cyclisme', type: 'groupe', parentId: CENTRAL_ID, couleur: '#059669', description: 'Entraînements et camps des jeunes, avec les moniteurs.' },
-  { id: 'u-competition', nom: 'Groupe compétition', type: 'groupe', parentId: CENTRAL_ID, couleur: '#ea580c', description: 'Coureurs licenciés, calendrier des courses et entraîneurs.' },
-  { id: 'u-bruntrutaine', nom: 'CO Bruntrutaine', type: 'sous-comite', parentId: CENTRAL_ID, couleur: '#7c3aed', date: '2027-02-27', description: 'Comité d’organisation de la Bruntrutaine.' },
-  { id: 'u-soiree', nom: 'Soirée récréative', type: 'equipe', parentId: CENTRAL_ID, couleur: '#db2777', date: '2026-11-28', description: 'Équipe de la soirée du club (sans comité).' },
-];
-
-// Une personne = son poste principal (même nom et même adresse dans chaque entité où elle a un poste).
-type P = [prenom: string, nom: string, couleur: string, poste: string, role: string];
-const slug = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-/** Même personne dans plusieurs entités : même nom, donc même adresse. */
-const person = (i: number, [prenom, nom, couleur, poste, role]: P): Person => {
-  const email = `${slug(prenom)}.${slug(nom)}@gsajoie.example`;
-  return {
-    id: `p${i + 1}`,
-    prenom,
-    nom,
-    email,
-    telephone: '',
-    // Déjà au comité central : même couleur partout.
-    couleur: centralPeople.find((p) => p.email === email)?.couleur ?? couleur,
-    poste,
-    roles: [role],
-    actif: true,
-  };
+const retirer = (key: string) => {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    /* ignore */
+  }
 };
 
-const MEMBERS: Record<string, P[]> = {
-  'u-ecole': [
-    ['Céline', 'Robert', '#ca8a04', 'Responsable', 'admin'],
-    ['Kevin', 'Roux', '#c026d3', 'Moniteur J+S', 'moniteur'],
-    ['Antoine', 'Mercier', '#0d9488', 'Moniteur', 'moniteur'],
-    ['Simon', 'Vincent', '#2563eb', 'Moniteur', 'moniteur'],
-    ['Noah', 'Chevalier', '#a16207', 'Aide-moniteur', 'membre'],
-  ],
-  'u-competition': [
-    ['Nicolas', 'Perret', '#ea580c', 'Responsable', 'admin'],
-    // Co-responsables : chacun tient un poste « Compétition » du comité central, lié au ★ du groupe.
-    ['Laura', 'Meyer', '#0891b2', 'Responsable', 'admin'],
-    ['Olivier', 'Gauthier', '#4f46e5', 'Entraîneur route', 'moniteur'],
-    ['Lucas', 'Fontaine', '#b45309', 'Coureur', 'membre'],
-    ['Mathieu', 'Marchand', '#be185d', 'Coureur', 'membre'],
-  ],
-  'u-bruntrutaine': [
-    ['David', 'Muller', '#9333ea', 'Président du CO', 'admin'],
-    ['Marc', 'Lambert', '#7c3aed', 'Délégué du comité central', 'membre'],
-    ['Patrick', 'Aubry', '#15803d', 'Parcours et sécurité', 'membre'],
-    ['Valérie', 'Lefèvre', '#c2410c', 'Inscriptions et caisse', 'caissier'],
-    ['Michel', 'Blanc', '#65a30d', 'Responsable des bénévoles', 'membre'],
-    ['Hugo', 'Morel', '#0d9488', 'Ravitaillement', 'benevole'],
-  ],
-  'u-soiree': [
-    ['Pierre', 'Favre', '#be123c', 'Responsable de la soirée', 'admin'],
-    ['Julien', 'Moreau', '#1d4ed8', 'Animation', 'membre'],
-    ['Céline', 'Robert', '#ca8a04', 'Jeux pour les enfants', 'membre'],
-    ['Nathalie', 'Fournier', '#e11d48', 'Décoration', 'membre'],
-    ['Yannick', 'Leroy', '#0369a1', 'Bar', 'membre'],
-  ],
-};
-
-const EVENTS: Record<string, ClubEvent[]> = {
-  'u-ecole': [
-    { id: 'e1', nom: 'Camp de juillet', date: '2027-07-05', lieu: 'À définir', description: 'Camp d’été de l’école de cyclisme' },
-    { id: 'e2', nom: 'Entraînement du mercredi', date: '2026-08-19', heure: '14:00', heureFin: '16:00', lieu: 'Piste du club', description: 'Pour tous les enfants de l’école.', repetition: { freq: 'semaine', jours: [3], jusquau: '2027-06-30' } },
-  ],
-  'u-bruntrutaine': [{ id: 'e1', nom: 'Bruntrutaine 2027', date: '2027-02-27', lieu: 'Porrentruy', description: '' }],
-  'u-soiree': [{ id: 'e1', nom: 'Soirée récréative', date: '2026-11-28', lieu: 'Salle des fêtes', description: '' }],
-};
-
-const MEETINGS: Record<string, Meeting[]> = {
-  'u-bruntrutaine': [
-    { id: 'm1', titre: 'Séance du CO 1', date: '2026-10-20', heure: '19:30', lieu: 'Buvette du club' },
-    { id: 'm2', titre: 'Séance du CO 2', date: '2026-12-08', heure: '19:30', lieu: 'Buvette du club' },
-  ],
-  'u-ecole': [{ id: 'm1', titre: 'Réunion des moniteurs', date: '2026-11-04', heure: '19:00', lieu: 'Salle du club' }],
-};
-
-function seedUnit(u: Unit): AppData {
-  const people = MEMBERS[u.id].map((m, i) => person(i, m));
-  const d = unitData(u.type, people, 'p1', u.nom);
-  // Le groupe compétition appelle ses rôles « Entraîneur » et « Coureur ».
-  if (u.id === 'u-competition')
-    d.roles = d.roles.map((r) => (r.id === 'moniteur' ? { ...r, label: 'Entraîneur' } : r.id === 'membre' ? { ...r, label: 'Coureur' } : r));
-  d.events = EVENTS[u.id] ?? [];
-  d.meetings = MEETINGS[u.id] ?? [];
-  d.log = [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: `Création de « ${u.nom} » (données de démonstration, sans tâches)` }];
-  return d;
-}
-
-// ---------- Lecture / écriture ----------
+// ---------- Version des données ----------
 
 /**
- * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro
- * (v2 : postes au lieu des noms, sans tâches ; v3 : une caisse dans chaque entité ; v5 : deux co-responsables du groupe
- * compétition ; v6 : postes liés par leur nom, une ligne par personne ; v7 : personnes fictives, avec prénom et nom ;
- * v8 : événements avec heures et répétitions).
+ * Version des données de départ. Quand elle change, la démo enregistrée dans le navigateur repart de zéro (v2 à v8 :
+ * organigramme, personnes fictives, événements…), sauf de la v8 à la v9 : un seul espace, les anciennes entités
+ * reprises en étiquettes avec leurs tâches et leurs personnes (repriseEntites.ts).
  */
-const DEMO_VERSION = '8';
+const DEMO_VERSION = '9';
 const VERSION_KEY = 'taches-gsa-demo-version';
 
-function checkVersion() {
+const toutEffacer = () => {
+  Object.keys(localStorage)
+    .filter((k) => k.startsWith('taches-gsa-demo') || k === 'taches-gsa-user')
+    .forEach((k) => localStorage.removeItem(k));
+  void clearFiles();
+};
+
+/** À l'ouverture : la démo est à la version du jour (reprise de la v8, sinon remise à zéro). */
+export function verifierVersion() {
   try {
-    if (localStorage.getItem(VERSION_KEY) === DEMO_VERSION) return;
-    Object.keys(localStorage)
-      .filter((k) => k.startsWith('taches-gsa-demo') || k === OLD_USER_KEY)
-      .forEach((k) => localStorage.removeItem(k));
+    const v = localStorage.getItem(VERSION_KEY);
+    if (v === DEMO_VERSION) return;
+    if (v === '8' && read(ANCIENNES.entites)) {
+      try {
+        reprendreDemo();
+      } catch {
+        toutEffacer();
+      }
+    } else toutEffacer();
     localStorage.setItem(VERSION_KEY, DEMO_VERSION);
-    void clearFiles();
   } catch {
     /* stockage indisponible : rien à remettre à zéro */
   }
 }
 
-/** Entités du club (créées au premier passage, avec leurs données de départ). */
-export function loadUnits(): Unit[] {
-  checkVersion();
-  // Session du club : plus d'entité de base retenue.
-  try {
-    localStorage.removeItem(UNIT_KEY);
-  } catch {
-    /* ignore */
-  }
-  const saved = read<Unit[]>(CLUB_KEY);
-  if (saved?.length) return saved;
-  for (const u of SEED_UNITS) if (u.type !== 'central' && !read(unitStorageKey(u.id))) write(unitStorageKey(u.id), seedUnit(u));
-  write(CLUB_KEY, SEED_UNITS);
-  return structuredClone(SEED_UNITS);
-}
-
-export const saveUnits = (units: Unit[]) => write(CLUB_KEY, units);
-
-function lireUnite(id: string): AppData {
-  const saved = read<AppData>(unitStorageKey(id));
-  // Entités : seules les mises à niveau suivant leur création (v12) s'appliquent.
-  if (saved) return id === CENTRAL_ID || saved.schema ? migrate(saved) : saved;
-  if (id === CENTRAL_ID) return makeSeed();
-  const u = SEED_UNITS.find((x) => x.id === id);
-  return u ? seedUnit(u) : unitData('groupe', [], 'p1', id);
-}
-
-/** Données d'une entité ; ses statuts sont ceux du club (comité central), comme la recopie du serveur (058). */
-export function loadUnitData(id: string): AppData {
-  const d = lireUnite(id);
-  if (id === CENTRAL_ID) {
-    if (!read(STATUTS_KEY)) write(STATUTS_KEY, d.statuses);
-    return d;
-  }
-  const club = read<Status[]>(STATUTS_KEY);
-  return club?.length ? { ...d, statuses: statutsDuClub(club, d.statuses, d.tasks) } : d;
-}
-
-export function saveUnitData(id: string, d: AppData) {
-  noterHistorique(id, read<AppData>(unitStorageKey(id)), d);
-  const avant = id === CENTRAL_ID ? JSON.stringify(read<Status[]>(STATUTS_KEY)) : '';
-  write(unitStorageKey(id), d);
-  ecrite(id);
-  // Statuts du comité central changés : ceux de tout le club ; les autres entités ouvertes les relisent.
-  if (id === CENTRAL_ID && avant !== JSON.stringify(d.statuses)) {
-    write(STATUTS_KEY, d.statuses);
-    loadUnits().forEach((u) => u.id !== CENTRAL_ID && ecrite(u.id));
-  }
-}
-
-// Vue « moi » : plusieurs entités sont ouvertes à la fois (l'une à l'écran, les autres en arrière-plan) ; celle dont les
-// données sont réécrites d'ailleurs (autre entité, club, organigramme) les relit.
-const ecoutes = new Set<(id: string) => void>();
-const ecrite = (id: string) => ecoutes.forEach((f) => f(id));
-/** Appelle `f` à chaque réécriture des données d'une entité (son identifiant) ; renvoie de quoi arrêter. */
-export function surEcriture(f: (id: string) => void) {
-  ecoutes.add(f);
-  return () => void ecoutes.delete(f);
-}
+type AnciennePerso = { prefs?: Partial<Prefs>; notifLues?: string[]; discussionsLues?: Record<string, string> };
 
 /**
- * Historique des tâches (comme le déclencheur gsa_historique_noter, 050) : ce qui change dans les tâches d'une entité à
- * chaque enregistrement, au nom de la personne connectée ; depuis une autre entité, le nom laissé sur la tâche
- * (« Nom (Entité) »). Rien avant le premier enregistrement de l'entité.
+ * Démo d'avant (v8, une entité par clé) : l'espace du club est le comité central, les autres entités y sont reprises en
+ * étiquettes (leurs tâches, leurs personnes) ; réglages et lectures de chacun, connexion et historique suivent.
  */
-function noterHistorique(id: string, avant: AppData | null, apres: AppData) {
+function reprendreDemo() {
+  const unites = read<AncienneEntite[]>(ANCIENNES.entites) ?? [];
+  const central = unites.find((u) => u.type === 'central');
+  const club = migrate(read<AppData>(ESPACE_KEY) ?? makeSeed());
+  const autres = unites
+    .filter((u) => u.id !== (central?.id ?? ESPACE_ID))
+    .flatMap((u) => {
+      const d = read<AppData>(ANCIENNES.entite(u.id));
+      return d ? [{ u, d }] : [];
+    });
+  const r = repriseEntites(club, autres);
+  const d = r.data;
+  // Réglages et lectures de chacun (session du club) : sur sa fiche de l'espace.
+  const fiche = (cle: string) => d.people.find((p) => p.membreId === cle)?.id ?? d.people.find((p) => emailKey(p.email) === cle.replace(/^moi:/, ''))?.id;
+  const tache = (cle: string) => (cle.startsWith(`${ESPACE_ID}:`) ? cle.slice(ESPACE_ID.length + 1) : r.taches.get(cle));
+  for (const [cle, perso] of Object.entries(read<Record<string, AnciennePerso>>('taches-gsa-demo-perso') ?? {})) {
+    const id = fiche(cle);
+    if (!id) continue;
+    if (perso.prefs) d.prefs[id] = { ...d.prefs[id], ...perso.prefs } as Prefs;
+    const lues = (perso.notifLues ?? []).filter((k) => k.startsWith(`${ESPACE_ID}|`)).map((k) => k.slice(ESPACE_ID.length + 1));
+    if (lues.length) d.notifLues = { ...d.notifLues, [id]: [...new Set([...(d.notifLues?.[id] ?? []), ...lues])].slice(-800) };
+    const discussions = Object.entries(perso.discussionsLues ?? {}).flatMap(([k, le]) => (tache(k) ? [[tache(k)!, le] as const] : []));
+    if (discussions.length) d.discussionsLues = { ...d.discussionsLues, [id]: { ...d.discussionsLues?.[id], ...Object.fromEntries(discussions) } };
+  }
+  write(ESPACE_KEY, d);
+  write(INFO_KEY, { id: ESPACE_ID, nom: 'Comité central', logo: (central as Partial<Espace> | undefined)?.logo, couleurAppli: (central as Partial<Espace> | undefined)?.couleurAppli, icone: (central as Partial<Espace> | undefined)?.icone });
+  // Personne connectée : sa fiche, par son adresse.
+  const moi = localStorage.getItem(ANCIENNES.moi);
+  const id = moi ? d.people.find((p) => p.actif && emailKey(p.email) === emailKey(moi))?.id : undefined;
+  if (id) write(MOI_KEY, id);
+  // Historique des tâches : sous l'espace, les tâches des entités sous leur nouvel identifiant.
+  const histo = read<Record<string, Record<string, EntreeHistorique[]>>>(HISTO_KEY) ?? {};
+  const ici: Record<string, EntreeHistorique[]> = { ...histo[ESPACE_ID] };
+  for (const [u, l] of Object.entries(histo)) if (u !== ESPACE_ID) for (const [t, e] of Object.entries(l)) if (r.taches.get(`${u}:${t}`)) ici[r.taches.get(`${u}:${t}`)!] = e;
+  write(HISTO_KEY, { [ESPACE_ID]: ici });
+  // Les anciennes clés sont oubliées (données de démonstration, reprises ci-dessus).
+  unites.forEach((u) => u.id !== ESPACE_ID && retirer(ANCIENNES.entite(u.id)));
+  [ANCIENNES.entites, ANCIENNES.moi, ...ANCIENNES.autres].forEach(retirer);
+}
+
+// ---------- Espace ----------
+
+/** Données de l'espace (créées au premier passage). */
+export function loadEspace(): AppData {
+  const saved = read<AppData>(ESPACE_KEY);
+  return saved ? migrate(saved) : makeSeed();
+}
+
+/** Enregistre les données de l'espace (l'historique des tâches suit). */
+export function saveEspace(d: AppData) {
+  noterHistorique(read<AppData>(ESPACE_KEY), d);
+  write(ESPACE_KEY, d);
+}
+
+const ESPACE_DEPART: Espace = { id: ESPACE_ID, nom: 'Comité central' };
+export const loadInfoEspace = (): Espace => ({ ...ESPACE_DEPART, ...read<Partial<Espace>>(INFO_KEY), id: ESPACE_ID });
+export const saveInfoEspace = (e: Espace) => write(INFO_KEY, e);
+
+/** Personne connectée à la démo (sa fiche). */
+export const loadMoi = (): string | null => read<string>(MOI_KEY);
+export function saveMoi(id: string | null) {
+  if (id) write(MOI_KEY, id);
+  else retirer(MOI_KEY);
+}
+
+/** Remet toute la démo à zéro. */
+export function resetDemo() {
+  [ESPACE_KEY, INFO_KEY, MOI_KEY, MEMBRES_KEY, HISTO_KEY, ERREURS_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach(retirer);
+}
+
+// ---------- Historique des tâches (version réelle : 050) ----------
+
+/**
+ * Historique des tâches (comme le déclencheur gsa_historique_noter, 050) : ce qui change dans les tâches à chaque
+ * enregistrement, au nom de la personne connectée. Rien avant le premier enregistrement.
+ */
+function noterHistorique(avant: AppData | null, apres: AppData) {
   if (!avant?.tasks) return;
-  const moi = loadMe();
-  const fiche = moi ? apres.people.find((p) => p.email?.toLowerCase() === moi) : undefined;
+  const moi = loadMoi();
+  const fiche = moi ? apres.people.find((p) => p.id === moi) : undefined;
   const le = new Date().toISOString();
   const tout = read<Record<string, Record<string, EntreeHistorique[]>>>(HISTO_KEY) ?? {};
-  const ici = { ...tout[id] };
+  const ici = { ...tout[ESPACE_ID] };
   let change = false;
   const anciennes = new Map(avant.tasks.map((t) => [t.id, t]));
   const ids = new Set([...anciennes.keys(), ...apres.tasks.map((t) => t.id)]);
@@ -250,19 +190,19 @@ function noterHistorique(id: string, avant: AppData | null, apres: AppData) {
     if (!c) continue;
     const liste = ici[t] ?? [];
     const quoi = c.quoi === 'creee' && liste.length ? 'retablie' : c.quoi;
-    const nom = fiche ? `${fiche.prenom} ${fiche.nom}`.trim() : (b ?? a)?.modifiePar || 'Quelqu’un';
+    const nom = fiche ? `${fiche.prenom} ${fiche.nom}`.trim() : 'Quelqu’un';
     ici[t] = ajouterHistorique(liste, { le, par: moi ?? '?', nom, ...(quoi ? { quoi } : {}), champs: c.champs });
     change = true;
   }
   if (!change) return;
-  tout[id] = ici;
+  tout[ESPACE_ID] = ici;
   write(HISTO_KEY, tout);
 }
 
 /** Historique d'une tâche de la démo, de la modification la plus récente à la plus ancienne. */
-export function lireHistoriqueDemo(unite: string, tache: string): HistoriqueTache {
-  const entrees = read<Record<string, Record<string, EntreeHistorique[]>>>(HISTO_KEY)?.[unite]?.[tache] ?? [];
-  return { entrees, noms: nomsCites(loadUnitData(unite), entrees) };
+export function lireHistoriqueDemo(tache: string): HistoriqueTache {
+  const entrees = read<Record<string, Record<string, EntreeHistorique[]>>>(HISTO_KEY)?.[ESPACE_ID]?.[tache] ?? [];
+  return { entrees, noms: nomsCites(loadEspace(), entrees) };
 }
 
 // ---------- Rapport d'erreurs (version réelle : table gsa_erreurs, 051) ----------
@@ -298,220 +238,36 @@ export function effacerErreursDemo() {
   return liste.length - reste.length;
 }
 
-/** Données d'une entité telles qu'enregistrées (pour annuler une modification de l'organigramme). */
-export const lireBrut = (id: string) => {
-  try {
-    return localStorage.getItem(unitStorageKey(id));
-  } catch {
-    return null;
-  }
-};
-export const ecrireBrut = (id: string, s: string | null) => {
-  try {
-    if (s === null) localStorage.removeItem(unitStorageKey(id));
-    else localStorage.setItem(unitStorageKey(id), s);
-  } catch {
-    /* stockage indisponible */
-  }
-  ecrite(id);
-};
+// ---------- Personnes du club (registre ; version réelle : migration 016) ----------
 
-/**
- * Anciennes liaisons « tous les membres d'une entité » remplacées par les dépendances (comme le serveur, 030) : l'entité qui
- * comptait tous les membres du comité dont elle dépend lui affiche toutes ses tâches ; le lien est retiré (fiches liées
- * désactivées, leurs tâches restent). Renvoie les entités, modifiées s'il le faut (déjà enregistrées).
- */
-export function migrerLiens(units: Unit[]): Unit[] {
-  let next = units;
-  for (const u of units) {
-    if (!read(unitStorageKey(u.id))) continue;
-    const d = loadUnitData(u.id);
-    if (!d.membresDe?.length) continue;
-    const dep = parentDans(units.filter((x) => !x.archive || x.id === u.id), u);
-    if (dep && d.membresDe.some((l) => l.uniteId === dep.id) && u.tachesDependance !== 'toutes')
-      next = next.map((x) => (x.id === u.id ? { ...x, tachesDependance: 'toutes' as const } : x));
-    d.membresDe = [];
-    const n = synchroDemo(u.id, d);
-    saveUnitData(u.id, lierFiches(u.id, n ?? d));
-  }
-  if (next !== units) saveUnits(next);
-  return next;
-}
-
-/** Organigramme à glisser-déposer : postes des fiches qui n'en ont pas (déduits des fonctions, liens des câbles d'avant). */
-export function initPostes(units: Unit[]) {
-  const data = new Map(units.map((u) => [u.id, loadUnitData(u.id)]));
-  if (![...data.values()].some((d) => !d.postes)) return;
-  for (const id of convertirPostes(units, data)) saveUnitData(id, data.get(id)!);
-}
-
-/**
- * Personnes de l'entité `id` modifiées hors de l'organigramme (`avant` → `d`) : ses postes et les postes liés suivent
- * (data/organigramme, suivre). Renvoie ses données à enregistrer, et les autres entités modifiées (déjà enregistrées).
- */
-export function suivrePostes(id: string, avant: AppData, d: AppData): { d: AppData; ici: boolean; autres: string[] } {
-  if (!d.postes || JSON.stringify([avant.people, avant.postes]) === JSON.stringify([d.people, d.postes])) return { d, ici: false, autres: [] };
-  const units = loadUnits();
-  const data = new Map(units.map((u) => [u.id, u.id === id ? (JSON.parse(JSON.stringify(d)) as AppData) : loadUnitData(u.id)]));
-  const brut = new Map([...data].map(([k, v]) => [k, JSON.stringify(v)]));
-  suivre({ units, data, notes: [] }, id, avant);
-  const autres = units.filter((u) => u.id !== id && JSON.stringify(data.get(u.id)) !== brut.get(u.id)).map((u) => u.id);
-  for (const k of autres) {
-    const x = data.get(k)!;
-    const n = synchroDemo(k, x);
-    saveUnitData(k, lierFiches(k, n ?? x));
-  }
-  const ici = JSON.stringify(data.get(id)) !== brut.get(id);
-  return { d: ici ? data.get(id)! : d, ici, autres };
-}
-
-/**
- * Entité créée ou renommée : les postes qui portent son nom, dans les autres entités, lui sont liés, et leurs titulaires
- * en deviennent ★ (data/organigramme, lierEntite). Renvoie les entités modifiées (enregistrées).
- */
-export function lierEntiteDemo(id: string): string[] {
-  const units = loadUnits();
-  const data = new Map(units.map((u) => [u.id, loadUnitData(u.id)]));
-  if (!data.get(id)?.postes) return [];
-  const brut = new Map([...data].map(([k, v]) => [k, JSON.stringify(v)]));
-  lierEntite({ units, data, notes: [] }, id);
-  const changees = units.filter((u) => JSON.stringify(data.get(u.id)) !== brut.get(u.id)).map((u) => u.id);
-  for (const k of changees) {
-    const x = data.get(k)!;
-    const n = synchroDemo(k, x);
-    saveUnitData(k, lierFiches(k, n ?? x));
-  }
-  for (const k of changees) propagerLiens(k);
-  return changees;
-}
-
-/** Personne connectée à la démo (son adresse email) ; reprend l'ancienne connexion par fiche du comité central. */
-export function loadMe(): string | null {
-  try {
-    const me = localStorage.getItem(ME_KEY);
-    if (me) return me;
-    const old = localStorage.getItem(OLD_USER_KEY);
-    if (!old) return null;
-    const p = loadUnitData(CENTRAL_ID).people.find((x) => x.id === old);
-    return p?.email ? p.email.toLowerCase() : null;
-  } catch {
-    return null;
-  }
-}
-
-export function saveMe(key: string | null) {
-  try {
-    if (key) localStorage.setItem(ME_KEY, key);
-    else localStorage.removeItem(ME_KEY);
-    localStorage.removeItem(OLD_USER_KEY);
-  } catch {
-    /* ignore */
-  }
-}
-
-/** Réglages et lectures de la personne `cle` (sa fiche du club), gardés au club ; null : pas encore repris. */
-export const lirePerso = (cle: string): PersoClub | null => read<Record<string, PersoClub>>(PERSO_KEY)?.[cle] ?? null;
-
-export function ecrirePerso(cle: string, p: PersoClub) {
-  write(PERSO_KEY, { ...read<Record<string, PersoClub>>(PERSO_KEY), [cle]: p });
-}
-
-/**
- * Reprise, la première fois : les réglages de ma place au comité central (sinon de la première de mes places), mes
- * notifications vues et mes discussions lues dans chacune de mes entités (`places` : entité → ma fiche), réunies.
- */
-export function reprisePerso(places: Record<string, string>): PersoClub {
-  const ids = Object.keys(places).sort((a, b) => +(b === CENTRAL_ID) - +(a === CENTRAL_ID));
-  const donnees = ids.map((id) => ({ id, d: loadUnitData(id), f: places[id] }));
-  const avecPrefs = donnees.find((x) => x.d.prefs?.[x.f]);
-  return {
-    prefs: avecPrefs?.d.prefs[avecPrefs.f],
-    notifLues: donnees.flatMap((x) => (x.d.notifLues?.[x.f] ?? []).map((k) => `${x.id}|${k}`)).slice(-800),
-    discussionsLues: luesCommunes(Object.fromEntries(donnees.map((x) => [x.id, x.d.discussionsLues?.[x.f]]))),
-  };
-}
-
-/** Remet toute la démo à zéro (toutes les entités). */
-export function resetDemo() {
-  try {
-    const units = read<Unit[]>(CLUB_KEY) ?? SEED_UNITS;
-    units.forEach((u) => localStorage.removeItem(unitStorageKey(u.id)));
-    // Avec le dernier logo et la dernière couleur affichés (écran de connexion).
-    [CLUB_KEY, ME_KEY, UNIT_KEY, PERSO_KEY, MEMBRES_KEY, ORGAS_KEY, HISTO_KEY, ERREURS_KEY, STATUTS_KEY, OLD_USER_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach((k) => localStorage.removeItem(k));
-  } catch {
-    /* ignore */
-  }
-}
-
-// ---------- Organigramme : historique par année (version réelle : migration 026) ----------
-
-/** Photo de l'organigramme, comme celle du serveur : sans adresses, téléphones, logos ni descriptions. */
-export const photoOrganigramme = (units: OrgUnit[]): OrgUnit[] =>
-  units.map(({ logo: _l, description: _d, central: _c, couleurAppli: _a, sections: _s, ...u }) => ({
-    ...u,
-    moi: false,
-    moiAdmin: false,
-    membres: u.membres.map(({ telephone: _t, ...m }) => ({ ...m, email: '' })),
-  }));
-
-export const loadOrganigrammes = () => read<OrganigrammeAnnuel[]>(ORGAS_KEY) ?? [];
-
-/**
- * Reprend la photo de l'année en cours (rien si l'organigramme n'a pas changé) ; une année passée ne change plus.
- * Au premier passage : un exemple de l'année précédente (sans l'équipe de la soirée, créée cette année-là).
- */
-export function photographierDemo(units: OrgUnit[], maintenant = new Date()) {
-  const annee = maintenant.getFullYear();
-  const photo = photoOrganigramme(units);
-  const avant = read<OrganigrammeAnnuel[]>(ORGAS_KEY);
-  const liste = avant ?? [{ annee: annee - 1, maj: new Date(annee - 1, 11, 31, 18).toISOString(), units: photo.filter((u) => u.id !== 'u-soiree') }];
-  const deja = liste.find((x) => x.annee === annee);
-  if (avant && deja && JSON.stringify(deja.units) === JSON.stringify(photo)) return;
-  write(ORGAS_KEY, [{ annee, maj: maintenant.toISOString(), units: photo }, ...liste.filter((x) => x.annee !== annee)].sort((a, b) => b.annee - a.annee));
-}
-
-// ---------- Membres du club (registre commun ; version réelle : migration 016) ----------
-
-/** Membres sans poste dans une entité (licenciés, parents, membres de soutien) : fictifs, sans téléphone ni IBAN. */
+/** Membres sans fiche dans l'appli (licenciés, parents, membres de soutien) : fictifs, sans téléphone ni IBAN. */
 const EXTRAS: Partial<ClubMembre>[] = [
-  { prenom: 'Léo', nom: 'Bertrand', couleur: '#16a34a', groupes: ['u-ecole'] },
-  { prenom: 'Zoé', nom: 'Bertrand', couleur: '#0d9488', groupes: ['u-ecole'] },
-  { prenom: 'Anne', nom: 'Bertrand', email: 'anne.bertrand@gsajoie.example', couleur: '#ca8a04', groupes: ['u-ecole'] },
-  { prenom: 'Maxime', nom: 'Renaud', email: 'maxime.renaud@gsajoie.example', couleur: '#ea580c', groupes: ['u-competition'] },
+  { prenom: 'Léo', nom: 'Bertrand', couleur: '#16a34a' },
+  { prenom: 'Zoé', nom: 'Bertrand', couleur: '#0d9488' },
+  { prenom: 'Anne', nom: 'Bertrand', email: 'anne.bertrand@gsajoie.example', couleur: '#ca8a04' },
+  { prenom: 'Maxime', nom: 'Renaud', email: 'maxime.renaud@gsajoie.example', couleur: '#ea580c' },
   { prenom: 'Françoise', nom: 'Colin', email: 'francoise.colin@gsajoie.example', couleur: '#475569' },
 ];
-
-const unitIds = () => (read<Unit[]>(CLUB_KEY) ?? SEED_UNITS).map((u) => u.id);
 
 export const loadMembres = (): ClubMembre[] => read<ClubMembre[]>(MEMBRES_KEY) ?? [];
 const writeMembres = (list: ClubMembre[]) => write(MEMBRES_KEY, list);
 
-/** Coordonnées du registre recopiées dans les fiches liées des entités (sauf `sauf`, l'entité ouverte). */
-function propager(list: ClubMembre[], sauf?: string) {
-  if (!list.length) return;
-  for (const id of unitIds()) {
-    if (id === sauf || !read(unitStorageKey(id))) continue;
-    const d = loadUnitData(id);
-    if (appliquerMembres(d, list)) saveUnitData(id, d);
-  }
-}
-
 /**
- * Fiches d'une entité liées au registre, comme le serveur : lien gardé (même s'il manque dans `d`), sinon membre de même
- * email, sinon nouveau membre. Des coordonnées modifiées passent dans le registre puis dans les autres fiches liées.
+ * Fiches de l'espace liées au registre, comme le serveur : lien gardé, sinon membre de même email, sinon nouveau membre.
+ * Des coordonnées modifiées passent dans le registre. Renvoie les données (modifiées en place) et si elles ont changé.
  */
-export function lierFiches(unitId: string, d: AppData): AppData {
+export function lierFiches(d: AppData): { d: AppData; change: boolean } {
   const list = loadMembres();
-  const avant = read<AppData>(unitStorageKey(unitId))?.people ?? [];
-  const changes: ClubMembre[] = [];
+  const avant = read<AppData>(ESPACE_KEY)?.people ?? [];
   let modifie = false;
+  let change = false;
   for (const p of d.people) {
     const lien = avant.find((x) => x.id === p.id)?.membreId;
     const mid = p.membreId || lien;
     let m = mid ? list.find((x) => x.id === mid) : undefined;
     if (!m && emailKey(p.email)) m = list.find((x) => emailKey(x.email) === emailKey(p.email));
     // Fiche nouvelle (ou liée pour la première fois) à une personne déjà au club : ses champs vides prennent les valeurs
-    // du registre (ses données peuvent être masquées dans la liste des membres).
+    // du registre.
     if (m && lien !== m.id) {
       const c = coordonnees(m);
       if (!p.prenom.trim()) p.prenom = c.prenom;
@@ -526,45 +282,27 @@ export function lierFiches(unitId: string, d: AppData): AppData {
       modifie = true;
     } else if (!memesCoordonnees(p, m)) {
       Object.assign(m, coordonnees(p));
-      changes.push(m);
       modifie = true;
     }
-    p.membreId = m.id;
-  }
-  if (modifie) {
-    writeMembres(list);
-    appliquerMembres(d, changes);
-    propager(changes, unitId);
-  }
-  return d;
-}
-
-/** Registre créé au premier passage : membres sans poste, puis les fiches de toutes les entités (comité central d'abord). */
-export function initMembres(units: Unit[]) {
-  if (read(MEMBRES_KEY)) return;
-  writeMembres(EXTRAS.map(nouveauMembre));
-  for (const u of sortCentralFirst(units)) {
-    const d = lierFiches(u.id, loadUnitData(u.id));
-    saveUnitData(u.id, d);
-    // Démo : les personnes qui ont un poste dans un groupe en font partie.
-    if (u.type === 'groupe') {
-      const list = loadMembres();
-      d.people.filter((p) => p.actif).forEach((p) => {
-        const m = list.find((x) => x.id === p.membreId);
-        if (m && !m.groupes.includes(u.id)) m.groupes.push(u.id);
-      });
-      writeMembres(list);
+    if (p.membreId !== m.id) {
+      p.membreId = m.id;
+      change = true;
     }
   }
+  if (modifie) writeMembres(list);
+  return { d, change };
 }
 
-const sortCentralFirst = (units: Unit[]) => [...units].sort((a, b) => +(a.type !== 'central') - +(b.type !== 'central'));
+/** Registre créé au premier passage : membres sans fiche, puis les fiches de l'espace. */
+export function initMembres() {
+  if (read(MEMBRES_KEY)) return;
+  writeMembres(EXTRAS.map(nouveauMembre));
+  const { d } = lierFiches(loadEspace());
+  write(ESPACE_KEY, d);
+}
 
-/**
- * Enregistre des membres (nouveaux ou modifiés) et recopie leurs coordonnées dans les fiches des entités,
- * sauf l'entité ouverte (`sauf`), mise à jour par la page elle-même.
- */
-export function saveMembres(maj: ClubMembre[], sauf?: string) {
+/** Enregistre des membres (nouveaux ou modifiés) et recopie leurs coordonnées dans les fiches de l'espace. */
+export function saveMembres(maj: ClubMembre[]) {
   const list = loadMembres();
   for (const m of maj) {
     const i = list.findIndex((x) => x.id === m.id);
@@ -572,38 +310,18 @@ export function saveMembres(maj: ClubMembre[], sauf?: string) {
     else list.push(m);
   }
   writeMembres(list);
-  propager(maj, sauf);
+  const d = loadEspace();
+  if (appliquerMembres(d, maj)) write(ESPACE_KEY, d);
 }
 
-/** Supprime un membre du registre (refusé s'il a encore une fiche active dans une entité). */
+/** Retire un membre du registre (sa fiche dans l'espace, s'il en a une, est désactivée). */
 export function deleteMembre(id: string) {
-  for (const u of unitIds())
-    if (read(unitStorageKey(u)) && loadUnitData(u).people.some((p) => p.actif && p.membreId === id))
-      throw new Error('Ce membre a encore un poste dans une entité du club : retire-le d’abord de ses entités');
-  writeMembres(loadMembres().filter((m) => m.id !== id));
-}
-
-// ---------- Entité entière parmi les membres d'une autre (version réelle : migration 020) ----------
-
-/** Fiches liées de l'entité `id` remises à jour (comme le serveur) ; null si rien ne change. */
-export const synchroDemo = (id: string, d: AppData) => synchroLiens(id, d, (u) => (unitIds().includes(u) ? loadUnitData(u).people : null));
-
-/** Ce qui compte pour les entités liées : les membres propres de l'entité et leurs coordonnées. */
-export const signatureMembres = (people: Person[]) =>
-  JSON.stringify(membresPropres(people).map((p) => [p.id, p.prenom, p.nom, p.email, p.telephone, p.couleur, p.membreId]));
-
-/** Membres propres de `id` changés : les entités qui la comptent parmi leurs membres suivent ; vrai si l'une a changé. */
-export function propagerLiens(id: string): boolean {
-  let change = false;
-  for (const b of unitIds()) {
-    if (b === id || !read(unitStorageKey(b))) continue;
-    const d = loadUnitData(b);
-    if (!d.membresDe?.some((l) => l.uniteId === id)) continue;
-    const n = synchroDemo(b, d);
-    if (n) {
-      saveUnitData(b, lierFiches(b, n));
-      change = true;
-    }
+  const d = loadEspace();
+  const m = loadMembres().find((x) => x.id === id);
+  const sienne = (p: AppData['people'][number]) => p.membreId === id || (!p.membreId && !!m && !!emailKey(m.email) && emailKey(p.email) === emailKey(m.email));
+  if (d.people.some((p) => p.actif && sienne(p))) {
+    d.people = d.people.map((p) => (sienne(p) ? { ...p, actif: false } : p));
+    write(ESPACE_KEY, d);
   }
-  return change;
+  writeMembres(loadMembres().filter((x) => x.id !== id));
 }

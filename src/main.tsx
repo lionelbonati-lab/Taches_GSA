@@ -1,7 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getMode, modeFromUrl } from './data/mode';
-import { entiteDuLienRecu } from './data/lienPartage';
+import { oublierEntiteDuLien } from './data/lienPartage';
 import { DemoApp } from './DemoApp';
 import { CloudApp } from './CloudApp';
 import { Welcome } from './pages/Real';
@@ -16,7 +16,7 @@ initPwa();
 suivreClavier();
 // Erreurs de script signalées aux admins du club, une fois l'appli connectée (Layout).
 installerRapport();
-entiteDuLienRecu();
+oublierEntiteDuLien();
 modeFromUrl();
 // Dernière couleur de l'appli sur cet appareil, dès le lancement (écran de connexion).
 applyAppColor(cachedColor());

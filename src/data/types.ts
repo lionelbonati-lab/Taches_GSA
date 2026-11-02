@@ -34,31 +34,13 @@ export interface Person {
   roles: RoleId[];
   actif: boolean;
   couleur: string;
-  /** Fiche du registre « Membres du club » : coordonnées communes à toutes les entités. */
+  /** Fiche « Personnes du club » : coordonnées communes (registre du club). */
   membreId?: string;
-  /**
-   * Fiche liée : la personne fait partie de l'entité parce qu'elle est membre de cette autre entité (lien « Membres de »).
-   * Tenue à jour automatiquement : elle quitte l'entité en quittant l'autre.
-   */
-  viaEntite?: string;
-  /** Fiche liée : sa fiche dans l'autre entité. */
-  viaFiche?: string;
-  /** Fiche liée retirée de l'entité à la main : elle n'y revient pas avec le lien. */
-  exclu?: boolean;
-  /** Organigramme : arrivée dans l'entité par un poste lié (démo) ; quand elle perd sa place, elle quitte l'entité. */
-  parLien?: boolean;
-}
-
-/** Une autre entité dont tous les membres font partie de l'entité (organigramme : « Membres de « … » »). */
-export interface LienEntite {
-  uniteId: string;
-  /** Rôle donné à ses membres quand ils arrivent (jamais Admin). */
-  role?: string;
 }
 
 /**
- * Membre du club (registre commun à toutes les entités, onglet « Membres du club ») : une seule fiche par personne,
- * avec ou sans accès à l'appli. Les fiches des entités (Person) y sont liées par membreId.
+ * Personne du club (registre « Personnes du club ») : une seule fiche par personne, avec ou sans accès à l'appli. Les
+ * fiches de l'appli (Person, avec leurs rôles) y sont liées par membreId.
  */
 export interface ClubMembre {
   id: string;
@@ -72,8 +54,8 @@ export interface ClubMembre {
    */
   iban?: string;
   couleur: string;
-  /** Groupes de l'organigramme (identifiants des entités de type « groupe »). */
-  groupes: string[];
+  /** Ancien : groupes de l'organigramme (entités), gardés tels quels ; les groupes sont maintenant des étiquettes. */
+  groupes?: string[];
   /** Données personnelles (email, téléphone, IBAN) masquées dans la liste des membres : son choix, dans ses réglages. */
   prive?: boolean;
   /**
@@ -94,12 +76,6 @@ export interface MonRegistre {
   nom: string;
   iban: string;
   prive: boolean;
-}
-
-/** Fiches et rôles d'une entité, pour gérer les accès depuis la page « Membres du club ». */
-export interface FichesEntite {
-  roles: Role[];
-  people: Person[];
 }
 
 export interface Role {
@@ -133,12 +109,11 @@ export interface ChecklistItem {
   done: boolean;
 }
 
-/** `seance` : à chaque séance de l'entité (l'occurrence suivante est liée à la séance suivante). */
+/** `seance` : à chaque séance (l'occurrence suivante est liée à la séance suivante). */
 export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle' | 'seance';
 
 /**
- * Délai calculé à partir de la date de l'événement (eventId, sinon evenementEntite) ou de la séance (meetingId, sinon
- * seanceComite) liés.
+ * Délai calculé à partir de la date de l'événement (eventId) ou de la séance (meetingId) liés.
  */
 export interface DelaiRef {
   type: 'event' | 'meeting';
@@ -163,8 +138,6 @@ export interface TaskDoc {
   mime?: string;
   taille?: number;
   par: string;
-  /** Ajouté depuis une autre entité (tâche partagée, 041) : « Prénom Nom (Entité) » (`par` est alors vide). */
-  parNom?: string;
   le: string;
 }
 
@@ -204,24 +177,6 @@ export interface Poll {
   votes: Record<string, string[]>;
   /** Texte écrit avec la réponse « Autre » : personne → texte. */
   textes?: Record<string, string>;
-  /**
-   * Autres entités du club dont tous les membres votent aussi (en plus des votants choisis ici). Leurs réponses sont
-   * rangées sous la clé `entité:fiche` (voir data/polls.ts, electorat).
-   */
-  entites?: string[];
-  /** Affichage seulement (jamais enregistré) : clés de vote de tous les votants, ceux des autres entités compris. */
-  electeurs?: string[];
-  /** Affichage seulement : clé de vote de la personne connectée, si elle vote. */
-  cleMoi?: string;
-  /** Affichage seulement : sondage d'une autre entité, ouvert à l'entité ouverte. */
-  source?: { uniteId: string; unite: string; id: string };
-}
-
-/** Sondage d'une autre entité ouvert à l'entité ouverte, tel que le lit le serveur (gsa_sondages_partages). */
-export interface SondagePartage {
-  uniteId: string;
-  unite: string;
-  poll: Poll;
 }
 
 /** Quand partir : date et heure fixes, ou N jours avant (négatif = après) le délai de la tâche. */
@@ -231,12 +186,10 @@ export type EmailWhen = { type: 'date'; date: string; heure: string } | { type: 
 export interface ScheduledEmail {
   id: string;
   taskId: string;
-  /** Personnes destinataires (leur adresse vient de leur fiche dans l'entité). */
+  /** Personnes destinataires (leur adresse vient de leur fiche). */
   destinataires: string[];
-  /** Entités du club entières : toutes leurs personnes, lues au moment d'envoyer. */
-  unites?: string[];
-  /** Personnes d'autres entités du club, par entité (leur fiche là-bas). */
-  externes?: Record<string, string[]>;
+  /** Étiquettes entières : tous leurs membres, lus au moment d'envoyer. */
+  etiquettes?: string[];
   /** Adresses supplémentaires, séparées par des virgules. */
   autres?: string;
   objet: string;
@@ -276,35 +229,20 @@ export interface Task {
   termineeLe?: string;
   createdBy: string;
   updatedAt: string;
-  /**
-   * Entités du club avec qui la tâche est partagée : elle reste dans son entité, et chacune la voit dans ses tâches
-   * (et son ordre du jour) et la modifie comme les siennes.
-   */
-  partage?: string[];
-  /** Étiquettes de la tâche (événement, groupe…) : leurs membres la voient, leurs responsables la gèrent. */
+  /** Étiquettes de la tâche (événement, groupe) : leurs membres la voient. */
   etiquettes?: string[];
-  /** Ancienne case « Transmettre au comité central » : partagée avec le comité central. */
-  auCentral?: boolean;
-  /**
-   * Responsables d'autres entités, par entité (leur fiche chez elle) : choisis par une entité du partage, ou confiés
-   * d'ici à une personne seulement (sans partager la tâche avec son entité : elle seule la voit et la modifie, depuis
-   * n'importe laquelle de ses entités ; serveur : 054).
-   */
-  respPartage?: Record<string, string[]>;
-  /** Responsables qui ne sont dans aucune entité du club : leur nom (et leur fiche du registre « Membres du club »). */
+  /** Responsables qui n'ont pas de fiche dans l'appli : leur nom (et leur fiche « Personnes du club »). */
   respHors?: PersonneHors[];
-  /** Pour info : personnes et entités qui voient la tâche sans s'en occuper. */
+  /** Pour info : personnes qui voient la tâche sans s'en occuper. */
   pourInfo?: PourInfo;
   /**
-   * « ✓ Vu » des personnes mentionnées pour info, par clé de « Pour info » (« p:fiche », « a:entité:fiche ») ; pour une
-   * entité mentionnée en entier, chacune de ses personnes qui la reçoit (« u:entité:fiche »). Écrit par le serveur
+   * « ✓ Vu » des personnes mentionnées pour info, par clé « p:fiche ». Écrit par le serveur
    * seulement (gsa_pour_info_vu, 046) ; l'appli ne fait que le lire.
    */
   pourInfoVus?: Record<string, VuPourInfo>;
   /**
    * Dernière modification du contenu de la tâche (pas de « Pour info », ni discussion, ni « Vu ») : ceux qui l'avaient
-   * marquée « ✓ Vu » avant voient qu'elle a changé. Posée par l'appli à l'enregistrement ; le serveur la garde honnête et la
-   * pose lui-même pour les modifications faites depuis une entité du partage (052).
+   * marquée « ✓ Vu » avant voient qu'elle a changé. Posée par l'appli à l'enregistrement ; le serveur la garde honnête (052).
    */
   contenuLe?: string;
   /**
@@ -314,90 +252,16 @@ export interface Task {
   commentaires?: Commentaire[];
   /** À prendre : tâche proposée à quelques personnes ; l'une d'elles s'en charge elle-même (« 🙋 Je m'en charge »). */
   aPrendre?: APrendre;
-  /** Section choisie par les entités du partage (par entité ; sinon rangée automatiquement). */
-  placePartage?: Record<string, { sectionId: string; sousSection: string }>;
-  /** Dernière modification faite depuis une entité du partage : « Nom (entité) ». */
-  modifiePar?: string;
-  /**
-   * Affichage seulement (jamais enregistré) : tâche d'une autre entité, partagée avec l'entité ouverte. `complet` : ses
-   * documents, sa répétition, sa séance (ici) et son partage se modifient d'ici (serveur à jour : 041) ; `seanceAilleurs` :
-   * la séance à laquelle elle est liée hors de l'entité ouverte (pas modifiable d'ici). `chezMoi` : tâche de l'une de mes
-   * autres entités (vue « moi », vueMoi.ts), qui s'ouvre et s'enregistre dans la sienne ; `statuts` : les statuts de son
-   * entité, parmi ceux de la vue « moi » ; `eventId` : son événement dans l'agenda de son entité. `via` (vue du club,
-   * sans entité ouverte) : tâche d'une entité qui n'est pas la mienne, partagée avec l'une des miennes (`via`), qui
-   * s'ouvre et s'enregistre par celle-ci.
-   */
-  source?: { uniteId: string; unite: string; id: string; responsables: string[]; complet?: boolean; seanceAilleurs?: string; chezMoi?: boolean; statuts?: string[]; eventId?: string; via?: string };
-  /** Tâche ajoutée par un membre du comité central (ancien accès « modifier / ajouter ») : son nom. */
-  parCentral?: string;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
   paiement?: Paiement;
-  /**
-   * Copie d'une ancienne tâche d'une entité qui dépend maintenant de celle-ci, indépendante de l'original : le comité dont
-   * l'entité dépendait alors, l'entité, la date de la copie (AAAA-MM-JJ) ; l'original (repère « déjà copiée »).
-   */
-  copieDe?: { comite: string; entite: string; le: string; uniteId?: string; tache?: string };
-  /** Ancienne tâche ou tâche « pour info » lue du serveur : nombre de fichiers joints (non transmis). Affichage seulement. */
-  pieces?: number;
-  /**
-   * Séance du comité dont l'entité dépend, à laquelle la tâche est liée : la tâche est partagée avec ce comité et figure à
-   * l'ordre du jour et au PV de cette séance. Titre et date : ceux du moment du choix (affichage).
-   */
-  seanceComite?: SeanceComite;
-  /**
-   * Événement d'une entité qui dépend du comité (sa prochaine édition, ou l'un de ses événements) auquel la tâche est
-   * liée. Nom et date : copiés au choix, puis mis à jour quand l'événement change (le délai lié suit).
-   */
-  evenementEntite?: EvenementEntite;
-  /**
-   * Tâche attribuée par le comité dont l'entité dépend (choisie dans sa sous-section) : enregistrée ici, partagée avec
-   * lui. Le comité, la personne, la date (AAAA-MM-JJ).
-   */
-  attribueePar?: { uniteId: string; unite: string; par: string; le: string };
 }
 
-/** Événement d'une entité qui dépend du comité ; sans `id` : la prochaine édition de l'entité (sa date dans l'organigramme). */
-export interface EvenementEntite {
-  uniteId: string;
-  id?: string;
-  nom: string;
-  /** '' : date de l'édition pas encore fixée. */
-  date: string;
-  dateFin?: string;
-}
-
-/** Séance d'un autre comité (celui dont l'entité dépend), liée à une tâche. */
-export interface SeanceComite {
-  uniteId: string;
-  id: string;
-  titre: string;
-  date: string;
-}
-
-/** Séances du comité dont dépend l'entité ouverte (gsa_seances_comite, 032) ; `comite` : '' pour le comité central. */
-export interface SeancesDuComite {
-  comite: string;
-  seances: { id: string; titre: string; date: string; heure?: string }[];
-}
-
-/** Sections des entités qui dépendent de l'entité ouverte, par entité (gsa_sections_dependantes, 033) : nom seulement. */
-export type SectionsDependantes = Record<string, { id: string; nom: string }[]>;
-
-/** Tâche d'une autre entité partagée avec l'entité ouverte, telle que la lit le serveur (gsa_taches_partagees). */
-/**
- * « Pour info » d'une tâche : vue (accueil, « Mes tâches », 🔔) sans en être responsable, en lecture seule ailleurs que
- * dans l'entité de la tâche.
- */
+/** « Pour info » d'une tâche : des personnes la voient (accueil, « Mes tâches », 🔔) sans en être responsables. */
 export interface PourInfo {
-  /** Fiches de l'entité de la tâche. */
   personnes?: string[];
-  /** Entités du club : leurs admins et les rôles « Voir toutes les tâches ». */
-  unites?: string[];
-  /** Personnes d'autres entités : leur fiche dans leur entité, par entité. */
-  autres?: Record<string, string[]>;
 }
 
-/** Responsable d'une tâche qui n'est dans aucune entité du club (sans accès à l'appli). */
+/** Responsable d'une tâche qui n'a pas de fiche dans l'appli (sans accès). */
 export interface PersonneHors {
   id: string;
   prenom: string;
@@ -417,10 +281,8 @@ export interface VuPourInfo {
 /** Commentaire de la discussion d'une tâche. */
 export interface Commentaire {
   id: string;
-  /** Fiche de l'auteur, dans son entité (`u`, sinon celle de la tâche). */
+  /** Fiche de l'auteur. */
   par: string;
-  /** Entité de l'auteur, quand ce n'est pas celle de la tâche (tâche partagée ou reçue pour info). */
-  u?: string;
   /** Nom de l'auteur au moment du commentaire. */
   nom: string;
   le: string;
@@ -430,11 +292,11 @@ export interface Commentaire {
 }
 
 /**
- * À prendre : la tâche est proposée à des personnes de son entité ; la première qui clique « 🙋 Je m'en charge » en devient
+ * À prendre : la tâche est proposée à quelques personnes ; la première qui clique « 🙋 Je m'en charge » en devient
  * responsable. Une place est prise tant que la personne proposée est responsable (retirée : la place se libère).
  */
 export interface APrendre {
-  /** Fiches de l'entité à qui la tâche est proposée. */
+  /** Fiches des personnes à qui la tâche est proposée. */
   personnes: string[];
   /** Personnes qu'il faut (1 si absent). */
   nombre?: number;
@@ -442,37 +304,6 @@ export interface APrendre {
   refus?: string[];
   /** Qui l'a proposée (prévenu des réponses ; sinon l'auteur de la tâche). */
   par?: string;
-  /**
-   * Tâche partagée : proposée aussi à des personnes des entités du partage (leurs fiches), par entité (serveur : 040).
-   * Vue d'une tâche partagée par une autre entité : celles de l'entité de la tâche et des autres entités (ici :
-   * personnes, refus et par sont celles de l'entité ouverte).
-   */
-  partage?: Record<string, PropositionAilleurs>;
-}
-
-/** Personnes d'une autre entité à qui une tâche à prendre est proposée. */
-export interface PropositionAilleurs {
-  personnes: string[];
-  refus?: string[];
-  par?: string;
-}
-
-export interface TachePartagee {
-  uniteId: string;
-  unite: string;
-  type: UnitType;
-  task: Task;
-  /** Statuts de l'entité de la tâche (correspondance avec ceux de l'entité ouverte). */
-  statuts: { id: string; label: string; done: boolean }[];
-  /** Version du serveur (41 : documents, répétition, séance et partage modifiables d'ici). */
-  v?: number;
-  /**
-   * Ancienne tâche (gsa_anciennes_taches, 030) : d'avant que l'entité dépende de l'entité ouverte. Elle se consulte et se
-   * copie, sans modification ; `comite` : le comité dont l'entité dépendait alors, `jusqua` : date du changement.
-   */
-  ancienne?: { comite: string; jusqua: string };
-  /** Vue du club (sans entité ouverte) : celle de mes entités qui l'a reçue (pour info), où elle s'ouvre. */
-  chez?: string;
 }
 
 /** Point sur une carte (degrés). */
@@ -629,8 +460,6 @@ export interface PvSettings {
     bilan: boolean;
     sondages: boolean;
     notes: boolean;
-    /** Tâches partagées par d'autres entités. */
-    partagees: boolean;
   };
   tri: 'delai' | 'statut' | 'titre';
   /** Afficher aussi les sections sans tâche (« Rien à signaler »), comme l'ordre du jour. */
@@ -646,21 +475,6 @@ export interface PvSettings {
   annexesParPage: 1 | 2 | 4;
   /** Pages de PDF par page imprimée (défaut : 1, lisibles). */
   annexesPdfParPage: 1 | 2 | 4;
-}
-
-/** Événement d'une entité, partagé avec tout le club pour l'agenda (sans sa description). */
-export interface AgendaClubEvent {
-  uniteId: string;
-  id: string;
-  nom: string;
-  date: string;
-  dateFin?: string;
-  /** Heures et répétition : avec la migration 042. */
-  heure?: string;
-  heureFin?: string;
-  lieu: string;
-  repetition?: RepetitionEvenement;
-  sauf?: string[];
 }
 
 export interface ClubEvent {
@@ -738,14 +552,12 @@ export interface Prefs {
   pv?: Partial<PvSettings>;
   /**
    * Profils de l'ordre du jour, à soi (jeux de réglages enregistrés sous un nom). Pas encore de liste à soi : les
-   * anciens profils communs de l'entité (ReglagesOdj.profils), qui deviennent les siens dès qu'on en change un.
+   * anciens profils communs (ReglagesOdj.profils), qui deviennent les siens dès qu'on en change un.
    */
   profilsOdj?: ProfilOdj[];
   /** « Envoyer par email » : profil du texte du mail et profil du PDF joint (`aucun` : sans PDF), parmi ses profils. */
   envoiOdj?: { texte?: string; pdf?: string };
   notif?: Partial<NotifPrefs>;
-  /** Agenda : entités du club dont les dates (édition, événements) ne sont pas affichées. */
-  manifsMasquees?: string[];
   /** Phrase d'explication en haut des pages (false : masquée). */
   explications?: boolean;
   /** Accueil : blocs masqués, sur téléphone et sur ordinateur (tout est affiché par défaut). */
@@ -758,13 +570,12 @@ export interface Prefs {
   compteursOrdre?: string[];
   /** Accueil, bloc « À faire » : échéances des N prochains jours (7 par défaut). */
   aFaireJours?: number;
-  /** Accueil, bloc « À faire » : toutes les tâches de l'entité, pas seulement les miennes (droit « Voir toutes les tâches »). */
+  /** Accueil, bloc « À faire » : toutes les tâches, pas seulement les miennes (droit « Voir toutes les tâches »). */
   aFaireToutes?: boolean;
   /** Page « Membres du club » : colonnes (ordre, masquées) et tri, propres à chacun. */
   membresColonnes?: ColonnesMembres;
   /**
-   * Accueil, bloc « Pour info » : tâches marquées « ✓ Vu », qui n'y figurent plus (tâche d'ici : son identifiant ;
-   * d'une autre entité : « entité:tâche ») → date.
+   * Accueil, bloc « Pour info » : tâches marquées « ✓ Vu », qui n'y figurent plus (leur identifiant) → date.
    */
   pourInfoVus?: Record<string, string>;
   /** Téléphone : rubriques de la barre du bas, dans l'ordre (5 au plus ; sans réglage : celles d'origine). */
@@ -784,20 +595,17 @@ export interface ActivityNotif {
   userId: string;
   /**
    * info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge, refus : quelqu'un
-   * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur ;
-   * tâche d'une autre entité : taskId « x:<entité>:<tâche> ») ; mention : « @Prénom Nom » dans un commentaire (mentions.ts,
+   * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur) ; mention : « @Prénom Nom » dans un commentaire (mentions.ts,
    * écrit par l'appli de l'auteur ; detail : l'aperçu du message, comme le 💬 qu'il remplace) ; relance : rappel d'une tâche
-   * « Pour info » pas encore vue (052 ; tâche d'une autre entité : taskId « x:<entité>:<tâche> ») ; toutVu : à l'auteur, tout
+   * « Pour info » pas encore vue (052) ; toutVu : à l'auteur, tout
    * le monde l'a marquée « ✓ Vu » (052).
    */
   type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus' | 'comment' | 'mention' | 'relance' | 'toutVu';
   taskId: string;
   by: string;
-  /** Auteur hors de l'entité (membre du comité central) : son nom, à afficher tel quel. */
-  byName?: string;
   at: string;
   detail?: string;
-  /** Titre de la tâche au moment de la notification (commentaire : la tâche peut être d'une autre entité). */
+  /** Titre de la tâche au moment de la notification. */
   titre?: string;
 }
 
@@ -820,49 +628,38 @@ export interface AppData {
   notifLues?: Record<string, string[]>;
   /** Discussions lues, par utilisateur : tâche (son identifiant ici) → date du dernier message vu. */
   discussionsLues?: Record<string, Record<string, string>>;
-  /** En-tête de tous les documents imprimés de l'entité (ordre du jour, PV, bon de paiement) ; sans réglage : logo et nom de l'entité. */
+  /** En-tête de tous les documents imprimés (ordre du jour, PV, bon de paiement) ; sans réglage : logo et nom du club. */
   entete?: Entete;
   /** Ancien réglage, un en-tête par document : repris tant que « entete » n'est pas réglé (archives : leurs images). */
   entetes?: { odj?: Entete; pv?: Entete; bon?: Entete };
   /** Sceau « OK pour paiement » des tickets à rembourser. */
   timbre?: Timbre;
-  /** Réglages communs de l'ordre du jour et du PV de l'entité. */
+  /** Réglages communs de l'ordre du jour et du PV. */
   reglagesOdj?: ReglagesOdj;
-  /** Entités dont tous les membres font aussi partie de celle-ci (fiches liées tenues à jour). */
-  membresDe?: LienEntite[];
-  /** Comité central : propositions d'amélioration de l'appli reçues des membres du club. */
+  /** Propositions d'amélioration de l'appli reçues des membres du club. */
   propositions?: Proposition[];
-  /** Organigramme à glisser-déposer (démo) : postes de la zone « Responsables » de la fiche ; absent : à déduire des fonctions. */
-  postes?: Poste[];
-  /** Étiquettes des tâches (événements, groupes…), avec leurs membres et leurs responsables. */
+  /** Étiquettes des tâches : événements et groupes, avec leurs membres. */
   etiquettes?: Etiquette[];
 }
 
-/** Étiquette du club (événement, groupe…) : ses membres voient les tâches qui la portent ; ses responsables les gèrent (créer, modifier, attribuer) et règlent ses membres. */
+/**
+ * Étiquette du club : un événement (avec sa date) ou un groupe. Ses membres voient les tâches qui la portent ; les droits
+ * restent ceux des rôles du club (pas de responsable d'étiquette). Un événement daté figure dans l'agenda et à l'accueil.
+ */
 export interface Etiquette {
   id: string;
   nom: string;
   couleur: string;
+  type: TypeEtiquette;
+  /** Événement : son (premier) jour, AAAA-MM-JJ. */
+  date?: string;
+  /** Événement sur plusieurs jours : le dernier. */
+  dateFin?: string;
   /** Fiches des personnes qui voient ses tâches. */
   membres: string[];
-  /** Fiches des personnes qui gèrent ses tâches et ses membres. */
-  responsables: string[];
 }
 
-/**
- * Poste de la fiche d'une entité dans l'organigramme (zone « Responsables ») : il existe même vacant (affiché en rouge).
- * Son titulaire a son nom parmi ses fonctions (poste, autres postes).
- */
-export interface Poste {
-  id: string;
-  nom: string;
-  /** Fiche de la personne qui l'occupe ; absent : à pourvoir. */
-  titulaire?: string;
-  /** Poste lié au ★ d'une autre entité (son identifiant) : son titulaire en est le ★, changer l'un change l'autre. */
-  lien?: string;
-  /** Rôle (de l'entité) que le poste donne à son titulaire ; absent : celui d'un membre (« Membre », « Comité »…). */
-  role?: string;
-}
+export type TypeEtiquette = 'evenement' | 'groupe';
 
 /** Réglages communs de l'ordre du jour et du PV. */
 export interface ReglagesOdj {
@@ -879,12 +676,12 @@ export interface ReglagesOdj {
    */
   depotPv?: string;
   /**
-   * Anciens profils de l'ordre du jour, communs à l'entité : les profils sont maintenant à chacun (Prefs.profilsOdj) ;
+   * Anciens profils de l'ordre du jour, communs : les profils sont maintenant à chacun (Prefs.profilsOdj) ;
    * ceux-ci restent le point de départ de qui n'a pas encore les siens.
    */
   profils?: ProfilOdj[];
   /**
-   * « Envoyer par email » : `lieu`, lien du lieu dans le mail (défaut : itinéraire Google Maps), commun à l'entité.
+   * « Envoyer par email » : `lieu`, lien du lieu dans le mail (défaut : itinéraire Google Maps), commun.
    * `texte` et `pdf` : anciens choix communs de profils (maintenant Prefs.envoiOdj), repris par qui n'a pas encore les siens.
    */
   envoi?: { texte?: string; pdf?: string; lieu?: LienLieu };
@@ -923,7 +720,7 @@ export interface StyleElement {
   fond?: string;
 }
 
-/** Mise en forme de l'ordre du jour et du PV, commune à l'entité (et gardée dans leurs archives). */
+/** Mise en forme de l'ordre du jour et du PV, commune (et gardée dans leurs archives). */
 export interface StyleDocs {
   police?: 'arial' | 'calibri' | 'verdana' | 'georgia' | 'times';
   interligne?: 'serre' | 'aere';
@@ -931,9 +728,9 @@ export interface StyleDocs {
   elements?: Partial<Record<ElementDoc, StyleElement>>;
 }
 
-/** En-tête des documents imprimés (ordre du jour, PV, bon de paiement), commun à toute l'entité. */
+/** En-tête des documents imprimés (ordre du jour, PV, bon de paiement), commun à tout le club. */
 export interface Entete {
-  /** Image : logo de l'entité (ou du club), image propre (ex. papier à lettres du club), ou aucune. */
+  /** Image : logo du club, image propre (ex. papier à lettres du club), ou aucune. */
   image: 'logo' | 'perso' | 'aucune';
   /** Image propre (data URL réduite). */
   imagePerso?: string;
@@ -946,145 +743,6 @@ export interface Entete {
   couleur: string;
   /** Trait sous l'en-tête. */
   trait: boolean;
-}
-
-/**
- * Entités du club. Chacune a ses propres responsables, rôles, sections, statuts et tâches,
- * invisibles des autres : comité central, sous-comités (organisation d'un événement),
- * groupes (école de cyclisme, compétition…) et équipes d'événement (sans comité).
- */
-export type UnitType = 'central' | 'sous-comite' | 'groupe' | 'equipe';
-
-/** Ce que l'entité dont elle dépend affiche de ses tâches (voir Unit.tachesDependance). */
-export type TachesDependance = 'toutes' | 'partagees' | 'rien';
-
-/**
- * Période terminée de la dépendance d'une entité, notée à chaque changement du comité dont elle dépend (serveur : 030).
- * L'ancien comité garde les tâches de sa période (selon le réglage d'alors) ; le nouveau peut lire et copier les
- * anciennes tâches (`taches` de la dernière période) tant que `copie` n'est pas retiré.
- */
-export interface PeriodeDependance {
-  /** Comité dont l'entité dépendait. */
-  comite: string;
-  nom: string;
-  /** Date et heure du changement (ISO). */
-  jusqua: string;
-  reglage: TachesDependance;
-  /** Tâches de l'entité à ce moment (hors tickets). */
-  taches: string[];
-  /** Le comité suivant peut lire et copier ces tâches (seul champ que les admins changent). */
-  copie: boolean;
-}
-
-export interface Unit {
-  id: string;
-  nom: string;
-  type: UnitType;
-  /** Comité central dont dépend l'entité (absent pour le comité central). */
-  parentId?: string;
-  couleur: string;
-  description?: string;
-  /** Date de l'événement (sous-comité, équipe d'événement) : sa prochaine édition. */
-  date?: string;
-  /** Dernier jour de l'édition, si elle dure plusieurs jours. */
-  dateFin?: string;
-  /** Événement passé, entité plus utilisée : masquée des menus. */
-  archive?: boolean;
-  /**
-   * Ancien réglage « Accès du comité central » (plus proposé : le comité dont elle dépend voit ses tâches selon
-   * tachesDependance) ; gardé tel quel sur le serveur (006).
-   */
-  central?: CentralAccess;
-  /** Logo (image réduite, data URL) : en-tête de l'appli, documents, icône de l'onglet. Sans logo, celui du club. */
-  logo?: string;
-  /** Couleur de l'appli dans l'entité (#rrggbb). Sans choix : celle du comité central, sinon le bleu d'origine. */
-  couleurAppli?: string;
-  /** Icône choisie dans la bibliothèque (IconesEntite) ; sans choix ou clé inconnue : celle de son type. */
-  icone?: string;
-  /**
-   * Comité dont elle dépend ; sans choix (ou une valeur inconnue, comme l'ancien « aucun ») : le comité central. Une
-   * ancienne valeur vers un groupe ou un événement : le comité dont il dépend (parentDans). Les accès suivent parentId.
-   */
-  dependDe?: string;
-  /**
-   * Ses tâches dans le comité dont elle dépend (liste des tâches, ordre du jour, PV) : toutes, seulement celles
-   * partagées avec lui (sans choix), ou aucune (même partagées). Un événement dont tout le comité est responsable
-   * (aucun poste ne lui est lié ⛓) : toutes, quel que soit ce réglage (reglageTaches).
-   */
-  tachesDependance?: TachesDependance;
-  /** Périodes terminées de sa dépendance, de la plus ancienne à la plus récente (tenues par le serveur). */
-  historiqueDependance?: PeriodeDependance[];
-  /** Place de sa carte dans l'organigramme, posée à la main (sinon sa place dans l'arbre). */
-  carte?: Carte;
-  /** Comité : ordre des cartes de son cadre dans l'organigramme par postes (clés des cartes ; les autres à la suite). */
-  rangement?: string[];
-}
-
-/** Coin haut gauche d'une carte de l'organigramme, en pixels depuis le coin haut gauche de l'arbre. */
-export interface Carte {
-  x: number;
-  y: number;
-}
-
-/** Ancien réglage : accès du comité central aux données d'une entité (rien voir, consulter, ou aussi modifier). */
-export type CentralAccess = 'aucun' | 'lecture' | 'ecriture';
-
-/** Membre d'une entité, tel qu'affiché dans l'organigramme. */
-export interface OrgMember {
-  /** Fiche de la personne dans l'entité. */
-  id: string;
-  prenom: string;
-  nom: string;
-  poste: string;
-  autresPostes?: string;
-  email: string;
-  telephone?: string;
-  couleur: string;
-  roles: string[];
-  admin: boolean;
-  /** Tient la caisse de l'entité (rôle qui donne expressément le droit « Caisse »). */
-  caisse?: boolean;
-  /** Fiche du registre « Membres du club ». */
-  membreId?: string;
-  /** Membre par le lien d'une autre entité (son identifiant). */
-  viaEntite?: string;
-  /** Membre par le lien : sa fiche dans l'autre entité. */
-  viaFiche?: string;
-}
-
-export interface OrgUnit extends Unit {
-  membres: OrgMember[];
-  /** L'utilisateur connecté en fait partie. */
-  moi: boolean;
-  /** L'utilisateur connecté en est admin (président / responsable). */
-  moiAdmin: boolean;
-  /** Comité central : sections (choix de la section d'une demande). */
-  sections?: { id: string; nom: string }[];
-  /** Entités dont tous les membres en font partie (lien « Membres de »). */
-  liens?: string[];
-  /** Organigramme à glisser-déposer (démo) : postes de sa fiche, vacants compris. */
-  postes?: Poste[];
-}
-
-/** Organigramme d'une année, tel qu'il était à sa dernière photo (lecture seule ; sans adresses ni logos). */
-export interface OrganigrammeAnnuel {
-  annee: number;
-  /** Date de la dernière photo de l'année (ISO). */
-  maj: string;
-  units: OrgUnit[];
-}
-
-/** Ticket envoyé depuis une entité à la caisse qui reçoit les siens (comité dont elle dépend, ou caisse centrale). */
-export interface TicketCentral {
-  type?: 'facture';
-  /** Échéance d'une facture (AAAA-MM-JJ). */
-  delai?: string;
-  titre: string;
-  montant: number;
-  beneficiaire: string;
-  iban?: string;
-  remarque: string;
-  documents: TaskDoc[];
 }
 
 /** Visa retrouvé par son n° (« Vérifier un visa ») : ce que le document visé doit montrer. Jamais l'IBAN. */
@@ -1103,23 +761,7 @@ export interface VisaVerifie {
   payeLe?: string | null;
 }
 
-/** Suivi d'un ticket envoyé à une autre caisse, tel que le voit son demandeur. */
-export interface SuiviTicket {
-  id: string;
-  type?: 'facture' | null;
-  titre: string;
-  montant: number;
-  beneficiaire: string;
-  etat: Paiement['etat'];
-  le: string;
-  unite: string;
-  caisse: string;
-  viseLe?: string | null;
-  payeLe?: string | null;
-  motif?: string | null;
-}
-
-/** Proposition d'amélioration de l'appli : envoyée par un membre du club, rangée dans les données du comité central. */
+/** Proposition d'amélioration de l'appli : envoyée par un membre du club, rangée dans les données du club. */
 export interface Proposition {
   id: string;
   genre: 'idee' | 'probleme' | 'autre';
@@ -1127,7 +769,7 @@ export interface Proposition {
   /** Page de l'appli concernée (ex. /taches) ; aucune : l'appli en général. */
   page?: string;
   le: string;
-  /** Nom de l'auteur et entité d'où il l'a envoyée (pris sur sa fiche). */
+  /** Nom de l'auteur (pris sur sa fiche) ; `unite` : ancienne entité d'où elle a été envoyée. */
   par: string;
   unite?: string;
   /** Clé de l'auteur (son compte ; en démo, son adresse), pour qu'il en suive la réponse. */
@@ -1136,11 +778,11 @@ export interface Proposition {
   reponse?: string;
   reponduLe?: string;
   reponduPar?: string;
-  /** Suivi par l'auteur (version réelle) : supprimée par le comité central. */
+  /** Suivi par l'auteur (version réelle) : supprimée par les admins. */
   supprimee?: boolean;
 }
 
-/** Ce que l'auteur écrit ; le reste (nom, entité, date, statut) est ajouté à l'envoi. */
+/** Ce que l'auteur écrit ; le reste (nom, date, statut) est ajouté à l'envoi. */
 export type NouvelleProposition = Pick<Proposition, 'genre' | 'texte' | 'page'>;
 
 /** Ticket à rembourser (le paiement se fait hors de l'appli : la caisse fait le virement). */
@@ -1156,8 +798,6 @@ export interface Paiement {
   etat: 'recu' | 'visa' | 'valide' | 'paye' | 'refuse';
   demandePar: string;
   demandeLe: string;
-  /** Ticket envoyé à cette caisse par un membre d'une autre entité (pas de fiche ici : demandePar vide). */
-  externe?: { uniteId: string; unite: string; par: string; email?: string; userId?: string };
   /** Visa demandé par la caisse (`par`) à la personne `a` (jamais le demandeur). */
   visa?: { a: string; par: string; le: string; message?: string };
   /**

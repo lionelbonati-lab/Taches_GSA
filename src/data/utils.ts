@@ -1,8 +1,11 @@
 import type { AppData, ClubEvent, DelaiRef, DelaiUnite, Meeting, Person, Recurrence, Task } from './types';
-import { aPrendreSuivante, sansVolontaires, sansVolontairesPartage } from './aPrendre';
+import { aPrendreSuivante, sansVolontaires } from './aPrendre';
 import { derniereOccurrence, estOccurrence, occurrenceApres, occurrenceDu, occurrenceProche } from './repetition';
 
 export const today = () => new Date().toISOString().slice(0, 10);
+
+/** Couleurs proposées (personnes, étiquettes). */
+export const COULEURS = ['#1d4ed8', '#059669', '#ea580c', '#db2777', '#7c3aed', '#0891b2', '#b45309', '#475569'];
 
 /** Date et heure locales : AAAA-MM-JJTHH:MM. */
 export const localNow = () => {
@@ -184,16 +187,15 @@ export function occurrenceSuivie(e: ClubEvent, occurrence?: string): string | un
 /** Événement ou séance servant de référence au délai de la tâche ; `occurrence` : celle d'un événement qui se répète. */
 export function delaiTarget(data: AppData, t: Task): { nom: string; date: string; occurrence?: string } | null {
   if (!t.delaiRef) return null;
-  // Sans événement / séance de l'entité : celui d'une entité qui dépend du comité, ou la séance du comité dont elle dépend.
   if (t.delaiRef.type === 'event') {
-    const e = t.eventId ? data.events.find((x) => x.id === t.eventId) : t.evenementEntite;
-    if (e && t.eventId && (e as ClubEvent).repetition) {
-      const o = occurrenceSuivie(e as ClubEvent, t.delaiRef.occurrence);
+    const e = t.eventId ? data.events.find((x) => x.id === t.eventId) : undefined;
+    if (e?.repetition) {
+      const o = occurrenceSuivie(e, t.delaiRef.occurrence);
       return o ? { nom: e.nom, date: o, occurrence: o } : null;
     }
     return e?.date ? { nom: e.nom, date: e.date } : null;
   }
-  if (!t.meetingId) return t.seanceComite?.date ? { nom: t.seanceComite.titre, date: t.seanceComite.date } : null;
+  if (!t.meetingId) return null;
   const m = data.meetings.find((x) => x.id === t.meetingId);
   return m ? { nom: m.titre, date: m.date } : null;
 }
@@ -310,7 +312,6 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     delai: suit ? delaiDepuis(suit, seance!.date) : suitEvent ? delaiDepuis(suitEvent, occ!) : t.delai ? (dateSuivante(data, t, t.delai, seance) ?? '') : '',
     // Tâche à prendre : la place se rouvre (les personnes proposées ne sont pas reconduites).
     responsables: sansVolontaires(nextResponsables(data, t), t.aPrendre),
-    respPartage: sansVolontairesPartage(t.respPartage, t.aPrendre),
     aPrendre: aPrendreSuivante(t.aPrendre),
     // Les « ✓ Vu » concernaient cette occurrence-ci.
     pourInfoVus: undefined,
@@ -323,9 +324,6 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     // séance »).
     eventId: suitEvent ? t.eventId : undefined,
     meetingId: seance?.id,
-    // La séance du comité dont l'entité dépend concernait cette occurrence-ci.
-    seanceComite: undefined,
-    evenementEntite: undefined,
     delaiRef: suit ?? suitEvent,
     suivanteId: undefined,
     // Pas encore terminée : la date de clôture de cette occurrence-ci ne la suit pas.

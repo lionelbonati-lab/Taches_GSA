@@ -4,26 +4,17 @@ import { useStore } from '../data/store';
 import { useClubOptional } from '../data/club';
 import { navigation, pageOuverte } from '../data/navigation';
 import { Icone } from './icones';
-import { PastilleEntite } from './IconesEntite';
-import { Deroulante } from './Deroulante';
-import { pageParEntite, PERMS_MOI, useComites } from '../data/comites';
-import { useAutres } from '../data/entites';
 
-/** Rubriques, pages du compte et page ouverte, selon mes droits (pages Comité, Événements : dans l'une de mes entités). */
+/** Rubriques, pages du compte et page ouverte, selon mes droits. */
 export function useNavigation() {
   const { can } = useStore();
   const club = useClubOptional();
-  const comites = useComites();
-  const autres = useAutres(!club?.arrierePlan);
   const { pathname } = useLocation();
-  // Nom des séances (« Comité », « Réunions »…) : celui de mes comités s'ils sont tous du même type.
-  const types = new Set(comites?.liste('tab.meetings').map((u) => u.type));
   const nav = navigation({
-    can: (p) => (comites && PERMS_MOI.includes(p) ? comites.canUn(p) : can(p)),
+    can,
     club: !!club,
     registre: !!club?.personnes.voir,
-    type: types.size === 1 ? [...types][0] : types.size ? 'central' : club?.current.type ?? 'central',
-    demandes: !!club?.demandesMdp.length || autres.some((e) => e.club.demandesMdp.length && e.store.can('admin.access')),
+    demandes: !!club?.demandesMdp.length,
     superAdmin: !!club?.superAdmin,
   });
   return { ...nav, ouverte: pageOuverte(nav.rubriques, nav.compte, pathname) };
@@ -45,23 +36,11 @@ export function useChemin() {
   };
 }
 
-/**
- * Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV). Ordre du jour et PV : d'abord le comité dont ce
- * sont l'ordre du jour et le PV, à choisir parmi les miens ; console admin : l'entité réglée, à choisir parmi celles dont
- * je suis admin (vue « moi » : sans changer d'entité).
- */
+/** Pages de la rubrique ouverte (ex. Comité : Séances, Ordre du jour, PV). */
 export function SousOnglets() {
   const { ouverte } = useNavigation();
-  const comites = useComites();
-  const club = useClubOptional();
-  const { pathname } = useLocation();
   const barre = useRef<HTMLElement>(null);
   const r = ouverte?.rubrique;
-  const choix = pageParEntite(pathname);
-  const perm = choix?.perm;
-  const liste = perm && comites ? comites.liste(perm) : [];
-  const entite = perm && (liste.length > 1 || (club?.mine.length ?? 0) > 1) ? comites?.choisi(perm) : undefined;
-  const page = ouverte?.page.label;
   // Téléphone : la page ouverte reste visible dans la barre (qui défile de côté). Seule la barre bouge, jamais la page.
   useEffect(() => {
     const bar = barre.current;
@@ -70,32 +49,14 @@ export function SousOnglets() {
     const [x, b] = [a.getBoundingClientRect(), bar.getBoundingClientRect()];
     if (x.left < b.left || x.right > b.right) bar.scrollLeft += x.left - b.left - 12;
   }, [ouverte?.page.to]);
-  if (!entite && (!r || r.pages.length < 2)) return null;
+  if (!r || r.pages.length < 2) return null;
   return (
-    <nav ref={barre} className="subtabs no-print" aria-label={r?.label ?? page}>
-      {entite && comites && liste.length > 1 ? (
-        <span className="subtabs-entite subtabs-choix">
-          <Deroulante
-            aria-label={choix!.libelle}
-            title={`${page} de « ${entite.nom} » : choisis ${choix!.libelle === 'Comité' ? 'l’un de tes comités' : 'l’une de tes entités'}`}
-            value={entite.id}
-            onChange={comites.choisir}
-            options={liste.map((u) => ({ value: u.id, label: u.nom, icone: <PastilleEntite u={u} /> }))}
-          />
-        </span>
-      ) : (
-        entite && (
-          <span className="subtabs-entite" title={`${page} de « ${entite.nom} »`}>
-            <PastilleEntite u={entite} /> {entite.nom}
-          </span>
-        )
-      )}
-      {r && r.pages.length > 1 &&
-        r.pages.map((p) => (
-          <NavLink key={p.to} to={p.to}>
-            <Icone n={p.icon} /> {p.label}
-          </NavLink>
-        ))}
+    <nav ref={barre} className="subtabs no-print" aria-label={r.label}>
+      {r.pages.map((p) => (
+        <NavLink key={p.to} to={p.to}>
+          <Icone n={p.icon} /> {p.label}
+        </NavLink>
+      ))}
     </nav>
   );
 }

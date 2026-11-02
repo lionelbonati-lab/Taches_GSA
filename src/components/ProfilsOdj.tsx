@@ -127,7 +127,7 @@ export function ProfilsOdj({ s, normaliser, appliquerReglages, canEdit }: {
       <p className="muted small">
         Un profil garde les réglages du moment : contenu (parties, sections, statuts, tri, ce qui est affiché, annexes), orientation, taille du
         texte et, au choix, la mise en forme 🎨. Un clic sur son nom les rétablit. Ils sont à toi : les autres ont les leurs.
-        {repris && ' Ceux-ci sont repris des anciens profils communs de l’entité ; ils deviennent les tiens dès que tu en changes un.'}
+        {repris && ' Ceux-ci sont repris des anciens profils communs du club ; ils deviennent les tiens dès que tu en changes un.'}
       </p>
       {profils.length > 0 && (
         <ul className="profils-odj">

@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
-import { useClubOptional } from '../data/club';
 import type { ClubEvent } from '../data/types';
 import { addDays, diffDays, fmtDate, fmtRange, offsetLabel, shortName } from '../data/utils';
 import { candidats, dateReprise, delaiRepris, nomReprise, reprendre, type Candidat } from '../data/reprise';
@@ -12,28 +11,26 @@ const JOUR = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Reprendre un événement passé pour une nouvelle édition (reprise.ts) : son nom (années décalées), ses dates (un an plus
- * tard, le même jour de la semaine, ou celles de la prochaine édition), les tâches à recopier (liées à l'événement :
- * cochées ; `edition`, entité d'un événement : ses autres tâches de l'édition, décochées) et leurs responsables.
+ * tard, le même jour de la semaine, ou celles données), les tâches à recopier (liées à l'événement : cochées, sauf les
+ * récurrentes) et leurs responsables.
  */
-export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, edition, onClose }: { event: ClubEvent; date?: string; dateFin?: string; edition: boolean; onClose: () => void }) {
+export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, onClose }: { event: ClubEvent; date?: string; dateFin?: string; onClose: () => void }) {
   const { data, user, can, update, setToast } = useStore();
-  const club = useClubOptional();
   const navigate = useNavigate();
   const [date, setDate] = useState(dateDonnee ?? dateReprise(e));
   const [fin, setFin] = useState(finDonnee ?? (e.dateFin && e.dateFin > e.date ? addDays(date, diffDays(e.date, e.dateFin)) : ''));
   const ans = (d: string) => Number(d.slice(0, 4)) - Number(e.date.slice(0, 4));
   const [nom, setNom] = useState(() => nomReprise(e.nom, ans(date)));
   const [nomChoisi, setNomChoisi] = useState(false);
-  const [liste] = useState(() => candidats(data, e, edition, (s) => can('tasks.createAny', s)));
+  const [liste] = useState(() => candidats(data, e, (s) => can('tasks.createAny', s)));
   const [choix, setChoix] = useState(() => new Set(liste.filter((x) => x.coche).map((x) => x.t.id)));
   const [memes, setMemes] = useState(true);
   const [err, setErr] = useState('');
   if (!user) return null;
   const deja = data.events.find((x) => x.repriseDe === e.id);
   // Tâches liées dans des sections où la personne ne crée pas de tâches pour d'autres : pas proposées.
-  const horsDroits = data.tasks.filter((t) => t.eventId === e.id && !t.source && !t.paiement).length - liste.filter((x) => x.liee).length;
-  const liees = liste.filter((x) => x.liee);
-  const autres = liste.filter((x) => !x.liee);
+  const horsDroits = data.tasks.filter((t) => t.eventId === e.id && !t.paiement).length - liste.length;
+  const liees = liste;
   const actifs = new Set(data.people.filter((p) => p.actif).map((p) => p.id));
 
   // Début déplacé : la fin suit (même durée) et le nom suit l'année, tant qu'on ne l'a pas changé.
@@ -62,8 +59,7 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, e
     }, `Reprise de l’événement « ${e.nom} » : « ${r.event.nom} » le ${fmtRange(r.event.date, r.event.dateFin)}${n ? `, ${n} tâche${n > 1 ? 's' : ''} reprise${n > 1 ? 's' : ''}` : ''}`);
     setToast(`✅ « ${r.event.nom} » ajouté${n ? ` avec ${n} tâche${n > 1 ? 's' : ''} à faire` : ''}.`);
     onClose();
-    // Vue du club : ses tâches parmi celles de toutes mes entités (son entité dans le lien).
-    if (n) navigate(`/taches?event=${r.event.id}${club?.aEgalite ? `&entite=${encodeURIComponent(club.current.id)}` : ''}`);
+    if (n) navigate(`/taches?event=${r.event.id}`);
   };
 
   const groupe = (titre: string, l: Candidat[]) => {
@@ -135,7 +131,6 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, e
         </fieldset>
       </div>
       {liees.length > 0 && groupe(`Tâches liées à « ${e.nom} »`, liees)}
-      {autres.length > 0 && groupe('Autres tâches de cette édition', autres)}
       {!liste.length && <p className="muted">Aucune tâche liée à cet événement : seul l’événement sera repris.</p>}
       {horsDroits > 0 && <p className="muted small-note">{horsDroits} tâche(s) liée(s) dans des sections où tu ne crées pas de tâches pour d’autres : pas proposée(s).</p>}
       {err && <p className="error">{err}</p>}
