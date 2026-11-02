@@ -1,5 +1,7 @@
 # Plan — l'appli du club, sans entité « de base »
 
+> **Remplacé par `PLAN_APPLI_SIMPLE.md` (02.11.2026)** : les entités et l'organigramme sont supprimés au profit d'étiquettes. L'étape 1 ci-dessous (démo) reste acquise.
+
 Demande du président (28.10.2026) : *un membre se connecte à l'application, pas à une entité. Le club est un tout. Les
 tâches font partie des entités, les membres font partie du club.* Plan à exécuter plus tard, étape par étape (une session
 par étape conseillée). Suite de `PERSONNES_DU_CLUB.md` (étapes 1 à 6 faites).
