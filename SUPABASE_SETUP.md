@@ -228,19 +228,26 @@ Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people
 
 ## Fonctions serveur (étape D4 : un seul espace)
 
-**État au 03.11.2026** : le code du dépôt est adapté à l'espace unique (D4) mais **pas encore redéployé** ; le serveur fait
-tourner les versions d'avant D1 (`gsa-acces` v10, `gsa-agenda` v2, `gsa-push` v8, identiques au dépôt d'avant D1). Elles
-marchent encore, mais lisent les entités : `gsa-agenda` n'affiche ni les étiquettes datées ni l'agenda du club d'après
-la reprise, `gsa-push` ne lit pas les étiquettes (une tâche vue grâce à une étiquette ne prévient pas), et `gsa-acces`
-garde l'organigramme (retrait d'une personne du club par ses règles). À redéployer avec l'accord du président, les
-trois avec `verify_jwt` désactivé (comme aujourd'hui ; chaque fonction vérifie elle-même ce qui doit l'être).
+**Déployées le 03.11.2026** (accord du président), avec `verify_jwt` désactivé comme avant (chaque fonction vérifie
+elle-même ce qui doit l'être) : `gsa-agenda` **v3**, `gsa-push` **v9**, `gsa-acces` **v11** ; le contenu déployé a été
+relu, identique au dépôt. Versions d'avant (d'avant D1, qui lisaient encore les entités) : `gsa-agenda` v2, `gsa-push`
+v8, `gsa-acces` v10.
+
+**Contrôles faits après le déploiement**, sans rien écrire dans les données : `gsa-push` (planification toutes les
+5 minutes) répond 200 `{"personnes":1,"envois":0}`, sans erreur au journal, et lit l'espace du club (plus les entités
+archivées) ; `gsa-agenda` avec un jeton inconnu : 404 « Lien d'agenda inconnu ou supprimé. » (la base est bien lue) ;
+`gsa-acces` sans connexion : 401 « Connexion requise. », aussi pour une ancienne action d'entité.
+
+Avant le déploiement de `gsa-push`, un risque déjà présent a été levé : un email programmé dont l'**objet** contient
+`{lien}` faisait échouer, côté serveur (sans adresse de l'appli), le calcul des notifications de la personne ; le
+`{lien}` y est maintenant laissé vide (`src/data/emails.ts`, `notifs.js` régénéré).
 
 **Essais avant déploiement** (03.11.2026) : `deno check` sans erreur pour les trois ; `gsa-agenda` et `gsa-push` lancées
 avec Deno contre la base de test (données fictives, reprise faite) : lien d'agenda du club et ancien lien vers une
 entité reprise, appareil fictif qui reçoit une notification chiffrée une seule fois ; `retirerDuClub` (`gsa-acces`)
 essayé sur une base simulée en mémoire (dernier admin refusé, fiches désactivées dans le club et l'ancienne entité).
 
-**Après le déploiement**, vérifier : Réglages › Notifications › « Envoyer une notification d'essai » (`gsa-push`,
+**À vérifier dans l'appli** (président) : Réglages › Notifications › « Envoyer une notification d'essai » (`gsa-push`,
 `essai`) ; Agenda › Exporter › « Créer mon lien privé », puis ouvrir le lien (`gsa-agenda`) ; menu du compte ›
 « Comptes du club » (super-admin) et « Mots de passe oubliés » (`gsa-acces`). La première passe de `gsa-push` sur
 l'espace du club, pour qui n'y avait pas encore d'appareil noté, n'envoie rien (ce qui est déjà là est seulement noté).

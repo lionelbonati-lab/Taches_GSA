@@ -134,9 +134,15 @@ base de test : `outils/base-test/LISEZMOI.md`.
     entité, délai sur la date de l'étiquette). Tests : 35 (un de plus pour le délai calé sur une étiquette).
   - **Rapport D2** mis à jour : il ne montre plus les entités déjà reprises.
 
-- **D4 (03.11.2026), préparée, PAS déployée** : les fonctions serveur suivent l'espace unique (détail et vérifications
-  après déploiement : `SUPABASE_SETUP.md`, « Fonctions serveur »). État des lieux en lecture seule : le serveur fait
-  tourner les versions d'avant D1, identiques au dépôt d'avant D1.
+- **D4 (03.11.2026), déployée le 03.11.2026** avec l'accord du président (`gsa-agenda` v3, `gsa-push` v9, `gsa-acces`
+  v11, `verify_jwt` désactivé comme avant ; contenu déployé relu, identique au dépôt) : les fonctions serveur suivent
+  l'espace unique (détail, contrôles faits et vérifications à faire dans l'appli : `SUPABASE_SETUP.md`, « Fonctions
+  serveur »). État des lieux en lecture seule avant : le serveur faisait tourner les versions d'avant D1, identiques au
+  dépôt d'avant D1.
+  - Contrôles après déploiement, sans écrire dans les données : `gsa-push` (toutes les 5 minutes) répond sans erreur et
+    lit l'espace du club ; `gsa-agenda` (jeton inconnu) répond 404 ; `gsa-acces` (sans connexion) répond 401.
+  - Juste avant le déploiement : `{lien}` dans l'objet d'un email programmé laissé vide côté serveur (il y faisait
+    échouer le calcul des notifications de la personne ; risque d'avant D1, levé).
   - `gsa-push` : `notifs.js` régénéré (`npm run fonction`) ; `index.ts` ne lit plus les « pour info » ni les lectures
     communes des entités (l'appli marque les 💬 lues avec la discussion) et lit les étiquettes. Sans ce changement, la
     fonction régénérée ne démarrait plus (`luesCommunes` retiré en D1).

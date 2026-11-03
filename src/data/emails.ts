@@ -100,7 +100,8 @@ export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text:
     '{statut}': data.statuses.find((s) => s.id === task.statusId)?.label ?? '',
     '{remarque}': task.remarque,
     // Seulement s'il sert : le serveur (notifications appli fermée) n'a pas l'adresse de l'appli.
-    '{lien}': text.includes('{lien}') ? appLink(task.id) : '',
+    // (Côté serveur, sans adresse de l'appli : vide, plutôt qu'une erreur qui empêcherait les autres notifications.)
+    '{lien}': text.includes('{lien}') && typeof location !== 'undefined' ? appLink(task.id) : '',
     '{expéditeur}': fullName(person(e.creePar)),
   };
   return text.replace(/\{[^}]+\}/g, (k) => values[k] ?? k);
