@@ -32,7 +32,7 @@ function Card({ children, wide }: { children: ReactNode; wide?: boolean }) {
 export function Welcome() {
   return (
     <Card wide>
-      <p className="muted">Gestion des tâches du comité du G.S. Ajoie</p>
+      <p className="muted">Suivi des points du comité du G.S. Ajoie</p>
       <div className="mode-choice">
         <button className="mode-card" onClick={() => switchMode('reel')}>
           <span className="mode-icon"><Icone n="verrou" /></span>
@@ -357,12 +357,12 @@ export function Setup({ membership, userId, email, sync, onDone, onSignOut }: {
             <button className="mode-card" onClick={() => fileRef.current?.click()}>
               <span className="mode-icon"><Icone n="televerser" /></span>
               <strong>Reprendre une sauvegarde</strong>
-              <small>Une sauvegarde téléchargée (Console admin › Sauvegarde) : tâches, séances, PV, responsables, fichiers joints…</small>
+              <small>Une sauvegarde téléchargée (Console admin › Sauvegarde) : points, séances, PV, responsables, fichiers joints…</small>
             </button>
             <button className="mode-card" onClick={() => setStep('vide')}>
               <span className="mode-icon"><Icone n="nouveau" /></span>
               <strong>Commencer avec une base vide</strong>
-              <small>Statuts, sections et rôles du club, et ta fiche. Tu ajoutes ensuite les responsables, séances et tâches.</small>
+              <small>Statuts, sections et rôles du club, et ta fiche. Tu ajoutes ensuite les responsables, séances et points.</small>
             </button>
           </div>
           <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => pick(e.target.files?.[0])} />

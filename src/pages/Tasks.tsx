@@ -193,7 +193,7 @@ function ListeTaches() {
   };
 
   const exportCsv = () => {
-    const head = ['Section', 'Sous-section', 'Tâche', 'Tâche principale', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Étiquettes', 'Répétition', 'Remarque', 'Sous-tâches'];
+    const head = ['Section', 'Sous-section', 'Point', 'Point principal', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Étiquettes', 'Répétition', 'Remarque', 'Sous-points'];
     const subs = (t: Task) => t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join(' | ');
     const rows = list.map((t) => [
       sectionName(t.sectionId), t.sousSection, t.titre, parentOf(data, t)?.titre ?? '', respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
@@ -216,12 +216,12 @@ function ListeTaches() {
   return (
     <div>
       <div className="page-head">
-        <h1>{archives ? '🗄 Tâches archivées' : 'Tâches'} <span className="count">{list.length}</span></h1>
+        <h1>{archives ? '🗄 Points archivés' : 'Points'} <span className="count">{list.length}</span></h1>
         <div className="actions">
           {viewAll && (
             <div className="seg">
-              <button className={effScope === 'mes' ? 'on' : ''} onClick={() => setScope('mes')}>Mes tâches</button>
-              <button className={effScope === 'toutes' ? 'on' : ''} onClick={() => setScope('toutes')}>Toutes</button>
+              <button className={effScope === 'mes' ? 'on' : ''} onClick={() => setScope('mes')}>Mes points</button>
+              <button className={effScope === 'toutes' ? 'on' : ''} onClick={() => setScope('toutes')}>Tous</button>
             </div>
           )}
           <div className="seg hide-mobile">
@@ -230,22 +230,22 @@ function ListeTaches() {
           </div>
           <button className="btn" onClick={() => setShowFilters(!showFilters)}>Filtres{activeFilters ? ` (${activeFilters})` : ''}</button>
           {(archives || nArchivees > 0) && (
-            <button className={`btn ${archives ? 'primary' : ''}`} title="Tâches terminées au plus tard le jour du dernier comité passé" onClick={() => setArchives(!archives)}>
-              {archives ? '← Tâches en cours' : <><Icone n="archives" /> Archives ({nArchivees})</>}
+            <button className={`btn ${archives ? 'primary' : ''}`} title="Points terminés au plus tard le jour du dernier comité passé" onClick={() => setArchives(!archives)}>
+              {archives ? '← Points en cours' : <><Icone n="archives" /> Archives ({nArchivees})</>}
             </button>
           )}
           {can('settings.lists') && <button className="btn" onClick={() => setReglerEtiquettes(true)}><Icone n="etiquette" /> Étiquettes</button>}
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
-          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouvelle tâche</button>}
+          {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouveau point</button>}
         </div>
       </div>
       <PageIntro />
       {lienTache && (
         <AvisLien
           trouve={!!edit}
-          nom="une tâche"
-          introuvable="Tâche introuvable : elle a peut-être été supprimée, ou ton rôle ne te permet pas de la voir."
+          nom="un point"
+          introuvable="Point introuvable : il a peut-être été supprimé, ou ton rôle ne te permet pas de le voir."
         />
       )}
 
@@ -291,38 +291,38 @@ function ListeTaches() {
           <option value="7">7 prochains jours</option>
           <option value="30">30 prochains jours</option>
           <option value="lie">📌 Délai calé sur un événement / une séance</option>
-          <option value="recurrente">🔁 Tâches récurrentes</option>
+          <option value="recurrente">🔁 Points récurrents</option>
           <option value="email">📧 Avec email programmé</option>
-          <option value="principale">🧩 Tâches principales</option>
-          <option value="liee">↳ Tâches rattachées</option>
+          <option value="principale">🧩 Points principaux</option>
+          <option value="liee">↳ Points rattachés</option>
           <option value="pourinfo">👁 Mes « Pour info » pas encore vus</option>
         </select>
         <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
-          <option value="">Tâches et paiements</option>
+          <option value="">Points et paiements</option>
           <option value="tickets">💰 Paiements et remboursements</option>
           <option value="remboursement">{GENRES.remboursement.icon} Remboursements</option>
           <option value="facture">{GENRES.facture.icon} Paiements de factures</option>
         </select>
         <select value={f.parent} onChange={(e) => setF({ ...f, parent: e.target.value })}>
-          <option value="">Toutes tâches principales</option>
+          <option value="">Tous points principaux</option>
           {data.tasks.filter((t) => childrenOf(data, t.id).length).map((t) => <option key={t.id} value={t.id}>🧩 {t.titre}</option>)}
         </select>
-        {!archives && <label className="inline hide-toggle" title="Les terminées restent affichées jusqu’au prochain comité, puis sont archivées"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminées</label>}
+        {!archives && <label className="inline hide-toggle" title="Les terminés restent affichés jusqu’au prochain comité, puis sont archivés"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminés</label>}
         {activeFilters > 0 && <button className="btn link" onClick={() => setF(EMPTY_FILTERS)}>Effacer</button>}
       </div>
 
       {archives && seancePassee && (
         <p className="archives-note">
-          🗄 Tâches terminées au plus tard le jour du dernier comité passé (« {seancePassee.titre} », {fmtDate(seancePassee.date)}). Rien n’est effacé : une tâche rouverte revient dans la liste.
+          🗄 Points terminés au plus tard le jour du dernier comité passé (« {seancePassee.titre} », {fmtDate(seancePassee.date)}). Rien n’est effacé : un point rouvert revient dans la liste.
         </p>
       )}
 
       {f.type && <CircuitPaiements total={list.length > 1 ? list.reduce((n, t) => n + (t.paiement?.montant ?? 0), 0) : undefined} />}
 
-      <p className="print-only">{nomAppli()} – export du {fmtDate(new Date().toISOString().slice(0, 10))} – {list.length} tâches</p>
+      <p className="print-only">{nomAppli()} – export du {fmtDate(new Date().toISOString().slice(0, 10))} – {list.length} points</p>
 
       {list.length === 0 ? (
-        <Empty>Aucune tâche ne correspond.</Empty>
+        <Empty>Aucun point ne correspond.</Empty>
       ) : view === 'tableau' ? (
         <>
           <table className="table desktop-only">
@@ -330,7 +330,7 @@ function ListeTaches() {
               <tr>
                 <Th k="section">Section</Th>
                 <Th k="sousSection">Sous-section</Th>
-                <Th k="titre">Tâche</Th>
+                <Th k="titre">Point</Th>
                 <Th k="responsable">Responsable</Th>
                 <Th k="statut">Statut</Th>
                 <Th k="delai">Délai</Th>
@@ -393,7 +393,7 @@ function ListeTaches() {
 /** « ✓ Vu » d'une tâche pour info (accueil) : elle n'y figure plus. */
 export const BoutonVu = ({ onVu }: { onVu: () => void }) => (
   <div className="pour-info-vu" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-    <button className="btn small" onClick={onVu} title="Je suis au courant : son auteur le voit, et elle quitte l’accueil (elle reste dans les tâches)">
+    <button className="btn small" onClick={onVu} title="Je suis au courant : son auteur le voit, et il quitte l’accueil (il reste dans les points)">
       <Icone n="ok" /> Vu
     </button>
   </div>
@@ -411,7 +411,7 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
   const repondre = (prend: boolean) => {
     setPrise(true);
     (prend ? prendreTache : pasDispo)(t)
-      .then(() => setToast(prend ? `Tu t’en charges : « ${t.titre} »` : `C’est noté : pas dispo pour « ${t.titre} ». La personne qui te l’a proposée est prévenue.`))
+      .then(() => setToast(prend ? `Tu t’en charges : « ${t.titre} »` : `C’est noté : pas dispo pour « ${t.titre} ». La personne qui te l’a proposé est prévenue.`))
       .catch((e: Error) => setToast(e.message))
       .finally(() => setPrise(false));
   };
@@ -460,12 +460,12 @@ export function Linked({ t }: { t: Task }) {
   const { data } = useStore();
   const parent = parentOf(data, t);
   const kids = childrenOf(data, t.id);
-  if (parent) return <small className="linked-to" title={`Tâche rattachée à « ${parent.titre} »`}>↳ {parent.titre}</small>;
+  if (parent) return <small className="linked-to" title={`Point rattaché à « ${parent.titre} »`}>↳ {parent.titre}</small>;
   if (!kids.length) return null;
   const done = kids.filter((k) => isDone(data, k)).length;
   return (
-    <small className={`linked-count ${done === kids.length ? 'all' : ''}`} title={`${kids.length} tâche(s) rattachée(s), ${done} terminée(s)`}>
-      <Icone n="rattacher" /> {done}/{kids.length} tâches rattachées
+    <small className={`linked-count ${done === kids.length ? 'all' : ''}`} title={`${kids.length} point(s) rattaché(s), ${done} terminé(s)`}>
+      <Icone n="rattacher" /> {done}/{kids.length} points rattachés
     </small>
   );
 }

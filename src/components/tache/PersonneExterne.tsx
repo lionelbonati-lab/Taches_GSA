@@ -44,7 +44,7 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
     e.preventDefault();
     if (!prenom.trim() && !nom.trim()) return setErr('Indique au moins son prénom ou son nom.');
     if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) return setErr('Adresse email invalide.');
-    if (deja.some((p) => norm(nomMembre(p)) === norm(`${prenom} ${nom}`))) return setErr('Elle est déjà sur la tâche.');
+    if (deja.some((p) => norm(nomMembre(p)) === norm(`${prenom} ${nom}`))) return setErr('Elle est déjà sur le point.');
     const p: PersonneHors = { id: uid('ph'), prenom: prenom.trim(), nom: nom.trim(), ...(email.trim() ? { email: email.trim() } : {}) };
     // Déjà au club : elle-même (avec une fiche dans l'appli : à choisir dans la liste « Ajouter… »).
     const connue = trouverMembre(registre, p);
@@ -67,8 +67,8 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
   return (
     <Modal title="Quelqu’un d’autre" onClose={onClose}>
       <p className="muted">
-        Une personne qui n’a pas de fiche dans l’appli : son nom est noté sur la tâche
-        {gerer ? ' ; une nouvelle personne entre aussi dans « Personnes du club »' : ''}. Sans accès à l’appli, elle ne la voit pas.
+        Une personne qui n’a pas de fiche dans l’appli : son nom est noté sur le point
+        {gerer ? ' ; une nouvelle personne entre aussi dans « Personnes du club »' : ''}. Sans accès à l’appli, elle ne le voit pas.
       </p>
       {registre.length > 0 && (
         <section className="externe-registre">
@@ -111,7 +111,7 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
         <div className="modal-foot full">
           <span className="grow" />
           <button type="button" className="btn" onClick={onClose}>Annuler</button>
-          <button type="submit" className="btn primary" disabled={busy}>Ajouter à la tâche</button>
+          <button type="submit" className="btn primary" disabled={busy}>Ajouter au point</button>
         </div>
       </form>
     </Modal>

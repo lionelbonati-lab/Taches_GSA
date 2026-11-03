@@ -205,7 +205,7 @@ function CarteSeance({ m, cible, onPv, onEdit }: { m: Meeting; cible: boolean; o
           {annuelle(m) ? <> · <Icone n="repetition" /> chaque année</> : ' · une seule fois'}
         </div>
         <Excuses m={m} past={past} />
-        <Link to={`/taches?meeting=${encodeURIComponent(m.id)}`}>{tasks.length} tâche(s) rattachée(s) à la séance →</Link>
+        <Link to={`/taches?meeting=${encodeURIComponent(m.id)}`}>{tasks.length} point(s) rattaché(s) à la séance →</Link>
         {((m.pvArchives?.length ?? 0) > 0 || (m.minutesArchives?.length ?? 0) > 0 || can('tab.minutes')) && (
           <div className="pv-archives">
             {(m.minutesArchives ?? []).map((pv, i) => (
@@ -427,7 +427,7 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
         <p className="muted full serie-note">
           {v.unique
             ? 'Séance unique : elle ne sera pas proposée l’année prochaine.'
-            : 'Proposée de nouveau l’année prochaine, le même mois. Les tâches annuelles rattachées à cette séance passeront à celle de l’année suivante.'}
+            : 'Proposée de nouveau l’année prochaine, le même mois. Les points annuels rattachés à cette séance passeront à celle de l’année suivante.'}
           {autre && <> <Icone n="alerte" /> « {autre.titre} » revient déjà ce mois-là : décoche si celle-ci est exceptionnelle.</>}
         </p>
       </div>
@@ -506,7 +506,7 @@ function TachesEtiquette({ et }: { et: Etiquette }) {
       <span className="badge etiquette" style={{ background: et.couleur }}>{et.nom}</span>{' '}
       <small className="muted">{et.membres?.length ?? 0} membre{(et.membres?.length ?? 0) > 1 ? 's' : ''}</small>
       {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
-      <Link to={`/taches?etiquette=${encodeURIComponent(et.id)}`}>Tâches de l’étiquette →</Link>
+      <Link to={`/taches?etiquette=${encodeURIComponent(et.id)}`}>Points de l’étiquette →</Link>
     </div>
   );
 }
@@ -550,7 +550,7 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise }: { 
         {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
         <p>{e.description}</p>
         <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
-        <Link to={`/taches?event=${encodeURIComponent(e.id)}`}>Voir les tâches →</Link>
+        <Link to={`/taches?event=${encodeURIComponent(e.id)}`}>Voir les points →</Link>
         {etiquette && <TachesEtiquette et={etiquette} />}
         {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
       </div>
@@ -558,7 +558,7 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise }: { 
         <div className="agenda-actions">
           <button className="btn small" onClick={onEdit}>Modifier</button>
           {past && reprenable(serie) && (
-            <button className="btn small" onClick={onReprise} title="Nouvelle édition de cet événement, avec ses tâches">
+            <button className="btn small" onClick={onReprise} title="Nouvelle édition de cet événement, avec ses points">
               <Icone n="dupliquer" /> Reprendre
             </button>
           )}
@@ -607,7 +607,7 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
 }
 
 const linkedNote = (n: number) =>
-  n ? <><Icone n="epingle" /> {n} tâche(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.</> : undefined;
+  n ? <><Icone n="epingle" /> {n} point(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.</> : undefined;
 
 function DateBlock({ date, fin }: { date: string; fin?: string }) {
   const d = new Date(date + 'T12:00:00');

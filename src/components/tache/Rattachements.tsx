@@ -38,7 +38,7 @@ export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvri
         <SeanceLiee t={t} setT={setT} disabled={dis} />
         {!kids.length && (
           <label className="full">
-            Tâche principale
+            Point principal
             <select
               value={t.parentId ?? ''}
               disabled={dis}
@@ -47,7 +47,7 @@ export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvri
                 setT((x) => ({ ...x, parentId: p?.id, ...(p && !x.sectionId ? { sectionId: p.sectionId, sousSection: p.sousSection } : {}) }));
               }}
             >
-              <option value="">Aucune (tâche indépendante)</option>
+              <option value="">Aucun (point indépendant)</option>
               {bySection(parentChoices).map((g) => (
                 <optgroup key={g.sec.id} label={g.sec.nom}>
                   {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}
@@ -58,7 +58,7 @@ export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvri
         )}
         {!t.parentId && !isNew && (
           <div className="full linked">
-            <span className="field-label">Tâches rattachées{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminées`}</span>
+            <span className="field-label">Points rattachés{kids.length > 0 && ` · ${kids.filter((k) => isDone(data, k)).length}/${kids.length} terminés`}</span>
             {kids.length > 0 && (
               <>
                 <div className="progress"><div style={{ width: `${Math.round((kids.filter((k) => isDone(data, k)).length / kids.length) * 100)}%` }} /></div>
@@ -71,13 +71,13 @@ export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvri
                         <span className={`linked-date ${isLate(data, k) ? 'late-text' : 'muted'}`}>{k.delai ? fmtDate(k.delai) : '—'}</span>
                         <StatusBadge task={k} />
                       </button>
-                      {editable && <button type="button" className="icon-btn" title="Détacher (la tâche reste, sans tâche principale)" onClick={() => linkTask(k.id, undefined)}>✕</button>}
+                      {editable && <button type="button" className="icon-btn" title="Détacher (le point reste, sans point principal)" onClick={() => linkTask(k.id, undefined)}>✕</button>}
                     </li>
                   ))}
                 </ul>
               </>
             )}
-            {!kids.length && <small className="muted">Aucune. Une tâche rattachée a son propre responsable, délai et statut.</small>}
+            {!kids.length && <small className="muted">Aucun. Un point rattaché a son propre responsable, délai et statut.</small>}
             {editable && (
               <div className="row wrap">
                 <button
@@ -85,13 +85,13 @@ export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvri
                   className="btn small"
                   onClick={() => ouvrir(newTask(user.id, { parentId: task.id, sectionId: task.sectionId, sousSection: task.sousSection, delai: task.delai }), true)}
                 >
-                  + Nouvelle tâche rattachée
+                  + Nouveau point rattaché
                 </button>
                 {!linking ? (
-                  linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}><Icone n="rattacher" /> Rattacher une tâche existante</button>
+                  linkable.length > 0 && <button type="button" className="btn small" onClick={() => setLinking(true)}><Icone n="rattacher" /> Rattacher un point existant</button>
                 ) : (
                   <select autoFocus defaultValue="" onChange={(e) => { if (e.target.value) linkTask(e.target.value, task.id); setLinking(false); }} onBlur={() => setLinking(false)}>
-                    <option value="">— Choisir la tâche à rattacher —</option>
+                    <option value="">— Choisir le point à rattacher —</option>
                     {bySection(linkable).map((g) => (
                       <optgroup key={g.sec.id} label={g.sec.nom}>
                         {g.list.map((x) => <option key={x.id} value={x.id}>{x.titre}{x.delai ? ` (${fmtDate(x.delai)})` : ''}</option>)}

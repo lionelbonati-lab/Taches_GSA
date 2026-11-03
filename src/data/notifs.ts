@@ -75,7 +75,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
       items.push({
         key: `retard:${today()}:${late.length}`,
         icon: '⚠️',
-        text: late.length === 1 ? `« ${late[0].titre} » est en retard` : `${late.length} de tes tâches sont en retard`,
+        text: late.length === 1 ? `« ${late[0].titre} » est en retard` : `${late.length} de tes points sont en retard`,
         sub: late.length === 1 ? `délai : ${fmtDate(late[0].delai)}` : late.slice(0, 3).map((t) => t.titre).join(' · ') + (late.length > 3 ? '…' : ''),
         link: late.length === 1 ? `/taches?tache=${late[0].id}` : '/taches?statut=retard',
         at: now,
@@ -249,7 +249,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
           key: n.id,
           icon: '🔔',
           text: `${auteur} te rappelle « ${titre} »`,
-          sub: 'pour info · pas encore marquée « ✓ Vu »',
+          sub: 'pour info · pas encore marqué « ✓ Vu »',
           link: `/taches?tache=${n.taskId}`,
           at: n.at,
           kind: 'activite',
@@ -282,7 +282,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
         : n.type === 'propose' ? `${by} te propose « ${t.titre} » : tu t’en charges ?`
         : n.type === 'pris' ? `${by} se charge de « ${t.titre} »`
         : n.type === 'refus' ? `${by} n’est pas dispo pour « ${t.titre} »`
-        : n.type === 'recur' ? `Tâche récurrente reconduite : « ${t.titre} »`
+        : n.type === 'recur' ? `Point récurrent reconduit : « ${t.titre} »`
         : `${by} a modifié « ${t.titre} »`,
       sub:
         n.type === 'recur' ? (n.detail ? `nouveau délai : ${n.detail}` : 'sans délai')
@@ -331,7 +331,7 @@ export function resumeSemaine(data: AppData, user: Person, mine: Task[]): Omit<N
   if (!taches.length && !seances.length && !evenements.length && !sondages.length) return null;
   const quandEv = (e: { date: string }) => (e.date < auj ? 'en cours' : nomJour(e.date));
   const parts = [
-    taches.length && `${nombre(taches.length, 'tâche')} à faire${retard ? ` (${retard} en retard)` : ''}`,
+    taches.length && `${nombre(taches.length, 'point')} à faire${retard ? ` (${retard} en retard)` : ''}`,
     seances.length === 1 ? `${seances[0].titre} ${nomJour(seances[0].date)}` : seances.length && nombre(seances.length, 'séance'),
     evenements.length === 1 ? `${evenements[0].nom} ${quandEv(evenements[0])}` : evenements.length && nombre(evenements.length, 'événement'),
     sondages.length && `${nombre(sondages.length, 'sondage')} à répondre`,
@@ -357,7 +357,7 @@ export function resumeSemaine(data: AppData, user: Person, mine: Task[]): Omit<N
 /** Tâche à prendre déclinée : où en est-elle ? */
 function etatRefus(t: Task) {
   if (!aPrendreOuverte(t)) return 'quelqu’un s’en charge';
-  if (plusPersonne(t)) return 'plus personne n’a à répondre : propose-la à d’autres';
+  if (plusPersonne(t)) return 'plus personne n’a à répondre : propose-le à d’autres';
   const n = sansReponse(t).length;
   return `${n} personne${n > 1 ? 's n’ont' : ' n’a'} pas encore répondu`;
 }

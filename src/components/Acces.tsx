@@ -53,7 +53,7 @@ export function CompteDuClub({ clubId, membre }: { clubId: string; membre: ClubM
     }
   };
   const nom = nomMembre(membre);
-  const effet = etat.places ? 'sa fiche lui ouvre l’appli du club' : 'sans fiche dans l’appli, elle y voit les tâches qui lui sont confiées';
+  const effet = etat.places ? 'sa fiche lui ouvre l’appli du club' : 'sans fiche dans l’appli, elle y voit les points qui lui sont confiés';
   return (
     <section className="compte-club">
       <span className="field-label">Accès à l’appli</span>

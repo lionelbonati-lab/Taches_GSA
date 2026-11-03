@@ -136,7 +136,7 @@ export function DemoApp() {
       // Relance (version réelle : gsa_pour_info_relancer, 052) : la couche de données prévient les personnes (`ici`).
       async relancerPourInfo(tacheId, t) {
         if (!moi) throw new Error('Connecte-toi d’abord.');
-        if (t.paiement || !t.pourInfo) throw new Error('Tâche introuvable');
+        if (t.paiement || !t.pourInfo) throw new Error('Point introuvable');
         if (Date.now() - (relancesDemo.get(tacheId) ?? 0) < 3600e3) throw new Error('Déjà relancée il y a moins d’une heure');
         const d = loadEspace();
         const ici = attendusDe(t, (f) => d.people.some((p) => p.id === f && p.actif && !!p.email)).filter((k) => !t.pourInfoVus?.[k]).map((k) => k.slice(2));

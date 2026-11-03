@@ -68,11 +68,11 @@ var vuAvantModif = (v, t) => !!v && !!t.contenuLe && t.contenuLe > dernierVu(v);
 
 // src/data/permissions.ts
 var PERMISSIONS = [
-  { id: "tasks.viewAll", label: "Voir toutes les tâches", group: "Tâches", sectionScoped: true },
-  { id: "tasks.createAny", label: "Créer / assigner des tâches à d’autres", group: "Tâches", sectionScoped: true },
-  { id: "tasks.editAny", label: "Modifier toutes les tâches", group: "Tâches", sectionScoped: true },
-  { id: "tasks.editOwn", label: "Créer et modifier ses propres tâches", group: "Tâches", sectionScoped: true },
-  { id: "tasks.delete", label: "Supprimer des tâches", group: "Tâches", sectionScoped: true },
+  { id: "tasks.viewAll", label: "Voir tous les points", group: "Points", sectionScoped: true },
+  { id: "tasks.createAny", label: "Créer / assigner des points à d’autres", group: "Points", sectionScoped: true },
+  { id: "tasks.editAny", label: "Modifier tous les points", group: "Points", sectionScoped: true },
+  { id: "tasks.editOwn", label: "Créer et modifier ses propres points", group: "Points", sectionScoped: true },
+  { id: "tasks.delete", label: "Supprimer des points", group: "Points", sectionScoped: true },
   { id: "tab.meetings", label: "Comité › Séances (liste des séances, excuses)", group: "Pages visibles" },
   { id: "tab.events", label: "Agenda › Événements", group: "Pages visibles" },
   { id: "tab.people", label: "Coordonnées (email, téléphone) des personnes du club", group: "Pages visibles" },
@@ -138,6 +138,7 @@ function appLink(taskId) {
 function fillTemplate(data, task, e, text) {
   const person = (id) => data.people.find((p) => p.id === id);
   const values = {
+    "{point}": task.titre,
     "{tâche}": task.titre,
     "{délai}": task.delai ? fmtDate(task.delai) : "sans délai",
     "{section}": [data.sections.find((s) => s.id === task.sectionId)?.nom, task.sousSection].filter(Boolean).join(" › "),
@@ -262,7 +263,7 @@ function computeNotifications(data, user, p, demandesMdp = []) {
       items.push({
         key: `retard:${today()}:${late.length}`,
         icon: "⚠️",
-        text: late.length === 1 ? `« ${late[0].titre} » est en retard` : `${late.length} de tes tâches sont en retard`,
+        text: late.length === 1 ? `« ${late[0].titre} » est en retard` : `${late.length} de tes points sont en retard`,
         sub: late.length === 1 ? `délai : ${fmtDate(late[0].delai)}` : late.slice(0, 3).map((t) => t.titre).join(" · ") + (late.length > 3 ? "…" : ""),
         link: late.length === 1 ? `/taches?tache=${late[0].id}` : "/taches?statut=retard",
         at: now,
@@ -410,7 +411,7 @@ function computeNotifications(data, user, p, demandesMdp = []) {
           key: n.id,
           icon: "🔔",
           text: `${auteur} te rappelle « ${titre} »`,
-          sub: "pour info · pas encore marquée « ✓ Vu »",
+          sub: "pour info · pas encore marqué « ✓ Vu »",
           link: `/taches?tache=${n.taskId}`,
           at: n.at,
           kind: "activite"
@@ -435,7 +436,7 @@ function computeNotifications(data, user, p, demandesMdp = []) {
     items.push({
       key: n.id,
       icon: n.type === "assign" ? "🆕" : n.type === "recur" ? "🔁" : n.type === "info" ? "👁" : n.type === "propose" || n.type === "pris" ? "🙋" : n.type === "refus" ? "🙅" : n.type === "toutVu" ? "✅" : "✏️",
-      text: n.type === "assign" ? `${by} t’a attribué « ${t.titre} »` : n.type === "toutVu" ? `Tout le monde a vu « ${t.titre} »` : n.type === "info" ? `${by} te met au courant : « ${t.titre} »` : n.type === "propose" ? `${by} te propose « ${t.titre} » : tu t’en charges ?` : n.type === "pris" ? `${by} se charge de « ${t.titre} »` : n.type === "refus" ? `${by} n’est pas dispo pour « ${t.titre} »` : n.type === "recur" ? `Tâche récurrente reconduite : « ${t.titre} »` : `${by} a modifié « ${t.titre} »`,
+      text: n.type === "assign" ? `${by} t’a attribué « ${t.titre} »` : n.type === "toutVu" ? `Tout le monde a vu « ${t.titre} »` : n.type === "info" ? `${by} te met au courant : « ${t.titre} »` : n.type === "propose" ? `${by} te propose « ${t.titre} » : tu t’en charges ?` : n.type === "pris" ? `${by} se charge de « ${t.titre} »` : n.type === "refus" ? `${by} n’est pas dispo pour « ${t.titre} »` : n.type === "recur" ? `Point récurrent reconduit : « ${t.titre} »` : `${by} a modifié « ${t.titre} »`,
       sub: n.type === "recur" ? n.detail ? `nouveau délai : ${n.detail}` : "sans délai" : n.type === "modif" ? n.detail : n.type === "refus" ? etatRefus(t) : n.type === "toutVu" ? `pour info · dernier « ✓ Vu » : ${by}` : t.delai ? `délai : ${fmtDate(t.delai)}` : void 0,
       link: `/taches?tache=${t.id}`,
       at: n.at,
@@ -464,7 +465,7 @@ function resumeSemaine(data, user, mine) {
   if (!taches.length && !seances.length && !evenements.length && !sondages.length) return null;
   const quandEv = (e) => e.date < auj ? "en cours" : nomJour(e.date);
   const parts2 = [
-    taches.length && `${nombre(taches.length, "tâche")} à faire${retard ? ` (${retard} en retard)` : ""}`,
+    taches.length && `${nombre(taches.length, "point")} à faire${retard ? ` (${retard} en retard)` : ""}`,
     seances.length === 1 ? `${seances[0].titre} ${nomJour(seances[0].date)}` : seances.length && nombre(seances.length, "séance"),
     evenements.length === 1 ? `${evenements[0].nom} ${quandEv(evenements[0])}` : evenements.length && nombre(evenements.length, "événement"),
     sondages.length && `${nombre(sondages.length, "sondage")} à répondre`
@@ -485,7 +486,7 @@ function resumeSemaine(data, user, mine) {
 }
 function etatRefus(t) {
   if (!aPrendreOuverte(t)) return "quelqu’un s’en charge";
-  if (plusPersonne(t)) return "plus personne n’a à répondre : propose-la à d’autres";
+  if (plusPersonne(t)) return "plus personne n’a à répondre : propose-le à d’autres";
   const n = sansReponse(t).length;
   return `${n} personne${n > 1 ? "s n’ont" : " n’a"} pas encore répondu`;
 }

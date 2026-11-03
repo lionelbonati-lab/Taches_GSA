@@ -8,7 +8,7 @@ import { echeance, isOpen } from './polls';
 export type GenreResultat = 'tache' | 'seance' | 'archive' | 'sondage' | 'evenement' | 'personne' | 'etiquette';
 
 export const GENRES_RESULTAT: Record<GenreResultat, string> = {
-  tache: 'Tâches',
+  tache: 'Points',
   seance: 'Séances',
   archive: 'PV et ordres du jour',
   sondage: 'Sondages',
@@ -125,7 +125,7 @@ export function rechercher(q: string, c: Contexte): Resultat[] {
         genre: 'tache',
         id: t.id,
         titre: t.titre,
-        detail: [fait ? `✓ ${statut ?? 'terminée'}` : statut, t.delai && `délai : ${fmtDate(t.delai)}`, t.responsables.map(nom).join(', ')].filter(Boolean).join(' · '),
+        detail: [fait ? `✓ ${statut ?? 'terminé'}` : statut, t.delai && `délai : ${fmtDate(t.delai)}`, t.responsables.map(nom).join(', ')].filter(Boolean).join(' · '),
         lien: `/taches?tache=${t.id}`,
         // Tâches en cours avant les terminées.
         date: `${fait ? 0 : 1}${t.updatedAt ?? ''}`,

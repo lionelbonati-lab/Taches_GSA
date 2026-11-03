@@ -142,7 +142,7 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
     <Modal title={titre} icone="message" onClose={onClose} className="chat" actions={actions}>
       <section className="discussion" aria-label="Discussion">
         <div ref={fil} className="discussion-fil">
-          {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par la tâche sont prévenues 🔔.</p>}
+          {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par le point sont prévenues 🔔.</p>}
           <ul className="discussion-liste">
             {liste.map((c, i) => {
               // De personne à personne : les miens à droite ; les autres avec le nom de leur auteur.

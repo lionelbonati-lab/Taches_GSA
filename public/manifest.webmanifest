@@ -2,7 +2,7 @@
   "id": "./",
   "name": "Tâches GSA – Comité",
   "short_name": "Tâches GSA",
-  "description": "Gestion des tâches du comité du club (démo).",
+  "description": "Suivi des points du comité du club (démo).",
   "lang": "fr",
   "start_url": "./",
   "scope": "./",
@@ -20,8 +20,8 @@
   ],
   "shortcuts": [
     {
-      "name": "Ajout rapide d'une tâche",
-      "short_name": "Nouvelle tâche",
+      "name": "Ajout rapide d'un point",
+      "short_name": "Nouveau point",
       "url": "./#/?ajout=1",
       "icons": [
         { "src": "raccourci-tache.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
@@ -47,8 +47,8 @@
       ]
     },
     {
-      "name": "Mes tâches",
-      "short_name": "Mes tâches",
+      "name": "Mes points",
+      "short_name": "Mes points",
       "url": "./#/taches",
       "icons": [
         { "src": "raccourci-mes-taches.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },

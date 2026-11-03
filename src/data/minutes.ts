@@ -29,8 +29,8 @@ export function diffTask(data: AppData, before: TaskSnapshot, after: Task): stri
   if (before.titre !== after.titre) out.push('intitulé modifié');
   if (before.sous)
     for (const c of after.checklist) {
-      if (!(c.id in before.sous)) out.push(`sous-tâche ajoutée : ${c.label}`);
-      else if (before.sous[c.id] !== c.done) out.push(`sous-tâche « ${c.label} » ${c.done ? 'faite' : 'rouverte'}`);
+      if (!(c.id in before.sous)) out.push(`sous-point ajouté : ${c.label}`);
+      else if (before.sous[c.id] !== c.done) out.push(`sous-point « ${c.label} » ${c.done ? 'fait' : 'rouvert'}`);
     }
   return out;
 }

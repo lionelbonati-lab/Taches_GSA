@@ -42,7 +42,7 @@ export function EtiquettesModal({ onClose }: { onClose: () => void }) {
   const retirer = (e: Etiquette) => {
     const n = data.tasks.filter((t) => t.etiquettes?.includes(e.id)).length;
     const c = calees(e);
-    if (!confirm(`Retirer l’étiquette « ${e.nom} » ?${n ? ` Elle est retirée de ${n} tâche(s) ; les tâches restent.` : ''}${c ? ` ${c} délai(s) calé(s) sur sa date gardent leur date actuelle.` : ''}`)) return;
+    if (!confirm(`Retirer l’étiquette « ${e.nom} » ?${n ? ` Elle est retirée de ${n} point(s) ; les points restent.` : ''}${c ? ` ${c} délai(s) calé(s) sur sa date gardent leur date actuelle.` : ''}`)) return;
     update((d) => {
       d.etiquettes = (d.etiquettes ?? []).filter((x) => x.id !== e.id);
       d.tasks.forEach((t) => {
@@ -56,8 +56,8 @@ export function EtiquettesModal({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Étiquettes" icone="etiquette" onClose={onClose} wide>
       <p className="muted" style={{ marginTop: 0 }}>
-        Une étiquette se met sur les tâches : un <b>événement</b> (avec sa date, dans l’agenda et à l’accueil) ou un <b>groupe</b>. Ses <b>membres</b>
-        voient ces tâches. Qui peut les modifier : les rôles du club (fiche de la personne), comme pour toutes les tâches.
+        Une étiquette se met sur les points : un <b>événement</b> (avec sa date, dans l’agenda et à l’accueil) ou un <b>groupe</b>. Ses <b>membres</b>
+        voient ces points. Qui peut les modifier : les rôles du club (fiche de la personne), comme pour tous les points.
       </p>
       {!liste.length && <p className="muted">Aucune étiquette pour l’instant.</p>}
       {liste.map((e) => {
@@ -92,12 +92,12 @@ export function EtiquettesModal({ onClose }: { onClose: () => void }) {
                   </label>
                 )}
                 {!e.date && <small className="muted">Sans date : pas dans l’agenda.</small>}
-                {e.date && calees(e) > 0 && <small className="muted">{calees(e)} tâche{calees(e) > 1 ? 's' : ''} calée{calees(e) > 1 ? 's' : ''} sur sa date : leur délai suit.</small>}
+                {e.date && calees(e) > 0 && <small className="muted">{calees(e)} point{calees(e) > 1 ? 's' : ''} calé{calees(e) > 1 ? 's' : ''} sur sa date : leur délai suit.</small>}
               </div>
             )}
             {ouverte === e.id && (
               <fieldset className="etiquette-personnes">
-                <legend>Membres ({membres.length}) : ils voient les tâches de l’étiquette</legend>
+                <legend>Membres ({membres.length}) : ils voient les points de l’étiquette</legend>
                 <div className="chips">
                   {personnes.map((p) => {
                     const on = membres.includes(p.id);

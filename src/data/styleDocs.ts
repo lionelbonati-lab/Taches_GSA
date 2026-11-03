@@ -40,7 +40,7 @@ export const ELEMENTS: { id: ElementDoc; label: string; gras: boolean; italique:
   { id: 'niveau3', label: 'Points (■)', gras: false, italique: false, majuscules: false, couleur: '#111111' },
   { id: 'niveau4', label: 'Détails (◦ checklist, documents)', gras: false, italique: false, majuscules: false, couleur: '#475569' },
   { id: 'meta', label: 'Responsables, délais, échéances', gras: false, italique: false, majuscules: false, couleur: '#64748b' },
-  { id: 'remarque', label: 'Remarques des tâches', gras: false, italique: true, majuscules: false, couleur: '#334155' },
+  { id: 'remarque', label: 'Remarques des points', gras: false, italique: true, majuscules: false, couleur: '#334155' },
   { id: 'note', label: 'Notes et décisions (PV)', gras: false, italique: false, majuscules: false, couleur: '#111111' },
   { id: 'prochaine', label: 'Prochaine séance', gras: false, italique: false, majuscules: false, couleur: '#111111', fond: '#eff6ff' },
   { id: 'pied', label: 'Pied de page', gras: false, italique: false, majuscules: false, couleur: '#64748b' },

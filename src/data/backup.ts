@@ -111,7 +111,7 @@ export function resumeClub(s: SauvegardeClub) {
   const n = (f: (e: EntiteSauvegardee) => number) => s.entites.reduce((t, e) => t + f(e), 0);
   return [
     ...(s.entites.length > 1 ? [`${s.entites.length} espaces`] : []),
-    `${n((e) => e.data.tasks.length)} tâches`,
+    `${n((e) => e.data.tasks.length)} points`,
     `${n((e) => e.data.meetings.length)} séances`,
     `${s.personnes.length} personnes du club`,
     `${n((e) => Object.keys(e.files).length)} fichier(s) joint(s)`,
@@ -171,7 +171,7 @@ export async function restoreFiles(files: Backup['files']) {
 export function backupSummary(b: Backup) {
   const d = b.data;
   const parts = [
-    `${d.tasks.length} tâches`,
+    `${d.tasks.length} points`,
     `${d.people.length} personnes`,
     `${d.meetings.length} séances`,
     `${d.events.length} événements`,

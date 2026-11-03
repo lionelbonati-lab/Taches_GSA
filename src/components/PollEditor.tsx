@@ -158,7 +158,7 @@ export function PollEditor({ poll, nouveau, taskId, onClose }: { poll?: Poll; no
         </fieldset>
 
         {taskId || task ? (
-          <p className="muted full" style={{ margin: 0 }}>🧩 Rattaché à la tâche « {task?.titre} »</p>
+          <p className="muted full" style={{ margin: 0 }}>🧩 Rattaché au point « {task?.titre} »</p>
         ) : (
           <label>
             Section de l’ordre du jour

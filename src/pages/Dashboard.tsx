@@ -92,7 +92,7 @@ export function Dashboard() {
     // On oublie les marques des tâches qui ne sont plus « pour info » (terminées, supprimées) depuis deux mois.
     const garde = Object.fromEntries(Object.entries(vus).filter(([k, d]) => clesInfo.has(k) || daysUntil(d) > -60));
     setPrefs({ pourInfoVus: { ...garde, [t.id]: today() } });
-    setToast(`« ${t.titre} » ne s’affiche plus sur l’accueil (toujours dans les tâches) ; son auteur voit que tu l’as vue.`);
+    setToast(`« ${t.titre} » ne s’affiche plus sur l’accueil (toujours dans les points) ; son auteur voit que tu l’as vu.`);
     vuPourInfo(t.id).catch((e) => setToast(`⚠️ ${e instanceof Error ? e.message : e}`));
   };
   const reafficher = () => {
@@ -112,7 +112,7 @@ export function Dashboard() {
           <div className="stats">
             {/* Chaque case ouvre la liste de mes tâches filtrée sur ce statut. */}
             {compteurs.map((c) => (
-              <Link key={c.id} to={`/taches?statut=${c.id}`} className="stat" style={{ borderTopColor: c.couleur }} title={`Voir mes tâches ${c.id === 'retard' ? 'en retard' : `« ${c.label} »`}`}>
+              <Link key={c.id} to={`/taches?statut=${c.id}`} className="stat" style={{ borderTopColor: c.couleur }} title={`Voir mes points ${c.id === 'retard' ? 'en retard' : `« ${c.label} »`}`}>
                 <b>{c.id === 'retard' ? late.length : actives.filter((t) => t.statusId === c.id).length}</b>
                 <span>{c.label}</span>
               </Link>
@@ -122,7 +122,7 @@ export function Dashboard() {
       case 'retard':
         return (
           <>
-            <h2><Icone n="alerte" /> Mes tâches en retard</h2>
+            <h2><Icone n="alerte" /> Mes points en retard</h2>
             {late.length ? <div className="cards">{late.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>Rien en retard, bravo !</Empty>}
           </>
         );
@@ -135,7 +135,7 @@ export function Dashboard() {
                 {JOURS_A_FAIRE.includes(jours) ? null : <option value={jours}>{jours}</option>}
                 {JOURS_A_FAIRE.map((n) => <option key={n} value={n}>{n}</option>)}
               </select>{' '}
-              jours{toutes && <small className="muted"> · toutes les tâches</small>}
+              jours{toutes && <small className="muted"> · tous les points</small>}
             </h2>
             {soon.length ? <div className="cards">{soon.map((t) => <TaskCard key={t.id} t={t} onOpen={() => setEdit(t)} onStatus={onStatus} />)}</div> : <Empty>{jours <= 7 ? 'Aucune échéance cette semaine.' : `Aucune échéance dans les ${jours} jours.`}</Empty>}
           </>
@@ -153,18 +153,18 @@ export function Dashboard() {
             <h2>
               <Icone n="voir" /> Pour info <small className="muted">· pour que tu sois au courant</small>
               {masquees > 0 && (
-                <button type="button" className="link-btn h2-action" onClick={reafficher} title="Réafficher les tâches marquées « ✓ Vu »">
+                <button type="button" className="link-btn h2-action" onClick={reafficher} title="Réafficher les points marqués « ✓ Vu »">
                   Réafficher ({masquees})
                 </button>
               )}
             </h2>
             {enAttente.length > 0 && (
               <p className="pour-info-attente">
-                <Link to="/taches?delai=pourinfo" title="Tes tâches « Pour info » en cours, et qui ne les a pas encore vues">
+                <Link to="/taches?delai=pourinfo" title="Tes points « Pour info » en cours, et qui ne les a pas encore vus">
                   <Icone n="voir" />{' '}
                   {enAttente.length === 1
-                    ? `Ta tâche « ${enAttente[0].titre} » n’est pas encore vue par tout le monde`
-                    : `${enAttente.length} de tes tâches « Pour info » ne sont pas encore vues par tout le monde`}
+                    ? `Ton point « ${enAttente[0].titre} » n’est pas encore vu par tout le monde`
+                    : `${enAttente.length} de tes points « Pour info » ne sont pas encore vus par tout le monde`}
                 </Link>
               </p>
             )}
@@ -249,7 +249,7 @@ export function Dashboard() {
                 <Link key={et ? `et:${et.id}` : e!.id} to={lien} className="panel link-panel">
                   <strong>
                     {et ? et.nom : e!.nom}
-                    {et && <> <span className="badge etiquette" style={{ background: et.couleur }} title="Étiquette « événement » : ses tâches">🏷</span></>}
+                    {et && <> <span className="badge etiquette" style={{ background: et.couleur }} title="Étiquette « événement » : ses points">🏷</span></>}
                   </strong>
                   <span>
                     {[fmtRange(x.date, x.dateFin), e && horaire(e), e?.lieu].filter(Boolean).join(' · ')}
@@ -316,7 +316,7 @@ export function Progress({ done, total }: { done: number; total: number }) {
   return (
     <div className="progress-wrap">
       <div className="progress"><div style={{ width: `${pct}%` }} /></div>
-      <small className="muted">{done}/{total} tâches terminées</small>
+      <small className="muted">{done}/{total} points terminés</small>
     </div>
   );
 }

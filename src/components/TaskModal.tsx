@@ -114,9 +114,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const libres = (ids: string[]) => ids.filter((id) => !data.tasks.some((x) => x.id !== task.id && x.documents?.some((d) => d.id === id)));
 
   const submit = () => {
-    if (!t.titre.trim()) return setErr('Le titre de la tâche est obligatoire.');
+    if (!t.titre.trim()) return setErr('Le titre du point est obligatoire.');
     if (!t.sectionId) return setErr('Choisis une section.');
-    if (isNew && !can('tasks.createAny', t.sectionId) && !can('tasks.editOwn', t.sectionId)) return setErr('Ton rôle ne permet pas de créer une tâche dans cette section.');
+    if (isNew && !can('tasks.createAny', t.sectionId) && !can('tasks.editOwn', t.sectionId)) return setErr('Ton rôle ne permet pas de créer un point dans cette section.');
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
       return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
     const fin = finAnticipee(data, isNew ? undefined : task, t);
@@ -138,7 +138,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       setBusy(false);
       return setErr((e as Error).message);
     }
-    setToast(prend ? '✅ Tu t’en charges : la tâche est dans « Mes tâches ».' : '🙅 C’est noté : la personne qui te l’a proposée est prévenue. Tu peux encore t’en charger depuis « Mes tâches ».');
+    setToast(prend ? '✅ Tu t’en charges : le point est dans « Mes points ».' : '🙅 C’est noté : la personne qui te l’a proposé est prévenue. Tu peux encore t’en charger depuis « Mes points ».');
     deleteFiles(track.current.added);
     onClose();
   };
@@ -190,7 +190,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   };
 
   const remove = () => {
-    if (!confirm(`Supprimer la tâche « ${task.titre} » ?`)) return;
+    if (!confirm(`Supprimer le point « ${task.titre} » ?`)) return;
     update((d) => {
       d.tasks = d.tasks.filter((x) => x.id !== task.id);
       // Ses tâches liées restent, sans tâche principale.
@@ -203,7 +203,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
           p.sectionId = p.sectionId ?? task.sectionId;
         }
       });
-    }, `Suppression de la tâche « ${task.titre} »`);
+    }, `Suppression du point « ${task.titre} »`);
     deleteFiles([...libres((task.documents ?? []).filter((d) => d.kind === 'fichier').map((d) => d.id)), ...track.current.added]);
     onClose();
   };
@@ -226,12 +226,12 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const ajouts: { label: string; icone: IconeNom; aide: string; run: () => void; si: boolean }[] = [
     { label: 'Checklist', icone: 'checklist' as const, aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist') },
     { label: 'Document', icone: 'fichier' as const, aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs') },
-    { label: 'Répétition', icone: 'repetition' as const, aide: `La tâche revient chaque semaine, chaque mois, à chaque ${mot}…`, run: () => ouvrir('repetition'), si: !voit('repetition') },
-    { label: 'Rattacher à…', icone: 'rattacher' as const, aide: 'Un événement, une séance de comité ou une autre tâche', run: () => ouvrir('liens'), si: !voit('liens') },
+    { label: 'Répétition', icone: 'repetition' as const, aide: `Le point revient chaque semaine, chaque mois, à chaque ${mot}…`, run: () => ouvrir('repetition'), si: !voit('repetition') },
+    { label: 'Rattacher à…', icone: 'rattacher' as const, aide: 'Un événement, une séance de comité ou un autre point', run: () => ouvrir('liens'), si: !voit('liens') },
     {
       label: 'À prendre',
       icone: 'main' as const,
-      aide: 'Proposer la tâche à quelques personnes : l’une d’elles s’en charge elle-même',
+      aide: 'Proposer le point à quelques personnes : l’une d’elles s’en charge elle-même',
       run: () => {
         ouvrir('prendre');
         // Nouvelle tâche : on n'en reste pas responsable par défaut (la personne qui se propose s'en chargera).
@@ -239,7 +239,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       },
       si: !voit('prendre') && !t.paiement && canAssignOthers,
     },
-    { label: 'Pour info', icone: 'voir' as const, aide: 'Des personnes qui la voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement },
+    { label: 'Pour info', icone: 'voir' as const, aide: 'Des personnes qui le voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement },
     { label: 'Sondage', icone: 'sondage' as const, aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create') },
     {
       label: 'Email',
@@ -269,7 +269,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const etiquettes = data.etiquettes ?? [];
   return (
     <Modal
-      title={isNew ? 'Nouvelle tâche' : editable ? 'Modifier la tâche' : 'Détail de la tâche'}
+      title={isNew ? 'Nouveau point' : editable ? 'Modifier le point' : 'Détail du point'}
       onClose={cancel}
       wide
       actions={
@@ -286,15 +286,15 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
             {nl > 0 && <span className="discussion-nb">{nl}</span>}
           </button>
           {peutDupliquer && (
-            <button type="button" className="icon-btn dupliquer" onClick={dupliquer} title="Dupliquer : créer une nouvelle tâche à partir de celle-ci" aria-label="Dupliquer la tâche">
+            <button type="button" className="icon-btn dupliquer" onClick={dupliquer} title="Dupliquer : créer un nouveau point à partir de celui-ci" aria-label="Dupliquer le point">
               <Icone n="dupliquer" />
             </button>
           )}
           <EnvoyerLien
-            titre={`Tâche « ${task.titre} »`}
+            titre={`Point « ${task.titre} »`}
             texte={texteTache(task, data.people, isDone(data, task))}
             lien={lienAppli(`/taches?tache=${encodeURIComponent(task.id)}`)}
-            acces="Le lien ne donne aucun accès : il faut un compte de l’appli et voir cette tâche."
+            acces="Le lien ne donne aucun accès : il faut un compte de l’appli et voir ce point."
           />
           </>
         )
@@ -303,13 +303,13 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       <div className="form">
         {parent && (
           <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>
-            ↳ Tâche rattachée à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
+            ↳ Point rattaché à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
           </button>
         )}
         {pourMoiAPrendre && (
           <div className="full a-prendre-banner">
             <span>
-              🙋 {auteur ? <b>{fullName(auteur)}</b> : 'On'} te propose cette tâche
+              🙋 {auteur ? <b>{fullName(auteur)}</b> : 'On'} te propose ce point
               {nPrendre > 1 ? ` (il faut ${nPrendre} personnes${nPris ? `, déjà : ${quiPrend}` : ''})` : ''}
               {jeDecline ? '. Tu as répondu « Pas dispo ».' : ' : tu t’en charges ?'}
             </span>
@@ -322,22 +322,22 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         {infoPourMoi && (
           <div className="full pour-info-banner">
             {monVu ? (
-              <span>✏️ Elle a changé depuis ton « ✓ Vu » (modifiée le {fmtDateTime(task.contenuLe!)}) : tu as vu la nouvelle version ?</span>
+              <span>✏️ Il a changé depuis ton « ✓ Vu » (modifié le {fmtDateTime(task.contenuLe!)}) : tu as vu la nouvelle version ?</span>
             ) : (
-              <span>👁 Pour info{auteurInfo ? <> de <b>{fullName(auteurInfo)}</b></> : ''} : tu es au courant de cette tâche, sans t’en occuper. Tu l’as vue ?</span>
+              <span>👁 Pour info{auteurInfo ? <> de <b>{fullName(auteurInfo)}</b></> : ''} : tu es au courant de ce point, sans t’en occuper. Tu l’as vu ?</span>
             )}
-            <button type="button" className="btn" disabled={busy} onClick={marquerVu} title="Je suis au courant : son auteur le voit, et elle quitte mon accueil">
+            <button type="button" className="btn" disabled={busy} onClick={marquerVu} title="Je suis au courant : son auteur le voit, et il quitte mon accueil">
               <Icone n="ok" /> Vu
             </button>
           </div>
         )}
         <label className="full">
-          Tâche
-          <input autoFocus={isNew} value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ?" />
+          Point
+          <input autoFocus={isNew} value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ou savoir ?" />
         </label>
         {etiquettes.length > 0 && (
           <div className="full etiquettes-choix">
-            <span className="field-label"><Icone n="etiquette" /> Étiquettes <small className="muted">(leurs membres voient la tâche)</small></span>
+            <span className="field-label"><Icone n="etiquette" /> Étiquettes <small className="muted">(leurs membres voient le point)</small></span>
             <div className="chips">
               {etiquettes.map((e) => {
                 const on = !!t.etiquettes?.includes(e.id);
@@ -396,7 +396,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
               );
             })}
             {(t.respHors ?? []).map((p) => (
-              <span key={p.id} className="chip on" title="Pas de fiche dans l’appli : sans accès, elle ne voit pas la tâche">
+              <span key={p.id} className="chip on" title="Pas de fiche dans l’appli : sans accès, elle ne voit pas le point">
                 <Icone n="compte" /> {p.prenom} {p.nom}
                 {!dis && canAssignOthers && <button type="button" className="chip-x" aria-label={`Retirer ${p.prenom} ${p.nom}`} onClick={() => retirerExterne(p.id)}>✕</button>}
               </span>
@@ -419,7 +419,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
               />
             )}
           </div>
-          {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des tâches qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
+          {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des points qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </div>
         {!t.paiement && voit('prendre') && <APrendreChamp t={t} setT={setT} dis={dis} canAssignOthers={canAssignOthers} />}
         {(!dis || !!t.remarque) && (
@@ -459,14 +459,14 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         )}
         {!isNew && (
           <small className="muted full">
-            Dernière modification : {fmtDateTime(task.updatedAt)} · créée par {fullName(data.people.find((p) => p.id === task.createdBy)) || '?'}
+            Dernière modification : {fmtDateTime(task.updatedAt)} · créé par {fullName(data.people.find((p) => p.id === task.createdBy)) || '?'}
           </small>
         )}
         {!isNew && <Historique className="full" tacheId={task.id} version={(data.tasks.find((x) => x.id === task.id) ?? task).updatedAt} />}
       </div>
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
-        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove} title="Supprimer la tâche" aria-label="Supprimer la tâche"><Icone n="supprimer" /></button>}
+        {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove} title="Supprimer le point" aria-label="Supprimer le point"><Icone n="supprimer" /></button>}
         <span className="grow" />
         <button className="btn" onClick={cancel}>{editable ? 'Annuler' : 'Fermer'}</button>
         {editable && <button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}

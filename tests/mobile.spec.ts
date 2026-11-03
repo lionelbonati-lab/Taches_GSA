@@ -29,7 +29,7 @@ test('fiche de tâche créée sur téléphone', async ({ page }) => {
 test('barre du bas : onglets choisis et rangés', async ({ page }) => {
   await page.goto('./?demo#/');
   const barre = page.locator('.bottomnav');
-  await expect(barre.locator('a')).toHaveText(['Accueil', 'Tâches', 'Messages', 'Agenda', 'Comité']);
+  await expect(barre.locator('a')).toHaveText(['Accueil', 'Points', 'Messages', 'Agenda', 'Comité']);
   await barre.getByRole('button', { name: 'Plus' }).click();
   await page.getByRole('button', { name: 'Modifier la barre du bas' }).click();
   const fenetre = page.getByRole('dialog', { name: 'Barre du bas' });
@@ -39,7 +39,7 @@ test('barre du bas : onglets choisis et rangés', async ({ page }) => {
   await fenetre.getByRole('checkbox', { name: 'Sondages' }).check();
   await fenetre.getByRole('button', { name: 'Monter « Sondages »' }).click();
   await fenetre.getByRole('button', { name: 'Fermer' }).last().click();
-  await expect(barre.locator('a')).toHaveText(['Accueil', 'Tâches', 'Messages', 'Sondages', 'Comité']);
+  await expect(barre.locator('a')).toHaveText(['Accueil', 'Points', 'Messages', 'Sondages', 'Comité']);
   // Agenda passe dans « Plus ».
   await barre.getByRole('button', { name: 'Plus' }).click();
   await expect(page.locator('.sheet').getByRole('link', { name: 'Calendrier' })).toBeVisible();

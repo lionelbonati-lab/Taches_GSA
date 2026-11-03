@@ -125,7 +125,7 @@ export function Layout() {
   const canCreate = creatableSections().length > 0;
   // Bouton flottant « + » : tâche (ajout rapide), remboursement, paiement de facture.
   const ajouts = [
-    ...(canCreate ? [{ label: 'Nouvelle tâche', icone: 'taches' as IconeNom, title: 'Ajout rapide d’une tâche', run: () => setQuick(true) }] : []),
+    ...(canCreate ? [{ label: 'Nouveau point', icone: 'taches' as IconeNom, title: 'Ajout rapide d’un point', run: () => setQuick(true) }] : []),
     ...(['remboursement', 'facture'] as const).map((g) => ({
       label: GENRES[g].nouveau,
       icone: g as IconeNom,
@@ -221,7 +221,7 @@ export function Layout() {
           <button
             className={`fab ${fab ? 'open' : ''}`}
             onClick={() => (ajouts.length === 1 ? ajouts[0].run() : setFab(!fab))}
-            aria-label={ajouts.length === 1 ? 'Ajout rapide de tâche' : 'Ajouter'}
+            aria-label={ajouts.length === 1 ? 'Ajout rapide de point' : 'Ajouter'}
             aria-expanded={ajouts.length > 1 ? fab : undefined}
           >
             +

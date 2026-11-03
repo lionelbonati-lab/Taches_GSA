@@ -57,7 +57,7 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, attendus, enregistree 
     const d = new Date(s);
     return `${d.toLocaleDateString('fr-CH', { day: '2-digit', month: '2-digit', year: 'numeric' })} à ${d.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' })}`;
   };
-  const quandVu = (v: VuPourInfo) => `Vu le ${date(v.le)}${v.revu ? `, revue le ${date(v.revu)}` : ''}`;
+  const quandVu = (v: VuPourInfo) => `Vu le ${date(v.le)}${v.revu ? `, revu le ${date(v.revu)}` : ''}`;
   const infoIci = data.people.filter((p) => p.actif && !t.responsables.includes(p.id) && !t.pourInfo?.personnes?.includes(p.id));
   // Tout un groupe d'un coup : toutes les personnes, celles d'un rôle (« Comité »…), les membres d'une étiquette.
   const infoRoles = data.roles.map((r) => ({ r, l: personnesDuRole(data.roles, infoIci, r) })).filter((g) => g.l.length > 1);
@@ -84,7 +84,7 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, attendus, enregistree 
           const gris = sansCompte(c);
           const revoir = !isNew && !!v && vuAvantModif(v, t);
           const titre = isNew ? undefined
-            : gris ? 'Sans compte (ou fiche inactive) : ne reçoit pas la tâche et ne compte pas dans « Vue par… »'
+            : gris ? 'Sans compte (ou fiche inactive) : ne reçoit pas le point et ne compte pas dans « Vu par… »'
             : v ? `${quandVu(v)}${revoir ? ` ; avant la dernière modification (${date(t.contenuLe!)})` : ''}`
             : 'Pas encore « ✓ Vu »';
           return (
@@ -126,15 +126,15 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, attendus, enregistree 
             {!comptees.length
               ? 'Personne ne la reçoit : les personnes mentionnées n’ont pas de compte.'
               : toutVu
-                ? '✓ Vue par tout le monde.'
+                ? '✓ Vu par tout le monde.'
                 : nbVus === 0
                   ? 'Personne ne l’a encore marquée « ✓ Vu ».'
-                  : `✓ Vue par ${nbVus} personne${nbVus > 1 ? 's' : ''} sur ${comptees.length}.`}
-            {nbAvantModif > 0 && ` ✏️ ${nbAvantModif} l’${nbAvantModif > 1 ? 'ont' : 'a'} vue avant sa dernière modification.`}
+                  : `✓ Vu par ${nbVus} personne${nbVus > 1 ? 's' : ''} sur ${comptees.length}.`}
+            {nbAvantModif > 0 && ` ✏️ ${nbAvantModif} l’${nbAvantModif > 1 ? 'ont' : 'a'} vu avant sa dernière modification.`}
             {nbSansCompte > 0 && comptees.length > 0 && ` ${nbSansCompte} sans compte, pas comptée${nbSansCompte > 1 ? 's' : ''}.`}
           </small>
           {aRelancer && (
-            <button type="button" className="btn small" disabled={relance === '…'} onClick={relancer} title="Renvoyer une notification 🔔 aux personnes qui ne l’ont pas encore vue (une fois par heure)">
+            <button type="button" className="btn small" disabled={relance === '…'} onClick={relancer} title="Renvoyer une notification 🔔 aux personnes qui ne l’ont pas encore vu (une fois par heure)">
               🔔 Relancer
             </button>
           )}
@@ -142,9 +142,9 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, attendus, enregistree 
         </div>
       )}
       <small className="muted">
-        Elles voient la tâche sans s’en occuper : dans « Mes tâches » (👁) et à l’accueil, avec une notification 🔔. Quand elles la marquent « ✓ Vu »,
-        leur pastille passe du rouge au vert (✓ et la date). ✏️ : vue avant sa dernière modification. En gris : sans compte, elle ne reçoit rien.
-        🔔 Relancer renvoie une notification à celles qui ne l’ont pas encore vue.
+        Elles voient le point sans s’en occuper : dans « Mes points » (👁) et à l’accueil, avec une notification 🔔. Quand elles le marquent « ✓ Vu »,
+        leur pastille passe du rouge au vert (✓ et la date). ✏️ : vu avant sa dernière modification. En gris : sans compte, elle ne reçoit rien.
+        🔔 Relancer renvoie une notification à celles qui ne l’ont pas encore vu.
       </small>
     </div>
   );

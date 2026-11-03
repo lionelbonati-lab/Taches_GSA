@@ -78,14 +78,14 @@ export function APrendreChamp({ t, setT, dis, canAssignOthers }: { t: Task; setT
       )}
       <small className="muted">
         {!candidats.length
-          ? 'Choisis à qui la proposer : '
+          ? 'Choisis à qui le proposer : '
           : aPrendreOuverte(t)
             ? `${nPris ? `${quiPrend} s’en charge${nPris > 1 ? 'nt' : ''} ; encore ${nPrendre - nPris} place${nPrendre - nPris > 1 ? 's' : ''}. ` : 'Personne ne s’en charge encore. '}`
-            : `✓ ${quiPrend} s’en charge${nPris > 1 ? 'nt' : ''} : elle n’est plus proposée. `}
+            : `✓ ${quiPrend} s’en charge${nPris > 1 ? 'nt' : ''} : il n’est plus proposé. `}
         {refusIci.length > 0 && `🙅 Pas dispo : ${nomsDe(data, refusIci)}. `}
-        {candidats.length > 0 && aPrendreOuverte(t) && plusPersonne(t) && <b>Toutes les personnes proposées ont répondu : propose-la à d’autres. </b>}
+        {candidats.length > 0 && aPrendreOuverte(t) && plusPersonne(t) && <b>Toutes les personnes proposées ont répondu : propose-le à d’autres. </b>}
         {(!candidats.length || aPrendreOuverte(t)) &&
-          'Ces personnes la voient dans « Mes tâches » et à l’accueil, avec une notification 🔔 ; la première qui clique « 🙋 Je m’en charge » en devient responsable ; « 🙅 Pas dispo » prévient qui la propose.'}
+          'Ces personnes le voient dans « Mes points » et à l’accueil, avec une notification 🔔 ; la première qui clique « 🙋 Je m’en charge » en devient responsable ; « 🙅 Pas dispo » prévient qui le propose.'}
       </small>
     </div>
   );

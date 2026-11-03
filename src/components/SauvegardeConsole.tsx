@@ -71,7 +71,7 @@ export function SauvegardeConsole() {
         {club?.sauvegardeClub ? (
           <>
             <p className="muted">
-              Un seul fichier avec tout le club : tâches, séances, PV, sondages, emails, étiquettes, personnes, rôles, réglages et fichiers joints, et
+              Un seul fichier avec tout le club : points, séances, PV, sondages, emails, étiquettes, personnes, rôles, réglages et fichiers joints, et
               « Personnes du club » (sans IBAN){cloud ? ' ; aussi les anciennes entités, archivées telles qu’elles étaient avant leur reprise dans le club' : ''}.{' '}
               {cloud
                 ? 'Le serveur garde en plus une copie chaque nuit (30 jours).'

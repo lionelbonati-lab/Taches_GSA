@@ -36,7 +36,7 @@ const KINDS: { id: Kind; label: string }[] = [
   { id: 'meeting', label: 'Séances' },
   { id: 'event', label: 'Événements' },
   { id: 'etiquette', label: 'Étiquettes' },
-  { id: 'task', label: 'Tâches' },
+  { id: 'task', label: 'Points' },
   { id: 'poll', label: 'Sondages' },
 ];
 const WEEKDAYS = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'];
@@ -161,7 +161,7 @@ export function Calendar() {
   };
   const addChoices = [
     addMeeting && { kind: 'meeting' as const, label: 'Séance de comité' },
-    addTask && { kind: 'task' as const, label: 'Tâche' },
+    addTask && { kind: 'task' as const, label: 'Point' },
     addEvent && { kind: 'event' as const, label: 'Événement' },
   ].filter(Boolean) as { kind: 'meeting' | 'task' | 'event'; label: string }[];
 
@@ -188,7 +188,7 @@ export function Calendar() {
       // « Comité de mars 2027 » glissé en avril devient « Comité d’avril 2027 ».
       const titre = titreSelonDate(it.m.titre, date) ?? it.m.titre;
       saveMeeting({ ...it.m, date, titre });
-      setToast(`${titre} déplacé au ${when}${n ? ` · le délai de ${n} tâche(s) suit` : ''}`);
+      setToast(`${titre} déplacé au ${when}${n ? ` · le délai de ${n} point(s) suit` : ''}`);
     } else if (it.kind === 'event') {
       // Glisser un des jours déplace tout l'événement (qui se répète : on demande lesquels).
       const debut = addDays(it.o, diffDays(it.date, date));
@@ -230,10 +230,10 @@ export function Calendar() {
       }
       case 'task': {
         const p = parentOf(data, it.t);
-        return `Tâche : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · rattachée à « ${p.titre} »` : ''}`;
+        return `Point : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · rattaché à « ${p.titre} »` : ''}`;
       }
       case 'poll': return `Sondage : ${it.p.question} (date limite${it.p.heureLimite ? ` ${it.p.heureLimite.replace(':', 'h')}` : ''})`;
-      case 'etiquette': return `Étiquette « ${it.et.nom} » : ${fmtRange(it.et.date, it.et.dateFin)} · un clic ouvre ses tâches`;
+      case 'etiquette': return `Étiquette « ${it.et.nom} » : ${fmtRange(it.et.date, it.et.dateFin)} · un clic ouvre ses points`;
     }
   };
   const chipClass = (it: Item) => {
@@ -258,8 +258,8 @@ export function Calendar() {
         <div className="actions">
           {viewAll && (
             <div className="seg">
-              <button className={effScope === 'mes' ? 'on' : ''} onClick={() => setScope('mes')}>Mes tâches</button>
-              <button className={effScope === 'toutes' ? 'on' : ''} onClick={() => setScope('toutes')}>Toutes</button>
+              <button className={effScope === 'mes' ? 'on' : ''} onClick={() => setScope('mes')}>Mes points</button>
+              <button className={effScope === 'toutes' ? 'on' : ''} onClick={() => setScope('toutes')}>Tous</button>
             </div>
           )}
           {addChoices.map((c) => (
@@ -370,7 +370,7 @@ export function Calendar() {
                         {it.kind === 'event' && it.e.repetition && <>{(horaire(it.e) || it.e.lieu) && ' · '}<Icone n="repetition" /> {libelleRepetition(it.e)}</>}
                         {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
                         {it.kind === 'poll' && `date limite pour répondre${it.p.heureLimite ? ` à ${it.p.heureLimite.replace(':', 'h')}` : ''}${it.p.clotureAuto === false ? ' (indicative)' : ', clôture automatique'}`}
-                        {it.kind === 'etiquette' && `Événement (étiquette) · ${fmtRange(it.et.date, it.et.dateFin)} · ${data.tasks.filter((t) => t.etiquettes?.includes(it.et.id)).length} tâche(s)`}
+                        {it.kind === 'etiquette' && `Événement (étiquette) · ${fmtRange(it.et.date, it.et.dateFin)} · ${data.tasks.filter((t) => t.etiquettes?.includes(it.et.id)).length} point(s)`}
                       </small>
                     </span>
                     {it.kind === 'task' && <StatusBadge task={it.t} />}
@@ -380,7 +380,7 @@ export function Calendar() {
               ))}
             </ul>
           )}
-          <p className="cal-hint muted hide-mobile">Astuce : glisse une tâche, une séance ou un événement sur un autre jour pour changer sa date.</p>
+          <p className="cal-hint muted hide-mobile">Astuce : glisse un point, une séance ou un événement sur un autre jour pour changer sa date.</p>
         </aside>
       </div>
 

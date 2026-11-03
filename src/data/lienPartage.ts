@@ -58,8 +58,8 @@ export function texteTache(
   const noms = t.responsables.map((id) => people.find((p) => p.id === id)).filter((p) => !!p).map((p) => shortName(p));
   const qui = aPrendreOuverte(t) ? '🙋 À prendre : qui s’en charge ?' : noms.length ? `👤 ${noms.join(', ')}` : '';
   return [
-    `📋 Tâche « ${t.titre.trim() || 'Sans titre'} »`,
-    [t.delai && `📅 Pour le ${fmtDate(t.delai)}`, qui, terminee && '✅ Terminée'].filter(Boolean).join(' · '),
+    `📋 Point « ${t.titre.trim() || 'Sans titre'} »`,
+    [t.delai && `📅 Pour le ${fmtDate(t.delai)}`, qui, terminee && '✅ Terminé'].filter(Boolean).join(' · '),
     'Détails dans l’appli :',
   ].filter(Boolean).join('\n');
 }

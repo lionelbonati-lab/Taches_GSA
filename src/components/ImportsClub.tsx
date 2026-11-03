@@ -28,7 +28,7 @@ export function ImportsClub() {
     <div className="panel">
       <div className="seg wrap">
         <button className={sorte === 'personnes' ? 'on' : ''} onClick={() => setSorte('personnes')}>Personnes</button>
-        <button className={sorte === 'taches' ? 'on' : ''} onClick={() => setSorte('taches')}>Tâches</button>
+        <button className={sorte === 'taches' ? 'on' : ''} onClick={() => setSorte('taches')}>Points</button>
         <button className={sorte === 'evenements' ? 'on' : ''} onClick={() => setSorte('evenements')}>Événements</button>
       </div>
       {sorte === 'personnes' && (
@@ -63,13 +63,13 @@ export function ImportsClub() {
           key="taches"
           colonnes={COLS_TACHES}
           modele="modele-taches.csv"
-          aide={<p className="muted">Une ligne par tâche. Section, statut et responsables doivent exister dans l’appli (sinon : valeur par défaut, signalée dans l’aperçu). Une tâche de même titre dans la même section n’est pas reprise.</p>}
+          aide={<p className="muted">Une ligne par point. Section, statut et responsables doivent exister dans l’appli (sinon : valeur par défaut, signalée dans l’aperçu). Un point de même titre dans la même section n’est pas repris.</p>}
           analyser={(lignes) => analyserTaches(lignes, data, user?.id ?? '')}
           appliquer={(vals) => {
             update((d) => {
               d.tasks = [...vals, ...d.tasks];
-            }, `Import CSV : ${pluriel(vals.length, 'tâche')}`);
-            return `${pluriel(vals.length, 'tâche')} ajoutée(s).`;
+            }, `Import CSV : ${pluriel(vals.length, 'point')}`);
+            return `${pluriel(vals.length, 'point')} ajouté(s).`;
           }}
         />
       )}

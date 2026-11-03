@@ -199,7 +199,7 @@ export function decrireChamp(cle: string, [a, b]: [unknown, unknown], ctx: Conte
     case 'meetingId':
       return `Séance : ${fleche((v) => (v ? (data.meetings.find((m) => m.id === v)?.titre ?? 'une séance') : 'aucune'))}`;
     case 'parentId':
-      return `Tâche principale : ${fleche((v) => (v ? guillemets(data.tasks.find((t) => t.id === v)?.titre ?? 'une tâche', 50) : 'aucune'))}`;
+      return `Point principal : ${fleche((v) => (v ? guillemets(data.tasks.find((t) => t.id === v)?.titre ?? 'un point', 50) : 'aucun'))}`;
     case 'partage':
       return `Partagée avec : ${plusMoins(a, b, (id) => ctx.entite(id) ?? 'une entité')}`;
     case 'paiement': {
@@ -219,9 +219,9 @@ export function decrireChamp(cle: string, [a, b]: [unknown, unknown], ctx: Conte
 
 /** Ce que dit une entrée : « a créé la tâche », ou une ligne par champ changé. */
 export function decrireEntree(e: EntreeHistorique, ctx: ContexteHistorique): string[] {
-  if (e.quoi === 'creee') return ['a créé la tâche'];
-  if (e.quoi === 'supprimee') return ['a supprimé la tâche'];
-  if (e.quoi === 'retablie') return ['a rétabli la tâche'];
+  if (e.quoi === 'creee') return ['a créé le point'];
+  if (e.quoi === 'supprimee') return ['a supprimé le point'];
+  if (e.quoi === 'retablie') return ['a rétabli le point'];
   // Date de modification du contenu (052) : notée par le serveur avec le reste, pas un changement en soi.
   return Object.entries(e.champs).filter(([k]) => !CHAMPS_IGNORES.includes(k)).map(([k, v]) => decrireChamp(k, v, ctx));
 }

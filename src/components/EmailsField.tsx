@@ -30,7 +30,7 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
   return (
     <fieldset className="full">
       <legend>📧 Emails programmés</legend>
-      {list.length === 0 && !isNew && <small className="muted">Aucun email programmé pour cette tâche.</small>}
+      {list.length === 0 && !isNew && <small className="muted">Aucun email programmé pour ce point.</small>}
       {list.map((e) => {
         const st = emailState(data, current, e);
         const manage = canManage(e);
@@ -43,7 +43,7 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
                 <small className="muted">
                   à {names(e)} · {st === 'envoye' && e.envoyeLe ? `envoyé le ${fmtDateTime(e.envoyeLe)}` : whenLabel(current, e.quand)}
                 </small>
-                <small className={`email-badge b-${st}`}>{STATE_LABEL[st]}{e.siNonTerminee && st === 'programme' ? ' · sauf si la tâche est terminée' : ''}</small>
+                <small className={`email-badge b-${st}`}>{STATE_LABEL[st]}{e.siNonTerminee && st === 'programme' ? ' · sauf si le point est terminé' : ''}</small>
               </div>
             </div>
             {manage && (
@@ -69,7 +69,7 @@ export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task;
         );
       })}
       {isNew ? (
-        <small className="muted">Enregistre d’abord la tâche pour programmer un email.</small>
+        <small className="muted">Enregistre d’abord le point pour programmer un email.</small>
       ) : (
         canEditTask(current) && (
           <button type="button" className="btn small" onClick={() => setEdit({ e: newEmail(current, user.id), isNew: true })}><Icone n="programmer" /> Programmer un email</button>
@@ -112,7 +112,7 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
   return (
     <Modal title={isNew ? 'Programmer un email' : 'Modifier l’email programmé'} onClose={onClose} wide>
       <div className="form">
-        <p className="full muted" style={{ margin: 0 }}>Au sujet de la tâche <b>« {task.titre} »</b>{task.delai ? ` · délai ${fmtDate(task.delai)}` : ''}</p>
+        <p className="full muted" style={{ margin: 0 }}>Au sujet du point <b>« {task.titre} »</b>{task.delai ? ` · délai ${fmtDate(task.delai)}` : ''}</p>
         <ChoixDestinataires task={task} email={e} onChange={(x) => setE(x)} />
         <label>
           Envoi
@@ -126,7 +126,7 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
                 : { type: 'delai', jours: Number(v), heure });
             }}
           >
-            <optgroup label="Selon le délai de la tâche">
+            <optgroup label="Selon le délai du point">
               {EMAIL_DELAIS.map((o) => <option key={o.jours} value={o.jours}>{o.label}</option>)}
             </optgroup>
             <option value="date">📆 Date précise</option>
@@ -147,10 +147,10 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
         <p className={`full email-calc ${past ? 'warn' : ''}`}>
           {at
             ? <>→ Envoi {whenLabel(task, e.quand)}{e.quand.type === 'delai' && ' · suit le délai s’il change'}{past && ' · heure déjà passée : l’email sera à envoyer tout de suite'}</>
-            : '→ La tâche n’a pas de délai : l’email partira dès qu’un délai sera fixé.'}
+            : '→ Le point n’a pas de délai : l’email partira dès qu’un délai sera fixé.'}
         </p>
         <label className="inline full">
-          <input type="checkbox" checked={e.siNonTerminee} onChange={(ev) => set('siNonTerminee', ev.target.checked)} /> Ne pas envoyer si la tâche est déjà terminée
+          <input type="checkbox" checked={e.siNonTerminee} onChange={(ev) => set('siNonTerminee', ev.target.checked)} /> Ne pas envoyer si le point est déjà terminé
         </label>
         <label className="full">
           Objet
@@ -279,7 +279,7 @@ function ChoixDestinataires({ task, email, onChange }: { task: Task; email: Sche
         />
         {montre && (
           <ul id="dest-options" role="listbox" className="dest-options">
-            {!q.trim() && <li className="dest-titre" role="presentation">Responsables de la tâche</li>}
+            {!q.trim() && <li className="dest-titre" role="presentation">Responsables du point</li>}
             {options.map((o, k) => (
               <li
                 key={o.cle}
@@ -304,7 +304,7 @@ function ChoixDestinataires({ task, email, onChange }: { task: Task; email: Sche
       </div>
       <small className="muted">
         {nb ? `${nb} adresse${nb > 1 ? 's' : ''} email` : 'Aucune adresse pour l’instant'}
-        {' · une étiquette envoie à tous ses membres'} · ★ responsable de la tâche
+        {' · une étiquette envoie à tous ses membres'} · ★ responsable du point
       </small>
     </fieldset>
   );

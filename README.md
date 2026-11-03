@@ -3,6 +3,8 @@
 👉 **Version en ligne : https://lionelbonati-lab.github.io/Taches_GSA/** (installable sur ordinateur et téléphone)
 
 Application de démonstration pour gérer les tâches du comité du club.
+
+> **« Point » plutôt que « tâche »** dans l'appli : un point peut être une chose à faire ou une simple information (comme un point de l'ordre du jour). Les textes affichés disent « point » (« Mes points », « Nouveau point », « Voir tous les points »…) ; le code, les données, les adresses (`#/taches`) et le nom de l'appli (« Tâches GSA », réglable dans la console admin) gardent l'ancien mot, et cette documentation aussi. Les emails programmés reconnaissent `{point}` et l'ancien `{tâche}`.
 **Aucune base de données** : les données sont fictives et les modifications sont gardées uniquement dans le navigateur (localStorage). Le bouton « Réinitialiser la démo » (écran de connexion ou Réglages) recharge les données d'origine.
 
 > **Une appli plus simple** (`PLAN_APPLI_SIMPLE.md`, étapes D1 à D5 faites) : un seul espace, le club ; plus d'entités ni d'organigramme ; des **étiquettes** (événements, groupes) pour regrouper les tâches et les personnes (voir « Un seul espace et les étiquettes »).

@@ -18,11 +18,11 @@ export const EMAIL_DELAIS: { jours: number; label: string }[] = [
   { jours: -7, label: '1 semaine après le délai' },
 ];
 
-export const PLACEHOLDERS = ['{tâche}', '{délai}', '{section}', '{responsables}', '{statut}', '{remarque}', '{lien}', '{expéditeur}'];
+export const PLACEHOLDERS = ['{point}', '{délai}', '{section}', '{responsables}', '{statut}', '{remarque}', '{lien}', '{expéditeur}'];
 
-export const DEFAULT_OBJET = 'Rappel : {tâche}';
+export const DEFAULT_OBJET = 'Rappel : {point}';
 export const DEFAULT_MESSAGE =
-  'Bonjour,\n\nPetit rappel concernant la tâche « {tâche} » ({section}), à faire pour le {délai}.\n\nVoir la tâche : {lien}\n\nMeilleures salutations\n{expéditeur}';
+  'Bonjour,\n\nPetit rappel concernant le point « {point} » ({section}), à faire pour le {délai}.\n\nVoir le point : {lien}\n\nMeilleures salutations\n{expéditeur}';
 
 export function newEmail(task: Task, userId: string): ScheduledEmail {
   const tomorrow = addDays(new Date().toISOString().slice(0, 10), 1);
@@ -64,7 +64,7 @@ export const STATE_LABEL: Record<EmailState, string> = {
   aEnvoyer: 'À envoyer',
   envoye: 'Envoyé',
   annule: 'Annulé',
-  sansObjet: 'Pas envoyé : tâche terminée',
+  sansObjet: 'Pas envoyé : point terminé',
   sansDate: 'En attente d’un délai',
 };
 
@@ -73,7 +73,7 @@ export function whenLabel(task: Task, q: EmailWhen) {
   const heure = q.heure.replace(':', 'h');
   if (q.type === 'date') return `le ${fmtDate(q.date)} à ${heure}`;
   const rel = EMAIL_DELAIS.find((x) => x.jours === q.jours)?.label.toLowerCase() ?? `${q.jours} jours avant le délai`;
-  return at ? `${rel} (${fmtDate(at.slice(0, 10))} à ${heure})` : `${rel} (la tâche n’a pas encore de délai)`;
+  return at ? `${rel} (${fmtDate(at.slice(0, 10))} à ${heure})` : `${rel} (le point n’a pas encore de délai)`;
 }
 
 /** Emails programmés d'une tâche, triés par date d'envoi. */
@@ -89,10 +89,11 @@ export function appLink(taskId: string) {
   return lienAppli(`/taches?tache=${encodeURIComponent(taskId)}`);
 }
 
-/** Remplace les champs {tâche}, {délai}… par les valeurs de la tâche. */
+/** Remplace les champs {point}, {délai}… par les valeurs de la tâche ({tâche} : l'ancien nom de {point}, dans les emails d'avant). */
 export function fillTemplate(data: AppData, task: Task, e: ScheduledEmail, text: string) {
   const person = (id: string) => data.people.find((p) => p.id === id);
   const values: Record<string, string> = {
+    '{point}': task.titre,
     '{tâche}': task.titre,
     '{délai}': task.delai ? fmtDate(task.delai) : 'sans délai',
     '{section}': [data.sections.find((s) => s.id === task.sectionId)?.nom, task.sousSection].filter(Boolean).join(' › '),

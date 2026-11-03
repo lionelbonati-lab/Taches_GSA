@@ -60,7 +60,7 @@ export function makeSeed(): AppData {
     emails: [],
     etiquettes: structuredClone(ETIQUETTES),
     schema: 12,
-    log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Données de départ de la démo (sans tâches)' }],
+    log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Données de départ de la démo (sans points)' }],
     prefs: {},
   };
 }

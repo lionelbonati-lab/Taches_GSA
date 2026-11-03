@@ -798,7 +798,7 @@ export async function copierMaintenant(unite: string): Promise<boolean | null> {
 /** « 🙋 Je m'en charge » sur une tâche à prendre de l'entité `unite` : la personne connectée en devient responsable (038). */
 export async function prendreTache(unite: string, tache: string) {
   const { error } = await sb().rpc('gsa_prendre_tache', { unite, tache });
-  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore les tâches à prendre (mise à jour 038 à appliquer).' : error.message);
+  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore les points à prendre (mise à jour 038 à appliquer).' : error.message);
 }
 
 /** « Pas dispo » sur une tâche à prendre de l'entité `unite` (039). */
@@ -813,7 +813,7 @@ export async function pasDispoTache(unite: string, tache: string) {
  */
 export async function pourInfoVu(unite: string, tache: string, depuis: string) {
   const { error } = await sb().rpc('gsa_pour_info_vu', { unite, tache, depuis });
-  if (error) throw new Error(absente(error) ? 'Le serveur n’enregistre pas encore les « Vu » sur les tâches (mise à jour 046 à appliquer).' : error.message);
+  if (error) throw new Error(absente(error) ? 'Le serveur n’enregistre pas encore les « Vu » sur les points (mise à jour 046 à appliquer).' : error.message);
 }
 
 /**
@@ -822,7 +822,7 @@ export async function pourInfoVu(unite: string, tache: string, depuis: string) {
  */
 export async function commenterTache(unite: string, tache: string, depuis: string, a: { texte?: string; cle?: string; supprimer?: boolean }) {
   const { error } = await sb().rpc('gsa_commenter', { unite, tache, depuis, texte: a.texte ?? null, cle: a.cle ?? null, supprimer: !!a.supprimer });
-  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore la discussion sur les tâches (mise à jour 049 à appliquer).' : error.message);
+  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore la discussion sur les points (mise à jour 049 à appliquer).' : error.message);
 }
 
 /**
@@ -831,7 +831,7 @@ export async function commenterTache(unite: string, tache: string, depuis: strin
  */
 export async function historiqueTache(unite: string, tache: string, depuis: string): Promise<HistoriqueTache> {
   const { data, error } = await sb().rpc('gsa_historique_tache', { unite, tache, depuis });
-  if (error) throw new Error(absente(error) ? 'Le serveur ne note pas encore l’historique des tâches (mise à jour 050 à appliquer).' : error.message);
+  if (error) throw new Error(absente(error) ? 'Le serveur ne note pas encore l’historique des points (mise à jour 050 à appliquer).' : error.message);
   const h = (data ?? {}) as Partial<HistoriqueTache>;
   return { entrees: Array.isArray(h.entrees) ? h.entrees : [], noms: h.noms && typeof h.noms === 'object' ? h.noms : {} };
 }
@@ -892,7 +892,7 @@ export async function pourInfoSuivi(unite: string, taches: string[]): Promise<Re
 /** Relance (052) des personnes attendues qui n'ont pas encore vu la tâche `tache` de l'entité ouverte `unite` : combien. */
 export async function pourInfoRelancer(unite: string, tache: string, depuis: string) {
   const { data, error } = await sb().rpc('gsa_pour_info_relancer', { unite, tache, depuis });
-  if (error) throw new Error(absente(error) ? 'Le serveur ne relance pas encore les tâches « Pour info » (mise à jour 052 à appliquer).' : error.message);
+  if (error) throw new Error(absente(error) ? 'Le serveur ne relance pas encore les points « Pour info » (mise à jour 052 à appliquer).' : error.message);
   return Number((data as { n?: number } | null)?.n) || 0;
 }
 

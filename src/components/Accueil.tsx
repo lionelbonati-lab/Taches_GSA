@@ -34,9 +34,9 @@ export function useBlocsAccueil(): Element[] {
   // Étiquettes « événement » datées dont je suis membre : à l'accueil même sans le droit « Événements ».
   const mesEvenements = !!user && !!data.etiquettes?.some((e) => e.type === 'evenement' && !!e.date && e.membres?.includes(user.id));
   const l: (Element & { si: boolean })[] = [
-    { id: 'compteurs', icone: 'compteur', label: 'Compteurs de mes tâches', si: true },
-    { id: 'retard', icone: 'alerte', label: 'Mes tâches en retard', si: true },
-    { id: 'aprendre', icone: 'main', label: 'À prendre (tâches qu’on me propose)', si: true },
+    { id: 'compteurs', icone: 'compteur', label: 'Compteurs de mes points', si: true },
+    { id: 'retard', icone: 'alerte', label: 'Mes points en retard', si: true },
+    { id: 'aprendre', icone: 'main', label: 'À prendre (points qu’on me propose)', si: true },
     { id: 'semaine', icone: 'date', label: `À faire dans les ${jours} jours`, si: true },
     { id: 'pourinfo', icone: 'voir', label: 'Pour info', si: true },
     { id: 'emails', icone: 'email', label: 'Mes emails à envoyer et programmés', si: true },
@@ -187,7 +187,7 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
         setMasque={(m) => setPrefs({ compteursMasque: m })}
         setOrdre={(o) => setPrefs({ compteursOrdre: o })}
       />
-      <p className="muted small-note">Sur ordinateur, quand des tâches et d’autres blocs se suivent, les tâches vont à gauche et les autres à droite, chacun dans cet ordre.</p>
+      <p className="muted small-note">Sur ordinateur, quand des points et d’autres blocs se suivent, les points vont à gauche et les autres à droite, chacun dans cet ordre.</p>
       <fieldset className="accueil-afaire">
         <legend><Icone n="date" /> Bloc « À faire »</legend>
         <label>
@@ -198,10 +198,10 @@ export function AccueilModal({ onClose }: { onClose: () => void }) {
         </label>
         {can('tasks.viewAll') && (
           <label>
-            Tâches
+            Points
             <select value={prefs.aFaireToutes ? 'toutes' : 'mes'} onChange={(e) => setPrefs({ aFaireToutes: e.target.value === 'toutes' || undefined })}>
-              <option value="mes">Mes tâches</option>
-              <option value="toutes">Toutes les tâches que je vois</option>
+              <option value="mes">Mes points</option>
+              <option value="toutes">Tous les points que je vois</option>
             </select>
           </label>
         )}

@@ -79,7 +79,7 @@ test('un seul espace : la démo d’avant reprise, ses entités devenues des ét
   expect(etat.centrale.delaiRef).toEqual({ type: 'etiquette', etiquetteId: 'et-u-soiree', joursAvant: 3, unite: 'jours' });
 
   await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await page.getByRole('button', { name: 'Tous', exact: true }).click();
   await expect(page.locator('main tr', { hasText: 'Louer la sono' }).locator('.badge.etiquette')).toHaveText('Soirée récréative');
 
   // Lina Bovet est au club, membre de l'étiquette ; sa tâche est la sienne.
@@ -191,7 +191,7 @@ test('notification d’un message : la discussion s’ouvre dans Messages, la cr
   await expect(page.locator('.messages-ligne', { hasText: 'Tâche commentée' })).toBeVisible();
   // Rouverte : l'icône de la tâche ouvre sa fiche.
   await page.locator('.messages-ligne', { hasText: 'Tâche commentée' }).click();
-  await page.getByRole('dialog', { name: 'Tâche commentée' }).getByRole('button', { name: 'Ouvrir la tâche' }).click();
+  await page.getByRole('dialog', { name: 'Tâche commentée' }).getByRole('button', { name: 'Ouvrir le point' }).click();
   await expect(page).toHaveURL(/#\/taches\?tache=/);
   await expect(page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true })).toBeVisible();
 });
@@ -205,7 +205,7 @@ test('discussion : une seule notification par personne, lue partout une fois lue
   const ecrire = async (texte: string) => {
     await page.goto('./?demo#/messages');
     await page.getByRole('button', { name: 'Nouvelle discussion' }).click();
-    await page.getByLabel('Chercher une tâche').fill('musique');
+    await page.getByLabel('Chercher un point').fill('musique');
     await page.locator('.messages-choix button', { hasText: 'Choisir la musique' }).click();
     await page.getByLabel('Nouveau commentaire').fill(texte);
     await page.getByRole('button', { name: 'Envoyer', exact: true }).click();
@@ -275,9 +275,9 @@ test('discussion : une seule notification par personne, lue partout une fois lue
   await page.goto('./?demo#/reglages');
   const messagerie = page.getByRole('checkbox', { name: /Quelqu’un écrit dans la discussion/ });
   await expect(messagerie).toBeChecked();
-  await expect(page.getByRole('checkbox', { name: /Une tâche m’est confiée/ })).not.toHaveAccessibleName(/mentionne/);
+  await expect(page.getByRole('checkbox', { name: /Un point m’est confié/ })).not.toHaveAccessibleName(/mentionne/);
   await messagerie.uncheck();
-  await expect(page.getByRole('checkbox', { name: /Une tâche m’est confiée/ })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: /Un point m’est confié/ })).toBeChecked();
   await expect((await notifications()).locator('.bell-item', { hasText: 'a commenté « Choisir la musique »' })).toHaveCount(0);
 });
 
@@ -361,7 +361,7 @@ test('tâche : quelqu’un sans fiche dans l’appli, son nom sur la tâche ; av
   const autre = page.getByRole('dialog', { name: 'Quelqu’un d’autre' });
   await autre.getByLabel('Prénom').fill('Claire');
   await autre.getByLabel('Nom', { exact: true }).fill('Dumas');
-  await autre.getByRole('button', { name: 'Ajouter à la tâche' }).click();
+  await autre.getByRole('button', { name: 'Ajouter au point' }).click();
   await expect(autre).toHaveCount(0);
   await expect(fiche.locator('.qui .chip', { hasText: 'Claire Dumas' })).toBeVisible();
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
@@ -434,7 +434,7 @@ test('messagerie : nouvelle discussion, liste et non lus sur l’onglet', async 
   // « Nouvelle discussion » : choisir la tâche, écrire, la discussion apparaît dans la liste.
   await page.locator('.tabs').getByRole('link', { name: 'Messages' }).click();
   await page.getByRole('button', { name: 'Nouvelle discussion' }).click();
-  await page.getByLabel('Chercher une tâche').fill('messagerie');
+  await page.getByLabel('Chercher un point').fill('messagerie');
   await page.locator('.messages-choix button', { hasText: 'Tâche de la messagerie' }).click();
   const chat = page.getByRole('dialog', { name: 'Tâche de la messagerie' });
   await chat.getByLabel('Nouveau commentaire').fill('On en parle ici ?');
@@ -477,7 +477,7 @@ test('discussion : messages non lus sur la carte et la bulle, ouverte depuis la 
   // Une autre personne écrit dans la discussion.
   await changerDePersonne(1);
   await page.goto('./?demo#/taches');
-  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await page.getByRole('button', { name: 'Tous', exact: true }).click();
   await page.locator('main').getByText('Tâche à discuter').filter({ visible: true }).first().click();
   await page.locator('.modal').first().getByRole('button', { name: 'Discussion', exact: true }).click();
   const champ = page.getByLabel('Nouveau commentaire');
@@ -517,7 +517,7 @@ test('historique : création puis changement de titre', async ({ page }) => {
   await expect(page.locator('.modal')).toHaveCount(0);
 
   await page.locator('main').getByText('Tâche suivie').filter({ visible: true }).first().click();
-  await page.getByPlaceholder('Que faut-il faire ?').fill('Tâche suivie de près');
+  await page.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Tâche suivie de près');
   await page.locator('.modal').first().getByRole('button', { name: /^Enregistrer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
@@ -526,7 +526,7 @@ test('historique : création puis changement de titre', async ({ page }) => {
   await historique.locator('summary').click();
   await expect(historique.locator('.historique-liste > li')).toHaveCount(2);
   await expect(historique.locator('.historique-liste > li').first()).toContainText('Titre : « Tâche suivie » → « Tâche suivie de près »');
-  await expect(historique.locator('.historique-liste > li').last()).toContainText('a créé la tâche');
+  await expect(historique.locator('.historique-liste > li').last()).toContainText('a créé le point');
 });
 
 test('rapport d’erreurs : erreur d’essai reçue, réglée puis effacée', async ({ page }) => {
@@ -663,10 +663,10 @@ test('Pour info : sans compte, relance, « ✓ Vu », tout le monde a vu, à rev
   await expect(await notifications()).toContainText('Tout le monde a vu « Prévenir les moniteurs »');
   await page.keyboard.press('Escape');
   await page.goto('./?demo#/ordre-du-jour');
-  await expect(page.locator('main').getByText(/vue par tout le monde/).first()).toBeVisible();
+  await expect(page.locator('main').getByText(/vu par tout le monde/).first()).toBeVisible();
   ouverte = await ouvrir();
   suivi = ouverte.locator('.pour-info');
-  await expect(suivi.locator('.pour-info-bilan')).toContainText('✓ Vue par tout le monde.');
+  await expect(suivi.locator('.pour-info-bilan')).toContainText('✓ Vu par tout le monde.');
   await expect(suivi.getByRole('button', { name: /Relancer/ })).toHaveCount(0);
   await ouverte.locator('textarea').first().fill('Rendez-vous à 18 h devant la salle');
   await ouverte.getByRole('button', { name: /^Enregistrer$/ }).click();
@@ -680,7 +680,7 @@ test('Pour info : sans compte, relance, « ✓ Vu », tout le monde a vu, à rev
   await page.goto('./?demo#/');
   await expect(page.locator('main .badge.pour-info.revoir').filter({ visible: true }).first()).toBeVisible();
   ouverte = await ouvrir();
-  await expect(ouverte.locator('.pour-info-banner')).toContainText('Elle a changé depuis ton « ✓ Vu »');
+  await expect(ouverte.locator('.pour-info-banner')).toContainText('Il a changé depuis ton « ✓ Vu »');
   await ouverte.locator('.pour-info-banner').getByRole('button', { name: 'Vu' }).click();
   await expect(ouverte.locator('.pour-info-banner')).toHaveCount(0);
 });
@@ -750,7 +750,7 @@ test('recherche globale (Ctrl+K) : tâche, séance, personne, étiquette', async
   // Entrée : ouvre le premier résultat
   await champ.fill('maillot');
   await page.keyboard.press('Enter');
-  await expect(page.getByPlaceholder('Que faut-il faire ?')).toHaveValue('Commander les maillots');
+  await expect(page.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Commander les maillots');
 });
 
 test('pilule du PV : garde sa place quand l’écran tourne ou que le clavier s’ouvre', async ({ page }) => {
@@ -811,7 +811,7 @@ test('reprendre un événement passé : nouvelle édition avec ses tâches, dél
   const ligne = reprise.locator('.anciennes-liste li', { hasText: 'Réserver les dossards' });
   await expect(ligne.locator('input')).toBeChecked();
   await expect(ligne).toContainText('délai 17.04.2027 (7 jours avant)');
-  await reprise.getByRole('button', { name: 'Reprendre avec 1 tâche' }).click();
+  await reprise.getByRole('button', { name: 'Reprendre avec 1 point' }).click();
 
   // Les tâches de la nouvelle édition : la copie, à faire, au 17.04.2027, checklist décochée.
   await expect(page).toHaveURL(/#\/taches\?event=/);
@@ -827,7 +827,7 @@ test('reprendre un événement passé : nouvelle édition avec ses tâches, dél
   await page.goto('./?demo#/evenements');
   await expect(page.locator('.agenda-item', { hasText: 'Course de préparation 2026' }).locator('.reprise')).toContainText('Course de préparation 2027');
   const nouvelle = page.locator('.agenda-item').filter({ has: page.locator('strong', { hasText: /^Course de préparation 2027$/ }) });
-  await expect(nouvelle).toContainText('0/1 tâches terminées');
+  await expect(nouvelle).toContainText('0/1 points terminés');
 });
 
 test('résumé de la semaine, le lundi : notification et tâches de la semaine', async ({ page }) => {
@@ -843,7 +843,7 @@ test('résumé de la semaine, le lundi : notification et tâches de la semaine',
   await page.goto('./?demo#/');
   await page.getByRole('button', { name: /^Notifications/ }).click();
   const resume = page.locator('.bell-item', { hasText: 'Cette semaine :' });
-  await expect(resume).toContainText('1 tâche à faire');
+  await expect(resume).toContainText('1 point à faire');
   await expect(resume).toContainText('« Préparer le stand » mercredi');
   await resume.click();
   await expect(page).toHaveURL(/delai=semaine/);
@@ -861,7 +861,7 @@ test('discussion : mentionner quelqu’un avec @, notification 📣 sans 💬 en
   };
   const ouvrirDiscussion = async () => {
     await page.goto('./?demo#/taches');
-    await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+    await page.getByRole('button', { name: 'Tous', exact: true }).click();
     await page.locator('main').getByText('Tâche avec mention').filter({ visible: true }).first().click();
     await page.locator('.modal').first().getByRole('button', { name: /^Discussion/ }).click();
     return page.getByRole('region', { name: 'Discussion' });
@@ -983,7 +983,7 @@ test('tâches : le filtre « Étiquette » ; « Événement » ne propose que de
   const autre = await nouvelleTache(page, 'Commander les flyers');
   await autre.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await page.getByRole('button', { name: 'Tous', exact: true }).click();
   await page.getByRole('button', { name: /^Filtres/ }).click();
   // Plus de filtre « Entité ».
   await expect(page.getByLabel('Entité')).toHaveCount(0);
@@ -1003,7 +1003,7 @@ test('lien d’avant, avec son entité : la tâche s’ouvre dans l’espace du 
   });
   // Un lien envoyé avant D1 (notification, WhatsApp) porte l'entité de la tâche : elle est ignorée.
   await page.goto('./?demo=u-soiree#/taches?tache=tlien');
-  await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ?')).toHaveValue('Réserver la sono');
+  await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Réserver la sono');
   await verifierUnSeulEspace(page);
   await page.goto('./?demo#/');
   await verifierUnSeulEspace(page);
@@ -1037,7 +1037,7 @@ test('étiquettes : ses membres voient la tâche étiquetée, la liste montre l�
   await page.locator('.login-user', { hasText: 'Émilie Rossi' }).first().click();
   await expect(page.locator('.topbar .brand')).toBeVisible();
   await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Toutes', exact: true }).click();
+  await page.getByRole('button', { name: 'Tous', exact: true }).click();
   const vue = page.locator('main tr', { hasText: 'Réserver les tentes' });
   await expect(vue).toHaveCount(1);
   await expect(vue.locator('.badge.etiquette')).toHaveText('Camp d’été');
@@ -1073,7 +1073,7 @@ test('délai calé sur une étiquette datée : la tâche porte l’étiquette, s
 
   // La date de l'étiquette change : le délai suit.
   await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  await expect(fen.getByText('1 tâche calée sur sa date : leur délai suit.')).toBeVisible();
+  await expect(fen.getByText('1 point calé sur sa date : leur délai suit.')).toBeVisible();
   await fen.getByLabel('Date de l’étiquette Marché de Noël').fill(jour(20));
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await tache())?.delai).toBe(jour(18));
@@ -1155,6 +1155,6 @@ test('notes des séances : dans la fiche de la tâche, PV en cours pour qui tien
   const fiche = await nouvelleTache(page, 'Tâche sans séance');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await page.locator('main').getByText('Tâche sans séance').filter({ visible: true }).first().click();
-  await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ?')).toHaveValue('Tâche sans séance');
+  await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Tâche sans séance');
   await expect(page.locator('fieldset.notes-seances')).toHaveCount(0);
 });

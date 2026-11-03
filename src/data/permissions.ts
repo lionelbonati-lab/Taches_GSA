@@ -2,14 +2,14 @@ import type { Etiquette, Permission, Person, Role, Task } from './types';
 import { pourMoi } from './pourInfo';
 import { proposeeA } from './aPrendre';
 
-export const PERMISSION_GROUPS = ['Tâches', 'Pages visibles', 'Gestion', 'Administration'] as const;
+export const PERMISSION_GROUPS = ['Points', 'Pages visibles', 'Gestion', 'Administration'] as const;
 
 export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMISSION_GROUPS)[number]; sectionScoped?: boolean }[] = [
-  { id: 'tasks.viewAll', label: 'Voir toutes les tâches', group: 'Tâches', sectionScoped: true },
-  { id: 'tasks.createAny', label: 'Créer / assigner des tâches à d’autres', group: 'Tâches', sectionScoped: true },
-  { id: 'tasks.editAny', label: 'Modifier toutes les tâches', group: 'Tâches', sectionScoped: true },
-  { id: 'tasks.editOwn', label: 'Créer et modifier ses propres tâches', group: 'Tâches', sectionScoped: true },
-  { id: 'tasks.delete', label: 'Supprimer des tâches', group: 'Tâches', sectionScoped: true },
+  { id: 'tasks.viewAll', label: 'Voir tous les points', group: 'Points', sectionScoped: true },
+  { id: 'tasks.createAny', label: 'Créer / assigner des points à d’autres', group: 'Points', sectionScoped: true },
+  { id: 'tasks.editAny', label: 'Modifier tous les points', group: 'Points', sectionScoped: true },
+  { id: 'tasks.editOwn', label: 'Créer et modifier ses propres points', group: 'Points', sectionScoped: true },
+  { id: 'tasks.delete', label: 'Supprimer des points', group: 'Points', sectionScoped: true },
   { id: 'tab.meetings', label: 'Comité › Séances (liste des séances, excuses)', group: 'Pages visibles' },
   { id: 'tab.events', label: 'Agenda › Événements', group: 'Pages visibles' },
   { id: 'tab.people', label: 'Coordonnées (email, téléphone) des personnes du club', group: 'Pages visibles' },

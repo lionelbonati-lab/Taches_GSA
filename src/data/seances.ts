@@ -104,7 +104,7 @@ export function finAnticipee(data: AppData, avant: Task | undefined, apres: Task
   const limite = r === 'seance' ? data.meetings.map((m) => m.date).filter((d) => d >= jour).sort()[0] : addDays(jour, AVANCE[r]);
   if (!limite || apres.delai <= limite) return undefined;
   const suivante = nextOccurrence(data, apres, seancePourSuivante(data, apres)?.meeting).delai;
-  return `« ${apres.titre} » est prévue pour le ${fmtDate(apres.delai)}.\n\nElle se répète : la terminer maintenant crée déjà la suivante${suivante ? `, pour le ${fmtDate(suivante)}` : ''}.\n\nC’est bien celle-ci qui est faite ?`;
+  return `« ${apres.titre} » est prévu pour le ${fmtDate(apres.delai)}.\n\nIl se répète : le terminer maintenant crée déjà le suivant${suivante ? `, pour le ${fmtDate(suivante)}` : ''}.\n\nC’est bien celui-ci qui est fait ?`;
 }
 
 /**

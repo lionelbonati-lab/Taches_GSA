@@ -154,7 +154,7 @@ function PanneauRecherche({ q, setQ, onClose }: { q: string; setQ: (q: string) =
         <div className="recherche-liste" ref={liste}>
           {termes.join('').length < 2 ? (
             <p className="recherche-vide">
-              Tâches (titre, remarque, checklist, documents), séances, PV et ordres du jour archivés, sondages, événements, personnes, étiquettes. Sans tenir compte des accents ni des majuscules.
+              Points (titre, remarque, checklist, documents), séances, PV et ordres du jour archivés, sondages, événements, personnes, étiquettes. Sans tenir compte des accents ni des majuscules.
             </p>
           ) : !resultats.length ? (
             <p className="recherche-vide">Rien trouvé pour « {q.trim()} ».</p>

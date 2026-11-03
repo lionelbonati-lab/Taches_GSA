@@ -80,12 +80,12 @@ export function bilanVu(t: Pick<Task, 'pourInfo' | 'pourInfoVus' | 'contenuLe' |
   };
 }
 
-/** « vue par tout le monde », « vue par 3 sur 4 », « pas encore vue » ; vide si personne ne doit la voir. */
+/** « vu par tout le monde », « vu par 3 sur 4 », « pas encore vu » ; vide si personne ne doit le voir. */
 export function texteVu(b: BilanVu) {
   if (!b.total) return '';
-  if (b.n === b.total) return 'vue par tout le monde';
-  if (!b.n) return 'pas encore vue';
-  return `vue par ${b.n} sur ${b.total}`;
+  if (b.n === b.total) return 'vu par tout le monde';
+  if (!b.n) return 'pas encore vu';
+  return `vu par ${b.n} sur ${b.total}`;
 }
 
 /** Tâche « Pour info » que des personnes doivent encore voir. */

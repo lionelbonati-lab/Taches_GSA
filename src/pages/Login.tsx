@@ -52,7 +52,7 @@ export function Login({ data, logo, onPick, onReset }: { data: AppData; logo?: s
           ))}
           {!people.length && <p className="muted">Personne ne correspond à « {q} ».</p>}
         </div>
-        <p className="muted small-note">Pastilles : les étiquettes (événements, groupes) dont la personne est membre ; elle en voit les tâches.</p>
+        <p className="muted small-note">Pastilles : les étiquettes (événements, groupes) dont la personne est membre ; elle en voit les points.</p>
         <InstallButton variant="compact" hideWhenUnavailable />
         <div className="login-foot">
           <button className="btn link" onClick={() => switchMode('reel')}><Icone n="verrou" /> Version réelle (membres du comité)</button>

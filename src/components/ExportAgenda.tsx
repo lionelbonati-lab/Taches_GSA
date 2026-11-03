@@ -65,11 +65,11 @@ export function ExportAgenda({ onClose, defauts }: { onClose: () => void; defaut
         {datees && <label className="inline"><input type="checkbox" checked={duClub} onChange={(e) => setDuClub(e.target.checked)} /> <Icone n="etiquette" /> Étiquettes « événement » {n(listes.club.length)}</label>}
         <label className="inline"><input type="checkbox" checked={sondages} onChange={(e) => setSondages(e.target.checked)} /> <Icone n="sondage" /> Fins de sondage {n(listes.sondages.length)}</label>
         <div className="row">
-          <span><Icone n="taches" /> Délais des tâches</span>
+          <span><Icone n="taches" /> Délais des points</span>
           <div className="seg">
-            <button className={taches === 'non' ? 'on' : ''} onClick={() => setTaches('non')}>Aucune</button>
-            <button className={taches === 'mes' ? 'on' : ''} onClick={() => setTaches('mes')}>Les miennes</button>
-            {viewAll && <button className={taches === 'toutes' ? 'on' : ''} onClick={() => setTaches('toutes')}>Toutes</button>}
+            <button className={taches === 'non' ? 'on' : ''} onClick={() => setTaches('non')}>Aucun</button>
+            <button className={taches === 'mes' ? 'on' : ''} onClick={() => setTaches('mes')}>Les miens</button>
+            {viewAll && <button className={taches === 'toutes' ? 'on' : ''} onClick={() => setTaches('toutes')}>Tous</button>}
           </div>
           {taches !== 'non' && n(listes.taches.length)}
         </div>

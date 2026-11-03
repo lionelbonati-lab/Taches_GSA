@@ -129,7 +129,7 @@ export function analyserPersonnes(lignes: Record<ColPersonne, string>[], d: AppD
 
 export type ColTache = 'titre' | 'section' | 'sous' | 'responsables' | 'delai' | 'statut' | 'remarque';
 export const COLS_TACHES: Colonne<ColTache>[] = [
-  { key: 'titre', label: 'Titre', aliases: ['Tâche', 'Tache', 'Description de la tâche'], required: true, exemple: 'Réserver la salle' },
+  { key: 'titre', label: 'Titre', aliases: ['Point', 'Tâche', 'Tache', 'Description de la tâche'], required: true, exemple: 'Réserver la salle' },
   { key: 'section', label: 'Section', aliases: ['Rubrique', 'Domaine'], exemple: '', aide: 'nom d’une section existante (vide : la première)' },
   { key: 'sous', label: 'Sous-section', aliases: ['Sous section', 'Sous-rubrique'], exemple: '' },
   { key: 'responsables', label: 'Responsables', aliases: ['Responsable', 'Qui'], exemple: '', aide: 'prénoms et noms, postes ou emails, séparés par des virgules' },
@@ -188,7 +188,7 @@ export function analyserTaches(lignes: Record<ColTache, string>[], d: AppData, u
     }
     const texte = [l.titre, section?.nom, delai].filter(Boolean).join(' · ');
     const cle = `${section?.id ?? ''}|${norm(l.titre)}`;
-    if (vus.has(cle)) return { statut: 'ignore', texte, detail: 'Une tâche de ce titre existe déjà dans la section' };
+    if (vus.has(cle)) return { statut: 'ignore', texte, detail: 'Un point de ce titre existe déjà dans la section' };
     vus.add(cle);
     return {
       statut: 'nouveau',

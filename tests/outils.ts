@@ -36,13 +36,13 @@ export async function verifierUnSeulEspace(page: Page) {
   expect(await page.evaluate(() => localStorage.getItem('taches-gsa-demo-unite'))).toBeNull();
 }
 
-/** Nouvelle tâche ouverte depuis le bouton « + », titre et section remplis (pas encore enregistrée). */
+/** Nouveau point ouvert depuis le bouton « + », titre et section remplis (pas encore enregistrée). */
 export async function nouvelleTache(page: Page, titre: string) {
   await page.locator('.fab').click();
-  await page.locator('.fab-menu button', { hasText: 'Nouvelle tâche' }).click();
+  await page.locator('.fab-menu button', { hasText: 'Nouveau point' }).click();
   const fiche = page.locator('.modal').first();
   await expect(fiche).toBeVisible();
-  await page.getByPlaceholder('Que faut-il faire ?').fill(titre);
+  await page.getByPlaceholder('Que faut-il faire ou savoir ?').fill(titre);
   await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ index: 1 });
   return fiche;
 }

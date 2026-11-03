@@ -56,8 +56,8 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
       d.events = [...d.events, r.event];
       d.tasks = [...r.tasks, ...d.tasks];
       if (r.notifs.length) d.notifications = [...r.notifs, ...(d.notifications ?? [])].slice(0, 300);
-    }, `Reprise de l’événement « ${e.nom} » : « ${r.event.nom} » le ${fmtRange(r.event.date, r.event.dateFin)}${n ? `, ${n} tâche${n > 1 ? 's' : ''} reprise${n > 1 ? 's' : ''}` : ''}`);
-    setToast(`✅ « ${r.event.nom} » ajouté${n ? ` avec ${n} tâche${n > 1 ? 's' : ''} à faire` : ''}.`);
+    }, `Reprise de l’événement « ${e.nom} » : « ${r.event.nom} » le ${fmtRange(r.event.date, r.event.dateFin)}${n ? `, ${n} point${n > 1 ? 's' : ''} repris` : ''}`);
+    setToast(`✅ « ${r.event.nom} » ajouté${n ? ` avec ${n} point${n > 1 ? 's' : ''} à faire` : ''}.`);
     onClose();
     if (n) navigate(`/taches?event=${r.event.id}`);
   };
@@ -102,13 +102,13 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
   return (
     <Modal title={`Reprendre « ${e.nom} »`} icone="dupliquer" onClose={onClose} wide>
       <p className="muted">
-        Une nouvelle édition, avec les tâches qui préparaient celle du {fmtRange(e.date, e.dateFin)}. Chaque tâche repart « à faire », au même écart de
+        Une nouvelle édition, avec les points qui préparaient celle du {fmtRange(e.date, e.dateFin)}. Chaque point repart « à faire », au même écart de
         l’événement (« 30 jours avant », « la veille ») ; checklist décochée, sans discussion ni séance. Les fichiers joints restent ; emails et sondages ne
         suivent pas.
       </p>
       {deja && (
         <p className="reprise-deja">
-          <Icone n="alerte" /> Déjà reprise dans « {deja.nom} » ({fmtRange(deja.date, deja.dateFin)}) : reprendre de nouveau recopie ses tâches une seconde fois.
+          <Icone n="alerte" /> Déjà reprise dans « {deja.nom} » ({fmtRange(deja.date, deja.dateFin)}) : reprendre de nouveau recopie ses points une seconde fois.
         </p>
       )}
       <div className="form">
@@ -125,19 +125,19 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
           <input type="date" value={fin} min={date || undefined} onChange={(x) => setFin(x.target.value)} />
         </label>
         <fieldset className="full reprise-resp">
-          <legend>Responsables des tâches</legend>
+          <legend>Responsables des points</legend>
           <label className="inline"><input type="radio" name="reprise-resp" checked={memes} onChange={() => setMemes(true)} /> Les mêmes (personnes encore actives), prévenues 🔔</label>
           <label className="inline"><input type="radio" name="reprise-resp" checked={!memes} onChange={() => setMemes(false)} /> À attribuer ensuite</label>
         </fieldset>
       </div>
-      {liees.length > 0 && groupe(`Tâches liées à « ${e.nom} »`, liees)}
-      {!liste.length && <p className="muted">Aucune tâche liée à cet événement : seul l’événement sera repris.</p>}
-      {horsDroits > 0 && <p className="muted small-note">{horsDroits} tâche(s) liée(s) dans des sections où tu ne crées pas de tâches pour d’autres : pas proposée(s).</p>}
+      {liees.length > 0 && groupe(`Points liés à « ${e.nom} »`, liees)}
+      {!liste.length && <p className="muted">Aucun point lié à cet événement : seul l’événement sera repris.</p>}
+      {horsDroits > 0 && <p className="muted small-note">{horsDroits} point(s) lié(s) dans des sections où tu ne crées pas de points pour d’autres : pas proposé(s).</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
-        <button className="btn primary" onClick={submit}>{choix.size ? `Reprendre avec ${choix.size} tâche${choix.size > 1 ? 's' : ''}` : 'Reprendre l’événement seul'}</button>
+        <button className="btn primary" onClick={submit}>{choix.size ? `Reprendre avec ${choix.size} point${choix.size > 1 ? 's' : ''}` : 'Reprendre l’événement seul'}</button>
       </div>
     </Modal>
   );

@@ -660,7 +660,7 @@ export function Pv() {
   const setJoursApres = (n: number) =>
     update((d) => {
       d.reglagesOdj = { ...d.reglagesOdj, joursApres: n };
-    }, n ? `Ordre du jour : aussi les tâches jusqu’à ${joursApresTexte(n)} après la séance suivante` : 'Ordre du jour : plus de tâches après la séance suivante');
+    }, n ? `Ordre du jour : aussi les points jusqu’à ${joursApresTexte(n)} après la séance suivante` : 'Ordre du jour : plus de points après la séance suivante');
 
   // Titre : le nom du comité ; avec la date de la séance pour nommer le document (PDF, archive, email).
   const titre = club?.espace.nom ?? 'Comité';
@@ -811,17 +811,17 @@ export function Pv() {
             <span className="field-label pv-sous-titre">Dans l’ordre du jour</span>
             {([
               ['presences', 'En-tête : convoqués et présences'],
-              ['retards', 'Tâches en retard'],
-              ['avantProchaine', 'Tâches à faire d’ici la séance'],
-              ['avantSuivante', 'Tâches à faire d’ici la séance suivante'],
-              ['bilan', 'Tâches terminées depuis la dernière séance'],
+              ['retards', 'Points en retard'],
+              ['avantProchaine', 'Points à faire d’ici la séance'],
+              ['avantSuivante', 'Points à faire d’ici la séance suivante'],
+              ['bilan', 'Points terminés depuis la dernière séance'],
               ['sondages', 'Sondages en cours et récents'],
               ['notes', 'Cadre de notes et décisions'],
             ] as [keyof PvSettings['parts'], string][]).map(([k, label]) => (
               <div key={k}>
                 <label className="inline"><input type="checkbox" checked={s.parts[k]} onChange={(e) => setPart(k, e.target.checked)} /> {label}</label>
                 {k === 'avantSuivante' && s.parts.avantSuivante && (
-                  <label className="inline odj-marge" title="Une tâche à faire juste après la séance suivante est mieux vue dès cette séance. Réglage commun au club, repris par le PV.">
+                  <label className="inline odj-marge" title="Un point à faire juste après la séance suivante est mieux vu dès cette séance. Réglage commun au club, repris par le PV.">
                     et jusqu’à
                     <select value={joursApres} disabled={!canEdit} onChange={(e) => setJoursApres(Number(e.target.value))}>
                       {[...new Set([...JOURS_APRES, joursApres])].sort((a, b) => a - b).map((n) => <option key={n} value={n}>{joursApresTexte(n)}</option>)}
@@ -842,7 +842,7 @@ export function Pv() {
             </label>
             <label className="inline">
               <input type="checkbox" checked={s.sectionsVides} onChange={(e) => set({ sectionsVides: e.target.checked })} />
-              Afficher les sections sans tâche
+              Afficher les sections sans point
             </label>
             <small className="muted pv-petit-titre">Sections incluses</small>
             <div className="chips">
@@ -850,7 +850,7 @@ export function Pv() {
                 <button key={x.id} className={`chip ${!s.sectionsExclues.includes(x.id) ? 'on' : ''}`} onClick={() => set({ sectionsExclues: toggleIn(s.sectionsExclues, x.id) })}>{x.nom}</button>
               ))}
             </div>
-            <span className="field-label pv-sous-titre">Tâches</span>
+            <span className="field-label pv-sous-titre">Points</span>
             <small className="muted pv-petit-titre">Statuts inclus</small>
             <div className="chips">
               {openStatuses.map((x) => (
@@ -862,10 +862,10 @@ export function Pv() {
               <select value={s.tri} onChange={(e) => set({ tri: e.target.value as PvSettings['tri'] })}>
                 <option value="delai">Délai</option>
                 <option value="statut">Statut</option>
-                <option value="titre">Nom de la tâche</option>
+                <option value="titre">Nom du point</option>
               </select>
             </label>
-            <small className="muted pv-petit-titre">Affiché pour chaque tâche</small>
+            <small className="muted pv-petit-titre">Affiché pour chaque point</small>
             {([
               ['sousSection', 'Sous-section'],
               ['echeance', 'Échéance (en retard, séance suivante, fait)'],
@@ -873,12 +873,12 @@ export function Pv() {
               ['remarque', 'Remarque'],
               ['checklist', 'Checklist'],
               ['documents', 'Noms de ses documents'],
-              ['pourInfo', '👁 Pour info : qui l’a vue (« vue par 3 sur 4 »)'],
+              ['pourInfo', '👁 Pour info : qui l’a vu (« vu par 3 sur 4 »)'],
             ] as [keyof PvSettings['colonnes'], string][]).map(([k, label]) => (
               <label key={k} className="inline"><input type="checkbox" checked={!!s.colonnes[k]} onChange={(e) => setCol(k, e.target.checked)} /> {label}</label>
             ))}
             <span className="field-label pv-sous-titre">Annexes</span>
-            <label className="inline" title="Les fichiers et liens des tâches de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (photos et PDF mis en page à part)">
+            <label className="inline" title="Les fichiers et liens des points de l’ordre du jour : liste des annexes, puis les photos et les pages des PDF (photos et PDF mis en page à part)">
               <input type="checkbox" checked={s.annexes} onChange={(e) => set({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin d’ordre du jour
               {s.annexes && <span className="muted">{annexes.length ? ` (${annexes.length})` : annexesDe(tachesOdj).length ? ' (aucun choisi)' : ' (aucun pour l’instant)'}</span>}
             </label>
@@ -952,7 +952,7 @@ export function Pv() {
           ) : (
             edite && (
               <div className="odj-edit-bar no-print">
-                <span>✏️ Version modifiée à la main le {fmtDateTime(edite.le)}{data.people.find((p) => p.id === edite.par) ? ` par ${fullName(data.people.find((p) => p.id === edite.par))}` : ''}. Les changements de tâches et de mise en page n’y apparaissent plus (les excusés, si).</span>
+                <span>✏️ Version modifiée à la main le {fmtDateTime(edite.le)}{data.people.find((p) => p.id === edite.par) ? ` par ${fullName(data.people.find((p) => p.id === edite.par))}` : ''}. Les changements de points et de mise en page n’y apparaissent plus (les excusés, si).</span>
                 <span className="grow" />
                 {canEdit && <button className="btn" onClick={resetEdit}><Icone n="revenir" /> Revenir à la version générée</button>}
               </div>

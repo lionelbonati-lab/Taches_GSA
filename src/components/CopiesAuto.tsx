@@ -55,7 +55,7 @@ export function CopiesAuto({ unite, nom, restore }: { unite: string; nom: string
       const data = await copieAuto(unite, c.id);
       await copierMaintenant(unite);
       restore(data, `la copie du serveur du ${fmtDateTime(c.faiteLe)}`);
-      return `✅ Données restaurées depuis la copie du ${fmtDateTime(c.faiteLe)} (${data.tasks.length} tâches, ${data.meetings.length} séances).`;
+      return `✅ Données restaurées depuis la copie du ${fmtDateTime(c.faiteLe)} (${data.tasks.length} points, ${data.meetings.length} séances).`;
     });
   };
   const copier = () => action(async () => ((await copierMaintenant(unite)) ? '✅ Copie faite.' : 'Rien n’a changé depuis la dernière copie : elle est à jour.'));

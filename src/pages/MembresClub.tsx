@@ -399,7 +399,7 @@ function MembreModal({ membre, list, lecture, onSave, onDelete, onClose }: {
             disabled={busy || !!membre.moi}
             title={membre.moi ? 'Pas toi-même' : ''}
             onClick={() =>
-              confirm(`Retirer ${nomMembre(membre)} du club ?${fiche?.actif ? ' Sa fiche dans l’appli est désactivée et son accès retiré.' : ''} Ses tâches gardent son nom.`) && void run(() => onDelete(membre.id))
+              confirm(`Retirer ${nomMembre(membre)} du club ?${fiche?.actif ? ' Sa fiche dans l’appli est désactivée et son accès retiré.' : ''} Ses points gardent son nom.`) && void run(() => onDelete(membre.id))
             }
           >
             Retirer du club
@@ -454,7 +454,7 @@ function FicheAppli({ membre, fiche }: { membre: ClubMembre; fiche?: Person }) {
     return (
       <div className="acces-membre">
         <span className="field-label">Dans l’appli</span>
-        <p className="muted small-note">{fiche ? 'Fiche désactivée : ses tâches gardent son nom.' : 'Pas de fiche dans l’appli : on peut noter son nom sur une tâche (« Quelqu’un d’autre »), sans qu’elle la voie.'}</p>
+        <p className="muted small-note">{fiche ? 'Fiche désactivée : ses points gardent son nom.' : 'Pas de fiche dans l’appli : on peut noter son nom sur un point (« Quelqu’un d’autre »), sans qu’elle le voie.'}</p>
         {gerer && <button className="btn small primary" onClick={donner}>{fiche ? 'Réactiver sa fiche' : 'Lui donner une fiche dans l’appli'}</button>}
         {msg && <p className="ok-note">{msg}</p>}
       </div>
@@ -488,7 +488,7 @@ function FicheAppli({ membre, fiche }: { membre: ClubMembre; fiche?: Person }) {
       </div>
       {etiquettes.length > 0 && (
         <div>
-          <small className="muted">Étiquettes (elle en voit les tâches){gererEtiquettes ? '' : ' :'}</small>
+          <small className="muted">Étiquettes (elle en voit les points){gererEtiquettes ? '' : ' :'}</small>
           <div className="chips">
             {etiquettes.map((e) => {
               const on = !!e.membres?.includes(fiche.id);
@@ -511,7 +511,7 @@ function FicheAppli({ membre, fiche }: { membre: ClubMembre; fiche?: Person }) {
         <div className="row wrap">
           <span className="grow" />
           <button className="btn small danger" disabled={soi || dernierAdmin} title={soi ? 'Pas toi-même' : dernierAdmin ? 'Il reste toujours au moins un admin' : ''}
-            onClick={() => confirm(`Désactiver la fiche de ${nom} dans l’appli ? Ses tâches gardent son nom ; tu pourras la réactiver d’ici.`) && changer((p) => ({ ...p, actif: false }), `${nom} désactivé(e) dans l’appli`, `✅ Fiche de ${nom} désactivée.`)}>
+            onClick={() => confirm(`Désactiver la fiche de ${nom} dans l’appli ? Ses points gardent son nom ; tu pourras la réactiver d’ici.`) && changer((p) => ({ ...p, actif: false }), `${nom} désactivé(e) dans l’appli`, `✅ Fiche de ${nom} désactivée.`)}>
             Désactiver sa fiche
           </button>
         </div>

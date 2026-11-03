@@ -74,15 +74,15 @@ export function Settings() {
         </label>
         {can('tasks.viewAll') && (
           <label>
-            Vue par défaut des tâches
+            Vue par défaut des points
             <select value={prefs.vueDefaut} onChange={(e) => setPrefs({ vueDefaut: e.target.value as typeof prefs.vueDefaut })}>
-              <option value="mes">Mes tâches</option>
-              <option value="toutes">Toutes les tâches</option>
+              <option value="mes">Mes points</option>
+              <option value="toutes">Tous les points</option>
             </select>
           </label>
         )}
         <label>
-          Affichage des tâches (ordinateur)
+          Affichage des points (ordinateur)
           <select value={prefs.affichage} onChange={(e) => setPrefs({ affichage: e.target.value as typeof prefs.affichage })}>
             <option value="tableau">Tableau</option>
             <option value="kanban">Kanban</option>
@@ -115,9 +115,9 @@ export function Settings() {
       <section className="panel form">
         <h2 className="full">Notifications</h2>
         <p className="muted full" style={{ margin: 0 }}>Choisis ce qui s’affiche dans la cloche 🔔 de l’en-tête.</p>
-        <h3 className="full notif-groupe">Tâches</h3>
-        <label className="inline full"><input type="checkbox" checked={n.assign} onChange={(e) => setN({ assign: e.target.checked })} /> 🆕 Une tâche m’est confiée par quelqu’un d’autre, 👁 on me la met « pour info », ou 🙋 on me la propose (et quelqu’un prend ou décline une tâche que j’ai proposée)</label>
-        <label className="inline full"><input type="checkbox" checked={n.modif} onChange={(e) => setN({ modif: e.target.checked })} /> ✏️ Une de mes tâches est modifiée par quelqu’un d’autre, ou reconduite</label>
+        <h3 className="full notif-groupe">Points</h3>
+        <label className="inline full"><input type="checkbox" checked={n.assign} onChange={(e) => setN({ assign: e.target.checked })} /> 🆕 Un point m’est confié par quelqu’un d’autre, 👁 on me le met « pour info », ou 🙋 on me le propose (et quelqu’un prend ou décline un point que j’ai proposé)</label>
+        <label className="inline full"><input type="checkbox" checked={n.modif} onChange={(e) => setN({ modif: e.target.checked })} /> ✏️ Un de mes points est modifié par quelqu’un d’autre, ou reconduit</label>
         <label className="inline"><input type="checkbox" checked={n.echeance} onChange={(e) => setN({ echeance: e.target.checked })} /> ⏰ Échéance proche</label>
         <label>
           Prévenir
@@ -125,12 +125,12 @@ export function Settings() {
             {[0, 1, 2, 3, 5, 7, 14].map((j) => <option key={j} value={j}>{j === 0 ? 'le jour même' : `${j} jour${j > 1 ? 's' : ''} avant`}</option>)}
           </select>
         </label>
-        <label className="inline full"><input type="checkbox" checked={n.retard} onChange={(e) => setN({ retard: e.target.checked })} /> ⚠️ Mes tâches en retard (résumé quotidien)</label>
+        <label className="inline full"><input type="checkbox" checked={n.retard} onChange={(e) => setN({ retard: e.target.checked })} /> ⚠️ Mes points en retard (résumé quotidien)</label>
         <label className="inline full"><input type="checkbox" checked={n.email} onChange={(e) => setN({ email: e.target.checked })} /> 📧 Un email que j’ai programmé arrive à son heure d’envoi</label>
         <h3 className="full notif-groupe">Messagerie</h3>
-        <label className="inline full"><input type="checkbox" checked={n.messages} onChange={(e) => setN({ messages: e.target.checked })} /> 💬 Quelqu’un écrit dans la discussion d’une tâche dont je m’occupe ou où j’ai écrit ; 📣 on me mentionne dans une discussion (@)</label>
+        <label className="inline full"><input type="checkbox" checked={n.messages} onChange={(e) => setN({ messages: e.target.checked })} /> 💬 Quelqu’un écrit dans la discussion d’un point dont je m’occupe ou où j’ai écrit ; 📣 on me mentionne dans une discussion (@)</label>
         <h3 className="full notif-groupe">Agenda et sondages</h3>
-        <label className="inline full"><input type="checkbox" checked={n.semaine} onChange={(e) => setN({ semaine: e.target.checked })} /> 📅 Résumé de ma semaine, le lundi matin : tâches à faire d’ici dimanche, séances, événements, sondages</label>
+        <label className="inline full"><input type="checkbox" checked={n.semaine} onChange={(e) => setN({ semaine: e.target.checked })} /> 📅 Résumé de ma semaine, le lundi matin : points à faire d’ici dimanche, séances, événements, sondages</label>
         <label className="inline full"><input type="checkbox" checked={n.sondage} onChange={(e) => setN({ sondage: e.target.checked })} /> 📊 Un sondage attend ma réponse</label>
         {can('tab.meetings') && (
           <>

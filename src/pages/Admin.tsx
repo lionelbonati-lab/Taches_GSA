@@ -52,8 +52,8 @@ export function Admin() {
       id: 'taches',
       icon: 'rangement' as const,
       titre: 'Sections, statuts et étiquettes',
-      carte: 'Le rangement des tâches (sections, sous-sections), leurs étapes (À faire, En cours…) et leurs étiquettes (événements, groupes).',
-      aide: 'Comment les tâches sont rangées (sections et sous-sections, reprises dans l’ordre du jour et le PV), leurs étapes (À faire, En cours, Terminé…) et leurs étiquettes : un événement (avec sa date) ou un groupe, dont les membres voient les tâches.',
+      carte: 'Le rangement des points (sections, sous-sections), leurs étapes (À faire, En cours…) et leurs étiquettes (événements, groupes).',
+      aide: 'Comment les points sont rangés (sections et sous-sections, reprises dans l’ordre du jour et le PV), leurs étapes (À faire, En cours, Terminé…) et leurs étiquettes : un événement (avec sa date) ou un groupe, dont les membres voient les points.',
       resume: `${data.sections.length} sections · ${data.statuses.length} statuts · ${data.etiquettes?.length ?? 0} étiquettes`,
       contenu: <Lists />,
     },
@@ -83,9 +83,9 @@ export function Admin() {
       id: 'import',
       icon: 'importer' as const,
       titre: 'Importer un fichier',
-      carte: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur.',
-      aide: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur (fichier CSV, avec un modèle à télécharger).',
-      resume: 'Personnes, tâches, événements',
+      carte: 'Ajouter d’un coup des personnes, des points ou des événements depuis un tableur.',
+      aide: 'Ajouter d’un coup des personnes, des points ou des événements depuis un tableur (fichier CSV, avec un modèle à télécharger).',
+      resume: 'Personnes, points, événements',
       contenu: <ImportsClub />,
     },
     {
@@ -223,7 +223,7 @@ function Roles() {
           </tbody>
         </table>
       </div>
-      <p className="muted">¹ Ces droits ne s’appliquent qu’aux sections du rôle. Chacun voit et modifie toujours les tâches dont il est responsable ou qu’il a créées (selon « ses propres tâches »). Sans « Voir toutes les tâches » (bénévole, externe…), il ne reçoit que celles-là : le serveur ne lui envoie pas les autres. Les tickets (remboursements, factures) ne sont vus que de la caisse, de leur demandeur, de la personne qui vise et des admins, même avec « Voir toutes les tâches ». Les changements s’appliquent immédiatement : change d’utilisateur pour tester. Le rôle Admin est verrouillé.</p>
+      <p className="muted">¹ Ces droits ne s’appliquent qu’aux sections du rôle. Chacun voit et modifie toujours les points dont il est responsable ou qu’il a créés (selon « ses propres points »). Sans « Voir tous les points » (bénévole, externe…), il ne reçoit que ceux-là : le serveur ne lui envoie pas les autres. Les tickets (remboursements, factures) ne sont vus que de la caisse, de leur demandeur, de la personne qui vise et des admins, même avec « Voir tous les points ». Les changements s’appliquent immédiatement : change d’utilisateur pour tester. Le rôle Admin est verrouillé.</p>
 
       {creating && (
         <NewRole
@@ -269,7 +269,7 @@ function NewRole({ onClose, onCreate }: { onClose: () => void; onCreate: (label:
             }}
           >
             <option value="">Aucun droit (à cocher ensuite)</option>
-            <option value={MODELE_EXTERNE}>Modèle « Externe » : seulement les tâches qui lui sont attribuées</option>
+            <option value={MODELE_EXTERNE}>Modèle « Externe » : seulement les points qui lui sont attribués</option>
             {data.roles.map((r) => <option key={r.id} value={r.id}>Copie de « {r.label} »</option>)}
           </select>
         </label>
@@ -327,7 +327,7 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
           <input type="color" value={couleur} onChange={(e) => setCouleur(e.target.value)} />
         </label>
         <fieldset className="full">
-          <legend>Sections couvertes par les droits « Tâches »</legend>
+          <legend>Sections couvertes par les droits « Points »</legend>
           {lock ? (
             <small className="muted">Le rôle Admin couvre toujours toutes les sections.</small>
           ) : (
@@ -393,7 +393,7 @@ function Lists() {
       const x = d.sections.find((y) => y.id === secId)!;
       x.sousSections = x.sousSections.map((y) => (y === old ? v : y));
       d.tasks.forEach((t) => { if (t.sectionId === secId && t.sousSection === old) t.sousSection = v; });
-    }, `Sous-section « ${old} » (${sec.nom}) renommée en « ${v} »${n ? ` · ${n} tâche(s)` : ''}`);
+    }, `Sous-section « ${old} » (${sec.nom}) renommée en « ${v} »${n ? ` · ${n} point(s)` : ''}`);
   };
   const moveSub = (secId: string, i: number, dir: -1 | 1) =>
     update((d) => {
@@ -412,7 +412,7 @@ function Lists() {
             <div key={s.id} className="panel">
               <div className="row">
                 <input className="grow" defaultValue={s.nom} aria-label={`Nom de la section ${s.nom}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.nom) update((d) => { d.sections.find((x) => x.id === s.id)!.nom = v; }, `Section « ${s.nom} » renommée en « ${v} »`); }} />
-                <button className="btn small danger" disabled={used > 0} title={used ? `${used} tâche(s) utilisent cette section` : ''} onClick={() => update((d) => { d.sections = d.sections.filter((x) => x.id !== s.id); }, `Suppression de la section « ${s.nom} »`)}>Supprimer</button>
+                <button className="btn small danger" disabled={used > 0} title={used ? `${used} point(s) utilisent cette section` : ''} onClick={() => update((d) => { d.sections = d.sections.filter((x) => x.id !== s.id); }, `Suppression de la section « ${s.nom} »`)}>Supprimer</button>
               </div>
               {s.sousSections.length > 0 && (
                 <ul className="sub-list">
@@ -429,11 +429,11 @@ function Lists() {
                           onBlur={(e) => renameSub(s.id, ss, e.target)}
                           onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
                         />
-                        {n > 0 && <small className="muted" title={`${n} tâche(s) dans cette sous-section`}>{n}</small>}
+                        {n > 0 && <small className="muted" title={`${n} point(s) dans cette sous-section`}>{n}</small>}
                         <button
                           className="chip-x"
                           aria-label={`Retirer ${ss}`}
-                          title={n ? `${n} tâche(s) gardent ce nom de sous-section` : 'Retirer'}
+                          title={n ? `${n} point(s) gardent ce nom de sous-section` : 'Retirer'}
                           onClick={() => update((d) => { const x = d.sections.find((y) => y.id === s.id)!; x.sousSections = x.sousSections.filter((y) => y !== ss); }, `Suppression de la sous-section « ${ss} »`)}
                         >
                           ✕
@@ -464,11 +464,11 @@ function Lists() {
                 <div key={s.id + s.label} className="panel row">
                   <input type="color" value={s.couleur} aria-label={`Couleur du statut ${s.label}`} onChange={(e) => update((d) => { d.statuses[i].couleur = e.target.value; }, `Couleur du statut « ${s.label} » modifiée`)} />
                   <input className="grow" defaultValue={s.label} aria-label={`Nom du statut ${s.label}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.label) update((d) => { d.statuses[i].label = v; }, `Statut « ${s.label} » renommé en « ${v} »`); }} />
-                  <label className="inline" title="Une tâche dans ce statut compte comme terminée : bilan des tâches terminées dans l’ordre du jour, jamais en retard, archivée le lendemain de sa séance">
-                    <input type="checkbox" checked={s.done} onChange={() => update((d) => { d.statuses[i].done = !s.done; }, `Statut « ${s.label} » : terminé = ${!s.done}`)} /> Terminée
+                  <label className="inline" title="Un point dans ce statut compte comme terminé : bilan des points terminés dans l’ordre du jour, jamais en retard, archivé le lendemain de sa séance">
+                    <input type="checkbox" checked={s.done} onChange={() => update((d) => { d.statuses[i].done = !s.done; }, `Statut « ${s.label} » : terminé = ${!s.done}`)} /> Terminé
                   </label>
                   <button className="icon-btn" disabled={i === 0} onClick={() => update((d) => { [d.statuses[i - 1], d.statuses[i]] = [d.statuses[i], d.statuses[i - 1]]; }, `Ordre des statuts modifié`)} aria-label="Monter"><Icone n="monter" /></button>
-                  <button className="btn small danger" disabled={used > 0 || data.statuses.length <= 2} title={used ? `${used} tâche(s) ont ce statut` : ''} onClick={() => update((d) => { d.statuses = d.statuses.filter((x) => x.id !== s.id); }, `Suppression du statut « ${s.label} »`)}>Supprimer</button>
+                  <button className="btn small danger" disabled={used > 0 || data.statuses.length <= 2} title={used ? `${used} point(s) ont ce statut` : ''} onClick={() => update((d) => { d.statuses = d.statuses.filter((x) => x.id !== s.id); }, `Suppression du statut « ${s.label} »`)}>Supprimer</button>
                 </div>
               );
             })}
@@ -477,15 +477,15 @@ function Lists() {
               <button className="btn primary" onClick={() => { if (!newStatus.trim()) return; update((d) => { d.statuses.splice(d.statuses.length - 1, 0, { id: uid('s'), label: newStatus.trim(), couleur: '#9333ea', done: false }); }, `Ajout du statut « ${newStatus.trim()} »`); setNewStatus(''); }}>Ajouter</button>
             </div>
             <p className="muted">
-              Case « Terminée » cochée : une tâche dans ce statut compte comme faite. Elle figure dans l’ordre du jour et le PV de
-              la séance suivante, parmi les tâches terminées (« ✓ fait » pour le premier statut terminé, sinon le nom du statut :
+              Case « Terminé » cochée : un point dans ce statut compte comme fait. Il figure dans l’ordre du jour et le PV de
+              la séance suivante, parmi les points terminés (« ✓ fait » pour le premier statut terminé, sinon le nom du statut :
               « À discuter », « Information »…), n’est jamais en retard et part aux archives le lendemain de cette séance.
             </p>
         </>
-        <p className="muted">« En retard » n'est pas un statut : il est calculé automatiquement quand le délai est dépassé et que la tâche n'est pas terminée.</p>
+        <p className="muted">« En retard » n'est pas un statut : il est calculé automatiquement quand le délai est dépassé et que le point n'est pas terminé.</p>
         <h2>Étiquettes</h2>
         <p className="muted">
-          Un événement (avec sa date, dans l’agenda et à l’accueil) ou un groupe ; ses membres voient les tâches qui le portent. {data.etiquettes?.length ?? 0} étiquette(s).
+          Un événement (avec sa date, dans l’agenda et à l’accueil) ou un groupe ; ses membres voient les points qui le portent. {data.etiquettes?.length ?? 0} étiquette(s).
         </p>
         <button className="btn" onClick={() => setEtiquettes(true)}><Icone n="etiquette" /> Régler les étiquettes</button>
         {etiquettes && <EtiquettesModal onClose={() => setEtiquettes(false)} />}

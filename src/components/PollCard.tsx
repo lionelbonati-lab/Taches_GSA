@@ -79,7 +79,7 @@ export function PollCard({ poll, compact, highlight }: { poll: Poll; compact?: b
               ? <> · jusqu’au {echeance(poll)} <span title="Le sondage se clôture tout seul à la date et l’heure limite">(clôture automatique)</span></>
               : !poll.clotureLe && ` · clôturé automatiquement (date limite ${echeance(poll)})`)}
         {poll.clotureLe && ` · clôturé le ${fmtDate(poll.clotureLe)}`}
-        {!compact && task && <> · tâche <Link to={`/taches?tache=${task.id}`}>« {task.titre} »</Link></>}
+        {!compact && task && <> · point <Link to={`/taches?tache=${task.id}`}>« {task.titre} »</Link></>}
         {!compact && ` · créé par ${texteVotant(qui(poll.creePar))}`}
       </p>
 

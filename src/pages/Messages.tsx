@@ -43,7 +43,7 @@ export function Messages() {
       </div>
       <PageIntro />
       <div className="messages-outils">
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Rechercher une tâche, un message…" aria-label="Rechercher dans les messages" />
+        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Rechercher un point, un message…" aria-label="Rechercher dans les messages" />
         <div className="seg">
           <button className={filtre === 'toutes' ? 'on' : ''} onClick={() => setFiltre('toutes')}>Toutes</button>
           <button className={filtre === 'nonlues' ? 'on' : ''} onClick={() => setFiltre('nonlues')}>Non lues{nonLus ? ` (${avecMessages.filter((d) => d.nonLus).length})` : ''}</button>
@@ -55,7 +55,7 @@ export function Messages() {
         </ul>
       ) : (
         <Empty>
-          {q.trim() ? 'Aucune discussion ne correspond.' : filtre === 'nonlues' ? 'Tout est lu.' : 'Aucune discussion pour l’instant. « Nouvelle discussion », ou la bulle 💬 d’une tâche, en lance une.'}
+          {q.trim() ? 'Aucune discussion ne correspond.' : filtre === 'nonlues' ? 'Tout est lu.' : 'Aucune discussion pour l’instant. « Nouvelle discussion », ou la bulle 💬 d’un point, en lance une.'}
         </Empty>
       )}
       {chat && (
@@ -65,7 +65,7 @@ export function Messages() {
           tacheId={chat.cle}
           onClose={() => ouvrir(null)}
           actions={
-            <button type="button" className="icon-btn" title="Ouvrir la tâche" aria-label="Ouvrir la tâche" onClick={() => navigate(chat.lien)}>
+            <button type="button" className="icon-btn" title="Ouvrir le point" aria-label="Ouvrir le point" onClick={() => navigate(chat.lien)}>
               <Icone n="taches" />
             </button>
           }
@@ -115,8 +115,8 @@ function ChoixTache({ taches, onChoix, onClose }: { taches: DiscussionVue[]; onC
   const liste = taches.filter((d) => cherche(q, d.titre)).sort((a, b) => a.titre.localeCompare(b.titre, 'fr'));
   return (
     <Modal title="Nouvelle discussion" onClose={onClose}>
-      <p className="muted" style={{ marginTop: 0 }}>Sur quelle tâche ? Les personnes concernées par la tâche seront prévenues de ton message.</p>
-      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Titre de la tâche…" aria-label="Chercher une tâche" autoFocus />
+      <p className="muted" style={{ marginTop: 0 }}>Sur quel point ? Les personnes concernées par le point seront prévenues de ton message.</p>
+      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Titre du point…" aria-label="Chercher un point" autoFocus />
       <ul className="messages-choix">
         {liste.slice(0, 60).map((d) => (
           <li key={d.cle}>
@@ -126,7 +126,7 @@ function ChoixTache({ taches, onChoix, onClose }: { taches: DiscussionVue[]; onC
             </button>
           </li>
         ))}
-        {!liste.length && <li className="muted">Aucune tâche en cours ne correspond.</li>}
+        {!liste.length && <li className="muted">Aucun point en cours ne correspond.</li>}
       </ul>
     </Modal>
   );

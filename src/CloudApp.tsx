@@ -224,7 +224,7 @@ function SansPlaceReel({ compte, onSignOut }: { compte: MonCompteClub; onSignOut
       });
   };
   if (!taches) {
-    if (!err) return <div className="loading-screen"><AppLogo size={56} /><p>Chargement de tes tâches…</p></div>;
+    if (!err) return <div className="loading-screen"><AppLogo size={56} /><p>Chargement de tes points…</p></div>;
     return (
       <Message title="Erreur du serveur" onSignOut={onSignOut}>
         <p>{err}</p>

@@ -347,7 +347,7 @@ export function Minutes() {
 
 Notes, présences, invités, heures et début de séance sont effacés.` +
           (n ? `
-Les tâches modifiées, créées ou supprimées depuis le PV (${n}) reviennent comme avant${gardees.size ? ' (sauf ce qui a été changé depuis ailleurs)' : ''}.` : '') +
+Les points modifiés, créés ou supprimés depuis le PV (${n}) reviennent comme avant${gardees.size ? ' (sauf ce qui a été changé depuis ailleurs)' : ''}.` : '') +
           `
 Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arrière.`,
       )
@@ -359,7 +359,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       x.minutes = { ...EMPTY_MINUTES, options: x.minutes?.options };
     }, `PV du ${s1.titre} remis à zéro`);
     setOpenNotes({});
-    setMsg(`↺ PV remis à zéro${n ? ' : tâches remises comme avant' : ''}. « Annuler » (en haut) pour revenir en arrière.`);
+    setMsg(`↺ PV remis à zéro${n ? ' : points remis comme avant' : ''}. « Annuler » (en haut) pour revenir en arrière.`);
   };
 
   // Pilule flottante de la prise de notes : les gestes de la séance, en icônes, toujours à portée de main.
@@ -393,7 +393,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       ? [
           {
             icone: 'ajoutTache' as const,
-            titre: secIci ? `Nouvelle tâche décidée dans « ${sections.actuelle?.nom} »` : 'Nouvelle tâche décidée (section à choisir)',
+            titre: secIci ? `Nouveau point décidé dans « ${sections.actuelle?.nom} »` : 'Nouveau point décidé (section à choisir)',
             onClick: () => addTask(secIci ?? ''),
           },
         ]
@@ -475,14 +475,14 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     others.forEach((p) => out.push(`${++n}. Sondage : ${p.question} — ${pollSummary(p)}`));
     if (noteOf('divers')) out.push(`${++n}. Divers`, ...texteNote('divers').split('\n').map((l) => `   ${l}`));
     if (newTasks.length) {
-      out.push('', 'NOUVELLES TÂCHES DÉCIDÉES');
+      out.push('', 'NOUVEAUX POINTS DÉCIDÉS');
       newTasks.forEach((t) => out.push(`   ■ ${t.titre} (${nouvelleInfo(t)})${docs(t)}`));
     }
     if (opts.annexes && annexes.length) {
       out.push('', 'ANNEXES');
       annexes.forEach((a) => out.push(`   ${a.n}. ${a.d.nom} (${annexeInfo(a, miseEnPage.pages)})`));
     }
-    if (deleted.length) out.push('', `Tâches supprimées : ${deleted.join(', ')}`);
+    if (deleted.length) out.push('', `Points supprimés : ${deleted.join(', ')}`);
     if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${s2.heure ? ` à ${hm(s2.heure)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
     out.push('', `PV établi par ${fullName(secretaire ?? user ?? undefined)} le ${fmtDate(today())}`);
     return out.join('\n');
@@ -581,7 +581,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               </select>
               <input type="date" className="min-date" value={t.delai} disabled={!can2} title={t.delaiRef ? 'Délai calé sur un événement, une séance ou une étiquette (le changer à la main le détache)' : 'Délai'}
                 onChange={(e) => quickChange(t, { delai: e.target.value, delaiRef: undefined })} />
-              <button className="icon-btn" title="Modifier la tâche" onClick={() => openTask(t)} aria-label="Modifier la tâche"><Icone n="modifier" /></button>
+              <button className="icon-btn" title="Modifier le point" onClick={() => openTask(t)} aria-label="Modifier le point"><Icone n="modifier" /></button>
               {!noteOf(`task:${t.id}`) && !openNotes[`task:${t.id}`] && (
                 <button className="icon-btn" title="Ajouter une note" onClick={() => setOpenNotes({ ...openNotes, [`task:${t.id}`]: true })} aria-label="Ajouter une note"><Icone n="note" /></button>
               )}
@@ -698,7 +698,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       </section>
       {newTasks.length > 0 && (
         <section className="pv-part">
-          <h2>Nouvelles tâches décidées</h2>
+          <h2>Nouveaux points décidés</h2>
           <ul className="odj-l2">
             {newTasks.map((t) => (
               <li key={t.id}>
@@ -709,7 +709,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
           </ul>
         </section>
       )}
-      {deleted.length > 0 && <p><b>Tâches supprimées :</b> {deleted.join(', ')}</p>}
+      {deleted.length > 0 && <p><b>Points supprimés :</b> {deleted.join(', ')}</p>}
       {s2 && (
         <p className="pv-next"><b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{s2.heure && ` à ${hm(s2.heure)}`} – Lieu : <LieuSeance m={s2} /></p>
       )}
@@ -798,7 +798,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                   <span className="pbadge closed">Séance terminée – notes et points encore modifiables</span>
                 ))}
                 {editable && pvTouche && (
-                  <button className="btn small" onClick={remettreAZero} title="Effacer notes, présences et heures ; tâches modifiées depuis le PV remises comme avant">
+                  <button className="btn small" onClick={remettreAZero} title="Effacer notes, présences et heures ; points modifiés depuis le PV remis comme avant">
                     <Icone n="revenir" /> Remettre à zéro
                   </button>
                 )}
@@ -838,7 +838,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                     </div>
                   ))}
                   {g.polls.map(pollRow)}
-                  {editable && can('tasks.createAny', g.sec.id) && <button className="btn small link" onClick={() => addTask(g.sec.id)}>+ Nouvelle tâche décidée</button>}
+                  {editable && can('tasks.createAny', g.sec.id) && <button className="btn small link" onClick={() => addTask(g.sec.id)}>+ Nouveau point décidé</button>}
                 </div>
               ))}
               {orphanPolls.length > 0 && (
@@ -861,10 +861,10 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               <h2 className="min-h2">Suivi de la séance</h2>
               <p>{m.presents.length} présent(s) · {m.excuses.length} excusé(s)</p>
               <p>{Object.keys(m.notes).length} note(s)</p>
-              <p>{new Set(journal.map((j) => j.taskId)).size} tâche(s) mise(s) à jour</p>
-              <p>{newTasks.length} nouvelle(s) tâche(s)</p>
+              <p>{new Set(journal.map((j) => j.taskId)).size} point(s) mis à jour</p>
+              <p>{newTasks.length} nouveau(x) point(s)</p>
               <button className="btn primary" onClick={() => setView('pv')}><Icone n="pdf" /> Voir le PV</button>
-              <small className="muted">{editable ? 'Les notes s’enregistrent automatiquement. Seules les modifications de tâches faites ici figurent dans le PV.' : 'PV validé : lecture seule.'}</small>
+              <small className="muted">{editable ? 'Les notes s’enregistrent automatiquement. Seules les modifications de points faites ici figurent dans le PV.' : 'PV validé : lecture seule.'}</small>
             </div>
           </aside>
         </div>
@@ -874,11 +874,11 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
             <strong>Options du PV</strong>
             <label className="inline"><input type="checkbox" checked={!!m.tousLesPoints} disabled={!editable} onChange={(e) => setMinutes((x) => { x.tousLesPoints = e.target.checked; }, { annulable: 'Options du PV' })} /> Inclure tous les points de l’ordre du jour</label>
             <label className="inline"><input type="checkbox" checked={opts.details} disabled={!editable} onChange={(e) => setOpt({ details: e.target.checked })} /> Responsables, délais et échéances</label>
-            <label className="inline"><input type="checkbox" checked={opts.misesAJour} disabled={!editable} onChange={(e) => setOpt({ misesAJour: e.target.checked })} /> Mises à jour des tâches (↻)</label>
+            <label className="inline"><input type="checkbox" checked={opts.misesAJour} disabled={!editable} onChange={(e) => setOpt({ misesAJour: e.target.checked })} /> Mises à jour des points (↻)</label>
             <label className="inline" title="Fichiers et liens de chaque point, nommés ; un clic les ouvre">
               <input type="checkbox" checked={opts.documents} disabled={!editable} onChange={(e) => setOpt({ documents: e.target.checked })} /> 📎 Documents des points
             </label>
-            <label className="inline" title="Les fichiers et liens des tâches du PV : liste des annexes, puis les photos et les pages des PDF (photos et PDF mis en page à part)">
+            <label className="inline" title="Les fichiers et liens des points du PV : liste des annexes, puis les photos et les pages des PDF (photos et PDF mis en page à part)">
               <input type="checkbox" checked={opts.annexes} disabled={!editable} onChange={(e) => setOpt({ annexes: e.target.checked })} /> 📎 Joindre les fichiers liés en fin de PV
               <span className="muted">{annexes.length ? ` (${annexes.length})` : annexesDe(tachesPv).length ? ' (aucun choisi)' : ' (aucun pour l’instant)'}</span>
             </label>

@@ -84,7 +84,7 @@ export function Empty({ children }: { children: ReactNode }) {
 
 /** Petit repère (icône dessinée) : tâche récurrente. */
 export function RecurIcon({ task }: { task: Task }) {
-  return task.recurrence ? <span className="ticon" title={`Tâche récurrente : ${recurrenceLabel(task.recurrence).toLowerCase()}`}><Icone n="repetition" /></span> : null;
+  return task.recurrence ? <span className="ticon" title={`Point récurrent : ${recurrenceLabel(task.recurrence).toLowerCase()}`}><Icone n="repetition" /></span> : null;
 }
 
 export function LinkIcon({ task }: { task: Task }) {
@@ -158,7 +158,7 @@ export function PourInfoTag({ task }: { task: Task }) {
   const noms = ciblesPourInfo(task.pourInfo, data.people).map((c) => c.texte).join(', ');
   if (pourMoi(task, user?.id)) {
     if (user && vuAvantModif(task.pourInfoVus?.[`p:${user.id}`], task))
-      return <span className="badge pour-info revoir" title={`Elle a changé depuis ton « ✓ Vu » · pour info : ${noms}`}>✏️ À revoir</span>;
+      return <span className="badge pour-info revoir" title={`Il a changé depuis ton « ✓ Vu » · pour info : ${noms}`}>✏️ À revoir</span>;
     return <span className="badge pour-info" title={`On te tient au courant, sans que tu t'en occupes · pour info : ${noms}`}><Icone n="voir" /> Pour info</span>;
   }
   const b = bilanVu(task, attendusLus(task));
@@ -179,12 +179,12 @@ export function APrendreTag({ task }: { task: Task }) {
   const noms = task.aPrendre!.personnes.map(nom).join(', ');
   const refus = task.aPrendre!.refus ?? [];
   const titre = aPrendrePourMoi(task, user?.id)
-    ? 'On te la propose : ouvre-la et clique « Je m’en charge »'
+    ? 'On te le propose : ouvre-le et clique « Je m’en charge »'
     : `Proposée à ${noms} : la première qui clique « Je m’en charge » s’en occupe${refus.length ? `. Pas dispo : ${refus.map(nom).join(', ')}` : ''}`;
   // Toutes les personnes proposées ont répondu « Pas dispo » (ou pris les places) : à proposer à d'autres.
   const personne = plusPersonne(task);
   return (
-    <span className={`badge a-prendre${personne ? ' personne' : ''}`} title={personne ? `${titre}. Plus personne n’a à répondre : propose-la à d’autres.` : titre}>
+    <span className={`badge a-prendre${personne ? ' personne' : ''}`} title={personne ? `${titre}. Plus personne n’a à répondre : propose-le à d’autres.` : titre}>
       <Icone n={personne ? 'refuser' : 'main'} /> {personne ? 'Personne de dispo' : 'À prendre'}{n > 1 ? ` ${volontaires(task).length}/${n}` : ''}
     </span>
   );

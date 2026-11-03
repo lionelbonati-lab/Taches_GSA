@@ -188,11 +188,11 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           if (suite) ajouterSuivante(d, task, suite);
           avecNotifs(d, notifs);
         },
-        `${isNew ? 'Création' : 'Modification'} de la tâche « ${t.titre} »` +
-          (next ? ` — tâche récurrente : prochaine occurrence${next.delai ? ` le ${fmtDate(next.delai)}` : ''} pour ${who}` : '') +
+        `${isNew ? 'Création' : 'Modification'} du point « ${t.titre} »` +
+          (next ? ` — point récurrent : prochaine occurrence${next.delai ? ` le ${fmtDate(next.delai)}` : ''} pour ${who}` : '') +
           (seance ? `, séance « ${seance.meeting.titre} »${seance.nouvelle ? ' (ajoutée)' : ''}` : ''),
       );
-      if (next) setToast(`🔁 Tâche récurrente reconduite${next.delai ? ` au ${fmtDate(next.delai)}` : ''} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
+      if (next) setToast(`🔁 Point récurrent reconduit${next.delai ? ` au ${fmtDate(next.delai)}` : ''} · ${who}${seance ? ` · 🗓️ ${seance.meeting.titre}` : ''}`);
     },
     [update, data, userId],
   );
@@ -206,18 +206,18 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     async (t: Task, prend: boolean) => {
       if (!user) throw new Error('Connecte-toi d’abord.');
       const x = data.tasks.find((y) => y.id === t.id);
-      if (!x || !proposeeA(x, user.id)) throw new Error('Cette tâche ne t’est pas proposée.');
+      if (!x || !proposeeA(x, user.id)) throw new Error('Ce point ne t’est pas proposé.');
       if (x.responsables.includes(user.id)) {
         if (prend) return;
-        throw new Error('Tu t’en charges déjà : retire-toi des responsables dans la tâche.');
+        throw new Error('Tu t’en charges déjà : retire-toi des responsables dans le point.');
       }
-      if (prend && isDone(data, x)) throw new Error('Cette tâche est déjà terminée.');
+      if (prend && isDone(data, x)) throw new Error('Ce point est déjà terminé.');
       if (prend && !aPrendreOuverte(x)) throw new Error('Quelqu’un s’en charge déjà.');
       if (!prend && x.aPrendre?.refus?.includes(user.id)) return;
       const at = new Date().toISOString();
       const auteur = auteurAPrendre(x);
       const notifs: ActivityNotif[] = auteur && auteur !== user.id ? [{ id: uid('n'), userId: auteur, type: prend ? 'pris' : 'refus', taskId: x.id, by: user.id, at }] : [];
-      const action = prend ? `${fullName(user)} se charge de la tâche « ${x.titre} »` : `${fullName(user)} n’est pas dispo pour la tâche « ${x.titre} »`;
+      const action = prend ? `${fullName(user)} se charge du point « ${x.titre} »` : `${fullName(user)} n’est pas dispo pour le point « ${x.titre} »`;
       if (cloud) {
         await cloud.sync.flushNow();
         await (prend ? prendreServeur : pasDispoTache)(espaceId, x.id).catch((e) => {
@@ -275,7 +275,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       update((d) => {
         d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, pourInfoVus: ajouterVus(y.pourInfoVus, [cle], le, y.contenuLe) } : y));
         if (toutVu) avecNotifs(d, [{ id: uid('n'), userId: auteur!, type: 'toutVu', taskId: x.id, by: user.id, at: le, titre: x.titre }]);
-      }, `${fullName(user)} a ${deja ? 'revu' : 'vu'} la tâche « ${x.titre} » (pour info)`, { annulable: false });
+      }, `${fullName(user)} a ${deja ? 'revu' : 'vu'} le point « ${x.titre} » (pour info)`, { annulable: false });
     },
     [user, userId, data, cloud, update, espaceId],
   );
@@ -287,7 +287,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       if (!user) throw new Error('Connecte-toi d’abord.');
       const le = new Date().toISOString();
       const x = data.tasks.find((y) => y.id === tacheId);
-      if (!x) throw new Error('Tâche introuvable');
+      if (!x) throw new Error('Point introuvable');
       const texte = (a.texte ?? '').trim();
       const nommes = a.cle || !texte ? [] : mentionnes(texte, mentionnables(x, data.people, data.roles, user.id, data.etiquettes));
       const mentionNotifs = notifsMention(nommes, x, user.id, texte, le);
@@ -311,7 +311,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       update((d) => {
         d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, commentaires: commentaires.length ? commentaires : undefined } : y));
         avecNotifs(d, [...mentionNotifs, ...notifs]);
-      }, mentionNotifs.length ? mentionne : `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} la tâche « ${x.titre} »`, { annulable: false });
+      }, mentionNotifs.length ? mentionne : `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} le point « ${x.titre} »`, { annulable: false });
     },
     [user, data, cloud, update, myRoles, espaceId],
   );
@@ -327,7 +327,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const r = await c.relancerPourInfo(x.id, x);
       const at = new Date().toISOString();
       const notifs: ActivityNotif[] = r.ici.map((id) => ({ id: uid('n'), userId: id, type: 'relance', taskId: x.id, by: user.id, at, titre: x.titre }));
-      if (notifs.length) update((d) => avecNotifs(d, notifs), `${fullName(user)} a relancé la tâche « ${x.titre} » (pour info)`, { annulable: false });
+      if (notifs.length) update((d) => avecNotifs(d, notifs), `${fullName(user)} a relancé le point « ${x.titre} » (pour info)`, { annulable: false });
       return r.n;
     },
     [user, cloud, update],
@@ -447,7 +447,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
           x.parentId = parentId;
           x.updatedAt = new Date().toISOString();
         }
-      }, parentId ? `Tâche « ${t.titre} » rattachée à « ${p?.titre ?? ''} »` : `Tâche « ${t.titre} » détachée de « ${p?.titre ?? ''} »`);
+      }, parentId ? `Point « ${t.titre} » rattaché à « ${p?.titre ?? ''} »` : `Point « ${t.titre} » détaché de « ${p?.titre ?? ''} »`);
     },
     [update, data.tasks],
   );
@@ -457,7 +457,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     (e: ScheduledEmail, isNew: boolean) =>
       update((d) => {
         d.emails = isNew ? [...(d.emails ?? []), e] : (d.emails ?? []).map((x) => (x.id === e.id ? e : x));
-      }, `${isNew ? 'Email programmé' : 'Modification de l’email programmé'} « ${e.objet} » (tâche « ${taskTitle(e.taskId)} »)`),
+      }, `${isNew ? 'Email programmé' : 'Modification de l’email programmé'} « ${e.objet} » (point « ${taskTitle(e.taskId)} »)`),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [update, data.tasks],
   );
@@ -471,7 +471,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         x.statut = statut;
         x.envoyeLe = statut === 'envoye' ? new Date().toISOString() : undefined;
         x.envoyePar = statut === 'envoye' ? userId ?? undefined : undefined;
-      }, `Email « ${e.objet} » (tâche « ${taskTitle(e.taskId)} ») ${statut === 'envoye' ? 'envoyé' : statut === 'annule' ? 'annulé' : 'reprogrammé'}`);
+      }, `Email « ${e.objet} » (point « ${taskTitle(e.taskId)} ») ${statut === 'envoye' ? 'envoyé' : statut === 'annule' ? 'annulé' : 'reprogrammé'}`);
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [update, data.emails, data.tasks, userId],

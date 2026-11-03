@@ -28,7 +28,7 @@ export function Repetition({ t, setT, task, isNew, dis, ouverte }: Props) {
         <label className="full">
           🔁 Répétition
           <select value={t.recurrence ?? ''} disabled={dis} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
-            <option value="">Aucune (tâche unique)</option>
+            <option value="">Aucune (point unique)</option>
             {RECURRENCES.map((r) => (
               <option key={r.id} value={r.id}>🔁 {r.id !== 'seance' ? r.label : `À chaque ${mot}`}</option>
             ))}
@@ -37,7 +37,7 @@ export function Repetition({ t, setT, task, isNew, dis, ouverte }: Props) {
       )}
       {t.recurrence && (
         <p className="full recur-note">
-          🔁 Quand cette tâche sera terminée, la suivante sera créée automatiquement
+          🔁 Quand ce point sera terminé, le suivant sera créé automatiquement
           {t.recurrence !== 'seance' ? (
             delaiSuivant ? <> pour le <b>{fmtDate(delaiSuivant)}</b></> : ' (sans délai)'
           ) : prochaine ? (
@@ -46,9 +46,9 @@ export function Repetition({ t, setT, task, isNew, dis, ouverte }: Props) {
               {delaiSuivant && <>, délai le <b>{fmtDate(delaiSuivant)}</b></>}
             </>
           ) : (
-            <>, sans séance ni délai : aucune séance n’est prévue après {seanceLiee ? `« ${seanceLiee.titre} »` : 'aujourd’hui'} (si une séance est ajoutée dans l’Agenda d’ici là, la suivante y sera rattachée)</>
+            <>, sans séance ni délai : aucune séance n’est prévue après {seanceLiee ? `« ${seanceLiee.titre} »` : 'aujourd’hui'} (si une séance est ajoutée dans l’Agenda d’ici là, le suivant y sera rattaché)</>
           )}
-          {postes.length > 0 && <> et attribuée au poste <b>{postes.join(', ')}</b></>}
+          {postes.length > 0 && <> et attribué au poste <b>{postes.join(', ')}</b></>}
           {' '}(aujourd’hui : {nextResponsables(data, { ...t, postesResp: postes }).map((id) => fullName(data.people.find((p) => p.id === id))).join(', ')}).
           {task.suivanteId && <><br />Occurrence suivante déjà créée.</>}
         </p>

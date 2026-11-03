@@ -39,13 +39,13 @@ export function SansPlace({ membre, logo, taches, erreur, modifier, sortir, onSo
         <button className="btn small" onClick={onSortir}>{sortir}</button>
       </header>
       <main className="narrow">
-        <h1>Mes tâches</h1>
+        <h1>Mes points</h1>
         <p className="muted">
-          Tu n’as pas encore de fiche dans l’appli : tu vois ici les tâches qui te sont confiées. Change leur statut et coche leur checklist au fur et à
+          Tu n’as pas encore de fiche dans l’appli : tu vois ici les points qui te sont confiés. Change leur statut et coche leur checklist au fur et à
           mesure.
         </p>
         {erreur && <p className="error">{erreur}</p>}
-        {!liste.length && <Empty>Aucune tâche ne t’est confiée pour l’instant.</Empty>}
+        {!liste.length && <Empty>Aucun point ne t’est confié pour l’instant.</Empty>}
         {liste.map(({ unite, tache: t, statuts }) => (
           <section key={`${unite.id}:${t.id}`} className={`panel tache-confiee${fini({ unite, tache: t, statuts }) ? ' finie' : ''}`}>
             <small className="muted tache-confiee-entite">
