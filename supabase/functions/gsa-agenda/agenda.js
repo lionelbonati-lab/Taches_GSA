@@ -26,7 +26,7 @@ var PERMISSIONS = [
   { id: "polls.manage", label: "Gérer tous les sondages (clôturer, supprimer)", group: "Gestion" },
   { id: "paiements.valider", label: "Paiements : peut viser (signer) les tickets, sur demande de la caisse", group: "Gestion" },
   { id: "paiements.payer", label: "Caisse : reçoit les tickets, demande les visas, fait les virements", group: "Gestion" },
-  { id: "settings.lists", label: "Gérer sections / statuts", group: "Administration" },
+  { id: "settings.lists", label: "Gérer sections, statuts et étiquettes", group: "Administration" },
   { id: "admin.access", label: "Accès console admin", group: "Administration" }
 ];
 var ALL_PERMISSIONS = PERMISSIONS.map((p) => p.id);
@@ -36,8 +36,12 @@ function hasPermission(roles, perm, sectionId) {
     (r) => (r.locked || r.permissions.includes(perm)) && (!sectionId || r.sections.length === 0 || r.sections.includes(sectionId))
   );
 }
-function voitTache(t, userId, roles) {
-  if (!!userId && (t.responsables.includes(userId) || t.createdBy === userId) || pourMoi(t, userId) || proposeeA(t, userId)) return true;
+function dansEtiquette(t, userId, etiquettes = []) {
+  if (!userId || t.paiement || !t.etiquettes?.length) return false;
+  return t.etiquettes.some((id) => !!etiquettes.find((x) => x.id === id)?.membres.includes(userId));
+}
+function voitTache(t, userId, roles, etiquettes) {
+  if (!!userId && (t.responsables.includes(userId) || t.createdBy === userId) || pourMoi(t, userId) || proposeeA(t, userId) || dansEtiquette(t, userId, etiquettes)) return true;
   const p = t.paiement;
   if (!p) return hasPermission(roles, "tasks.viewAll", t.sectionId);
   return !!userId && [p.demandePar, p.visa?.a, p.validation?.par].includes(userId) || hasPermission(roles, "paiements.payer");
@@ -130,7 +134,6 @@ function occurrenceDu(e, jour2) {
   for (const x of candidats(e, plus(jour2, -d))) if (plus(x, d) >= jour2 && !retiree(e, x)) return x;
   return void 0;
 }
-var estOccurrence = (e, date) => occurrencesEntre(e, date, date).includes(date);
 var fmtHeure = (h) => h ? h.replace(":", "h") : "";
 
 // src/data/utils.ts
@@ -275,41 +278,6 @@ function calendrierIcs(nom, elements, opts) {
   return lignes.map(plier).join("\r\n") + "\r\n";
 }
 
-// src/data/units.ts
-var UNIT_TYPES = {
-  central: { label: "Comité central", plural: "Comité central", icon: "🏛️", trait: "comite", chef: "Président", seances: "Comité", aide: "Direction du club." },
-  "sous-comite": {
-    label: "Sous-comité",
-    plural: "Sous-comités",
-    icon: "🎪",
-    trait: "sousComite",
-    chef: "Président",
-    seances: "Comité",
-    aide: "Organisation d’un événement, avec son président et ses membres."
-  },
-  groupe: {
-    label: "Groupe",
-    plural: "Groupes",
-    icon: "🚴",
-    trait: "groupe",
-    chef: "Responsable",
-    seances: "Séances",
-    aide: "Activité permanente du club (école de cyclisme, compétition…) avec ses propres membres (moniteurs…)."
-  },
-  equipe: {
-    label: "Équipe d’événement",
-    plural: "Équipes d’événement",
-    icon: "🎉",
-    trait: "evenements",
-    chef: "Responsable",
-    seances: "Réunions",
-    aide: "Événement sans comité : quelques personnes, souvent déjà actives ailleurs dans le club."
-  }
-};
-var MEMBER_PERMS = ["tasks.viewAll", "tasks.editOwn", "tab.meetings", "tab.events", "tab.people", "polls.create"];
-var CAISSE_PERMS = [...MEMBER_PERMS, "paiements.payer"];
-var CO_PERMS = [...MEMBER_PERMS, "events.manage"];
-
 // src/data/seances.ts
 var MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
 var AVEC_MOIS = new RegExp(`^(.+?) (?:de |d['’])(?:${MOIS.join("|")}) \\d{4}$`, "i");
@@ -324,18 +292,11 @@ function finSondage(p) {
 var isOpen = (p) => !p.clotureLe && (finSondage(p) ?? Infinity) > Date.now();
 
 // src/data/agendaIcs.ts
+var etiquettesDatees = (etiquettes = []) => etiquettes.filter((e) => e.type === "evenement" && !!e.date);
 var DUREE_SEANCE = 120;
 var DOMAINE = "taches-gsa";
 var HORIZON_AGENDA = 730;
 var PASSE_ABONNEMENT = 365;
-function manifsAgenda(units, courante, clubEvents, ownEvents) {
-  return units.filter((u) => !u.archive).map((u) => {
-    const own = u.id === courante;
-    const events = own ? [] : clubEvents.filter((e) => e.uniteId === u.id);
-    const edition = (u.type === "sous-comite" || u.type === "equipe") && !!u.date && !(own ? ownEvents : events).some((e) => e.date === u.date || !!e.repetition && estOccurrence(e, u.date));
-    return { u, events, edition, own };
-  }).filter((x) => x.events.length > 0 || x.edition);
-}
 var lieu = (l) => l?.trim() && !/^à définir$/i.test(l.trim()) ? l.trim() : void 0;
 function listesAgenda(o) {
   const { data, userId, depuis, lien } = o;
@@ -363,20 +324,7 @@ function listesAgenda(o) {
     sauf: x.sauf,
     url: lien("/evenements")
   }));
-  const club = o.manifs.flatMap(({ u, events, edition }) => [
-    ...edition && (!depuis || (u.dateFin ?? u.date) >= depuis) ? [{ uid: `edition-${u.id}-${u.date}@${DOMAINE}`, titre: u.nom, date: u.date, dateFin: u.dateFin, description: UNIT_TYPES[u.type].label }] : [],
-    ...events.filter((x) => !depuis || !!occurrenceDu(x, depuis)).map((x) => ({
-      uid: `club-${u.id}-${x.id}@${DOMAINE}`,
-      titre: x.nom === u.nom ? x.nom : `${x.nom} (${u.nom})`,
-      date: x.date,
-      dateFin: x.dateFin,
-      heure: x.heure,
-      heureFin: x.heureFin,
-      lieu: lieu(x.lieu),
-      repetition: x.repetition,
-      sauf: x.sauf
-    }))
-  ]);
+  const club = etiquettesDatees(data.etiquettes).filter((e) => (!depuis || (e.dateFin ?? e.date) >= depuis) && !data.events.some((x) => x.date === e.date && x.nom.trim().toLowerCase() === e.nom.trim().toLowerCase())).map((e) => ({ uid: `etiquette-${e.id}-${e.date}@${DOMAINE}`, titre: e.nom, date: e.date, dateFin: e.dateFin, description: "Événement (étiquette)", url: lien(`/taches?etiquette=${encodeURIComponent(e.id)}`) }));
   const taches = !userId || o.taches === "non" ? [] : data.tasks.filter((x) => x.delai && (!depuis || x.delai >= depuis) && !isDone(data, x) && (o.taches === "mes" ? x.responsables.includes(userId) : o.voit(x))).map((x) => ({
     uid: `tache-${x.id}@${DOMAINE}`,
     titre: `Délai : ${x.titre}`,
@@ -408,37 +356,29 @@ var elementsChoisis = (l, c) => [
 var nomAgenda = (appli, entite) => entite ? `${appli} – ${entite}` : appli;
 
 // src/data/agendaServeur.ts
-var LISTES = ["people", "roles", "sections", "statuses", "meetings", "events", "tasks", "polls"];
+var LISTES = ["people", "roles", "sections", "statuses", "meetings", "events", "tasks", "polls", "etiquettes"];
 function donnees(lignes) {
   const d = Object.fromEntries(LISTES.map((k) => [k, []]));
-  const prefs = {};
-  for (const r of [...lignes].sort((a, b) => a.pos - b.pos || (a.id < b.id ? -1 : 1))) {
-    if (r.kind === "prefs") prefs[r.id] = r.data;
-    else if (r.kind in d) d[r.kind].push(r.data);
-  }
-  return { data: d, prefs };
+  for (const r of [...lignes].sort((a, b) => a.pos - b.pos || (a.id < b.id ? -1 : 1))) if (r.kind in d) d[r.kind].push(r.data);
+  return d;
 }
 function agendaAbonnement(o) {
-  const { data, prefs } = donnees(o.lignes);
+  const data = donnees(o.lignes);
   const moi = data.people.find((p) => p.id === o.fiche && p.actif !== false) ?? null;
   const roles = userRoles(data.roles, moi);
   const can = (p) => hasPermission(roles, p);
-  const unites = o.unites.map((u) => ({ id: u.id, nom: u.nom, type: u.type, date: u.info?.date, dateFin: u.info?.dateFin, archive: !!u.info?.archive }));
-  const masquees = moi && prefs[moi.id]?.manifsMasquees || [];
-  const manifs = manifsAgenda(unites, o.courante, o.clubEvents, data.events).filter((x) => !masquees.includes(x.u.id));
   const jour2 = o.maintenant.toISOString().slice(0, 10);
   const op = o.options;
-  const lien = (chemin) => op.appli ? `${op.appli}?reel=${encodeURIComponent(o.courante)}#${chemin}` : "";
+  const lien = (chemin) => op.appli ? `${op.appli}?reel#${chemin}` : "";
   const taches = !moi ? "non" : op.taches === "toutes" && !can("tasks.viewAll") ? "mes" : op.taches ?? "non";
-  const listes = listesAgenda({ data, userId: moi?.id, voit: (t) => voitTache(t, moi?.id, roles), manifs, taches, depuis: addDays(jour2, -PASSE_ABONNEMENT), lien });
+  const listes = listesAgenda({ data, userId: moi?.id, voit: (t) => voitTache(t, moi?.id, roles, data.etiquettes), taches, depuis: addDays(jour2, -PASSE_ABONNEMENT), lien });
   const choisis = elementsChoisis(listes, {
     seances: !!op.seances && can("tab.meetings"),
     evenements: !!op.evenements && can("tab.events"),
     club: !!op.club,
     sondages: !!op.sondages
   });
-  const entite = o.unites.find((u) => u.id === o.courante)?.nom;
-  return calendrierIcs(nomAgenda(op.nomAppli || "Tâches GSA", entite), choisis, { depuis: addDays(jour2, -PASSE_ABONNEMENT), horizon: addDays(jour2, HORIZON_AGENDA), maintenant: o.maintenant });
+  return calendrierIcs(nomAgenda(op.nomAppli || "Tâches GSA"), choisis, { depuis: addDays(jour2, -PASSE_ABONNEMENT), horizon: addDays(jour2, HORIZON_AGENDA), maintenant: o.maintenant });
 }
 export {
   agendaAbonnement

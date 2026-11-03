@@ -134,6 +134,23 @@ base de test : `outils/base-test/LISEZMOI.md`.
     entité, délai sur la date de l'étiquette). Tests : 35 (un de plus pour le délai calé sur une étiquette).
   - **Rapport D2** mis à jour : il ne montre plus les entités déjà reprises.
 
+- **D4 (03.11.2026), préparée, PAS déployée** : les fonctions serveur suivent l'espace unique (détail et vérifications
+  après déploiement : `SUPABASE_SETUP.md`, « Fonctions serveur »). État des lieux en lecture seule : le serveur fait
+  tourner les versions d'avant D1, identiques au dépôt d'avant D1.
+  - `gsa-push` : `notifs.js` régénéré (`npm run fonction`) ; `index.ts` ne lit plus les « pour info » ni les lectures
+    communes des entités (l'appli marque les 💬 lues avec la discussion) et lit les étiquettes. Sans ce changement, la
+    fonction régénérée ne démarrait plus (`luesCommunes` retiré en D1).
+  - `gsa-agenda` : `agenda.js` régénéré (étiquettes datées comme « agenda du club ») ; `index.ts` lit les étiquettes, plus
+    les entités ; un ancien lien vers une entité reprise sert l'espace du club.
+  - `gsa-acces` : l'organigramme (`orga.ts`, `organigramme.js`), la suppression d'entités (`suppression.ts`) et les
+    anciennes actions par entité sont retirés ; restent les comptes du club et les personnes du club ; « retirer du
+    club » désactive ses fiches (club et anciennes entités) et refuse le dernier admin du club.
+  - `webpush.ts` : types précisés pour les TypeScript récents (sans effet à l'exécution).
+  - Essais : `deno check` sans erreur pour les trois ; `gsa-agenda` et `gsa-push` lancées avec Deno contre la base de
+    test ; le retrait du club essayé sur une base simulée. Aucune migration nécessaire.
+  - Fonctions SQL des entités devenues inutiles (organigramme, tâches partagées, agenda du club…) : laissées en place,
+    à voir en D5.
+
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 
 D'après le rapport D2. Ce qui n'est pas écrit ici suit le rapport (`outils/reprise/rapport_reprise.sql`).

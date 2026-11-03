@@ -21,8 +21,9 @@ function concat(...parts: Uint8Array[]) {
 }
 
 async function hkdf(sel: Uint8Array, ikm: Uint8Array, info: Uint8Array, octets: number) {
-  const cle = await crypto.subtle.importKey('raw', ikm, 'HKDF', false, ['deriveBits']);
-  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: sel, info }, cle, octets * 8));
+  // (BufferSource : typage des TypeScript récents, sans effet à l'exécution.)
+  const cle = await crypto.subtle.importKey('raw', ikm as BufferSource, 'HKDF', false, ['deriveBits']);
+  return new Uint8Array(await crypto.subtle.deriveBits({ name: 'HKDF', hash: 'SHA-256', salt: sel as BufferSource, info: info as BufferSource }, cle, octets * 8));
 }
 
 /** Nouvelle paire de clés VAPID : la publique (65 octets, base64url) pour les navigateurs, la privée pour signer. */

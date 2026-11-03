@@ -226,47 +226,66 @@ Organigramme par postes (sans migration : deux clés de plus dans `committees.in
 
 Les tables des essais précédents (`001_init.sql`, `002_…` : `tasks`, `people`, `meetings`, `memberships`…) ne sont pas utilisées par l'appli. Elles sont vides et peuvent être supprimées.
 
-## Fonction serveur `gsa-acces`
+## Fonctions serveur (étape D4 : un seul espace)
 
-`supabase/functions/gsa-acces/index.ts` (déployée, vérification de connexion faite dans le code) : appelée par la console admin, réservée aux admins du comité.
+**État au 03.11.2026** : le code du dépôt est adapté à l'espace unique (D4) mais **pas encore redéployé** ; le serveur fait
+tourner les versions d'avant D1 (`gsa-acces` v10, `gsa-agenda` v2, `gsa-push` v8, identiques au dépôt d'avant D1). Elles
+marchent encore, mais lisent les entités : `gsa-agenda` n'affiche ni les étiquettes datées ni l'agenda du club d'après
+la reprise, `gsa-push` ne lit pas les étiquettes (une tâche vue grâce à une étiquette ne prévient pas), et `gsa-acces`
+garde l'organigramme (retrait d'une personne du club par ses règles). À redéployer avec l'accord du président, les
+trois avec `verify_jwt` désactivé (comme aujourd'hui ; chaque fonction vérifie elle-même ce qui doit l'être).
 
-- `liste` : comptes du comité (adresse, dernière connexion, mot de passe provisoire pas encore changé).
-- `creer` : crée le compte d'un responsable (adresse confirmée d'office, mot de passe provisoire renvoyé une seule fois) et le lie à sa fiche.
-- `reinitialiser` : nouveau mot de passe provisoire ; refusé si le compte appartient aussi à une entité dont l'appelant n'est pas admin (un responsable de groupe ne peut pas changer le mot de passe du président).
-- `retirer` : supprime le lien (le compte n'a plus accès au comité).
-- `creerUnite` (admins du comité central) : crée une entité avec ses données de départ, crée le compte de son responsable s'il n'existe pas (mot de passe provisoire) et rattache les membres de départ qui ont déjà un compte (même adresse email).
-- `responsable` (admins du comité central, ou de l'entité ; déployée le 07.10.2026) : organigramme câblé, désigne le responsable d'un sous-comité, groupe ou équipe. Reprend sa fiche dans l'entité (fiche du registre ou même adresse) ou la crée, lui donne le rôle Admin et sa fonction, et, sauf « garder aussi », retire le rôle Admin aux responsables actuels (ils restent membres). S'il a déjà un compte dans le club (même adresse), il est rattaché à l'entité ; sinon on crée son accès depuis sa fiche.
-- **Mot de passe oublié et comptes** (`comptes.ts`, avec la migration 025 ; déployé le 12.10.2026) :
+**Essais avant déploiement** (03.11.2026) : `deno check` sans erreur pour les trois ; `gsa-agenda` et `gsa-push` lancées
+avec Deno contre la base de test (données fictives, reprise faite) : lien d'agenda du club et ancien lien vers une
+entité reprise, appareil fictif qui reçoit une notification chiffrée une seule fois ; `retirerDuClub` (`gsa-acces`)
+essayé sur une base simulée en mémoire (dernier admin refusé, fiches désactivées dans le club et l'ancienne entité).
+
+**Après le déploiement**, vérifier : Réglages › Notifications › « Envoyer une notification d'essai » (`gsa-push`,
+`essai`) ; Agenda › Exporter › « Créer mon lien privé », puis ouvrir le lien (`gsa-agenda`) ; menu du compte ›
+« Comptes du club » (super-admin) et « Mots de passe oubliés » (`gsa-acces`). La première passe de `gsa-push` sur
+l'espace du club, pour qui n'y avait pas encore d'appareil noté, n'envoie rien (ce qui est déjà là est seulement noté).
+
+### `gsa-acces`
+
+Fichiers : `supabase/functions/gsa-acces/index.ts`, `comptes.ts`, `club.ts` (l'organigramme, `orga.ts` et
+`organigramme.js`, et la suppression d'entités, `suppression.ts`, sont retirés). Les comptes sont créés avec la clé
+secrète, adresse confirmée d'office ; aucun email : l'admin transmet lui-même le mot de passe provisoire.
+
+- **Mot de passe oublié et comptes** (`comptes.ts`, migration 025) :
   - `demandeMdp` (sans connexion) : enregistre une demande aux admins ; même réponse que l'adresse existe ou non ; 3 par compte et par jour, 30 par heure en tout ;
-  - `approuverMdp` / `refuserMdp` : un admin qui peut la valider (règle `gsa_peut_approuver_mdp`) donne un mot de passe provisoire (renvoyé une seule fois) ou refuse ; les autres demandes de la personne sont closes ;
-  - super-admins : `comptes` (liste du club), `reinitialiserCompte`, `bloquer` / `debloquer` (pas soi-même), `fusionner` (puis suppression du compte fondu, ou blocage si la suppression échoue).
-  - Un compte au mot de passe provisoire ne peut appeler aucune action (sauf `demandeMdp`). `reinitialiser` suit aussi la règle `gsa_peut_approuver_mdp`.
-- **Organigramme** (déployé le 08.10.2026 ; tout membre du club, droits vérifiés par le serveur) : `organiser` applique un changement de l'organigramme (placer une personne, créer, renommer, lier ou supprimer un poste) avec le moteur de `src/data/organigramme.ts`, rassemblé dans `organigramme.js` par `npm run fonction` (à relancer, puis redéployer, quand ce moteur change ; redéployé le 13.10.2026 : `nouveauPoste` accepte `lien`, pour lier un groupe glissé dans un comité ou un événement glissé sur un groupe). Seuls les admins d'une entité ou du comité central modifient ses fiches ; ce qui suit par un poste lié suit. Il renvoie un **jeton d'annulation** (chiffré, 30 minutes, pour son auteur) : `annulerOrga` remet les fiches touchées comme avant, sauf si quelqu'un les a changées entre-temps. `postes` : à la première ouverture, déduit les postes des fonctions de chacun (sans changer aucun rôle) ; `suivre` : après une modification de fiches (fonction renommée, personne retirée…), met à jour les postes et les postes liés ; `lierEntite` : à la création ou au renommage d'une entité, lie les postes qui portent son nom. Une personne nouvelle est inscrite au registre « Membres du club » ; ses coordonnées viennent toujours du registre.
-- **Comptes des personnes du club** (`club.ts`, avec la migration 056 ; déployé le 28.10.2026) : droits calculés par le serveur (`gsa_compte_club_etat`, appelée au nom de la personne connectée) :
-  - `compteClub` : donne l'accès à une personne du club (son email de la fiche du club ; compte existant repris, sinon créé avec un mot de passe provisoire) ; ses places lui ouvrent leurs entités ;
-  - `mdpCompteClub` : nouveau mot de passe provisoire (règle `gsa_peut_approuver_mdp` ; compte sans place : droit « Gérer les personnes ») ;
-  - `retirerCompteClub` : retire son compte du club (accès aux entités, sauf propriétaire) ; ses places restent ;
-  - `retirerDuClub` : ses places libérées (comme « Retirer de l'entité » ; jamais le seul ★ d'une entité), son compte et sa fiche du club retirés ; ses tâches gardent son nom.
-  - Les anciennes actions `liste`, `creer`, `reinitialiser` et `retirer` (accès entité par entité) restent dans la fonction, mais l'appli ne s'en sert plus.
-- **Suppression d'une entité archivée** (`suppression.ts` ; déployé le 13.10.2026 ; droits : migration 031) : `supprimerUnite` (admins du comité central, super-admins), seulement pour une entité du club **déjà archivée**. Avec `apercu` : les nombres de ce qui serait supprimé, sans rien toucher. Sinon `nom` doit être son nom, retapé : l'entité est supprimée avec toutes ses données (`gsa_items`, `gsa_members`… en cascade), puis ses fichiers (`gsa-fichiers`, dossier de l'entité, par l'API de stockage) ; ses postes liés ⛓ dans les autres entités sont déliés, elle est retirée des groupes du registre (`gsa_club_membres`) et le journal du comité central note la suppression. Les comptes restent (pour leurs autres entités).
+  - `approuverMdp` / `refuserMdp` : un admin qui peut la valider (règle `gsa_peut_approuver_mdp`) donne un mot de passe provisoire (renvoyé une seule fois) ou refuse ;
+  - super-admins : `comptes` (liste du club), `reinitialiserCompte`, `bloquer` / `debloquer` (pas soi-même), `fusionner`.
+  - Un compte au mot de passe provisoire ne peut appeler aucune action (sauf `demandeMdp`).
+- **Comptes des personnes du club** (`club.ts`, migration 056) : droits calculés par le serveur (`gsa_compte_club_etat`, au nom de la personne connectée ; les entités archivées n'y comptent plus) :
+  - `compteClub` : donne l'accès à une personne du club (email de sa fiche ; compte existant repris, sinon créé avec un mot de passe provisoire) ; sa fiche active dans l'espace du club lui ouvre l'appli ;
+  - `mdpCompteClub` : nouveau mot de passe provisoire ;
+  - `retirerCompteClub` : retire son compte (accès, sauf propriétaire) ; sa fiche reste ;
+  - `retirerDuClub` : ses fiches actives désactivées (espace du club et anciennes entités, sans quoi le registre refuse le retrait ; refusé pour le dernier admin du club), son compte et sa fiche du registre retirés ; ses tâches gardent son nom.
+- Les anciennes actions (`liste`, `creer`, `reinitialiser`, `retirer`, `creerUnite`, `responsable`, organigramme, `supprimerUnite`) répondent « Action inconnue ».
 
-Les mots de passe provisoires ne partent pas par email : l'admin les transmet lui-même.
+### `gsa-agenda`
 
-## Fonction serveur `gsa-agenda`
+Fichiers : `supabase/functions/gsa-agenda/index.ts`, `agenda.js` (de `src/data/agendaServeur.ts` par `npm run fonction`).
+Sans compte (`verify_jwt` désactivé) : l'agenda de la personne relit `…/functions/v1/gsa-agenda/<jeton>.ics`. Le jeton
+(migration 045) dit qui et quel espace ; un ancien lien vers une entité reprise (`info.reprise`) sert l'espace du club.
+Les données sont lues **comme la personne** (rôle `authenticated`, ses droits) : séances, événements, **étiquettes
+datées** (« agenda du club »), délais des tâches (les siennes ou toutes, selon ses droits), fins de sondage, comme
+« Exporter » dans l'appli. Plus membre, mot de passe provisoire, lien réinitialisé ou supprimé : 404.
 
-`supabase/functions/gsa-agenda/index.ts` (déployée le 26.10.2026, redéployée le même jour, sans vérification de connexion : `verify_jwt` désactivé, l'agenda n'a pas de compte) : l'agenda de la personne relit `…/functions/v1/gsa-agenda/<jeton>.ics` quand il veut (Google : toutes les quelques heures). Le jeton (migration 045) dit qui et quelle entité ; la fonction lit ensuite les données **comme la personne** (rôle `authenticated` et son identité dans la transaction, connexion `SUPABASE_DB_URL`) : mêmes règles d'accès que dans l'appli, plus ses droits (séances, événements, toutes les tâches) et ses entités masquées de l'agenda du club. Plus membre de l'entité, mot de passe provisoire pas changé, lien remplacé ou supprimé : 404. Seules la table du lien, l'adresse et les droits du compte (`auth.users`) et les noms et dates des entités du club sont lus avec les droits du serveur. Le contenu (`agenda.js`) vient de `src/data/agendaServeur.ts` par `npm run fonction` (à relancer, puis redéployer, quand les règles de l'export changent : `agendaIcs.ts`, `ics.ts`, `repetition.ts`).
+### `gsa-push`
 
-Correction à redéployer : la fonction lisait la colonne `nom` des entités au lieu de `name` (erreur 503 à chaque lecture d'un lien ; aucun lien n'avait encore été créé).
+Fichiers : `supabase/functions/gsa-push/index.ts`, `notifs.js` (de `src/data/pushServeur.ts` par `npm run fonction`),
+`webpush.ts` (chiffrement RFC 8291 et signature RFC 8292, Web Crypto, sans bibliothèque).
 
-## Fonction serveur `gsa-push`
-
-`supabase/functions/gsa-push/index.ts` (déployée le 26.10.2026, redéployée le 28.10.2026 : rappels de séance selon l’organigramme, ★ et postes ; `notifs.js` régénéré ensuite : sans la notification 📨 des demandes au comité central (retirées, sans effet en attendant), et avec la case « Messagerie » à part (💬 et 📣 ; la version déployée les range encore sous « tâche modifiée » et « tâche confiée ») — à redéployer ; sans vérification de connexion : `verify_jwt` désactivé ; avec la migration 047) : notifications envoyées aux appareils inscrits, même l'appli fermée. Trois demandes (`POST`, `{ action }`) :
-
-- `cle` : la clé publique du serveur (VAPID), pour inscrire un appareil ; créée à la première demande ;
+- `cle` : la clé publique du serveur (VAPID), créée à la première demande ;
 - `essai` (personne connectée, jeton vérifié dans le code) : une notification d'essai sur ses appareils ;
-- `tourner` (planification de 047 seulement : en-tête `x-gsa-cle` = la clé de lancement) : pour chaque personne inscrite, dans chacune de ses entités non archivées, les notifications de la cloche 🔔 sont calculées **comme dans l'appli** (même code : `notifs.js`, de `src/data/pushServeur.ts` par `npm run fonction`), avec ses réglages de notifications et en lisant les données **comme elle** (rôle `authenticated` et son identité dans la transaction : mêmes règles d'accès). Celles qu'elle n'a pas encore vues dans l'appli et pas encore reçues partent ; au-delà de trois d'un coup, un seul message les résume. À la première lecture d'une entité, ce qui était déjà là est noté sans être envoyé. Rien entre 22 h et 7 h (heure suisse) : ce qui arrive la nuit part le matin. Un appareil que le service de notification dit retiré (404, 410), ou refusé plus de 10 fois de suite, est effacé.
+- `tourner` (planification de 047, en-tête `x-gsa-cle` = la clé de lancement) : pour chaque personne inscrite, dans
+  l'espace du club (ses espaces non archivés), les notifications de la cloche 🔔 calculées **comme dans l'appli**
+  (`notifs.js`, étiquettes comprises), avec ses réglages et en lisant les données **comme elle** ; seules partent celles
+  pas encore envoyées et pas lues (lire une discussion dans l'appli marque ses 💬 lues). Rien la nuit (22 h – 7 h) ;
+  au-delà de trois d'un coup, un seul message qui les résume.
 
-Le contenu est chiffré pour l'appareil seul (RFC 8291) et signé par la clé du serveur (RFC 8292), sans bibliothèque (`webpush.ts`, Web Crypto). Les commentaires 💬 (049) partent comme le reste depuis le redéploiement de la fonction avec ce `notifs.js` (26.10.2026). Limites : les sondages partagés depuis d'autres entités n'y sont pas (seulement dans l'appli) ; sur iPhone et iPad, l'appli doit être installée sur l'écran d'accueil (iOS 16.4 ou plus récent).
+Limite : sur iPhone et iPad, l'appli doit être installée sur l'écran d'accueil (iOS 16.4 ou plus récent).
 
 ## Emails du mot de passe oublié
 

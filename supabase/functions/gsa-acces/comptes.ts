@@ -1,7 +1,7 @@
 // Tâches GSA – comptes du club (actions de la fonction gsa-acces, migration 025).
-// • « demandeMdp » (sans connexion) : mot de passe oublié, demande aux admins des entités du compte. La réponse est
+// • « demandeMdp » (sans connexion) : mot de passe oublié, demande aux admins du club. La réponse est
 //   toujours la même, que l'adresse ait un compte ou non (on ne révèle pas qui a un compte).
-// • « approuverMdp » / « refuserMdp » : un admin de l'une de ses entités (garde-fou : gsa_peut_approuver_mdp) ou un
+// • « approuverMdp » / « refuserMdp » : un admin du club (garde-fou : gsa_peut_approuver_mdp) ou un
 //   super-admin valide la demande ; il reçoit un mot de passe provisoire à transmettre, à changer à la connexion.
 // • Super-admins (gsa_super_admins) : « comptes » (liste), « reinitialiserCompte », « bloquer », « debloquer », « fusionner ».
 // Le mot de passe provisoire se donne en deux temps : le mot de passe, puis le drapeau (app_metadata) ; le déclencheur
@@ -98,7 +98,7 @@ export async function actionComptes(db: Db, me: string, action: string, body: Re
   if (action === 'approuverMdp' || action === 'refuserMdp') {
     const d = await demande(db, String(body.demandeId ?? ''));
     if (!(await peutApprouver(db, me, d.user_id)))
-      throw new ErreurCompte('Ce compte est celui d’un admin d’une autre entité : un admin de cette entité, du comité central ou un super-admin doit valider la demande.', 403);
+      throw new ErreurCompte('Ce compte est celui d’un admin : un autre admin du club ou un super-admin doit valider la demande.', 403);
     if (action === 'refuserMdp') {
       await db.from('gsa_demandes_mdp').update({ etat: 'refusee', traitee_le: new Date().toISOString(), par: me }).eq('user_id', d.user_id).eq('etat', 'attente');
       return { ok: true };

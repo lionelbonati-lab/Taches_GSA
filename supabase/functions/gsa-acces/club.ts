@@ -1,11 +1,10 @@
 // Tâches GSA – comptes des personnes du club (PERSONNES_DU_CLUB.md, migration 056) : actions « compteClub »,
 // « mdpCompteClub », « retirerCompteClub » et « retirerDuClub » de la fonction gsa-acces.
-// Un compte par personne du club, donné une fois ; ses accès suivent ses places (déclencheurs de 056). Les droits viennent
-// du serveur : gsa_compte_club_etat, appelée avec le jeton de la personne connectée (droit « Gérer les personnes du club »,
-// places ★, mot de passe) ; le reste se fait ici avec la clé secrète.
+// Un compte par personne du club, donné une fois ; son accès suit sa fiche dans l'espace du club (déclencheurs de 056).
+// Les droits viennent du serveur : gsa_compte_club_etat, appelée avec le jeton de la personne connectée (droit « Gérer
+// les personnes du club », rôle Admin, mot de passe) ; le reste se fait ici avec la clé secrète.
 import type { SupabaseClient } from 'npm:@supabase/supabase-js@2';
 import { donnerMdpProvisoire, ErreurCompte, tempPassword } from './comptes.ts';
-import { retirerPlaces } from './orga.ts';
 
 type Db = SupabaseClient;
 
@@ -26,10 +25,41 @@ const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
 const et = (l: string[]) => (l.length > 1 ? `${l.slice(0, -1).join(', ')} et ${l[l.length - 1]}` : (l[0] ?? ''));
 const refusEtoile = (e: Etat) =>
   e.etoiles.length
-    ? `★ de ${et(e.etoiles.map((x) => `« ${x} »`))} : réservé aux admins de cette entité ou du comité central.`
+    ? `Admin de ${et(e.etoiles.map((x) => `« ${x} »`))} : réservé aux admins du club.`
     : 'Réservé aux super-admins du club (compte du propriétaire ou d’un super-admin).';
 
-/** Retire le compte du club : ses accès aux entités du club (sauf propriétaire) et son lien à la personne. */
+/**
+ * Retrait du club : ses fiches actives (même fiche du registre ; sans, même adresse) sont désactivées, dans l'espace du
+ * club et dans les anciennes entités (archivées depuis la reprise, 059 : sinon le registre refuse de retirer la
+ * personne) ; rien n'est effacé, ses tâches gardent son nom. Refusé si elle est le dernier admin actif du club.
+ * Renvoie les espaces touchés.
+ */
+async function retirerFiches(db: Db, club: string, membreId: string, email: string): Promise<string[]> {
+  const { data: espaces, error: e1 } = await db.from('committees').select('id').or(`id.eq.${club},parent_id.eq.${club}`);
+  if (e1) throw new ErreurCompte(e1.message);
+  const ids = (espaces ?? []).map((x) => x.id as string);
+  const { data: lignes, error: e2 } = await db.from('gsa_items').select('committee_id, id, data').eq('kind', 'people').eq('deleted', false).in('committee_id', ids);
+  if (e2) throw new ErreurCompte(e2.message);
+  type Fiche = { committee_id: string; id: string; data: Record<string, unknown> | null };
+  const toutes = (lignes ?? []) as Fiche[];
+  const adresse = email.trim().toLowerCase();
+  const active = (f: Fiche) => !!f.data && f.data.actif !== false;
+  const admin = (f: Fiche) => Array.isArray(f.data?.roles) && (f.data.roles as unknown[]).includes('admin');
+  const sienne = (f: Fiche) =>
+    active(f) && (f.data?.membreId === membreId || (!f.data?.membreId && !!adresse && String(f.data?.email ?? '').trim().toLowerCase() === adresse));
+  const siennes = toutes.filter(sienne);
+  const auClub = siennes.filter((f) => f.committee_id === club);
+  if (auClub.some(admin) && !toutes.some((f) => f.committee_id === club && active(f) && admin(f) && !sienne(f)))
+    throw new ErreurCompte('C’est le dernier admin du club : donne d’abord le rôle Admin à quelqu’un d’autre.', 409);
+  for (const f of siennes) {
+    const { error } = await db.from('gsa_items').update({ data: { ...f.data, actif: false }, client_id: null })
+      .eq('committee_id', f.committee_id).eq('kind', 'people').eq('id', f.id);
+    if (error) throw new ErreurCompte(error.message);
+  }
+  return [...new Set(siennes.map((f) => f.committee_id))];
+}
+
+/** Retire le compte du club : ses accès aux espaces du club (sauf propriétaire) et son lien à la personne. */
 async function retirerCompte(db: Db, club: string, membreId: string, userId: string) {
   const { data: entites } = await db.from('committees').select('id').or(`id.eq.${club},parent_id.eq.${club}`);
   const ids = (entites ?? []).map((x) => x.id as string);
@@ -95,7 +125,7 @@ export async function actionClub(db: Db, commeMoi: Db, userId: string, action: s
       throw new ErreurCompte(
         etat.moi
           ? 'Change ton propre mot de passe depuis « Mon compte ».'
-          : 'Ce compte est aussi celui d’un admin, du propriétaire ou d’un super-admin : un admin de ses entités, du comité central ou un super-admin doit le faire.',
+          : 'Ce compte est aussi celui d’un admin, du propriétaire ou d’un super-admin : un admin du club ou un super-admin doit le faire.',
         403,
       );
     return await donnerMdpProvisoire(db, lien.user_id as string);
@@ -111,9 +141,9 @@ export async function actionClub(db: Db, commeMoi: Db, userId: string, action: s
 
   if (action === 'retirerDuClub') {
     if (!fiche) return { ok: true, unites: [] };
-    // Ses places d'abord (refusé s'il est le seul ★ d'une entité), puis son compte, puis sa fiche du club (et son IBAN,
-    // déclencheur de 034). Ses tâches gardent son nom.
-    const unites = await retirerPlaces(db, userId, club, membreId, String(d.email ?? ''));
+    // Ses fiches d'abord (refusé s'il est le dernier admin du club), puis son compte, puis sa fiche du registre (et son
+    // IBAN, déclencheur de 034). Ses tâches gardent son nom.
+    const unites = await retirerFiches(db, club, membreId, String(d.email ?? ''));
     if (lien) await retirerCompte(db, club, membreId, lien.user_id as string);
     const { error: e } = await db.from('gsa_club_membres').delete().eq('club_id', club).eq('id', membreId);
     if (e) throw new ErreurCompte(e.message);
