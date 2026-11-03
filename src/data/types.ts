@@ -367,6 +367,12 @@ export interface TaskSnapshot {
   sous?: Record<string, boolean>;
 }
 
+/** Point du PV tel qu'il était à la fin de la séance (MeetingMinutes.etats). */
+export interface EtatPoint extends TaskSnapshot {
+  /** Son échéance à l'ordre du jour : en retard, pour la séance, pour la suivante, terminé depuis la précédente. */
+  rang: 'late' | 'p1' | 'p2' | 'bilan';
+}
+
 export interface MeetingMinutes {
   presents: string[];
   excuses: string[];
@@ -381,6 +387,12 @@ export interface MeetingMinutes {
   pointIds?: string[];
   /** Afficher dans le PV tous les points de l'ordre du jour (sinon seulement ceux avec notes ou changements). */
   tousLesPoints?: boolean;
+  /**
+   * Points tels qu'ils étaient à la fin de la séance (statut, délai, responsables, intitulé, checklist, échéance), figés
+   * dès le lendemain : repris plus tard, le PV les montre ainsi, sans ce qui a changé depuis ailleurs. Les changements
+   * faits depuis le PV s'y reportent.
+   */
+  etats?: Record<string, EtatPoint>;
   /** Options du document ; non réglées : celles du PV de la séance précédente, sinon par défaut. */
   options?: PvOptions;
   /**

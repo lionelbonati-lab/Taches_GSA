@@ -28,6 +28,7 @@ import { Pilule, type OutilPilule } from '../components/Pilule';
 import { OutilsTexte } from '../components/OutilsTexte';
 import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
+import { aFiger, figerPoints, reporterChangement, vueFigee } from '../data/etatsPv';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -171,11 +172,19 @@ export function Minutes() {
       if (v.trim()) x.notes[key] = v;
       else delete x.notes[key];
     });
+  // PV figé : le changement passe aussi dans le point tel que le PV le montre (`avant` : son état avant le changement).
+  const reporter = (x: MeetingMinutes, d: AppData, id: string, avant: TaskSnapshot) => {
+    const apres = d.tasks.find((y) => y.id === id);
+    if (x.etats?.[id] && apres) x.etats = { ...x.etats, [id]: reporterChangement(x.etats[id], avant, apres) };
+  };
   const record = (t: Task, changes: string[], avant?: Task, suite?: boolean) =>
     changes.length &&
     setMinutes((x, d) => {
       x.journal = [...(x.journal ?? []), { taskId: t.id, titre: t.titre, changes, at: new Date().toISOString() }];
-      if (avant) retenir(x, d, t.id, avant);
+      if (avant) {
+        retenir(x, d, t.id, avant);
+        reporter(x, d, t.id, stateOf(avant));
+      }
     }, { suite });
 
   // Modifications faites dans la fiche tâche ouverte depuis le PV : enregistrées une fois la tâche sauvegardée.
@@ -185,7 +194,12 @@ export function Minutes() {
     // Inscrit au PV avec la modification de la tâche : « Annuler » les défait ensemble.
     const tache = pending.tache;
     if (pending.isNew) {
-      if (t) setMinutes((x, d) => { x.nouvelles = [...(x.nouvelles ?? []), t.id]; retenir(x, d, t.id, null); }, { suite: true });
+      if (t)
+        setMinutes((x, d) => {
+          x.nouvelles = [...(x.nouvelles ?? []), t.id];
+          retenir(x, d, t.id, null);
+          if (x.etats) x.etats = { ...x.etats, [t.id]: { ...stateOf(t), rang: 'p1' } };
+        }, { suite: true });
     } else if (!t && pending.before) {
       setMinutes((x, d) => { x.supprimees = [...(x.supprimees ?? []), pending.before!.titre]; if (tache) retenir(x, d, tache.id, tache); }, { suite: true });
     } else if (t && pending.before) {
@@ -195,20 +209,57 @@ export function Minutes() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, pending, edit]);
 
+  // PV d'une séance passée : ses points figés à la fin de la séance, une fois (d'après l'historique des tâches), puis
+  // gardés dans le PV. En attendant, ou si l'historique manque : les points tels qu'aujourd'hui.
+  const [figeage, setFigeage] = useState<{ seance: string; erreur?: string } | null>(null);
+  const lireHistorique = club?.historique;
+  const figer = can('tab.minutes') && !!lireHistorique && aFiger(s1, today());
+  useEffect(() => {
+    if (!figer || !s1 || !lireHistorique) return;
+    let fini = false;
+    setFigeage({ seance: s1.id });
+    figerPoints(data, { s0, s1, s2 }, m, lireHistorique, data.reglagesOdj?.joursApres).then(
+      (e) => {
+        if (fini) return;
+        setMinutes((x) => {
+          x.etats = x.etats ?? e;
+        });
+        setFigeage(null);
+      },
+      (err: unknown) => {
+        if (!fini) setFigeage({ seance: s1.id, erreur: err instanceof Error ? err.message : String(err) });
+      },
+    );
+    return () => {
+      fini = true;
+    };
+    // Une fois par séance : les données qui changent pendant la lecture ne la relancent pas.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [figer, s1?.id]);
+
   // ---------- Points de la séance ----------
+  // Séance passée : points figés à la fin de la séance (etats), sinon tels qu'aujourd'hui.
+  const etats = m.etats;
   const sel = selectAgenda(data, s0, s1, s2, { ...FULL_AGENDA, joursApres: data.reglagesOdj?.joursApres });
   const bucket = new Map<string, 'late' | 'p1' | 'p2' | 'bilan'>();
-  sel.late.forEach((t) => bucket.set(t.id, 'late'));
-  sel.avant1.forEach((t) => bucket.set(t.id, 'p1'));
-  sel.avant2.forEach((t) => bucket.set(t.id, 'p2'));
-  sel.bilan.forEach((t) => bucket.set(t.id, 'bilan'));
+  if (etats) Object.entries(etats).forEach(([id, e]) => bucket.set(id, e.rang));
+  else {
+    sel.late.forEach((t) => bucket.set(t.id, 'late'));
+    sel.avant1.forEach((t) => bucket.set(t.id, 'p1'));
+    sel.avant2.forEach((t) => bucket.set(t.id, 'p2'));
+    sel.bilan.forEach((t) => bucket.set(t.id, 'bilan'));
+  }
   const journal = m.journal ?? [];
   const nouvelles = new Set(m.nouvelles ?? []);
-  const newTasks = data.tasks.filter((t) => nouvelles.has(t.id));
+  // Tâche telle que le PV la montre (figée) ; les changements se font toujours sur la tâche telle qu'elle est.
+  const vue = (t: Task) => vueFigee(t, etats?.[t.id]);
+  const vivante = (t: Task) => data.tasks.find((x) => x.id === t.id) ?? t;
+  const newTasks = data.tasks.filter((t) => nouvelles.has(t.id)).map(vue);
   const deleted = m.supprimees ?? [];
-  // Points affichés : ordre du jour + points présents au début de la séance + tâches modifiées ou créées depuis le PV.
-  const ids = new Set<string>([...bucket.keys(), ...(m.pointIds ?? []), ...journal.map((j) => j.taskId), ...nouvelles]);
-  const points = data.tasks.filter((t) => ids.has(t.id));
+  // Points affichés : ordre du jour (figé : celui de la fin de la séance) + points présents au début de la séance +
+  // tâches modifiées ou créées depuis le PV.
+  const ids = new Set<string>([...bucket.keys(), ...(etats ? [] : (m.pointIds ?? [])), ...journal.map((j) => j.taskId), ...nouvelles]);
+  const points = data.tasks.filter((t) => ids.has(t.id)).map(vue);
   const polls = (data.polls ?? []).filter((p) => isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= sel.since);
   const changesOf = (t: Task) => journal.filter((j) => j.taskId === t.id).flatMap((j) => j.changes);
   const isNewTask = (t: Task) => nouvelles.has(t.id);
@@ -258,15 +309,17 @@ export function Minutes() {
     }, { annulable: `Présences : ${fullName(person(id))}` });
 
   const quickChange = (t: Task, patch: Partial<Task>) => {
-    const after = { ...t, ...patch };
-    const q = finAnticipee(data, t, after);
+    const live = vivante(t);
+    const after = { ...live, ...patch };
+    const q = finAnticipee(data, live, after);
     if (q && !confirm(q)) return;
     saveTask(after, false);
-    record(t, diffTask(data, stateOf(t), after), t);
+    record(t, diffTask(data, stateOf(t), after), live);
   };
   const openTask = (t: Task) => {
-    setEdit({ task: t, isNew: false });
-    setPending({ id: t.id, before: stateOf(t), tache: structuredClone(t), isNew: false });
+    const live = vivante(t);
+    setEdit({ task: live, isNew: false });
+    setPending({ id: t.id, before: stateOf(live), tache: structuredClone(live), isNew: false });
   };
   const addTask = (sectionId: string) => {
     if (!user) return;
@@ -594,7 +647,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                     type="checkbox"
                     checked={c.done}
                     disabled={!(editable && can2)}
-                    onChange={() => quickChange(t, { checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !x.done } : x)) })}
+                    onChange={() => quickChange(t, { checklist: vivante(t).checklist.map((x) => (x.id === c.id ? { ...x, done: !c.done } : x)) })}
                   />
                   <span className={c.done ? 'strike' : ''}>{c.label}</span>
                 </label>
@@ -769,6 +822,18 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       <PageIntro />
       {statusBanner}
       {msg && <p className="pv-msg no-print">{msg}</p>}
+      {figeage?.seance === s1.id && (
+        <p className="pv-msg no-print muted" role="status">
+          {figeage.erreur
+            ? `⚠️ État des points à la fin de la séance introuvable (${figeage.erreur}) : statuts et délais d’aujourd’hui affichés.`
+            : '⏳ Lecture de l’état des points à la fin de la séance…'}
+        </p>
+      )}
+      {etats && (
+        <p className="pv-fige no-print muted">
+          📌 Statuts, délais et responsables des points tels qu’à la fin de la séance du {fmtDate(s1.date)} ; les changements faits ici s’y ajoutent, ceux faits ailleurs depuis n’y figurent pas.
+        </p>
+      )}
       {depot && locked && depotEtat?.seance === s1.id && (
         <p className="pv-msg pv-depot no-print">
           📤 {depotEtat.ouverte ? 'Page de dépôt ouverte dans une nouvelle fenêtre' : 'Le navigateur a bloqué la nouvelle fenêtre'} (

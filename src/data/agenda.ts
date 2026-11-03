@@ -1,5 +1,5 @@
 import type { AppData, Meeting, PvSettings, Section, Task } from './types';
-import { addDays, finLe, isDone, isLate, today } from './utils';
+import { addDays, finLe, isDone, today } from './utils';
 import { shortDate } from './minutes';
 
 // Sélection des points de l'ordre du jour d'une séance, partagée par les onglets Ordre du jour et PV.
@@ -13,6 +13,8 @@ export interface AgendaOptions {
   sectionsExclues: string[];
   /** Aussi les tâches dont l'échéance tombe jusqu'à N jours après la séance suivante. */
   joursApres?: number;
+  /** Jour de référence des retards (le jour de la séance, pour un PV figé) ; défaut : aujourd'hui. */
+  jour?: string;
 }
 
 export const FULL_AGENDA: AgendaOptions = {
@@ -118,14 +120,15 @@ export const echeanceSuivante = (t: Task, s2: Meeting) =>
 export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting | undefined, s2: Meeting | undefined, o: AgendaOptions) {
   const eligible = (t: Task) => !o.sectionsExclues.includes(t.sectionId);
   const open = data.tasks.filter((t) => !isDone(data, t) && eligible(t) && !o.statutsExclus.includes(t.statusId));
-  const late = o.retards ? open.filter((t) => isLate(data, t)) : [];
+  const jour = o.jour ?? today();
+  const late = o.retards ? open.filter((t) => !!t.delai && t.delai < jour) : [];
   const rest = open.filter((t) => !late.includes(t));
   const avant1 = s1 && o.avantProchaine ? rest.filter((t) => t.meetingId === s1.id || !t.delai || t.delai <= s1.date) : [];
   const avant2 =
     s2 && o.avantSuivante
       ? rest.filter((t) => !avant1.includes(t) && (t.meetingId === s2.id || (!!t.delai && t.delai <= addDays(s2.date, o.joursApres ?? 0))))
       : [];
-  const since = s0?.date ?? addDays(today(), -60);
+  const since = s0?.date ?? addDays(jour, -60);
   const bilan = o.bilan
     ? data.tasks.filter(
         (t) => isDone(data, t) && eligible(t) && finLe(t) >= since && data.statuses.find((x) => x.id === t.statusId)?.label !== 'Info',

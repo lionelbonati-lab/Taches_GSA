@@ -699,6 +699,7 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
   font-weight: var(--e-note-g, 400); font-style: var(--e-note-i, normal); text-transform: var(--e-note-m, none); color: var(--e-note-c, #111);
 }
 .min-pv-poll { margin: 2px 0 4px; }
+.pv-fige { margin: 0 0 10px; font-size: 0.85rem; }
 .min-pv-change { margin: 0 0 4px; color: #1d4ed8; font-size: 0.9em; }
 @media (max-width: 1000px) {
   .min-layout { grid-template-columns: 1fr; }

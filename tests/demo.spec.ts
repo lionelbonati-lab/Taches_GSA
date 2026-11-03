@@ -1245,3 +1245,69 @@ test('PV validé de la dernière séance passée : il quitte la liste des séanc
   await expect(anciens.locator('option', { hasText: 'Comité d’essai' })).toHaveCount(1);
   await expect(seances.locator('option', { hasText: 'Comité d’essai' })).toHaveCount(0);
 });
+
+test('PV repris après la séance : les points tels qu’à la fin de la séance, pas ce qui a changé ailleurs depuis', async ({ page }) => {
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Séance il y a 5 jours (PV commencé, pas validé). « Point fermé après la séance » : terminé il y a 2 jours par une
+  // autre personne. « Point modifié au PV » : passé « en cours » hier depuis le PV (journal). « Point inchangé ».
+  const ids = await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const ouverts = d.statuses.filter((s: { done: boolean }) => !s.done).map((s: { id: string }) => s.id);
+    const fini = d.statuses.find((s: { done: boolean }) => s.done).id;
+    const [aFaire, enCours] = ouverts;
+    d.meetings = d.meetings.filter((m: { date: string }) => !(m.date >= j.seance && m.date < j.auj));
+    if (!d.meetings.some((m: { date: string }) => m.date >= j.auj)) d.meetings.push({ id: 'm-apres', titre: 'Comité suivant', date: j.plusTard, heure: '19:30', lieu: '' });
+    const hier = `${j.hier}T10:00:00.000Z`;
+    d.meetings.push({
+      id: 'm-fige', titre: 'Comité figé', date: j.seance, heure: '19:30', lieu: '',
+      minutes: { presents: [], excuses: [], notes: { 'task:f1': 'Devis demandé.' }, demarreLe: `${j.seance}T17:30:00.000Z`, journal: [{ taskId: 'f2', titre: 'Point modifié au PV', changes: ['statut : À faire → En cours'], at: hier }] },
+    });
+    const moi = d.people[0].id;
+    const t = (id: string, titre: string, o: object) => ({ id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: aFaire, delai: j.seance, meetingId: 'm-fige', remarque: '', checklist: [], createdBy: moi, updatedAt: `${j.seance}T12:00:00.000Z`, ...o });
+    d.tasks.push(
+      t('f1', 'Point fermé après la séance', { statusId: fini, termineeLe: j.avantHier, updatedAt: `${j.avantHier}T12:00:00.000Z` }),
+      t('f2', 'Point modifié au PV', { statusId: enCours, updatedAt: hier }),
+      t('f3', 'Point inchangé', {}),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+    const creee = { le: `${j.avantSeance}T09:00:00.000Z`, par: 'x', nom: 'Julien Moreau', quoi: 'creee', champs: {} };
+    localStorage.setItem('taches-gsa-demo-historique', JSON.stringify({ 'u-central': {
+      f1: [{ le: `${j.avantHier}T12:00:00.000Z`, par: 'lea', nom: 'Léa', champs: { statusId: [aFaire, fini] } }, creee],
+      f2: [{ le: hier, par: 'x', nom: 'Julien Moreau', champs: { statusId: [aFaire, enCours] } }, creee],
+      f3: [creee],
+    } }));
+    return { aFaire, enCours, fini };
+  }, { k: cle, j: { seance: dansJours(-5), avantSeance: dansJours(-8), avantHier: dansJours(-2), hier: dansJours(-1), auj: dansJours(0), plusTard: dansJours(20) } });
+  await page.reload();
+
+  await allerA(page, '/pv?seance=m-fige');
+  await expect(page.locator('.pv-fige')).toContainText('tels qu’à la fin de la séance');
+  const statut = (titre: string) => page.getByLabel(`Statut de ${titre}`);
+  // Fermé ailleurs après la séance : « à faire », comme à la fin de la séance ; la tâche, elle, reste terminée.
+  await expect(statut('Point fermé après la séance')).toHaveValue(ids.aFaire);
+  await expect(page.locator('.min-task', { hasText: 'Point fermé après la séance' })).not.toHaveClass(/\bdone\b/);
+  // Changé depuis le PV après la séance : gardé.
+  await expect(statut('Point modifié au PV')).toHaveValue(ids.enCours);
+  await expect(statut('Point inchangé')).toHaveValue(ids.aFaire);
+  const lire = () => page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const m = d.meetings.find((x: { id: string }) => x.id === 'm-fige').minutes;
+    return { fige: m.etats?.f1?.statusId, reel: d.tasks.find((x: { id: string }) => x.id === 'f1').statusId, journal: m.journal.map((x: { changes: string[] }) => x.changes.join()) };
+  }, cle);
+  await expect.poll(async () => (await lire()).fige).toBe(ids.aFaire);
+  expect((await lire()).reel).toBe(ids.fini);
+
+  // Changé dans le PV repris : la tâche et le PV suivent, le journal part de ce que montrait le PV.
+  await statut('Point fermé après la séance').selectOption(ids.enCours);
+  await expect.poll(async () => (await lire()).fige).toBe(ids.enCours);
+  expect((await lire()).reel).toBe(ids.enCours);
+  expect((await lire()).journal.at(-1)).toMatch(/^statut : .+ → .+$/);
+  expect((await lire()).journal.at(-1)).not.toContain('Terminé →');
+
+  // Rechargé : toujours figé (gardé dans le PV).
+  await page.reload();
+  await allerA(page, '/pv?seance=m-fige');
+  await expect(statut('Point modifié au PV')).toHaveValue(ids.enCours);
+  await expect(statut('Point fermé après la séance')).toHaveValue(ids.enCours);
+});
