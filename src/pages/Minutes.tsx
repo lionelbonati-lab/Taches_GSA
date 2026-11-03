@@ -29,6 +29,7 @@ import { OutilsTexte } from '../components/OutilsTexte';
 import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { aFiger, figerPoints, reporterChangement, vueFigee } from '../data/etatsPv';
+import { PiecesJointesPoint } from '../components/PiecesJointesPoint';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -56,6 +57,24 @@ const urlDepot = (s?: string): string | null => {
 };
 const hote = (u: string) => new URL(u).hostname.replace(/^www\./, '');
 
+/** Mode « Projection » de la prise de notes (PV diffusé sur un beamer) : retenu sur l'appareil. */
+const CLE_PROJECTION = 'taches-gsa-pv-projection';
+const lireProjection = () => {
+  try {
+    return localStorage.getItem(CLE_PROJECTION) === '1';
+  } catch {
+    return false;
+  }
+};
+const ecrireProjection = (on: boolean) => {
+  try {
+    if (on) localStorage.setItem(CLE_PROJECTION, '1');
+    else localStorage.removeItem(CLE_PROJECTION);
+  } catch {
+    /* navigation privée : non retenu */
+  }
+};
+
 const letter = (i: number) => {
   let r = '';
   for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) r = String.fromCharCode(97 + ((n - 1) % 26)) + r;
@@ -71,6 +90,13 @@ export function Minutes() {
   const agendaRef = useRef<HTMLElement>(null);
   const defile = useDefilement(agendaRef);
   const { section: sections, point: parPoint } = defile;
+  // Projection : les pièces jointes du point en cours à côté des notes ; ce point, une fois le défilement posé.
+  const [projection, setProjection] = useState(lireProjection);
+  const basculerProjection = () => {
+    ecrireProjection(!projection);
+    setProjection(!projection);
+  };
+  const enCours = usePose(defile.enCours, 250);
   const club = useClubOptional();
   useOuvrirDocs();
   const [params] = useSearchParams();
@@ -626,7 +652,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     const b = bucket.get(t.id);
     const can2 = editable && canEditTask(t);
     return (
-      <div key={t.id} data-point={t.titre} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild(t) ? 'child' : ''}`}>
+      <div key={t.id} data-point={t.titre} data-tache={t.id} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild(t) ? 'child' : ''}`}>
         <div className="min-task-head">
           <span className="min-title">
             {isChild(t) && <span className="muted">↳ </span>}
@@ -670,8 +696,9 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       </div>
     );
   };
-  const pollRow = (p: Poll) => (
-    <div key={p.id} className="min-task poll-row-min" data-point={`Sondage : ${p.question}`}>
+  // Sondage rattaché à un point (`tache`) : ses pièces jointes sont celles du point.
+  const pollRow = (p: Poll, tache?: string) => (
+    <div key={p.id} className="min-task poll-row-min" data-point={`Sondage : ${p.question}`} data-tache={tache}>
       <div className="min-task-head">
         <span className="min-title odj-poll">📊 Sondage : {p.question} <span className="odj-meta">— {pollSummary(p)}</span></span>
         {editable && !noteOf(`poll:${p.id}`) && !openNotes[`poll:${p.id}`] && (
@@ -828,6 +855,16 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
             <button className={view === 'saisie' ? 'on' : ''} onClick={() => setView('saisie')}><Icone n="notes" /> Prise de notes</button>
             <button className={view === 'pv' ? 'on' : ''} onClick={() => setView('pv')}><Icone n="pdf" /> PV</button>
           </div>
+          {view === 'saisie' && (
+            <button
+              className={`btn min-projeter ${projection ? 'on' : ''}`}
+              aria-pressed={projection}
+              onClick={basculerProjection}
+              title="PV diffusé sur un beamer : les pièces jointes du point en cours (celui où tu as cliqué ou écrit en dernier, sinon celui en haut de l’écran) s’affichent en grand à côté des notes"
+            >
+              <Icone n="projection" /> Projection
+            </button>
+          )}
         </div>
       </div>
       <PageIntro />
@@ -858,7 +895,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       )}
 
       {view === 'saisie' ? (
-        <div className="min-layout">
+        <div className={`min-layout ${projection ? 'projection' : ''}`}>
           <div className="min-main">
             <section className="panel min-session">
               <div className="min-session-row">
@@ -912,12 +949,12 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                       {s.tasks.map((t) => (
                         <Fragment key={t.id}>
                           {taskRow(t)}
-                          {pollsDe(t).map(pollRow)}
+                          {pollsDe(t).map((p) => pollRow(p, t.id))}
                         </Fragment>
                       ))}
                     </div>
                   ))}
-                  {g.polls.map(pollRow)}
+                  {g.polls.map((p) => pollRow(p))}
                   {editable && can('tasks.createAny', g.sec.id) && <button className="btn small link" onClick={() => addTask(g.sec.id)}>+ Nouveau point décidé</button>}
                   {/* Note de la section : à la fin, après ses points (le défilement point par point y mène). */}
                   {(editable || noteOf(`sec:${g.sec.id}`)) && (
@@ -930,7 +967,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               {orphanPolls.length > 0 && (
                 <div className="panel min-section">
                   <h3>Sondages</h3>
-                  {orphanPolls.map(pollRow)}
+                  {orphanPolls.map((p) => pollRow(p))}
                 </div>
               )}
               <div className="panel min-section">
@@ -945,7 +982,8 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
           </div>
           {editable && <Pilule id="pv" label="Outils de la prise de notes" titre={sections.actuelle?.nom ?? 'Séance et présences'} outils={outils} ligne2={<OutilsTexte />} />}
           <aside className="min-side">
-            <div className="panel">
+            {projection && <PiecesJointesPoint point={enCours && { nom: enCours.nom, tache: enCours.id ? data.tasks.find((x) => x.id === enCours.id) : undefined }} />}
+            <div className="panel min-suivi">
               <h2 className="min-h2">Suivi de la séance</h2>
               <p>{m.presents.length} présent(s) · {m.excuses.length} excusé(s)</p>
               <p>{Object.keys(m.notes).length} note(s)</p>
@@ -1118,8 +1156,24 @@ function Chrono({ minutes: m }: { minutes: MeetingMinutes }) {
 type Cible = { i: number; nom: string; id?: string };
 type Reperes = { prec?: Cible; suiv?: Cible; actuelle?: Cible };
 type Pas = 'section' | 'point';
-/** Arrêt du défilement : `ancre` vient à la ligne de lecture ; `el`, ce qu'on y trouve (point, sondage, note). */
+/** Arrêt du défilement : `ancre` vient à la ligne de lecture ; `el`, ce qu'on y trouve (point, sondage, note). `id` :
+ *  la section ; pour un point (ou le sondage d'un point), la tâche. */
 type Arret = { el: HTMLElement; ancre: HTMLElement; nom: string; id?: string };
+/** Point en cours (projection de ses pièces jointes) : son nom et, pour un point ou son sondage, la tâche. */
+type EnCours = { nom: string; id?: string };
+type Nav = Record<Pas, Reperes> & { enCours?: EnCours };
+
+/** Valeur une fois posée (`ms` sans changement) : pas chaque point traversé pendant un défilement. */
+function usePose<T>(v: T, ms: number): T {
+  const [pose, setPose] = useState(v);
+  const cle = JSON.stringify(v);
+  useEffect(() => {
+    const t = setTimeout(() => setPose(v), ms);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cle, ms]);
+  return pose;
+}
 
 /** Note de la section atteinte : on y écrit tout de suite, à la suite de ce qu'elle contient déjà. */
 function ecrireDans(note: HTMLElement) {
@@ -1134,10 +1188,15 @@ function ecrireDans(note: HTMLElement) {
  * et sondage d'une section, puis sa note) : l'arrêt à l'écran (`actuelle`, à la ligne de lecture juste sous l'en-tête),
  * ceux d'avant et d'après, et `aller` pour y défiler ; avant le premier : le haut de la page (-1). Le premier point
  * d'une section (ou d'une sous-section) s'arrête sur son titre ; arrivé sur la note de la section, on y écrit.
+ * `enCours` : le point où l'on a placé le curseur en dernier (note, statut…), tant qu'il est à l'écran, sinon celui à la
+ * ligne de lecture ; la pilule (point / section suivant…) mène au sien. Un clic hors des points (panneau des pièces
+ * jointes, pilule, fenêtre) ne le change pas.
  */
 function useDefilement(zone: RefObject<HTMLElement>) {
-  const [nav, setNav] = useState<Record<Pas, Reperes>>({ section: {}, point: {} });
+  const [nav, setNav] = useState<Nav>({ section: {}, point: {} });
   const vise = useRef<{ pas: Pas; i: number; at: number } | null>(null);
+  // Point où l'on a placé le curseur en dernier (null : aucun, ou oublié quand la pilule fait défiler).
+  const ecrit = useRef<HTMLElement | null>(null);
   const ligne = () => (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 8;
   const sections = () => [...(zone.current?.querySelectorAll<HTMLElement>(':scope > .min-section') ?? [])];
   const arrets = (pas: Pas): Arret[] =>
@@ -1147,7 +1206,7 @@ function useDefilement(zone: RefObject<HTMLElement>) {
           [...sec.querySelectorAll<HTMLElement>('[data-point]')].map((el, k) => {
             const sous = el.closest<HTMLElement>('.min-sub');
             const ancre = k === 0 ? sec : sous?.querySelector('.min-sub-title') && sous.querySelector('[data-point]') === el ? sous : el;
-            return { el, ancre, nom: el.dataset.point ?? '' };
+            return { el, ancre, nom: el.dataset.point ?? '', id: el.dataset.tache };
           }),
         );
   useEffect(() => {
@@ -1168,15 +1227,30 @@ function useDefilement(zone: RefObject<HTMLElement>) {
         });
         return { prec, suiv, actuelle };
       };
-      const n2 = { section: reperes('section'), point: reperes('point') };
+      const point = reperes('point');
+      const e = ecrit.current?.isConnected ? ecrit.current : null;
+      const r = e?.getBoundingClientRect();
+      const enCours: EnCours | undefined =
+        e && r && r.bottom > l && r.top < window.innerHeight
+          ? { nom: e.dataset.point ?? '', id: e.dataset.tache }
+          : point.actuelle && { nom: point.actuelle.nom, id: point.actuelle.id };
+      const n2: Nav = { section: reperes('section'), point, enCours };
       setNav((n) => (JSON.stringify(n) === JSON.stringify(n2) ? n : n2));
     };
     const planifier = () => {
       if (!attente) attente = requestAnimationFrame(calculer);
     };
+    // Curseur placé dans la prise de notes (clic, Tab) : dans un point, il devient le point en cours ; ailleurs (bouton
+    // « Nouveau point décidé »…), plus aucun.
+    const focus = (ev: FocusEvent) => {
+      if (!(ev.target instanceof Element) || !zone.current?.contains(ev.target)) return;
+      ecrit.current = ev.target.closest<HTMLElement>('[data-point]');
+      planifier();
+    };
     calculer();
     window.addEventListener('scroll', planifier, { passive: true });
     window.addEventListener('resize', planifier);
+    document.addEventListener('focusin', focus);
     // Notes qui s'allongent, vue du PV et retour : la page change de hauteur.
     const obs = new ResizeObserver(planifier);
     obs.observe(document.body);
@@ -1184,6 +1258,7 @@ function useDefilement(zone: RefObject<HTMLElement>) {
       cancelAnimationFrame(attente);
       window.removeEventListener('scroll', planifier);
       window.removeEventListener('resize', planifier);
+      document.removeEventListener('focusin', focus);
       obs.disconnect();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1199,6 +1274,7 @@ function useDefilement(zone: RefObject<HTMLElement>) {
     const a = liste[i];
     const top = a ? a.ancre.getBoundingClientRect().top + window.scrollY - ligne() : 0;
     window.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    ecrit.current = null;
     if (pas !== 'point') return;
     // Point par point : la note de la section, on y écrit ; ailleurs, la note quittée est enregistrée (clavier refermé).
     const note = a?.el.matches('.min-note-sec') ? a.el.querySelector<HTMLElement>('.note-riche[contenteditable="true"]') : null;

@@ -1453,3 +1453,79 @@ test('fichiers joints : ouverts dans la visionneuse de l’appli (fiche, ordre d
   await expect(visionneuse).toHaveCount(0);
   expect(onglets).toEqual([]);
 });
+
+test('PV en projection : les pièces jointes du point en cours à côté des notes (point où l’on écrit, sinon en haut)', async ({ page }) => {
+  // PV diffusé sur un beamer : on voit de quoi on parle. Un point avec une photo et un PDF, un autre sans pièce jointe.
+  const pdf = await PDFDocument.create();
+  for (let i = 0; i < 2; i++) pdf.addPage([595, 842]);
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.goto('./?demo#/taches');
+  let fiche = await nouvelleTache(page, 'Point avec pièces jointes');
+  await fiche.getByRole('button', { name: /Document/ }).first().click();
+  await fiche.locator('fieldset.docs input[type=file]').first().setInputFiles([
+    { name: 'plan.png', mimeType: 'image/png', buffer: png },
+    { name: 'devis.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) },
+  ]);
+  await expect(fiche.locator('.doc-list li')).toHaveCount(2);
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  fiche = await nouvelleTache(page, 'Point sans pièce jointe');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  await allerA(page, '/pv');
+  const panneau = page.getByRole('region', { name: 'Pièces jointes du point en cours' });
+  await expect(panneau).toHaveCount(0);
+  const projeter = page.getByRole('button', { name: 'Projection' });
+  await projeter.click();
+  await expect(projeter).toHaveAttribute('aria-pressed', 'true');
+  await expect(panneau).toBeVisible();
+  await expect(panneau.locator('h2')).toHaveText('Séance et présences');
+  await expect(page.locator('.min-suivi')).toBeHidden();
+
+  // Curseur dans le point (ici son statut) : sa photo en grand, le choix de ses deux pièces jointes.
+  const avec = page.locator('.min-task[data-point="Point avec pièces jointes"]');
+  const sans = page.locator('.min-task[data-point="Point sans pièce jointe"]');
+  await avec.locator('select.min-status').focus();
+  await expect(panneau.locator('h2')).toHaveText('Point avec pièces jointes');
+  await expect(panneau.locator('.visionneuse-image img')).toBeVisible();
+  await panneau.getByRole('button', { name: /devis\.pdf/ }).click();
+  await expect(panneau.locator('img.pdf-page')).toHaveCount(2);
+  // « Agrandir » : la visionneuse de l'appli.
+  await panneau.getByRole('button', { name: /Agrandir/ }).click();
+  await expect(page.locator('.modal.visionneuse img.pdf-page')).toHaveCount(2);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal.visionneuse')).toHaveCount(0);
+
+  // Un point sans pièce jointe n'en montre aucune ; en revenant, le PDF choisi.
+  await sans.locator('select.min-status').focus();
+  await expect(panneau.locator('h2')).toHaveText('Point sans pièce jointe');
+  await expect(panneau).toContainText('Pas de pièce jointe pour ce point.');
+  await expect(panneau.locator('img')).toHaveCount(0);
+  await avec.locator('select.min-status').focus();
+  await expect(panneau.locator('img.pdf-page')).toHaveCount(2);
+
+  // La pilule fait défiler : le point en haut de l'écran, où elle mène (le curseur laissé dans un point ne compte plus).
+  const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  const suivant = pilule.getByRole('button', { name: /^Point suivant/ });
+  const precedent = pilule.getByRole('button', { name: /^Point précédent/ });
+  await page.evaluate(() => window.scrollTo({ top: 0 }));
+  for (let i = 0; i < 40 && (await panneau.locator('h2').textContent()) !== 'Point avec pièces jointes'; i++) {
+    const vers = (await suivant.getAttribute('title'))!.replace('Point suivant : ', '');
+    await suivant.click();
+    await expect(panneau.locator('h2')).toHaveText(vers);
+  }
+  await expect(panneau.locator('img.pdf-page')).toHaveCount(2);
+  const versSans = (await suivant.getAttribute('title'))!.endsWith('Point sans pièce jointe') ? suivant : precedent;
+  await versSans.click();
+  await expect(panneau.locator('h2')).toHaveText('Point sans pièce jointe');
+  await expect(panneau).toContainText('Pas de pièce jointe pour ce point.');
+
+  // Retenu sur l'appareil.
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Projection' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(panneau).toBeVisible();
+  await page.getByRole('button', { name: 'Projection' }).click();
+  await expect(panneau).toHaveCount(0);
+  await expect(page.locator('.min-suivi')).toBeVisible();
+});
