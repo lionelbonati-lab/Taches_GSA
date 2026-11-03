@@ -2,6 +2,32 @@
 
 Projet Supabase « Taches_GSA » (région eu-west-1). L'adresse du projet et la clé « publishable » sont dans `src/lib/supabase.ts` (et `.env.example`) : elles sont publiques par nature, les données sont protégées par les règles d'accès de la base (RLS).
 
+## État actuel (après l'étape D5, 03.11.2026)
+
+Un seul espace, le club (`PLAN_APPLI_SIMPLE.md`) : sur le serveur, c'est l'ancien **comité central** (`committees`, type
+`central`). Les anciennes entités (sous-comités, groupes, équipes) ont été **reprises** dans le club le 03.11.2026
+(migrations 059 et 060) : chacune est devenue une étiquette du club, avec ses tâches et ses personnes ; elles restent
+dans `committees`, **archivées** (`info.archive`, `info.reprise`), avec leurs données d'avant la reprise. Rien n'a été
+effacé.
+
+- **Ce que l'appli utilise** : `gsa_items` de l'espace du club, « Personnes du club » (`gsa_club_membres`,
+  `gsa_club_iban`), un compte par personne (`gsa_club_comptes`, `gsa_members`), le stockage `gsa-fichiers` (dossier du
+  club, et dossiers des anciennes entités pour les fichiers des tâches reprises : `gsa_fichier_repris`), les copies de
+  nuit (`gsa_copies`), les notifications sur l'appareil (`gsa_push_*`), l'abonnement à l'agenda, les propositions, les
+  erreurs, les mots de passe oubliés ; les fonctions serveur `gsa-acces`, `gsa-agenda`, `gsa-push` (étape D4, plus bas).
+- **Ce qui reste des entités sans servir** : leurs lignes (archivées), les clés de l'organigramme dans `committees.info`
+  (plus bas), le déclencheur `gsa_statuts_club` (058), qui recopie encore les statuts du club dans les entités archivées
+  (sans effet visible), et des règles d'accès d'avant (fichiers partagés entre entités, 041). Laissés tels quels : ils ne
+  gênent pas et ne s'effacent pas sans risque.
+- **Fonctions SQL devenues inutiles** : 23 fonctions des entités que plus rien n'appelle (ni l'appli, ni les fonctions
+  serveur, ni une règle, un déclencheur, une tâche planifiée ou une autre fonction) : **migration 061**, à appliquer par
+  le président (plus bas). Inventaire refait le 03.11.2026 sur le serveur, en lecture seule : les 146 fonctions du schéma
+  `public` sont toutes dans les migrations du dépôt, sauf 5 créées en dehors (`is_assigned`, `is_lead`, `is_member`,
+  `is_super_admin`, `keep_one_admin`), que ni l'appli ni les fonctions serveur n'appellent (laissées) ; tâches planifiées : `gsa-copie-quotidienne`
+  (036) et `gsa-push` (047), seulement.
+- **Lire la suite** : les descriptions des migrations 005 à 058 racontent comment le serveur a été construit, quand le
+  club avait des entités et un organigramme ; ce qui vaut aujourd'hui est résumé ici.
+
 ## Base de données
 
 `supabase/migrations/003_gsa_donnees_partagees.sql` (appliqué) :
@@ -217,9 +243,36 @@ Données modifiées : les entités qui avaient des membres liés (meta `membresD
 
 `supabase/migrations/060_gsa_reprise_delais.sql` (appliquée le 03.11.2026, vérifiée : 4 délais calés sur la date de leur étiquette, dates inchangées) : **délais calés sur la date d'une étiquette, rétablis**. Entre la publication de D1 (02.11.2026) et la reprise, l'appli retirait le lien « N jours avant » des tâches du club attribuées à une entité (elle ne trouvait plus la date de l'entité) ; leur date n'a pas changé. D'après la dernière copie de nuit d'avant D1 (`gsa_copies`), chaque tâche du club qui y avait un délai calé sur la date d'une entité reprise, et qui n'en a plus, reçoit un délai calé sur la date de l'étiquette de cette entité (même décalage). Sur le serveur (simulation en lecture seule) : 4 tâches, dates inchangées. Rejouable, lignes d'avant dans `gsa_reprise_avant`. À coller dans l'éditeur SQL ; elle affiche le nombre de délais rétablis.
 
-Organigramme par postes (sans migration : deux clés de plus dans `committees.info`, enregistrées comme la couleur) :
+`supabase/migrations/061_gsa_menage_fonctions.sql` (**pas encore appliquée** ; étape D5, à appliquer par le président) :
+**ménage des fonctions des entités**. Retire 23 fonctions que plus rien n'appelle depuis l'espace unique et la reprise :
+tâches partagées entre entités (`gsa_modifier_tache_partagee`, `gsa_repondre_partagee`, `gsa_docs_partagee`,
+`gsa_taches_partagees`, `gsa_tache_visible`, `gsa_anciennes_taches`, `gsa_sections_dependantes`), tâches transmises,
+attribuées ou proposées à une autre entité (`gsa_taches_transmises`, `gsa_attribuer_tache`, `gsa_proposer_tache`,
+`gsa_mes_demandes`), sondages ouverts à d'autres entités (`gsa_voter_sondage_partage`, `gsa_sondages_partages`,
+`gsa_cle_vote`, `gsa_identites`), « pour info » entre entités (`gsa_taches_pour_info`, `gsa_pour_info_destinataires`),
+organigramme (`gsa_organigramme`, `gsa_photo_organigramme`), séances du comité vues d'une entité (`gsa_seances_comite`),
+date d'une édition (`gsa_date_edition`), agenda du club vu d'une entité (`gsa_agenda_club`), tickets envoyés à la caisse
+centrale (`gsa_mes_tickets_centraux`).
 
-- `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se place par les postes liés ⛓, pas par cette clé (voir le README).
+- **Pourquoi** : la plupart sont « security definer » et ouvertes aux comptes connectés ; certaines écrivent encore dans
+  les tâches des entités archivées (tâches partagées, sondages partagés, tâches attribuées ou proposées). Les retirer
+  ferme ces portes. Aucune donnée, table ni règle n'est touchée ; les fonctions encore utilisées restent, même celles
+  dont le nom parle d'entités (ex. `gsa_demandes_mdp_entite`), ainsi que la reprise (`gsa_reprise_entites`,
+  `gsa_reprise_cle`) et la lecture des fichiers repris (`gsa_fichier_repris`).
+- **Vérifié** le 03.11.2026 : sur le serveur, en lecture seule, les 23 fonctions existent et rien ne les cite (règles,
+  déclencheurs, tâches planifiées, autres fonctions, vues) ; dans le dépôt, ni l'appli (`src/`) ni les fonctions serveur
+  (`supabase/functions/`) ne les appellent. **Essayée sur la base de test** (`outils/base-test/LISEZMOI.md`) : rejouable,
+  la reprise reste « vérifiée » (`reprise_verif.sql`), les 117 fonctions encore utilisées sont toutes là et aucune ne
+  cite une fonction retirée.
+- **Appliquer** : coller le fichier dans l'éditeur SQL de Supabase et l'exécuter ; il affiche `fonctions_restantes = 0`.
+  Rien à redéployer, rien à changer dans l'appli. Une version de l'appli d'avant l'espace unique, restée ouverte dans un
+  navigateur, n'aurait plus ces fonctions : elle se met à jour au rechargement.
+- **Retour en arrière** : relancer la définition de la fonction dans sa dernière migration (indiquée en commentaire
+  dans 061), avec les `grant` / `revoke` qui la suivent.
+
+Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
+
+- `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.
 - `info.rangement` (liste de 300 clés au plus) : l'ordre des cartes dans le cadre d'un comité, choisi en les glissant.
 - `info.tachesDependance` : `toutes` ou `rien` (absent : seulement les tâches partagées) ; voir la migration 027.
 - `info.historiqueDependance` : les dépendances passées (comité, date de fin, réglage, tâches, droit de copie) ; écrit par le serveur (migration 030), l'appli n'en change que le droit de copie de la dernière.
@@ -330,7 +383,7 @@ Le lien « 📧 Recevoir un lien par email » passe par le serveur d'emails de S
    where c.name = '<nom du comité>' and u.email = '<adresse du président>';
    ```
 2. Ouvrir l'appli, choisir **Version réelle**, se connecter : l'écran de mise en route propose de reprendre une sauvegarde de la démo ou de partir d'une base vide.
-3. Corriger les noms et adresses email dans l'organigramme du club (menu des entités en haut à gauche, clic sur chaque personne), puis y créer les accès (fiche de la personne › Créer l'accès).
+3. Corriger les noms et adresses email dans « Personnes du club » (clic sur chaque personne), puis donner les accès (fiche de la personne › « Accès à l'appli » › « Donner l'accès »).
 
 ## À savoir
 

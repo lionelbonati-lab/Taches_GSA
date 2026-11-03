@@ -51,7 +51,8 @@ base de test : `outils/base-test/LISEZMOI.md`.
    (rien d'effacé) ; appli réelle sur un seul espace. Essais sur la base de test d'abord. **6 à 10 M.**
 4. **D4 — Fonctions serveur** : `gsa-push`, `gsa-agenda`, `gsa-acces` ajustées à un seul espace si besoin, redéployées
    avec accord. **2 à 4 M.**
-5. **D5 — Ménage et documentation** : aide, README, `SUPABASE_SETUP.md`, `PERSONNES_DU_CLUB.md`. **2 à 3 M.**
+5. **D5 — Ménage et documentation** : aide, README, `SUPABASE_SETUP.md`, `PERSONNES_DU_CLUB.md`. **2 à 3 M.** (fait le
+   03.11.2026 ; reste à appliquer la migration 061.)
 
 **Total : 21 à 34 M tokens** (ordre de grandeur, contexte relu compris).
 
@@ -155,7 +156,31 @@ base de test : `outils/base-test/LISEZMOI.md`.
   - Essais : `deno check` sans erreur pour les trois ; `gsa-agenda` et `gsa-push` lancées avec Deno contre la base de
     test ; le retrait du club essayé sur une base simulée. Aucune migration nécessaire.
   - Fonctions SQL des entités devenues inutiles (organigramme, tâches partagées, agenda du club…) : laissées en place,
-    à voir en D5.
+    à voir en D5 (fait : migration 061).
+
+- **D5 (03.11.2026)** : ménage et documentation, sans déploiement ; **migration 061 préparée, pas appliquée** (à
+  appliquer par le président, mode d'emploi : `SUPABASE_SETUP.md`).
+  - **Appli** : version réelle sans le menu « Ouvrir « … » » des anciennes entités (archivées depuis 059 ; l'appli ouvre
+    l'espace du club) ; textes visibles sans entité, sous-comité, caisse centrale ni comité central (aide, propositions,
+    sauvegarde du club, comptes, mot de passe oublié) ; import CSV de la console admin renommé (`ImportsClub`, modèle
+    `modele-personnes.csv`) ; icônes des anciens types d'entité retirées ; commentaires du code remis à jour (ceux qui
+    expliquent la lecture des anciennes données restent). Le code des fonctions serveur régénéré
+    (`npm run fonction`) est identique au déployé : rien à redéployer.
+  - **Serveur, en lecture seule** : inventaire des fonctions SQL (graphe des appels : appli, fonctions serveur, règles,
+    déclencheurs, tâches planifiées, autres fonctions). **23 fonctions des entités ne sont plus appelées par rien** :
+    tâches partagées, transmises, attribuées ou proposées, sondages partagés, « pour info » entre entités, organigramme,
+    séances et agenda vus d'une entité, tickets de la caisse centrale. La plupart sont « security definer » et ouvertes
+    aux comptes connectés, et certaines écrivent encore dans les entités archivées : **migration 061** les retire (rien
+    d'autre : ni donnée, ni table, ni règle). Essayée sur la base de test : rejouable, la reprise reste vérifiée, les 117
+    fonctions encore utilisées sont là. Laissés exprès : les règles d'accès des fichiers d'avant (041), le déclencheur
+    des statuts (058, sans effet visible), la reprise (`gsa_reprise_entites`) ; 5 fonctions du serveur créées hors du
+    dépôt (`is_member`…), que rien n'appelle.
+  - **Documentation** : aide de l'appli, README (toutes les descriptions détaillées reprises : plus de partage, de
+    tâches d'autres entités, de caisse centrale, d'organigramme ; l'état de la version réelle après la reprise),
+    `SUPABASE_SETUP.md` (« État actuel », 061, mise en route), `PERSONNES_DU_CLUB.md` (les règles d'un seul espace),
+    `outils/base-test/LISEZMOI.md` (essai de 061).
+  - **Tests** : 36 (un de plus : l'aide, les propositions, la console admin et « Personnes du club » ne parlent plus
+    d'entités, pour un admin comme pour un membre ; le test échoue bien avec l'ancienne aide).
 
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 

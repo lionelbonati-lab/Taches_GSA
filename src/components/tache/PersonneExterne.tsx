@@ -33,7 +33,7 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
   // Personnes du club sans fiche active dans l'appli (celles qui en ont une sont proposées dans la tâche, sous leur nom).
   const aUneFiche = (m: ClubMembre) => !!ficheDe(m, data.people)?.actif;
   const needle = norm(q);
-  const sansEntite = registre
+  const sansFiche = registre
     .filter((m) => !aUneFiche(m) && !deja.some((p) => p.membreId === m.id))
     .filter((m) => !needle || norm(`${m.prenom} ${m.nom} ${m.email}`).includes(needle))
     .sort((a, b) => nomMembre(a).localeCompare(nomMembre(b), 'fr'));
@@ -75,7 +75,7 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
           <h3>Personnes du club sans fiche dans l’appli</h3>
           <input className="login-search" type="search" placeholder="Rechercher un nom, un email…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Rechercher un membre du club" />
           <div className="login-list">
-            {sansEntite.slice(0, 50).map((m) => (
+            {sansFiche.slice(0, 50).map((m) => (
               <button
                 key={m.id}
                 type="button"
@@ -89,7 +89,7 @@ export function PersonneExterne({ deja, onAjoutee, onClose }: { deja: PersonneHo
                 </span>
               </button>
             ))}
-            {!sansEntite.length && <p className="muted">{needle ? `Personne ne correspond à « ${q} ».` : 'Toutes les personnes du club ont déjà une fiche dans l’appli.'}</p>}
+            {!sansFiche.length && <p className="muted">{needle ? `Personne ne correspond à « ${q} ».` : 'Toutes les personnes du club ont déjà une fiche dans l’appli.'}</p>}
           </div>
         </section>
       )}

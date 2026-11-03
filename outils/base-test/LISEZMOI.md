@@ -43,3 +43,11 @@ psql -h $P -p 5433 -U postgres -d gsa -f supabase/migrations/059_gsa_reprise_ent
 psql -h $P -p 5433 -U postgres -d gsa -f supabase/migrations/060_gsa_reprise_delais.sql    # délais rétablis (après reprise_d1.sql)
 psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/reprise_verif.sql                # « Reprise vérifiée »
 ```
+
+Essai du ménage des fonctions (migration 061, étape D5) : `refaire.sh` l'applique déjà avec les autres ; pour la
+rejouer après la reprise ci-dessus et vérifier que rien ne manque :
+
+```bash
+psql -h $P -p 5433 -U postgres -d gsa -f supabase/migrations/061_gsa_menage_fonctions.sql   # fonctions_restantes = 0
+psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/reprise_verif.sql                  # toujours « Reprise vérifiée »
+```

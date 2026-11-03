@@ -92,8 +92,8 @@ function FenetreLien({ titre, texte, lien, acces, onClose }: { titre: string; te
 }
 
 /**
- * Lien reçu (WhatsApp…) qui ne mène à rien ici : élément d'une autre entité, supprimé, ou que le rôle ne permet pas
- * de voir. Les éléments partagés par d'autres entités arrivent après l'ouverture : on attend un peu avant de le dire.
+ * Lien reçu (WhatsApp…) qui ne mène à rien ici : élément supprimé, ou que le rôle ne permet pas de voir. En version
+ * réelle, les données arrivent un peu après l'ouverture : on attend avant de le dire.
  */
 export function AvisLien({ trouve, introuvable }: { trouve: boolean; nom: string; introuvable: string }) {
   const [attente, setAttente] = useState(true);
