@@ -5,7 +5,7 @@ import type { AppData, ChecklistItem, LienLieu, Meeting, Person, PvSettings, Sec
 import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
-import { JOURS_APRES, echeanceSuivante, etatTerminee, joursApresTexte, selectAgenda } from '../data/agenda';
+import { JOURS_APRES, echeanceSuivante, etatTerminee, joursApresTexte, ordreSection, selectAgenda, type Echeance } from '../data/agenda';
 import type { Poll } from '../data/types';
 import { archiveHtml, hydrateArchive, sansAnnexes } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
@@ -124,28 +124,15 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
   });
 
   // Échéance de chaque tâche retenue (retard, séance, séance suivante, terminée).
-  type Bucket = 'late' | 'p1' | 'p2' | 'bilan';
-  const bucketOf = new Map<string, Bucket>();
+  const bucketOf = new Map<string, Echeance>();
   late.forEach((t) => bucketOf.set(t.id, 'late'));
   avant1.forEach((t) => bucketOf.set(t.id, 'p1'));
   avant2.forEach((t) => bucketOf.set(t.id, 'p2'));
   bilan.forEach((t) => bucketOf.set(t.id, 'bilan'));
-  const RANK: Record<Bucket, number> = { late: 0, p1: 1, p2: 2, bilan: 3 };
-  const rank = (t: Task) => RANK[bucketOf.get(t.id) ?? 'p1'];
   const unified = [...late, ...avant1, ...avant2, ...bilan];
 
-  const statusIndex = (t: Task) => data.statuses.findIndex((x) => x.id === t.statusId);
-  const sortTasks = (list: Task[]) =>
-    [...list].sort((a, b) => {
-      if (s.tri === 'statut') return statusIndex(a) - statusIndex(b) || (a.delai || '9').localeCompare(b.delai || '9');
-      if (s.tri === 'titre') return a.titre.localeCompare(b.titre, 'fr');
-      return (a.delai || '9999').localeCompare(b.delai || '9999');
-    });
-  // Ordre dans une section : sous-sections (comme l'ordre du jour), puis retards → séance → suivante → terminées, puis tri choisi.
-  const order = (list: Task[], sec: Section) =>
-    sortTasks(list)
-      .sort((a, b) => rank(a) - rank(b))
-      .sort((a, b) => sec.sousSections.indexOf(a.sousSection) - sec.sousSections.indexOf(b.sousSection));
+  // Ordre dans une section (le même que le PV) : sous-sections, puis retards → séance → suivante → terminées, puis tri choisi.
+  const order = (list: Task[], sec: Section) => ordreSection(data, list, sec, (t) => bucketOf.get(t.id), s.tri);
   // Sondages : en cours, ou clôturés depuis la séance précédente ; placés sous leur section.
   const polls: Poll[] = s.parts.sondages
     ? (data.polls ?? []).filter((p) => {

@@ -1,4 +1,4 @@
-import type { AppData, Meeting, Task } from './types';
+import type { AppData, Meeting, PvSettings, Section, Task } from './types';
 import { addDays, finLe, isDone, isLate, today } from './utils';
 import { shortDate } from './minutes';
 
@@ -23,6 +23,72 @@ export const FULL_AGENDA: AgendaOptions = {
   statutsExclus: [],
   sectionsExclues: [],
 };
+
+/** Où en est un point de l'ordre du jour : en retard, pour la séance, pour la suivante, terminé depuis la précédente. */
+export type Echeance = 'late' | 'p1' | 'p2' | 'bilan';
+const RANG: Record<Echeance, number> = { late: 0, p1: 1, p2: 2, bilan: 3 };
+
+/**
+ * Ordre des points d'une section, le même dans l'ordre du jour et le PV : sous-sections dans l'ordre de la section (les
+ * points sans sous-section d'abord), puis en retard → séance → suivante → terminés, puis le tri choisi pour l'ordre du
+ * jour (délai, statut ou titre). À égalité, l'ordre de la liste reçue.
+ */
+export function ordreSection(data: AppData, list: Task[], sec: Section, echeance: (t: Task) => Echeance | undefined, tri: PvSettings['tri'] = 'delai'): Task[] {
+  const statut = (t: Task) => data.statuses.findIndex((x) => x.id === t.statusId);
+  const delai = (a: Task, b: Task) => (a.delai || '9999').localeCompare(b.delai || '9999');
+  const parTri = (a: Task, b: Task) => (tri === 'statut' ? statut(a) - statut(b) || delai(a, b) : tri === 'titre' ? a.titre.localeCompare(b.titre, 'fr') : delai(a, b));
+  const rang = (t: Task) => RANG[echeance(t) ?? 'p1'];
+  return [...list].sort((a, b) => sec.sousSections.indexOf(a.sousSection) - sec.sousSections.indexOf(b.sousSection) || rang(a) - rang(b) || parTri(a, b));
+}
+
+/** Bloc d'une section du PV : une sous-section et ses points, ou un point seul (`label` vide). */
+export interface BlocPv {
+  key: string;
+  label: string;
+  tasks: Task[];
+}
+
+/**
+ * Points d'une section (déjà dans l'ordre de `ordreSection`) groupés comme dans l'ordre du jour : un point sans
+ * sous-section forme son propre bloc, ceux d'une sous-section se suivent sous elle (bloc placé au premier d'entre eux) ;
+ * le point qui porte le nom de sa sous-section vient en tête du bloc (c'est la ligne de la sous-section dans l'ordre du
+ * jour) ; un point rattaché dont le point principal est dans la section suit celui-ci, même s'il est rangé ailleurs.
+ * `sousSections` : faux si l'ordre du jour n'affiche pas les sous-sections (chaque point seul, dans l'ordre).
+ */
+export function blocsSection(ordonnes: Task[], sousSections = true): BlocPv[] {
+  const ids = new Set(ordonnes.map((t) => t.id));
+  const sousParent = (t: Task) => !!t.parentId && t.parentId !== t.id && ids.has(t.parentId);
+  const blocs: BlocPv[] = [];
+  const tetes = new Set<string>();
+  for (const t of ordonnes) {
+    if (sousParent(t)) continue;
+    const sub = sousSections ? t.sousSection : '';
+    if (!sub) {
+      blocs.push({ key: `__${t.id}`, label: '', tasks: [t] });
+      continue;
+    }
+    let b = blocs.find((x) => x.key === sub);
+    if (!b) blocs.push((b = { key: sub, label: sub, tasks: [] }));
+    if (!tetes.has(sub) && t.titre.trim().toLowerCase() === sub.trim().toLowerCase()) {
+      tetes.add(sub);
+      b.tasks.unshift(t);
+    } else b.tasks.push(t);
+  }
+  // Rattachés : après leur point principal et ceux déjà placés sous lui ; sous le point en tête d'une sous-section, à la
+  // fin du bloc (dans l'ordre du jour, ils suivent les autres points de la sous-section).
+  for (const t of ordonnes.filter(sousParent)) {
+    const b = blocs.find((x) => x.tasks.some((y) => y.id === t.parentId));
+    if (!b) continue;
+    if (b.label && b.tasks[0].id === t.parentId && tetes.has(b.label)) {
+      b.tasks.push(t);
+      continue;
+    }
+    let i = b.tasks.findIndex((y) => y.id === t.parentId) + 1;
+    while (i < b.tasks.length && b.tasks[i].parentId === t.parentId) i++;
+    b.tasks.splice(i, 0, t);
+  }
+  return blocs;
+}
 
 export const sortedMeetings = (data: AppData) => [...data.meetings].sort((a, b) => a.date.localeCompare(b.date));
 

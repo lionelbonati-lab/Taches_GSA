@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
-import { FULL_AGENDA, echeanceSuivante, etatTerminee, meetingContext, selectAgenda, sortedMeetings } from '../data/agenda';
+import { FULL_AGENDA, blocsSection, echeanceSuivante, etatTerminee, meetingContext, ordreSection, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
 import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
@@ -98,13 +98,15 @@ export function Minutes() {
 
   const s1 = meetings.find((m) => m.id === meetingId);
   const { s0, s2 } = meetingContext(data, s1);
-  // Choix de la séance : la dernière passée, celles du jour et à venir, et les PV commencés ou en correction ; les
-  // autres séances passées (PV validés, archivés dans Comité › Séances) dans « Reprendre un ancien PV ».
+  // Choix de la séance : la dernière passée (tant que son PV n'est pas validé), celles du jour et à venir, et les PV
+  // commencés ou en correction ; les autres séances passées (PV validés, archivés dans Comité › Séances) dans
+  // « Reprendre un ancien PV ».
   const jour = today();
   const dernierePassee = [...meetings].reverse().find((x) => x.date < jour);
   const pvEnCours = (x: Meeting) =>
     !!x.minutes && (x.minutes.valideLe ? !!x.minutes.enCorrection : !!x.minutes.demarreLe || Object.values(x.minutes.notes ?? {}).some((n) => n.trim()));
-  const anciennes = meetings.filter((x) => x.date < jour && x.id !== dernierePassee?.id && !pvEnCours(x)).reverse();
+  const valide = (x: Meeting) => !!x.minutes?.valideLe && !x.minutes.enCorrection;
+  const anciennes = meetings.filter((x) => x.date < jour && (x.id !== dernierePassee?.id || valide(x)) && !pvEnCours(x)).reverse();
   const courantes = meetings.filter((x) => !anciennes.includes(x) || x.id === meetingId);
   const choisirSeance = (id: string) => {
     setMeetingId(id);
@@ -224,32 +226,18 @@ export function Minutes() {
     ].filter(Boolean) as string[];
   };
 
-  // Regroupement : section → sous-section → tâches (ordre de l'ordre du jour)
-  const RANK = { late: 0, p1: 1, p2: 2, bilan: 3 } as const;
+  // Regroupement : section → sous-section → tâches, dans l'ordre de l'ordre du jour (même tri, mêmes sous-sections,
+  // tâches rattachées sous leur tâche principale : voir ordreSection et blocsSection).
+  const reglagesOdj = prefs.pv;
   const bySection = data.sections.map((sec) => {
-    const tasks = points
-      .filter((t) => t.sectionId === sec.id)
-      .sort(
-        (a, b) =>
-          sec.sousSections.indexOf(a.sousSection) - sec.sousSections.indexOf(b.sousSection) ||
-          RANK[bucket.get(a.id) ?? 'p1'] - RANK[bucket.get(b.id) ?? 'p1'] ||
-          (a.delai || '9999').localeCompare(b.delai || '9999'),
-      );
-    const subs: { key: string; label: string; tasks: Task[] }[] = [];
-    for (const t of tasks) {
-      const key = t.sousSection || `__${t.id}`;
-      let g = subs.find((x) => x.key === key);
-      if (!g) subs.push((g = { key, label: t.sousSection, tasks: [] }));
-      g.tasks.push(t);
-    }
-    // Tâches liées placées juste après leur tâche principale (si elle est dans la même sous-section).
-    for (const g of subs) {
-      const ids = new Set(g.tasks.map((t) => t.id));
-      const kids = g.tasks.filter((t) => t.parentId && ids.has(t.parentId));
-      g.tasks = g.tasks.filter((t) => !kids.includes(t)).flatMap((t) => [t, ...kids.filter((k) => k.parentId === t.id)]);
-    }
-    return { sec, subs, polls: polls.filter((p) => pollSection(data, p) === sec.id) };
+    const tasks = ordreSection(data, points.filter((t) => t.sectionId === sec.id), sec, (t) => bucket.get(t.id), reglagesOdj?.tri);
+    const subs = blocsSection(tasks, reglagesOdj?.colonnes?.sousSection ?? true);
+    const ici = polls.filter((p) => pollSection(data, p) === sec.id);
+    const lie = (p: Poll) => !!p.taskId && tasks.some((t) => t.id === p.taskId);
+    return { sec, subs, polls: ici.filter((p) => !lie(p)), lies: ici.filter(lie) };
   });
+  // Sondages rattachés à une tâche : sous elle.
+  const pollsDe = (t: Task) => polls.filter((p) => p.taskId === t.id && pollSection(data, p) === t.sectionId);
   const orphanPolls = polls.filter((p) => !data.sections.some((x) => x.id === pollSection(data, p)));
 
   // ---------- Actions de séance ----------
@@ -417,7 +405,11 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
   const taskInPv = (t: Task) => m.tousLesPoints || !!noteOf(`task:${t.id}`) || changesOf(t).length > 0 || isNewTask(t);
   const pollInPv = (p: Poll) => m.tousLesPoints || !!noteOf(`poll:${p.id}`) || !isOpen(p);
   const pvSections = bySection
-    .map((g) => ({ ...g, subs: g.subs.map((s) => ({ ...s, tasks: s.tasks.filter(taskInPv) })).filter((s) => s.tasks.length), polls: g.polls.filter(pollInPv) }))
+    .map((g) => {
+      const subs = g.subs.map((s) => ({ ...s, tasks: s.tasks.filter(taskInPv) })).filter((s) => s.tasks.length);
+      const montrees = new Set(subs.flatMap((s) => s.tasks.map((t) => t.id)));
+      return { ...g, subs, polls: [...g.polls, ...g.lies.filter((p) => !montrees.has(p.taskId!))].filter(pollInPv) };
+    })
     .filter((g) => m.tousLesPoints || noteOf(`sec:${g.sec.id}`) || g.subs.length || g.polls.length);
   const others = orphanPolls.filter(pollInPv);
   // Annexes : fichiers et liens des tâches du PV, dans l'ordre du PV (nouvelles tâches comprises).
@@ -464,6 +456,10 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
           out.push(`${pad}${s.label ? '■' : `${letter(j++)}.`} ${taskLine(t)}`);
           texteNote(`task:${t.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}   → ${l}`));
           if (opts.misesAJour) changesOf(t).forEach((c) => out.push(`${pad}   ↻ ${c}`));
+          pollsDe(t).filter(pollInPv).forEach((p) => {
+            out.push(`${pad}   ◦ Sondage : ${p.question} — ${pollSummary(p)}`);
+            texteNote(`poll:${p.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}      → ${l}`));
+          });
         });
       });
       g.polls.forEach((p) => {
@@ -560,8 +556,8 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
       <NoteField value={m.notes[key] ?? ''} onCommit={(v) => setNote(key, v)} placeholder={label} autoFocus={openNotes[key] && !noteOf(key)} readOnly={!editable} />
     ) : null;
 
-  // Tâche liée dont la tâche principale est aussi un point de la séance : affichée en retrait sous elle.
-  const isChild = (t: Task) => !!t.parentId && points.some((x) => x.id === t.parentId && x.sectionId === t.sectionId && x.sousSection === t.sousSection);
+  // Tâche liée dont la tâche principale est aussi un point de la section : affichée en retrait sous elle.
+  const isChild = (t: Task) => !!t.parentId && points.some((x) => x.id === t.parentId && x.sectionId === t.sectionId);
   const taskRow = (t: Task) => {
     const ch = changesOf(t);
     const b = bucket.get(t.id);
@@ -634,6 +630,12 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
         {opts.documents && !!t.documents?.length && <p className="min-pv-docs"><DocsTache t={t} annexes={joints} /></p>}
         {noteOf(`task:${t.id}`) && <p className="min-pv-note">→ <TexteNote note={noteOf(`task:${t.id}`)} /></p>}
         {opts.misesAJour && changesOf(t).length > 0 && <p className="min-pv-change">↻ {changesOf(t).join(' · ')}</p>}
+        {pollsDe(t).filter(pollInPv).map((p) => (
+          <p key={p.id} className="min-pv-poll">
+            <span className="odj-poll">Sondage : {p.question} — {pollSummary(p)}</span>
+            {noteOf(`poll:${p.id}`) && <span className="min-pv-note"> → <TexteNote note={noteOf(`poll:${p.id}`)} /></span>}
+          </p>
+        ))}
       </>
     );
   }
@@ -834,7 +836,12 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                   {g.subs.map((s, j) => (
                     <div key={s.key} className="min-sub">
                       {s.label ? <div className="min-sub-title">{letter(j)}. {s.label}</div> : null}
-                      {s.tasks.map(taskRow)}
+                      {s.tasks.map((t) => (
+                        <Fragment key={t.id}>
+                          {taskRow(t)}
+                          {pollsDe(t).map(pollRow)}
+                        </Fragment>
+                      ))}
                     </div>
                   ))}
                   {g.polls.map(pollRow)}

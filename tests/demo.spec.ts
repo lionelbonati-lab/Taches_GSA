@@ -1158,3 +1158,90 @@ test('notes des séances : dans la fiche de la tâche, PV en cours pour qui tien
   await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Tâche sans séance');
   await expect(page.locator('fieldset.notes-seances')).toHaveCount(0);
 });
+
+/** Date locale dans `n` jours (AAAA-MM-JJ). */
+const dansJours = (n: number) => {
+  const d = new Date(Date.now() + n * 864e5);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+test('PV : les points dans le même ordre que l’ordre du jour (sous-sections, rattachés, sondage, tri choisi)', async ({ page }) => {
+  // Points de la prochaine séance : sans sous-section, une sous-section avec son point « de tête » (même nom), des
+  // rattachés rangés ailleurs que leur point principal, un retard, un sondage rattaché ; ordre du jour trié par titre.
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const ouverts = d.statuses.filter((s: { done: boolean }) => !s.done).map((s: { id: string }) => s.id);
+    let s1 = d.meetings.filter((m: { date: string }) => m.date >= j[0]).sort((a: { date: string }, b: { date: string }) => a.date.localeCompare(b.date))[0];
+    if (!s1) d.meetings.push((s1 = { id: 'm-test', titre: 'Comité test', date: j[3], heure: '19:30', lieu: '' }));
+    const sec = d.sections.find((s: { sousSections: string[] }) => s.sousSections.length >= 2);
+    const [ssA, ssB] = sec.sousSections;
+    const sec2 = d.sections.find((s: { id: string }) => s.id !== sec.id);
+    const moi = d.people[0].id;
+    const t = (id: string, titre: string, o: object) => ({ id, sectionId: sec.id, sousSection: '', titre, responsables: [moi], statusId: ouverts[0], delai: j[0], meetingId: s1.id, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...o });
+    d.tasks.push(
+      t('o1', 'Zèbre', {}),
+      t('o2', 'Alpha', { statusId: ouverts[1] ?? ouverts[0] }),
+      t('o3', ssA, { sousSection: ssA }),
+      t('o4', 'Budget', { sousSection: ssA }),
+      t('o5', 'Rattaché à Budget, rangé dans B', { sousSection: ssB, parentId: 'o4' }),
+      t('o6', 'Point de B', { sousSection: ssB }),
+      t('o7', 'En retard', { delai: j[1], meetingId: undefined }),
+      t('o8', 'Rattaché au point de B, sans sous-section', { parentId: 'o6' }),
+      t('o9', 'Rattaché au point de tête', { sousSection: ssA, parentId: 'o3' }),
+      t('o10', 'Autre section', { sectionId: sec2.id }),
+    );
+    d.polls = [...(d.polls ?? []), { id: 'sd-o', question: 'Quelle date pour le camp ?', type: 'choix', multiple: false, options: [{ id: 'x1', label: 'Juillet' }, { id: 'x2', label: 'Août' }], votants: [], anonyme: false, votes: {}, taskId: 'o4', creePar: moi, creeLe: new Date().toISOString() }];
+    d.prefs = { ...d.prefs, [moi]: { ...d.prefs?.[moi], pv: { ...d.prefs?.[moi]?.pv, tri: 'titre' } } };
+    localStorage.setItem(k, JSON.stringify(d));
+  }, { k: cle, j: [dansJours(0), dansJours(-30), dansJours(5), dansJours(20)] });
+  await page.reload();
+
+  const libelle = (sel: string) =>
+    page.locator(sel).evaluateAll((els) =>
+      els.map((e) => (e.classList.contains('odj-poll') ? `Sondage ${e.textContent!.replace(/^📊 /, '').replace(/^Sondage : /, '').split(' — ')[0].trim()}` : [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim())),
+    );
+  await allerA(page, '/ordre-du-jour');
+  await expect(page.locator('.pv-sheet .odj-task', { hasText: 'Zèbre' })).toBeVisible();
+  const odj = await libelle('.pv-sheet .odj-task, .pv-sheet .odj-poll');
+  await allerA(page, '/pv');
+  await expect(page.locator('.min-agenda .min-title', { hasText: 'Zèbre' })).toBeVisible();
+  const pv = await libelle('.min-agenda .min-task .min-title');
+  expect(odj).toContain('Rattaché à Budget, rangé dans B');
+  expect(odj).toContain('Sondage Quelle date pour le camp ?');
+  expect(pv).toEqual(odj);
+});
+
+test('PV validé de la dernière séance passée : il quitte la liste des séances pour « Reprendre un ancien PV »', async ({ page }) => {
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Dernière séance passée : il y a 3 jours ; une prochaine séance prévue.
+  const preparer = (valide: boolean) =>
+    page.evaluate(({ k, j, valide }) => {
+      const d = JSON.parse(localStorage.getItem(k)!);
+      d.meetings = d.meetings.filter((m: { id: string; date: string }) => m.id !== 'm-passee' && !(m.date > j[0] && m.date < j[1]));
+      if (!d.meetings.some((m: { date: string }) => m.date >= j[1])) d.meetings.push({ id: 'm-suivante', titre: 'Comité suivant', date: j[2], heure: '19:30', lieu: '' });
+      d.meetings.push({
+        id: 'm-passee', titre: 'Comité d’essai', date: j[0], heure: '19:30', lieu: '',
+        minutes: { presents: [], excuses: [], notes: { divers: 'Rien.' }, demarreLe: new Date().toISOString(), ...(valide ? { valideLe: new Date().toISOString(), validePar: d.people[0].id, version: 1 } : {}) },
+      });
+      localStorage.setItem(k, JSON.stringify(d));
+    }, { k: cle, j: [dansJours(-3), dansJours(0), dansJours(20)], valide });
+  const seances = page.getByLabel('Séance', { exact: true });
+  const anciens = page.getByLabel('Reprendre un ancien PV');
+
+  // PV pas encore validé : dans la liste des séances.
+  await preparer(false);
+  await page.reload();
+  await allerA(page, '/pv');
+  await expect(seances.locator('option', { hasText: 'Comité d’essai' })).toHaveCount(1);
+  await expect(anciens.locator('option', { hasText: 'Comité d’essai' })).toHaveCount(0);
+
+  // Validé : dans « Reprendre un ancien PV », plus dans la liste des séances.
+  await preparer(true);
+  await page.reload();
+  await allerA(page, '/pv');
+  await expect(anciens.locator('option', { hasText: 'Comité d’essai' })).toHaveCount(1);
+  await expect(seances.locator('option', { hasText: 'Comité d’essai' })).toHaveCount(0);
+});
