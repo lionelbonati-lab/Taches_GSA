@@ -659,6 +659,10 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 :root[data-theme='dark'] .min-task.new { background: #0f2f1f; }
 .min-task-head { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; flex-wrap: wrap; }
 .min-title { flex: 1 1 320px; min-width: 0; }
+/* Titre du point : un appui l'ouvre. */
+.min-ouvrir { padding: 0; margin: 0; border: none; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; border-radius: 4px; }
+.min-ouvrir:hover { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.min-ouvrir:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
 .min-controls { display: flex; gap: 4px; align-items: center; flex-shrink: 0; }
 .min-status { padding: 4px 6px; font-size: 0.85rem; }
 .min-date { padding: 3px 6px; font-size: 0.85rem; width: 140px; }

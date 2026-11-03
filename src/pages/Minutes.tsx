@@ -656,7 +656,9 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
         <div className="min-task-head">
           <span className="min-title">
             {isChild(t) && <span className="muted">↳ </span>}
-            {t.titre} <span className="odj-meta">({meta(t).join(' · ')})</span>
+            {/* Un appui sur le titre ouvre le point (le modifier, comme dans la liste des points). */}
+            {editable ? <button type="button" className="min-ouvrir" title="Ouvrir le point" onClick={() => openTask(t)}>{t.titre}</button> : t.titre}{' '}
+            <span className="odj-meta">({meta(t).join(' · ')})</span>
             {t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque.trim()} /></span>}
           </span>
           {editable && (
@@ -666,7 +668,6 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               </select>
               <input type="date" className="min-date" value={t.delai} disabled={!can2} title={t.delaiRef ? 'Délai calé sur un événement, une séance ou une étiquette (le changer à la main le détache)' : 'Délai'}
                 onChange={(e) => quickChange(t, { delai: e.target.value, delaiRef: undefined })} />
-              <button className="icon-btn" title="Modifier le point" onClick={() => openTask(t)} aria-label="Modifier le point"><Icone n="modifier" /></button>
               {!noteOf(`task:${t.id}`) && !openNotes[`task:${t.id}`] && (
                 <button className="icon-btn" title="Ajouter une note" onClick={() => setOpenNotes({ ...openNotes, [`task:${t.id}`]: true })} aria-label="Ajouter une note"><Icone n="note" /></button>
               )}
