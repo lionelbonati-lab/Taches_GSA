@@ -290,6 +290,22 @@ la suit) : **étiquettes côté serveur, discussion d'un point étiqueté réser
   038, 029, 049, 053). Une appli d'avant 062 affiche les discussions vides (rien n'est perdu) : elle se met à jour au
   rechargement.
 
+`supabase/migrations/063_gsa_discussion_participants.sql` (**appliquée le 03.11.2026**, après la publication de l'appli
+qui la suit) : **ajouter une personne à la discussion d'un point**, même si elle n'est pas membre de ses étiquettes.
+
+- Personnes ajoutées gardées dans la ligne `discussions` (`data.participants`, écrite par le serveur seulement).
+  `gsa_discussion_ajouter(unite, tache, fiche, retirer)` : qui lit la discussion ajoute une personne active du club ou
+  retire une personne ajoutée (chacun peut se retirer) ; la personne ajoutée est prévenue (notification `discussion`)
+  et reçoit tout de suite le point. Elle lit la discussion (même réservée à une étiquette) et le point, y écrit et est
+  prévenue des messages ; un message garde les personnes ajoutées. `gsa_dans_discussion` fermée aux comptes.
+- **Vérifiée** : sur la base de test (`outils/base-test/discussion_verif.sh` et `etiquettes_verif.sh`, « Tout est bon ») ;
+  sur le serveur après application, dans une transaction annulée (rien n'est resté) : une personne du comité hors
+  étiquette ne lisait pas la discussion réservée, la lit une fois ajoutée par un membre, et reçoit la notification.
+- Fonction `gsa-push` redéployée en **v11** (même jour, `verify_jwt` désactivé comme avant) : seul `notifs.js` change
+  (`npm run fonction`), pour le texte de la notification « … t'ajoute à la discussion de … » sur les téléphones ; contenu
+  déployé relu, identique au dépôt. Version d'avant : v10.
+- **Retour en arrière** : voir l'en-tête du fichier (définitions de 062, puis suppression des deux fonctions ajoutées).
+
 Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.
