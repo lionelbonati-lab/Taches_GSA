@@ -2,8 +2,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties
 import { createPortal } from 'react-dom';
 import { Check, ChevronDown } from 'lucide-react';
 
-// Liste déroulante qui montre des icônes dessinées (une liste native n'affiche que du texte) : celle des entités
-// (bibliothèque d'icônes), des types… Se comporte comme une liste native : clic, flèches, Début / Fin, lettres tapées,
+// Liste déroulante qui montre des icônes ou des pastilles (une liste native n'affiche que du texte) : statuts… Se comporte comme une liste native : clic, flèches, Début / Fin, lettres tapées,
 // Entrée pour choisir, Échap pour fermer ; sur téléphone, la liste s'ouvre sous le champ (ou au-dessus faute de place).
 // Le champ garde le focus (combobox « select-only ») ; la liste est posée sur la page, au-dessus des fenêtres.
 

@@ -8,7 +8,7 @@ import { Icone } from './icones';
 // Profils de l'ordre du jour : les réglages du moment (contenu, mise en page, et au choix la mise en forme) enregistrés
 // sous un nom, à chacun, puis réappliqués en un clic (« Comité ordinaire », « Assemblée générale »…).
 
-/** Profils de la personne connectée ; pas encore les siens : les anciens profils communs de l'entité. */
+/** Profils de la personne connectée ; pas encore les siens : les anciens profils communs du club. */
 export const profilsDe = (prefs: Prefs, data: AppData) => prefs.profilsOdj ?? data.reglagesOdj?.profils ?? [];
 
 /** Même valeur, sans tenir compte de l'ordre des clés ni des listes. */
@@ -103,7 +103,7 @@ export function ProfilsOdj({ s, normaliser, appliquerReglages, canEdit }: {
 
   const appliquer = (p: ProfilOdj) => {
     appliquerReglages(normaliser(p.reglages));
-    // Réglages communs à l'entité : seulement avec le droit de les changer.
+    // Réglages communs au club : seulement avec le droit de les changer.
     const communs = canEdit && ((p.joursApres !== undefined && p.joursApres !== joursApres) || (p.style && cle(epurer(p.style) ?? {}) !== cle(style)));
     if (communs)
       update((d) => {

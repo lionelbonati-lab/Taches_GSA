@@ -1,7 +1,7 @@
 import { getMode } from './mode';
 
-// Couleur de l'appli (boutons, onglet actif, liens…) : choix de l'entité ouverte, sinon celle du comité central,
-// sinon le bleu d'origine. Les teintes du mode sombre et les fonds clairs en sont tirés, lisibles dans les deux thèmes.
+// Couleur de l'appli (boutons, onglet actif, liens…) : choix du club (console admin › Apparence), sinon le bleu
+// d'origine. Les teintes du mode sombre et les fonds clairs en sont tirés, lisibles dans les deux thèmes.
 
 export const COULEUR_DEFAUT = '#1d4ed8';
 export const COULEURS_APPLI: { c: string; nom: string }[] = [

@@ -26,7 +26,7 @@ export async function copier(texte: string, zone: HTMLTextAreaElement | HTMLInpu
   }
 }
 
-/** Bouton « Envoyer un lien » : l'icône de partage seule (à ne pas confondre avec « 🤝 Partager » avec d'autres entités). */
+/** Bouton « Envoyer un lien » : l'icône de partage seule. */
 export function EnvoyerLien({ titre, texte, lien, acces }: { titre: string; texte: string; lien: string; acces: string }) {
   const [ouvert, setOuvert] = useState(false);
   return (

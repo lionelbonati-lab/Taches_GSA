@@ -4,7 +4,7 @@ import type { ElementDoc, StyleDocs, StyleElement } from '../data/types';
 import { ELEMENTS, INTERLIGNES, MARGES, POLICES, TAILLES, epurer, styleDe, traitDuFond } from '../data/styleDocs';
 
 // Mise en forme de l'ordre du jour et du PV : police, interligne, marges, puis chaque élément (taille, gras, couleur…).
-// Commune à l'entité (réglages de l'ordre du jour), appliquée tout de suite à l'aperçu.
+// Commune au club (réglages de l'ordre du jour), appliquée tout de suite à l'aperçu.
 
 const COULEURS = ['#111111', '#475569', '#1d4ed8', '#047857', '#b91c1c', '#7c3aed', '#c2410c'];
 // Fonds clairs (éléments encadrés) : le texte reste lisible ; blanc = sans fond. Le trait de l'encadré suit le fond.

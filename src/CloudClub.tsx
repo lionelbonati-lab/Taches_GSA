@@ -30,12 +30,11 @@ import {
   type Membership,
 } from './data/cloud';
 
-// Version réelle : le club autour de son espace (PLAN_APPLI_SIMPLE.md). L'espace est celui que l'appli ouvre (le comité
-// central d'abord : CloudApp) ; « Personnes du club », propositions, erreurs, mots de passe oubliés et sauvegarde passent
-// par les fonctions du serveur. En attendant la reprise des anciennes entités dans l'espace du club (D3), mes autres
-// anciennes entités restent sur le serveur, intactes : on peut en ouvrir une à la place (autresEspaces).
+// Version réelle : le club autour de son espace (PLAN_APPLI_SIMPLE.md). L'espace est celui que l'appli ouvre (sur le
+// serveur, l'ancien comité central : CloudApp) ; « Personnes du club », propositions, erreurs, mots de passe oubliés et
+// sauvegarde passent par les fonctions du serveur.
 
-export function CloudClub({ m, autres, userId, onSwitch, children }: { m: Membership; autres: Membership[]; userId: string; onSwitch: (m: Membership) => void; children: ReactNode }) {
+export function CloudClub({ m, userId, children }: { m: Membership; userId: string; children: ReactNode }) {
   const clubId = m.parentId ?? m.committeeId;
   const [espace, setEspace] = useState<Espace>(() => espaceDe(m));
   const [acces, setAcces] = useState(false);
@@ -118,17 +117,10 @@ export function CloudClub({ m, autres, userId, onSwitch, children }: { m: Member
         }
       },
       superAdmin,
-      // Sauvegarde de tout le club (super-admins) : le serveur la fait de toutes les anciennes entités, l'espace compris.
+      // Sauvegarde de tout le club (super-admins) : l'espace, et les anciennes entités archivées telles qu'elles sont restées.
       sauvegardeClub: superAdmin ? (par) => sauvegardeClub(clubId, espace.nom, par) : undefined,
-      autresEspaces: autres.length ? autres.map((x) => ({ id: x.committeeId, nom: x.committeeName })) : undefined,
-      ouvrirEspace(id) {
-        const x = autres.find((y) => y.committeeId === id);
-        if (!x) return;
-        window.location.hash = '#/';
-        onSwitch(x);
-      },
     }),
-    [espace, loading, ici, clubId, droitsPersonnes, acces, caissier, demandes, chargerDemandes, superAdmin, autres, onSwitch],
+    [espace, loading, ici, clubId, droitsPersonnes, acces, caissier, demandes, chargerDemandes, superAdmin],
   );
 
   return <ClubCtx.Provider value={club}>{children}</ClubCtx.Provider>;

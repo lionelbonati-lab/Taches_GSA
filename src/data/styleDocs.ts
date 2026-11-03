@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { ElementDoc, StyleDocs, StyleElement } from './types';
 
-// Mise en forme de l'ordre du jour et du PV, commune à l'entité : posée en variables CSS sur la feuille (.pv-sheet),
+// Mise en forme de l'ordre du jour et du PV, commune au club : posée en variables CSS sur la feuille (.pv-sheet),
 // dont les règles (styles.css) gardent la mise en forme par défaut pour ce qui n'est pas réglé. Les variables restent
 // dans le HTML des archives : un document archivé garde la mise en forme du moment.
 

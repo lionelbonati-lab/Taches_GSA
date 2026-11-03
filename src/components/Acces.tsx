@@ -20,8 +20,8 @@ export interface Shown {
 }
 
 /**
- * Son compte (fiche « Personnes du club », ou sa fiche dans une entité) : donner l'accès, nouveau mot de passe, retirer
- * l'accès. Pour qui gère les personnes du club ; les places ★ se règlent par les admins (serveur : gsa_compte_club_etat).
+ * Son compte (fiche « Personnes du club ») : donner l'accès, nouveau mot de passe, retirer l'accès. Pour qui gère les
+ * personnes du club ; le compte d'un admin se règle par un admin (serveur : gsa_compte_club_etat).
  */
 export function CompteDuClub({ clubId, membre }: { clubId: string; membre: ClubMembre }) {
   const [etat, setEtat] = useState<ComptePersonne | null | undefined>(undefined);

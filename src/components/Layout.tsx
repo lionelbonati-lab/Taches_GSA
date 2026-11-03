@@ -192,7 +192,6 @@ export function Layout() {
                 {pagesCompte.map((p) => (
                   <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="unit-item" role="menuitem"><Icone n={p.icon} /> {p.label}</NavLink>
                 ))}
-                <AutresEspaces className="unit-item" />
                 <button className="unit-item" role="menuitem" onClick={sortir}>{sortirLabel}</button>
               </div>
             </>
@@ -268,7 +267,6 @@ export function Layout() {
                 <NavLink key={p.to} to={p.to} state={{ depuis: loc.pathname }} className="sheet-link"><Icone n={p.icon} /> {p.label}</NavLink>
               ))}
               <InstallButton variant="sheet" />
-              <AutresEspaces className="sheet-link" />
               <button className="sheet-link" onClick={sortir}>{sortirLabel}</button>
             </div>
           </div>
@@ -280,24 +278,6 @@ export function Layout() {
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
       {reglerBarre && <BarreBasModal onClose={() => setReglerBarre(false)} />}
     </div>
-  );
-}
-
-/**
- * Version réelle, en attendant la reprise des anciennes entités dans l'espace du club (PLAN_APPLI_SIMPLE.md, D3) : mes
- * autres anciennes entités, à ouvrir une à la fois (leurs données restent sur le serveur).
- */
-function AutresEspaces({ className }: { className: string }) {
-  const club = useClubOptional();
-  if (!club?.autresEspaces?.length || !club.ouvrirEspace) return null;
-  return (
-    <>
-      {club.autresEspaces.map((e) => (
-        <button key={e.id} className={className} role="menuitem" title="Ancienne entité, en attendant sa reprise dans l’espace du club" onClick={() => club.ouvrirEspace?.(e.id)}>
-          <Icone n="changer" /> Ouvrir « {e.nom} »
-        </button>
-      ))}
-    </>
   );
 }
 

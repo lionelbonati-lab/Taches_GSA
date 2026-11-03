@@ -100,7 +100,7 @@ export function RealLogin() {
 }
 
 /**
- * Mot de passe oublié : lien par e-mail (valable 1 heure, une seule fois), ou demande aux admins des entités du compte
+ * Mot de passe oublié : lien par e-mail (valable 1 heure, une seule fois), ou demande aux admins du club
  * (l'un d'eux donne un mot de passe provisoire, à changer à la connexion).
  */
 function MotDePasseOublie({ email, setEmail, invalide }: { email: string; setEmail: (v: string) => void; invalide: boolean }) {
@@ -134,7 +134,7 @@ function MotDePasseOublie({ email, setEmail, invalide }: { email: string; setEma
       await demanderMdp(adresse);
       setMsg({ ok: true, text: `Demande envoyée aux admins du club (si un compte existe pour ${adresse}). L’un d’eux te transmettra un mot de passe provisoire, de vive voix ou par message : tu choisiras le tien à la connexion.` });
     } catch (e) {
-      setMsg({ ok: false, text: /fetch|network/i.test((e as Error).message) ? 'Pas de connexion au serveur. Vérifie ta connexion Internet.' : 'Demande impossible pour l’instant : contacte directement le président ou un admin de ton entité.' });
+      setMsg({ ok: false, text: /fetch|network/i.test((e as Error).message) ? 'Pas de connexion au serveur. Vérifie ta connexion Internet.' : 'Demande impossible pour l’instant : contacte directement le président ou un admin du club.' });
     } finally {
       setBusy('');
     }

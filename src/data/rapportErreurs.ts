@@ -28,7 +28,7 @@ export interface ErreurAppli {
   page?: string;
   version?: string;
   navigateur?: string;
-  /** Entité ouverte la dernière fois. */
+  /** Espace ouvert la dernière fois. */
   entite?: string;
   premiere: string;
   derniere: string;
@@ -123,7 +123,7 @@ export function brancherRapport(f: (r: RapportErreur) => Promise<void>) {
   };
 }
 
-/** L'appli connectée envoie-t-elle les erreurs ? (sinon : écran de connexion, pas encore d'entité). */
+/** L'appli connectée envoie-t-elle les erreurs ? (sinon : écran de connexion, pas encore d'espace ouvert). */
 export const rapportBranche = () => envoyer !== null;
 
 /** Erreurs de script et promesses rejetées sans traitement, sur toute l'appli. */

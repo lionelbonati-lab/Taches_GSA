@@ -8,8 +8,8 @@ import { Icone } from './icones';
 const taille = (o: number) => (o < 1024 * 1024 ? `${Math.max(1, Math.round(o / 1024))} Ko` : `${(o / 1024 / 1024).toFixed(1)} Mo`);
 
 /**
- * Copies des données de l'entité gardées par le serveur (036) : chaque nuit si quelque chose a changé, pendant 30 jours.
- * Admins de l'entité : téléchargement (fichier de sauvegarde habituel), restauration, copie tout de suite.
+ * Copies des données du club gardées par le serveur (036) : chaque nuit si quelque chose a changé, pendant 30 jours.
+ * Admins : téléchargement (fichier de sauvegarde habituel), restauration, copie tout de suite.
  */
 export function CopiesAuto({ unite, nom, restore }: { unite: string; nom: string; restore: (d: AppData, label: string) => void }) {
   // undefined : chargement ; null : le serveur ne fait pas encore de copies (migration 036).

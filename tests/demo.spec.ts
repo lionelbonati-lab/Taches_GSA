@@ -1078,3 +1078,28 @@ test('délai calé sur une étiquette datée : la tâche porte l’étiquette, s
   await page.keyboard.press('Escape');
   await expect.poll(async () => (await tache())?.delai).toBe(jour(18));
 });
+
+test('aide et textes de l’appli : plus d’entités, d’organigramme ni de comité central (admin et membre)', async ({ page }) => {
+  // Un seul espace (PLAN_APPLI_SIMPLE.md, D5) : l'aide, la console admin et les propositions ne parlent que du club.
+  const ancien = /entit[ée]s?\b|organigramme|comité central|sous-comité|caisse centrale|vue « moi »/i;
+  const verifier = async () => {
+    for (const h of ['/aide', '/propositions', '/admin', '/membres-club']) {
+      await allerA(page, h);
+      await expect(page.locator('main h1').first()).toBeVisible();
+      await expect(page.locator('.chargement-page')).toHaveCount(0);
+      expect(await page.locator('main').innerText(), h).not.toMatch(ancien);
+    }
+  };
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Julien Moreau' }).first().click();
+  await verifier();
+  // Le menu du compte ne propose plus d'ancienne entité à ouvrir.
+  await page.locator('.who-btn').click();
+  await expect(page.locator('.compte-menu')).toBeVisible();
+  await expect(page.locator('.compte-menu')).not.toContainText('Ouvrir «');
+  await page.locator('.unit-back').click();
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Antoine Mercier' }).first().click();
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  await verifier();
+});

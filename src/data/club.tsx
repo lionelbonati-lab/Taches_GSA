@@ -79,12 +79,6 @@ export interface Club {
   superAdmin: boolean;
   /** Sauvegarde de tout le club (console admin › Sauvegarde), avec « Personnes du club » ; absente pour les autres. */
   sauvegardeClub?: (par: string) => Promise<SauvegardeClub>;
-  /**
-   * Version réelle, en attendant la reprise des anciennes entités dans l'espace du club (PLAN_APPLI_SIMPLE.md, D3) : mes
-   * autres anciennes entités, à ouvrir une à la fois (leurs données restent sur le serveur, intactes).
-   */
-  autresEspaces?: { id: string; nom: string }[];
-  ouvrirEspace?: (id: string) => void;
 }
 
 export const ClubCtx = createContext<Club | null>(null);

@@ -108,7 +108,7 @@ export function finAnticipee(data: AppData, avant: Task | undefined, apres: Task
 }
 
 /**
- * « Pour quand ? » d'une nouvelle tâche : la prochaine séance de l'entité pas encore commencée (après `apres` : la séance
+ * « Pour quand ? » d'une nouvelle tâche : la prochaine séance du comité pas encore commencée (après `apres` : la séance
  * dont on rédige le PV), le jour même ; elle figure aussi à son ordre du jour. Sans séance prévue dans l'Agenda : rien
  * (aujourd'hui) pour un comité, aucun délai pour un groupe ou une équipe d'événement (`type`).
  */

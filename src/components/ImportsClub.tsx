@@ -6,12 +6,12 @@ import { COLS_EVENEMENTS, COLS_PERSONNES, COLS_TACHES, analyserEvenements, analy
 import type { ClubMembre } from '../data/types';
 import { ImportCsv } from './ImportCsv';
 
-// Console admin › Import CSV : personnes de l'entité (poste, rôles), tâches et événements, en masse.
+// Console admin › Import CSV : personnes du club (poste, rôles), tâches et événements, en masse.
 
 type Sorte = 'personnes' | 'taches' | 'evenements';
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 
-export function ImportsEntite() {
+export function ImportsClub() {
   const { data, update, user } = useStore();
   const club = useClubOptional();
   const [sorte, setSorte] = useState<Sorte>('personnes');
@@ -35,7 +35,7 @@ export function ImportsEntite() {
         <ImportCsv
           key="personnes"
           colonnes={COLS_PERSONNES}
-          modele="modele-membres-entite.csv"
+          modele="modele-personnes.csv"
           aide={
             <p className="muted">
               Une ligne par personne, avec son poste et son rôle dans l’appli. Une personne déjà présente (même email, sinon même prénom et nom)

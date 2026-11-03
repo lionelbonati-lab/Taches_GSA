@@ -13,9 +13,9 @@ export interface TacheConfiee {
 }
 
 /**
- * Version réelle, en attendant la reprise (PLAN_APPLI_SIMPLE.md, D3) : personne du club avec un compte, mais sans fiche
- * dans l'appli (056) : seulement les tâches qui lui sont confiées (son nom sur la tâche) ; elle en change le statut et
- * coche leur checklist, enregistrés sur le serveur. Version réelle seulement (CloudApp).
+ * Personne du club avec un compte, mais sans fiche active dans l'appli (056) : seulement les tâches qui lui sont confiées
+ * (son nom sur la tâche) ; elle en change le statut et coche leur checklist, enregistrés sur le serveur. Version réelle
+ * seulement (CloudApp).
  */
 export function SansPlace({ membre, logo, taches, erreur, modifier, sortir, onSortir }: {
   membre: Pick<ClubMembre, 'prenom' | 'nom'>;

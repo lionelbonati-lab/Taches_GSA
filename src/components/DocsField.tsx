@@ -40,7 +40,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
   disabled: boolean;
   compact?: boolean;
   track: DocTracking;
-  /** Préfixe des fichiers ajoutés : dépôt à la caisse centrale, ou dans le dossier de l'entité d'une tâche partagée. */
+  /** Préfixe des fichiers ajoutés (« dossier/ » : rangés dans un autre dossier du stockage). */
   idPrefix?: string;
   /** Bouton « 🔗 Lien » (par défaut : sans préfixe). */
   liens?: boolean;
@@ -68,8 +68,7 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
       }
       const id = `${idPrefix ?? ''}${uid('d')}`;
       try {
-        // Tâche de l'une de mes autres entités (vue « moi ») : dans son dossier.
-        await saveFile(id, blob, cloud?.membership.committeeId);
+        await saveFile(id, blob);
       } catch (e) {
         setErr(`« ${f.name} » : ${(e as Error).message}.`);
         continue;

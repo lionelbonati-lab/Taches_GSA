@@ -8,7 +8,7 @@ import type { Entete } from '../data/types';
 import { ImagePicker } from './ImagePicker';
 import { Icone } from './icones';
 
-// En-tête des documents imprimés (ordre du jour, PV, bon de paiement) : un seul pour toute l'entité, réglé dans la console admin.
+// En-tête des documents imprimés (ordre du jour, PV, bon de paiement) : un seul pour tout le club, réglé dans la console admin.
 
 const TAILLES: { id: Entete['taille']; label: string }[] = [
   { id: 'petite', label: 'Petite' },

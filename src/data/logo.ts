@@ -1,9 +1,8 @@
 import { getMode } from './mode';
 
-// Logo du club et des entités, et images des en-têtes de documents.
-// Les images sont réduites dans le navigateur et gardées en data URL (fiche de l'entité, réglages des en-têtes) :
+// Logo du club et images des en-têtes de documents.
+// Les images sont réduites dans le navigateur et gardées en data URL (fiche de l'espace, réglages des en-têtes) :
 // pas de fichier à héberger, elles s'impriment telles quelles.
-// Le logo propre d'une entité devient l'icône de l'onglet quand elle est ouverte.
 
 /** Logo : 256 px au plus (côté le plus long). */
 export const LOGO_SIZE = 256;

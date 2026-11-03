@@ -21,8 +21,8 @@ export function sb() {
 }
 
 /**
- * Accès du compte à un espace (table gsa_members). En attendant la reprise (PLAN_APPLI_SIMPLE.md, D3), le serveur garde
- * les anciennes entités du club : l'espace du club est le comité central (type « central »), les autres restent intactes.
+ * Accès du compte à un espace (table gsa_members). L'espace du club est l'ancien comité central (type « central ») ; les
+ * anciennes entités, reprises dans le club (PLAN_APPLI_SIMPLE.md, D3, migration 059), restent sur le serveur, archivées.
  */
 export interface Membership {
   committeeId: string;
@@ -452,12 +452,12 @@ export class CloudSync {
 }
 
 const RATTRAPER = 'gsa-rattraper';
-/** Relit ce qui a changé dans l'entité ouverte (après une modification faite par le serveur, sans attendre le direct). */
+/** Relit ce qui a changé dans l'espace ouvert (après une modification faite par le serveur, sans attendre le direct). */
 export function rattraper() {
   window.dispatchEvent(new Event(RATTRAPER));
 }
 
-/** Espaces (comité central, anciennes entités) auxquels le compte connecté a accès. */
+/** Espaces auxquels le compte connecté a accès : celui du club (et d'anciennes entités, archivées). */
 export async function myMemberships(userId: string): Promise<Membership[]> {
   const { data, error } = await sb().from('gsa_members').select('committee_id, person_id, owner, committees(name, type, parent_id, info)').eq('user_id', userId);
   if (error) throw new Error(error.message);
@@ -654,8 +654,8 @@ export async function deleteMembre(club: string, id: string): Promise<string[]> 
 }
 
 /**
- * Sauvegarde de tout le club (super-admins, migration 057) : chaque entité (ses lignes, comme les copies de chaque nuit,
- * et ses fichiers joints) et « Personnes du club ».
+ * Sauvegarde de tout le club (super-admins, migration 057) : l'espace du club et les anciennes entités, archivées (leurs
+ * lignes, comme les copies de chaque nuit, et leurs fichiers joints), et « Personnes du club ».
  */
 export async function sauvegardeClub(club: string, nom: string, par: string): Promise<SauvegardeClub> {
   const { data, error } = await sb().rpc('gsa_sauvegarde_club', { club });
@@ -853,7 +853,7 @@ export async function signalerErreur(entite: string, r: RapportErreur) {
 const sans051 = (e: { code?: string; message: string }) =>
   new Error(absente(e) ? 'Le serveur ne reçoit pas encore les erreurs de l’appli (mise à jour 051 à appliquer).' : e.message);
 
-/** Erreurs de l'appli signalées dans le club de l'entité (admins du comité central, super-admins). */
+/** Erreurs de l'appli signalées dans le club (admins, super-admins). */
 export async function erreursAppli(entite: string): Promise<ErreurAppli[]> {
   const { data, error } = await sb().rpc('gsa_erreurs_liste', { entite });
   if (error) throw sans051(error);
@@ -896,7 +896,7 @@ export async function pourInfoRelancer(unite: string, tache: string, depuis: str
   return Number((data as { n?: number } | null)?.n) || 0;
 }
 
-/** Proposition d'amélioration de l'appli, enregistrée au comité central (le serveur y met le nom et l'entité de l'auteur). */
+/** Proposition d'amélioration de l'appli, enregistrée dans l'espace du club (le serveur y met le nom de l'auteur). */
 export async function proposerAmelioration(club: string, source: string, p: NouvelleProposition) {
   const { data, error } = await sb().rpc('gsa_proposer_amelioration', { club, source, proposition: p });
   if (error) {
@@ -948,13 +948,13 @@ export async function accessAction<T = Record<string, unknown>>(body: AccessRequ
   return data as T;
 }
 
-/** Mot de passe oublié, sans connexion : demande aux admins des entités du compte (même réponse s'il n'existe pas). */
+/** Mot de passe oublié, sans connexion : demande aux admins du club (même réponse s'il n'existe pas). */
 export async function demanderMdp(email: string) {
   const { error } = await sb().functions.invoke('gsa-acces', { body: { action: 'demandeMdp', email } });
   if (error) throw new Error(error.message);
 }
 
-/** Demande « mot de passe oublié » d'un membre de l'entité (pour ses admins). */
+/** Demande « mot de passe oublié » d'un membre du club (pour ses admins). */
 export interface DemandeMdp {
   id: string;
   personId: string | null;
@@ -964,7 +964,7 @@ export interface DemandeMdp {
   peut: boolean;
 }
 
-/** Demandes en attente des membres de l'entité (admins) ; rien si le serveur ne les gère pas encore (migration 025). */
+/** Demandes en attente des membres du club (admins) ; rien si le serveur ne les gère pas encore (migration 025). */
 export async function demandesMdp(c: string): Promise<DemandeMdp[]> {
   const { data, error } = await sb().rpc('gsa_demandes_mdp_entite', { c });
   if (error) return [];

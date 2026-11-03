@@ -64,7 +64,7 @@ export const peutOuvrirTicket = (data: AppData, t: Task, userId?: string) =>
 const expresses = (data: AppData, perm: 'paiements.valider' | 'paiements.payer') =>
   data.people.filter((p) => p.actif && userRoles(data.roles, p).some((r) => !r.locked && r.permissions.includes(perm)));
 
-/** Caissiers de l'entité : sans eux, elle ne reçoit pas de tickets. */
+/** Caissiers du club : sans eux, personne ne reçoit les tickets. */
 export const caissiers = (data: AppData) => expresses(data, 'paiements.payer');
 
 /** Visa direct : une facture visée par la personne qui l'envoie, si elle a le droit de signature (« peut viser »,
@@ -79,7 +79,7 @@ export const viseDirect = (data: AppData, p: Person | null | undefined, benefici
   );
 };
 
-/** Membres du comité de l'entité : ceux qui ont l'onglet Séances ou le droit de viser. */
+/** Membres du comité : ceux qui ont l'onglet Séances ou le droit de viser. */
 export const auComite = (data: AppData, p: Person) => {
   const roles = userRoles(data.roles, p);
   return hasPermission(roles, 'tab.meetings') || hasPermission(roles, 'paiements.valider');
@@ -118,7 +118,7 @@ export function responsablesPour(data: AppData, t: Ticket) {
   return r.length ? r : demandePar ? [demandePar] : [];
 }
 
-/** Ticket visé qui porte ce n° de visa dans les données d'une entité (démo, ou entité ouverte) ; comme gsa_verifier_visa (043). */
+/** Ticket visé qui porte ce n° de visa dans les données du club (démo, ou espace ouvert) ; comme gsa_verifier_visa (043). */
 export function visaDans(data: AppData, code: string, entite: string): VisaVerifie | null {
   const t = data.tasks.find((x): x is Ticket => !!x.paiement && x.paiement.validation?.code === code && (x.paiement.etat === 'valide' || x.paiement.etat === 'paye'));
   if (!t) return null;

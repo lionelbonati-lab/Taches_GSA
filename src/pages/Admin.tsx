@@ -7,7 +7,7 @@ import { fmtDateTime, fullName, uid } from '../data/utils';
 import { EXTERNE_COULEUR, EXTERNE_PERMS } from '../data/permissions';
 import { Modal } from '../components/ui';
 import { useClubOptional } from '../data/club';
-import { ImportsEntite } from '../components/ImportsEntite';
+import { ImportsClub } from '../components/ImportsClub';
 import { LogoPanel } from '../components/LogoPanel';
 import { EtiquettesModal } from '../components/Etiquettes';
 import { PageIntro } from '../components/Nav';
@@ -86,7 +86,7 @@ export function Admin() {
       carte: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur.',
       aide: 'Ajouter d’un coup des personnes, des tâches ou des événements depuis un tableur (fichier CSV, avec un modèle à télécharger).',
       resume: 'Personnes, tâches, événements',
-      contenu: <ImportsEntite />,
+      contenu: <ImportsClub />,
     },
     {
       id: 'historique',

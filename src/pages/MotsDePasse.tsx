@@ -8,10 +8,9 @@ import { CredentialsModal, type Shown } from '../components/Acces';
 import { PageIntro } from '../components/Nav';
 import { Empty } from '../components/ui';
 
-// Mots de passe oubliés : les membres de l'entité qui n'ont pas reçu (ou pas pu utiliser) le lien par e-mail demandent un
-// mot de passe provisoire. La demande arrive chez les admins de chacune de leurs entités ; une seule validation suffit.
-// Garde-fou du serveur (migration 025) : le compte d'un admin d'une autre entité se valide par un admin de cette entité,
-// du comité central ou un super-admin.
+// Mots de passe oubliés : les membres du club qui n'ont pas reçu (ou pas pu utiliser) le lien par e-mail demandent un
+// mot de passe provisoire. La demande arrive chez les admins du club ; une seule validation suffit. Garde-fou du serveur
+// (migration 025) : le compte d'un super-admin ou du propriétaire se valide par un super-admin.
 
 export function MotsDePasse() {
   const club = useClub();

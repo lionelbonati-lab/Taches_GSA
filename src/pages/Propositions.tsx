@@ -53,13 +53,13 @@ export function Propositions() {
       <PageIntro />
       {mes === null ? (
         <p className="panel muted">
-          Les propositions ne sont pas encore reçues : le comité central doit d’abord mettre le serveur à jour (migration 022).
+          Les propositions ne sont pas encore reçues : le président doit d’abord mettre le serveur à jour (migration 022).
         </p>
       ) : (
         <Formulaire
           envoyer={async (p) => {
             await proposerAmelioration(p);
-            setToast('💡 Merci ! Ta proposition est envoyée au comité central.');
+            setToast('💡 Merci ! Ta proposition est envoyée au comité.');
             charger();
           }}
         />
@@ -74,7 +74,7 @@ export function Propositions() {
           ) : mes?.length ? (
             mes.map((p) => <Carte key={p.id} p={p} />)
           ) : (
-            <Empty>Tu n’as encore rien proposé. Le comité central te répond ici.</Empty>
+            <Empty>Tu n’as encore rien proposé. Le comité te répond ici.</Empty>
           )}
         </section>
       )}
@@ -141,7 +141,7 @@ function Formulaire({ envoyer }: { envoyer: (p: { genre: Proposition['genre']; t
         </select>
       </label>
       <p className="muted small-note full">
-        Envoyée au comité central, avec ton nom. Tu en suis la réponse ci-dessous.
+        Envoyée au comité, avec ton nom. Tu en suis la réponse ci-dessous.
       </p>
       {err && <p className="error full">{err}</p>}
       <div className="full row">
@@ -174,7 +174,7 @@ function Carte({ p }: { p: Proposition }) {
       </small>
       {p.reponse && (
         <blockquote className="proposition-reponse">
-          <small className="muted">Réponse du comité central{p.reponduPar && ` (${p.reponduPar}`}{p.reponduLe && `${p.reponduPar ? ', ' : ' ('}${fmtDate(p.reponduLe.slice(0, 10))}`}{(p.reponduPar || p.reponduLe) && ')'} :</small>
+          <small className="muted">Réponse du comité{p.reponduPar && ` (${p.reponduPar}`}{p.reponduLe && `${p.reponduPar ? ', ' : ' ('}${fmtDate(p.reponduLe.slice(0, 10))}`}{(p.reponduPar || p.reponduLe) && ')'} :</small>
           <span>{p.reponse}</span>
         </blockquote>
       )}

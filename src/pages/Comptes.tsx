@@ -196,8 +196,8 @@ function Fusion({ garder, autres, onClose, onDone }: { garder: CompteClub; autre
   return (
     <Modal title="Fusionner deux comptes" onClose={onClose}>
       <p>
-        On garde <b>{garder.email}</b> ({nomCompte(garder)}). Le compte choisi ci-dessous y est fondu : ses espaces, sa fiche dans chacun, les tickets envoyés à la
-        caisse centrale et les propositions passent à <b>{garder.email}</b>, puis il est supprimé.
+        On garde <b>{garder.email}</b> ({nomCompte(garder)}). Le compte choisi ci-dessous y est fondu : ses accès, sa fiche, ses tickets de paiement et ses
+        propositions passent à <b>{garder.email}</b>, puis il est supprimé.
       </p>
       <label className="full">
         Compte à fondre

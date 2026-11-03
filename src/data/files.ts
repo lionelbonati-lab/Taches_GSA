@@ -18,15 +18,15 @@ export function setServerFiles(committeeId: string) {
   cloudCommittee = committeeId;
 }
 const bucket = () => supabase!.storage.from(BUCKET);
-/** Vue « moi » : fichiers des tâches de mes autres entités (ouvertes en arrière-plan), rangés dans leur dossier. */
+/** Fichiers rangés dans un autre dossier que celui de l'espace ouvert (restauration d'une sauvegarde). */
 const dossiers = new Map<string, string>();
-/** Version réelle : ces fichiers sont dans le dossier de l'entité `dossier` (l'une de mes autres entités). */
+/** Version réelle : ces fichiers sont dans le dossier `dossier`. */
 export function rangerFichiers(ids: string[], dossier: string) {
   for (const id of ids) if (!id.includes('/')) dossiers.set(id, dossier);
 }
 /**
- * Un identifiant « dossier/fichier » désigne un fichier d'un autre dossier : ticket déposé à la caisse centrale, fichier
- * d'une tâche partagée par une autre entité, ou déposé dans son dossier depuis l'entité ouverte (« <entité>/pt-… », 041).
+ * Un identifiant « dossier/fichier » désigne un fichier d'un autre dossier : celui d'une ancienne entité (tâche reprise
+ * dans le club, lue grâce à gsa_fichier_repris, 059), ou d'avant l'espace unique (caisse centrale, tâche partagée, 041).
  */
 const path = (id: string) => (id.includes('/') ? id : `${dossiers.get(id) ?? cloudCommittee}/${id}`);
 
@@ -58,7 +58,7 @@ function run<T>(mode: IDBTransactionMode, fn: (s: IDBObjectStore) => IDBRequest<
   );
 }
 
-/** `dossier` : entité de la tâche, si ce n'est pas l'entité ouverte (vue « moi »). */
+/** `dossier` : dossier du fichier, si ce n'est pas celui de l'espace ouvert (restauration d'une sauvegarde). */
 export async function saveFile(id: string, blob: Blob, dossier?: string) {
   if (cloudCommittee) {
     if (dossier && dossier !== cloudCommittee) rangerFichiers([id], dossier);
@@ -79,12 +79,12 @@ export async function getFile(id: string): Promise<Blob | undefined> {
     if (data) memory.set(id, data);
     return data ?? undefined;
   }
-  // Démo : un fichier d'une tâche partagée par une autre entité est vu « <entité>/<fichier> » ; il est gardé sous son nom.
+  // Démo : un fichier vu « <dossier>/<fichier> » (ancienne entité reprise, ancien partage) est gardé sous son nom.
   return (await run<Blob>('readonly', (s) => s.get(id))) ?? (id.includes('/') ? run<Blob>('readonly', (s) => s.get(id.slice(id.indexOf('/') + 1))) : undefined);
 }
 
 /**
- * Un fichier joint d'une tâche de l'entité `dossier`, sans l'avoir ouverte (sauvegarde du club : en version réelle, les
+ * Un fichier joint rangé dans le dossier `dossier`, sans l'avoir ouvert (sauvegarde du club : en version réelle, les
  * super-admins lisent tous les dossiers, migration 057 ; dans la démo, tous les fichiers sont dans ce navigateur).
  */
 export async function lireFichierDe(dossier: string, id: string): Promise<Blob | undefined> {
