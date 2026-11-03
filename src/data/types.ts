@@ -113,10 +113,13 @@ export interface ChecklistItem {
 export type Recurrence = 'hebdomadaire' | 'mensuelle' | 'trimestrielle' | 'semestrielle' | 'annuelle' | 'seance';
 
 /**
- * Délai calculé à partir de la date de l'événement (eventId) ou de la séance (meetingId) liés.
+ * Délai calculé à partir de la date de l'événement (eventId) ou de la séance (meetingId) liés, ou de celle d'une
+ * étiquette « événement » datée (etiquetteId).
  */
 export interface DelaiRef {
-  type: 'event' | 'meeting';
+  type: 'event' | 'meeting' | 'etiquette';
+  /** Type « etiquette » : l'étiquette dont la date sert de référence. */
+  etiquetteId?: string;
   /** Nombre de jours avant la date de référence (négatif = après). En mois : 30 jours par mois, valeur approchée. */
   joursAvant: number;
   /** Unité choisie (absente dans les tâches d'avant le réglage libre : des jours). */

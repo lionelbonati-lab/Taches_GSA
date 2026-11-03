@@ -49,6 +49,9 @@ test('un seul espace : la démo d’avant reprise, ses entités devenues des ét
       log: [],
     };
     localStorage.setItem('taches-gsa-demo-u-u-soiree', JSON.stringify(soiree));
+    // Au comité central : une tâche attribuée à la Soirée, son délai calé sur la date de l'entité.
+    central.tasks.push({ id: 'tc-info', sectionId: central.sections[0].id, sousSection: '', titre: 'Annoncer la soirée', responsables: [julien.id], statusId: central.statuses[0].id, delai: '2026-11-25', delaiRef: { type: 'event', joursAvant: 3, unite: 'jours' }, evenementEntite: { uniteId: 'u-soiree', nom: 'Soirée récréative', date: '2026-11-28' }, remarque: '', checklist: [], createdBy: julien.id, updatedAt: new Date().toISOString() });
+    localStorage.setItem('taches-gsa-demo-v7', JSON.stringify(central));
     localStorage.setItem('taches-gsa-demo-club', JSON.stringify([{ id: 'u-central', nom: 'Comité central', type: 'central' }, { id: 'u-soiree', nom: 'Soirée récréative', type: 'evenement', date: '2026-11-28' }]));
     localStorage.setItem('taches-gsa-demo-unite', 'u-soiree');
     localStorage.setItem('taches-gsa-demo-version', '8');
@@ -61,12 +64,19 @@ test('un seul espace : la démo d’avant reprise, ses entités devenues des ét
     anciennes: ['taches-gsa-demo-club', 'taches-gsa-demo-u-u-soiree', 'taches-gsa-demo-unite'].map((k) => localStorage.getItem(k)),
     version: localStorage.getItem('taches-gsa-demo-version'),
     tache: JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.find((t: { titre: string }) => t.titre === 'Louer la sono'),
+    centrale: JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.find((t: { titre: string }) => t.titre === 'Annoncer la soirée'),
   }));
   expect(etat.anciennes).toEqual([null, null, null]);
   expect(etat.version).toBe('9');
   expect(etat.tache.etiquettes).toEqual(['et-u-soiree']);
   expect(etat.tache.partage).toBeUndefined();
   expect(etat.tache.source).toBeUndefined();
+  // Un événement : rangé dans « Événements », sous-section de nom proche (« Soirée récréative 28.11 »).
+  expect([etat.tache.sectionId, etat.tache.sousSection]).toEqual(['sec8', 'Soirée récréative 28.11']);
+  // La tâche du comité central attribuée à la Soirée : son étiquette, et son délai calé sur la date de l'étiquette.
+  expect(etat.centrale.etiquettes).toEqual(['et-u-soiree']);
+  expect(etat.centrale.evenementEntite).toBeUndefined();
+  expect(etat.centrale.delaiRef).toEqual({ type: 'etiquette', etiquetteId: 'et-u-soiree', joursAvant: 3, unite: 'jours' });
 
   await allerA(page, '/taches');
   await page.getByRole('button', { name: 'Toutes', exact: true }).click();
@@ -1032,4 +1042,39 @@ test('étiquettes : ses membres voient la tâche étiquetée, la liste montre l�
   await expect(vue).toHaveCount(1);
   await expect(vue.locator('.badge.etiquette')).toHaveText('Camp d’été');
   await expect(vue.locator('.avatars .avatar')).toHaveCount(1);
+});
+
+test('délai calé sur une étiquette datée : la tâche porte l’étiquette, son délai suit la date', async ({ page }) => {
+  const jour = (n: number) => {
+    const d = new Date(Date.now() + n * 864e5);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  };
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
+  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Marché de Noël');
+  await fen.getByLabel('Type de la nouvelle étiquette').selectOption('evenement');
+  await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await fen.getByLabel('Date de l’étiquette Marché de Noël').fill(jour(10));
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // « Pour quand ? » (une nouvelle tâche suit la prochaine séance) › selon l'étiquette, 2 jours avant : la tâche la porte.
+  const fiche = await nouvelleTache(page, 'Monter le stand');
+  await fiche.getByRole('combobox', { name: 'Date fixe, ou selon un événement / une séance' }).click();
+  await page.getByRole('option', { name: /Marché de Noël/ }).click();
+  await fiche.getByLabel('Nombre').fill('2');
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Marché de Noël' })).toHaveAttribute('aria-pressed', 'true');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const tache = () => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.find((t: { titre: string }) => t.titre === 'Monter le stand'));
+  await expect.poll(async () => (await tache())?.delai).toBe(jour(8));
+  expect((await tache()).delaiRef).toMatchObject({ type: 'etiquette', joursAvant: 2 });
+
+  // La date de l'étiquette change : le délai suit.
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  await expect(fen.getByText('1 tâche calée sur sa date : leur délai suit.')).toBeVisible();
+  await fen.getByLabel('Date de l’étiquette Marché de Noël').fill(jour(20));
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await tache())?.delai).toBe(jour(18));
 });

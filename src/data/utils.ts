@@ -184,9 +184,16 @@ export function occurrenceSuivie(e: ClubEvent, occurrence?: string): string | un
   return occurrenceDu(e, today()) ?? derniereOccurrence(e);
 }
 
-/** Événement ou séance servant de référence au délai de la tâche ; `occurrence` : celle d'un événement qui se répète. */
+/**
+ * Événement, séance ou étiquette datée servant de référence au délai de la tâche ; `occurrence` : celle d'un événement
+ * qui se répète.
+ */
 export function delaiTarget(data: AppData, t: Task): { nom: string; date: string; occurrence?: string } | null {
   if (!t.delaiRef) return null;
+  if (t.delaiRef.type === 'etiquette') {
+    const et = (data.etiquettes ?? []).find((x) => x.id === t.delaiRef!.etiquetteId);
+    return et?.type === 'evenement' && et.date ? { nom: et.nom, date: et.date } : null;
+  }
   if (t.delaiRef.type === 'event') {
     const e = t.eventId ? data.events.find((x) => x.id === t.eventId) : undefined;
     if (e?.repetition) {
@@ -204,7 +211,7 @@ export function delaiTarget(data: AppData, t: Task): { nom: string; date: string
 export const delaiDepuis = (r: Decalage, date: string) =>
   r.unite === 'mois' && r.moisAvant !== undefined ? addMonths(date, -r.moisAvant) : addDays(date, -r.joursAvant);
 
-/** Recalcule le délai lié (ou retire le lien si l'événement / la séance n'existe plus). */
+/** Recalcule le délai lié (ou retire le lien si l'événement, la séance ou la date de l'étiquette n'existe plus). */
 export function applyDelaiRef<T extends Task>(data: AppData, t: T): T {
   if (!t.delaiRef) return t;
   const target = delaiTarget(data, t);

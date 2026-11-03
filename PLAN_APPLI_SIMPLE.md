@@ -102,6 +102,28 @@ base de test : `outils/base-test/LISEZMOI.md`.
     **24 entrées d'historique**.
   - Décisions à prendre : voir « Règles de la reprise (D3) » ci-dessous.
 
+- **D3 (03.11.2026), préparée, PAS appliquée sur le serveur** :
+  - **Migration `supabase/migrations/059_gsa_reprise_entites.sql`**, à appliquer par le président (mode d'emploi :
+    `SUPABASE_SETUP.md`) : les règles ci-dessous, dans une fonction rejouable (`gsa_reprise_entites(club)` ; une entité
+    déjà reprise, `info.reprise`, est laissée). Rien n'est effacé : chaque ligne du club modifiée est d'abord recopiée
+    dans `gsa_reprise_avant`, les entités gardent leurs données et sont archivées. Points relevés en écrivant la
+    migration : les messages et les « ✓ Vu » d'une tâche ne s'écrivent d'habitude que par le serveur (049, 046) : la
+    reprise les recopie tels quels ; une fiche active de la personne d'un compte du club rouvre déjà l'accès (056) ; les
+    fichiers joints ne se recopient pas en SQL : ils restent dans le dossier de l'entité et une règle de lecture
+    (`gsa_fichier_repris`) les ouvre aux personnes du club qui voient la tâche.
+  - **Essayée sur la base de test** avec des données fictives qui reproduisent les cas du rapport D2
+    (`outils/base-test/reprise_donnees.sql`) : 42 vérifications (`reprise_verif.sql`), migration rejouée sans effet, règle
+    des fichiers essayée au nom de comptes fictifs. Sur le serveur, en lecture seule : la règle de rangement donne les
+    choix du président (Compétition → « Groupe compétition », École de cyclisme → sa section, Programme hivernal et les
+    événements → « Événements », « Week-end VTT » en nouvelle sous-section).
+  - **Appli** : délais calés sur la date d'une étiquette « événement » (« Pour quand ? » › « Selon une étiquette
+    datée » ; la tâche porte l'étiquette ; le délai suit sa date ; la fenêtre des étiquettes dit combien de tâches la
+    suivent). Version réelle : rien d'autre à changer, elle ignore déjà les entités archivées et ouvre le club d'abord ;
+    après la migration, le menu « Ouvrir « … » » disparaît de lui-même.
+  - **Démo** : la reprise de la démo d'avant suit les mêmes règles (rangement, réactivation, tâches du club liées à une
+    entité, délai sur la date de l'étiquette). Tests : 35 (un de plus pour le délai calé sur une étiquette).
+  - **Rapport D2** mis à jour : il ne montre plus les entités déjà reprises.
+
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 
 D'après le rapport D2. Ce qui n'est pas écrit ici suit le rapport (`outils/reprise/rapport_reprise.sql`).

@@ -4,13 +4,27 @@ import { emailKey } from './membres';
 import { norm } from './csv';
 import { COULEURS } from './utils';
 
-// Reprise des anciennes entités dans l'espace du club (PLAN_APPLI_SIMPLE.md) : chaque entité devient une étiquette du club
-// (sous-comité, équipe d'événement → « événement », avec sa date ; groupe → « groupe »), ses personnes rejoignent le club
-// (même fiche « Personnes du club », sinon même adresse, sinon même nom ; sinon une nouvelle fiche, rôle « Membre ») et
-// deviennent membres de l'étiquette ; ses tâches, ses événements, ses sondages et ses emails programmés sont copiés dans
-// l'espace du club, ses tâches avec l'étiquette. Ses séances ne sont pas reprises (les séances sont celles du comité).
+// Reprise des anciennes entités dans l'espace du club (PLAN_APPLI_SIMPLE.md, règles du 03.11.2026) : chaque entité devient
+// une étiquette du club (sous-comité, équipe d'événement → « événement », avec sa date ; groupe → « groupe »), ses
+// personnes actives rejoignent le club (même fiche « Personnes du club », sinon même adresse, sinon même nom ; sinon une
+// nouvelle fiche, rôle « Membre » ; une fiche inactive du club est réactivée) et deviennent membres de l'étiquette ; ses
+// tâches, ses événements, ses sondages et ses emails programmés sont copiés dans l'espace du club, ses tâches avec
+// l'étiquette : un groupe dans sa section, un événement dans une sous-section de « Événements ». Les tâches du club
+// attribuées à une entité, partagées avec elle ou confiées à l'un de ses responsables reçoivent son étiquette (et ce
+// responsable) ; un délai calé sur la date de l'entité l'est sur celle de l'étiquette. Ses séances ne sont pas reprises.
 // Rien n'est effacé dans les données d'origine : la reprise rend un nouvel espace.
-// Démo : faite une fois, dans le navigateur (demoClub.ts) ; version réelle : migration de reprise (D3), mêmes règles.
+// Démo : faite une fois, dans le navigateur (demoClub.ts) ; version réelle : migration 059, mêmes règles.
+
+/** Nom comparable (sans accents, ponctuation ni « de / la / … »), comme gsa_reprise_cle (059). */
+const cle = (x: string) => norm(x).split(' ').filter((w) => !['de', 'du', 'des', 'la', 'le', 'les', 'd', 'l'].includes(w)).join('');
+/** Même nom, ou l'un contient l'autre (4 lettres au moins). */
+const proche = (a: string, b: string) => {
+  const [x, y] = [cle(a), cle(b)];
+  return x === y || (x.length >= 4 && y.length >= 4 && (x.includes(y) || y.includes(x)));
+};
+
+/** Champs d'une tâche du club liés aux entités, avant la reprise. */
+type LiensEntite = { evenementEntite?: { uniteId?: string }; respPartage?: Record<string, string[]>; partage?: string[] };
 
 /** Ancienne entité, telle que la démo (et le serveur) la gardait. */
 export interface AncienneEntite {
@@ -58,6 +72,7 @@ export interface Reprise {
  */
 export function repriseEntites(club: AppData, entites: { u: AncienneEntite; d: AppData }[], nouveauId = (genre: string, u: string, id: string) => `${genre}-${u}-${id}`): Reprise {
   const data: AppData = structuredClone(club);
+  const liens = new Map(club.tasks.map((t) => [t.id, t as Task & LiensEntite]));
   data.tasks = data.tasks.map(sansEntites);
   data.etiquettes = [...(data.etiquettes ?? [])].map((e) => ({ ...e, type: e.type ?? 'groupe', membres: e.membres ?? [] }));
   data.polls = data.polls ?? [];
@@ -95,38 +110,51 @@ export function repriseEntites(club: AppData, entites: { u: AncienneEntite; d: A
         (!emailKey(p.email) && data.people.find((x) => !emailKey(x.email) && norm(`${x.prenom} ${x.nom}`) === norm(`${p.prenom} ${p.nom}`))) ||
         undefined;
       let id = trouvee?.id;
-      if (!id) {
+      const via = !!(p as Person & { viaEntite?: string }).viaEntite;
+      // Fiche inactive du club, personne active dans l'entité : réactivée avec son rôle actuel.
+      if (trouvee && !trouvee.actif && p.actif && !via) trouvee.actif = true;
+      if (!id && p.actif && !via) {
         const { roles: _r, ...rest } = p as Person & Record<string, unknown>;
         for (const k of ['viaEntite', 'viaFiche', 'exclu', 'parLien']) delete (rest as Record<string, unknown>)[k];
-        const n: Person = { ...(rest as Omit<Person, 'roles'>), id: nouveauId('p', u.id, p.id), roles: [membreRole()] };
+        const n: Person = { ...(rest as Omit<Person, 'roles'>), id: nouveauId('p', u.id, p.id), roles: [membreRole()], poste: p.poste?.trim() ? `${p.poste.trim()} (${u.nom})` : '' };
         data.people.push(n);
         id = n.id;
         // Ses réglages viennent avec elle.
         if (d.prefs?.[p.id] && !data.prefs[id]) data.prefs[id] = d.prefs[p.id];
       }
+      if (!id) continue;
       fiches.set(`${u.id}:${p.id}`, id);
       const actif = data.people.find((x) => x.id === id)?.actif;
-      if (p.actif && actif && !etiquette.membres.includes(id)) etiquette.membres.push(id);
+      if (p.actif && !via && actif && !etiquette.membres.includes(id)) etiquette.membres.push(id);
     }
     const fiche = (f?: string) => (f ? fiches.get(`${u.id}:${f}`) : undefined);
     const fichesDe = (l: string[] = []) => [...new Set(l.map(fiche).filter((x): x is string => !!x))];
 
-    // Ses sections : celle du club de même nom que l'entité, sinon une nouvelle à son nom ; ses sections à elle deviennent
-    // des sous-sections (seulement celles qui ont des tâches).
-    const sections = d.sections ?? [];
-    let section: Section | undefined = data.sections.find((s) => norm(s.nom) === norm(u.nom));
-    const sectionDuClub = () => {
-      if (!section) {
-        section = { id: nouveauId('sec', u.id, 'entite'), nom: u.nom, sousSections: [] };
-        data.sections.push(section);
+    // Rangement (seulement s'il y a quelque chose à ranger) : la sous-section de « Événements » du même nom si elle
+    // existe ; sinon un groupe dans sa section (même nom ou nom proche, créée au besoin), un événement dans une
+    // sous-section de « Événements » (nom proche, créée au besoin). Les sections propres à l'entité ne sont pas gardées.
+    let place: { sectionId: string; sousSection: string } | undefined;
+    const ranger = () => {
+      if (place) return place;
+      let evts: Section | undefined = data.sections.find((s) => ['evenements', 'evenement'].includes(cle(s.nom)));
+      const sous = evts?.sousSections
+        .filter((x) => cle(x) === cle(u.nom) || (type === 'evenement' && proche(x, u.nom)))
+        .sort((a, b) => +(cle(b) === cle(u.nom)) - +(cle(a) === cle(u.nom)) || a.length - b.length)[0];
+      if (evts && sous) return (place = { sectionId: evts.id, sousSection: sous });
+      if (type === 'groupe') {
+        let s = data.sections.find((x) => cle(x.nom) === cle(u.nom)) ?? data.sections.find((x) => proche(x.nom, u.nom));
+        if (!s) {
+          s = { id: nouveauId('sec', u.id, 'entite'), nom: u.nom, sousSections: [] };
+          data.sections.push(s);
+        }
+        return (place = { sectionId: s.id, sousSection: '' });
       }
-      return section;
-    };
-    const ranger = (sectionId?: string) => {
-      const s = sectionDuClub();
-      const sous = sections.find((x) => x.id === sectionId)?.nom ?? '';
-      if (sous && !s.sousSections.includes(sous)) s.sousSections.push(sous);
-      return { sectionId: s.id, sousSection: sous };
+      if (!evts) {
+        evts = { id: 'sec-evenements', nom: 'Événements', sousSections: [] };
+        data.sections.push(evts);
+      }
+      evts.sousSections.push(u.nom);
+      return (place = { sectionId: evts.id, sousSection: u.nom });
     };
 
     // Ses événements : un événement du club de même nom le même jour est le même.
@@ -158,7 +186,7 @@ export function repriseEntites(club: AppData, entites: { u: AncienneEntite; d: A
       const x: Task = {
         ...t,
         id: tache(t.id)!,
-        ...ranger(t.sectionId),
+        ...ranger(),
         statusId: statut(t.statusId),
         responsables: fichesDe(t.responsables),
         createdBy: fiche(t.createdBy) ?? '',
@@ -197,7 +225,7 @@ export function repriseEntites(club: AppData, entites: { u: AncienneEntite; d: A
         textes: s.textes && Object.fromEntries(Object.entries(s.textes).flatMap(([k, v]) => (fiche(k) ? [[fiche(k)!, v]] : []))),
         creePar: fiche(s.creePar) ?? '',
         taskId: tache(s.taskId),
-        sectionId: s.sectionId ? ranger(s.sectionId).sectionId : undefined,
+        sectionId: s.sectionId ? ranger().sectionId : undefined,
       });
     }
 
@@ -208,6 +236,22 @@ export function repriseEntites(club: AppData, entites: { u: AncienneEntite; d: A
       if (!taskId) continue;
       data.emails!.push({ ...rest, id: nouveauId('em', u.id, e.id), taskId, destinataires: fichesDe(e.destinataires), creePar: fiche(e.creePar) ?? '', envoyePar: fiche(e.envoyePar) });
     }
+  });
+
+  // Tâches du club liées à une entité reprise : son étiquette, ses responsables, un délai calé sur sa date.
+  data.tasks = data.tasks.map((t) => {
+    const l = liens.get(t.id);
+    if (!l) return t;
+    const ids = [l.evenementEntite?.uniteId, ...(l.partage ?? [])].filter((x): x is string => !!x && etiquettes.has(x));
+    const resp = Object.entries(l.respPartage ?? {}).flatMap(([u, f]) => f.map((x) => fiches.get(`${u}:${x}`)).filter((x): x is string => !!x));
+    if (!ids.length && !resp.length) return t;
+    const x: Task = { ...t, etiquettes: [...new Set([...(t.etiquettes ?? []), ...ids.map((u) => etiquettes.get(u)!)])], responsables: [...new Set([...t.responsables, ...resp])] };
+    const u = l.evenementEntite?.uniteId;
+    if (u && etiquettes.has(u) && x.delaiRef?.type === 'event' && !x.eventId) {
+      const { occurrence: _o, ...r } = x.delaiRef;
+      x.delaiRef = { ...r, type: 'etiquette', etiquetteId: etiquettes.get(u) };
+    }
+    return x;
   });
 
   // Anciens champs des entités, sur l'espace lui-même.

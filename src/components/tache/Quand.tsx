@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../../data/store';
-import type { DelaiUnite, Task } from '../../data/types';
+import type { AppData, DelaiUnite, Etiquette, Task } from '../../data/types';
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../../data/repetition';
 import { DELAI_MAX, addDays, applyDelaiRef, endOf, fmtRange, fmtDate, makeDelai, offsetLabel, splitDelai, today } from '../../data/utils';
 import { Icone } from '../icones';
@@ -16,6 +16,12 @@ const sansOccurrence = (t: Task): Task => {
   const { occurrence: _, ...ref } = t.delaiRef;
   return { ...t, delaiRef: ref };
 };
+
+/** Étiquettes « événement » datées, à venir ou en cours (plus celle déjà choisie), par date. */
+const etiquettesDatees = (data: AppData, current?: string) =>
+  (data.etiquettes ?? [])
+    .filter((e): e is Etiquette & { date: string } => e.type === 'evenement' && !!e.date && (endOf({ date: e.date, dateFin: e.dateFin }) >= today() || e.id === current))
+    .sort((a, b) => a.date.localeCompare(b.date));
 
 /** « Événement lié » : un événement de l'agenda. */
 export function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
@@ -51,8 +57,8 @@ const aVenir = <T extends { id: string; date: string; dateFin?: string }>(list: 
   list.filter((x) => endOf(x) >= today() || x.id === current).sort((a, b) => a.date.localeCompare(b.date));
 
 /**
- * Pour quand ? Une date, ou une date calculée à partir d'un événement / d'une séance (« 1 semaine avant le Tournoi
- * d'automne ») qui suit ensuite ses changements de date.
+ * Pour quand ? Une date, ou une date calculée à partir d'un événement, d'une séance ou d'une étiquette datée (« 1 semaine
+ * avant le Tournoi d'automne ») qui suit ensuite ses changements de date.
  */
 export function DelaiField({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
   const { data } = useStore();
@@ -61,7 +67,11 @@ export function DelaiField({ t, setT, disabled }: { t: Task; setT: SetT; disable
   const events = aVenir(data.events.map((e) => (e.repetition ? aLaDate(e, occurrenceDu(e, today()) ?? derniereOccurrence(e) ?? e.date) : e)), t.eventId);
   const meetings = aVenir(data.meetings, t.meetingId);
   const ref = t.delaiRef;
-  const mode = !ref ? 'fixe' : ref.type === 'event' ? (t.eventId ? `event:${t.eventId}` : 'fixe') : t.meetingId ? `meeting:${t.meetingId}` : 'fixe';
+  const etiquettes = etiquettesDatees(data, ref?.type === 'etiquette' ? ref.etiquetteId : undefined);
+  const mode = !ref ? 'fixe'
+    : ref.type === 'etiquette' ? (ref.etiquetteId ? `etiquette:${ref.etiquetteId}` : 'fixe')
+    : ref.type === 'event' ? (t.eventId ? `event:${t.eventId}` : 'fixe')
+    : t.meetingId ? `meeting:${t.meetingId}` : 'fixe';
 
   const onMode = (v: string) => {
     if (v === 'fixe') {
@@ -72,10 +82,14 @@ export function DelaiField({ t, setT, disabled }: { t: Task; setT: SetT; disable
     const cle = v.slice(0, i);
     const id = v.slice(i + 1);
     setT((x) => {
-      const y = cle === 'event' ? { ...x, eventId: id } : { ...x, meetingId: id };
-      const type = cle === 'event' ? 'event' : 'meeting';
+      // Selon une étiquette : la tâche la porte (ses membres la voient).
+      const y = cle === 'event' ? { ...x, eventId: id }
+        : cle === 'etiquette' ? { ...x, etiquettes: x.etiquettes?.includes(id) ? x.etiquettes : [...(x.etiquettes ?? []), id] }
+        : { ...x, meetingId: id };
+      const type = cle === 'event' ? 'event' : cle === 'etiquette' ? 'etiquette' : 'meeting';
       // Par défaut le jour même ; autre événement : sa prochaine occurrence (s'il se répète).
-      return applyDelaiRef(data, sansOccurrence({ ...y, delaiRef: { ...(x.delaiRef ?? makeDelai(0, 'jours', false)), type } }));
+      const base = x.delaiRef ? (({ etiquetteId: _, ...r }) => r)(x.delaiRef) : makeDelai(0, 'jours', false);
+      return applyDelaiRef(data, sansOccurrence({ ...y, delaiRef: { ...base, type, ...(type === 'etiquette' ? { etiquetteId: id } : {}) } }));
     });
   };
 
@@ -100,6 +114,10 @@ export function DelaiField({ t, setT, disabled }: { t: Task; setT: SetT; disable
           groupe: 'Selon une séance de comité',
           options: meetings.map((m) => ({ value: `meeting:${m.id}`, label: `${m.titre} (${fmtDate(m.date)})`, icone: <Icone n="seances" /> })),
         },
+        {
+          groupe: 'Selon une étiquette datée',
+          options: etiquettes.map((e) => ({ value: `etiquette:${e.id}`, label: `${e.nom} (${fmtRange(e.date, e.dateFin)})`, icone: <Icone n="etiquette" /> })),
+        },
       ]}
     />
   );
@@ -114,7 +132,7 @@ export function DelaiField({ t, setT, disabled }: { t: Task; setT: SetT; disable
           {choisir && choix}
           {!disabled && (
             <div className="delai-liens">
-              {!choisir && events.length + meetings.length > 0 && (
+              {!choisir && events.length + meetings.length + etiquettes.length > 0 && (
                 <button type="button" className="link-btn" onClick={() => setChoisir(true)}><Icone n="epingle" /> ou selon un événement / une séance</button>
               )}
               {t.delai && <button type="button" className="link-btn" onClick={() => setT((x) => ({ ...x, delai: '' }))}>✕ Aucun délai</button>}

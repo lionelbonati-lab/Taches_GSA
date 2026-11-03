@@ -30,3 +30,14 @@ Rapport de reprise des entités (étape D2, lecture seule) sur la base de test :
 ```bash
 psql -h $P -p 5433 -U postgres -d gsa -P pager=off -f outils/reprise/rapport_reprise.sql
 ```
+
+Essai de la reprise (migration 059, étape D3) sur des données fictives :
+
+```bash
+outils/base-test/refaire.sh
+psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/donnees.sql
+psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/reprise_donnees.sql
+psql -h $P -p 5433 -U postgres -d gsa -P pager=off -f outils/reprise/rapport_reprise.sql   # avant
+psql -h $P -p 5433 -U postgres -d gsa -f supabase/migrations/059_gsa_reprise_entites.sql   # la reprise, avec son bilan
+psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/reprise_verif.sql                # « Reprise vérifiée »
+```

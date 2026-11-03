@@ -127,7 +127,7 @@ export interface ContexteHistorique {
 }
 
 const LIBELLES: Record<string, string> = {
-  documents: 'Documents', delaiRef: 'Délai calé sur un événement ou une séance', respPartage: 'Responsables des entités du partage',
+  documents: 'Documents', delaiRef: 'Délai calé sur un événement, une séance ou une étiquette', respPartage: 'Responsables des entités du partage',
   pourInfo: 'Pour info', aPrendre: 'À prendre', seanceComite: 'Séance du comité', evenementEntite: 'Événement d’une entité',
   auCentral: 'Partage avec le comité central',
 };

@@ -2,13 +2,15 @@
 --
 -- Une seule requête SELECT : rien n'est écrit. À coller dans l'éditeur SQL de Supabase (ou psql), résultat en un tableau
 -- (partie, entite, element, detail), dans l'ordre des parties. Il dit ce que la reprise (étape D3) ferait de chaque
--- entité, et ce qu'il reste à décider. Les règles de rapprochement sont celles de la démo (src/data/repriseEntites.ts) :
+-- entité, et ce qu'il reste à vérifier. Les règles sont celles décidées le 03.11.2026 (PLAN_APPLI_SIMPLE.md), appliquées par
+-- la migration 059 (les mêmes que la reprise de la démo, src/data/repriseEntites.ts) :
 --   - une entité devient une étiquette du club : groupe → « groupe », sous-comité ou équipe → « événement » (avec sa date) ;
 --   - ses membres : ses fiches actives (pas les fiches « liées » d'une autre entité, `viaEntite`) ;
 --   - une personne d'une entité est la fiche du comité central qui a la même fiche du registre (`membreId`), sinon la même
 --     adresse, sinon le même prénom et nom ; sinon une fiche est à créer (rôle « Membre ») ;
 --   - ses tâches et ses événements viennent dans l'espace du club, avec l'étiquette ; les séances des entités ne sont pas
 --     reprises.
+-- Une entité déjà reprise (059, `info.reprise`) n'y figure plus : après la reprise, le rapport est presque vide.
 -- Les noms et adresses du club apparaissent dans le résultat : ne pas le publier (le dépôt est public).
 
 with
@@ -17,6 +19,7 @@ ent as (
   select c.id, c.name, c.type, coalesce((c.info->>'archive')::boolean, false) as archive,
          c.info->>'date' as date, c.info->>'dateFin' as date_fin, c.info->>'couleur' as couleur
   from public.committees c join central on c.parent_id = central.id
+  where not (coalesce(c.info, '{}'::jsonb) ? 'reprise')  -- déjà reprise par la migration 059 : plus rien à voir
 ),
 it as (select * from public.gsa_items where not deleted),
 cfiche as (
@@ -75,7 +78,7 @@ lignes as (
            || (select count(*) from etache t where t.eid = e.id and not coalesce((select s.fini from statut s where s.committee_id = e.id and s.id = t.d->>'statusId'), false)) || ' en cours ; '
            || (select count(*) from it i where i.committee_id = e.id and i.kind = 'events') || ' événement(s) ; '
            || (select count(*) from efiche f where f.eid = e.id and f.actif and not f.via) || ' membre(s) ; couleur ' || coalesce(e.couleur, '—')
-           || case when e.archive then ' ; entité archivée : à reprendre ou non ?' else '' end as detail
+           || case when e.archive then ' ; entité déjà archivée : reprise aussi (décision du 03.11.2026)' else '' end as detail
   from ent e
 
   -- 02 Membres de chaque étiquette : fiches actives de l'entité, et leur fiche au club.
@@ -143,7 +146,7 @@ lignes as (
          concat_ws(' ; ',
            case when t.data ? 'evenementEntite' then 'attribuée à l''entité : recevrait son étiquette' end,
            case when t.data->'delaiRef'->>'type' = 'event' and t.data->>'eventId' is null
-                then 'délai « ' || coalesce(t.data->'delaiRef'->>'joursAvant', '?') || ' jours avant » sa date : la date reste, le lien tombe' end,
+                then 'délai « ' || coalesce(t.data->'delaiRef'->>'joursAvant', '?') || ' jours avant » sa date : calé sur la date de son étiquette' end,
            case when t.data ? 'respPartage' then 'responsables dans l''entité (respPartage) : à ajouter aux responsables' end,
            case when jsonb_array_length(coalesce(t.data->'partage', '[]')) > 0 then 'partagée avec des entités : recevrait leurs étiquettes' end)
   from it t join central on central.id = t.committee_id
@@ -160,7 +163,8 @@ lignes as (
   union all
   select '09 Sections', e.name,
          coalesce((select string_agg('section « ' || s.nom || ' »', ', ') from csection s
-                   where lower(s.nom) = lower(e.name) or lower(s.nom) like '%' || lower(e.name) || '%' or lower(e.name) like '%' || lower(s.nom) || '%'),
+                   where lower(s.nom) = lower(e.name) or (length(e.name) >= 4 and length(s.nom) >= 4
+                     and (lower(s.nom) like '%' || lower(e.name) || '%' or lower(e.name) like '%' || lower(s.nom) || '%'))),
                   'aucune section du même nom'),
          coalesce((select string_agg('« ' || s.nom || ' › ' || x || ' »', ', ') from csection s, jsonb_array_elements_text(coalesce(s.sous, '[]')) x
                    where lower(x) = lower(e.name)), 'pas de sous-section du même nom')

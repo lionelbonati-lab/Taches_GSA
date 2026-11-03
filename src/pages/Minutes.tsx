@@ -579,7 +579,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               <select className="min-status" value={t.statusId} disabled={!can2} onChange={(e) => quickChange(t, { statusId: e.target.value })} aria-label={`Statut de ${t.titre}`}>
                 {data.statuses.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
               </select>
-              <input type="date" className="min-date" value={t.delai} disabled={!can2} title={t.delaiRef ? 'Délai calé sur un événement ou une séance (le changer à la main le détache)' : 'Délai'}
+              <input type="date" className="min-date" value={t.delai} disabled={!can2} title={t.delaiRef ? 'Délai calé sur un événement, une séance ou une étiquette (le changer à la main le détache)' : 'Délai'}
                 onChange={(e) => quickChange(t, { delai: e.target.value, delaiRef: undefined })} />
               <button className="icon-btn" title="Modifier la tâche" onClick={() => openTask(t)} aria-label="Modifier la tâche"><Icone n="modifier" /></button>
               {!noteOf(`task:${t.id}`) && !openNotes[`task:${t.id}`] && (

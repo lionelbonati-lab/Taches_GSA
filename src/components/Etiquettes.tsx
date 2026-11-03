@@ -37,9 +37,12 @@ export function EtiquettesModal({ onClose }: { onClose: () => void }) {
     setNom('');
     setOuverte(e.id);
   };
+  /** Tâches dont le délai suit la date de l'étiquette. */
+  const calees = (e: Etiquette) => data.tasks.filter((t) => t.delaiRef?.type === 'etiquette' && t.delaiRef.etiquetteId === e.id).length;
   const retirer = (e: Etiquette) => {
     const n = data.tasks.filter((t) => t.etiquettes?.includes(e.id)).length;
-    if (!confirm(`Retirer l’étiquette « ${e.nom} » ?${n ? ` Elle est retirée de ${n} tâche(s) ; les tâches restent.` : ''}`)) return;
+    const c = calees(e);
+    if (!confirm(`Retirer l’étiquette « ${e.nom} » ?${n ? ` Elle est retirée de ${n} tâche(s) ; les tâches restent.` : ''}${c ? ` ${c} délai(s) calé(s) sur sa date gardent leur date actuelle.` : ''}`)) return;
     update((d) => {
       d.etiquettes = (d.etiquettes ?? []).filter((x) => x.id !== e.id);
       d.tasks.forEach((t) => {
@@ -89,6 +92,7 @@ export function EtiquettesModal({ onClose }: { onClose: () => void }) {
                   </label>
                 )}
                 {!e.date && <small className="muted">Sans date : pas dans l’agenda.</small>}
+                {e.date && calees(e) > 0 && <small className="muted">{calees(e)} tâche{calees(e) > 1 ? 's' : ''} calée{calees(e) > 1 ? 's' : ''} sur sa date : leur délai suit.</small>}
               </div>
             )}
             {ouverte === e.id && (
