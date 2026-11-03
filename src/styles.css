@@ -706,9 +706,40 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .min-pv-poll { margin: 2px 0 4px; }
 .pv-fige { margin: 0 0 10px; font-size: 0.85rem; }
 .min-pv-change { margin: 0 0 4px; color: #1d4ed8; font-size: 0.9em; }
+/* Projection (PV diffusé sur un beamer) : les pièces jointes du point en cours en grand, à droite des notes, à la
+   hauteur de l'écran ; le PDF défile dans le panneau (sans faire défiler les notes). */
+.min-layout.projection { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+.min-layout.projection .min-suivi { display: none; }
+.min-projection { display: flex; flex-direction: column; gap: 8px; height: calc(100vh - 96px); height: calc(100dvh - 96px); }
+.min-projection-tete small { display: flex; align-items: center; gap: 4px; }
+.min-projection-tete .min-h2 { margin: 2px 0 0; font-size: 1.2rem; overflow-wrap: anywhere; }
+.min-projection-choix { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; }
+.min-projection-choix .btn { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.min-projection-doc { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; background: var(--bg); border-radius: 8px; }
+.min-projection-doc .visionneuse-image { height: 100%; max-height: none; box-sizing: border-box; align-items: center; }
+.min-projection-doc .visionneuse-image img { max-height: 100%; }
+.min-projection-doc .pdf-pages { max-height: none; overflow: visible; }
+.min-projection-doc > p { margin: 12px; }
+.min-projection-actions { flex-wrap: nowrap; align-items: flex-start; margin-top: 0; }
+.min-projection-boutons { display: inline-flex; gap: 4px; margin-left: auto; flex-shrink: 0; }
+.min-projection-nom { min-width: 0; align-self: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.9rem; }
+.min-projection-lien p { margin: 0 0 6px; overflow-wrap: anywhere; }
+.min-projection-lien p:first-child { font-size: 1.15rem; }
+.min-projection-vide { margin: 0; }
+/* La pilule, au milieu des notes plutôt que sur la pièce jointe. */
+@media (min-width: 768px) { body:has(.min-layout.projection) .pilule.defaut { left: 27%; } }
 @media (max-width: 1000px) {
   .min-layout { grid-template-columns: 1fr; }
   .min-side { position: static; order: -1; }
+  .min-layout.projection { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .min-layout.projection .min-side { position: sticky; order: 0; }
+}
+/* Téléphone : pas de projection (le bouton n'y est pas) ; le suivi de la séance comme d'habitude. */
+@media (max-width: 767px) {
+  .min-projeter, .min-projection { display: none; }
+  .min-layout.projection { grid-template-columns: 1fr; }
+  .min-layout.projection .min-side { position: static; order: -1; }
+  .min-layout.projection .min-suivi { display: flex; }
 }
 @media (max-width: 767px) {
   .min-presence { grid-template-columns: 1fr; }

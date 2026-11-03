@@ -37,8 +37,11 @@ const IMAGE = /\.(jpe?g|png|gif|webp|bmp|avif)$/i;
 const genreDe = (b: Blob, nom: string) =>
   estPdf({ mime: b.type, nom }) ? 'pdf' : (b.type.startsWith('image/') && !/svg|hei[cf]/.test(b.type)) || (!b.type.startsWith('image/') && IMAGE.test(nom)) ? 'image' : 'autre';
 
-function ApercuFichier({ id, nom, onClose }: Fichier & { onClose: () => void }) {
-  // undefined : en chargement ; null : introuvable.
+/**
+ * Fichier joint chargé pour l'afficher (visionneuse, projection du PV) : `f` undefined en chargement, null introuvable ;
+ * `pages` d'un PDF (0 : illisible). Un fichier par composant (clé : son identifiant).
+ */
+export function useFichierJoint(id: string, nom: string) {
   const [f, setF] = useState<{ blob: Blob; url: string } | null>();
   const [pages, setPages] = useState<number>();
   useEffect(() => {
@@ -59,31 +62,42 @@ function ApercuFichier({ id, nom, onClose }: Fichier & { onClose: () => void }) 
       if (url) URL.revokeObjectURL(url);
     };
   }, [id, nom]);
-  const genre = f && genreDe(f.blob, nom);
+  return { f, pages, genre: f ? genreDe(f.blob, nom) : undefined };
+}
+export type FichierJoint = ReturnType<typeof useFichierJoint>;
+
+/** Ce qu'on voit d'un fichier joint : la photo, les pages du PDF, sinon pourquoi rien. */
+export function ContenuFichier({ id, nom, fichier: { f, pages, genre } }: { id: string; nom: string; fichier: FichierJoint }) {
+  return f === undefined ? (
+    <p className="muted" role="status">Chargement du fichier…</p>
+  ) : f === null ? (
+    <p className="error">Fichier introuvable : retiré depuis, pas de connexion, ou pas accessible avec tes droits.</p>
+  ) : genre === 'image' ? (
+    <div className="visionneuse-image"><img src={f.url} alt={nom} /></div>
+  ) : genre === 'pdf' ? (
+    pages === undefined ? (
+      <p className="muted" role="status">Chargement du PDF…</p>
+    ) : pages === 0 ? (
+      <p className="error">PDF illisible dans l’appli : télécharge-le pour l’ouvrir.</p>
+    ) : (
+      <div className="pdf-pages">
+        {Array.from({ length: pages }, (_, i) => (
+          <PdfPage key={i} id={id} page={i + 1} className="pdf-page" />
+        ))}
+      </div>
+    )
+  ) : (
+    <p className="muted">Pas d’aperçu dans l’appli pour ce type de fichier ({fmtSize(f.blob.size)}) : « Télécharger » pour l’ouvrir.</p>
+  );
+}
+
+function ApercuFichier({ id, nom, onClose }: Fichier & { onClose: () => void }) {
+  const fichier = useFichierJoint(id, nom);
+  const { f, genre } = fichier;
 
   return createPortal(
     <Modal title={`${docIcon({ kind: 'fichier', mime: f?.blob.type, nom })} ${nom}`} onClose={onClose} wide className="visionneuse">
-      {f === undefined ? (
-        <p className="muted" role="status">Chargement du fichier…</p>
-      ) : f === null ? (
-        <p className="error">Fichier introuvable : retiré depuis, pas de connexion, ou pas accessible avec tes droits.</p>
-      ) : genre === 'image' ? (
-        <div className="visionneuse-image"><img src={f.url} alt={nom} /></div>
-      ) : genre === 'pdf' ? (
-        pages === undefined ? (
-          <p className="muted" role="status">Chargement du PDF…</p>
-        ) : pages === 0 ? (
-          <p className="error">PDF illisible dans l’appli : télécharge-le pour l’ouvrir.</p>
-        ) : (
-          <div className="pdf-pages">
-            {Array.from({ length: pages }, (_, i) => (
-              <PdfPage key={i} id={id} page={i + 1} className="pdf-page" />
-            ))}
-          </div>
-        )
-      ) : (
-        <p className="muted">Pas d’aperçu dans l’appli pour ce type de fichier ({fmtSize(f.blob.size)}) : « Télécharger » pour l’ouvrir.</p>
-      )}
+      <ContenuFichier id={id} nom={nom} fichier={fichier} />
       <div className="modal-foot">
         <button className="btn" disabled={!f} onClick={() => f && ouvrirBlob(f.blob, nom, true)}><Icone n="telecharger" /> Télécharger</button>
         {genre !== 'autre' && <button className="btn" disabled={!f} onClick={() => f && ouvrirBlob(f.blob, nom)}>Ouvrir à part</button>}
