@@ -105,7 +105,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const sansSous = !section || permise(t.sectionId, '');
   // Ranger ailleurs : les étiquettes d'office suivent (celles de l'ancienne place retirées, celles de la nouvelle ajoutées).
   const placer = (sectionId: string, sousSection: string) =>
-    setT((x) => ({ ...x, sectionId, sousSection, etiquettes: recaler(x.etiquettes, autoDe(x.sectionId, x.sousSection), autoDe(sectionId, sousSection)) }));
+    setT((x) => ({ ...x, sectionId, sousSection, etiquettes: recaler(x.etiquettes, autoDe(x.sectionId, x.sousSection, x.eventId), autoDe(sectionId, sousSection, x.eventId)) }));
   const choisirSection = (sectionId: string) => {
     const s = data.sections.find((x) => x.id === sectionId);
     // Section où l'on ne peut ranger le point que dans certaines sous-sections : la première d'entre elles.
@@ -142,7 +142,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     if (!permise(t.sectionId, t.sousSection))
       return setErr('Tu ne peux ranger un point que dans la place de tes étiquettes (section ou sous-section de ton groupe ou de ton événement).');
     // Étiquettes : celles de sa place d'office, et à la main seulement celles dont on est membre.
-    const auto = autoDe(t.sectionId, t.sousSection);
+    const auto = autoDe(t.sectionId, t.sousSection, t.eventId);
     const ajoutees = (t.etiquettes ?? []).filter((id) => !auto.includes(id) && !task.etiquettes?.includes(id) && !peutEtiqueter(id));
     if (ajoutees.length) return setErr(`Tu n’es pas membre de l’étiquette « ${data.etiquettes?.find((e) => e.id === ajoutees[0])?.nom ?? '?'} » : tu ne peux pas la mettre.`);
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
@@ -205,7 +205,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         id: uid('t'),
         titre: `${task.titre} (copie)`,
         // Étiquettes : celles de sa place, et celles qu'on peut mettre soi-même.
-        etiquettes: task.etiquettes?.filter((id) => peutEtiqueter(id) || autoDe(task.sectionId, task.sousSection).includes(id)),
+        etiquettes: task.etiquettes?.filter((id) => peutEtiqueter(id) || autoDe(task.sectionId, task.sousSection, task.eventId).includes(id)),
         statusId: ouvert?.id ?? task.statusId,
         checklist: task.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
         createdBy: user.id,
@@ -299,7 +299,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const jeDecline = aDecline(task, user.id);
   // Étiquettes : celles d'office (sa place ; en lecture, seulement celles que le point porte déjà), celles déjà sur le
   // point, et celles qu'on peut mettre (dont on est membre).
-  const auto = dis ? [] : autoDe(t.sectionId, t.sousSection);
+  const auto = dis ? [] : autoDe(t.sectionId, t.sousSection, t.eventId);
   const etiquettes = (data.etiquettes ?? []).filter((e) => auto.includes(e.id) || t.etiquettes?.includes(e.id) || (!dis && peutEtiqueter(e.id)));
   const placeDe = nomLieu({ sectionId: t.sectionId, sousSection: t.sousSection || undefined }, data.sections);
   return (
@@ -374,7 +374,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         </label>
         {etiquettes.length > 0 && (
           <div className="full etiquettes-choix">
-            <span className="field-label"><Icone n="etiquette" /> Étiquettes <small className="muted">(leurs membres voient le point ; celle de sa place est mise d’office)</small></span>
+            <span className="field-label"><Icone n="etiquette" /> Étiquettes <small className="muted">(leurs membres voient le point ; celle de son groupe, de sa sous-section ou de son événement est mise d’office)</small></span>
             <div className="chips">
               {etiquettes.map((e) => {
                 const dOffice = auto.includes(e.id);
@@ -382,7 +382,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
                 const fige = dis || dOffice || !peutEtiqueter(e.id);
                 return (
                   <button key={e.id} type="button" className={`chip ${on ? 'on' : ''} ${dOffice ? 'd-office' : ''}`} style={on ? { background: e.couleur, borderColor: e.couleur } : { borderColor: e.couleur }} disabled={fige} aria-pressed={on}
-                    title={dOffice ? `D’office : le point est rangé dans ${placeDe}` : !dis && fige ? 'Tu n’es pas membre de cette étiquette' : undefined}
+                    title={dOffice ? `D’office : le point est rangé dans ${placeDe}${t.eventId ? ' ou rattaché à son événement' : ''}` : !dis && fige ? 'Tu n’es pas membre de cette étiquette' : undefined}
                     onClick={() => setT((x) => ({ ...x, etiquettes: on ? (x.etiquettes ?? []).filter((y) => y !== e.id) : [...(x.etiquettes ?? []), e.id] }))}>
                     {e.type === 'evenement' ? '📅 ' : ''}{e.nom}{dOffice ? ' 🔒' : ''}
                   </button>

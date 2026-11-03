@@ -200,6 +200,28 @@ base de test : `outils/base-test/LISEZMOI.md`.
   - Tests : 45 (un de plus : place devinée, « Comité », membre de la Bruntrutaine limité à sa sous-section, comité qui
     n'ajoute que ses étiquettes).
 
+- **E2 (03.11.2026), étiquettes refaites et protégées** : retour du président (« c'est le bordel dans les étiquettes » ;
+  plus de flexibilité : des événements gérés par des personnes différentes, pas toutes du comité, chacun voit ce qu'il a
+  à voir ; un événement devient une sous-section des événements ; une coche à côté des sections pour les groupes).
+  - **Incident** : le 03.11 à 20:13 puis 20:56, une appli restée ouverte sur une version d'avant les étiquettes (avant le
+    02.11, sur un compte du club) a effacé toutes les étiquettes : elle ne connaissait pas ces lignes et demandait à les
+    effacer à chaque envoi. Les points gardaient leurs étiquettes, leurs membres ne les voyaient plus. **Migration 065**
+    (appliquée par le président le 03.11) : le serveur ignore l'effacement d'une étiquette sans la marque que l'appli
+    envoie depuis E2 ; essayée sur la base de test (9 cas). **Restauration** (SQL, avec l'accord du président ; copie de
+    l'état d'avant gardée) : 11 étiquettes rétablies, le doublon « Soirée récréative » fusionné (membres et points),
+    « Comité » retiré des points qui ont une autre étiquette. L'appli (cloud.ts) n'efface plus jamais une sorte de ligne
+    qu'elle ne connaît pas. Le sélecteur de couleur n'écrit plus à chaque mouvement (plus de 200 lignes au journal).
+  - **Modèle** (sans autre migration) : étiquette d'un événement (`eventId`, case « Étiquette » de l'événement, sa
+    sous-section dans « Événements » créée d'office), d'une section (`sectionId`, coche « Groupe »), « Comité »
+    (`parDefaut`) ; les anciennes, « à relier », se reprennent depuis l'événement ou la section. La fenêtre
+    « Étiquettes » n'en crée plus : vue d'ensemble, couleurs, anciennes étiquettes.
+  - **Reste à faire par le président** (appli publiée) : pour chaque événement de l'agenda qui a une étiquette, cocher
+    « Étiquette » et « Reprendre » l'ancienne (Week-end VTT / Week-end Pentecôte à départager) ; cocher « Groupe » sur
+    Gruppetto, École de cyclisme, Groupe compétition (reprendre « Compétition ») ; décider pour Programme hivernal,
+    Sortie de St-Martin, Conférence Yannis, Course à pied (pas d'événement ni de section du même nom : relier, ou laisser).
+  - Tests : 46 (étiquettes refaites : groupe, événement et sa sous-section, point rattaché, Comité, membre limité à sa
+    sous-section, anciennes étiquettes reprises).
+
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 
 D'après le rapport D2. Ce qui n'est pas écrit ici suit le rapport (`outils/reprise/rapport_reprise.sql`).

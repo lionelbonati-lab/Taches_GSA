@@ -23,12 +23,15 @@ const MEMBRES: Person[] = [
   membre('p26', 'Hugo', 'Morel', '#0d9488', 'Ravitaillement'),
 ];
 
-/** Étiquettes : les groupes et les événements du club, avec leurs membres. */
+/**
+ * Étiquettes : les groupes (une section cochée « Groupe ») et les événements de l'agenda (case « Étiquette », leur
+ * sous-section dans « Événements »), avec leurs membres (etiquettes.ts).
+ */
 const ETIQUETTES: Etiquette[] = [
-  { id: 'et-u-ecole', nom: 'École de cyclisme', couleur: '#059669', type: 'groupe', membres: ['p7', 'p14', 'p19', 'p20', 'p21'] },
-  { id: 'et-u-competition', nom: 'Groupe compétition', couleur: '#ea580c', type: 'groupe', membres: ['p5', 'p6', 'p22', 'p12', 'p23'] },
-  { id: 'et-u-bruntrutaine', nom: 'Bruntrutaine', couleur: '#7c3aed', type: 'evenement', date: '2027-02-27', membres: ['p10', 'p2', 'p24', 'p25', 'p16', 'p26'] },
-  { id: 'et-u-soiree', nom: 'Soirée récréative', couleur: '#db2777', type: 'evenement', date: '2026-11-28', membres: ['p8', 'p1', 'p7', 'p17', 'p18'] },
+  { id: 'et-u-ecole', nom: 'École de cyclisme', couleur: '#059669', type: 'groupe', sectionId: 'sec6', membres: ['p7', 'p14', 'p19', 'p20', 'p21'] },
+  { id: 'et-u-competition', nom: 'Groupe compétition', couleur: '#ea580c', type: 'groupe', sectionId: 'sec5', membres: ['p5', 'p6', 'p22', 'p12', 'p23'] },
+  { id: 'et-u-bruntrutaine', nom: 'Bruntrutaine', couleur: '#7c3aed', type: 'evenement', date: '2027-02-27', eventId: 'e11', lieux: [{ sectionId: 'sec8', sousSection: 'Bruntrutaine 27.02.27' }], membres: ['p10', 'p2', 'p24', 'p25', 'p16', 'p26'] },
+  { id: 'et-u-soiree', nom: 'Soirée récréative', couleur: '#db2777', type: 'evenement', date: '2026-11-28', eventId: 'e10', lieux: [{ sectionId: 'sec8', sousSection: 'Soirée récréative 28.11' }], membres: ['p8', 'p1', 'p7', 'p17', 'p18'] },
 ];
 
 /** Événement de l'école de cyclisme (ancienne entité), qui se répète. */

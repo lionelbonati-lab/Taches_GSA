@@ -2015,3 +2015,8 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .etiquette-lieux { align-items: center; gap: 6px; }
 .etiquette-lieux select { max-width: 100%; }
 .etiquette-comite { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+/* Coche « Groupe » d'une section, « Comité » (console admin) et case « Étiquette » d'un événement. */
+.groupe-section { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin: 4px 0 6px; }
+.groupe-section > fieldset { flex-basis: 100%; }
+.case-etiquette { border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+.etiquette-ligne { align-items: center; gap: 10px; }

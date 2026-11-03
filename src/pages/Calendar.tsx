@@ -93,7 +93,8 @@ export function Calendar() {
   const addTask = creatableSections().length > 0;
   const viewAll = can('tasks.viewAll');
   // Étiquettes « événement » datées : toutes avec le droit « Événements », sinon celles dont je suis membre.
-  const etiquettes = etiquettesDatees(data.etiquettes).filter((e) => seeEvents || (!!user && e.membres?.includes(user.id)));
+  // Celle d'un événement de l'agenda : l'événement suffit (sauf pour qui ne voit pas les événements, membre de l'étiquette).
+  const etiquettes = etiquettesDatees(data.etiquettes).filter((e) => (seeEvents ? !e.eventId : !!user && e.membres?.includes(user.id)));
   const effScope = viewAll ? scope : 'mes';
 
   // Jours affichés : semaines complètes (lundi → dimanche) couvrant le mois.

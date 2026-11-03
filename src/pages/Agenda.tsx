@@ -458,8 +458,8 @@ export function Events() {
   const jour = today();
   const affiche = (e: ClubEvent) => (e.repetition ? (occurrenceDu(e, jour) ?? derniereOccurrence(e) ?? e.date) : e.date);
   const etiquettes = etiquettesDatees(data.etiquettes);
-  const etiquetteDe = (e: ClubEvent) => etiquettes.find((et) => memeEvenement(et, e));
-  const seules = etiquettes.filter((et) => !data.events.some((e) => memeEvenement(et, e)));
+  const etiquetteDe = (e: ClubEvent) => (data.etiquettes ?? []).find((et) => et.eventId === e.id) ?? etiquettes.find((et) => !et.eventId && memeEvenement(et, e));
+  const seules = etiquettes.filter((et) => !et.eventId && !data.events.some((e) => memeEvenement(et, e)));
   const liste = [
     ...data.events.map((e) => ({ date: affiche(e), e, et: etiquetteDe(e) })),
     ...seules.map((et) => ({ date: et.date!, e: undefined, et })),

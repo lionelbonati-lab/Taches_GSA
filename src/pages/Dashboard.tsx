@@ -56,7 +56,7 @@ export function Dashboard() {
     .map((e) => (e.repetition ? (occurrenceDu(e, jour) ? aLaDate(e, occurrenceDu(e, jour)!) : undefined) : e))
     .filter((e): e is ClubEvent => !!e && endOf(e) >= jour);
   const ets = (data.etiquettes ?? []).filter((x) => x.type === 'evenement' && !!x.date && endOf({ date: x.date, dateFin: x.dateFin }) >= jour && (voitEvenements || x.membres?.includes(user.id)));
-  const pareil = (et: Etiquette, e: ClubEvent) => et.date === e.date && memeNom(et.nom, e.nom);
+  const pareil = (et: Etiquette, e: ClubEvent) => et.eventId === e.id || (et.date === e.date && memeNom(et.nom, e.nom));
   const nextEvents: { date: string; e?: ClubEvent; et?: Etiquette }[] = [
     ...evs.filter((e) => !ets.some((et) => pareil(et, e))).map((e) => ({ date: e.date, e })),
     ...ets.map((et) => ({ date: et.date!, et, e: evs.find((e) => pareil(et, e)) })),

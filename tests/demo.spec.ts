@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import { allerA, compter, expect, nouvelleTache, ouvrirDemo, test, verifierUnSeulEspace } from './outils';
+import { allerA, compter, evenementEtiquete, expect, groupe, nouvelleTache, ouvrirDemo, test, verifierUnSeulEspace } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
 
@@ -862,18 +862,13 @@ test('discussion d’une tâche étiquetée : réservée aux membres de l’éti
     await page.locator('main').getByText(titre).filter({ visible: true }).first().click();
     return page.locator('.modal').first();
   };
-  // Julien Moreau (admin) crée l'étiquette « Camp d’été », dont seule Émilie Rossi est membre, et une tâche étiquetée.
-  await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
-  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Camp d’été');
-  await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
-  const membres = fen.locator('fieldset', { hasText: 'Membres' });
-  await membres.getByRole('button', { name: 'Émilie Rossi' }).click();
-  await expect(membres.getByRole('button', { name: 'Émilie Rossi' })).toHaveAttribute('aria-pressed', 'true');
-  await page.keyboard.press('Escape');
+  const section = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
+  const sousSection = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
+  // Julien Moreau (admin) fait de « Section natation » un groupe, dont seule Émilie Rossi est membre ; un point y est rangé.
+  await groupe(page, 'Section natation', ['Émilie Rossi']);
   const fiche = await nouvelleTache(page, 'Réserver les tentes');
-  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Camp d’été' }).click();
+  await section(fiche).selectOption({ label: 'Section natation' });
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Section natation/ })).toHaveAttribute('aria-pressed', 'true');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
@@ -887,7 +882,7 @@ test('discussion d’une tâche étiquetée : réservée aux membres de l’éti
   vue = await ouvrirFiche('Réserver les tentes');
   await vue.getByRole('button', { name: /^Discussion/ }).click();
   const discussion = page.getByRole('region', { name: 'Discussion' });
-  await expect(discussion.locator('.discussion-reservee')).toHaveText('🔒 Réservée aux membres de l’étiquette « Camp d’été »');
+  await expect(discussion.locator('.discussion-reservee')).toHaveText('🔒 Réservée aux membres de l’étiquette « Section natation »');
   const champ = discussion.getByLabel('Nouveau commentaire');
   await expect(champ).toHaveAttribute('placeholder', 'Écrire un message…');
   await champ.pressSequentially('Qui a les tentes, @Jul');
@@ -936,37 +931,46 @@ test('discussion d’une tâche étiquetée : réservée aux membres de l’éti
   await expect(vue.getByRole('button', { name: /^Discussion/ })).toHaveCount(0);
 });
 
-test('étiquette « événement » datée : à l’accueil et dans l’agenda, avec ses tâches', async ({ page }) => {
+test('étiquette d’un événement : sa sous-section dans « Événements », à l’accueil et dans l’agenda, ses membres voient ses points', async ({ page }) => {
   const d = new Date();
   const jour = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-  await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
-  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Marché de Noël');
-  await fen.getByLabel('Type de la nouvelle étiquette').selectOption('evenement');
-  await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
-  await fen.getByLabel('Date de l’étiquette Marché de Noël').fill(jour);
-  await expect(fen.getByLabel('Dernier jour de l’étiquette Marché de Noël')).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.modal')).toHaveCount(0);
+  const section = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
+  const sousSection = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
+  // Nouvel événement, case « Étiquette » cochée, Émilie Rossi (pas du comité) membre.
+  await evenementEtiquete(page, 'Marché de Noël', jour, ['Émilie Rossi']);
 
+  // Sa sous-section a été créée dans « Événements » ; un point rangé là porte l'étiquette d'office.
   const fiche = await nouvelleTache(page, 'Monter le stand');
-  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Marché de Noël' }).click();
+  await section(fiche).selectOption({ label: 'Événements' });
+  await sousSection(fiche).selectOption('Marché de Noël');
+  const chip = fiche.locator('.etiquettes-choix').getByRole('button', { name: /Marché de Noël/ });
+  await expect(chip).toHaveAttribute('aria-pressed', 'true');
+  await expect(chip).toBeDisabled();
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // Accueil : dans « Prochains événements » ; un clic montre ses tâches.
+  // Accueil : dans « Prochains événements » ; un clic montre ses points.
   await allerA(page, '/');
   const carte = page.locator('a.link-panel', { hasText: 'Marché de Noël' });
+  await expect(carte).toHaveCount(1);
   await expect(carte).toContainText('en cours');
   await carte.click();
   await expect(page).toHaveURL(/#\/taches\?etiquette=/);
   await expect(page.locator('main tbody tr')).toHaveCount(1);
   await expect(page.locator('main tr', { hasText: 'Monter le stand' })).toHaveCount(1);
 
-  // Agenda : à sa date.
+  // Agenda : l'événement à sa date, une seule fois (pas l'étiquette à part).
   await allerA(page, '/agenda');
-  await expect(page.locator('.k-etiquette', { hasText: 'Marché de Noël' }).first()).toBeVisible();
+  await expect(page.locator('.k-event', { hasText: 'Marché de Noël' }).first()).toBeVisible();
+  await expect(page.locator('.k-etiquette', { hasText: 'Marché de Noël' })).toHaveCount(0);
+
+  // Émilie Rossi, membre, voit le point.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Émilie Rossi' }).first().click();
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Tous', exact: true }).click();
+  await expect(page.locator('main tr', { hasText: 'Monter le stand' })).toHaveCount(1);
 });
 
 test('statuts : réglés dans la console admin ; accueil, liste, filtre et fiche d’accord', async ({ page }) => {
@@ -1032,30 +1036,23 @@ test('lien d’avant, avec son entité : la tâche s’ouvre dans l’espace du 
   await verifierUnSeulEspace(page);
 });
 
-test('étiquettes : ses membres voient la tâche étiquetée, la liste montre l’étiquette et la filtre', async ({ page }) => {
-  // Julien Moreau (admin) crée l'étiquette « Camp d’été » ; Émilie Rossi (sans « voir toutes les tâches ») en est membre.
-  await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
-  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Camp d’été');
-  await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
-  await fen.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Émilie Rossi' }).click();
-  await expect(fen.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Émilie Rossi' })).toHaveAttribute('aria-pressed', 'true');
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.modal')).toHaveCount(0);
+test('groupe : une section cochée « Groupe » ; ses membres voient ses points, la liste montre l’étiquette et la filtre', async ({ page }) => {
+  // Julien Moreau (admin) coche « Groupe » sur « Section natation » ; Émilie Rossi (sans « voir tous les points ») en est membre.
+  await groupe(page, 'Section natation', ['Émilie Rossi']);
 
-  // Une tâche étiquetée, confiée à quelqu'un d'autre.
+  // Un point de la section, confié à quelqu'un d'autre : il porte l'étiquette du groupe d'office.
   const fiche = await nouvelleTache(page, 'Réserver les tentes');
-  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Camp d’été' }).click();
+  await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ label: 'Section natation' });
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
+  await allerA(page, '/taches');
   const ligne = page.locator('main tr', { hasText: 'Réserver les tentes' });
-  await expect(ligne.locator('.badge.etiquette')).toHaveText('Camp d’été');
+  await expect(ligne.locator('.badge.etiquette')).toHaveText('Section natation');
   await page.getByRole('button', { name: /^Filtres/ }).click();
-  await page.getByLabel('Étiquette', { exact: true }).selectOption({ label: 'Camp d’été' });
+  await page.getByLabel('Étiquette', { exact: true }).selectOption({ label: 'Section natation' });
   await expect(page.locator('main tbody tr')).toHaveCount(1);
 
-  // Émilie Rossi la voit (« Toutes » : les tâches de ses étiquettes), avec qui s'en occupe.
+  // Émilie Rossi la voit (« Toutes » : les points de ses étiquettes), avec qui s'en occupe.
   await page.getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user', { hasText: 'Émilie Rossi' }).first().click();
   await expect(page.locator('.topbar .brand')).toBeVisible();
@@ -1063,46 +1060,56 @@ test('étiquettes : ses membres voient la tâche étiquetée, la liste montre l�
   await page.getByRole('button', { name: 'Tous', exact: true }).click();
   const vue = page.locator('main tr', { hasText: 'Réserver les tentes' });
   await expect(vue).toHaveCount(1);
-  await expect(vue.locator('.badge.etiquette')).toHaveText('Camp d’été');
+  await expect(vue.locator('.badge.etiquette')).toHaveText('Section natation');
   await expect(vue.locator('.avatars .avatar')).toHaveCount(1);
+
+  // La section n'est plus un groupe : l'étiquette part, le point reste.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Julien Moreau' }).first().click();
+  await allerA(page, '/admin/taches');
+  page.once('dialog', (d) => void d.accept());
+  await page.getByLabel('Groupe : la section Section natation est une étiquette').uncheck();
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Tous', exact: true }).click();
+  await expect(page.locator('main tr', { hasText: 'Réserver les tentes' }).locator('.badge.etiquette')).toHaveCount(0);
 });
 
-test('délai calé sur une étiquette datée : la tâche porte l’étiquette, son délai suit la date', async ({ page }) => {
+test('point rattaché à un événement qui a son étiquette : il la porte ; son délai et l’étiquette suivent la date', async ({ page }) => {
   const jour = (n: number) => {
     const d = new Date(Date.now() + n * 864e5);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   };
-  await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
-  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Marché de Noël');
-  await fen.getByLabel('Type de la nouvelle étiquette').selectOption('evenement');
-  await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
-  await fen.getByLabel('Date de l’étiquette Marché de Noël').fill(jour(10));
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.modal')).toHaveCount(0);
+  await evenementEtiquete(page, 'Marché de Noël', jour(10), []);
 
-  // « Pour quand ? » (une nouvelle tâche suit la prochaine séance) › selon l'étiquette, 2 jours avant : la tâche la porte.
+  // « Pour quand ? » (une nouvelle tâche suit la prochaine séance) › l'événement, 2 jours avant : la tâche porte son étiquette.
   const fiche = await nouvelleTache(page, 'Monter le stand');
   await fiche.getByRole('combobox', { name: 'Date fixe, ou selon un événement / une séance' }).click();
-  await page.getByRole('option', { name: /Marché de Noël/ }).click();
+  // Proposé une fois : l'événement (pas son étiquette en plus).
+  await expect(page.getByRole('option', { name: /^Marché de Noël \(/ })).toHaveCount(1);
+  await page.getByRole('option', { name: /^Marché de Noël \(/ }).click();
   await fiche.getByLabel('Nombre').fill('2');
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Marché de Noël' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Marché de Noël/ })).toHaveAttribute('aria-pressed', 'true');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  const tache = () => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.find((t: { titre: string }) => t.titre === 'Monter le stand'));
+  const donnees = () => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));
+  const tache = async () => (await donnees()).tasks.find((t: { titre: string }) => t.titre === 'Monter le stand');
+  const etiquette = async () => (await donnees()).etiquettes.find((e: { nom: string }) => e.nom === 'Marché de Noël');
   await expect.poll(async () => (await tache())?.delai).toBe(jour(8));
-  expect((await tache()).delaiRef).toMatchObject({ type: 'etiquette', joursAvant: 2 });
+  expect((await tache()).delaiRef).toMatchObject({ type: 'event', joursAvant: 2 });
+  expect((await tache()).etiquettes).toEqual([(await etiquette()).id]);
 
-  // La date de l'étiquette change : le délai suit.
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  await expect(fen.getByText('1 point calé sur sa date : leur délai suit.')).toBeVisible();
-  await fen.getByLabel('Date de l’étiquette Marché de Noël').fill(jour(20));
-  await page.keyboard.press('Escape');
+  // La date de l'événement change : le délai et la date de l'étiquette suivent.
+  await allerA(page, '/evenements');
+  await page.locator('article.agenda-item', { hasText: 'Marché de Noël' }).getByRole('button', { name: 'Modifier' }).click();
+  const f = page.getByRole('dialog', { name: 'Événement' });
+  await expect(f.locator('.case-etiquette').getByRole('checkbox')).toBeChecked();
+  await f.getByLabel('Premier jour').fill(jour(20));
+  await f.getByRole('button', { name: 'Enregistrer' }).click();
   await expect.poll(async () => (await tache())?.delai).toBe(jour(18));
+  await expect.poll(async () => (await etiquette())?.date).toBe(jour(20));
 });
 
-test('étiquettes d’office selon la place du point ; un membre d’étiquette ne range et n’étiquette que chez lui ; « Comité » pour les autres points', async ({ page }) => {
+test('étiquettes d’office : groupe, événement, « Comité » pour le reste ; un membre ne range et n’étiquette que chez lui', async ({ page }) => {
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();
     await page.locator('.login-user', { hasText: nom }).first().click();
@@ -1118,25 +1125,32 @@ test('étiquettes d’office selon la place du point ; un membre d’étiquette 
   const section = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
   const sousSection = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
 
-  // Julien Moreau (admin) : la place de chaque étiquette, devinée d'après son nom ; il crée l'étiquette « Comité ».
+  // Julien Moreau (admin) : « Comité » (console admin, avec ses membres : l'accès aux séances).
   await changer('Julien Moreau');
+  await allerA(page, '/admin/taches');
+  page.once('dialog', (d) => void d.accept());
+  await page.getByLabel('Comité : l’étiquette des autres points').check();
+  const comite = page.locator('.comite-reglage fieldset');
+  await expect(comite.getByRole('button', { name: 'Marc Lambert' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(comite.getByRole('button', { name: 'David Muller' })).toHaveAttribute('aria-pressed', 'false');
+  // Les groupes de la démo : leur section cochée.
+  await expect(page.getByLabel('Groupe : la section Groupe compétition est une étiquette')).toBeChecked();
+  await expect(page.getByLabel('Groupe : la section Divers est une étiquette')).not.toBeChecked();
+
+  // Vue d'ensemble : chaque étiquette à sa place (l'événement se règle dans son formulaire).
   await allerA(page, '/taches');
   await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
   const fen = page.getByRole('dialog', { name: 'Étiquettes' });
-  const reglage = (nom: string) => fen.locator('.etiquette-reglage', { has: page.getByLabel(`Nom de l’étiquette ${nom}`, { exact: true }) });
-  await expect(reglage('Bruntrutaine').locator('.etiquette-lieux .chip')).toHaveText('Événements › Bruntrutaine 27.02.27✕');
-  await expect(reglage('Groupe compétition').locator('.etiquette-lieux .chip')).toHaveText('Groupe compétition✕');
-  page.once('dialog', (d) => void d.accept());
-  await fen.getByRole('button', { name: '＋ Étiquette « Comité » pour ces points' }).click();
-  const comite = reglage('Comité');
-  await expect(comite).toContainText('les points rangés hors de la place des autres étiquettes');
-  // Ses membres : le comité (accès aux séances), pas les autres.
-  await expect(comite.getByRole('button', { name: 'Marc Lambert' })).toHaveAttribute('aria-pressed', 'true');
-  await expect(comite.getByRole('button', { name: 'David Muller' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(fen.locator('.etiquette-ligne', { hasText: 'Bruntrutaine' })).toContainText('Événements › Bruntrutaine 27.02.27');
+  await fen.locator('.etiquette-ligne', { hasText: 'Bruntrutaine' }).getByRole('button', { name: 'Régler (événement)' }).click();
+  const ev = page.getByRole('dialog', { name: 'Événement' });
+  await expect(ev.locator('.case-etiquette').getByRole('checkbox')).toBeChecked();
+  await expect(ev.locator('.case-etiquette').getByRole('button', { name: 'David Muller' })).toHaveAttribute('aria-pressed', 'true');
+  await ev.getByRole('button', { name: 'Annuler' }).click();
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // Un point du comité reçoit « Comité » d'office ; rangé dans « Groupe compétition », il prend son étiquette à la place.
+  // Un point du comité reçoit « Comité » d'office ; rangé dans « Groupe compétition », il prend l'étiquette du groupe.
   let fiche = await nouvelleTache(page, 'Renouveler la licence');
   await section(fiche).selectOption({ label: 'Administration' });
   await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Comité/ })).toHaveAttribute('aria-pressed', 'true');
@@ -1153,7 +1167,7 @@ test('étiquettes d’office selon la place du point ; un membre d’étiquette 
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(() => etiquettesDe('Renouveler la licence')).toEqual(['Groupe compétition']);
 
-  // David Muller (Bruntrutaine, sans « Voir tous les points ») : ses points ne vont que dans la Bruntrutaine, avec son
+  // David Muller (Bruntrutaine, pas du comité) : ses points ne vont que dans la sous-section de la Bruntrutaine, avec son
   // étiquette d'office ; il ne voit pas les étiquettes dont il n'est pas membre.
   await changer('David Muller');
   await allerA(page, '/taches');
@@ -1180,6 +1194,62 @@ test('étiquettes d’office selon la place du point ; un membre d’étiquette 
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(() => etiquettesDe('Préparer le budget')).toEqual(['Bruntrutaine', 'Comité']);
+});
+
+test('anciennes étiquettes reprises : en cochant « Groupe » sur la section, ou « Étiquette » dans l’événement du même jour', async ({ page }) => {
+  // Deux étiquettes d'avant (ni section ni événement), avec leurs points et leurs membres, comme sur le serveur.
+  await page.evaluate(() => {
+    const k = 'taches-gsa-demo-v7';
+    const d = JSON.parse(localStorage.getItem(k)!);
+    d.etiquettes.push(
+      { id: 'et-gruppetto', nom: 'Gruppetto', couleur: '#ea580c', type: 'groupe', membres: ['p8'] },
+      { id: 'et-st-martin', nom: 'Sortie de St-Martin', couleur: '#0891b2', type: 'evenement', date: '2026-11-14', membres: ['p6', 'p8'] },
+    );
+    const t = (id: string, titre: string, sectionId: string, sousSection: string, etiquettes?: string[]) => ({
+      id, titre, sectionId, sousSection, responsables: ['p1'], statusId: d.statuses[0].id, delai: '', remarque: '', checklist: [], createdBy: 'p1', updatedAt: '2026-11-01T10:00:00.000Z', etiquettes,
+    });
+    d.tasks.push(t('t-g1', 'Sortie du dimanche', 'sec7', '', ['et-gruppetto']), t('t-g2', 'Maillots du gruppetto', 'sec7', ''), t('t-s1', 'Lampions', 'sec8', 'Sortie St-Martin 14.11', ['et-st-martin']));
+    localStorage.setItem(k, JSON.stringify(d));
+  });
+  await page.reload();
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  const donnees = () => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));
+
+  // Vue d'ensemble : elles sont « à relier ».
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Étiquettes' }).locator('h3', { hasText: 'À relier' })).toBeVisible();
+  await page.keyboard.press('Escape');
+
+  // Section Gruppetto cochée « Groupe » : l'ancienne étiquette est proposée ; reprise, elle garde son identifiant et ses
+  // membres, et tous les points de la section la portent.
+  await allerA(page, '/admin/taches');
+  await page.getByLabel('Groupe : la section Gruppetto est une étiquette').check();
+  await expect(page.getByLabel('Étiquette du groupe Gruppetto')).toHaveValue('et-gruppetto');
+  await page.getByRole('button', { name: 'Créer le groupe' }).click();
+  await expect.poll(async () => (await donnees()).etiquettes.find((e: { id: string }) => e.id === 'et-gruppetto')).toMatchObject({ sectionId: 'sec7', membres: ['p8'], nom: 'Gruppetto' });
+  await expect.poll(async () => (await donnees()).tasks.find((t: { id: string }) => t.id === 't-g2').etiquettes).toEqual(['et-gruppetto']);
+
+  // Événement du même jour (« Sortie de la St-Martin », 14.11) : sa case « Étiquette » propose de reprendre l'ancienne ;
+  // elle prend le nom de l'événement et garde sa sous-section (et ses points).
+  await allerA(page, '/evenements');
+  await page.locator('article.agenda-item', { hasText: 'Sortie de la St-Martin' }).getByRole('button', { name: 'Modifier' }).click();
+  const f = page.getByRole('dialog', { name: 'Événement' });
+  await f.locator('.case-etiquette').getByRole('checkbox').check();
+  await expect(f.locator('.case-etiquette select')).toHaveValue('et-st-martin');
+  await expect(f.locator('.case-etiquette').getByRole('button', { name: 'Pierre Favre' })).toHaveAttribute('aria-pressed', 'true');
+  await f.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect.poll(async () => (await donnees()).etiquettes.find((e: { id: string }) => e.id === 'et-st-martin')).toMatchObject({
+    eventId: 'e9', nom: 'Sortie de la St-Martin', lieux: [{ sectionId: 'sec8', sousSection: 'Sortie St-Martin 14.11' }],
+  });
+  expect((await donnees()).sections.find((x: { id: string }) => x.id === 'sec8').sousSections.filter((x: string) => /St-Martin/.test(x))).toEqual(['Sortie St-Martin 14.11']);
+  expect((await donnees()).tasks.find((t: { id: string }) => t.id === 't-s1').etiquettes).toEqual(['et-st-martin']);
+
+  // Plus rien « à relier ».
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  await expect(page.getByRole('dialog', { name: 'Étiquettes' }).locator('h3', { hasText: 'À relier' })).toHaveCount(0);
 });
 
 test('aide et textes de l’appli : plus d’entités, d’organigramme ni de comité central (admin et membre)', async ({ page }) => {

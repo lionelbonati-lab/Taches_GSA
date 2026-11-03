@@ -323,6 +323,21 @@ qui la suit) : **ajouter une personne à la discussion d'un point**, même si el
   notification ajoutée met un appel de `gsa-push` en file, un changement de membres renvoie les 3 points de l'étiquette.
 - **Retour en arrière** : voir l'en-tête du fichier ; `gsa-push` v11 ignore les colonnes du verrou.
 
+`supabase/migrations/065_gsa_etiquettes_protegees.sql` (**appliquée par le président le 03.11.2026**, vérifiée : le
+déclencheur `gsa_items_etiquettes_garde` est en place) : **étiquettes protégées des applis pas à jour**.
+
+- **Pourquoi** : le 03.11.2026 (20:13 et 20:56), une appli restée ouverte sur une version d'avant les étiquettes a effacé
+  toutes les étiquettes du club : elle charge toutes les lignes, ne connaît pas « etiquettes » et demande à effacer ce
+  qu'elle croit disparu, à chaque envoi.
+- **Garde** : une étiquette n'est retirée par l'appli que si la demande porte la marque `data.retiree = true` (envoyée par
+  l'appli depuis E2, `cloud.ts`) ; sinon la demande est ignorée sans erreur (rien n'est écrit). Le serveur (SQL, sans
+  compte connecté) n'est pas concerné ; une étiquette retirée peut être rétablie. Aucune donnée modifiée.
+- **Vérifiée** sur la base de test (9 cas : création ; effacement sans marque ignoré, en insertion comme en mise à jour ;
+  effacement voulu ; rétablie par l'appli et par le serveur ; modification normale ; autres lignes effacées comme avant).
+- **Restauration** faite ensuite en SQL (accord du président) : 11 étiquettes rétablies, doublon « Soirée récréative »
+  fusionné, « Comité » retiré des points qui ont une autre étiquette (copie de l'état d'avant gardée hors du dépôt).
+- **Retour en arrière** : `drop trigger gsa_items_etiquettes_garde on public.gsa_items; drop function public.gsa_items_etiquettes_garde();`
+
 Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.

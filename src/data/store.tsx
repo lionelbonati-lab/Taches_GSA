@@ -16,7 +16,7 @@ import type { CloudMode, DemoMode, Store } from './storeTypes';
 import { ajouteesDe, appliquerCommentaire, commentairesDe, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
 import { usePileAnnulation } from './pileAnnulation';
 import { StoreCtx } from './storeCtx';
-import { etiquettesDesLieux, lieuxDe, suivreLieux } from './etiquettes';
+import { etiquettesDesLieux, lieuxDe, suivreLieux, synchroniserEtiquettes } from './etiquettes';
 
 export type { CloudMode, DemoMode } from './storeTypes';
 
@@ -92,7 +92,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const next = structuredClone(prev);
         fn(next);
         etiqueter(prev, next, o?.annulable === false ? { bloque: true } : { action });
-        // Les étiquettes d'office suivent la place des points (etiquettes.ts).
+        // Les étiquettes suivent leur événement ou leur section ; celles d'office, la place des points (etiquettes.ts).
+        synchroniserEtiquettes(next);
         suivreLieux(prev, next);
         // Les délais liés suivent automatiquement la date de leur événement / séance.
         next.tasks = next.tasks.map((t) => applyDelaiRef(next, t));
@@ -110,6 +111,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const next = structuredClone(prev);
         fn(next);
         etiqueter(prev, next, { action: o?.annulable, suite: o?.suite });
+        synchroniserEtiquettes(next);
         suivreLieux(prev, next);
         return next;
       });

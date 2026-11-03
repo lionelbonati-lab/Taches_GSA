@@ -5,7 +5,7 @@ import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occur
 import { DELAI_MAX, addDays, applyDelaiRef, endOf, fmtRange, fmtDate, makeDelai, offsetLabel, splitDelai, today } from '../../data/utils';
 import { Icone } from '../icones';
 import { Deroulante } from '../Deroulante';
-import { etiquettesAuto } from '../../data/etiquettes';
+import { etiquettesAuto, recaler } from '../../data/etiquettes';
 
 // Fiche d'une tâche : « Pour quand ? » (délai, séance, événement, occurrence) et rattachement à une séance ou un événement.
 
@@ -18,16 +18,24 @@ const sansOccurrence = (t: Task): Task => {
   return { ...t, delaiRef: ref };
 };
 
-/** Étiquettes « événement » datées, à venir ou en cours (plus celle déjà choisie), par date. */
+/**
+ * Étiquettes « événement » datées, à venir ou en cours (plus celle déjà choisie), par date ; pas celles d'un événement de
+ * l'agenda (l'événement lui-même est proposé).
+ */
 const etiquettesDatees = (data: AppData, current?: string) =>
   (data.etiquettes ?? [])
-    .filter((e): e is Etiquette & { date: string } => e.type === 'evenement' && !!e.date && (endOf({ date: e.date, dateFin: e.dateFin }) >= today() || e.id === current))
+    .filter((e): e is Etiquette & { date: string } => e.type === 'evenement' && !!e.date && (!e.eventId || e.id === current) && (endOf({ date: e.date, dateFin: e.dateFin }) >= today() || e.id === current))
     .sort((a, b) => a.date.localeCompare(b.date));
 
 /** « Événement lié » : un événement de l'agenda. */
 export function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
   const { data } = useStore();
-  const choisir = (v: string) => setT((x) => applyDelaiRef(data, sansOccurrence({ ...x, eventId: v || undefined })));
+  // L'étiquette de l'événement suit (celle de l'ancien événement retirée, celle du nouveau mise).
+  const choisir = (v: string) =>
+    setT((x) => {
+      const y = { ...x, eventId: v || undefined };
+      return applyDelaiRef(data, sansOccurrence({ ...y, etiquettes: recaler(x.etiquettes, etiquettesAuto(data, x), etiquettesAuto(data, y)) }));
+    });
   return (
     <label>
       Événement
@@ -87,7 +95,7 @@ export function DelaiField({ t, setT, disabled }: { t: Task; setT: SetT; disable
     const id = v.slice(i + 1);
     setT((x) => {
       // Selon une étiquette : la tâche la porte (ses membres la voient).
-      const y = cle === 'event' ? { ...x, eventId: id }
+      const y = cle === 'event' ? { ...x, eventId: id, etiquettes: recaler(x.etiquettes, etiquettesAuto(data, x), etiquettesAuto(data, { ...x, eventId: id })) }
         : cle === 'etiquette' ? { ...x, etiquettes: x.etiquettes?.includes(id) ? x.etiquettes : [...(x.etiquettes ?? []), id] }
         : { ...x, meetingId: id };
       const type = cle === 'event' ? 'event' : cle === 'etiquette' ? 'etiquette' : 'meeting';

@@ -10,21 +10,36 @@ import { PORTEES, modifierOccurrence, supprimerOccurrence, type Portee } from '.
 import { Modal } from './ui';
 import { Icone } from './icones';
 import { ZoneTexte } from './ZoneTexte';
+import { CaseEtiquette } from './ReglageEtiquette';
+import { etiquetteDeLEvenement, nomLieu, reglerEtiquetteEvenement, sectionEvenements, type ChoixEtiquette } from '../data/etiquettes';
 
 // Fiche d'un événement, comme dans un agenda : toute la journée ou de telle heure à telle heure, sur un ou plusieurs
 // jours, une seule fois ou répété (tous les jours, semaines, mois, ans, ou personnalisé). Une occurrence d'un événement
 // qui se répète se modifie ou se supprime seule, avec les suivantes, ou toute la série.
+
+/** Texte du journal pour la case « Étiquette » d'un événement. */
+const quoiEtiquette = (c: ChoixEtiquette) => (c ? ` · étiquette (${c.membres.length} membre${c.membres.length > 1 ? 's' : ''})` : ' · sans étiquette');
 
 /** Enregistrement / suppression des événements (Agenda, Événements). */
 export function useEventActions() {
   const { data, update } = useStore();
   const portee = (p: Portee) => ({ une: 'cette occurrence', suivantes: 'celle-ci et les suivantes', toutes: 'toute la série' })[p];
   return {
-    saveEvent: (x: ClubEvent) => {
+    /** `etiquette` : la case « Étiquette » réglée dans le formulaire (absente : pas touchée). */
+    saveEvent: (x: ClubEvent, etiquette?: ChoixEtiquette) => {
       const e = normaliser(sansFinVide(x));
       const isNew = !data.events.some((y) => y.id === e.id);
-      update((d) => { d.events = isNew ? [...d.events, e] : d.events.map((y) => (y.id === e.id ? e : y)); }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »`);
+      update((d) => {
+        d.events = isNew ? [...d.events, e] : d.events.map((y) => (y.id === e.id ? e : y));
+        if (etiquette !== undefined) reglerEtiquetteEvenement(d, e, etiquette);
+      }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »${etiquette !== undefined ? quoiEtiquette(etiquette) : ''}`);
     },
+    /** Étiquette d'un événement qui se répète : celle de toute la série. */
+    reglerEtiquette: (serieId: string, etiquette: ChoixEtiquette) =>
+      update((d) => {
+        const ev = d.events.find((y) => y.id === serieId);
+        if (ev) reglerEtiquetteEvenement(d, ev, etiquette);
+      }, `Événement « ${data.events.find((y) => y.id === serieId)?.nom ?? ''} »${quoiEtiquette(etiquette)}`),
     /** Occurrence du `jour` de la série `serie` modifiée (valeurs `v`). */
     saveOccurrence: (serie: ClubEvent, jour: string, v: ClubEvent, p: Portee) =>
       update((d) => modifierOccurrence(d, serie, jour, sansFinVide(v), p), `Modification de l'événement « ${v.nom} » (${portee(p)})`),
@@ -63,9 +78,21 @@ const estSimple = (r: RepetitionEvenement, date: string) =>
  * occurrence ; à l'enregistrement, on choisit : cet événement, les suivants, ou tous).
  */
 export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: string; onClose: () => void }) {
-  const { data } = useStore();
-  const { saveEvent, saveOccurrence, removeEvent, removeOccurrence } = useEventActions();
+  const { data, can } = useStore();
+  const { saveEvent, saveOccurrence, removeEvent, removeOccurrence, reglerEtiquette } = useEventActions();
   const serie = jour && event.repetition ? event : undefined;
+  // Case « Étiquette » : celle de l'événement (d'une série : de toute la série).
+  const deja = etiquetteDeLEvenement(data, event.serie?.id ?? event.id);
+  const [etiquette, setEtiquette] = useState<ChoixEtiquette>(deja ? { membres: deja.membres ?? [] } : null);
+  const [etiquetteTouchee, setEtiquetteTouchee] = useState(false);
+  const choixEtiquette = (c: ChoixEtiquette) => {
+    if (!c && deja) {
+      const n = data.tasks.filter((t) => t.etiquettes?.includes(deja.id)).length;
+      if (!confirm(`Retirer l’étiquette « ${deja.nom} » ?${n ? ` Ses ${n} point(s) la perdent ; ils restent dans leur sous-section.` : ''}`)) return;
+    }
+    setEtiquette(c);
+    setEtiquetteTouchee(true);
+  };
   const depart = serie ? aLaDate(serie, jour!) : event;
   const [v, setV] = useState<ClubEvent>(depart);
   const [perso, setPerso] = useState(false);
@@ -129,9 +156,11 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
     if (bad) return setErr(bad);
     setErr('');
     if (!serie) {
-      saveEvent(pret());
+      saveEvent(pret(), etiquetteTouchee ? etiquette : undefined);
       return onClose();
     }
+    // Étiquette d'une série : celle de toute la série, réglée tout de suite.
+    if (etiquetteTouchee) reglerEtiquette(serie.id, etiquette);
     // Rien de changé : rien à demander.
     if (stable(normaliser(sansFinVide(pret()))) === stable(normaliser(sansFinVide(depart)))) return onClose();
     setDemande('modifier');
@@ -308,6 +337,21 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
           <ZoneTexte rows={4} value={v.description} onChange={(e) => set({ description: e.target.value })} />
         </label>
       </div>
+      {can('events.manage') && !event.serie && (
+        <div className="form">
+          <CaseEtiquette
+            titre="Étiquette"
+            aide={`Ses membres, du comité ou non, voient les points de l’événement : ceux de la sous-section « ${
+              deja?.lieux?.[0] ? nomLieu(deja.lieux[0], data.sections) : `${sectionEvenements(data)?.nom ?? 'Événements'} › ${v.nom.trim() || '…'}`
+            } »${deja ? '' : ' (créée d’office)'}, et ceux rattachés à l’événement.`}
+            deja={deja}
+            nom={v.nom.trim()}
+            date={v.date}
+            valeur={etiquette}
+            onChange={choixEtiquette}
+          />
+        </div>
+      )}
       {origine && <p className="muted"><Icone n="repetition" /> Occurrence de « {origine.nom} » modifiée seule (prévue le {fmtDate(event.serie!.date)}).</p>}
       {note && <p className="muted"><Icone n="epingle" /> {note}</p>}
       {err && <p className="error">{err}</p>}

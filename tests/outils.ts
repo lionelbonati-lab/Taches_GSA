@@ -54,3 +54,27 @@ export function compter(page: Page, texte: string) {
     texte,
   );
 }
+
+/** Console admin › Sections : la section devient un groupe (son étiquette), avec ces membres (démo neuve : rien à reprendre). */
+export async function groupe(page: Page, section: string, membres: string[]) {
+  await allerA(page, '/admin/taches');
+  const coche = page.getByLabel(`Groupe : la section ${section} est une étiquette`);
+  await coche.check();
+  const bloc = page.locator('.groupe-section', { has: coche });
+  for (const m of membres) await bloc.locator('fieldset').getByRole('button', { name: m, exact: true }).click();
+  for (const m of membres) await expect(bloc.locator('fieldset').getByRole('button', { name: m, exact: true })).toHaveAttribute('aria-pressed', 'true');
+}
+
+/** Page Événements : nouvel événement d'un jour (AAAA-MM-JJ), avec sa case « Étiquette » cochée et ces membres. */
+export async function evenementEtiquete(page: Page, nom: string, jour: string, membres: string[]) {
+  await allerA(page, '/evenements');
+  await page.getByRole('button', { name: '+ Nouvel événement' }).click();
+  const f = page.getByRole('dialog', { name: 'Nouvel événement' });
+  await f.getByPlaceholder('Ajouter un titre').fill(nom);
+  await f.getByLabel('Premier jour').fill(jour);
+  const c = f.locator('.case-etiquette');
+  await c.getByRole('checkbox').check();
+  for (const m of membres) await c.getByRole('button', { name: m, exact: true }).click();
+  await f.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+}

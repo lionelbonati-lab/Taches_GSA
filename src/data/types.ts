@@ -690,11 +690,19 @@ export interface Etiquette {
   /** Fiches des personnes qui voient ses tâches. */
   membres: string[];
   /**
+   * Étiquette d'un événement de l'agenda (case « Étiquette » de l'événement) : son nom et ses dates sont ceux de
+   * l'événement ; sa sous-section dans « Événements » est `lieux` ; les points rattachés à l'événement la reçoivent aussi.
+   */
+  eventId?: string;
+  /** Étiquette d'une section, un groupe (coche « Groupe » de la section) : son nom est celui de la section. */
+  sectionId?: string;
+  /**
    * Sa place dans les sections (etiquettes.ts) : un point rangé là reçoit l'étiquette d'office, et ses membres (sans « Voir
-   * tous les points ») n'y rangent leurs points que là. Absente (étiquettes d'avant ce réglage) : devinée d'après le nom.
+   * tous les points ») n'y rangent leurs points que là. Événement : sa sous-section ; groupe : sa section (sans `lieux`).
+   * Ancienne étiquette, pas encore reliée : réglée, sinon devinée d'après le nom.
    */
   lieux?: LieuEtiquette[];
-  /** Étiquette des autres points (le comité) : celle des points rangés hors de la place des autres étiquettes. Une seule. */
+  /** « Comité » : l'étiquette des points qui n'ont ni groupe ni événement. Une seule. */
   parDefaut?: boolean;
 }
 

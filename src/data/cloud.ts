@@ -279,7 +279,12 @@ export class CloudSync {
       if (!present.has(key)) {
         const [kind, ...id] = key.split('|');
         if (SERVEUR_SEUL.has(kind)) continue;
-        out.push({ kind, id: id.join('|'), pos: k.pos, data: JSON.parse(k.json), deleted: true });
+        // Sorte de ligne que cette version ne connaît pas (ajoutée par une version plus récente) : jamais effacée, elle
+        // n'a simplement pas de place dans ses données (03.11.2026 : une appli d'avant les étiquettes les a toutes effacées).
+        if (kind !== 'meta' && !(ARRAY_KINDS as readonly string[]).includes(kind) && !(MAP_KINDS as readonly string[]).includes(kind)) continue;
+        const data = JSON.parse(k.json);
+        // Étiquette retirée exprès : le serveur ne l'efface que si la demande le dit (065).
+        out.push({ kind, id: id.join('|'), pos: k.pos, data: kind === 'etiquettes' && data && typeof data === 'object' ? { ...data, retiree: true } : data, deleted: true });
       }
     return out;
   }
