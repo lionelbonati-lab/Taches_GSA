@@ -286,6 +286,15 @@ elle-même ce qui doit l'être) : `gsa-agenda` **v3**, `gsa-push` **v9**, `gsa-a
 relu, identique au dépôt. Versions d'avant (d'avant D1, qui lisaient encore les entités) : `gsa-agenda` v2, `gsa-push`
 v8, `gsa-acces` v10.
 
+**Redéployées le 03.11.2026** (accord du président), après le renommage « tâche » → « point » des textes de l'appli
+(`npm run fonction` : seuls `notifs.js` et `agenda.js` changent ; `index.ts` et `webpush.ts` identiques), `verify_jwt`
+toujours désactivé : `gsa-push` **v10** (textes des notifications : « 3 de tes points sont en retard », « Point
+récurrent reconduit », « 2 points à faire »…), `gsa-agenda` **v4** (rien de visible dans l'agenda : seuls les noms des
+droits changent). Contenu déployé relu, identique au dépôt. Contrôles : `gsa-push` v10 au passage planifié de 12 h 05
+(UTC) : 200 `{"personnes":1,"envois":0}`, démarrage sans erreur au journal ; `gsa-agenda` v4 appelée depuis la base
+(pg_net) avec un jeton inconnu : 404 « Lien d'agenda inconnu ou supprimé. ». `gsa-acces` inchangée (v11). Versions
+d'avant : `gsa-push` v9, `gsa-agenda` v3.
+
 **Contrôles faits après le déploiement**, sans rien écrire dans les données : `gsa-push` (planification toutes les
 5 minutes) répond 200 `{"personnes":1,"envois":0}`, sans erreur au journal, et lit l'espace du club (plus les entités
 archivées) ; `gsa-agenda` avec un jeton inconnu : 404 « Lien d'agenda inconnu ou supprimé. » (la base est bien lue) ;
