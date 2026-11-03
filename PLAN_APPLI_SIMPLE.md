@@ -102,7 +102,17 @@ base de test : `outils/base-test/LISEZMOI.md`.
     **24 entrées d'historique**.
   - Décisions à prendre : voir « Règles de la reprise (D3) » ci-dessous.
 
-- **D3 (03.11.2026), préparée, PAS appliquée sur le serveur** :
+- **D3 (03.11.2026)** : **migration 059 appliquée par le président le 03.11.2026**, puis vérifiée (lecture seule) : 10
+  entités archivées avec leur étiquette, 3 fiches créées, 1 réactivée, tous les comptes au club, tâches rangées comme
+  décidé, messages, fichiers, événements et historique repris, 15 lignes gardées dans `gsa_reprise_avant`. **Écart
+  trouvé** : les 4 délais « N jours avant » la date d'une entité avaient déjà perdu leur lien (dates intactes) : l'appli
+  publiée en D1 retirait un délai calé dont elle ne trouvait plus la référence, à la première modification venue ; la
+  reprise n'a donc pas pu les caler sur l'étiquette. Aucune autre perte (copies de nuit du 02.11 comparées : comité
+  central et entités). **Migration corrective 060** (`060_gsa_reprise_delais.sql`, **à appliquer**) : elle les cale sur
+  la date de l'étiquette d'après la copie de nuit d'avant D1 ; essayée sur la base de test (`reprise_d1.sql`), simulée en
+  lecture seule sur le serveur (4 tâches). Leçon pour la suite : avant de publier une version qui ne comprend plus une
+  donnée, vérifier que rien ne la retire en silence.
+  Ce qui avait été préparé :
   - **Migration `supabase/migrations/059_gsa_reprise_entites.sql`**, à appliquer par le président (mode d'emploi :
     `SUPABASE_SETUP.md`) : les règles ci-dessous, dans une fonction rejouable (`gsa_reprise_entites(club)` ; une entité
     déjà reprise, `info.reprise`, est laissée). Rien n'est effacé : chaque ligne du club modifiée est d'abord recopiée
