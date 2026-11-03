@@ -306,6 +306,23 @@ qui la suit) : **ajouter une personne à la discussion d'un point**, même si el
   déployé relu, identique au dépôt. Version d'avant : v10.
 - **Retour en arrière** : voir l'en-tête du fichier (définitions de 062, puis suppression des deux fonctions ajoutées).
 
+`supabase/migrations/064_gsa_instantane.sql` (**appliquée le 03.11.2026**, suivie aussitôt de `gsa-push` **v12**) :
+**instantané**.
+
+- **Étiquette** : quand ses membres changent (ou qu'elle est supprimée ou rétablie), ses points et leurs discussions sont
+  relus par ceux qui les voient (ligne réécrite telle quelle) : un nouveau membre les reçoit en direct, sans recharger.
+- **Notifications sur téléphone** : chaque écriture qui ajoute une notification appelle `gsa-push` tout de suite
+  (`gsa_push_notifier`, un appel par écriture ; un échec de l'appel n'empêche jamais l'écriture) ; la planification
+  toutes les 5 minutes reste (échéances, retards, résumé de la semaine). `gsa-push` v12 : un seul passage à la fois
+  (`gsa_push_reglages.en_cours`, repris après 3 minutes), un appel pendant un passage le fait recommencer
+  (`a_refaire`) : jamais deux envois de la même notification.
+- **Vérifiée** : base de test (`outils/base-test/instantane_verif.sh`, « Tout est bon ») ; `gsa-push` v12 lancée en local
+  (Deno) contre la base de test, avec un faux service de notification lent : deux appels à 0,7 s d'écart → le second
+  « occupé », le premier fait deux passages, la notification n'est reçue qu'une fois ; verrou posé → « occupé » ;
+  verrou resté posé 5 min → repris. `deno check` sans erreur. Sur le serveur, dans une transaction annulée : une
+  notification ajoutée met un appel de `gsa-push` en file, un changement de membres renvoie les 3 points de l'étiquette.
+- **Retour en arrière** : voir l'en-tête du fichier ; `gsa-push` v11 ignore les colonnes du verrou.
+
 Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.
