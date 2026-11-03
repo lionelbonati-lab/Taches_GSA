@@ -30,6 +30,7 @@ import { Discussion } from './tache/Discussion';
 import { commentairesDe, nonLus } from '../data/commentaires';
 import { Historique } from './tache/Historique';
 import { NotesSeances } from './tache/NotesSeances';
+import { etiquettesDesLieux, nomLieu, recaler } from '../data/etiquettes';
 
 /** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
 export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string; ouvrirDiscussion?: boolean };
@@ -47,18 +48,26 @@ export function TaskModal(props: TaskModalProps) {
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'info' | 'prendre';
 
 function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: TaskModalProps) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, prendreTache, pasDispo, vuPourInfo, update, setToast, discussionLueLe, canReadDiscussion } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, peutRanger, peutEtiqueter, saveTask, prendreTache, pasDispo, vuPourInfo, update, setToast, discussionLueLe, canReadDiscussion } = useStore();
+  // Étiquettes d'office selon la place du point (etiquettes.ts).
+  const autoDe = etiquettesDesLieux(data);
   // Nouvelle tâche : seules les personnes actives peuvent en être responsables.
   // Statut inconnu (statuts personnalisés) : le premier statut ouvert.
-  const [t, setT] = useState<Task>(() =>
-    isNew
-      ? {
-          ...task,
-          responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)),
-          statusId: data.statuses.some((s) => s.id === task.statusId) ? task.statusId : (data.statuses.find((s) => !s.done) ?? data.statuses[0])?.id ?? task.statusId,
-        }
-      : task,
-  );
+  // Place qu'on ne peut pas prendre, ou pas encore de place quand on ne peut ranger ses points que dans certaines sections
+  // (membre d'une étiquette : la sienne) : la première permise.
+  const [t, setT] = useState<Task>(() => {
+    if (!isNew) return task;
+    const restreint = creatableSections().length < data.sections.length;
+    const premiere = () =>
+      data.sections.flatMap((s) => ['', ...s.sousSections].map((ss) => ({ sectionId: s.id, sousSection: ss }))).find((l) => peutRanger(l.sectionId, l.sousSection));
+    const place = task.sectionId ? (peutRanger(task.sectionId, task.sousSection) ? null : premiere()) : restreint ? premiere() : null;
+    return {
+      ...task,
+      ...(place ? { sectionId: place.sectionId, sousSection: place.sousSection } : {}),
+      responsables: task.responsables.filter((id) => data.people.some((p) => p.id === id && p.actif)),
+      statusId: data.statuses.some((s) => s.id === task.statusId) ? task.statusId : (data.statuses.find((s) => !s.done) ?? data.statuses[0])?.id ?? task.statusId,
+    };
+  });
   // Tâche liée (ou principale) ouverte par-dessus cette fenêtre.
   const [other, setOther] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [err, setErr] = useState('');
@@ -84,11 +93,24 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const editable = isNew ? true : canEditTask(task);
   const canAssignOthers = t.sectionId ? canAssign(t.sectionId) : creatableSections().some((s) => canAssign(s.id));
   const section = data.sections.find((s) => s.id === t.sectionId);
-  // Sections proposées : celles où le rôle permet de créer (+ la section actuelle en modification).
+  // Place d'origine (en modification) : toujours proposée, même si on ne pourrait pas y ranger un nouveau point.
+  const ici = (sectionId: string, sousSection = '') => !isNew && sectionId === task.sectionId && sousSection === (task.sousSection ?? '');
+  const permise = (sectionId: string, sousSection = '') => peutRanger(sectionId, sousSection) || ici(sectionId, sousSection);
+  // Sections proposées : celles où l'on peut ranger le point (+ la section actuelle en modification).
   const sectionChoices = data.sections.filter((s) => creatableSections().some((c) => c.id === s.id) || s.id === task.sectionId);
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
-  const sousSections = [...(section?.sousSections ?? [])];
+  const sousSections = (section?.sousSections ?? []).filter((x) => permise(t.sectionId, x));
   if (t.sousSection && !sousSections.includes(t.sousSection)) sousSections.push(t.sousSection);
+  // « — » (sans sous-section) : seulement si l'on peut ranger le point dans la section elle-même.
+  const sansSous = !section || permise(t.sectionId, '');
+  // Ranger ailleurs : les étiquettes d'office suivent (celles de l'ancienne place retirées, celles de la nouvelle ajoutées).
+  const placer = (sectionId: string, sousSection: string) =>
+    setT((x) => ({ ...x, sectionId, sousSection, etiquettes: recaler(x.etiquettes, autoDe(x.sectionId, x.sousSection), autoDe(sectionId, sousSection)) }));
+  const choisirSection = (sectionId: string) => {
+    const s = data.sections.find((x) => x.id === sectionId);
+    // Section où l'on ne peut ranger le point que dans certaines sous-sections : la première d'entre elles.
+    placer(sectionId, !s || permise(sectionId, '') ? '' : s.sousSections.find((x) => permise(sectionId, x)) ?? '');
+  };
   const assignable = data.people.filter((p) => p.actif && (canAssignOthers || p.id === user.id));
   // Quelqu'un qui n'a pas de fiche dans l'appli : son nom, sur la tâche (respHors) ; sans accès, elle ne la voit pas.
   const peutExterne = !t.paiement && canAssignOthers;
@@ -117,13 +139,19 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     if (!t.titre.trim()) return setErr('Le titre du point est obligatoire.');
     if (!t.sectionId) return setErr('Choisis une section.');
     if (isNew && !can('tasks.createAny', t.sectionId) && !can('tasks.editOwn', t.sectionId)) return setErr('Ton rôle ne permet pas de créer un point dans cette section.');
+    if (!permise(t.sectionId, t.sousSection))
+      return setErr('Tu ne peux ranger un point que dans la place de tes étiquettes (section ou sous-section de ton groupe ou de ton événement).');
+    // Étiquettes : celles de sa place d'office, et à la main seulement celles dont on est membre.
+    const auto = autoDe(t.sectionId, t.sousSection);
+    const ajoutees = (t.etiquettes ?? []).filter((id) => !auto.includes(id) && !task.etiquettes?.includes(id) && !peutEtiqueter(id));
+    if (ajoutees.length) return setErr(`Tu n’es pas membre de l’étiquette « ${data.etiquettes?.find((e) => e.id === ajoutees[0])?.nom ?? '?'} » : tu ne peux pas la mettre.`);
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
       return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
     const fin = finAnticipee(data, isNew ? undefined : task, t);
     if (fin && !confirm(fin)) return;
     // Fichiers retirés : effacés une fois la tâche enregistrée.
     const retires = libres(track.current.removed);
-    saveTask({ ...t, titre: t.titre.trim() }, isNew);
+    saveTask({ ...t, titre: t.titre.trim(), etiquettes: recaler(t.etiquettes, [], auto) }, isNew);
     void deleteFiles(retires);
     onClose();
   };
@@ -167,7 +195,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   // Dupliquer : une nouvelle tâche pré-remplie d'après la tâche enregistrée, à compléter puis créer (« À faire », checklist
   // décochée). Ses fichiers restent communs avec l'original (gardés tant que l'une des deux les utilise) ; emails et
   // sondages ne suivent pas.
-  const peutDupliquer = !isNew && !task.paiement && creatableSections().some((s) => s.id === task.sectionId);
+  const peutDupliquer = !isNew && !task.paiement && peutRanger(task.sectionId, task.sousSection);
   const dupliquer = () => {
     const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
     const { suivanteId: _a, termineeLe: _b, aPrendre: _c, postesResp: _d, pourInfoVus: _e, contenuLe: _f, commentaires: _g, ...reste } = task;
@@ -176,6 +204,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         ...reste,
         id: uid('t'),
         titre: `${task.titre} (copie)`,
+        // Étiquettes : celles de sa place, et celles qu'on peut mettre soi-même.
+        etiquettes: task.etiquettes?.filter((id) => peutEtiqueter(id) || autoDe(task.sectionId, task.sousSection).includes(id)),
         statusId: ouvert?.id ?? task.statusId,
         checklist: task.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
         createdBy: user.id,
@@ -267,8 +297,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const auteur = data.people.find((p) => p.id === auteurAPrendre(task));
   const pourMoiAPrendre = !isNew && peutPrendre(task, user.id) && !isDone(data, task);
   const jeDecline = aDecline(task, user.id);
-  // Étiquettes : celles du club, et celles déjà sur la tâche.
-  const etiquettes = data.etiquettes ?? [];
+  // Étiquettes : celles d'office (sa place ; en lecture, seulement celles que le point porte déjà), celles déjà sur le
+  // point, et celles qu'on peut mettre (dont on est membre).
+  const auto = dis ? [] : autoDe(t.sectionId, t.sousSection);
+  const etiquettes = (data.etiquettes ?? []).filter((e) => auto.includes(e.id) || t.etiquettes?.includes(e.id) || (!dis && peutEtiqueter(e.id)));
+  const placeDe = nomLieu({ sectionId: t.sectionId, sousSection: t.sousSection || undefined }, data.sections);
   return (
     <Modal
       title={isNew ? 'Nouveau point' : editable ? 'Modifier le point' : 'Détail du point'}
@@ -341,14 +374,17 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         </label>
         {etiquettes.length > 0 && (
           <div className="full etiquettes-choix">
-            <span className="field-label"><Icone n="etiquette" /> Étiquettes <small className="muted">(leurs membres voient le point)</small></span>
+            <span className="field-label"><Icone n="etiquette" /> Étiquettes <small className="muted">(leurs membres voient le point ; celle de sa place est mise d’office)</small></span>
             <div className="chips">
               {etiquettes.map((e) => {
-                const on = !!t.etiquettes?.includes(e.id);
+                const dOffice = auto.includes(e.id);
+                const on = dOffice || !!t.etiquettes?.includes(e.id);
+                const fige = dis || dOffice || !peutEtiqueter(e.id);
                 return (
-                  <button key={e.id} type="button" className={`chip ${on ? 'on' : ''}`} style={on ? { background: e.couleur, borderColor: e.couleur } : { borderColor: e.couleur }} disabled={dis} aria-pressed={on}
+                  <button key={e.id} type="button" className={`chip ${on ? 'on' : ''} ${dOffice ? 'd-office' : ''}`} style={on ? { background: e.couleur, borderColor: e.couleur } : { borderColor: e.couleur }} disabled={fige} aria-pressed={on}
+                    title={dOffice ? `D’office : le point est rangé dans ${placeDe}` : !dis && fige ? 'Tu n’es pas membre de cette étiquette' : undefined}
                     onClick={() => setT((x) => ({ ...x, etiquettes: on ? (x.etiquettes ?? []).filter((y) => y !== e.id) : [...(x.etiquettes ?? []), e.id] }))}>
-                    {e.type === 'evenement' ? '📅 ' : ''}{e.nom}
+                    {e.type === 'evenement' ? '📅 ' : ''}{e.nom}{dOffice ? ' 🔒' : ''}
                   </button>
                 );
               })}
@@ -359,7 +395,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         <div className="tache-colonne">
           <label>
             Section
-            <select value={t.sectionId} disabled={dis} onChange={(e) => setT((x) => ({ ...x, sectionId: e.target.value, sousSection: '' }))}>
+            <select value={t.sectionId} disabled={dis} onChange={(e) => choisirSection(e.target.value)}>
               <option value="">— Choisir —</option>
               {sectionChoices.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
             </select>
@@ -367,8 +403,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
           {sousSections.length > 0 && (
             <label>
               Sous-section
-              <select value={t.sousSection} disabled={dis || !section} onChange={(e) => set('sousSection', e.target.value)}>
-                <option value="">—</option>
+              <select value={t.sousSection} disabled={dis || !section} onChange={(e) => placer(t.sectionId, e.target.value)}>
+                {(sansSous || !t.sousSection) && <option value="">—</option>}
                 {sousSections.map((x) => <option key={x}>{x}</option>)}
               </select>
             </label>

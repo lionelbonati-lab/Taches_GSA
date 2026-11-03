@@ -182,6 +182,24 @@ base de test : `outils/base-test/LISEZMOI.md`.
   - **Tests** : 36 (un de plus : l'aide, les propositions, la console admin et « Personnes du club » ne parlent plus
     d'entités, pour un admin comme pour un membre ; le test échoue bien avec l'ancienne aide).
 
+- **E1 (03.11.2026), étiquettes et sections** : retour du président (une personne mettait sur son point une étiquette
+  dont elle n'était pas membre ; un membre du camp VTT pouvait étiqueter « Gruppetto » et ranger son point dans
+  n'importe quelle section du comité ; les points du comité n'avaient pas d'étiquette). Sans migration ni déploiement :
+  les étiquettes gardent leur place dans `gsa_items` (« etiquettes »), avec deux champs facultatifs (`lieux`, `parDefaut`).
+  - **Place d'une étiquette** (section ou sous-section), devinée d'après le nom tant qu'elle n'est pas réglée : sur le
+    serveur (lu en lecture seule), 8 étiquettes sur 9 trouvent leur place ; « Course à pied » n'en a pas (à régler).
+  - **Étiquettes d'office** : un point rangé à la place d'une étiquette la reçoit, et la perd s'il est rangé ailleurs
+    (`suivreLieux`, à chaque modification ; aussi quand on règle les places). Les points d'avant : à leur prochain
+    enregistrement, ou « Ajouter l'étiquette de leur place » (fenêtre des étiquettes, rien n'est retiré).
+  - **« Comité »** : étiquette des points rangés hors de la place des autres (créée en un clic par un admin ; membres :
+    accès aux séances). Sur le serveur : 80 points sans étiquette, aucun n'a de discussion, 4 ont un responsable hors du
+    comité (la discussion, une fois « Comité » créée, lui est réservée, comme pour toute étiquette ; on peut l'y ajouter).
+  - **Droits** (dans l'appli, comme les droits par section ; le serveur ne les contrôle pas) : à la main, seulement les
+    étiquettes dont on est membre (toutes pour « Gérer sections, statuts et étiquettes ») ; sans « Voir tous les points »,
+    un membre d'étiquettes placées ne range ses points que dans leur place. Sans étiquette placée : comme avant.
+  - Tests : 45 (un de plus : place devinée, « Comité », membre de la Bruntrutaine limité à sa sous-section, comité qui
+    n'ajoute que ses étiquettes).
+
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 
 D'après le rapport D2. Ce qui n'est pas écrit ici suit le rapport (`outils/reprise/rapport_reprise.sql`).

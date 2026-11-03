@@ -5,6 +5,7 @@ import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occur
 import { DELAI_MAX, addDays, applyDelaiRef, endOf, fmtRange, fmtDate, makeDelai, offsetLabel, splitDelai, today } from '../../data/utils';
 import { Icone } from '../icones';
 import { Deroulante } from '../Deroulante';
+import { etiquettesAuto } from '../../data/etiquettes';
 
 // Fiche d'une tâche : « Pour quand ? » (délai, séance, événement, occurrence) et rattachement à une séance ou un événement.
 
@@ -61,13 +62,16 @@ const aVenir = <T extends { id: string; date: string; dateFin?: string }>(list: 
  * avant le Tournoi d'automne ») qui suit ensuite ses changements de date.
  */
 export function DelaiField({ t, setT, disabled }: { t: Task; setT: SetT; disabled: boolean }) {
-  const { data } = useStore();
+  const { data, peutEtiqueter } = useStore();
   const [choisir, setChoisir] = useState(false);
   // Événement qui se répète : à sa prochaine occurrence (tant qu'il en reste).
   const events = aVenir(data.events.map((e) => (e.repetition ? aLaDate(e, occurrenceDu(e, today()) ?? derniereOccurrence(e) ?? e.date) : e)), t.eventId);
   const meetings = aVenir(data.meetings, t.meetingId);
   const ref = t.delaiRef;
-  const etiquettes = etiquettesDatees(data, ref?.type === 'etiquette' ? ref.etiquetteId : undefined);
+  // Le point portera l'étiquette : celles qu'on peut mettre (dont on est membre), celles qu'il porte déjà.
+  const courante = ref?.type === 'etiquette' ? ref.etiquetteId : undefined;
+  const auto = etiquettesAuto(data, t);
+  const etiquettes = etiquettesDatees(data, courante).filter((e) => e.id === courante || peutEtiqueter(e.id) || auto.includes(e.id) || !!t.etiquettes?.includes(e.id));
   const mode = !ref ? 'fixe'
     : ref.type === 'etiquette' ? (ref.etiquetteId ? `etiquette:${ref.etiquetteId}` : 'fixe')
     : ref.type === 'event' ? (t.eventId ? `event:${t.eventId}` : 'fixe')

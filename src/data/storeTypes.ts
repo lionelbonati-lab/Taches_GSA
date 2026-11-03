@@ -42,8 +42,16 @@ export interface Store {
   canEditTask: (t: Task) => boolean;
   canDeleteTask: (t: Task) => boolean;
   canAssignOthers: (sectionId: string) => boolean;
-  /** Sections dans lesquelles l'utilisateur peut créer une tâche. */
+  /** Sections dans lesquelles l'utilisateur peut créer une tâche (dans l'une de leurs places au moins). */
   creatableSections: () => Section[];
+  /**
+   * L'utilisateur peut ranger un point (nouveau, ou déplacé) dans `sectionId` › `sousSection` : droit de créer dans la
+   * section, et, sans « Voir tous les points » de la section, le point y reçoit l'une de ses étiquettes (s'il est membre
+   * d'étiquettes qui ont leur place : etiquettes.ts).
+   */
+  peutRanger: (sectionId: string, sousSection?: string) => boolean;
+  /** L'utilisateur peut mettre (ou retirer) cette étiquette à la main : il en est membre, ou il règle les étiquettes. */
+  peutEtiqueter: (etiquetteId: string) => boolean;
   prefs: Prefs;
   login: (id: string | null) => void;
   /**

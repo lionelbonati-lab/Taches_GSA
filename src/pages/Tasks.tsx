@@ -12,6 +12,7 @@ import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { APrendreTag, Avatar, DocPollIcons, Empty, EtiquettesTag, LinkIcon, PourInfoTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
 import { EtiquettesModal } from '../components/Etiquettes';
+import { lieuxDe } from '../data/etiquettes';
 import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
@@ -97,9 +98,15 @@ function ListeTaches() {
         ...(f.meeting
           ? { eventId: f.event || undefined, meetingId: f.meeting, delaiRef: { type: 'meeting', joursAvant: 0 } }
           : f.event ? { eventId: f.event } : versProchaineSeance(data.meetings)),
-        ...(f.etiquette ? { etiquettes: [f.etiquette] } : {}),
+        ...(f.etiquette ? { etiquettes: [f.etiquette], ...placeDe(f.etiquette) } : {}),
       }),
     );
+  /** Place de l'étiquette filtrée (la première, si elle en a une) : le nouveau point y est rangé. */
+  const placeDe = (id: string) => {
+    const e = data.etiquettes?.find((x) => x.id === id);
+    const l = e ? lieuxDe(e, data.sections)[0] : undefined;
+    return l ? { sectionId: l.sectionId, sousSection: l.sousSection ?? '' } : {};
+  };
   const [reglerEtiquettes, setReglerEtiquettes] = useState(false);
   // « Toutes » : celles des sections « Voir toutes », et celles de mes étiquettes.
   const viewAll = can('tasks.viewAll') || !!data.etiquettes?.some((e) => !!user && e.membres?.includes(user.id));

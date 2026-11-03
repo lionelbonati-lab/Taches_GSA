@@ -16,6 +16,7 @@ import type { CloudMode, DemoMode, Store } from './storeTypes';
 import { ajouteesDe, appliquerCommentaire, commentairesDe, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
 import { usePileAnnulation } from './pileAnnulation';
 import { StoreCtx } from './storeCtx';
+import { etiquettesDesLieux, lieuxDe, suivreLieux } from './etiquettes';
 
 export type { CloudMode, DemoMode } from './storeTypes';
 
@@ -91,6 +92,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const next = structuredClone(prev);
         fn(next);
         etiqueter(prev, next, o?.annulable === false ? { bloque: true } : { action });
+        // Les étiquettes d'office suivent la place des points (etiquettes.ts).
+        suivreLieux(prev, next);
         // Les délais liés suivent automatiquement la date de leur événement / séance.
         next.tasks = next.tasks.map((t) => applyDelaiRef(next, t));
         next.log.unshift({ id: `l${Date.now()}${Math.random()}`, at: new Date().toISOString(), userId: userId ?? '?', action });
@@ -107,6 +110,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const next = structuredClone(prev);
         fn(next);
         etiqueter(prev, next, { action: o?.annulable, suite: o?.suite });
+        suivreLieux(prev, next);
         return next;
       });
     },
@@ -521,6 +525,14 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   );
 
   const can = (p: Permission, sectionId?: string) => hasPermission(myRoles, p, sectionId);
+  // Rangement des points (etiquettes.ts) : qui voit tous les points d'une section y range les siens librement ; les membres
+  // d'étiquettes qui ont leur place, eux, seulement là où le point reçoit l'une d'elles (le camp VTT dans le camp VTT).
+  // Sans étiquette placée : les sections de ses rôles, comme avant.
+  const mesPlacees = (data.etiquettes ?? []).filter((e) => !!user && e.membres?.includes(user.id) && (e.parDefaut || lieuxDe(e, data.sections).length > 0)).map((e) => e.id);
+  const auto = etiquettesDesLieux(data);
+  const peutRanger = (sectionId: string, sousSection = '') =>
+    !!sectionId && (can('tasks.createAny', sectionId) || can('tasks.editOwn', sectionId))
+    && (can('tasks.viewAll', sectionId) || !mesPlacees.length || auto(sectionId, sousSection).some((id) => mesPlacees.includes(id)));
   const isOwn = (t: Task) => !!user && (t.responsables.includes(user.id) || t.createdBy === user.id);
   const canEditTask = (t: Task) => can('tasks.editAny', t.sectionId) || (can('tasks.editOwn', t.sectionId) && isOwn(t));
 
@@ -550,7 +562,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     canEditTask,
     canDeleteTask: (t) => can('tasks.delete', t.sectionId),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
-    creatableSections: () => data.sections.filter((s) => can('tasks.createAny', s.id) || can('tasks.editOwn', s.id)),
+    creatableSections: () => data.sections.filter((s) => peutRanger(s.id) || s.sousSections.some((ss) => peutRanger(s.id, ss))),
+    peutRanger,
+    // Étiquette mise à la main : celles dont on est membre ; toutes pour qui règle les étiquettes.
+    peutEtiqueter: (id) => can('settings.lists') || !!(user && data.etiquettes?.find((e) => e.id === id)?.membres?.includes(user.id)),
     prefs,
     login,
     update,

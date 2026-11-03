@@ -10,6 +10,7 @@ import { useClubOptional } from '../data/club';
 import { ImportsClub } from '../components/ImportsClub';
 import { LogoPanel } from '../components/LogoPanel';
 import { EtiquettesModal } from '../components/Etiquettes';
+import { lieuxDe } from '../data/etiquettes';
 import { PageIntro } from '../components/Nav';
 import { COULEURS_APPLI } from '../data/couleur';
 import { EnteteReglage } from '../components/Entete';
@@ -393,6 +394,12 @@ function Lists() {
       const x = d.sections.find((y) => y.id === secId)!;
       x.sousSections = x.sousSections.map((y) => (y === old ? v : y));
       d.tasks.forEach((t) => { if (t.sectionId === secId && t.sousSection === old) t.sousSection = v; });
+      // La place des étiquettes suit aussi (celles devinées d'après le nom sont d'abord retenues telles quelles).
+      d.etiquettes = d.etiquettes?.map((e) => {
+        const lieux = lieuxDe(e, data.sections);
+        return e.parDefaut || !lieux.some((l) => l.sectionId === secId && l.sousSection === old) ? e
+          : { ...e, lieux: lieux.map((l) => (l.sectionId === secId && l.sousSection === old ? { ...l, sousSection: v } : l)) };
+      });
     }, `Sous-section « ${old} » (${sec.nom}) renommée en « ${v} »${n ? ` · ${n} point(s)` : ''}`);
   };
   const moveSub = (secId: string, i: number, dir: -1 | 1) =>
@@ -412,7 +419,7 @@ function Lists() {
             <div key={s.id} className="panel">
               <div className="row">
                 <input className="grow" defaultValue={s.nom} aria-label={`Nom de la section ${s.nom}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.nom) update((d) => { d.sections.find((x) => x.id === s.id)!.nom = v; }, `Section « ${s.nom} » renommée en « ${v} »`); }} />
-                <button className="btn small danger" disabled={used > 0} title={used ? `${used} point(s) utilisent cette section` : ''} onClick={() => update((d) => { d.sections = d.sections.filter((x) => x.id !== s.id); }, `Suppression de la section « ${s.nom} »`)}>Supprimer</button>
+                <button className="btn small danger" disabled={used > 0} title={used ? `${used} point(s) utilisent cette section` : ''} onClick={() => update((d) => { d.sections = d.sections.filter((x) => x.id !== s.id); d.etiquettes = d.etiquettes?.map((e) => (e.lieux?.some((l) => l.sectionId === s.id) ? { ...e, lieux: e.lieux.filter((l) => l.sectionId !== s.id) } : e)); }, `Suppression de la section « ${s.nom} »`)}>Supprimer</button>
               </div>
               {s.sousSections.length > 0 && (
                 <ul className="sub-list">

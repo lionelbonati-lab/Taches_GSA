@@ -1102,6 +1102,86 @@ test('délai calé sur une étiquette datée : la tâche porte l’étiquette, s
   await expect.poll(async () => (await tache())?.delai).toBe(jour(18));
 });
 
+test('étiquettes d’office selon la place du point ; un membre d’étiquette ne range et n’étiquette que chez lui ; « Comité » pour les autres points', async ({ page }) => {
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
+  };
+  // Noms des étiquettes d'un point enregistré.
+  const etiquettesDe = (titre: string) =>
+    page.evaluate((x) => {
+      const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
+      const t = d.tasks.find((y: { titre: string }) => y.titre === x);
+      return (t?.etiquettes ?? []).map((id: string) => d.etiquettes.find((e: { id: string }) => e.id === id)?.nom).sort();
+    }, titre);
+  const section = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
+  const sousSection = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
+
+  // Julien Moreau (admin) : la place de chaque étiquette, devinée d'après son nom ; il crée l'étiquette « Comité ».
+  await changer('Julien Moreau');
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
+  const reglage = (nom: string) => fen.locator('.etiquette-reglage', { has: page.getByLabel(`Nom de l’étiquette ${nom}`, { exact: true }) });
+  await expect(reglage('Bruntrutaine').locator('.etiquette-lieux .chip')).toHaveText('Événements › Bruntrutaine 27.02.27✕');
+  await expect(reglage('Groupe compétition').locator('.etiquette-lieux .chip')).toHaveText('Groupe compétition✕');
+  page.once('dialog', (d) => void d.accept());
+  await fen.getByRole('button', { name: '＋ Étiquette « Comité » pour ces points' }).click();
+  const comite = reglage('Comité');
+  await expect(comite).toContainText('les points rangés hors de la place des autres étiquettes');
+  // Ses membres : le comité (accès aux séances), pas les autres.
+  await expect(comite.getByRole('button', { name: 'Marc Lambert' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(comite.getByRole('button', { name: 'David Muller' })).toHaveAttribute('aria-pressed', 'false');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Un point du comité reçoit « Comité » d'office ; rangé dans « Groupe compétition », il prend son étiquette à la place.
+  let fiche = await nouvelleTache(page, 'Renouveler la licence');
+  await section(fiche).selectOption({ label: 'Administration' });
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Comité/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Comité/ })).toBeDisabled();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect.poll(() => etiquettesDe('Renouveler la licence')).toEqual(['Comité']);
+  await page.locator('main').getByText('Renouveler la licence').filter({ visible: true }).first().click();
+  fiche = page.locator('.modal').first();
+  await section(fiche).selectOption({ label: 'Groupe compétition' });
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Groupe compétition/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Comité/ })).toHaveAttribute('aria-pressed', 'false');
+  await fiche.getByRole('button', { name: /^Enregistrer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect.poll(() => etiquettesDe('Renouveler la licence')).toEqual(['Groupe compétition']);
+
+  // David Muller (Bruntrutaine, sans « Voir tous les points ») : ses points ne vont que dans la Bruntrutaine, avec son
+  // étiquette d'office ; il ne voit pas les étiquettes dont il n'est pas membre.
+  await changer('David Muller');
+  await allerA(page, '/taches');
+  fiche = await nouvelleTache(page, 'Commander les dossards');
+  await expect(section(fiche).locator('option')).toHaveText(['— Choisir —', 'Événements']);
+  await expect(sousSection(fiche)).toHaveValue('Bruntrutaine 27.02.27');
+  await expect(sousSection(fiche).locator('option')).toHaveText(['Bruntrutaine 27.02.27']);
+  const choix = fiche.locator('.etiquettes-choix .chip');
+  await expect(choix).toHaveCount(1);
+  await expect(choix).toHaveText(/Bruntrutaine/);
+  await expect(choix).toBeDisabled();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect.poll(() => etiquettesDe('Commander les dossards')).toEqual(['Bruntrutaine']);
+
+  // Marc Lambert (comité) range ses points partout ; à la main, seulement les étiquettes dont il est membre.
+  await changer('Marc Lambert');
+  await allerA(page, '/taches');
+  fiche = await nouvelleTache(page, 'Préparer le budget');
+  await section(fiche).selectOption({ label: 'Comptabilité' });
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Bruntrutaine/ })).toBeEnabled();
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /École de cyclisme/ })).toHaveCount(0);
+  await fiche.locator('.etiquettes-choix').getByRole('button', { name: /Bruntrutaine/ }).click();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect.poll(() => etiquettesDe('Préparer le budget')).toEqual(['Bruntrutaine', 'Comité']);
+});
+
 test('aide et textes de l’appli : plus d’entités, d’organigramme ni de comité central (admin et membre)', async ({ page }) => {
   // Un seul espace (PLAN_APPLI_SIMPLE.md, D5) : l'aide, la console admin et les propositions ne parlent que du club.
   const ancien = /entit[ée]s?\b|organigramme|comité central|sous-comité|caisse centrale|vue « moi »/i;

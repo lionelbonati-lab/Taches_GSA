@@ -2010,3 +2010,8 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .etiquette-reglage { display: flex; flex-direction: column; gap: 8px; }
 .etiquette-personnes { border: none; padding: 0; margin: 0; }
 .etiquette-personnes legend { font-size: 0.85rem; color: var(--muted); padding: 0; margin-bottom: 4px; }
+/* Étiquette mise d'office par la place du point : pleine, pas grisée. */
+.etiquettes-choix .chip.d-office:disabled { opacity: 1; cursor: default; }
+.etiquette-lieux { align-items: center; gap: 6px; }
+.etiquette-lieux select { max-width: 100%; }
+.etiquette-comite { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }

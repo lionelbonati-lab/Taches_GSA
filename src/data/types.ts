@@ -689,6 +689,19 @@ export interface Etiquette {
   dateFin?: string;
   /** Fiches des personnes qui voient ses tâches. */
   membres: string[];
+  /**
+   * Sa place dans les sections (etiquettes.ts) : un point rangé là reçoit l'étiquette d'office, et ses membres (sans « Voir
+   * tous les points ») n'y rangent leurs points que là. Absente (étiquettes d'avant ce réglage) : devinée d'après le nom.
+   */
+  lieux?: LieuEtiquette[];
+  /** Étiquette des autres points (le comité) : celle des points rangés hors de la place des autres étiquettes. Une seule. */
+  parDefaut?: boolean;
+}
+
+/** Place d'une étiquette : une section entière, ou l'une de ses sous-sections. */
+export interface LieuEtiquette {
+  sectionId: string;
+  sousSection?: string;
 }
 
 export type TypeEtiquette = 'evenement' | 'groupe';
