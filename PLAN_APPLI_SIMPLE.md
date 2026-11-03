@@ -108,7 +108,7 @@ base de test : `outils/base-test/LISEZMOI.md`.
   trouvé** : les 4 délais « N jours avant » la date d'une entité avaient déjà perdu leur lien (dates intactes) : l'appli
   publiée en D1 retirait un délai calé dont elle ne trouvait plus la référence, à la première modification venue ; la
   reprise n'a donc pas pu les caler sur l'étiquette. Aucune autre perte (copies de nuit du 02.11 comparées : comité
-  central et entités). **Migration corrective 060** (`060_gsa_reprise_delais.sql`, **à appliquer**) : elle les cale sur
+  central et entités). **Migration corrective 060** (`060_gsa_reprise_delais.sql`, appliquée le 03.11.2026 et vérifiée : 4 délais calés sur leur étiquette, dates inchangées) : elle les cale sur
   la date de l'étiquette d'après la copie de nuit d'avant D1 ; essayée sur la base de test (`reprise_d1.sql`), simulée en
   lecture seule sur le serveur (4 tâches). Leçon pour la suite : avant de publier une version qui ne comprend plus une
   donnée, vérifier que rien ne la retire en silence.
