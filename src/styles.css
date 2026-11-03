@@ -1742,6 +1742,10 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .doc-icon.chargement { opacity: 0.4; }
 .pdf-pages { display: flex; flex-direction: column; gap: 12px; max-height: 70vh; overflow: auto; background: var(--bg); padding: 8px; border-radius: 8px; }
 .pdf-page { width: 100%; height: auto; display: block; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2); }
+/* Visionneuse des fichiers joints (photo, pages du PDF) : aussi par-dessus un document archivé ouvert en plein écran. */
+.modal-back:has(> .visionneuse) { z-index: 80; }
+.visionneuse-image { display: flex; justify-content: center; max-height: 70vh; overflow: auto; background: var(--bg); padding: 8px; border-radius: 8px; }
+.visionneuse-image img { max-width: 100%; max-height: calc(70vh - 16px); object-fit: contain; }
 .sceau-page { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
 @media print {
   .doc-thumb.pdf { border: none; }

@@ -579,7 +579,8 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
   useOuvrirDocs();
   usePiedImprime(doc);
   useEffect(() => {
-    const k = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    // Échap : ferme d'abord la visionneuse d'un fichier joint ouverte par-dessus.
+    const k = (e: KeyboardEvent) => e.key === 'Escape' && !document.querySelector('.visionneuse') && onClose();
     window.addEventListener('keydown', k);
     document.body.classList.add('printing-archive');
     return () => {

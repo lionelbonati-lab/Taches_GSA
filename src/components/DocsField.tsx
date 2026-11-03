@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '../data/store';
 import type { TaskDoc } from '../data/types';
-import { compressImage, deleteFiles, docIcon, fmtSize, getFile, MAX_FILE_SIZE, openFile, saveFile } from '../data/files';
+import { compressImage, deleteFiles, docIcon, fmtSize, getFile, MAX_FILE_SIZE, saveFile } from '../data/files';
 import { fmtDate, fullName, uid } from '../data/utils';
 import { estPdf } from '../data/pdf';
-import { PdfApercu, PdfPage } from './PdfViewer';
+import { PdfPage } from './PdfViewer';
+import { voirFichier } from './Visionneuse';
 import { Icone } from './icones';
 
 /** Suivi des fichiers ajoutés / retirés pendant l'édition, pour ranger le stockage à l'enregistrement ou à l'annulation. */
@@ -47,13 +48,12 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
   /** Titre du cadre (ex. « Photo du ticket »). */
   legende?: string;
 }) {
-  const { data, user, cloud } = useStore();
+  const { data, user } = useStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const [link, setLink] = useState<{ url: string; nom: string } | null>(null);
   const [err, setErr] = useState('');
   const [busy, setBusy] = useState(false);
-  const [pdf, setPdf] = useState<TaskDoc | null>(null);
 
   const addFiles = async (files: FileList | null, photo = false) => {
     if (!files?.length || !user) return;
@@ -112,15 +112,11 @@ export function DocsField({ docs, setDocs, disabled, compact, track, idPrefix, l
     setDocs((d) => d.filter((x) => x.id !== doc.id));
   };
 
-  const open = async (doc: TaskDoc) => {
-    if (doc.kind === 'lien') return window.open(doc.url, '_blank', 'noopener');
-    if (estPdf(doc)) return setPdf(doc);
-    if (!(await openFile(doc.id, doc.nom))) setErr(cloud ? 'Fichier introuvable sur le serveur (ou pas de connexion).' : 'Fichier introuvable dans ce navigateur (données de démonstration).');
-  };
+  // Fichier : dans la visionneuse de l'appli (photo, pages du PDF), pas dans un nouvel onglet.
+  const open = (doc: TaskDoc) => (doc.kind === 'lien' ? window.open(doc.url, '_blank', 'noopener') : voirFichier(doc.id, doc.nom));
 
   return (
     <fieldset className={`full docs ${compact ? 'compact' : ''}`}>
-      {pdf && <PdfApercu id={pdf.id} nom={pdf.nom} onClose={() => setPdf(null)} />}
       <legend>{legende} {docs.length > 0 && `(${docs.length})`}</legend>
       {docs.length > 0 && (
         <ul className="doc-list">

@@ -1378,3 +1378,55 @@ test('PV : la note de la section à sa fin ; la pilule va d’un point à l’au
   await expect(li.locator(':scope > .min-pv-note-sec')).toHaveText('Conclusion de la section. Suite.');
   expect(await li.evaluate((e) => [...e.children].map((c) => c.className))).toEqual(['odj-sec', 'odj-l1', 'min-pv-note min-pv-note-sec']);
 });
+
+test('fichiers joints : ouverts dans la visionneuse de l’appli (fiche, ordre du jour), jamais dans un nouvel onglet', async ({ page }) => {
+  // Sur téléphone, surtout dans l'appli installée, un onglet ouvert après le téléchargement du fichier est souvent
+  // bloqué ou reste vide, sans message : la photo et les pages du PDF s'affichent dans l'appli.
+  const onglets: string[] = [];
+  page.context().on('page', (p) => onglets.push(p.url()));
+  const pdf = await PDFDocument.create();
+  for (let i = 0; i < 2; i++) pdf.addPage([595, 842]);
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Tâche avec fichiers à ouvrir');
+  await fiche.getByRole('button', { name: /Document/ }).first().click();
+  await fiche.locator('fieldset.docs input[type=file]').first().setInputFiles([
+    { name: 'photo.png', mimeType: 'image/png', buffer: png },
+    { name: 'devis.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) },
+    { name: 'budget.docx', mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', buffer: Buffer.from('PK') },
+  ]);
+  await expect(fiche.locator('.doc-list li')).toHaveCount(3);
+
+  const visionneuse = page.locator('.modal.visionneuse');
+  // Photo : affichée en grand.
+  await fiche.locator('.doc-name', { hasText: 'photo.png' }).click();
+  await expect(visionneuse.locator('.visionneuse-image img')).toBeVisible();
+  await expect(visionneuse).toContainText('photo.png');
+  await visionneuse.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
+  await expect(visionneuse).toHaveCount(0);
+  // PDF : ses pages.
+  await fiche.locator('.doc-name', { hasText: 'devis.pdf' }).click();
+  await expect(visionneuse.locator('img.pdf-page')).toHaveCount(2);
+  await page.keyboard.press('Escape');
+  await expect(visionneuse).toHaveCount(0);
+  await expect(fiche).toBeVisible(); // Échap ne ferme que la visionneuse
+  // Autre type : pas d'aperçu, téléchargé pendant le clic.
+  await fiche.locator('.doc-name', { hasText: 'budget.docx' }).click();
+  await expect(visionneuse).toContainText('Pas d’aperçu');
+  const telechargement = page.waitForEvent('download');
+  await visionneuse.getByRole('button', { name: /Télécharger/ }).click();
+  expect((await telechargement).suggestedFilename()).toBe('budget.docx');
+  await visionneuse.locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Ordre du jour : le nom du fichier sous le point s'ouvre aussi dans la visionneuse.
+  await page.goto('./?demo#/ordre-du-jour');
+  const nom = page.locator('.pv-sheet [data-doc]', { hasText: 'photo.png' }).first();
+  await expect(nom).toBeVisible();
+  await nom.click();
+  await expect(visionneuse.locator('.visionneuse-image img')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(visionneuse).toHaveCount(0);
+  expect(onglets).toEqual([]);
+});

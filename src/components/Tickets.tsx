@@ -14,7 +14,8 @@ import { apercuPdf, apposerSceauPdf, estPdf } from '../data/pdf';
 import { deleteFiles, getFile, openFile, saveFile } from '../data/files';
 import { fmtDate, fmtDateTime, fullName, today, uid } from '../data/utils';
 import { DocThumb, DocsField, type DocTracking } from './DocsField';
-import { PdfApercu, PdfPage } from './PdfViewer';
+import { PdfPage } from './PdfViewer';
+import { voirFichier } from './Visionneuse';
 import { SignaturePad } from './SignaturePad';
 import { Modal } from './ui';
 import { DocEntete, LienEntete, useEntete, useUnitLogo } from './Entete';
@@ -359,10 +360,9 @@ function DemandeVisa({ t, onClose }: { t: Ticket; onClose: () => void }) {
 }
 
 function Justificatifs({ docs, vise, pageVise, label }: { docs: TaskDoc[]; vise?: string; pageVise?: number; label?: string }) {
-  const [pdf, setPdf] = useState<TaskDoc | null>(null);
   if (!docs.length) return <p className="muted small">Aucun justificatif.</p>;
-  // PDF : aperçu dans l'appli (sur téléphone, il ne s'ouvre pas toujours à part).
-  const open = (d: TaskDoc) => (d.kind === 'lien' ? window.open(d.url, '_blank', 'noopener') : estPdf(d) ? setPdf(d) : openFile(d.id, d.nom));
+  // Photo ou PDF : dans la visionneuse de l'appli (sur téléphone, ils ne s'ouvrent pas toujours à part).
+  const open = (d: TaskDoc) => (d.kind === 'lien' ? window.open(d.url, '_blank', 'noopener') : voirFichier(d.id, d.nom));
   const tri = vise ? [...docs].sort((a, b) => (a.id === vise ? -1 : b.id === vise ? 1 : 0)) : docs;
   return (
     <div className={`ticket-docs ${vise ? 'avec-vise' : ''}`}>
@@ -372,7 +372,6 @@ function Justificatifs({ docs, vise, pageVise, label }: { docs: TaskDoc[]; vise?
           <small>{d.id === vise ? `✔ ${label ?? 'Visé'}` : d.nom}</small>
         </button>
       ))}
-      {pdf && <PdfApercu id={pdf.id} nom={pdf.nom} onClose={() => setPdf(null)} />}
     </div>
   );
 }

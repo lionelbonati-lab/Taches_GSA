@@ -123,10 +123,20 @@ export async function compressImage(file: File): Promise<Blob> {
   }
 }
 
-/** Ouvre le fichier (image, PDF, texte) ou le télécharge ; `telecharger` force le téléchargement. */
+/**
+ * Ouvre le fichier (image, PDF, texte) à part ou le télécharge ; `telecharger` force le téléchargement. Dans l'appli,
+ * les fichiers joints s'ouvrent plutôt dans la visionneuse (voirFichier) : sur téléphone, un onglet ouvert après le
+ * téléchargement est souvent bloqué ou reste vide, sans message.
+ */
 export async function openFile(id: string, nom: string, telecharger = false) {
   const blob = await getFile(id);
   if (!blob) return false;
+  ouvrirBlob(blob, nom, telecharger);
+  return true;
+}
+
+/** Fichier déjà chargé, ouvert à part ou téléchargé tout de suite (pendant le clic : pas bloqué par le navigateur). */
+export function ouvrirBlob(blob: Blob, nom: string, telecharger = false) {
   const url = URL.createObjectURL(blob);
   // Affichés dans un onglet : photos, PDF et texte brut ; le reste (HTML, SVG… qui pourraient contenir du script) est téléchargé.
   const viewable = (blob.type.startsWith('image/') && blob.type !== 'image/svg+xml') || blob.type === 'application/pdf' || blob.type === 'text/plain';
@@ -141,7 +151,6 @@ export async function openFile(id: string, nom: string, telecharger = false) {
     a.remove();
   }
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  return true;
 }
 
 export const fmtSize = (n?: number) =>

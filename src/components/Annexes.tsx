@@ -1,10 +1,10 @@
 import { Fragment, useEffect, useState, type ReactNode, type RefObject } from 'react';
-import { getFile, openFile } from '../data/files';
-import { useStore } from '../data/store';
+import { getFile } from '../data/files';
 import { apercuPdf, estPdf } from '../data/pdf';
 import type { Task, TaskDoc } from '../data/types';
 import { DocThumb } from './DocsField';
 import { Lien } from './Liens';
+import { voirFichier } from './Visionneuse';
 
 // Fichiers liés aux tâches d'un document (PV, ordre du jour), joints à la fin (option « Joindre les fichiers liés ») :
 // la liste des annexes, puis les photos et les pages des PDF (toutes, ou celles choisies) en image, 1, 2 ou 4 par page
@@ -253,9 +253,11 @@ export function DocsTache({ t, annexes }: { t: Task; annexes: Annexe[] }) {
   );
 }
 
-/** Fichiers nommés dans les documents affichés (data-doc) : ouverts d'un clic ou avec Entrée, sauf pendant la modification à la main. */
+/**
+ * Fichiers nommés dans les documents affichés (data-doc) : ouverts d'un clic ou avec Entrée dans la visionneuse de
+ * l'appli, sauf pendant la modification à la main.
+ */
 export function useOuvrirDocs() {
-  const { setToast } = useStore();
   useEffect(() => {
     const ouvrir = (e: Event) => {
       if (e instanceof KeyboardEvent && e.key !== 'Enter' && e.key !== ' ') return;
@@ -264,9 +266,7 @@ export function useOuvrirDocs() {
       e.preventDefault();
       // Une seule ouverture, même si plusieurs vues écoutent (archive ouverte depuis le PV).
       e.stopImmediatePropagation();
-      void openFile(el.dataset.doc ?? '', el.dataset.nom ?? 'fichier').then((ok) => {
-        if (!ok) setToast(`⚠️ « ${el.dataset.nom ?? 'Fichier'} » introuvable (retiré depuis, ou pas de connexion).`);
-      });
+      voirFichier(el.dataset.doc ?? '', el.dataset.nom ?? 'fichier');
     };
     document.addEventListener('click', ouvrir, true);
     document.addEventListener('keydown', ouvrir, true);
@@ -274,7 +274,7 @@ export function useOuvrirDocs() {
       document.removeEventListener('click', ouvrir, true);
       document.removeEventListener('keydown', ouvrir, true);
     };
-  }, [setToast]);
+  }, []);
 }
 
 /** Numéros des annexes d'une tâche. */

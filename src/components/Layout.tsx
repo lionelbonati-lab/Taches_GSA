@@ -6,6 +6,7 @@ import { versProchaineSeance } from '../data/seances';
 import { TicketForm } from './Tickets';
 import { GENRES, type GenreTicket } from '../data/paiements';
 import { AppLogo, Avatar, Toast } from './ui';
+import { Visionneuse } from './Visionneuse';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
 import { Recherche } from './Recherche';
@@ -274,6 +275,7 @@ export function Layout() {
       )}
 
       <Toast />
+      <Visionneuse />
       {quick && canCreate && <TaskModal isNew task={newTask(user.id, versProchaineSeance(data.meetings))} onClose={() => setQuick(false)} />}
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
       {reglerBarre && <BarreBasModal onClose={() => setReglerBarre(false)} />}
