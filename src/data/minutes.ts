@@ -1,4 +1,4 @@
-import type { AppData, MeetingMinutes, Task, TaskSnapshot } from './types';
+import type { AppData, Meeting, MeetingMinutes, Task, TaskSnapshot } from './types';
 import { initials } from './utils';
 
 // Outils du PV partagés par l'onglet PV et la mise à niveau des données.
@@ -52,4 +52,50 @@ export function snapshotToJournal(data: AppData, m: MeetingMinutes) {
   }
   delete m.snapshot;
   if (m.valideLe && !m.version) m.version = 1;
+}
+
+/** Note du PV d'une séance sur une tâche, pour la fiche de la tâche. */
+export interface NoteSeance {
+  meeting: Meeting;
+  note: string;
+  /** PV pas encore validé, ou rouvert pour correction : la note peut encore changer. */
+  enCours: boolean;
+  /** Note prise sur une occurrence précédente de la tâche (tâche qui se répète). */
+  occurrence?: Task;
+}
+
+/** Occurrences précédentes d'une tâche qui se répète, de la plus récente à la plus ancienne. */
+export function occurrencesAvant(data: AppData, t: Task): Task[] {
+  const out: Task[] = [];
+  const vues = new Set([t.id]);
+  let x = data.tasks.find((y) => y.suivanteId === t.id);
+  while (x && !vues.has(x.id)) {
+    vues.add(x.id);
+    out.push(x);
+    const id = x.id;
+    x = data.tasks.find((y) => y.suivanteId === id);
+  }
+  return out;
+}
+
+/**
+ * Notes des PV sur une tâche (et ses occurrences précédentes), de la séance la plus récente à la plus ancienne.
+ * `brouillons` (qui tient le PV) : aussi celles d'un PV pas encore validé ou en correction ; sinon, celles du PV validé
+ * seulement (en correction : la dernière version validée).
+ */
+export function notesSeances(data: AppData, t: Task, brouillons: boolean): NoteSeance[] {
+  const taches = [t, ...occurrencesAvant(data, t)];
+  const out: NoteSeance[] = [];
+  for (const meeting of data.meetings) {
+    const mm = meeting.minutes;
+    if (!mm) continue;
+    const enCours = !mm.valideLe || !!mm.enCorrection;
+    const notes = brouillons ? mm.notes : !mm.valideLe ? undefined : mm.enCorrection ? mm.derniereValidee?.notes : mm.notes;
+    if (!notes) continue;
+    for (const x of taches) {
+      const note = notes[`task:${x.id}`];
+      if (note?.trim()) out.push({ meeting, note, enCours: brouillons && enCours, occurrence: x.id === t.id ? undefined : x });
+    }
+  }
+  return out.sort((a, b) => b.meeting.date.localeCompare(a.meeting.date));
 }

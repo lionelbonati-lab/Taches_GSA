@@ -1103,3 +1103,58 @@ test('aide et textes de l’appli : plus d’entités, d’organigramme ni de co
   await expect(page.locator('.topbar .brand')).toBeVisible();
   await verifier();
 });
+
+test('notes des séances : dans la fiche de la tâche, PV en cours pour qui tient le PV, PV validés pour les autres', async ({ page }) => {
+  // « Point piscine », confié à Émilie Rossi (sans la page PV), et son occurrence précédente ; trois PV en parlent :
+  // avril (validé, l'occurrence précédente), mai (validé, en gras) et juin (pas encore validé).
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+    const fini = d.statuses.find((s: { done: boolean }) => s.done).id;
+    const base = { sectionId: d.sections[0].id, sousSection: '', titre: 'Point piscine', remarque: '', checklist: [], createdBy: d.people[0].id, updatedAt: new Date().toISOString(), responsables: ['p9'] };
+    d.tasks.push({ ...base, id: 'tn-avant', statusId: fini, delai: '2026-04-09', termineeLe: '2026-04-09', suivanteId: 'tn' }, { ...base, id: 'tn', statusId: ouvert, delai: '2026-12-31' });
+    const pv = (notes: Record<string, string>, valide: boolean) => ({ presents: [], excuses: [], notes, ...(valide ? { valideLe: '2026-06-01T20:00:00.000Z', validePar: d.people[0].id, version: 1 } : {}) });
+    const seance = (id: string) => d.meetings.find((x: { id: string }) => x.id === id);
+    seance('m1').minutes = pv({ 'task:tn-avant': 'Horaires d’hiver confirmés.' }, true);
+    seance('m2').minutes = pv({ 'task:tn': '<!--mef--><b>Devis reçu</b> : à comparer.' }, true);
+    seance('m3').minutes = pv({ 'task:tn': 'Budget à revoir avec la caisse.' }, false);
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await page.reload();
+
+  // Admin (page PV) : les trois notes, la plus récente d'abord ; celle du PV pas encore validé marquée « PV en cours ».
+  await allerA(page, '/taches?tache=tn');
+  const notes = page.locator('.modal').first().locator('fieldset.notes-seances');
+  await expect(notes.locator('legend')).toHaveText('Notes des séances');
+  const lignes = notes.locator('li');
+  await expect(lignes).toHaveCount(3);
+  await expect(lignes.nth(0)).toContainText('Budget à revoir avec la caisse.');
+  await expect(lignes.nth(0).locator('.pbadge')).toHaveText('PV en cours');
+  await expect(lignes.nth(1)).toContainText('Devis reçu : à comparer.');
+  await expect(lignes.nth(1).locator('b')).toHaveText('Devis reçu');
+  await expect(lignes.nth(1).locator('.pbadge')).toHaveCount(0);
+  await expect(lignes.nth(2)).toContainText('occurrence précédente');
+  await expect(lignes.nth(2)).toContainText('Horaires d’hiver confirmés.');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Émilie Rossi, sans la page PV : seulement les notes des PV validés.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Émilie Rossi' }).first().click();
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  await allerA(page, '/taches?tache=tn');
+  await expect(lignes).toHaveCount(2);
+  await expect(notes).not.toContainText('Budget à revoir');
+  await expect(notes.locator('.pbadge')).toHaveCount(0);
+
+  // Une tâche dont aucun PV ne parle : pas de « Notes des séances ».
+  await page.keyboard.press('Escape');
+  await allerA(page, '/taches');
+  const fiche = await nouvelleTache(page, 'Tâche sans séance');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await page.locator('main').getByText('Tâche sans séance').filter({ visible: true }).first().click();
+  await expect(page.locator('.modal').first().getByPlaceholder('Que faut-il faire ?')).toHaveValue('Tâche sans séance');
+  await expect(page.locator('fieldset.notes-seances')).toHaveCount(0);
+});

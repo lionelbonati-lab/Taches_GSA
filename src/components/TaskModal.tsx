@@ -29,6 +29,7 @@ import { Rattachements } from './tache/Rattachements';
 import { Discussion } from './tache/Discussion';
 import { nonLus } from '../data/commentaires';
 import { Historique } from './tache/Historique';
+import { NotesSeances } from './tache/NotesSeances';
 
 /** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
 export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string; ouvrirDiscussion?: boolean };
@@ -428,6 +429,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
           </label>
         )}
         {!t.paiement && voit('info') && <PourInfoChamp t={t} setT={setT} isNew={isNew} dis={dis} vus={vus} attendus={attendus} enregistree={isNew ? null : task} />}
+        {!isNew && <NotesSeances task={task} />}
 
         {voit('checklist') && <Checklist t={t} setT={setT} dis={dis} />}
         {voit('docs') && (
