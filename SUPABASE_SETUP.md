@@ -270,6 +270,26 @@ centrale (`gsa_mes_tickets_centraux`).
 - **Retour en arrière** : relancer la définition de la fonction dans sa dernière migration (indiquée en commentaire
   dans 061), avec les `grant` / `revoke` qui la suivent.
 
+`supabase/migrations/062_gsa_etiquettes_discussions.sql` (**appliquée le 03.11.2026**, après la publication de l'appli qui
+la suit) : **étiquettes côté serveur, discussion d'un point étiqueté réservée à ses membres**.
+
+- **Étiquettes** : les membres d'une étiquette lisent les points qui la portent (`gsa_tache_lisible`), avec leurs fichiers
+  et emails, comme l'appli et la démo le montraient déjà (avant, le serveur ne les leur envoyait pas).
+- **Discussions** : elles sortent des points, une ligne `discussions` par point (écrite par `gsa_commenter` seulement ;
+  une ligne envoyée par l'appli est ignorée, sans erreur). Point étiqueté : lue et écrite par les seuls membres de ses
+  étiquettes (ni admins, ni « Voir toutes les tâches », ni responsables qui n'en sont pas membres) ; sinon, comme le
+  point. Seuls ceux qui lisent la discussion sont prévenus ; une notification de message ne se lit plus, hors son
+  destinataire et son auteur, que par qui lit la discussion. Fonctions internes `gsa_dans_etiquette`,
+  `gsa_tache_etiquetee`, `gsa_discussion_lisible` fermées aux comptes.
+- **Vérifiée** : sur la base de test (`outils/base-test/etiquettes_verif.sh`, « Tout est bon ») ; sur le serveur après
+  application : 10 messages repris dans 6 discussions (3 réservées au club, 3 dans une entité archivée), plus aucun
+  message dans les points, aucune ligne d'historique ajoutée ; en lecture seule, un membre de l'étiquette (rôle
+  « Membre ») voit ses 8 points et lit les 3 discussions réservées, une personne du comité hors étiquette voit les
+  points mais ni leurs discussions ni les notifications de leurs messages.
+- **Retour en arrière** : voir l'en-tête du fichier (messages remis dans les points, puis définitions d'avant :
+  038, 029, 049, 053). Une appli d'avant 062 affiche les discussions vides (rien n'est perdu) : elle se met à jour au
+  rechargement.
+
 Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.
