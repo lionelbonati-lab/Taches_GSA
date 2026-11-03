@@ -72,7 +72,7 @@ export function NotifsPush() {
       {etat?.inscrit && <button className="btn small" disabled={occupe} onClick={() => void essai()}>Envoyer une notification d’essai</button>}
       {msg && <small>{msg}</small>}
       <small className="muted">
-        Toutes les 5 minutes, le serveur envoie ce qui est nouveau dans la cloche 🔔 (selon les choix ci-dessus).
+        Le serveur envoie ce qui est nouveau dans la cloche 🔔 (selon les choix ci-dessus) : tout de suite pour un message ou un point confié, toutes les 5 minutes pour les échéances et les retards.
         Ce que tu as déjà vu dans l’appli n’est pas envoyé. Rien entre 22 h et 7 h : ce qui arrive la nuit part le matin. À activer sur chaque appareil.
       </small>
     </div>

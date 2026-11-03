@@ -6,6 +6,8 @@
 //     notifications de la cloche 🔔 dans l'espace du club (ses espaces non archivés : un seul depuis la reprise, 059),
 //     lues comme elle (mêmes règles d'accès que dans l'appli), puis l'envoi de celles qui ne l'ont pas encore été et
 //     qu'elle n'a pas lues (une discussion lue dans l'appli marque ses notifications 💬 lues). Rien la nuit (22 h – 7 h).
+//     Lancée toutes les 5 minutes, et tout de suite à chaque nouvelle notification (064). Un seul passage à la fois
+//     (verrou `en_cours` de gsa_push_reglages, repris après 3 minutes) : un appel pendant un passage le fait recommencer.
 // Le calcul (notifs.js) vient de src/data/pushServeur.ts par `npm run fonction`.
 import postgres from 'npm:postgres@3.4.5';
 import { createClient } from 'npm:@supabase/supabase-js@2';
@@ -103,8 +105,48 @@ async function notifsDe(userId: string, committee: string, fiche: string): Promi
 /** Heure de Suisse (0–23). */
 const heureSuisse = () => Number(new Intl.DateTimeFormat('fr-CH', { timeZone: 'Europe/Zurich', hour: 'numeric', hourCycle: 'h23' }).format(new Date()));
 
+/** Prend le verrou (064) ; s'il est déjà pris, demande au passage en cours de recommencer (et renvoie false). */
+async function prendre(): Promise<boolean> {
+  for (let i = 0; i < 5; i++) {
+    const [pris] = await sql`update public.gsa_push_reglages set en_cours = now(), a_refaire = false
+      where id = 1 and (en_cours is null or en_cours < now() - interval '3 minutes') returning id`;
+    if (pris) return true;
+    const [note] = await sql`update public.gsa_push_reglages set a_refaire = true
+      where id = 1 and en_cours >= now() - interval '3 minutes' returning id`;
+    if (note) return false;
+  }
+  return false;
+}
+
 async function tourner() {
   if (heureSuisse() < 7 || heureSuisse() >= 22) return { nuit: true };
+  if (!(await prendre())) return { occupe: true };
+  let rendu = false;
+  const total = { personnes: 0, envois: 0, passages: 0 };
+  try {
+    for (;;) {
+      const r = await unPassage();
+      total.personnes = r.personnes;
+      total.envois += r.envois;
+      total.passages++;
+      // Verrou rendu si personne n'a appelé pendant le passage ; sinon un passage de plus (5 au plus).
+      const [ok] = await sql`update public.gsa_push_reglages set en_cours = null where id = 1 and not a_refaire returning id`;
+      if (ok) {
+        rendu = true;
+        break;
+      }
+      if (total.passages >= 5) break;
+      await sql`update public.gsa_push_reglages set a_refaire = false, en_cours = now() where id = 1`;
+    }
+  } finally {
+    // Erreur ou 5 passages : verrou rendu (une demande restée en attente est reprise au prochain appel).
+    if (!rendu) await sql`update public.gsa_push_reglages set en_cours = null where id = 1`;
+  }
+  return total;
+}
+
+/** Un passage : pour chaque personne inscrite, ses nouvelles notifications envoyées sur ses appareils. */
+async function unPassage() {
   const cles = await clesVapid();
   await sql`delete from public.gsa_push_envois where envoye_le < now() - interval '60 days' and cle not like 'base|%'`;
   const appareils = (await sql`select endpoint, p256dh, auth, user_id from public.gsa_push_abonnements`) as unknown as AbonnementLu[];

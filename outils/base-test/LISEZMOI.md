@@ -52,16 +52,16 @@ psql -h $P -p 5433 -U postgres -d gsa -f supabase/migrations/061_gsa_menage_fonc
 psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/reprise_verif.sql                  # toujours « Reprise vérifiée »
 ```
 
-Essai des étiquettes et des discussions réservées (migrations 062 et 063) : la base jusqu'à 061, le scénario (messages
+Essai des étiquettes et des discussions réservées (migrations 062 à 064) : la base jusqu'à 061, le scénario (messages
 encore dans les tâches), puis 062 et ses vérifications, 063 et les siennes (« Tout est bon » attendu à chaque fois) :
 
 ```bash
-outils/base-test/refaire.sh                                # puis, comme 062 et 063 viennent d'être appliquées, la refaire sans elles :
+outils/base-test/refaire.sh                                # puis, comme 062 à 064 viennent d'être appliquées, la refaire sans elles :
 psql -h $P -p 5433 -U postgres -q -c "drop database gsa;" -c "create database gsa;"
 psql -h $P -p 5433 -U postgres -d gsa -q -f outils/base-test/stubs.sql
 outils/base-test/appliquer.sh supabase/migrations/00[1-4]*.sql
 psql -h $P -p 5433 -U postgres -d gsa -q -c "alter table public.committees add column if not exists name text; update public.committees set name = nom where name is null; alter table public.profiles add column if not exists full_name text;"
-outils/base-test/appliquer.sh $(ls supabase/migrations/0*.sql | sed -n '5,200p' | grep -v '06[23]')
+outils/base-test/appliquer.sh $(ls supabase/migrations/0*.sql | sed -n '5,200p' | grep -v '06[234]')
 psql -h $P -p 5433 -U postgres -d gsa -q -f outils/base-test/donnees.sql
 psql -h $P -p 5433 -U postgres -d gsa -q -f outils/base-test/etiquettes_donnees.sql
 outils/base-test/appliquer.sh supabase/migrations/062_gsa_etiquettes_discussions.sql
@@ -69,4 +69,7 @@ outils/base-test/etiquettes_verif.sh
 # Personnes ajoutées à une discussion (063), à la suite :
 outils/base-test/appliquer.sh supabase/migrations/063_gsa_discussion_participants.sql
 outils/base-test/discussion_verif.sh
+# Instantané (064), à la suite : étiquette renvoyée, gsa-push appelée à chaque notification ajoutée.
+outils/base-test/appliquer.sh supabase/migrations/064_gsa_instantane.sql
+outils/base-test/instantane_verif.sh
 ```
