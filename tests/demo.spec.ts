@@ -1223,7 +1223,12 @@ test('PV : les points dans le même ordre que l’ordre du jour (sous-sections, 
 
   const libelle = (sel: string) =>
     page.locator(sel).evaluateAll((els) =>
-      els.map((e) => (e.classList.contains('odj-poll') ? `Sondage ${e.textContent!.replace(/^📊 /, '').replace(/^Sondage : /, '').split(' — ')[0].trim()}` : [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim())),
+      els.map((e) =>
+        e.classList.contains('odj-poll')
+          ? `Sondage ${e.textContent!.replace(/^📊 /, '').replace(/^Sondage : /, '').split(' — ')[0].trim()}`
+          : // PV : le titre est le bouton qui ouvre le point.
+            (e.querySelector(':scope > .min-ouvrir')?.textContent ?? [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('')).trim(),
+      ),
     );
   await allerA(page, '/ordre-du-jour');
   await expect(page.locator('.pv-sheet .odj-task', { hasText: 'Zèbre' })).toBeVisible();
@@ -1528,4 +1533,20 @@ test('PV en projection : les pièces jointes du point en cours à côté des not
   await page.getByRole('button', { name: 'Projection' }).click();
   await expect(panneau).toHaveCount(0);
   await expect(page.locator('.min-suivi')).toBeVisible();
+});
+
+test('PV : un appui sur le titre d’un point l’ouvre (plus de crayon)', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Point à ouvrir depuis le PV');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await allerA(page, '/pv');
+  const point = page.locator('.min-task[data-point="Point à ouvrir depuis le PV"]');
+  await expect(point).toBeVisible();
+  await expect(point.getByRole('button', { name: 'Modifier le point' })).toHaveCount(0);
+  await point.getByRole('button', { name: 'Point à ouvrir depuis le PV' }).click();
+  const ouverte = page.locator('.modal').first();
+  await expect(ouverte.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point à ouvrir depuis le PV');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
 });
