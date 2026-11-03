@@ -51,3 +51,19 @@ rejouer après la reprise ci-dessus et vérifier que rien ne manque :
 psql -h $P -p 5433 -U postgres -d gsa -f supabase/migrations/061_gsa_menage_fonctions.sql   # fonctions_restantes = 0
 psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/reprise_verif.sql                  # toujours « Reprise vérifiée »
 ```
+
+Essai des étiquettes et des discussions réservées (migration 062) : la base jusqu'à 061, le scénario (messages encore
+dans les tâches), puis 062 et les vérifications (« Tout est bon » attendu) :
+
+```bash
+outils/base-test/refaire.sh                                # puis, comme 062 vient d'être appliquée, la refaire sans elle :
+psql -h $P -p 5433 -U postgres -q -c "drop database gsa;" -c "create database gsa;"
+psql -h $P -p 5433 -U postgres -d gsa -q -f outils/base-test/stubs.sql
+outils/base-test/appliquer.sh supabase/migrations/00[1-4]*.sql
+psql -h $P -p 5433 -U postgres -d gsa -q -c "alter table public.committees add column if not exists name text; update public.committees set name = nom where name is null; alter table public.profiles add column if not exists full_name text;"
+outils/base-test/appliquer.sh $(ls supabase/migrations/0*.sql | sed -n '5,200p' | grep -v 062)
+psql -h $P -p 5433 -U postgres -d gsa -q -f outils/base-test/donnees.sql
+psql -h $P -p 5433 -U postgres -d gsa -q -f outils/base-test/etiquettes_donnees.sql
+outils/base-test/appliquer.sh supabase/migrations/062_gsa_etiquettes_discussions.sql
+outils/base-test/etiquettes_verif.sh
+```

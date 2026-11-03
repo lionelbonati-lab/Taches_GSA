@@ -226,7 +226,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
     }
   }
 
-  // Un message où l'on est mentionné (📣) n'est pas annoncé une seconde fois en 💬.
+  // Un message où l'on était mentionné (📣, mentions abandonnées) n'est pas annoncé une seconde fois en 💬.
   const mentions = new Set(p.messages ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === 'mention').map(memeMessage) : []);
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;

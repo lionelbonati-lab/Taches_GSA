@@ -27,7 +27,7 @@ import { Checklist } from './tache/Checklist';
 import { Repetition } from './tache/Repetition';
 import { Rattachements } from './tache/Rattachements';
 import { Discussion } from './tache/Discussion';
-import { nonLus } from '../data/commentaires';
+import { commentairesDe, nonLus } from '../data/commentaires';
 import { Historique } from './tache/Historique';
 import { NotesSeances } from './tache/NotesSeances';
 
@@ -47,7 +47,7 @@ export function TaskModal(props: TaskModalProps) {
 type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'info' | 'prendre';
 
 function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: TaskModalProps) {
-  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, prendreTache, pasDispo, vuPourInfo, update, setToast, discussionLueLe } = useStore();
+  const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, saveTask, prendreTache, pasDispo, vuPourInfo, update, setToast, discussionLueLe, canReadDiscussion } = useStore();
   // Nouvelle tâche : seules les personnes actives peuvent en être responsables.
   // Statut inconnu (statuts personnalisés) : le premier statut ouvert.
   const [t, setT] = useState<Task>(() =>
@@ -158,8 +158,10 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   };
 
   // Discussion de la tâche enregistrée (relue en direct, pas celle de la fenêtre), dans sa propre fenêtre : la bulle en
-  // haut l'ouvre et compte les messages pas encore lus.
-  const commentaires = (data.tasks.find((x) => x.id === task.id) ?? task).commentaires ?? [];
+  // haut l'ouvre et compte les messages pas encore lus. Tâche étiquetée : seulement pour les membres de ses étiquettes.
+  const enregistree = data.tasks.find((x) => x.id === task.id) ?? task;
+  const discussion = !isNew && canReadDiscussion(enregistree);
+  const commentaires = discussion ? commentairesDe(data, enregistree) : [];
   const nl = nonLus(commentaires, discussionLueLe(task.id), user.id);
 
   // Dupliquer : une nouvelle tâche pré-remplie d'après la tâche enregistrée, à compléter puis créer (« À faire », checklist
@@ -275,6 +277,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       actions={
         !isNew && (
           <>
+          {discussion && (
           <button
             type="button"
             className="icon-btn discussion-btn"
@@ -285,6 +288,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
             <Icone n="message" />
             {nl > 0 && <span className="discussion-nb">{nl}</span>}
           </button>
+          )}
           {peutDupliquer && (
             <button type="button" className="icon-btn dupliquer" onClick={dupliquer} title="Dupliquer : créer un nouveau point à partir de celui-ci" aria-label="Dupliquer le point">
               <Icone n="dupliquer" />
@@ -473,7 +477,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       </div>
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
       {externe && <PersonneExterne deja={t.respHors ?? []} onAjoutee={ajouterExterne} onClose={() => setExterne(false)} />}
-      {chat && !isNew && (
+      {chat && discussion && (
         <Discussion titre={task.titre} liste={commentaires} tacheId={task.id} onClose={() => setChat(false)} />
       )}
       {other && <TaskModal task={other.task} isNew={other.isNew} onClose={() => setOther(null)} />}

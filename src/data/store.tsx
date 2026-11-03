@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { makeSeed } from './seed';
-import { hasPermission, userRoles, voitTache } from './permissions';
+import { hasPermission, litDiscussion, userRoles, voitTache } from './permissions';
 import { applyDelaiRef, fmtDate, fullName, isDone, postesFor, today, uid } from './utils';
 import type { ActivityNotif, AppData, Permission, Poll, Prefs, ScheduledEmail, Task } from './types';
 import { clearFiles } from './files';
@@ -13,8 +13,7 @@ import { aPrendreOuverte, auteurAPrendre, epurerAPrendre, proposeeA } from './aP
 import { migrate } from './migrate';
 import { ajouterSuivante, preparerSuivante } from './suivante';
 import type { CloudMode, DemoMode, Store } from './storeTypes';
-import { appliquerCommentaire, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
-import { mentionnables, mentionnes, notifsMention } from './mentions';
+import { appliquerCommentaire, commentairesDe, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
 import { usePileAnnulation } from './pileAnnulation';
 import { StoreCtx } from './storeCtx';
 
@@ -280,38 +279,38 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [user, userId, data, cloud, update, espaceId],
   );
 
-  // Discussion (049) : version réelle, le serveur écrit le commentaire et prévient les personnes concernées, puis la tâche
-  // est relue ; démo : ici. Personnes mentionnées « @Prénom Nom » : prévenues 📣 par l'appli (sans 💬 en double : notifs.ts).
+  // Discussion (049, à part de la tâche depuis 062) : version réelle, le serveur écrit le commentaire et prévient les
+  // personnes concernées, puis la discussion est relue (et la tâche, tant que le serveur garde les messages dedans) ;
+  // démo : ici, mêmes règles (tâche étiquetée : membres de ses étiquettes seulement).
   const commenter = useCallback(
     async (tacheId: string, a: ActionCommentaire) => {
       if (!user) throw new Error('Connecte-toi d’abord.');
       const le = new Date().toISOString();
       const x = data.tasks.find((y) => y.id === tacheId);
       if (!x) throw new Error('Point introuvable');
-      const texte = (a.texte ?? '').trim();
-      const nommes = a.cle || !texte ? [] : mentionnes(texte, mentionnables(x, data.people, data.roles, user.id, data.etiquettes));
-      const mentionNotifs = notifsMention(nommes, x, user.id, texte, le);
-      const mentionne = `${fullName(user)} a mentionné ${nommes.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ')} dans la discussion de « ${x.titre} »`;
       if (cloud) {
         await cloud.sync.flushNow();
         await commenterTache(espaceId, x.id, espaceId, a);
-        if (mentionNotifs.length) update((d) => avecNotifs(d, mentionNotifs), mentionne, { annulable: false });
-        const fresh = await cloud.sync.fetchRows([{ kind: 'tasks', id: x.id }]);
+        const fresh = await cloud.sync.fetchRows([{ kind: 'discussions', id: x.id }, { kind: 'tasks', id: x.id }]);
         setData((prev) => applyRows(prev, fresh, cloud.sync.posOf));
         return;
       }
       if (x.paiement) throw new Error('Pas de discussion sur un ticket de paiement');
-      const commentaires = appliquerCommentaire(x.commentaires, a, { moi: user.id, nom: fullName(user), admin: hasPermission(myRoles, 'admin.access'), le });
+      if (!litDiscussion(x, user.id, myRoles, data.etiquettes)) throw new Error('Discussion réservée aux membres de l’étiquette');
+      const avant = commentairesDe(data, x);
+      const commentaires = appliquerCommentaire(avant, a, { moi: user.id, nom: fullName(user), admin: hasPermission(myRoles, 'admin.access'), le });
       const notifs = a.cle
         ? []
         : notifsCommentaire(
-            destinatairesCommentaire(x, user.id).filter((id) => data.people.some((p) => p.id === id && p.actif)),
+            destinatairesCommentaire(x, avant, user.id, data.etiquettes).filter((id) => data.people.some((p) => p.id === id && p.actif)),
             { tache: x.id, titre: x.titre, moi: user.id, texte: a.texte ?? '', le },
           );
       update((d) => {
-        d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, commentaires: commentaires.length ? commentaires : undefined } : y));
-        avecNotifs(d, [...mentionNotifs, ...notifs]);
-      }, mentionNotifs.length ? mentionne : `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} le point « ${x.titre} »`, { annulable: false });
+        d.discussions = { ...d.discussions, [x.id]: { tache: x.id, commentaires } };
+        // Messages d'avant 062 restés dans la tâche : ils sont maintenant dans sa discussion.
+        if (x.commentaires) d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, commentaires: undefined } : y));
+        avecNotifs(d, notifs);
+      }, `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} le point « ${x.titre} »`, { annulable: false });
     },
     [user, data, cloud, update, myRoles, espaceId],
   );
@@ -511,6 +510,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     myRoles,
     can,
     canSeeTask: (t) => voitTache(t, user?.id, myRoles, data.etiquettes),
+    canReadDiscussion: (t) => litDiscussion(t, user?.id, myRoles, data.etiquettes),
     canEditTask,
     canDeleteTask: (t) => can('tasks.delete', t.sectionId),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),

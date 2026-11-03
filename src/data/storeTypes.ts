@@ -37,6 +37,8 @@ export interface Store {
   /** Droit accordé par au moins un rôle, éventuellement pour une section donnée. */
   can: (p: Permission, sectionId?: string) => boolean;
   canSeeTask: (t: Task) => boolean;
+  /** Lit (et écrit) la discussion de la tâche : tâche étiquetée, membres de ses étiquettes seulement (062). */
+  canReadDiscussion: (t: Task) => boolean;
   canEditTask: (t: Task) => boolean;
   canDeleteTask: (t: Task) => boolean;
   canAssignOthers: (sectionId: string) => boolean;

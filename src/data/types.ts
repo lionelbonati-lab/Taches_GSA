@@ -249,8 +249,8 @@ export interface Task {
    */
   contenuLe?: string;
   /**
-   * Discussion sur la tâche (du plus ancien au plus récent). Écrite par le serveur seulement (gsa_commenter, 049) ;
-   * démo : par l'appli.
+   * Ancienne place de la discussion (049, jusqu'à la migration 062) : relue si la tâche n'a pas de discussion à part
+   * (AppData.discussions). Plus écrite.
    */
   commentaires?: Commentaire[];
   /** À prendre : tâche proposée à quelques personnes ; l'une d'elles s'en charge elle-même (« 🙋 Je m'en charge »). */
@@ -542,7 +542,7 @@ export interface NotifPrefs {
   assign: boolean;
   /** Tâches : une des miennes modifiée par quelqu'un d'autre, reconduite, vue par tous. */
   modif: boolean;
-  /** Messagerie : 💬 message dans la discussion d'une tâche, 📣 mention (@). */
+  /** Messagerie : 💬 message dans la discussion d'une tâche (📣 : anciennes mentions @). */
   messages: boolean;
   echeance: boolean;
   echeanceJours: number;
@@ -610,8 +610,7 @@ export interface ActivityNotif {
   userId: string;
   /**
    * info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge, refus : quelqu'un
-   * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur) ; mention : « @Prénom Nom » dans un commentaire (mentions.ts,
-   * écrit par l'appli de l'auteur ; detail : l'aperçu du message, comme le 💬 qu'il remplace) ; relance : rappel d'une tâche
+   * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur) ; mention : « @Prénom Nom » dans un commentaire (mentions abandonnées : seulement les anciennes, encore affichées) ; relance : rappel d'une tâche
    * « Pour info » pas encore vue (052) ; toutVu : à l'auteur, tout
    * le monde l'a marquée « ✓ Vu » (052).
    */
@@ -655,6 +654,19 @@ export interface AppData {
   propositions?: Proposition[];
   /** Étiquettes des tâches : événements et groupes, avec leurs membres. */
   etiquettes?: Etiquette[];
+  /**
+   * Discussions des tâches (062), par tâche : à part de la tâche, pour qu'une discussion réservée aux membres de ses
+   * étiquettes ne parte pas avec la tâche. Version réelle : écrites par le serveur seulement (gsa_commenter), reçues
+   * selon la règle de lecture (permissions.ts, litDiscussion) ; démo : par l'appli.
+   */
+  discussions?: Record<string, DiscussionTache>;
+}
+
+/** Discussion d'une tâche (ligne « discussions » du serveur, 062). */
+export interface DiscussionTache {
+  tache: string;
+  /** Du plus ancien au plus récent. */
+  commentaires: Commentaire[];
 }
 
 /**

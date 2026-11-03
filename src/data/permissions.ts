@@ -84,10 +84,25 @@ export function dansEtiquette(t: Pick<Task, 'etiquettes' | 'paiement'>, userId: 
   return t.etiquettes.some((id) => !!etiquettes.find((x) => x.id === id)?.membres.includes(userId));
 }
 
+/** Étiquettes (existantes) que porte la tâche. */
+export const etiquettesDe = (t: Pick<Task, 'etiquettes'>, etiquettes: Etiquette[] = []) =>
+  (t.etiquettes ?? []).flatMap((id) => etiquettes.filter((x) => x.id === id));
+
 /**
- * Tâche que la personne voit, comme le serveur (migrations 029, 037, 038) : ses tâches (responsable, créées par soi,
- * pour info, à prendre), celles de ses étiquettes et celles des sections « Voir toutes » ; les tickets (remboursements,
- * factures) à part : la caisse, le demandeur et la personne qui vise (ou a visé).
+ * Discussion de la tâche que la personne lit, comme le serveur (062, gsa_discussion_lisible) : tâche étiquetée, les
+ * membres de l'une de ses étiquettes et eux seuls (ni les admins, ni « Voir toutes les tâches », ni les responsables
+ * qui n'en sont pas membres) ; sinon, qui voit la tâche. Pas de discussion sur les tickets.
+ */
+export function litDiscussion(t: Task, userId: string | undefined, roles: Role[], etiquettes?: Etiquette[]) {
+  if (!userId || t.paiement) return false;
+  const siennes = etiquettesDe(t, etiquettes);
+  return siennes.length ? siennes.some((x) => x.membres.includes(userId)) : voitTache(t, userId, roles, etiquettes);
+}
+
+/**
+ * Tâche que la personne voit, comme le serveur (migrations 029, 037, 038, 062) : ses tâches (responsable, créées par
+ * soi, pour info, à prendre), celles de ses étiquettes et celles des sections « Voir toutes » ; les tickets
+ * (remboursements, factures) à part : la caisse, le demandeur et la personne qui vise (ou a visé).
  */
 export function voitTache(t: Task, userId: string | undefined, roles: Role[], etiquettes?: Etiquette[]) {
   if ((!!userId && (t.responsables.includes(userId) || t.createdBy === userId)) || pourMoi(t, userId) || proposeeA(t, userId) || dansEtiquette(t, userId, etiquettes)) return true;

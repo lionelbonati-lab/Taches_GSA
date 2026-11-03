@@ -850,67 +850,75 @@ test('résumé de la semaine, le lundi : notification et tâches de la semaine',
   await expect(page.locator('main tr', { hasText: 'Préparer le stand' })).toHaveCount(1);
 });
 
-test('discussion : mentionner quelqu’un avec @, notification 📣 sans 💬 en double', async ({ page }) => {
-  const changerDePersonne = async (n: number) => {
-    await page.locator('.who-btn').click();
-    await page.getByText('Changer d’utilisateur').click();
-    const nom = (await page.locator('.login-user strong').nth(n).textContent())!.trim();
-    await page.locator('.login-user').nth(n).click();
+test('discussion d’une tâche étiquetée : réservée aux membres de l’étiquette ; plus de mentions @', async ({ page }) => {
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
     await expect(page.locator('.topbar .brand')).toBeVisible();
-    return nom;
   };
-  const ouvrirDiscussion = async () => {
-    await page.goto('./?demo#/taches');
+  const ouvrirFiche = async (titre: string) => {
+    await allerA(page, '/taches');
     await page.getByRole('button', { name: 'Tous', exact: true }).click();
-    await page.locator('main').getByText('Tâche avec mention').filter({ visible: true }).first().click();
-    await page.locator('.modal').first().getByRole('button', { name: /^Discussion/ }).click();
-    return page.getByRole('region', { name: 'Discussion' });
+    await page.locator('main').getByText(titre).filter({ visible: true }).first().click();
+    return page.locator('.modal').first();
   };
-  const autre = await changerDePersonne(1);
-  const moi = await changerDePersonne(0);
-  await page.goto('./?demo#/taches');
-  const fiche = await nouvelleTache(page, 'Tâche avec mention');
+  // Julien Moreau (admin) crée l'étiquette « Camp d’été », dont seule Émilie Rossi est membre, et une tâche étiquetée.
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
+  await fen.getByPlaceholder('Nouvelle étiquette (ex. Bruntrutaine)').fill('Camp d’été');
+  await fen.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  const membres = fen.locator('fieldset', { hasText: 'Membres' });
+  await membres.getByRole('button', { name: 'Émilie Rossi' }).click();
+  await expect(membres.getByRole('button', { name: 'Émilie Rossi' })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  const fiche = await nouvelleTache(page, 'Réserver les tentes');
+  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Camp d’été' }).click();
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // « @ » et le début du prénom (sans accents) : la personne est proposée, Entrée l'insère.
-  let discussion = await ouvrirDiscussion();
-  const champ = discussion.getByLabel('Nouveau commentaire');
-  await expect(champ).toHaveAttribute('placeholder', /@ pour mentionner/);
-  await champ.pressSequentially(`Peux-tu regarder, @${autre.slice(0, 3).normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()}`);
-  await expect(page.getByRole('option', { name: autre })).toBeVisible();
-  await page.getByRole('option').filter({ hasText: autre }).click();
-  await expect(champ).toHaveValue(`Peux-tu regarder, @${autre} `);
-  await expect(page.getByRole('listbox', { name: 'Mentionner' })).toHaveCount(0);
-  await champ.pressSequentially('stp ?');
-  await champ.press('Enter');
-  await expect(discussion.locator('.discussion-message.mien .mention')).toHaveText(`@${autre}`);
-  await page.keyboard.press('Escape');
+  // Julien voit la tâche (admin, et il l'a créée), mais pas sa discussion.
+  let vue = await ouvrirFiche('Réserver les tentes');
+  await expect(vue.getByRole('button', { name: /^Discussion/ })).toHaveCount(0);
   await page.keyboard.press('Escape');
 
-  // La personne mentionnée (ni responsable ni autrice) : 📣, qui ouvre la discussion ; son nom ressort.
-  await changerDePersonne(1);
-  await page.goto('./?demo#/');
-  await page.getByRole('button', { name: /^Notifications/ }).click();
-  await expect(page.locator('.bell-item', { hasText: 'a commenté « Tâche avec mention »' })).toHaveCount(0);
-  await page.locator('.bell-item', { hasText: `${moi} te mentionne dans « Tâche avec mention »` }).click();
-  const chat = page.getByRole('dialog', { name: 'Tâche avec mention' });
-  await expect(chat.locator('.mention.moi')).toHaveText(`@${autre}`);
-  await chat.getByLabel('Nouveau commentaire').fill(`C’est fait, @${moi} !`);
-  await chat.getByLabel('Nouveau commentaire').press('Enter');
-  await expect(chat.locator('.discussion-message.mien .mention')).toHaveText(`@${moi}`);
+  // Émilie Rossi, membre : la discussion, rappelée réservée ; pas de mentions (« @ » ne propose personne).
+  await changer('Émilie Rossi');
+  vue = await ouvrirFiche('Réserver les tentes');
+  await vue.getByRole('button', { name: /^Discussion/ }).click();
+  const discussion = page.getByRole('region', { name: 'Discussion' });
+  await expect(discussion.locator('.discussion-reservee')).toHaveText('🔒 Réservée aux membres de l’étiquette « Camp d’été »');
+  const champ = discussion.getByLabel('Nouveau commentaire');
+  await expect(champ).toHaveAttribute('placeholder', 'Écrire un message…');
+  await champ.pressSequentially('Qui a les tentes, @Jul');
+  await expect(page.getByRole('listbox')).toHaveCount(0);
+  await champ.press('Enter');
+  await expect(discussion.locator('.discussion-message.mien')).toContainText('Qui a les tentes, @Jul');
+  await expect(discussion.locator('.mention')).toHaveCount(0);
   await page.keyboard.press('Escape');
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // L'autrice de la tâche, prévenue de toute façon (💬), ne reçoit que le 📣.
-  await changerDePersonne(0);
-  await page.goto('./?demo#/');
+  // Julien, auteur et responsable mais pas membre : ni notification, ni discussion dans Messages.
+  await changer('Julien Moreau');
+  await allerA(page, '/');
   await page.getByRole('button', { name: /^Notifications/ }).click();
-  await expect(page.locator('.bell-item', { hasText: `${autre} te mentionne dans « Tâche avec mention »` })).toHaveCount(1);
-  await expect(page.locator('.bell-item', { hasText: 'a commenté « Tâche avec mention »' })).toHaveCount(0);
-  discussion = await ouvrirDiscussion();
-  await expect(discussion.locator('.discussion-message:not(.mien) .mention.moi')).toHaveText(`@${moi}`);
+  await expect(page.locator('.bell-item', { hasText: '« Réserver les tentes »' })).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await allerA(page, '/messages');
+  await expect(page.locator('main')).not.toContainText('Réserver les tentes');
+
+  // Ajouté à l'étiquette : il lit la discussion.
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
+  const fen2 = page.getByRole('dialog', { name: 'Étiquettes' });
+  await fen2.getByLabel('Nom de l’étiquette Camp d’été').locator('xpath=..').getByRole('button', { name: /membre/ }).click();
+  await fen2.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Julien Moreau' }).click();
+  await expect(fen2.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Julien Moreau' })).toHaveAttribute('aria-pressed', 'true');
+  await page.keyboard.press('Escape');
+  vue = await ouvrirFiche('Réserver les tentes');
+  await vue.getByRole('button', { name: /^Discussion/ }).click();
+  await expect(page.getByRole('region', { name: 'Discussion' }).locator('.discussion-message:not(.mien)')).toContainText('Qui a les tentes, @Jul');
 });
 
 test('étiquette « événement » datée : à l’accueil et dans l’agenda, avec ses tâches', async ({ page }) => {

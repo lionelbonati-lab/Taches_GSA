@@ -1,9 +1,9 @@
 import { useStore } from './store';
-import { dernierMessage, nonLus } from './commentaires';
+import { commentairesDe, dernierMessage, nonLus } from './commentaires';
 import type { Commentaire } from './types';
 
-// Messagerie : les discussions des tâches que la personne voit, la plus récente d'abord, avec le nombre de messages pas
-// encore lus (aussi sur l'onglet « Messages »).
+// Messagerie : les discussions que la personne lit (tâche étiquetée : membres de ses étiquettes seulement, 062), la plus
+// récente d'abord, avec le nombre de messages pas encore lus (aussi sur l'onglet « Messages »).
 
 export interface DiscussionVue {
   /** La tâche (lecture, notifications). */
@@ -17,15 +17,15 @@ export interface DiscussionVue {
   terminee: boolean;
 }
 
-/** Toutes les discussions possibles (tâches que je vois), avec ou sans messages. */
+/** Toutes les discussions possibles (celles que je lis), avec ou sans messages. */
 export function useDiscussions() {
-  const { data, user, canSeeTask, discussionLueLe } = useStore();
+  const { data, user, canReadDiscussion, discussionLueLe } = useStore();
   if (!user) return { toutes: [] as DiscussionVue[], nonLus: 0 };
   const fini = new Set(data.statuses.filter((s) => s.done).map((s) => s.id));
   const toutes: DiscussionVue[] = data.tasks
-    .filter((t) => !t.paiement && canSeeTask(t))
+    .filter((t) => canReadDiscussion(t))
     .map((t) => {
-      const liste = t.commentaires ?? [];
+      const liste = commentairesDe(data, t);
       return {
         cle: t.id,
         titre: t.titre || '(sans titre)',

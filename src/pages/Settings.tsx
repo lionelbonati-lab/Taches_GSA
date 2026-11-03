@@ -128,7 +128,7 @@ export function Settings() {
         <label className="inline full"><input type="checkbox" checked={n.retard} onChange={(e) => setN({ retard: e.target.checked })} /> ⚠️ Mes points en retard (résumé quotidien)</label>
         <label className="inline full"><input type="checkbox" checked={n.email} onChange={(e) => setN({ email: e.target.checked })} /> 📧 Un email que j’ai programmé arrive à son heure d’envoi</label>
         <h3 className="full notif-groupe">Messagerie</h3>
-        <label className="inline full"><input type="checkbox" checked={n.messages} onChange={(e) => setN({ messages: e.target.checked })} /> 💬 Quelqu’un écrit dans la discussion d’un point dont je m’occupe ou où j’ai écrit ; 📣 on me mentionne dans une discussion (@)</label>
+        <label className="inline full"><input type="checkbox" checked={n.messages} onChange={(e) => setN({ messages: e.target.checked })} /> 💬 Quelqu’un écrit dans la discussion d’un point dont je m’occupe ou où j’ai écrit</label>
         <h3 className="full notif-groupe">Agenda et sondages</h3>
         <label className="inline full"><input type="checkbox" checked={n.semaine} onChange={(e) => setN({ semaine: e.target.checked })} /> 📅 Résumé de ma semaine, le lundi matin : points à faire d’ici dimanche, séances, événements, sondages</label>
         <label className="inline full"><input type="checkbox" checked={n.sondage} onChange={(e) => setN({ sondage: e.target.checked })} /> 📊 Un sondage attend ma réponse</label>

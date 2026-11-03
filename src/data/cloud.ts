@@ -54,8 +54,10 @@ export interface UnitInfo {
 
 /** Collections de l'appli enregistrées élément par élément. */
 const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions', 'etiquettes'] as const;
-/** Tables personne → valeur (réglages, notifications vues, discussions lues). */
-const MAP_KINDS = ['prefs', 'notifLues', 'discussionsLues'] as const;
+/** Tables clé → valeur (réglages, notifications vues, discussions lues ; discussions des tâches, par tâche). */
+const MAP_KINDS = ['prefs', 'notifLues', 'discussionsLues', 'discussions'] as const;
+/** Écrites par le serveur seulement (062) : jamais envoyées par l'appli (ni effacées, ni réécrites). */
+const SERVEUR_SEUL = new Set<string>(['discussions']);
 /** Listes dont l'ordre est choisi par l'utilisateur (sinon l'ordre d'ajout est conservé). */
 const ORDERED = new Set<string>(['people', 'statuses', 'sections', 'roles', 'etiquettes']);
 
@@ -257,6 +259,7 @@ export class CloudSync {
     const out: Row[] = [];
     const present = new Set<string>();
     for (const list of entries(next)) {
+      if (list.length && SERVEUR_SEUL.has(list[0].kind)) continue;
       list.forEach((e, i) => {
         const key = keyOf(e.kind, e.id);
         present.add(key);
@@ -275,6 +278,7 @@ export class CloudSync {
     for (const [key, k] of this.known)
       if (!present.has(key)) {
         const [kind, ...id] = key.split('|');
+        if (SERVEUR_SEUL.has(kind)) continue;
         out.push({ kind, id: id.join('|'), pos: k.pos, data: JSON.parse(k.json), deleted: true });
       }
     return out;

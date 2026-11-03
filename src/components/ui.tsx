@@ -6,7 +6,7 @@ import { cachedLogo, isImage } from '../data/logo';
 import { ETATS, chf, genre, genreDe, peutOuvrirTicket } from '../data/paiements';
 import { bilanVu, ciblesPourInfo, nbPourInfo, pourMoi, texteVu, vuAvantModif } from '../data/pourInfo';
 import { attendusLus } from '../data/suiviPourInfo';
-import { nonLus } from '../data/commentaires';
+import { commentairesDe, nonLus } from '../data/commentaires';
 import { Icone, type IconeNom } from './icones';
 import { aPrendreOuverte, aPrendrePourMoi, nombreAPrendre, plusPersonne, volontaires } from '../data/aPrendre';
 
@@ -95,13 +95,14 @@ export function LinkIcon({ task }: { task: Task }) {
 }
 
 export function DocPollIcons({ task }: { task: Task }) {
-  const { data, user, discussionLueLe } = useStore();
+  const { data, user, discussionLueLe, canReadDiscussion } = useStore();
   const n = task.documents?.length ?? 0;
   const polls = (data.polls ?? []).filter((p) => p.taskId === task.id).length;
   const emails = (data.emails ?? []).filter((e) => e.taskId === task.id && e.statut === 'programme').length;
   // Discussion : bulle s'il y a des messages, avec le nombre de ceux pas encore lus.
-  const msgs = task.commentaires?.length ?? 0;
-  const nl = user && msgs ? nonLus(task.commentaires, discussionLueLe(task.id), user.id) : 0;
+  const liste = canReadDiscussion(task) ? commentairesDe(data, task) : [];
+  const msgs = liste.length;
+  const nl = user && msgs ? nonLus(liste, discussionLueLe(task.id), user.id) : 0;
   return (
     <>
       {msgs > 0 && (

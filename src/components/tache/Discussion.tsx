@@ -1,9 +1,9 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from '../../data/store';
 import { COMMENTAIRE_MAX, dernierMessage, parMoi, type ActionCommentaire } from '../../data/commentaires';
-import { decouper, mentionEnCours, mentionnables, proposer } from '../../data/mentions';
-import type { Commentaire, Person } from '../../data/types';
-import { addDays, fmtDate, fmtDateTime, fullName, localNow } from '../../data/utils';
+import { etiquettesDe } from '../../data/permissions';
+import type { Commentaire } from '../../data/types';
+import { addDays, fmtDate, fmtDateTime, localNow } from '../../data/utils';
 import { AvecLiens } from '../Liens';
 import { ZoneTexte } from '../ZoneTexte';
 import { Modal } from '../ui';
@@ -35,7 +35,7 @@ export const quandMessage = (iso: string) => {
  * les siens ; un admin retire n'importe lequel. Les personnes concernées sont prévenues (🔔).
  * Ouverte, elle est lue (pastille des cartes) ; les messages arrivés depuis la dernière lecture suivent un repère.
  * `actions` : boutons de plus dans l'en-tête (ex. ouvrir la tâche).
- * « @ » propose les personnes qui voient la tâche : mentionnées, elles sont prévenues 📣.
+ * Tâche étiquetée (062) : réservée aux membres de ses étiquettes, rappelé en tête.
  */
 export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { titre: string; liste?: Commentaire[]; tacheId: string; actions?: ReactNode; onClose: () => void }) {
   const { data, user, can, commenter, discussionLue, discussionLueLe } = useStore();
@@ -46,11 +46,8 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
   const [err, setErr] = useState('');
   const fil = useRef<HTMLDivElement>(null);
   const repere = useRef<HTMLLIElement>(null);
-  // Mentions : personnes qu'on peut nommer, suggestions pendant la frappe.
   const tache = data.tasks.find((t) => t.id === tacheId);
-  const nommables = useMemo(() => (tache && user ? mentionnables(tache, data.people, data.roles, user.id, data.etiquettes) : []), [tache, data.people, data.roles, data.etiquettes, user]);
-  const zone = useRef<HTMLTextAreaElement | null>(null);
-  const [suggestion, setSuggestion] = useState<{ debut: number; fin: number; liste: Person[]; i: number } | null>(null);
+  const reservee = tache ? etiquettesDe(tache, data.etiquettes) : [];
   // Messages des autres arrivés depuis la dernière lecture, à l'ouverture : le premier est repéré.
   const [nonLus] = useState(() => {
     const lu = discussionLueLe(cle);
@@ -86,47 +83,6 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
   };
   const envoyer = () => {
     if (texte.trim() && !busy) void agir({ texte }, () => setTexte(''));
-    setSuggestion(null);
-  };
-  // Suggestions de la mention tapée juste avant le curseur.
-  const suivre = (el: HTMLTextAreaElement) => {
-    zone.current = el;
-    const m = nommables.length && el.selectionStart === el.selectionEnd ? mentionEnCours(el.value, el.selectionStart) : null;
-    const liste = m ? proposer(nommables, m.cherche) : [];
-    setSuggestion(m && liste.length ? { debut: m.debut, fin: el.selectionStart, liste, i: 0 } : null);
-  };
-  const choisir = (p: Person) => {
-    if (!suggestion) return;
-    const mot = `@${fullName(p)} `;
-    const suite = texte.slice(suggestion.fin).replace(/^ /, '');
-    setTexte(texte.slice(0, suggestion.debut) + mot + suite);
-    setSuggestion(null);
-    const curseur = suggestion.debut + mot.length;
-    requestAnimationFrame(() => {
-      zone.current?.focus();
-      zone.current?.setSelectionRange(curseur, curseur);
-    });
-  };
-  const clavier = (e: KeyboardEvent<HTMLTextAreaElement>) => {
-    if (suggestion && !e.nativeEvent.isComposing) {
-      const n = suggestion.liste.length;
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSuggestion({ ...suggestion, i: (suggestion.i + (e.key === 'ArrowDown' ? 1 : n - 1)) % n });
-        return;
-      }
-      if ((e.key === 'Enter' && !e.shiftKey && !e.ctrlKey && !e.metaKey) || e.key === 'Tab') {
-        e.preventDefault();
-        choisir(suggestion.liste[suggestion.i]);
-        return;
-      }
-      if (e.key === 'Escape') {
-        e.stopPropagation();
-        setSuggestion(null);
-        return;
-      }
-    }
-    raccourci(e, envoyer);
   };
   // Entrée envoie, Maj+Entrée passe à la ligne ; sur écran tactile, Entrée passe à la ligne (le bouton envoie).
   // Ctrl+Entrée (⌘+Entrée) envoie partout.
@@ -141,6 +97,11 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
   return (
     <Modal title={titre} icone="message" onClose={onClose} className="chat" actions={actions}>
       <section className="discussion" aria-label="Discussion">
+        {reservee.length > 0 && (
+          <p className="discussion-reservee">
+            🔒 Réservée aux membres de {reservee.length > 1 ? 'ses étiquettes' : 'l’étiquette'} {reservee.map((e) => `« ${e.nom} »`).join(', ')}
+          </p>
+        )}
         <div ref={fil} className="discussion-fil">
           {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par le point sont prévenues 🔔.</p>}
           <ul className="discussion-liste">
@@ -179,7 +140,7 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
                           </span>
                         </div>
                       ) : (
-                        <p className="discussion-texte"><AvecMentions texte={c.texte} people={data.people} moi={user.id} /></p>
+                        <p className="discussion-texte"><AvecLiens texte={c.texte} /></p>
                       )}
                       <div className="discussion-pied">
                         {mien && corrige?.id !== c.id && (
@@ -205,34 +166,16 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
           </ul>
         </div>
         {err && <p className="error">{err}</p>}
-        {suggestion && (
-          <ul className="mention-choix" role="listbox" aria-label="Mentionner">
-            {suggestion.liste.map((p, i) => (
-              <li key={p.id} role="option" aria-selected={i === suggestion.i}>
-                {/* Appui sans quitter la saisie (le clavier du téléphone reste ouvert). */}
-                <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => choisir(p)}>
-                  <strong>{fullName(p)}</strong>
-                  {p.poste && <small className="muted"> · {p.poste}</small>}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
         <div className="discussion-saisie">
           <ZoneTexte
             rows={1}
             value={texte}
             maxLength={COMMENTAIRE_MAX}
-            placeholder={nommables.length ? 'Écrire un message… (@ pour mentionner)' : 'Écrire un message…'}
+            placeholder="Écrire un message…"
             aria-label="Nouveau commentaire"
             autoFocus={!tactile}
-            onChange={(e) => {
-              setTexte(e.target.value);
-              suivre(e.target);
-            }}
-            onSelect={(e) => suivre(e.currentTarget)}
-            onBlur={() => setSuggestion(null)}
-            onKeyDown={clavier}
+            onChange={(e) => setTexte(e.target.value)}
+            onKeyDown={(e) => raccourci(e, envoyer)}
           />
           <button type="button" className="discussion-envoyer" disabled={busy || !texte.trim()} onClick={envoyer} aria-label="Envoyer" title={tactile ? 'Envoyer' : 'Envoyer (Entrée ; Maj+Entrée : à la ligne)'}>
             <Icone n="envoyer" />
@@ -240,17 +183,5 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
         </div>
       </section>
     </Modal>
-  );
-}
-
-/** Texte d'un message : mentions « @Prénom Nom » des personnes d'ici en évidence (la sienne plus encore), adresses en liens. */
-function AvecMentions({ texte, people, moi }: { texte: string; people: Person[]; moi: string }) {
-  if (!texte.includes('@')) return <AvecLiens texte={texte} />;
-  return (
-    <>
-      {decouper(texte, people).map((x, i) =>
-        x.id ? <span key={i} className={`mention${x.id === moi ? ' moi' : ''}`}>{x.texte}</span> : <AvecLiens key={i} texte={x.texte} />,
-      )}
-    </>
   );
 }

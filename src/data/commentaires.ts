@@ -1,8 +1,13 @@
-import type { ActivityNotif, Commentaire, Task } from './types';
+import type { ActivityNotif, AppData, Commentaire, Etiquette, Task } from './types';
+import { etiquettesDe } from './permissions';
 import { uid } from './utils';
 
-// Discussion sur une tâche (049). Version réelle : le serveur écrit les commentaires et prévient les personnes concernées
-// (gsa_commenter) ; démo : les mêmes règles, ici.
+// Discussion sur une tâche (049, à part de la tâche depuis 062). Version réelle : le serveur écrit les commentaires et
+// prévient les personnes concernées (gsa_commenter) ; démo : les mêmes règles, ici.
+
+/** Messages de la discussion de la tâche : sa discussion à part (062), sinon ceux restés dans la tâche (avant 062). */
+export const commentairesDe = (d: Pick<AppData, 'discussions'>, t: Pick<Task, 'id' | 'commentaires'>): Commentaire[] =>
+  d.discussions?.[t.id]?.commentaires ?? t.commentaires ?? [];
 
 export const COMMENTAIRE_MAX = 2000;
 export const COMMENTAIRES_MAX = 200;
@@ -52,13 +57,14 @@ export function appliquerCommentaire(liste: Commentaire[] = [], a: ActionComment
 }
 
 /**
- * Personnes à prévenir d'un nouveau commentaire : responsables, auteur de la tâche et ceux qui ont déjà commenté, sans
- * l'auteur du commentaire (`moi`).
+ * Personnes à prévenir d'un nouveau commentaire : responsables, auteur de la tâche et ceux qui ont déjà commenté
+ * (`liste`), sans l'auteur du commentaire (`moi`) ; tâche étiquetée (062) : seulement les membres de ses étiquettes.
  */
-export function destinatairesCommentaire(t: Pick<Task, 'responsables' | 'createdBy' | 'commentaires'>, moi: string) {
-  const r = new Set<string>([...(t.responsables ?? []), t.createdBy, ...(t.commentaires ?? []).map((c) => c.par)].filter(Boolean));
+export function destinatairesCommentaire(t: Pick<Task, 'responsables' | 'createdBy' | 'etiquettes'>, liste: Commentaire[], moi: string, etiquettes?: Etiquette[]) {
+  const r = new Set<string>([...(t.responsables ?? []), t.createdBy, ...liste.map((c) => c.par)].filter(Boolean));
   r.delete(moi);
-  return [...r];
+  const siennes = etiquettesDe(t, etiquettes);
+  return [...r].filter((id) => !siennes.length || siennes.some((x) => x.membres.includes(id)));
 }
 
 /** Aperçu du commentaire dans la notification. */
