@@ -100,9 +100,33 @@ base de test : `outils/base-test/LISEZMOI.md`.
   - **5 tâches du comité central** liées à une entité (4 avec un délai « N jours avant » sa date, 1 avec un responsable
     dans l'entité) ; **2 événements** répétés à copier ; **2 fichiers** joints (2,4 Mo) dans le dossier d'une entité ;
     **24 entrées d'historique**.
-  - **Décisions à prendre avant D3** (détail dans le rapport) : reprendre ou non l'entité archivée ; fiche ou simple
-    nom sur la tâche pour une personne sans compte ; rôle des nouvelles fiches (créer « Membre » ou reprendre
-    « Bénévole ») ; rangement des tâches (proposé : la section du club du même nom pour les groupes, « Événements » et
-    une sous-section par événement, plutôt qu'une section par entité comme dans la démo) ; délais calés sur la date
-    d'une entité (garder la date, ou les rattacher à un événement de l'agenda) ; étiquettes à date passée ; fichiers
-    joints (recopier dans le dossier du club, ou les rendre lisibles depuis le club).
+  - Décisions à prendre : voir « Règles de la reprise (D3) » ci-dessous.
+
+## Règles de la reprise (D3), décidées par le président le 03.11.2026
+
+D'après le rapport D2. Ce qui n'est pas écrit ici suit le rapport (`outils/reprise/rapport_reprise.sql`).
+
+1. **Toutes les entités sont reprises**, l'entité archivée comprise : chacune devient une étiquette (groupe → « groupe »,
+   sous-comité ou équipe → « événement » avec sa date), avec ses tâches et ses membres (ses fiches actives).
+2. **Étiquettes à date passée** : gardées datées.
+3. **Personnes** : la fiche du club qui a la même fiche du registre, sinon la même adresse, sinon le même nom. Sans fiche
+   au club : **une fiche est créée**, même pour une personne sans compte, avec le rôle **« Membre »** (comme l'appli :
+   ses tâches, celles de ses étiquettes, l'agenda ; rôle à créer au club). Une fiche **inactive** du club dont la
+   personne est active dans une entité est **réactivée avec son rôle actuel**.
+4. **Comptes** : chaque compte qui n'a accès qu'à des entités est rattaché à sa fiche du club (sinon il perdrait
+   l'accès).
+5. **Rangement des tâches** : seuls les **groupes** ont leur section (la section du club de même nom ou de nom proche,
+   ex. « Groupe compétition ») ; les **événements** restent des **sous-sections de « Événements »** (celle qui existe, de
+   même nom ou de nom proche, sinon une nouvelle) ; « Programme hivernal », bien qu'il soit un groupe, garde sa
+   sous-section existante « Événements › Programme hivernal ». Les sections propres aux entités (Préparation, Jour J,
+   Activités…) ne sont pas gardées. Pas de section créée pour une entité sans tâche. (La reprise de la démo, qui crée
+   une section par entité, est à aligner sur cette règle.)
+6. **Délais calés sur la date d'une entité** (« 3 jours avant la Soirée ») : rattachés à **la date de l'étiquette**.
+   Nouveau dans l'appli (démo et version réelle) : « Pour quand ? » propose aussi les étiquettes datées, et le délai
+   suit leur date.
+7. **Le reste**, comme proposé dans le rapport : les tâches gardent leur identifiant (celles déplacées autrefois depuis
+   le comité central reprennent leur ancienne ligne) ; les tâches du comité central attribuées à une entité reçoivent
+   son étiquette ; un responsable noté dans une entité (`respPartage`) devient responsable de la tâche ; messages,
+   « pour info » et « à prendre » suivent les fiches ; les événements des entités sont copiés dans l'agenda ;
+   l'historique des tâches suit ; les fichiers joints des entités doivent rester lisibles depuis le club (recopie dans
+   le dossier du club, à préférer) ; les entités sont ensuite archivées, rien n'est effacé.
