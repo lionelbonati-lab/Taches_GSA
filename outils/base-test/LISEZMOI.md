@@ -24,3 +24,9 @@ export default { ...base, use: { ...base.use, launchOptions: { executablePath: '
 ```
 
 puis `npm run build` et `npx playwright test -c playwright.local.config.ts`.
+
+Rapport de reprise des entités (étape D2, lecture seule) sur la base de test :
+
+```bash
+psql -h $P -p 5433 -U postgres -d gsa -P pager=off -f outils/reprise/rapport_reprise.sql
+```

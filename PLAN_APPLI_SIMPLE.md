@@ -87,3 +87,22 @@ base de test : `outils/base-test/LISEZMOI.md`.
   - **Tests** réécrits (34, dont la reprise de la démo d'avant, les étiquettes datées dans l'agenda et l'accueil, une
     personne « Quelqu'un d'autre » qui reçoit une fiche et retrouve ses tâches) ; README et aide mis à jour pour
     l'essentiel (le reste en D5).
+- **D2 (02.11.2026)** : rapport de reprise, serveur lu en **lecture seule** (requêtes SELECT, rien d'écrit). La requête
+  est versionnée sans données : `outils/reprise/rapport_reprise.sql` (une seule requête, à relancer dans l'éditeur SQL
+  juste avant D3 ; ses règles de rapprochement sont celles de `repriseEntites.ts`). Le rapport détaillé, avec les noms
+  du club, a été remis au président hors du dépôt (public). En chiffres :
+  - **10 entités** → 10 étiquettes (5 groupes, 5 événements), dont 1 archivée et 2 à date passée ;
+  - **25 tâches** (11 en cours), dont 24 déjà partagées avec le comité central ; statuts tous ceux du club ; aucun
+    remboursement, sondage ni email programmé dans les entités ; **aucun identifiant à changer** (8 tâches reprennent
+    l'identifiant de leur ancienne ligne, supprimée, du comité central ; les 17 autres sont libres) ;
+  - **personnes** : 4 sans fiche active au club (3 à créer, 1 à réactiver) ; **3 comptes** n'ont accès qu'à des
+    entités : à rattacher au comité central, sinon ils perdraient l'accès ;
+  - **5 tâches du comité central** liées à une entité (4 avec un délai « N jours avant » sa date, 1 avec un responsable
+    dans l'entité) ; **2 événements** répétés à copier ; **2 fichiers** joints (2,4 Mo) dans le dossier d'une entité ;
+    **24 entrées d'historique**.
+  - **Décisions à prendre avant D3** (détail dans le rapport) : reprendre ou non l'entité archivée ; fiche ou simple
+    nom sur la tâche pour une personne sans compte ; rôle des nouvelles fiches (créer « Membre » ou reprendre
+    « Bénévole ») ; rangement des tâches (proposé : la section du club du même nom pour les groupes, « Événements » et
+    une sous-section par événement, plutôt qu'une section par entité comme dans la démo) ; délais calés sur la date
+    d'une entité (garder la date, ou les rattacher à un événement de l'agenda) ; étiquettes à date passée ; fichiers
+    joints (recopier dans le dossier du club, ou les rendre lisibles depuis le club).
