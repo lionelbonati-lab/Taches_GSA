@@ -69,7 +69,8 @@ export function Minutes() {
   const attendus = useSuiviPourInfo(data.tasks);
   const avecVus = prefs.pv?.colonnes?.pourInfo ?? true;
   const agendaRef = useRef<HTMLElement>(null);
-  const sections = useSections(agendaRef);
+  const defile = useDefilement(agendaRef);
+  const { section: sections, point: parPoint } = defile;
   const club = useClubOptional();
   useOuvrirDocs();
   const [params] = useSearchParams();
@@ -422,14 +423,22 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
   const outils: OutilPilule[] = [
     { icone: 'annuler', titre: annulable ? `Annuler : ${annulable.action}` : 'Annuler (rien à annuler)', onClick: annuler, disabled: !annulable },
     { icone: 'refaire', titre: refaisable ? `Refaire : ${refaisable.action}` : 'Refaire (rien à refaire)', onClick: refaire, disabled: !refaisable },
+    // D'une section à l'autre (double chevron, à l'extérieur) ou d'un point à l'autre (simple, au milieu).
     {
       icone: 'sectionPrec',
       titre: !sections.prec ? 'Section précédente' : sections.prec.i < 0 ? 'Haut de la page (séance, présences)' : `Section précédente : ${sections.prec.nom}`,
-      onClick: () => sections.aller(-1),
+      onClick: () => defile.aller('section', -1),
       disabled: !sections.prec,
       separe: true,
     },
-    { icone: 'sectionSuiv', titre: sections.suiv ? `Section suivante : ${sections.suiv.nom}` : 'Section suivante', onClick: () => sections.aller(1), disabled: !sections.suiv },
+    {
+      icone: 'pointPrec',
+      titre: !parPoint.prec ? 'Point précédent' : parPoint.prec.i < 0 ? 'Haut de la page (séance, présences)' : `Point précédent : ${parPoint.prec.nom}`,
+      onClick: () => defile.aller('point', -1),
+      disabled: !parPoint.prec,
+    },
+    { icone: 'pointSuiv', titre: parPoint.suiv ? `Point suivant : ${parPoint.suiv.nom}` : 'Point suivant', onClick: () => defile.aller('point', 1), disabled: !parPoint.suiv },
+    { icone: 'sectionSuiv', titre: sections.suiv ? `Section suivante : ${sections.suiv.nom}` : 'Section suivante', onClick: () => defile.aller('section', 1), disabled: !sections.suiv },
     ...(data.sections.some((x) => can('tasks.createAny', x.id))
       ? [
           {
@@ -500,7 +509,6 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     out.push('');
     pvSections.forEach((g, i) => {
       out.push(`${i + 1}. ${g.sec.nom}`);
-      if (noteOf(`sec:${g.sec.id}`)) out.push(...texteNote(`sec:${g.sec.id}`).split('\n').map((l) => `   ${l}`));
       let j = 0;
       g.subs.forEach((s) => {
         const pad = s.label ? '      ' : '   ';
@@ -519,6 +527,8 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
         out.push(`   ${letter(j++)}. Sondage : ${p.question} — ${pollSummary(p)}`);
         texteNote(`poll:${p.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`      → ${l}`));
       });
+      // Note de la section : après ses points.
+      if (noteOf(`sec:${g.sec.id}`)) out.push(...texteNote(`sec:${g.sec.id}`).split('\n').map((l) => `   ${l}`));
     });
     let n = pvSections.length;
     others.forEach((p) => out.push(`${++n}. Sondage : ${p.question} — ${pollSummary(p)}`));
@@ -616,7 +626,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     const b = bucket.get(t.id);
     const can2 = editable && canEditTask(t);
     return (
-      <div key={t.id} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild(t) ? 'child' : ''}`}>
+      <div key={t.id} data-point={t.titre} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild(t) ? 'child' : ''}`}>
         <div className="min-task-head">
           <span className="min-title">
             {isChild(t) && <span className="muted">↳ </span>}
@@ -661,7 +671,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     );
   };
   const pollRow = (p: Poll) => (
-    <div key={p.id} className="min-task poll-row-min">
+    <div key={p.id} className="min-task poll-row-min" data-point={`Sondage : ${p.question}`}>
       <div className="min-task-head">
         <span className="min-title odj-poll">📊 Sondage : {p.question} <span className="odj-meta">— {pollSummary(p)}</span></span>
         {editable && !noteOf(`poll:${p.id}`) && !openNotes[`poll:${p.id}`] && (
@@ -719,7 +729,6 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
             {pvSections.map((g) => (
               <li key={g.sec.id}>
                 <span className="odj-sec">{g.sec.nom}</span>
-                {noteOf(`sec:${g.sec.id}`) && <p className="min-pv-note"><TexteNote note={noteOf(`sec:${g.sec.id}`)} /></p>}
                 {(g.subs.length > 0 || g.polls.length > 0) && (
                   <ol className="odj-l1">
                     {g.subs.map((s) =>
@@ -740,6 +749,8 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                     ))}
                   </ol>
                 )}
+                {/* Note de la section : à la fin de la section, comme dans la prise de notes. */}
+                {noteOf(`sec:${g.sec.id}`) && <p className="min-pv-note min-pv-note-sec"><TexteNote note={noteOf(`sec:${g.sec.id}`)} /></p>}
               </li>
             ))}
             {others.map((p) => (
@@ -895,9 +906,6 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               {bySection.map((g, i) => (
                 <div key={g.sec.id} className="panel min-section" data-section={g.sec.id}>
                   <h3>{i + 1}. {g.sec.nom}</h3>
-                  {(editable || noteOf(`sec:${g.sec.id}`)) && (
-                    <NoteField value={m.notes[`sec:${g.sec.id}`] ?? ''} onCommit={(v) => setNote(`sec:${g.sec.id}`, v)} placeholder={`Notes pour « ${g.sec.nom} »…`} readOnly={!editable} />
-                  )}
                   {g.subs.map((s, j) => (
                     <div key={s.key} className="min-sub">
                       {s.label ? <div className="min-sub-title">{letter(j)}. {s.label}</div> : null}
@@ -911,6 +919,12 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
                   ))}
                   {g.polls.map(pollRow)}
                   {editable && can('tasks.createAny', g.sec.id) && <button className="btn small link" onClick={() => addTask(g.sec.id)}>+ Nouveau point décidé</button>}
+                  {/* Note de la section : à la fin, après ses points (le défilement point par point y mène). */}
+                  {(editable || noteOf(`sec:${g.sec.id}`)) && (
+                    <div className="min-note-sec" data-point={`Notes de « ${g.sec.nom} »`}>
+                      <NoteField value={m.notes[`sec:${g.sec.id}`] ?? ''} onCommit={(v) => setNote(`sec:${g.sec.id}`, v)} placeholder={`Notes pour « ${g.sec.nom} »…`} readOnly={!editable} />
+                    </div>
+                  )}
                 </div>
               ))}
               {orphanPolls.length > 0 && (
@@ -921,7 +935,9 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
               )}
               <div className="panel min-section">
                 <h3>Divers</h3>
-                <NoteField value={m.notes.divers ?? ''} onCommit={(v) => setNote('divers', v)} placeholder="Points divers, informations, prochaine séance…" readOnly={!editable} />
+                <div className="min-note-sec" data-point="Notes de « Divers »">
+                  <NoteField value={m.notes.divers ?? ''} onCommit={(v) => setNote('divers', v)} placeholder="Points divers, informations, prochaine séance…" readOnly={!editable} />
+                </div>
               </div>
               {/* Place en bas : la dernière section remonte elle aussi sous l'en-tête (titre de la pilule, section suivante). */}
               {editable && <div className="min-fin" aria-hidden />}
@@ -1100,33 +1116,59 @@ function Chrono({ minutes: m }: { minutes: MeetingMinutes }) {
 }
 
 type Cible = { i: number; nom: string; id?: string };
+type Reperes = { prec?: Cible; suiv?: Cible; actuelle?: Cible };
+type Pas = 'section' | 'point';
+/** Arrêt du défilement : `ancre` vient à la ligne de lecture ; `el`, ce qu'on y trouve (point, sondage, note). */
+type Arret = { el: HTMLElement; ancre: HTMLElement; nom: string; id?: string };
+
+/** Note de la section atteinte : on y écrit tout de suite, à la suite de ce qu'elle contient déjà. */
+function ecrireDans(note: HTMLElement) {
+  note.focus({ preventScroll: true });
+  const sel = document.getSelection();
+  sel?.selectAllChildren(note);
+  sel?.collapseToEnd();
+}
+
 /**
- * Sections de la prise de notes (points de l'ordre du jour, sondages, Divers) : celle à l'écran (`actuelle`, à la ligne
- * de lecture juste sous l'en-tête), celles d'avant et d'après, et `aller` pour y défiler ; avant la première : le haut
- * de la page (-1).
+ * Défilement de la prise de notes, par section (points de l'ordre du jour, sondages, Divers) ou par point (chaque point
+ * et sondage d'une section, puis sa note) : l'arrêt à l'écran (`actuelle`, à la ligne de lecture juste sous l'en-tête),
+ * ceux d'avant et d'après, et `aller` pour y défiler ; avant le premier : le haut de la page (-1). Le premier point
+ * d'une section (ou d'une sous-section) s'arrête sur son titre ; arrivé sur la note de la section, on y écrit.
  */
-function useSections(zone: RefObject<HTMLElement>) {
-  const [nav, setNav] = useState<{ prec?: Cible; suiv?: Cible; actuelle?: Cible }>({});
-  const vise = useRef<{ i: number; at: number } | null>(null);
+function useDefilement(zone: RefObject<HTMLElement>) {
+  const [nav, setNav] = useState<Record<Pas, Reperes>>({ section: {}, point: {} });
+  const vise = useRef<{ pas: Pas; i: number; at: number } | null>(null);
   const ligne = () => (document.querySelector('.topbar')?.getBoundingClientRect().bottom ?? 0) + 8;
-  const liste = () => [...(zone.current?.querySelectorAll<HTMLElement>(':scope > .min-section') ?? [])];
-  const nom = (el: HTMLElement) => el.querySelector('h3')?.textContent?.trim() ?? '';
+  const sections = () => [...(zone.current?.querySelectorAll<HTMLElement>(':scope > .min-section') ?? [])];
+  const arrets = (pas: Pas): Arret[] =>
+    pas === 'section'
+      ? sections().map((el) => ({ el, ancre: el, nom: el.querySelector('h3')?.textContent?.trim() ?? '', id: el.dataset.section }))
+      : sections().flatMap((sec) =>
+          [...sec.querySelectorAll<HTMLElement>('[data-point]')].map((el, k) => {
+            const sous = el.closest<HTMLElement>('.min-sub');
+            const ancre = k === 0 ? sec : sous?.querySelector('.min-sub-title') && sous.querySelector('[data-point]') === el ? sous : el;
+            return { el, ancre, nom: el.dataset.point ?? '' };
+          }),
+        );
   useEffect(() => {
     let attente = 0;
     const calculer = () => {
       attente = 0;
       const l = ligne();
       const auBas = window.scrollY + window.innerHeight >= document.documentElement.scrollHeight - 2;
-      let prec: Cible | undefined = window.scrollY > 2 ? { i: -1, nom: '' } : undefined;
-      let suiv: Cible | undefined;
-      let actuelle: Cible | undefined;
-      liste().forEach((el, i) => {
-        const t = el.getBoundingClientRect().top;
-        if (t <= l + 6) actuelle = { i, nom: nom(el), id: el.dataset.section };
-        if (t < l - 6) prec = { i, nom: nom(el) };
-        else if (!suiv && t > l + 6 && !auBas) suiv = { i, nom: nom(el) };
-      });
-      const n2 = { prec, suiv, actuelle };
+      const reperes = (pas: Pas): Reperes => {
+        let prec: Cible | undefined = window.scrollY > 2 ? { i: -1, nom: '' } : undefined;
+        let suiv: Cible | undefined;
+        let actuelle: Cible | undefined;
+        arrets(pas).forEach(({ ancre, nom, id }, i) => {
+          const t = ancre.getBoundingClientRect().top;
+          if (t <= l + 6) actuelle = { i, nom, id };
+          if (t < l - 6) prec = { i, nom };
+          else if (!suiv && t > l + 6 && !auBas) suiv = { i, nom };
+        });
+        return { prec, suiv, actuelle };
+      };
+      const n2 = { section: reperes('section'), point: reperes('point') };
       setNav((n) => (JSON.stringify(n) === JSON.stringify(n2) ? n : n2));
     };
     const planifier = () => {
@@ -1146,16 +1188,23 @@ function useSections(zone: RefObject<HTMLElement>) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const aller = (sens: 1 | -1) => {
-    const els = liste();
-    let i = (sens > 0 ? nav.suiv : nav.prec)?.i;
-    // Clics rapprochés, en plein défilement : depuis la section visée juste avant.
+  const aller = (pas: Pas, sens: 1 | -1) => {
+    const liste = arrets(pas);
+    let i = (sens > 0 ? nav[pas].suiv : nav[pas].prec)?.i;
+    // Clics rapprochés, en plein défilement : depuis l'arrêt visé juste avant.
     const v = vise.current;
-    if (v && Date.now() - v.at < 700) i = Math.min(els.length - 1, Math.max(-1, v.i + sens));
+    if (v?.pas === pas && Date.now() - v.at < 700) i = Math.min(liste.length - 1, Math.max(-1, v.i + sens));
     if (i === undefined) return;
-    vise.current = { i, at: Date.now() };
-    const top = i < 0 ? 0 : els[i].getBoundingClientRect().top + window.scrollY - ligne();
+    vise.current = { pas, i, at: Date.now() };
+    const a = liste[i];
+    const top = a ? a.ancre.getBoundingClientRect().top + window.scrollY - ligne() : 0;
     window.scrollTo({ top, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+    if (pas !== 'point') return;
+    // Point par point : la note de la section, on y écrit ; ailleurs, la note quittée est enregistrée (clavier refermé).
+    const note = a?.el.matches('.min-note-sec') ? a.el.querySelector<HTMLElement>('.note-riche[contenteditable="true"]') : null;
+    const active = document.activeElement;
+    if (note) ecrireDans(note);
+    else if (active instanceof HTMLElement && active.closest('.min-agenda .note-riche')) active.blur();
   };
   return { ...nav, aller };
 }

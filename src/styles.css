@@ -645,6 +645,8 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .seg button.on.excuse { background: #d97706; color: #fff; }
 .min-section h3 { margin: 0 0 6px; font-size: 1.05rem; }
 .min-fin { height: calc(100vh - 190px); }
+/* Note de la section : à la fin de la section, après ses points. */
+.min-note-sec { margin-top: 8px; }
 .min-sub { margin: 6px 0 2px 6px; }
 .min-sub-title { font-weight: 600; margin: 8px 0 2px; }
 .min-task { border-left: 3px solid var(--border); padding: 5px 0 5px 10px; margin: 4px 0 4px 10px; }
@@ -698,6 +700,7 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
   margin: 2px 0 4px; white-space: pre-wrap; font-size: calc(var(--doc-base, 10.5pt) * var(--e-note-t, 1));
   font-weight: var(--e-note-g, 400); font-style: var(--e-note-i, normal); text-transform: var(--e-note-m, none); color: var(--e-note-c, #111);
 }
+.min-pv-note-sec { margin-top: 4px; }
 .min-pv-poll { margin: 2px 0 4px; }
 .pv-fige { margin: 0 0 10px; font-size: 0.85rem; }
 .min-pv-change { margin: 0 0 4px; color: #1d4ed8; font-size: 0.9em; }
@@ -725,9 +728,11 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 /* Pilule : barre d'outils flottante en icônes (prise de notes du PV), déplaçable par sa poignée. */
 .pilule { position: fixed; z-index: 35; display: flex; flex-direction: column; padding: 3px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 999px; box-shadow: 0 8px 24px rgba(15, 23, 42, 0.18); user-select: none; -webkit-user-select: none; }
 .pilule.defaut { left: 50%; bottom: 24px; transform: translateX(-50%); }
-/* Déplacée : place en proportion de l'écran (Pilule.tsx), même largeur où qu'elle soit. */
-.pilule.placee { width: max-content; max-width: calc(100% - 8px); }
-.pilule-outil { display: inline-flex; align-items: center; }
+/* À sa place ou déplacée (place en proportion de l'écran, Pilule.tsx) : même largeur où qu'elle soit, jamais plus
+   large que l'écran ; sur un téléphone étroit, ses boutons se resserrent (24 px au moins) plutôt que de déborder. */
+.pilule.defaut, .pilule.placee { width: max-content; max-width: calc(100% - 8px); }
+.pilule-outil { display: inline-flex; align-items: center; min-width: 0; }
+.pilule .pilule-outil > button { min-width: 24px; }
 .pilule-barre { display: flex; align-items: center; gap: 1px; }
 .pilule.avec-titre { border-radius: 18px; }
 /* Largeur de la barre d'outils : un titre plus long est coupé. */

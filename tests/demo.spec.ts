@@ -1311,3 +1311,70 @@ test('PV repris après la séance : les points tels qu’à la fin de la séance
   await expect(statut('Point modifié au PV')).toHaveValue(ids.enCours);
   await expect(statut('Point fermé après la séance')).toHaveValue(ids.enCours);
 });
+
+test('PV : la note de la section à sa fin ; la pilule va d’un point à l’autre, puis dans la note de la section', async ({ page }) => {
+  // Prochaine séance : trois points dans une section (le dernier dans une sous-section), deux dans la suivante ; une
+  // note de section et une note de point déjà écrites.
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  const noms = await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+    let s1 = d.meetings.filter((m: { date: string }) => m.date >= j[0]).sort((a: { date: string }, b: { date: string }) => a.date.localeCompare(b.date))[0];
+    if (!s1) d.meetings.push((s1 = { id: 'm-test', titre: 'Comité test', date: j[1], heure: '19:30', lieu: '' }));
+    const i = d.sections.findIndex((s: { sousSections: string[] }) => s.sousSections.length >= 1);
+    const [sec, sec2] = [d.sections[i], d.sections[i + 1]];
+    const moi = d.people[0].id;
+    const t = (id: string, titre: string, o: object = {}) => ({ id, sectionId: sec.id, sousSection: '', titre, responsables: [moi], statusId: ouvert, delai: j[0], meetingId: s1.id, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...o });
+    d.tasks.push(t('p1', 'Premier point'), t('p2', 'Deuxième point'), t('p3', 'Point de sous-section', { sousSection: sec.sousSections[0] }), t('p4', 'Point A de la suivante', { sectionId: sec2.id }), t('p5', 'Point B de la suivante', { sectionId: sec2.id }));
+    s1.minutes = { presents: [], excuses: [], notes: { [`sec:${sec.id}`]: 'Conclusion de la section.', 'task:p1': 'Décision sur le premier.' } };
+    localStorage.setItem(k, JSON.stringify(d));
+    return { sec: sec.nom, sec2: sec2.nom, seance: s1.id };
+  }, { k: cle, j: [dansJours(0), dansJours(20)] });
+  await page.reload();
+  await allerA(page, `/pv?seance=${noms.seance}`);
+
+  // Prise de notes : les points, puis la note de la section.
+  const section = page.locator('.min-agenda > .min-section', { has: page.locator('h3', { hasText: noms.sec }) });
+  await expect(section.locator('[data-point]')).toHaveCount(4);
+  expect(await section.locator('[data-point]').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.point))).toEqual([
+    'Premier point',
+    'Deuxième point',
+    'Point de sous-section',
+    `Notes de « ${noms.sec} »`,
+  ]);
+  const noteSection = section.locator('.min-note-sec .note-riche');
+  await expect(noteSection).toHaveText('Conclusion de la section.');
+
+  // Pilule : d'un point à l'autre (le survol dit lequel), puis dans la note de la section, puis la section suivante.
+  const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  const suivant = pilule.getByRole('button', { name: /^Point suivant/ });
+  const precedent = pilule.getByRole('button', { name: /^Point précédent/ });
+  await section.evaluate((e) => window.scrollTo({ top: e.getBoundingClientRect().top + scrollY - 200 }));
+  for (const nom of ['Premier point', 'Deuxième point', 'Point de sous-section']) {
+    await expect(suivant).toHaveAttribute('title', `Point suivant : ${nom}`);
+    await suivant.click();
+    await expect(pilule.locator('.pilule-titre')).toContainText(noms.sec);
+  }
+  await expect(suivant).toHaveAttribute('title', `Point suivant : Notes de « ${noms.sec} »`);
+  await suivant.click();
+  // Dans la note : le curseur à la fin de ce qu'elle contient, on écrit à la suite.
+  await expect(noteSection).toBeFocused();
+  await page.keyboard.type(' Suite.');
+  await expect(noteSection).toHaveText('Conclusion de la section. Suite.');
+  await expect(suivant).toHaveAttribute('title', 'Point suivant : Point A de la suivante');
+  await suivant.click();
+  await expect(noteSection).not.toBeFocused();
+  await expect(pilule.locator('.pilule-titre')).toContainText(noms.sec2);
+  // En arrière : la note de la section d'avant, de nouveau prête à écrire.
+  await expect(precedent).toHaveAttribute('title', `Point précédent : Notes de « ${noms.sec} »`);
+  await precedent.click();
+  await expect(noteSection).toBeFocused();
+  await expect(pilule.locator('.pilule-titre')).toContainText(noms.sec);
+
+  // Document du PV : la note de la section après ses points, enregistrée avec la suite écrite.
+  await page.locator('.seg button', { hasText: /^\s*PV$/ }).click();
+  const li = page.locator('.pv-sheet ol.odj > li', { has: page.locator('.odj-sec', { hasText: noms.sec }) });
+  await expect(li.locator(':scope > .min-pv-note-sec')).toHaveText('Conclusion de la section. Suite.');
+  expect(await li.evaluate((e) => [...e.children].map((c) => c.className))).toEqual(['odj-sec', 'odj-l1', 'min-pv-note min-pv-note-sec']);
+});
