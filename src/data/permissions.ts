@@ -89,12 +89,14 @@ export const etiquettesDe = (t: Pick<Task, 'etiquettes'>, etiquettes: Etiquette[
   (t.etiquettes ?? []).flatMap((id) => etiquettes.filter((x) => x.id === id));
 
 /**
- * Discussion de la tâche que la personne lit, comme le serveur (062, gsa_discussion_lisible) : tâche étiquetée, les
- * membres de l'une de ses étiquettes et eux seuls (ni les admins, ni « Voir toutes les tâches », ni les responsables
- * qui n'en sont pas membres) ; sinon, qui voit la tâche. Pas de discussion sur les tickets.
+ * Discussion de la tâche que la personne lit, comme le serveur (062, 063, gsa_discussion_lisible) : tâche étiquetée, les
+ * membres de l'une de ses étiquettes et les personnes ajoutées à la discussion (`ajoutees`), eux seuls (ni les admins,
+ * ni « Voir toutes les tâches », ni les responsables qui n'en sont pas membres) ; sinon, qui voit la tâche (personnes
+ * ajoutées comprises). Pas de discussion sur les tickets.
  */
-export function litDiscussion(t: Task, userId: string | undefined, roles: Role[], etiquettes?: Etiquette[]) {
+export function litDiscussion(t: Task, userId: string | undefined, roles: Role[], etiquettes?: Etiquette[], ajoutees: string[] = []) {
   if (!userId || t.paiement) return false;
+  if (ajoutees.includes(userId)) return true;
   const siennes = etiquettesDe(t, etiquettes);
   return siennes.length ? siennes.some((x) => x.membres.includes(userId)) : voitTache(t, userId, roles, etiquettes);
 }

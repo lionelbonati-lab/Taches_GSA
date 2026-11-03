@@ -230,12 +230,12 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
   const mentions = new Set(p.messages ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === 'mention').map(memeMessage) : []);
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    // Messagerie (💬, 📣), tâches qui me sont confiées ou proposées, mes tâches modifiées : chacune sa case.
-    const message = n.type === 'comment' || n.type === 'mention';
+    // Messagerie (💬, 📣, ajout à une discussion), tâches qui me sont confiées ou proposées, mes tâches modifiées : chacune sa case.
+    const message = n.type === 'comment' || n.type === 'mention' || n.type === 'discussion';
     const nouvelle = ['assign', 'info', 'propose', 'pris', 'refus', 'relance'].includes(n.type);
     if (message ? !p.messages : nouvelle ? !p.assign : !p.modif) continue;
     if (n.type === 'comment' && mentions.has(memeMessage(n))) continue;
-    if (n.type === 'comment' || n.type === 'mention' || n.type === 'relance') {
+    if (n.type === 'comment' || n.type === 'mention' || n.type === 'discussion' || n.type === 'relance') {
       // Tâche d'ici ; sinon (plus visible), son titre au moment de la notification.
       const ici = data.tasks.find((x) => x.id === n.taskId);
       const titre = ici?.titre ?? n.titre;
@@ -259,7 +259,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
       items.push({
         key: n.id,
         icon: n.type === 'mention' ? '📣' : '💬',
-        text: `${auteur} ${n.type === 'mention' ? 'te mentionne dans' : 'a commenté'} « ${titre} »`,
+        text: `${auteur} ${n.type === 'mention' ? 'te mentionne dans' : n.type === 'discussion' ? 't’ajoute à la discussion de' : 'a commenté'} « ${titre} »`,
         sub: n.detail,
         link: `/taches?tache=${n.taskId}&discussion=1`,
         at: n.at,

@@ -850,7 +850,7 @@ test('résumé de la semaine, le lundi : notification et tâches de la semaine',
   await expect(page.locator('main tr', { hasText: 'Préparer le stand' })).toHaveCount(1);
 });
 
-test('discussion d’une tâche étiquetée : réservée aux membres de l’étiquette ; plus de mentions @', async ({ page }) => {
+test('discussion d’une tâche étiquetée : réservée aux membres de l’étiquette, qui peuvent y ajouter quelqu’un ; plus de mentions @', async ({ page }) => {
   const changer = async (nom: string) => {
     await page.getByRole('button', { name: 'Changer', exact: true }).click();
     await page.locator('.login-user', { hasText: nom }).first().click();
@@ -908,17 +908,32 @@ test('discussion d’une tâche étiquetée : réservée aux membres de l’éti
   await allerA(page, '/messages');
   await expect(page.locator('main')).not.toContainText('Réserver les tentes');
 
-  // Ajouté à l'étiquette : il lit la discussion.
-  await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  const fen2 = page.getByRole('dialog', { name: 'Étiquettes' });
-  await fen2.getByLabel('Nom de l’étiquette Camp d’été').locator('xpath=..').getByRole('button', { name: /membre/ }).click();
-  await fen2.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Julien Moreau' }).click();
-  await expect(fen2.locator('fieldset', { hasText: 'Membres' }).getByRole('button', { name: 'Julien Moreau' })).toHaveAttribute('aria-pressed', 'true');
-  await page.keyboard.press('Escape');
+  // Émilie ajoute Julien à la discussion (il n'est pas membre de l'étiquette).
+  await changer('Émilie Rossi');
   vue = await ouvrirFiche('Réserver les tentes');
   await vue.getByRole('button', { name: /^Discussion/ }).click();
-  await expect(page.getByRole('region', { name: 'Discussion' }).locator('.discussion-message:not(.mien)')).toContainText('Qui a les tentes, @Jul');
+  let fil = page.getByRole('region', { name: 'Discussion' });
+  await fil.getByRole('button', { name: '+ Ajouter quelqu’un' }).click();
+  await fil.getByLabel('Personne à ajouter à la discussion').selectOption({ label: 'Julien Moreau' });
+  await expect(fil.locator('.discussion-personne')).toHaveText(/Julien Moreau/);
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+
+  // Julien est prévenu ; la notification ouvre la discussion, qu'il lit et où il écrit ; puis il la quitte.
+  await changer('Julien Moreau');
+  await allerA(page, '/');
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  await page.locator('.bell-item', { hasText: 'Émilie Rossi t’ajoute à la discussion de « Réserver les tentes »' }).click();
+  fil = page.getByRole('region', { name: 'Discussion' });
+  await expect(fil.locator('.discussion-message:not(.mien)')).toContainText('Qui a les tentes, @Jul');
+  await fil.getByLabel('Nouveau commentaire').fill('Elles sont au local.');
+  await fil.getByLabel('Nouveau commentaire').press('Enter');
+  await expect(fil.locator('.discussion-message.mien')).toContainText('Elles sont au local.');
+  page.once('dialog', (d) => void d.accept());
+  await fil.locator('.discussion-personne', { hasText: 'Julien Moreau' }).getByRole('button', { name: 'Quitter' }).click();
+  await expect(fil).toHaveCount(0);
+  vue = await ouvrirFiche('Réserver les tentes');
+  await expect(vue.getByRole('button', { name: /^Discussion/ })).toHaveCount(0);
 });
 
 test('étiquette « événement » datée : à l’accueil et dans l’agenda, avec ses tâches', async ({ page }) => {

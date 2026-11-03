@@ -5,7 +5,7 @@ import { applyDelaiRef, fmtDate, fullName, isDone, postesFor, today, uid } from 
 import type { ActivityNotif, AppData, Permission, Poll, Prefs, ScheduledEmail, Task } from './types';
 import { clearFiles } from './files';
 import { avecVote, finSondage, sondageEnregistre } from './polls';
-import { applyRows, commenterTache, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
+import { ajouterADiscussion as ajouterServeur, applyRows, commenterTache, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
 import { useClubOptional } from './club';
 import { ajouterVus, cleVu, dernierAttendu, epurerPourInfo, pourMoi, vuAvantModif } from './pourInfo';
 import { changementsTache } from './historique';
@@ -13,7 +13,7 @@ import { aPrendreOuverte, auteurAPrendre, epurerAPrendre, proposeeA } from './aP
 import { migrate } from './migrate';
 import { ajouterSuivante, preparerSuivante } from './suivante';
 import type { CloudMode, DemoMode, Store } from './storeTypes';
-import { appliquerCommentaire, commentairesDe, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
+import { ajouteesDe, appliquerCommentaire, commentairesDe, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
 import { usePileAnnulation } from './pileAnnulation';
 import { StoreCtx } from './storeCtx';
 
@@ -296,21 +296,56 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         return;
       }
       if (x.paiement) throw new Error('Pas de discussion sur un ticket de paiement');
-      if (!litDiscussion(x, user.id, myRoles, data.etiquettes)) throw new Error('Discussion réservée aux membres de l’étiquette');
+      const ajoutees = ajouteesDe(data, x);
+      if (!litDiscussion(x, user.id, myRoles, data.etiquettes, ajoutees)) throw new Error('Discussion réservée aux membres de l’étiquette');
       const avant = commentairesDe(data, x);
       const commentaires = appliquerCommentaire(avant, a, { moi: user.id, nom: fullName(user), admin: hasPermission(myRoles, 'admin.access'), le });
       const notifs = a.cle
         ? []
         : notifsCommentaire(
-            destinatairesCommentaire(x, avant, user.id, data.etiquettes).filter((id) => data.people.some((p) => p.id === id && p.actif)),
+            destinatairesCommentaire(x, avant, user.id, data.etiquettes, ajoutees).filter((id) => data.people.some((p) => p.id === id && p.actif)),
             { tache: x.id, titre: x.titre, moi: user.id, texte: a.texte ?? '', le },
           );
       update((d) => {
-        d.discussions = { ...d.discussions, [x.id]: { tache: x.id, commentaires } };
+        d.discussions = { ...d.discussions, [x.id]: { ...d.discussions?.[x.id], tache: x.id, commentaires } };
         // Messages d'avant 062 restés dans la tâche : ils sont maintenant dans sa discussion.
         if (x.commentaires) d.tasks = d.tasks.map((y) => (y.id === x.id ? { ...y, commentaires: undefined } : y));
         avecNotifs(d, notifs);
       }, `${fullName(user)} a ${a.supprimer ? 'retiré un commentaire de' : a.cle ? 'corrigé un commentaire sur' : 'commenté'} le point « ${x.titre} »`, { annulable: false });
+    },
+    [user, data, cloud, update, myRoles, espaceId],
+  );
+
+  // Personne ajoutée à une discussion (063) : version réelle, le serveur l'ajoute, la prévient et lui envoie la tâche,
+  // puis la discussion est relue ; démo : ici, mêmes règles (qui lit la discussion ajoute ou retire ; on se retire soi-même).
+  const ajouterADiscussion = useCallback(
+    async (tacheId: string, fiche: string, retirer = false) => {
+      if (!user) throw new Error('Connecte-toi d’abord.');
+      const x = data.tasks.find((y) => y.id === tacheId);
+      if (!x) throw new Error('Point introuvable');
+      if (cloud) {
+        await cloud.sync.flushNow();
+        await ajouterServeur(espaceId, x.id, fiche, retirer);
+        const fresh = await cloud.sync.fetchRows([{ kind: 'discussions', id: x.id }]);
+        setData((prev) => applyRows(prev, fresh, cloud.sync.posOf));
+        return;
+      }
+      if (x.paiement) throw new Error('Pas de discussion sur un ticket de paiement');
+      const ajoutees = ajouteesDe(data, x);
+      if (!litDiscussion(x, user.id, myRoles, data.etiquettes, ajoutees)) throw new Error('Tu ne lis pas cette discussion');
+      const p = data.people.find((y) => y.id === fiche);
+      if (!retirer && !p?.actif) throw new Error('Personne introuvable');
+      if (retirer ? !ajoutees.includes(fiche) : ajoutees.includes(fiche)) return;
+      const nom = fullName(p);
+      update((d) => {
+        const disc = d.discussions?.[x.id];
+        const suite = retirer ? ajoutees.filter((id) => id !== fiche) : [...ajoutees, fiche];
+        d.discussions = { ...d.discussions, [x.id]: { tache: x.id, commentaires: disc?.commentaires ?? commentairesDe(d, x), participants: suite } };
+        if (!retirer && fiche !== user.id)
+          avecNotifs(d, [{ id: uid('n'), userId: fiche, type: 'discussion', taskId: x.id, by: user.id, at: new Date().toISOString(), titre: x.titre }]);
+      }, retirer
+        ? fiche === user.id ? `${fullName(user)} a quitté la discussion de « ${x.titre} »` : `${nom} retiré(e) de la discussion de « ${x.titre} »`
+        : `${nom} ajouté(e) à la discussion de « ${x.titre} »`, { annulable: false });
     },
     [user, data, cloud, update, myRoles, espaceId],
   );
@@ -352,7 +387,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
         const lues = prev.discussionsLues?.[userId] ?? {};
         // Ses notifications 💬 et 📣 sont lues du même coup.
         const seen = new Set(prev.notifLues?.[userId] ?? []);
-        const notifs = (prev.notifications ?? []).filter((n) => n.userId === userId && (n.type === 'comment' || n.type === 'mention') && n.taskId === cle && !seen.has(n.id));
+        const notifs = (prev.notifications ?? []).filter((n) => n.userId === userId && (n.type === 'comment' || n.type === 'mention' || n.type === 'discussion') && n.taskId === cle && !seen.has(n.id));
         if ((lues[cle] ?? '') >= dernier && !notifs.length) return prev;
         notifs.forEach((n) => seen.add(n.id));
         // Les 400 discussions lues le plus récemment suffisent.
@@ -509,8 +544,9 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     user,
     myRoles,
     can,
-    canSeeTask: (t) => voitTache(t, user?.id, myRoles, data.etiquettes),
-    canReadDiscussion: (t) => litDiscussion(t, user?.id, myRoles, data.etiquettes),
+    // Personne ajoutée à la discussion (063) : elle voit aussi la tâche.
+    canSeeTask: (t) => voitTache(t, user?.id, myRoles, data.etiquettes) || (!!user && !t.paiement && ajouteesDe(data, t).includes(user.id)),
+    canReadDiscussion: (t) => litDiscussion(t, user?.id, myRoles, data.etiquettes, ajouteesDe(data, t)),
     canEditTask,
     canDeleteTask: (t) => can('tasks.delete', t.sectionId),
     canAssignOthers: (sec) => can('tasks.createAny', sec) || can('tasks.editAny', sec),
@@ -529,6 +565,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     pasDispo,
     vuPourInfo,
     commenter,
+    ajouterADiscussion,
     relancerPourInfo,
     peutRelancer: (t) => !!user && !t.paiement && (t.createdBy === user.id || t.responsables.includes(user.id) || can('tasks.editAny', t.sectionId)),
     toast,

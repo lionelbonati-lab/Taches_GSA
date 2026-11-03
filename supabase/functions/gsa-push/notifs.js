@@ -396,11 +396,11 @@ function computeNotifications(data, user, p, demandesMdp = []) {
   const mentions = new Set(p.messages ? (data.notifications ?? []).filter((n) => n.userId === user.id && n.type === "mention").map(memeMessage) : []);
   for (const n of data.notifications ?? []) {
     if (n.userId !== user.id) continue;
-    const message = n.type === "comment" || n.type === "mention";
+    const message = n.type === "comment" || n.type === "mention" || n.type === "discussion";
     const nouvelle = ["assign", "info", "propose", "pris", "refus", "relance"].includes(n.type);
     if (message ? !p.messages : nouvelle ? !p.assign : !p.modif) continue;
     if (n.type === "comment" && mentions.has(memeMessage(n))) continue;
-    if (n.type === "comment" || n.type === "mention" || n.type === "relance") {
+    if (n.type === "comment" || n.type === "mention" || n.type === "discussion" || n.type === "relance") {
       const ici = data.tasks.find((x) => x.id === n.taskId);
       const titre = ici?.titre ?? n.titre;
       if (titre === void 0) continue;
@@ -421,7 +421,7 @@ function computeNotifications(data, user, p, demandesMdp = []) {
       items.push({
         key: n.id,
         icon: n.type === "mention" ? "📣" : "💬",
-        text: `${auteur} ${n.type === "mention" ? "te mentionne dans" : "a commenté"} « ${titre} »`,
+        text: `${auteur} ${n.type === "mention" ? "te mentionne dans" : n.type === "discussion" ? "t’ajoute à la discussion de" : "a commenté"} « ${titre} »`,
         sub: n.detail,
         link: `/taches?tache=${n.taskId}&discussion=1`,
         at: n.at,

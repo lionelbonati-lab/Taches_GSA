@@ -1,9 +1,9 @@
 import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react';
 import { useStore } from '../../data/store';
-import { COMMENTAIRE_MAX, dernierMessage, parMoi, type ActionCommentaire } from '../../data/commentaires';
+import { COMMENTAIRE_MAX, ajouteesDe, dernierMessage, parMoi, type ActionCommentaire } from '../../data/commentaires';
 import { etiquettesDe } from '../../data/permissions';
 import type { Commentaire } from '../../data/types';
-import { addDays, fmtDate, fmtDateTime, localNow } from '../../data/utils';
+import { addDays, fmtDate, fmtDateTime, fullName, localNow } from '../../data/utils';
 import { AvecLiens } from '../Liens';
 import { ZoneTexte } from '../ZoneTexte';
 import { Modal } from '../ui';
@@ -35,10 +35,11 @@ export const quandMessage = (iso: string) => {
  * les siens ; un admin retire n'importe lequel. Les personnes concernées sont prévenues (🔔).
  * Ouverte, elle est lue (pastille des cartes) ; les messages arrivés depuis la dernière lecture suivent un repère.
  * `actions` : boutons de plus dans l'en-tête (ex. ouvrir la tâche).
- * Tâche étiquetée (062) : réservée aux membres de ses étiquettes, rappelé en tête.
+ * Tâche étiquetée (062) : réservée aux membres de ses étiquettes, rappelé en tête. Qui lit la discussion y ajoute une
+ * personne du club, même hors de ces étiquettes (063), ou retire une personne ajoutée ; chacun peut s'en retirer.
  */
 export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { titre: string; liste?: Commentaire[]; tacheId: string; actions?: ReactNode; onClose: () => void }) {
-  const { data, user, can, commenter, discussionLue, discussionLueLe } = useStore();
+  const { data, user, can, commenter, ajouterADiscussion, discussionLue, discussionLueLe } = useStore();
   const cle = tacheId;
   const [texte, setTexte] = useState('');
   const [corrige, setCorrige] = useState<{ id: string; texte: string } | null>(null);
@@ -48,6 +49,13 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
   const repere = useRef<HTMLLIElement>(null);
   const tache = data.tasks.find((t) => t.id === tacheId);
   const reservee = tache ? etiquettesDe(tache, data.etiquettes) : [];
+  // Personnes ajoutées (063) ; à proposer : les personnes actives qui ne la lisent pas déjà de droit ou par ajout.
+  const ajoutees = tache ? ajouteesDe(data, tache) : [];
+  const [ajout, setAjout] = useState(false);
+  const nomDe = (id: string) => fullName(data.people.find((p) => p.id === id)) || '?';
+  const candidats = data.people
+    .filter((p) => p.actif && fullName(p) && p.id !== user?.id && !ajoutees.includes(p.id) && !reservee.some((e) => e.membres.includes(p.id)))
+    .sort((a, b) => fullName(a).localeCompare(fullName(b), 'fr'));
   // Messages des autres arrivés depuis la dernière lecture, à l'ouverture : le premier est repéré.
   const [nonLus] = useState(() => {
     const lu = discussionLueLe(cle);
@@ -84,6 +92,17 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
   const envoyer = () => {
     if (texte.trim() && !busy) void agir({ texte }, () => setTexte(''));
   };
+  const changerAjout = async (fiche: string, retirer: boolean) => {
+    setBusy(true);
+    setErr('');
+    try {
+      await ajouterADiscussion(tacheId, fiche, retirer);
+      setAjout(false);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    }
+    setBusy(false);
+  };
   // Entrée envoie, Maj+Entrée passe à la ligne ; sur écran tactile, Entrée passe à la ligne (le bouton envoie).
   // Ctrl+Entrée (⌘+Entrée) envoie partout.
   const raccourci = (e: KeyboardEvent, faire: () => void) => {
@@ -101,6 +120,47 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
           <p className="discussion-reservee">
             🔒 Réservée aux membres de {reservee.length > 1 ? 'ses étiquettes' : 'l’étiquette'} {reservee.map((e) => `« ${e.nom} »`).join(', ')}
           </p>
+        )}
+        {/* Personnes ajoutées à la discussion (063) : chacune se retire (✕) ; soi-même : « Quitter ». */}
+        {(ajoutees.length > 0 || candidats.length > 0) && (
+        <div className="discussion-avec" aria-label="Personnes ajoutées à la discussion">
+          {ajoutees.length > 0 && <span className="muted">{reservee.length ? 'Aussi :' : 'Ajoutées :'}</span>}
+          {ajoutees.map((id) => (
+            <span key={id} className="discussion-personne">
+              {nomDe(id)}
+              {id === user.id ? (
+                <button type="button" className="btn link small" disabled={busy} onClick={() => confirm('Quitter cette discussion ? Tu ne la verras plus.') && void changerAjout(id, true)}>
+                  Quitter
+                </button>
+              ) : (
+                <button type="button" className="icon-btn" disabled={busy} aria-label={`Retirer ${nomDe(id)} de la discussion`} title="Retirer de la discussion" onClick={() => void changerAjout(id, true)}>
+                  ✕
+                </button>
+              )}
+            </span>
+          ))}
+          {ajout ? (
+            <select
+              autoFocus
+              aria-label="Personne à ajouter à la discussion"
+              defaultValue=""
+              disabled={busy}
+              onChange={(e) => e.target.value && void changerAjout(e.target.value, false)}
+              onBlur={() => setAjout(false)}
+            >
+              <option value="">Choisir une personne…</option>
+              {candidats.map((p) => (
+                <option key={p.id} value={p.id}>{fullName(p)}</option>
+              ))}
+            </select>
+          ) : (
+            candidats.length > 0 && (
+              <button type="button" className="btn link small" disabled={busy} onClick={() => setAjout(true)} title="Elle lit la discussion et voit le point, même hors de ses étiquettes">
+                + Ajouter quelqu’un
+              </button>
+            )
+          )}
+        </div>
         )}
         <div ref={fil} className="discussion-fil">
           {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par le point sont prévenues 🔔.</p>}

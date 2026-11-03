@@ -73,6 +73,8 @@ export interface Store {
   vuPourInfo: (tacheId: string) => Promise<void>;
   /** Discussion sur une tâche (049) : ajoute, corrige ou retire un commentaire ; les personnes concernées sont prévenues. */
   commenter: (tacheId: string, a: ActionCommentaire) => Promise<void>;
+  /** Ajoute la personne `fiche` à la discussion de la tâche (063), ou l'en retire (`retirer`, soi-même compris). */
+  ajouterADiscussion: (tacheId: string, fiche: string, retirer?: boolean) => Promise<void>;
   /**
    * Relance (052) d'une tâche « Pour info » : les personnes attendues qui ne l'ont pas encore vue reçoivent une
    * notification 🔔. Auteur, responsables, « Modifier toutes les tâches » ; une fois par heure au plus. Renvoie le nombre

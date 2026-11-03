@@ -9,6 +9,9 @@ import { uid } from './utils';
 export const commentairesDe = (d: Pick<AppData, 'discussions'>, t: Pick<Task, 'id' | 'commentaires'>): Commentaire[] =>
   d.discussions?.[t.id]?.commentaires ?? t.commentaires ?? [];
 
+/** Personnes ajoutées à la discussion de la tâche (063, fiches). */
+export const ajouteesDe = (d: Pick<AppData, 'discussions'>, t: Pick<Task, 'id'>): string[] => d.discussions?.[t.id]?.participants ?? [];
+
 export const COMMENTAIRE_MAX = 2000;
 export const COMMENTAIRES_MAX = 200;
 
@@ -57,14 +60,21 @@ export function appliquerCommentaire(liste: Commentaire[] = [], a: ActionComment
 }
 
 /**
- * Personnes à prévenir d'un nouveau commentaire : responsables, auteur de la tâche et ceux qui ont déjà commenté
- * (`liste`), sans l'auteur du commentaire (`moi`) ; tâche étiquetée (062) : seulement les membres de ses étiquettes.
+ * Personnes à prévenir d'un nouveau commentaire : responsables, auteur de la tâche, ceux qui ont déjà commenté (`liste`)
+ * et les personnes ajoutées à la discussion (`ajoutees`, 063), sans l'auteur du commentaire (`moi`) ; tâche étiquetée
+ * (062) : seulement ceux qui lisent la discussion (membres de ses étiquettes, personnes ajoutées).
  */
-export function destinatairesCommentaire(t: Pick<Task, 'responsables' | 'createdBy' | 'etiquettes'>, liste: Commentaire[], moi: string, etiquettes?: Etiquette[]) {
-  const r = new Set<string>([...(t.responsables ?? []), t.createdBy, ...liste.map((c) => c.par)].filter(Boolean));
+export function destinatairesCommentaire(
+  t: Pick<Task, 'responsables' | 'createdBy' | 'etiquettes'>,
+  liste: Commentaire[],
+  moi: string,
+  etiquettes?: Etiquette[],
+  ajoutees: string[] = [],
+) {
+  const r = new Set<string>([...(t.responsables ?? []), t.createdBy, ...liste.map((c) => c.par), ...ajoutees].filter(Boolean));
   r.delete(moi);
   const siennes = etiquettesDe(t, etiquettes);
-  return [...r].filter((id) => !siennes.length || siennes.some((x) => x.membres.includes(id)));
+  return [...r].filter((id) => !siennes.length || ajoutees.includes(id) || siennes.some((x) => x.membres.includes(id)));
 }
 
 /** Aperçu du commentaire dans la notification. */

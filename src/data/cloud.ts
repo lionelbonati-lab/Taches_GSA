@@ -824,6 +824,12 @@ export async function pourInfoVu(unite: string, tache: string, depuis: string) {
  * Discussion (049) : ajoute un commentaire sur la tâche `tache` de l'entité `unite`, depuis l'entité ouverte `depuis` (la
  * même ou une autre du club), ou corrige / retire le commentaire `cle`. Le serveur prévient les personnes concernées.
  */
+/** Discussion (063) : ajoute la personne `fiche` à la discussion de la tâche `tache` (ou l'en retire). */
+export async function ajouterADiscussion(unite: string, tache: string, fiche: string, retirer = false) {
+  const { error } = await sb().rpc('gsa_discussion_ajouter', { unite, tache, fiche, retirer });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore l’ajout d’une personne à une discussion (mise à jour 063 à appliquer).' : error.message);
+}
+
 export async function commenterTache(unite: string, tache: string, depuis: string, a: { texte?: string; cle?: string; supprimer?: boolean }) {
   const { error } = await sb().rpc('gsa_commenter', { unite, tache, depuis, texte: a.texte ?? null, cle: a.cle ?? null, supprimer: !!a.supprimer });
   if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore la discussion sur les points (mise à jour 049 à appliquer).' : error.message);

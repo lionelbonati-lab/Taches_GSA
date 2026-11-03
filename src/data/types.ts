@@ -610,11 +610,11 @@ export interface ActivityNotif {
   userId: string;
   /**
    * info : mentionné « pour info » ; propose : tâche à prendre proposée ; pris : quelqu'un s'en charge, refus : quelqu'un
-   * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur) ; mention : « @Prénom Nom » dans un commentaire (mentions abandonnées : seulement les anciennes, encore affichées) ; relance : rappel d'une tâche
+   * n'est pas dispo (à l'auteur de la tâche) ; comment : nouveau commentaire sur la tâche (049, écrit par le serveur) ; mention : « @Prénom Nom » dans un commentaire (mentions abandonnées : seulement les anciennes, encore affichées) ; discussion : la personne a été ajoutée à la discussion de la tâche (063, écrit par le serveur) ; relance : rappel d'une tâche
    * « Pour info » pas encore vue (052) ; toutVu : à l'auteur, tout
    * le monde l'a marquée « ✓ Vu » (052).
    */
-  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus' | 'comment' | 'mention' | 'relance' | 'toutVu';
+  type: 'assign' | 'modif' | 'recur' | 'info' | 'propose' | 'pris' | 'refus' | 'comment' | 'mention' | 'discussion' | 'relance' | 'toutVu';
   taskId: string;
   by: string;
   at: string;
@@ -667,6 +667,11 @@ export interface DiscussionTache {
   tache: string;
   /** Du plus ancien au plus récent. */
   commentaires: Commentaire[];
+  /**
+   * Personnes ajoutées à la discussion (063, fiches) : elles la lisent même si elle est réservée aux membres des
+   * étiquettes de la tâche, voient la tâche et sont prévenues des messages.
+   */
+  participants?: string[];
 }
 
 /**

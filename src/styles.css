@@ -456,6 +456,11 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 .discussion-vide { margin: 24px auto; max-width: 300px; text-align: center; color: var(--muted); font-size: 0.9rem; }
 /* Discussion d'une tâche étiquetée (062) : réservée aux membres de ses étiquettes, rappelé en tête. */
 .discussion-reservee { margin: 0 0 6px; padding: 6px 10px; border-radius: 8px; background: var(--surface2); color: var(--muted); font-size: 0.85rem; }
+/* Personnes ajoutées à la discussion (063), et « + Ajouter quelqu'un ». */
+.discussion-avec { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 6px; padding: 0 10px; font-size: 0.85rem; }
+.discussion-avec select { max-width: 100%; font-size: 0.85rem; padding: 3px 6px; }
+.discussion-personne { display: inline-flex; align-items: center; gap: 2px; padding: 1px 2px 1px 9px; border-radius: 999px; background: var(--surface2); }
+.discussion-personne .icon-btn { padding: 1px 6px; font-size: 0.8rem; }
 .discussion-liste { list-style: none; margin: auto 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .discussion-jour, .discussion-nouveaux { align-self: center; margin: 8px 0 4px; padding: 2px 10px; border-radius: 999px; font-size: 0.75rem; }
 .discussion-jour { background: var(--surface); color: var(--muted); box-shadow: var(--shadow); }
