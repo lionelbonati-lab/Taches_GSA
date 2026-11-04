@@ -115,7 +115,9 @@ export function Minutes() {
   const [view, setView] = useState<'saisie' | 'pv'>('saisie');
   const [edit, setEdit] = useState<{ task: Task; isNew: boolean } | null>(null);
   // Tâche ouverte depuis le PV : on compare avant / après pour l'inscrire au PV.
-  const [pending, setPending] = useState<{ id: string; before?: TaskSnapshot; tache?: Task; isNew: boolean } | null>(null);
+  // Fiche ouverte depuis le PV ; `ids` : les tâches qui existaient à son ouverture, `enfants` : ses points rattachés d'alors
+  // (pour inscrire au PV ceux créés ou rattachés depuis la fiche : « + Nouveau point rattaché », « Rattacher… »).
+  const [pending, setPending] = useState<{ id: string; before?: TaskSnapshot; tache?: Task; isNew: boolean; ids?: string[]; enfants?: string[] } | null>(null);
   const [openNotes, setOpenNotes] = useState<Record<string, boolean>>({});
   const [msg, setMsg] = useState('');
   // Après « Valider et archiver » : page de dépôt ouverte (ou bloquée par le navigateur) et PDF en cours, créé ou raté.
@@ -232,6 +234,25 @@ export function Minutes() {
       setMinutes((x, d) => { x.supprimees = [...(x.supprimees ?? []), pending.before!.titre]; if (tache) retenir(x, d, tache.id, tache); }, { suite: true });
     } else if (t && pending.before) {
       record(t, diffTask(data, pending.before, t), tache, true);
+    }
+    // Points rattachés depuis la fiche (sous-points) : inscrits au PV, comme une tâche décidée en séance (créés), ou avec
+    // le rattachement dans le journal (points existants) ; figé : ajoutés aux points du PV.
+    if (t && pending.ids) {
+      const existaient = new Set(pending.ids);
+      const enfants = data.tasks.filter((x) => x.parentId === t.id && !pending.enfants?.includes(x.id));
+      if (enfants.length)
+        setMinutes((x, d) => {
+          for (const c of enfants) {
+            if (existaient.has(c.id)) {
+              x.journal = [...(x.journal ?? []), { taskId: c.id, titre: c.titre, changes: [`rattaché à « ${t.titre} »`], at: new Date().toISOString() }];
+              retenir(x, d, c.id, { ...structuredClone(c), parentId: undefined });
+            } else {
+              x.nouvelles = [...(x.nouvelles ?? []), c.id];
+              retenir(x, d, c.id, null);
+            }
+            if (x.etats && !x.etats[c.id]) x.etats = { ...x.etats, [c.id]: { ...stateOf(c), rang: 'p1' } };
+          }
+        }, { suite: true });
     }
     setPending(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -372,7 +393,10 @@ export function Minutes() {
   const openTask = (t: Task) => {
     const live = vivante(t);
     setEdit({ task: live, isNew: false });
-    setPending({ id: t.id, before: stateOf(live), tache: structuredClone(live), isNew: false });
+    setPending({
+      id: t.id, before: stateOf(live), tache: structuredClone(live), isNew: false,
+      ids: data.tasks.map((x) => x.id), enfants: data.tasks.filter((x) => x.parentId === live.id).map((x) => x.id),
+    });
   };
   const addTask = (sectionId: string) => {
     if (!user) return;

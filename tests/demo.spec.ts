@@ -2280,3 +2280,80 @@ test('filtres des points : étiquette et événement aussi d’office (place, é
   await expect(nombre).toHaveText('2');
   await expect(note).toHaveCount(0);
 });
+
+test('PV repris après la séance : un sous-point créé ou rattaché depuis la fiche d’un point s’affiche sous lui', async ({ page }) => {
+  page.on('dialog', (d) => void d.accept());
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Séance il y a 5 jours, PV repris après coup (figé) : « Point figé » à son ordre du jour ; « Point à part », plus tard.
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const aFaire = d.statuses.filter((s: { done: boolean }) => !s.done)[0].id;
+    d.meetings = d.meetings.filter((m: { date: string }) => !(m.date >= j.seance && m.date < j.auj));
+    d.meetings.push({ id: 'm-fige', titre: 'Comité figé', date: j.seance, heure: '19:30', lieu: '', minutes: { presents: [], excuses: [], notes: {}, demarreLe: `${j.seance}T17:30:00.000Z` } });
+    const moi = d.people[0].id;
+    const t = (id: string, titre: string, delai: string) => ({ id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: aFaire, delai, remarque: '', checklist: [], createdBy: moi, updatedAt: `${j.avant}T12:00:00.000Z` });
+    d.tasks.push(t('f3', 'Point figé', j.seance), t('f4', 'Point à part', j.loin));
+    localStorage.setItem(k, JSON.stringify(d));
+    const creee = { le: `${j.avant}T09:00:00.000Z`, par: 'x', nom: 'Julien Moreau', quoi: 'creee', champs: {} };
+    localStorage.setItem('taches-gsa-demo-historique', JSON.stringify({ 'u-central': { f3: [creee], f4: [creee] } }));
+  }, { k: cle, j: { seance: dansJours(-5), avant: dansJours(-8), auj: dansJours(0), loin: dansJours(200) } });
+  await page.reload();
+  await allerA(page, '/pv?seance=m-fige');
+  await expect(page.locator('.pv-fige')).toContainText('tels qu’à la fin de la séance');
+
+  // Fiche ouverte depuis le PV : un nouveau point rattaché (délai lointain), puis un point existant rattaché.
+  const ouvrir = async () => {
+    await page.locator('.min-task[data-point="Point figé"]').getByRole('button', { name: 'Point figé' }).click();
+    const fiche = page.locator('.modal').first();
+    if (!(await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).count())) await fiche.getByRole('button', { name: 'Rattacher à…' }).click();
+    return fiche;
+  };
+  let fiche = await ouvrir();
+  await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).click();
+  const enfant = page.locator('.modal').last();
+  await enfant.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Sous-point décidé au PV');
+  await enfant.getByLabel('Pour quand ?').first().fill(dansJours(200));
+  await enfant.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(1);
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const sous = page.locator('.min-task.child[data-point="Sous-point décidé au PV"]');
+  await expect(sous).toBeVisible();
+  await expect(sous).toContainText('nouvelle');
+
+  fiche = await ouvrir();
+  await fiche.getByRole('button', { name: 'Rattacher un point existant' }).click();
+  await fiche.locator('select', { has: page.locator('option', { hasText: '— Choisir le point à rattacher —' }) }).selectOption({ label: `Point à part (${dansJours(200).split('-').reverse().join('.')})` });
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const rattache = page.locator('.min-task.child[data-point="Point à part"]');
+  await expect(rattache).toBeVisible();
+  await expect(rattache.locator('.min-changes')).toContainText('rattaché à « Point figé »');
+
+  // Rechargé : toujours là.
+  await page.reload();
+  await allerA(page, '/pv?seance=m-fige');
+  await expect(page.locator('.min-task.child[data-point="Sous-point décidé au PV"]')).toBeVisible();
+  await expect(page.locator('.min-task.child[data-point="Point à part"]')).toBeVisible();
+});
+
+test('PV en cours : un sous-point créé depuis la fiche d’un point s’affiche sous lui, même avec un délai lointain', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const nouveau = await nouvelleTache(page, 'Point du PV');
+  await nouveau.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await allerA(page, '/pv');
+  await page.locator('.min-task[data-point="Point du PV"]').getByRole('button', { name: 'Point du PV' }).click();
+  const fiche = page.locator('.modal').first();
+  if (!(await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).count())) await fiche.getByRole('button', { name: 'Rattacher à…' }).click();
+  await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).click();
+  const enfant = page.locator('.modal').last();
+  await enfant.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Sous-point lointain');
+  await enfant.getByLabel('Pour quand ?').first().fill(dansJours(200));
+  await enfant.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(1);
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.min-task.child[data-point="Sous-point lointain"]')).toBeVisible();
+});
