@@ -474,7 +474,7 @@ function Lists() {
             {data.statuses.map((s, i) => {
               const used = data.tasks.filter((t) => t.statusId === s.id).length;
               return (
-                <div key={s.id + s.label} className="panel row">
+                <div key={s.id + s.label} className="panel row statut-ligne">
                   <input type="color" value={s.couleur} aria-label={`Couleur du statut ${s.label}`} onChange={(e) => update((d) => { d.statuses[i].couleur = e.target.value; }, `Couleur du statut « ${s.label} » modifiée`)} />
                   <input className="grow" defaultValue={s.label} aria-label={`Nom du statut ${s.label}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.label) update((d) => { d.statuses[i].label = v; }, `Statut « ${s.label} » renommé en « ${v} »`); }} />
                   <label className="inline" title="Un point dans ce statut compte comme terminé : bilan des points terminés dans l’ordre du jour, jamais en retard, archivé le lendemain de sa séance">

@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('pages principales à la largeur de l’écran', async ({ page }) => {
-  for (const h of ['/', '/taches', '/messages', '/agenda', '/comite', '/sondages', '/reglages']) {
+  for (const h of ['/', '/taches', '/messages', '/agenda', '/comite', '/sondages', '/reglages', '/etiquettes', '/evenements', '/admin/taches']) {
     await test.step(h, async () => {
       await page.goto('./?demo#' + h);
       await expect(page.locator('main h1, main h2').first()).toBeVisible();

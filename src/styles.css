@@ -1075,7 +1075,11 @@ html.clavier :is(.fab, .fab-menu, .fab-back, .bottomnav) { display: none; }
   .content { padding: 16px 16px 150px; }
   h1 { font-size: 1.3rem; }
   .cards { grid-template-columns: 1fr; }
-  .grid2 { grid-template-columns: 1fr; gap: 0; }
+  /* Une colonne qui peut rétrécir : ses lignes (statuts, sections…) s'y resserrent au lieu d'élargir la page. */
+  .grid2 { grid-template-columns: minmax(0, 1fr); gap: 0; }
+  /* Statut : sa couleur et son nom sur une ligne, « Terminé », ↑ et « Supprimer » dessous. */
+  .statut-ligne { flex-wrap: wrap; }
+  .statut-ligne input.grow { flex: 1 1 calc(100% - 60px); min-width: 0; }
   .form { grid-template-columns: minmax(0, 1fr); }
     .actions { width: 100%; }
   .actions .btn.primary:not(.toujours) { display: none; }
