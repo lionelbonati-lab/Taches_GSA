@@ -216,8 +216,11 @@ export function GroupeSection({ s, peut, titre }: { s: Section; peut: boolean; t
   );
 }
 
-/** Case « Étiquette » d'un événement (page Étiquettes) : enregistrée tout de suite ; sa sous-section dans « Événements ». */
-export function EvenementEtiquette({ ev, peut }: { ev: ClubEvent; peut: boolean }) {
+/**
+ * Case « Étiquette » d'un événement (page Étiquettes) : enregistrée tout de suite ; sa sous-section dans « Événements ».
+ * `etat` : où en est un événement passé (« passé · 2 points pas terminés »).
+ */
+export function EvenementEtiquette({ ev, peut, etat }: { ev: ClubEvent; peut: boolean; etat?: string }) {
   const { data, update } = useStore();
   const deja = etiquetteDeLEvenement(data, ev.id);
   const c = useCreation(ev.nom, ev.date, (x) =>
@@ -240,6 +243,7 @@ export function EvenementEtiquette({ ev, peut }: { ev: ClubEvent; peut: boolean 
         <input type="checkbox" checked={!!deja || !!c.choix} disabled={!peut} aria-label={`Étiquette de l’événement ${ev.nom}`} onChange={(e) => cocher(e.target.checked)} />
         <b>{ev.nom}</b> <small className="muted">{fmtRange(ev.date, ev.dateFin)}{ev.repetition ? ' 🔁' : ''}</small>
       </label>
+      {etat && <small className="etat-passe">{etat}</small>}
       <ChoixReprise nom={`l’événement ${ev.nom}`} c={c} bouton="Créer l’étiquette" />
       {deja && (
         <EtiquetteReglee e={deja} peut={peut} deplie={c.cree} detail={lieu ? nomLieu(lieu, data.sections) : undefined}

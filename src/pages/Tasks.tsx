@@ -11,7 +11,7 @@ import { CircuitPaiements } from '../components/Tickets';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { APrendreTag, Avatar, DocPollIcons, Empty, EtiquettesTag, LinkIcon, PourInfoTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
-import { lieuxDe } from '../data/etiquettes';
+import { etiquettesRangees, evenementPasse, lieuxDe } from '../data/etiquettes';
 import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
@@ -187,8 +187,10 @@ function ListeTaches() {
   const sousDe = (x?: typeof sec) =>
     x ? [...new Set([...x.sousSections, ...data.tasks.filter((t) => t.sectionId === x.id && t.sousSection).map((t) => t.sousSection)])] : [];
   const activeFilters = Object.entries(f).filter(([, v]) => v).length;
-  // Filtre « Événement » : ceux qui ont des tâches avec les autres filtres.
-  const evenementsChoix = data.events.filter((e) => evenementsAvec.has(e.id) || e.id === f.event);
+  // Filtre « Événement » : ceux qui ont des tâches avec les autres filtres, par date (les passés à part).
+  const evenementsChoix = data.events.filter((e) => evenementsAvec.has(e.id) || e.id === f.event).sort((a, b) => a.date.localeCompare(b.date));
+  // Filtre « Étiquette » : les groupes, les événements à venir, puis les passés à part.
+  const rangees = etiquettesRangees(data.etiquettes, data.events);
 
   const setStatus = (t: Task, statusId: string) => {
     if (t.statusId === statusId || !canEditTask(t) || t.paiement) return; // remboursement / paiement : suit son circuit
@@ -259,7 +261,13 @@ function ListeTaches() {
         {!!data.etiquettes?.length && (
           <select value={f.etiquette} onChange={(e) => setF({ ...f, etiquette: e.target.value })} aria-label="Étiquette">
             <option value="">Toutes étiquettes</option>
-            {data.etiquettes.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+            {rangees.groupes.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+            {rangees.aVenir.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+            {rangees.passees.length > 0 && (
+              <optgroup label="Événements passés">
+                {rangees.passees.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+              </optgroup>
+            )}
           </select>
         )}
         <select value={f.section} onChange={(e) => setF({ ...f, section: e.target.value, sous: '' })}>
@@ -283,7 +291,12 @@ function ListeTaches() {
         </select>
         <select value={f.event} onChange={(e) => setF({ ...f, event: e.target.value })} aria-label="Événement">
           <option value="">Tous événements</option>
-          {evenementsChoix.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+          {evenementsChoix.filter((e) => !evenementPasse(e)).map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+          {evenementsChoix.some((e) => evenementPasse(e)) && (
+            <optgroup label="Événements passés">
+              {evenementsChoix.filter((e) => evenementPasse(e)).reverse().map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+            </optgroup>
+          )}
         </select>
         <select value={f.meeting} onChange={(e) => setF({ ...f, meeting: e.target.value })}>
           <option value="">Toutes séances</option>

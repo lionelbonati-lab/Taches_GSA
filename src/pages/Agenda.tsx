@@ -11,6 +11,7 @@ import { reprenable } from '../data/reprise';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
 import { BadgeEtiquette } from '../components/IconesEtiquette';
+import { Chronologie, type CibleChrono } from '../components/Chronologie';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
@@ -446,7 +447,8 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
 
 /**
  * Événements de l'agenda, et les étiquettes « événement » datées (Bruntrutaine, soirée…) avec l'avancement de leurs
- * tâches. Un événement de l'agenda et une étiquette du même jour, de même nom, vont ensemble.
+ * tâches. Un événement de l'agenda et une étiquette du même jour, de même nom, vont ensemble. Les événements passés sont
+ * repliés en bas (les plus récents d'abord) ; un clic sur un événement ouvre sa chronologie (Chronologie.tsx).
  */
 export function Events() {
   const { data, can } = useStore();
@@ -454,6 +456,7 @@ export function Events() {
   const [nouveau, setNouveau] = useState(false);
   // Événement passé repris pour une nouvelle édition, avec ses tâches (Reprise.tsx).
   const [reprise, setReprise] = useState<ClubEvent | null>(null);
+  const [chrono, setChrono] = useState<CibleChrono | null>(null);
   const cible = useCible('id');
   // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
   const jour = today();
@@ -465,6 +468,26 @@ export function Events() {
     ...data.events.map((e) => ({ date: affiche(e), e, et: etiquetteDe(e) })),
     ...seules.map((et) => ({ date: et.date!, e: undefined, et })),
   ].sort((a, b) => a.date.localeCompare(b.date) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? ''));
+  // Passé : son dernier jour est derrière nous (celui de l'occurrence affichée, pour un événement qui se répète).
+  const passe = (x: (typeof liste)[number]) => (x.e ? endOf(aLaDate(x.e, x.date)) : endOf({ date: x.date, dateFin: x.et?.dateFin })) < jour;
+  const aVenir = liste.filter((x) => !passe(x));
+  const passes = liste.filter(passe).reverse();
+
+  const carte = ({ e: serie, et, date }: (typeof liste)[number]) =>
+    serie ? (
+      <CarteEvenement
+        key={serie.id}
+        serie={serie}
+        date={date}
+        etiquette={et}
+        cible={estCible(cible, serie.id)}
+        onEdit={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}
+        onReprise={() => setReprise(serie)}
+        onChrono={() => setChrono({ serie, date, etiquette: et })}
+      />
+    ) : (
+      et && <CarteEtiquette key={`et:${et.id}`} et={et} onChrono={() => setChrono({ date: et.date!, etiquette: et })} />
+    );
 
   return (
     <div>
@@ -474,26 +497,19 @@ export function Events() {
       </div>
       <PageIntro />
       <div className="agenda">
-        {liste.map(({ e: serie, et, date }) =>
-          serie ? (
-            <CarteEvenement
-              key={serie.id}
-              serie={serie}
-              date={date}
-              etiquette={et}
-              cible={estCible(cible, serie.id)}
-              onEdit={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}
-              onReprise={() => setReprise(serie)}
-            />
-          ) : (
-            et && <CarteEtiquette key={`et:${et.id}`} et={et} />
-          ),
-        )}
-        {!liste.length && <Empty>Aucun événement.</Empty>}
+        {aVenir.map(carte)}
+        {!aVenir.length && <Empty>{passes.length ? 'Aucun événement à venir.' : 'Aucun événement.'}</Empty>}
       </div>
+      {passes.length > 0 && (
+        <details className="seances-passees evenements-passes" open={passes.some((x) => !!x.e && estCible(cible, x.e.id)) || undefined}>
+          <summary><Icone n="archives" /> Événements passés ({passes.length})</summary>
+          <div className="agenda">{passes.map(carte)}</div>
+        </details>
+      )}
       {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
       {nouveau && <EventModal event={newEvent()} onClose={() => setNouveau(false)} />}
       {reprise && <RepriseModal event={reprise} onClose={() => setReprise(null)} />}
+      {chrono && <Chronologie cible={chrono} onClose={() => setChrono(null)} />}
     </div>
   );
 }
@@ -507,13 +523,14 @@ function TachesEtiquette({ et }: { et: Etiquette }) {
       <BadgeEtiquette e={et} />{' '}
       <small className="muted">{et.membres?.length ?? 0} membre{(et.membres?.length ?? 0) > 1 ? 's' : ''}</small>
       {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
+      {!taches.length && ' '}
       <Link to={`/taches?etiquette=${encodeURIComponent(et.id)}`}>Points de l’étiquette →</Link>
     </div>
   );
 }
 
-/** Étiquette « événement » datée, sans événement du même jour dans l'agenda : ses tâches. */
-function CarteEtiquette({ et }: { et: Etiquette }) {
+/** Étiquette « événement » datée, sans événement du même jour dans l'agenda : ses tâches ; un clic, sa chronologie. */
+function CarteEtiquette({ et, onChrono }: { et: Etiquette; onChrono: () => void }) {
   const jour = today();
   const fin = endOf({ date: et.date!, dateFin: et.dateFin });
   const past = fin < jour;
@@ -521,18 +538,26 @@ function CarteEtiquette({ et }: { et: Etiquette }) {
   const quand = past ? '' : et.date! <= jour ? 'en cours' : `dans ${daysUntil(et.date!)} j`;
   return (
     <article className={`panel agenda-item etiquette-evenement ${past ? 'past' : ''}`} style={{ '--c': et.couleur } as React.CSSProperties}>
-      <DateBlock date={et.date!} fin={et.dateFin} />
+      <DateBlock date={et.date!} fin={et.dateFin} onClick={onChrono} />
       <div className="grow">
-        <strong>{et.nom}</strong>
+        <TitreEvenement nom={et.nom} onClick={onChrono} />
         <div className="muted">{['Événement (étiquette)', jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
         <TachesEtiquette et={et} />
+      </div>
+      <div className="agenda-actions">
+        <BoutonChrono onClick={onChrono} />
       </div>
     </article>
   );
 }
 
-/** Carte d'un événement (à la date `date` s'il se répète) : avancement de ses tâches ; `etiquette` : celle du même jour. */
-function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise }: { serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: () => void }) {
+/**
+ * Carte d'un événement (à la date `date` s'il se répète) : avancement de ses tâches ; `etiquette` : celle du même jour.
+ * Un clic sur son nom ou sa date ouvre sa chronologie.
+ */
+function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onChrono }: {
+  serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: () => void; onChrono: () => void;
+}) {
   const { data, can } = useStore();
   const jour = today();
   const e = aLaDate(serie, date);
@@ -544,9 +569,9 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise }: { 
   const suite = data.events.find((x) => x.repriseDe === serie.id);
   return (
     <article id={`cible-${serie.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
-      <DateBlock date={e.date} fin={e.dateFin} />
+      <DateBlock date={e.date} fin={e.dateFin} onClick={onChrono} />
       <div className="grow">
-        <strong>{e.nom}</strong>
+        <TitreEvenement nom={e.nom} onClick={onChrono} />
         <div className="muted">{[horaire(e), e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
         {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
         <p>{e.description}</p>
@@ -555,16 +580,19 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise }: { 
         {etiquette && <TachesEtiquette et={etiquette} />}
         {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
       </div>
-      {can('events.manage') && (
-        <div className="agenda-actions">
-          <button className="btn small" onClick={onEdit}>Modifier</button>
-          {past && reprenable(serie) && (
-            <button className="btn small" onClick={onReprise} title="Nouvelle édition de cet événement, avec ses points">
-              <Icone n="dupliquer" /> Reprendre
-            </button>
-          )}
-        </div>
-      )}
+      <div className="agenda-actions">
+        <BoutonChrono onClick={onChrono} />
+        {can('events.manage') && (
+          <>
+            <button className="btn small" onClick={onEdit}>Modifier</button>
+            {past && reprenable(serie) && (
+              <button className="btn small" onClick={onReprise} title="Nouvelle édition de cet événement, avec ses points">
+                <Icone n="dupliquer" /> Reprendre
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </article>
   );
 }
@@ -611,13 +639,32 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
 const linkedNote = (n: number) =>
   n ? <><Icone n="epingle" /> {n} point(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.</> : undefined;
 
-function DateBlock({ date, fin }: { date: string; fin?: string }) {
+/** Nom d'un événement : un clic ouvre sa chronologie. */
+function TitreEvenement({ nom, onClick }: { nom: string; onClick: () => void }) {
+  return (
+    <button type="button" className="titre-evenement" onClick={onClick} title="Voir la chronologie de ses points">
+      <strong>{nom}</strong>
+    </button>
+  );
+}
+
+/** « Chronologie » : les points de l'événement dans le temps, pour les planifier. */
+function BoutonChrono({ onClick }: { onClick: () => void }) {
+  return (
+    <button type="button" className="btn small" onClick={onClick} title="Les points de l’événement dans le temps, pour les planifier">
+      <Icone n="horloge" /> Chronologie
+    </button>
+  );
+}
+
+/** Date d'une carte ; `onClick` : elle ouvre la chronologie (le nom de l'événement aussi, pour le clavier). */
+function DateBlock({ date, fin, onClick }: { date: string; fin?: string; onClick?: () => void }) {
   const d = new Date(date + 'T12:00:00');
   // Sur plusieurs jours : « 27–28 févr. », « 30 juin–2 juil. ».
   const f = fin && fin > date ? new Date(fin + 'T12:00:00') : null;
   const mois = (x: Date) => x.toLocaleDateString('fr-CH', { month: 'short' });
   return (
-    <div className={`dateblock ${f ? 'multi' : ''}`}>
+    <div className={`dateblock ${f ? 'multi' : ''} ${onClick ? 'cliquable' : ''}`} onClick={onClick} aria-hidden={onClick ? true : undefined}>
       <b>{d.getDate()}{f && `–${f.getDate()}`}</b>
       <span>{f && mois(f) !== mois(d) ? `${mois(d)}–${mois(f)}` : mois(d)}</span>
       <small>{f && f.getFullYear() !== d.getFullYear() ? `${d.getFullYear()}–${String(f.getFullYear()).slice(2)}` : d.getFullYear()}</small>

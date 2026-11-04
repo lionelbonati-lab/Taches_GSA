@@ -18,12 +18,15 @@ import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
 import { IconeEtiquette } from '../components/IconesEtiquette';
 import { LieuSeance } from '../components/Liens';
+import { Chronologie, type CibleChrono } from '../components/Chronologie';
 
 export function Dashboard() {
   const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, setToast, vuPourInfo } = useStore();
   const [edit, setEdit] = useState<Task | null>(null);
   const [send, setSend] = useState<{ task: Task; email: ScheduledEmail } | null>(null);
   const [reglage, setReglage] = useState(false);
+  // Prochain événement ouvert : la chronologie de ses points.
+  const [chrono, setChrono] = useState<CibleChrono | null>(null);
   // Blocs et compteurs que la personne a choisi de voir sur cet appareil, dans son ordre (« Personnaliser »).
   const { appareil, blocs, compteurs } = useAccueil();
   // Mes tâches « Pour info » (auteur ou responsable), en cours : qui doit encore les voir (052 : personnes avec un compte).
@@ -245,19 +248,21 @@ export function Dashboard() {
               const done = tasks.filter((t) => isDone(data, t)).length;
               const x = et ? { date: et.date!, dateFin: et.dateFin } : e!;
               const quand = x.date <= jour ? 'en cours' : `dans ${daysUntil(x.date)} j`;
-              const lien = et ? `/taches?etiquette=${encodeURIComponent(et.id)}` : `/taches?event=${encodeURIComponent(e!.id)}`;
+              // Un clic : la chronologie de ses points (de là, la liste des points).
+              const serie = e ? data.events.find((y) => y.id === e.id) ?? e : undefined;
+              const ouvrir = () => setChrono(serie ? { serie, date: e!.date, etiquette: et } : { date: et!.date!, etiquette: et });
               return (
-                <Link key={et ? `et:${et.id}` : e!.id} to={lien} className="panel link-panel">
-                  <strong>
-                    {et ? et.nom : e!.nom}
+                <div key={et ? `et:${et.id}` : e!.id} className="panel link-panel lien-etendu prochain-evenement">
+                  <button type="button" className="titre-lien" onClick={ouvrir} title="Voir la chronologie de ses points">
+                    <strong>{et ? et.nom : e!.nom}</strong>
                     {et && <> <span className="badge etiquette" style={{ background: et.couleur }} title="Étiquette de l’événement : ses points"><IconeEtiquette e={et} /></span></>}
-                  </strong>
+                  </button>
                   <span>
                     {[fmtRange(x.date, x.dateFin), e && horaire(e), e?.lieu].filter(Boolean).join(' · ')}
                     {e?.repetition && <> <span title="Se répète" aria-label="se répète"><Icone n="repetition" /></span></>} <em className="muted">({quand})</em>
                   </span>
                   <Progress done={done} total={tasks.length} />
-                </Link>
+                </div>
               );
             })}
             {!nextEvents.length && <Empty>Aucun événement à venir.</Empty>}
@@ -304,6 +309,7 @@ export function Dashboard() {
       {edit && <TaskModal task={edit} isNew={false} onClose={() => setEdit(null)} />}
       {send && <EmailSend task={send.task} email={send.email} onClose={() => setSend(null)} />}
       {reglage && <AccueilModal onClose={() => setReglage(false)} />}
+      {chrono && <Chronologie cible={chrono} onClose={() => setChrono(null)} />}
     </div>
   );
 }

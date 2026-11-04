@@ -2029,3 +2029,84 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .etiquette-detail { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; padding: 6px 0 4px 26px; }
 .badge.etiquette { display: inline-flex; align-items: center; gap: 4px; }
 .badge.etiquette .icone-trait { vertical-align: 0; }
+
+/* Événements passés (Club › Étiquettes) : à part, avec ce que devient leur étiquette. */
+.etiquettes-passees { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border); }
+.etiquettes-passees > .groupe-section { padding: 6px 0; border-top: 1px solid var(--border); }
+.etiquettes-passees-aide { margin: 6px 0 8px; font-size: 0.88rem; max-width: 80ch; }
+.etat-passe { font-size: 0.78rem; color: var(--muted); background: var(--surface2); border-radius: 999px; padding: 1px 8px; }
+.reprise-etiquette { display: grid; gap: 6px; }
+.reprise-etiquette label.inline { align-items: flex-start; gap: 8px; }
+.reprise-etiquette input { width: auto; margin-top: 2px; }
+
+/* Agenda › Événements : un clic sur le nom (ou la date) d'un événement ouvre sa chronologie. */
+.titre-evenement { border: none; background: none; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.titre-evenement:hover strong, .titre-evenement:focus-visible strong { color: var(--primary); text-decoration: underline; }
+.dateblock.cliquable { cursor: pointer; }
+/* Accueil › Prochains événements : toute la carte ouvre la chronologie (le bouton du nom s'étend sur la carte). */
+.lien-etendu > button.titre-lien:first-child { border: none; background: none; padding: 0; margin: 0; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.lien-etendu > button.titre-lien:first-child::after { content: ''; position: absolute; inset: 0; border-radius: inherit; }
+.lien-etendu:has(> button.titre-lien:hover) { border-color: var(--primary); }
+
+/* Chronologie d'un événement : ses points dans le temps (avant, jour J, après), pour les planifier. */
+.modal.chronologie { max-width: 760px; }
+.chrono-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: -6px 0 10px; }
+.chrono-tete .progress-wrap { flex: 1 1 180px; min-width: 160px; margin: 0; }
+.chrono-quoi { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chrono-compte:empty { display: none; }
+.chrono-planifier { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 10px 12px; margin: 0 0 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface2); }
+.chrono-planifier > strong { flex-basis: 100%; display: flex; align-items: center; gap: 6px; }
+.chrono-planifier > input { flex: 1 1 220px; min-width: 0; }
+.chrono-ecart-ligne { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.chrono-ecart { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.chrono-ecart input { width: 4.5em; }
+.chrono-ecart select { width: auto; }
+.chrono-raccourcis { flex-basis: 100%; margin: 0; order: 1; }
+.chrono-raccourcis .chip { padding: 3px 10px; font-size: 0.8rem; }
+.chrono-planifier > button[type='submit'] { margin-left: auto; }
+.chrono-planifier > .chrono-ecart-ligne { flex: 0 1 auto; }
+.chrono-filtre { display: inline-flex; margin: 0 0 6px; }
+.chrono-sans-delai { border: 1px dashed color-mix(in srgb, #d97706 55%, var(--border)); border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; }
+.chrono-sans-delai h3 { margin: 0 0 4px; font-size: 0.95rem; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.chrono-liste { list-style: none; margin: 0; padding: 0; }
+/* La frise : une colonne pour « J-30 » et la date, la ligne du temps avec sa pastille, puis le point. */
+.chrono-frise { position: relative; }
+.chrono-frise::before { content: ''; position: absolute; top: 6px; bottom: 6px; left: calc(var(--chrono-quand) + 17px); width: 2px; background: var(--border); }
+.chrono-liste { --chrono-quand: 92px; }
+.chrono-ligne { display: grid; grid-template-columns: var(--chrono-quand) 20px minmax(0, 1fr) auto; align-items: start; gap: 0 8px; padding: 6px 0; position: relative; }
+.chrono-sans-delai .chrono-ligne { grid-template-columns: 0 20px minmax(0, 1fr) auto; }
+.chrono-sans-delai .chrono-quand { visibility: hidden; }
+.chrono-quand { display: flex; flex-direction: column; align-items: flex-end; text-align: right; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.chrono-quand b { font-size: 0.92rem; }
+.chrono-quand small { font-size: 0.75rem; color: var(--muted); }
+.chrono-puce { width: 20px; height: 20px; border-radius: 50%; background: var(--surface); border: 2px solid var(--primary); display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; color: #fff; position: relative; z-index: 1; margin-top: 1px; }
+.chrono-corps { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.chrono-titre { border: none; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--text); text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.chrono-titre:hover, .chrono-titre:focus-visible { color: var(--primary); text-decoration: underline; }
+.chrono-info { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 0.85rem; }
+.chrono-cale { color: var(--primary); font-size: 0.82rem; display: inline-flex; align-items: center; gap: 3px; }
+.chrono-bouger { white-space: nowrap; }
+.chrono-placer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 4px; padding: 6px 8px; border-radius: 8px; background: var(--surface2); }
+.chrono-point.fait .chrono-puce { background: #16a34a; border-color: #16a34a; }
+.chrono-point.fait .chrono-titre { color: var(--muted); text-decoration: line-through; }
+.chrono-point.retard .chrono-puce { border-color: var(--late); background: var(--late-soft); }
+.chrono-point.retard .chrono-quand b { color: var(--late); }
+.chrono-point.pendant .chrono-puce { border-color: var(--c, var(--event-fg)); }
+.chrono-mois { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 10px 0 2px calc(var(--chrono-quand) + 36px); }
+.chrono-jourj { background: color-mix(in srgb, var(--c, var(--event-fg)) 12%, transparent); border-radius: 10px; }
+.chrono-jourj .chrono-quand b { color: var(--c, var(--event-fg)); }
+.chrono-jourj .chrono-puce { width: 24px; height: 24px; margin-left: -2px; background: var(--c, var(--event-fg)); border-color: var(--c, var(--event-fg)); }
+.chrono-jourj .chrono-puce .icone-trait, .chrono-jourj .chrono-puce svg { width: 14px; height: 14px; color: #fff; }
+.chrono-aujourdhui .chrono-quand b { color: var(--primary); }
+.chrono-aujourdhui .chrono-puce { width: 12px; height: 12px; margin: 5px 4px 0; background: var(--primary); }
+.chrono-aujourdhui::after { content: ''; position: absolute; left: calc(var(--chrono-quand) + 36px); right: 0; top: 13px; border-top: 2px dashed color-mix(in srgb, var(--primary) 45%, transparent); pointer-events: none; }
+.chrono-aujourdhui .chrono-corps { background: var(--surface); padding-right: 8px; position: relative; z-index: 1; justify-self: start; font-size: 0.85rem; }
+.chrono-note { font-size: 0.82rem; margin: 10px 0 0; }
+@media (max-width: 767px) {
+  .chrono-liste { --chrono-quand: 72px; }
+  .chrono-aujourdhui .chrono-quand b { font-size: 0.74rem; }
+  .chrono-bouger { padding: 3px 10px; }
+  .chrono-ligne { grid-template-columns: var(--chrono-quand) 20px minmax(0, 1fr); }
+  .chrono-bouger { grid-column: 3; justify-self: start; margin-top: 4px; }
+  .chrono-planifier > button[type='submit'] { margin-left: 0; }
+}

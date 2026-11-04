@@ -75,9 +75,10 @@ const estSimple = (r: RepetitionEvenement, date: string) =>
 
 /**
  * Fiche d'un événement. `jour` : l'occurrence ouverte d'un événement qui se répète (ses dates sont celles de cette
- * occurrence ; à l'enregistrement, on choisit : cet événement, les suivants, ou tous).
+ * occurrence ; à l'enregistrement, on choisit : cet événement, les suivants, ou tous). `onChronologie` : bouton
+ * « Chronologie » (les points de l'événement dans le temps), sans enregistrer.
  */
-export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: string; onClose: () => void }) {
+export function EventModal({ event, jour, onClose, onChronologie }: { event: ClubEvent; jour?: string; onClose: () => void; onChronologie?: () => void }) {
   const { data, can } = useStore();
   const { saveEvent, saveOccurrence, removeEvent, removeOccurrence, reglerEtiquette } = useEventActions();
   const serie = jour && event.repetition ? event : undefined;
@@ -357,6 +358,11 @@ export function EventModal({ event, jour, onClose }: { event: ClubEvent; jour?: 
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer l’événement" aria-label="Supprimer l’événement"><Icone n="supprimer" /></button>}
+        {!isNew && onChronologie && (
+          <button className="btn" onClick={onChronologie} title="Les points de l’événement dans le temps, pour les planifier (sans enregistrer)">
+            <Icone n="horloge" /> Chronologie
+          </button>
+        )}
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
         <button className="btn primary" onClick={submit}>Enregistrer</button>

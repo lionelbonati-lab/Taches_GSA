@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
+import type { Page } from '@playwright/test';
 import { allerA, compter, evenementEtiquete, expect, groupe, nouvelleTache, ouvrirDemo, test, verifierUnSeulEspace } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
@@ -804,6 +805,9 @@ test('reprendre un événement passé : nouvelle édition avec ses tâches, dél
   await page.goto('./?demo#/evenements');
   await page.reload();
 
+  // Événement passé : replié dans « Événements passés », sous ceux à venir.
+  await expect(page.locator('main .agenda').first().locator('.agenda-item', { hasText: 'Course de préparation 2026' })).toHaveCount(0);
+  await page.locator('details.evenements-passes summary').click();
   await page.locator('.agenda-item', { hasText: 'Course de préparation 2026' }).getByRole('button', { name: 'Reprendre' }).click();
   const reprise = page.getByRole('dialog', { name: 'Reprendre « Course de préparation 2026 »' });
   await reprise.getByLabel('Premier jour').fill('2027-04-24');
@@ -949,12 +953,15 @@ test('étiquette d’un événement : sa sous-section dans « Événements », �
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // Accueil : dans « Prochains événements » ; un clic montre ses points.
+  // Accueil : dans « Prochains événements » ; un clic ouvre la chronologie de ses points, et de là leur liste.
   await allerA(page, '/');
-  const carte = page.locator('a.link-panel', { hasText: 'Marché de Noël' });
+  const carte = page.locator('.bloc-evenements .link-panel', { hasText: 'Marché de Noël' });
   await expect(carte).toHaveCount(1);
   await expect(carte).toContainText('en cours');
   await carte.click();
+  const chrono = page.getByRole('dialog', { name: 'Chronologie · Marché de Noël' });
+  await expect(chrono.locator('.chrono-point', { hasText: 'Monter le stand' })).toHaveCount(1);
+  await chrono.getByRole('link', { name: /Voir dans la liste des points/ }).click();
   await expect(page).toHaveURL(/#\/taches\?etiquette=/);
   await expect(page.locator('main tbody tr')).toHaveCount(1);
   await expect(page.locator('main tr', { hasText: 'Monter le stand' })).toHaveCount(1);
@@ -1736,4 +1743,156 @@ test('PV : un appui sur le titre d’un point l’ouvre (plus de crayon)', async
   await expect(ouverte.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point à ouvrir depuis le PV');
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
+});
+
+const champSection = (fiche: ReturnType<Page['locator']>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
+const champSousSection = (fiche: ReturnType<Page['locator']>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
+const lireDonnees = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));
+
+test('événement passé : à part dans les listes ; son étiquette reste sur ses points, mais n’est plus proposée', async ({ page }) => {
+  await evenementEtiquete(page, 'Tournoi de printemps', dansJours(-20), []);
+  await evenementEtiquete(page, 'Tournoi d’automne', dansJours(30), []);
+
+  // Un point rangé dans la sous-section de l'événement passé : elle est proposée à part ; il en porte l'étiquette.
+  const fiche = await nouvelleTache(page, 'Envoyer les remerciements');
+  await champSection(fiche).selectOption({ label: 'Événements' });
+  await expect(champSousSection(fiche).locator('optgroup[label="Événements passés"] option', { hasText: 'Tournoi de printemps' })).toHaveCount(1);
+  await expect(champSousSection(fiche).locator('optgroup option', { hasText: 'Tournoi d’automne' })).toHaveCount(0);
+  await expect(champSousSection(fiche).locator('option', { hasText: 'Tournoi d’automne' })).toHaveCount(1);
+  await champSousSection(fiche).selectOption('Tournoi de printemps');
+  const chips = fiche.locator('.etiquettes-choix');
+  await expect(chips.getByRole('button', { name: /Tournoi de printemps/ })).toHaveAttribute('aria-pressed', 'true');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Un autre point : l'étiquette de l'événement passé n'est plus proposée ; celle de l'événement à venir, oui.
+  const autre = await nouvelleTache(page, 'Préparer le budget');
+  await expect(autre.locator('.etiquettes-choix').getByRole('button', { name: /Tournoi de printemps/ })).toHaveCount(0);
+  await expect(autre.locator('.etiquettes-choix').getByRole('button', { name: /Tournoi d’automne/ })).toHaveCount(1);
+  await autre.getByRole('button', { name: 'Fermer' }).first().click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Agenda › Événements : ceux à venir en haut, le passé replié dans « Événements passés ».
+  await allerA(page, '/evenements');
+  const aVenir = page.locator('main .agenda').first();
+  await expect(aVenir.locator('.agenda-item', { hasText: 'Tournoi d’automne' })).toHaveCount(1);
+  await expect(aVenir.locator('.agenda-item', { hasText: 'Tournoi de printemps' })).toHaveCount(0);
+  const passes = page.locator('details.evenements-passes');
+  await expect(passes.locator('summary')).toContainText('Événements passés');
+  await expect(passes.locator('.agenda-item', { hasText: 'Tournoi de printemps' })).toBeHidden();
+  await passes.locator('summary').click();
+  await expect(passes.locator('.agenda-item', { hasText: 'Tournoi de printemps' })).toBeVisible();
+
+  // Filtre « Étiquette » des points : l'événement passé à part.
+  await allerA(page, '/taches');
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  const filtre = page.getByLabel('Étiquette', { exact: true });
+  await expect(filtre.locator('optgroup[label="Événements passés"] option', { hasText: 'Tournoi de printemps' })).toHaveCount(1);
+  await expect(filtre.locator('optgroup option', { hasText: 'Tournoi d’automne' })).toHaveCount(0);
+  await filtre.selectOption({ label: 'Tournoi de printemps' });
+  await page.getByRole('button', { name: 'Tous', exact: true }).click();
+  await expect(page.locator('main tr', { hasText: 'Envoyer les remerciements' })).toHaveCount(1);
+
+  // Club › Étiquettes : parmi les événements passés, avec ce qui reste à faire.
+  await allerA(page, '/etiquettes');
+  await expect(page.getByLabel('Étiquette de l’événement Tournoi d’automne')).toBeChecked();
+  await expect(page.getByLabel('Étiquette de l’événement Tournoi de printemps')).toHaveCount(0);
+  await page.getByRole('button', { name: /Voir les événements passés/ }).click();
+  await expect(page.locator('.etiquettes-passees-aide')).toContainText('L’étiquette d’un événement passé');
+  const ligne = page.locator('.etiquettes-passees .groupe-section', { has: page.getByLabel('Étiquette de l’événement Tournoi de printemps') });
+  await expect(ligne.getByLabel('Étiquette de l’événement Tournoi de printemps')).toBeChecked();
+  await expect(ligne).toContainText('passé · 1 point pas terminé');
+});
+
+test('chronologie d’un événement : ses points dans le temps ; en placer un, en planifier un autre', async ({ page }) => {
+  await evenementEtiquete(page, 'Tournoi d’automne', dansJours(40), []);
+  // Un point de l'événement, sans délai.
+  const fiche = await nouvelleTache(page, 'Trouver des bénévoles');
+  await champSection(fiche).selectOption({ label: 'Événements' });
+  await champSousSection(fiche).selectOption('Tournoi d’automne');
+  await fiche.getByRole('button', { name: '✕ Aucun délai' }).click();
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Un clic sur le nom de l'événement : sa chronologie, avec aujourd'hui et le jour J.
+  await allerA(page, '/evenements');
+  await page.locator('.agenda-item').getByRole('button', { name: 'Tournoi d’automne' }).click();
+  const chrono = page.getByRole('dialog', { name: 'Chronologie · Tournoi d’automne' });
+  await expect(chrono.locator('.chrono-jourj')).toContainText('Tournoi d’automne');
+  await expect(chrono.locator('.chrono-aujourdhui')).toContainText('J-40');
+
+  // Le point sans délai est « à placer » : 3 semaines avant l'événement.
+  const sans = chrono.locator('.chrono-sans-delai');
+  await expect(sans).toContainText('Trouver des bénévoles');
+  await sans.getByRole('button', { name: /Placer/ }).click();
+  const placer = chrono.getByRole('group', { name: 'Placer « Trouver des bénévoles »' });
+  await placer.getByLabel('Combien').fill('3');
+  await placer.getByLabel('Unité').selectOption('semaines');
+  await placer.getByRole('button', { name: 'OK' }).click();
+  await expect(chrono.locator('.chrono-sans-delai')).toHaveCount(0);
+  const benevoles = chrono.locator('.chrono-frise .chrono-point', { hasText: 'Trouver des bénévoles' });
+  await expect(benevoles).toContainText('J-21');
+  await expect(benevoles).toContainText('3 semaines avant');
+  const tache = async (titre: string) => (await lireDonnees(page)).tasks.find((t: { titre: string }) => t.titre === titre);
+  const ev = (await lireDonnees(page)).events.find((e: { nom: string }) => e.nom === 'Tournoi d’automne');
+  await expect.poll(async () => (await tache('Trouver des bénévoles'))?.delai).toBe(dansJours(19));
+  expect(await tache('Trouver des bénévoles')).toMatchObject({ eventId: ev.id, delaiRef: { type: 'event', joursAvant: 21, unite: 'semaines' } });
+
+  // Planifier un point, la veille : sa fiche s'ouvre préremplie, rangée chez l'événement.
+  await chrono.getByLabel('Point à planifier').fill('Acheter les prix');
+  await chrono.getByRole('button', { name: 'La veille' }).click();
+  await chrono.getByRole('button', { name: 'Ajouter…', exact: true }).click();
+  const nouveau = page.getByRole('dialog', { name: 'Nouveau point' });
+  await expect(nouveau.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Acheter les prix');
+  await expect(champSousSection(nouveau)).toHaveValue('Tournoi d’automne');
+  await nouveau.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(nouveau).toHaveCount(0);
+  await expect(chrono.locator('.chrono-frise .chrono-point', { hasText: 'Acheter les prix' })).toContainText('J-1');
+  await expect.poll(async () => (await tache('Acheter les prix'))?.delai).toBe(dansJours(39));
+  expect((await tache('Acheter les prix')).delaiRef).toMatchObject({ type: 'event', joursAvant: 1 });
+
+  // Dans l'ordre : aujourd'hui, J-21, J-1, puis le jour J.
+  const ordre = await chrono.locator('.chrono-frise > li.chrono-ligne').allTextContents();
+  const rang = (x: string) => ordre.findIndex((l) => l.includes(x));
+  expect(rang('Aujourd’hui')).toBeLessThan(rang('Trouver des bénévoles'));
+  expect(rang('Trouver des bénévoles')).toBeLessThan(rang('Acheter les prix'));
+  expect(rang('Acheter les prix')).toBeLessThan(rang('Jour J'));
+  await expect(chrono.locator('.chrono-tete')).toContainText('0/2 points terminés');
+});
+
+test('reprendre un événement passé étiqueté : la nouvelle édition a sa propre étiquette, et les points recopiés vont chez elle', async ({ page }) => {
+  await evenementEtiquete(page, 'Marché d’été 2026', dansJours(-30), ['Émilie Rossi']);
+  // Un point rangé dans sa sous-section (il porte son étiquette, sans être rattaché à l'événement).
+  const fiche = await nouvelleTache(page, 'Réserver les stands');
+  await champSection(fiche).selectOption({ label: 'Événements' });
+  await champSousSection(fiche).selectOption('Marché d’été 2026');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  await allerA(page, '/evenements');
+  await page.locator('details.evenements-passes summary').click();
+  await page.locator('.agenda-item', { hasText: 'Marché d’été 2026' }).getByRole('button', { name: 'Reprendre' }).click();
+  const reprise = page.getByRole('dialog', { name: 'Reprendre « Marché d’été 2026 »' });
+  await reprise.getByLabel('Nom', { exact: true }).fill('Marché d’été 2027');
+  const etiquette = reprise.locator('.reprise-etiquette');
+  await expect(etiquette.getByRole('checkbox')).toBeChecked();
+  await expect(etiquette).toContainText('les mêmes membres (1)');
+  await expect(reprise.locator('.anciennes-liste li', { hasText: 'Réserver les stands' }).locator('input')).toBeChecked();
+  await reprise.getByRole('button', { name: 'Reprendre avec 1 point' }).click();
+  await expect(page).toHaveURL(/#\/taches\?event=/);
+
+  // La nouvelle édition : son étiquette (mêmes membres, même couleur), sa sous-section ; la copie y est, avec elle seule.
+  await expect.poll(async () => (await lireDonnees(page)).etiquettes.some((e: { nom: string }) => e.nom === 'Marché d’été 2027')).toBe(true);
+  const d = await lireDonnees(page);
+  const emilie = d.people.find((p: { prenom: string; nom: string }) => p.prenom === 'Émilie' && p.nom === 'Rossi').id;
+  const ancienne = d.etiquettes.find((e: { nom: string }) => e.nom === 'Marché d’été 2026');
+  const nouvelle = d.etiquettes.find((e: { nom: string }) => e.nom === 'Marché d’été 2027');
+  const ev = d.events.find((e: { nom: string }) => e.nom === 'Marché d’été 2027');
+  expect(nouvelle).toMatchObject({ eventId: ev.id, type: 'evenement', membres: [emilie], couleur: ancienne.couleur, lieux: [{ sousSection: 'Marché d’été 2027' }] });
+  const points = d.tasks.filter((t: { titre: string }) => t.titre === 'Réserver les stands');
+  expect(points).toHaveLength(2);
+  const copie = points.find((t: { id: string; etiquettes?: string[] }) => t.etiquettes?.includes(nouvelle.id));
+  const original = points.find((t: { id: string }) => t.id !== copie?.id);
+  expect(copie).toMatchObject({ sousSection: 'Marché d’été 2027', etiquettes: [nouvelle.id] });
+  expect(original).toMatchObject({ sousSection: 'Marché d’été 2026', etiquettes: [ancienne.id] });
 });

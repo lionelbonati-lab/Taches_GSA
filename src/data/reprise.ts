@@ -3,7 +3,7 @@ import { aPrendreOuverte, aPrendreSuivante, sansVolontaires } from './aPrendre';
 import { addDays, delaiDepuis, diffDays, today, uid } from './utils';
 
 // Reprendre une édition : un événement passé (course, camp, soirée…) recopié à une nouvelle date, avec les tâches qui le
-// préparaient. Chaque tâche repart « à faire », au même écart de l'événement (« 30 jours avant », « la veille » : le délai
+// préparaient (rattachées à lui ou qui portent son étiquette ; l'étiquette suit : etiquettes.ts, suiteEtiquette). Chaque tâche repart « à faire », au même écart de l'événement (« 30 jours avant », « la veille » : le délai
 // lié suit la nouvelle date ; un délai fixe est décalé d'autant), checklist décochée, sans discussion ni « ✓ Vu » ni
 // séance ; les responsables restent (personnes encore actives) ou sont à attribuer ensuite. Les fichiers joints restent
 // communs avec l'original (comme « Dupliquer ») ; emails et sondages ne suivent pas. Une tâche récurrente se reconduit
@@ -19,12 +19,21 @@ export interface Candidat {
 }
 
 /**
- * Tâches qui peuvent être reprises : celles liées à l'événement (ni tickets de paiement). `peut` : section où la personne
- * crée des tâches pour d'autres.
+ * Points de l'événement (ni tickets de paiement) : rattachés à lui, ou qui portent son étiquette (rangés dans sa
+ * sous-section, par exemple).
+ */
+export function pointsDeLEvenement(data: AppData, e: ClubEvent): Task[] {
+  const et = (data.etiquettes ?? []).find((x) => x.eventId === e.id);
+  return data.tasks.filter((t) => !t.paiement && (t.eventId === e.id || (!!et && !!t.etiquettes?.includes(et.id))));
+}
+
+/**
+ * Tâches qui peuvent être reprises : les points de l'événement. `peut` : section où la personne crée des tâches pour
+ * d'autres.
  */
 export function candidats(data: AppData, e: ClubEvent, peut: (sectionId: string) => boolean): Candidat[] {
-  return data.tasks
-    .filter((t) => !t.paiement && peut(t.sectionId) && t.eventId === e.id)
+  return pointsDeLEvenement(data, e)
+    .filter((t) => peut(t.sectionId))
     .map((t) => ({ t, coche: !t.recurrence }))
     .sort((a, b) => (a.t.delai || '9999').localeCompare(b.t.delai || '9999'));
 }

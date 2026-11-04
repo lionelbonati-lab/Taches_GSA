@@ -30,7 +30,7 @@ import { Discussion } from './tache/Discussion';
 import { commentairesDe, nonLus } from '../data/commentaires';
 import { Historique } from './tache/Historique';
 import { NotesSeances } from './tache/NotesSeances';
-import { etiquettesDesLieux, nomLieu, recaler } from '../data/etiquettes';
+import { clePlace, etiquettePassee, etiquettesDesLieux, nomLieu, placesPassees, recaler } from '../data/etiquettes';
 import { IconeEtiquette } from './IconesEtiquette';
 
 /** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
@@ -102,6 +102,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const sousSections = (section?.sousSections ?? []).filter((x) => permise(t.sectionId, x));
   if (t.sousSection && !sousSections.includes(t.sousSection)) sousSections.push(t.sousSection);
+  const passees = placesPassees(data);
   // « — » (sans sous-section) : seulement si l'on peut ranger le point dans la section elle-même.
   const sansSous = !section || permise(t.sectionId, '');
   // Ranger ailleurs : les étiquettes d'office suivent (celles de l'ancienne place retirées, celles de la nouvelle ajoutées).
@@ -300,8 +301,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const jeDecline = aDecline(task, user.id);
   // Étiquettes : celles d'office (sa place ; en lecture, seulement celles que le point porte déjà), celles déjà sur le
   // point, et celles qu'on peut mettre (dont on est membre).
+  // Celle d'un événement passé n'est plus proposée (elle reste sur les points qui la portent).
   const auto = dis ? [] : autoDe(t.sectionId, t.sousSection, t.eventId);
-  const etiquettes = (data.etiquettes ?? []).filter((e) => auto.includes(e.id) || t.etiquettes?.includes(e.id) || (!dis && peutEtiqueter(e.id)));
+  const etiquettes = (data.etiquettes ?? []).filter(
+    (e) => auto.includes(e.id) || t.etiquettes?.includes(e.id) || (!dis && peutEtiqueter(e.id) && !etiquettePassee(e, data.events)),
+  );
   const placeDe = nomLieu({ sectionId: t.sectionId, sousSection: t.sousSection || undefined }, data.sections);
   return (
     <Modal
@@ -406,7 +410,13 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
               Sous-section
               <select value={t.sousSection} disabled={dis || !section} onChange={(e) => placer(t.sectionId, e.target.value)}>
                 {(sansSous || !t.sousSection) && <option value="">—</option>}
-                {sousSections.map((x) => <option key={x}>{x}</option>)}
+                {sousSections.filter((x) => !passees.has(clePlace(t.sectionId, x))).map((x) => <option key={x}>{x}</option>)}
+                {/* Sous-sections d'événements passés : à part, après les autres. */}
+                {sousSections.some((x) => passees.has(clePlace(t.sectionId, x))) && (
+                  <optgroup label="Événements passés">
+                    {sousSections.filter((x) => passees.has(clePlace(t.sectionId, x))).map((x) => <option key={x}>{x}</option>)}
+                  </optgroup>
+                )}
               </select>
             </label>
           )}

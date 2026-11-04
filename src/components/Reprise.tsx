@@ -3,9 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent } from '../data/types';
 import { addDays, diffDays, fmtDate, fmtRange, offsetLabel, shortName } from '../data/utils';
-import { candidats, dateReprise, delaiRepris, nomReprise, reprendre, type Candidat } from '../data/reprise';
+import { candidats, dateReprise, delaiRepris, nomReprise, pointsDeLEvenement, reprendre, type Candidat } from '../data/reprise';
+import { etiquetteDeLEvenement, lieuxDe, nomLieu, sectionEvenements, suiteEtiquette } from '../data/etiquettes';
 import { Modal } from './ui';
 import { Icone } from './icones';
+import { BadgeEtiquette } from './IconesEtiquette';
 
 const JOUR = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -25,11 +27,15 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
   const [liste] = useState(() => candidats(data, e, (s) => can('tasks.createAny', s)));
   const [choix, setChoix] = useState(() => new Set(liste.filter((x) => x.coche).map((x) => x.t.id)));
   const [memes, setMemes] = useState(true);
+  // Étiquette de l'édition passée : la nouvelle édition a la sienne, avec les mêmes membres (etiquettes.ts, suiteEtiquette).
+  const etiquette = etiquetteDeLEvenement(data, e.id);
+  const [garderEtiquette, setGarderEtiquette] = useState(true);
+  const placeAvant = etiquette ? lieuxDe(etiquette, data.sections).find((l) => l.sousSection) : undefined;
   const [err, setErr] = useState('');
   if (!user) return null;
   const deja = data.events.find((x) => x.repriseDe === e.id);
   // Tâches liées dans des sections où la personne ne crée pas de tâches pour d'autres : pas proposées.
-  const horsDroits = data.tasks.filter((t) => t.eventId === e.id && !t.paiement).length - liste.length;
+  const horsDroits = pointsDeLEvenement(data, e).length - liste.length;
   const liees = liste;
   const actifs = new Set(data.people.filter((p) => p.actif).map((p) => p.id));
 
@@ -56,7 +62,8 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
       d.events = [...d.events, r.event];
       d.tasks = [...r.tasks, ...d.tasks];
       if (r.notifs.length) d.notifications = [...r.notifs, ...(d.notifications ?? [])].slice(0, 300);
-    }, `Reprise de l’événement « ${e.nom} » : « ${r.event.nom} » le ${fmtRange(r.event.date, r.event.dateFin)}${n ? `, ${n} point${n > 1 ? 's' : ''} repris` : ''}`);
+      suiteEtiquette(d, e, r.event, r.tasks.map((t) => t.id), garderEtiquette);
+    }, `Reprise de l’événement « ${e.nom} » : « ${r.event.nom} » le ${fmtRange(r.event.date, r.event.dateFin)}${n ? `, ${n} point${n > 1 ? 's' : ''} repris` : ''}${etiquette ? (garderEtiquette ? ', avec son étiquette' : ', sans étiquette') : ''}`);
     setToast(`✅ « ${r.event.nom} » ajouté${n ? ` avec ${n} point${n > 1 ? 's' : ''} à faire` : ''}.`);
     onClose();
     if (n) navigate(`/taches?event=${r.event.id}`);
@@ -129,6 +136,23 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
           <label className="inline"><input type="radio" name="reprise-resp" checked={memes} onChange={() => setMemes(true)} /> Les mêmes (personnes encore actives), prévenues 🔔</label>
           <label className="inline"><input type="radio" name="reprise-resp" checked={!memes} onChange={() => setMemes(false)} /> À attribuer ensuite</label>
         </fieldset>
+        {etiquette && (
+          <fieldset className="full reprise-etiquette">
+            <legend>Étiquette</legend>
+            <label className="inline">
+              <input type="checkbox" checked={garderEtiquette} onChange={(x) => setGarderEtiquette(x.target.checked)} />
+              <span>
+                Une étiquette pour la nouvelle édition, avec les mêmes membres ({etiquette.membres?.length ?? 0}), la même couleur et la même icône
+              </span>
+            </label>
+            <small className="muted">
+              {placeAvant
+                ? `Les points recopiés de « ${nomLieu(placeAvant, data.sections)} » passent dans « ${sectionEvenements(data)?.nom ?? 'Événements'} › ${nom.trim() || '…'} »`
+                : 'Les points recopiés ne portent plus l’étiquette de l’édition passée'}
+              {garderEtiquette ? ' et portent la nouvelle étiquette' : ''} ; ceux de l’édition passée gardent <BadgeEtiquette e={etiquette} />.
+            </small>
+          </fieldset>
+        )}
       </div>
       {liees.length > 0 && groupe(`Points liés à « ${e.nom} »`, liees)}
       {!liste.length && <p className="muted">Aucun point lié à cet événement : seul l’événement sera repris.</p>}

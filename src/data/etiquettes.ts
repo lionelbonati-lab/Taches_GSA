@@ -1,5 +1,6 @@
 import type { AppData, ClubEvent, Etiquette, LieuEtiquette, Section, Task } from './types';
-import { COULEURS, uid } from './utils';
+import { COULEURS, endOf, today, uid } from './utils';
+import { occurrenceDu } from './repetition';
 
 // Étiquettes du club, trois sortes (chacune réglée à un seul endroit) :
 //  • l'étiquette d'un événement de l'agenda (case « Étiquette » du formulaire de l'événement) : son nom et ses dates sont
@@ -10,12 +11,61 @@ import { COULEURS, uid } from './utils';
 // Ses membres voient ses points (règle du serveur, 062). Ce que chacun peut ranger et étiqueter : store.tsx
 // (peutRanger, peutEtiqueter). Les étiquettes d'avant ce réglage, pas encore reliées, gardent leur place (réglée, ou
 // devinée d'après le nom) et se relient en cochant la case de l'événement ou de la section (« Reprendre »).
+//
+// Événement passé (son dernier jour, ou la dernière occurrence d'une série, est derrière nous) : son étiquette reste sur
+// ses points (filtre, recherche, historique) et ses membres les voient encore, le temps de finir ce qui reste (bilan,
+// factures) ; elle n'est plus proposée pour de nouveaux points, et elle est rangée à part (« Événements passés »).
+// L'édition suivante (« Reprendre », Reprise.tsx) a sa propre étiquette, avec les mêmes membres : les points recopiés
+// passent dans sa sous-section et ne portent plus celle de l'édition passée.
 
 type Donnees = Pick<AppData, 'etiquettes' | 'sections'> & Partial<Pick<AppData, 'events'>>;
 
 /** Sorte d'une étiquette : d'un événement, d'une section (groupe), du comité, ou ancienne, pas encore reliée. */
 export type SorteEtiquette = 'evenement' | 'groupe' | 'comite' | 'libre';
 export const sorteDe = (e: Etiquette): SorteEtiquette => (e.parDefaut ? 'comite' : e.eventId ? 'evenement' : e.sectionId ? 'groupe' : 'libre');
+
+/** Événement passé : son dernier jour est avant `jour` ; un événement qui se répète : plus aucune occurrence à venir. */
+export const evenementPasse = (ev: ClubEvent, jour = today()) => (ev.repetition ? !occurrenceDu(ev, jour) : endOf(ev) < jour);
+
+/**
+ * Étiquette d'un événement passé (celui de l'agenda, sinon sa date). Groupes, comité, étiquettes sans date : jamais.
+ */
+export function etiquettePassee(e: Etiquette, events: ClubEvent[] = [], jour = today()): boolean {
+  const ev = e.eventId ? events.find((x) => x.id === e.eventId) : undefined;
+  if (ev) return evenementPasse(ev, jour);
+  return e.type === 'evenement' && !e.parDefaut && !!e.date && endOf({ date: e.date, dateFin: e.dateFin }) < jour;
+}
+
+/**
+ * Étiquettes rangées pour un choix : les groupes (et le comité), les événements à venir (par date), puis les événements
+ * passés (les plus récents d'abord).
+ */
+export function etiquettesRangees(liste: Etiquette[] = [], events: ClubEvent[] = [], jour = today()) {
+  const date = (e: Etiquette) => e.date ?? '';
+  const evts = liste.filter((e) => e.type === 'evenement' || !!e.eventId);
+  const passees = evts.filter((e) => etiquettePassee(e, events, jour));
+  return {
+    groupes: liste.filter((e) => !evts.includes(e)),
+    aVenir: evts.filter((e) => !passees.includes(e)).sort((a, b) => date(a).localeCompare(date(b))),
+    passees: passees.sort((a, b) => date(b).localeCompare(date(a))),
+  };
+}
+
+/**
+ * Sous-sections qui ne sont la place que d'étiquettes d'événements passés (« sectionId␀sous-section ») : proposées à part
+ * quand on range un point.
+ */
+export function placesPassees(data: Donnees, jour = today()): Set<string> {
+  const passees = new Set<string>();
+  const actives = new Set<string>();
+  for (const e of data.etiquettes ?? []) {
+    const ici = etiquettePassee(e, data.events, jour) ? passees : actives;
+    lieuxDe(e, data.sections).forEach((l) => l.sousSection && ici.add(clePlace(l.sectionId, l.sousSection)));
+  }
+  actives.forEach((k) => passees.delete(k));
+  return passees;
+}
+export const clePlace = (sectionId: string, sousSection = '') => `${sectionId}\u0000${sousSection}`;
 
 const MOTS_VIDES = new Set(['a', 'au', 'aux', 'd', 'de', 'des', 'du', 'en', 'et', 'l', 'la', 'le', 'les', 'pour', 'un', 'une']);
 
@@ -211,12 +261,13 @@ export function reglerEtiquetteEvenement(d: AppData, ev: ClubEvent, choix: Choix
   // Sa sous-section : celle qu'elle a déjà (ou, ancienne étiquette, devinée d'après son nom), sinon le nom de l'événement.
   const lieux = e.lieux ?? (sorteDe(e) === 'libre' ? lieuxDevines(e, d.sections) : []);
   let sous = lieux.find((l) => l.sectionId === evts.id && l.sousSection)?.sousSection;
-  // Événement renommé : sa sous-section créée d'office (même nom que l'étiquette) suit.
-  if (sous && deja && sous === deja.nom && deja.nom !== ev.nom) {
+  // Événement renommé : sa sous-section créée d'office (même nom que l'étiquette) suit, sauf si ce nom est déjà la place
+  // d'une autre étiquette (on ne mélange pas leurs points).
+  if (sous && deja && sous === deja.nom && deja.nom !== ev.nom && !placePrise(d, evts.id, ev.nom, e.id)) {
     renommerSousSection(d, evts.id, sous, ev.nom);
     sous = ev.nom;
   }
-  sous ??= ev.nom;
+  sous ??= sousSectionLibre(d, evts.id, ev, e.id);
   if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
   placer(d, {
     ...e,
@@ -231,6 +282,58 @@ export function reglerEtiquetteEvenement(d: AppData, ev: ClubEvent, choix: Choix
     membres: [...new Set(choix.membres)],
   });
   completer(d, e.id);
+}
+
+/** La sous-section est déjà la place d'une autre étiquette que `sauf`. */
+const placePrise = (d: AppData, sectionId: string, sous: string, sauf?: string) =>
+  (d.etiquettes ?? []).some((x) => x.id !== sauf && lieuxDe(x, d.sections).some((l) => l.sectionId === sectionId && l.sousSection === sous));
+
+/**
+ * Sous-section d'un événement qui reçoit son étiquette : son nom ; déjà la place d'une autre étiquette (l'édition d'avant,
+ * du même nom) : son nom et sa date, « Marche familiale 12.09.27 ».
+ */
+function sousSectionLibre(d: AppData, sectionId: string, ev: Pick<ClubEvent, 'nom' | 'date'>, sauf?: string) {
+  const [a, m, j] = ev.date.split('-');
+  const noms = [ev.nom, `${ev.nom} ${j}.${m}.${(a ?? '').slice(2)}`, `${ev.nom} ${ev.date}`];
+  return noms.find((x) => !placePrise(d, sectionId, x, sauf)) ?? noms[noms.length - 1];
+}
+
+/**
+ * Nouvelle édition d'un événement repris (« Reprendre », Reprise.tsx), dans la modification qui l'ajoute avec les copies
+ * de ses points (`copies` : leurs identifiants). Si l'édition passée avait son étiquette : les copies quittent sa
+ * sous-section pour celle de la nouvelle édition (à son nom, dans « Événements ») et ne portent plus son étiquette ;
+ * `garder` : la nouvelle édition a la sienne, avec les mêmes membres, la même couleur et la même icône (ses points la
+ * reçoivent). Les points de l'édition passée gardent la leur.
+ */
+export function suiteEtiquette(d: AppData, ancien: ClubEvent, nouveau: ClubEvent, copies: string[], garder: boolean) {
+  const avant = etiquetteDeLEvenement(d, ancien.id);
+  if (!avant) return;
+  const evts = sectionEvenements(d, true)!;
+  const place = lieuxDe(avant, d.sections).find((l) => l.sousSection);
+  const sous = sousSectionLibre(d, evts.id, nouveau);
+  if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
+  const ids = new Set(copies);
+  d.tasks.forEach((t) => {
+    if (!ids.has(t.id)) return;
+    if (place && t.sectionId === place.sectionId && t.sousSection === place.sousSection) {
+      t.sectionId = evts.id;
+      t.sousSection = sous;
+    }
+    const l = (t.etiquettes ?? []).filter((x) => x !== avant.id);
+    t.etiquettes = l.length ? l : undefined;
+  });
+  if (!garder) return;
+  // Reliée d'abord à l'événement, à sa place (la sous-section choisie), avec la couleur et l'icône de l'édition passée ;
+  // puis réglée comme depuis le formulaire de l'événement (nom, dates, membres, ses points).
+  placer(d, {
+    ...nouvelle(d),
+    type: 'evenement',
+    eventId: nouveau.id,
+    couleur: avant.couleur,
+    ...(avant.icone ? { icone: avant.icone } : {}),
+    lieux: [{ sectionId: evts.id, sousSection: sous }],
+  });
+  reglerEtiquetteEvenement(d, nouveau, { membres: avant.membres ?? [] });
 }
 
 /** Coche « Groupe » d'une section (console admin) : l'étiquette de la section, à son nom ; ses points la reçoivent. */

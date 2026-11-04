@@ -2,9 +2,8 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Etiquette } from '../data/types';
-import { endOf, fmtRange, today } from '../data/utils';
-import { occurrenceDu } from '../data/repetition';
-import { etiquettesDesLieux, lieuxDe, nomLieu, retirerEtiquette, sansEtiquetteDeLeurPlace, sorteDe } from '../data/etiquettes';
+import { fmtRange, isDone, today } from '../data/utils';
+import { etiquetteDeLEvenement, etiquettesDesLieux, evenementPasse, lieuxDe, nomLieu, retirerEtiquette, sansEtiquetteDeLeurPlace, sorteDe } from '../data/etiquettes';
 import { PageIntro } from '../components/Nav';
 import { Icone } from '../components/icones';
 import { Comite, EtiquetteReglee, EvenementEtiquette, GroupeSection } from '../components/ReglageEtiquette';
@@ -26,12 +25,18 @@ export function EtiquettesPage() {
   // le menu, seulement ceux qui ont une étiquette.
   const avecEtiquette = (e: ClubEvent) => data.etiquettes?.some((x) => x.eventId === e.id);
   const evenements = data.events.filter((e) => !e.serie && (can('tab.events') || avecEtiquette(e)));
-  const aVenir = (e: ClubEvent) => (e.repetition ? !!occurrenceDu(e, jour) : endOf(e) >= jour);
-  const prochains = evenements.filter(aVenir).sort((a, b) => a.date.localeCompare(b.date));
-  const anciens = evenements.filter((e) => !aVenir(e)).sort((a, b) => b.date.localeCompare(a.date));
-  // Un événement passé qui a une étiquette reste visible (ses points, ses membres).
+  const prochains = evenements.filter((e) => !evenementPasse(e, jour)).sort((a, b) => a.date.localeCompare(b.date));
+  // Événements passés, à part (les plus récents d'abord ; ceux qui ont une étiquette en premier) : leur étiquette reste
+  // sur leurs points, et n'est plus proposée pour de nouveaux points (etiquettes.ts).
+  const anciens = evenements
+    .filter((e) => evenementPasse(e, jour))
+    .sort((a, b) => Number(!!avecEtiquette(b)) - Number(!!avecEtiquette(a)) || b.date.localeCompare(a.date));
   const anciensEtiquetes = anciens.filter(avecEtiquette);
-  const anciensSans = anciens.filter((e) => !avecEtiquette(e));
+  /** Points d'une étiquette passée qui ne sont pas terminés. */
+  const aFinir = (e: ClubEvent) => {
+    const et = etiquetteDeLEvenement(data, e.id);
+    return et ? data.tasks.filter((t) => t.etiquettes?.includes(et.id) && !isDone(data, t)).length : 0;
+  };
 
   const libres = (data.etiquettes ?? []).filter((e) => sorteDe(e) === 'libre');
   const changer = (e: Etiquette, membres: string[]) =>
@@ -79,15 +84,30 @@ export function EtiquettesPage() {
           {can('tab.events') && <Link to="/evenements">Agenda › Événements</Link>}
         </p>
         {prochains.map((e) => <EvenementEtiquette key={e.id} ev={e} peut={evenementsGeres} />)}
-        {anciensEtiquetes.map((e) => <EvenementEtiquette key={e.id} ev={e} peut={evenementsGeres} />)}
-        {!prochains.length && !anciensEtiquetes.length && <p className="muted">Aucun événement à venir.</p>}
-        {anciensSans.length > 0 && (
-          <>
+        {!prochains.length && <p className="muted">Aucun événement à venir.</p>}
+        {anciens.length > 0 && (
+          <div className="etiquettes-passees">
             <button type="button" className="btn small link" aria-expanded={passes} onClick={() => setPasses(!passes)}>
-              {passes ? 'Masquer' : 'Voir'} les événements passés ({anciensSans.length})
+              {passes ? 'Masquer' : 'Voir'} les événements passés ({anciens.length}{anciensEtiquetes.length ? `, dont ${anciensEtiquetes.length} avec une étiquette` : ''})
             </button>
-            {passes && anciensSans.map((e) => <EvenementEtiquette key={e.id} ev={e} peut={evenementsGeres} />)}
-          </>
+            {passes && (
+              <>
+                <p className="muted etiquettes-passees-aide">
+                  <Icone n="archives" /> <b>L’étiquette d’un événement passé</b> reste sur ses points : on les retrouve (filtre « Étiquette », recherche) et
+                  ses membres les voient encore, le temps de finir ce qui reste (bilan, factures). Elle n’est plus proposée pour de nouveaux points. Quand tout
+                  est fini, retire ses membres (« N membres ») s’ils ne doivent plus voir ses points, ou décoche l’événement pour la retirer des points. Pour
+                  l’édition suivante, « Reprendre » l’événement (Agenda › Événements) : la nouvelle édition a sa propre étiquette, avec les mêmes membres.
+                </p>
+                {anciens.map((e) => {
+                  const n = aFinir(e);
+                  return (
+                    <EvenementEtiquette key={e.id} ev={e} peut={evenementsGeres}
+                      etat={avecEtiquette(e) ? (n ? `passé · ${n} point${n > 1 ? 's' : ''} pas terminé${n > 1 ? 's' : ''}` : 'passé · ses points sont terminés') : undefined} />
+                  );
+                })}
+              </>
+            )}
+          </div>
         )}
       </section>
 

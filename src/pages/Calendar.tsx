@@ -8,6 +8,7 @@ import { TaskModal } from '../components/FicheTache';
 import { Avatar, StatusBadge } from '../components/ui';
 import { MeetingModal, newMeeting, useAgendaActions } from './Agenda';
 import { ChoixPortee, EventModal, newEvent, useEventActions } from '../components/EventModal';
+import { Chronologie, type CibleChrono } from '../components/Chronologie';
 import { aLaDate, duree, fmtHeure, horaire, libelleRepetition, occurrencesEntre } from '../data/repetition';
 import type { Portee } from '../data/series';
 import { titreSelonDate } from '../data/seances';
@@ -19,7 +20,8 @@ import { etiquettesDatees } from '../data/agendaIcs';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
-// Les étiquettes « événement » datées (Bruntrutaine, soirée…) y figurent à leur couleur ; un clic ouvre leurs tâches.
+// Les étiquettes « événement » datées (Bruntrutaine, soirée…) y figurent à leur couleur ; un clic ouvre la chronologie de
+// leurs points (comme un événement, pour qui ne gère pas les événements ; les autres l'ouvrent depuis sa fiche).
 
 type Kind = 'meeting' | 'event' | 'task' | 'poll' | 'etiquette';
 type Item =
@@ -71,6 +73,7 @@ export function Calendar() {
   const [task, setTask] = useState<{ t: Task; isNew: boolean } | null>(null);
   const [meeting, setMeeting] = useState<Meeting | null>(null);
   const [event, setEvent] = useState<{ e: ClubEvent; jour?: string } | null>(null);
+  const [chrono, setChrono] = useState<CibleChrono | null>(null);
   // Occurrence d'un événement qui se répète glissée sur un autre jour : celle-ci, les suivantes ou toutes ?
   const [deplace, setDeplace] = useState<{ serie: ClubEvent; jour: string; date: string } | null>(null);
   const [exporter, setExporter] = useState(false);
@@ -172,9 +175,9 @@ export function Calendar() {
       if (addMeeting) setMeeting(it.m);
       else navigate(`/comite?seance=${encodeURIComponent(it.m.id)}`);
     }
-    else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : navigate('/evenements'));
-    // Étiquette « événement » : ses tâches.
-    else if (it.kind === 'etiquette') navigate(`/taches?etiquette=${encodeURIComponent(it.et.id)}`);
+    else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : setChrono({ serie: it.e, date: it.o }));
+    // Étiquette « événement » : la chronologie de ses points.
+    else if (it.kind === 'etiquette') setChrono({ date: it.et.date!, etiquette: it.et });
     else navigate(`/sondages?id=${encodeURIComponent(it.p.id)}`);
   };
 
@@ -234,7 +237,7 @@ export function Calendar() {
         return `Point : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · rattaché à « ${p.titre} »` : ''}`;
       }
       case 'poll': return `Sondage : ${it.p.question} (date limite${it.p.heureLimite ? ` ${it.p.heureLimite.replace(':', 'h')}` : ''})`;
-      case 'etiquette': return `Étiquette « ${it.et.nom} » : ${fmtRange(it.et.date, it.et.dateFin)} · un clic ouvre ses points`;
+      case 'etiquette': return `Étiquette « ${it.et.nom} » : ${fmtRange(it.et.date, it.et.dateFin)} · un clic ouvre la chronologie de ses points`;
     }
   };
   const chipClass = (it: Item) => {
@@ -387,7 +390,18 @@ export function Calendar() {
 
       {task && <TaskModal task={task.t} isNew={task.isNew} onClose={() => setTask(null)} />}
       {meeting && <MeetingModal meeting={meeting} onClose={() => setMeeting(null)} />}
-      {event && <EventModal event={event.e} jour={event.jour} onClose={() => setEvent(null)} />}
+      {event && (
+        <EventModal
+          event={event.e}
+          jour={event.jour}
+          onClose={() => setEvent(null)}
+          onChronologie={() => {
+            setChrono({ serie: event.e, date: event.jour ?? event.e.date });
+            setEvent(null);
+          }}
+        />
+      )}
+      {chrono && <Chronologie cible={chrono} onClose={() => setChrono(null)} />}
       {nouveau?.kind === 'meeting' && <MeetingModal meeting={newMeeting(data.meetings, nouveau.date, motSeance())} onClose={() => setNouveau(null)} />}
       {nouveau?.kind === 'event' && <EventModal event={newEvent(nouveau.date)} onClose={() => setNouveau(null)} />}
       {exporter && (

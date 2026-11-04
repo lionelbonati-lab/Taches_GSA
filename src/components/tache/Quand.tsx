@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useStore } from '../../data/store';
-import type { AppData, DelaiUnite, Etiquette, Task } from '../../data/types';
+import type { AppData, ClubEvent, DelaiUnite, Etiquette, Task } from '../../data/types';
 import { aLaDate, derniereOccurrence, horaire, libelleRegle, occurrenceDu, occurrencesEntre } from '../../data/repetition';
 import { DELAI_MAX, addDays, applyDelaiRef, endOf, fmtRange, fmtDate, makeDelai, offsetLabel, splitDelai, today } from '../../data/utils';
 import { Icone } from '../icones';
 import { Deroulante } from '../Deroulante';
-import { etiquettesAuto, recaler } from '../../data/etiquettes';
+import { etiquettesAuto, evenementPasse, recaler } from '../../data/etiquettes';
 
 // Fiche d'une tâche : « Pour quand ? » (délai, séance, événement, occurrence) et rattachement à une séance ou un événement.
 
@@ -36,12 +36,18 @@ export function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disab
       const y = { ...x, eventId: v || undefined };
       return applyDelaiRef(data, sansOccurrence({ ...y, etiquettes: recaler(x.etiquettes, etiquettesAuto(data, x), etiquettesAuto(data, y)) }));
     });
+  // À venir par date, puis les passés à part (les plus récents d'abord).
+  const parDate = [...data.events].sort((a, b) => a.date.localeCompare(b.date));
+  const aVenirParDate = parDate.filter((e) => !evenementPasse(e));
+  const passes = parDate.filter((e) => evenementPasse(e)).reverse();
+  const option = (e: ClubEvent) => <option key={e.id} value={e.id}>{e.nom}{e.repetition ? ' 🔁' : ''}</option>;
   return (
     <label>
       Événement
       <select value={t.eventId ?? ''} disabled={disabled} onChange={(e) => choisir(e.target.value)}>
         <option value="">—</option>
-        {data.events.map((e) => <option key={e.id} value={e.id}>{e.nom}{e.repetition ? ' 🔁' : ''}</option>)}
+        {aVenirParDate.map(option)}
+        {passes.length > 0 && <optgroup label="Événements passés">{passes.map(option)}</optgroup>}
       </select>
     </label>
   );
