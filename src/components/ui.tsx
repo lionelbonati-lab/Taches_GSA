@@ -8,6 +8,7 @@ import { bilanVu, ciblesPourInfo, nbPourInfo, pourMoi, texteVu, vuAvantModif } f
 import { attendusLus } from '../data/suiviPourInfo';
 import { commentairesDe, nonLus } from '../data/commentaires';
 import { Icone, type IconeNom } from './icones';
+import { BadgeEtiquette } from './IconesEtiquette';
 import { aPrendreOuverte, aPrendrePourMoi, nombreAPrendre, plusPersonne, volontaires } from '../data/aPrendre';
 
 export function Avatar({ id, size = 28 }: { id: string; size?: number }) {
@@ -127,11 +128,7 @@ export function EtiquettesTag({ task }: { task: Task }) {
   if (!liste.length) return null;
   return (
     <span className="etiquettes-tag">
-      {liste.map((e) => (
-        <span key={e.id} className="badge etiquette" style={{ background: e.couleur }} title={`Étiquette « ${e.nom} »`}>
-          {e.nom}
-        </span>
-      ))}
+      {liste.map((e) => <BadgeEtiquette key={e.id} e={e} />)}
     </span>
   );
 }

@@ -1137,18 +1137,18 @@ test('étiquettes d’office : groupe, événement, « Comité » pour le reste 
   await expect(page.getByLabel('Groupe : la section Groupe compétition est une étiquette')).toBeChecked();
   await expect(page.getByLabel('Groupe : la section Divers est une étiquette')).not.toBeChecked();
 
-  // Vue d'ensemble : chaque étiquette à sa place (l'événement se règle dans son formulaire).
-  await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  const fen = page.getByRole('dialog', { name: 'Étiquettes' });
-  await expect(fen.locator('.etiquette-ligne', { hasText: 'Bruntrutaine' })).toContainText('Événements › Bruntrutaine 27.02.27');
-  await fen.locator('.etiquette-ligne', { hasText: 'Bruntrutaine' }).getByRole('button', { name: 'Régler (événement)' }).click();
+  // Page Étiquettes : l'événement coché, avec sa sous-section ; le même réglage dans le formulaire de l'événement.
+  await allerA(page, '/etiquettes');
+  await expect(page.getByLabel('Étiquette de l’événement Bruntrutaine')).toBeChecked();
+  await expect(page.locator('.groupe-section', { has: page.getByLabel('Étiquette de l’événement Bruntrutaine') })).toContainText('Événements › Bruntrutaine 27.02.27');
+  await allerA(page, '/evenements');
+  await page.locator('article.agenda-item', { hasText: 'Bruntrutaine' }).getByRole('button', { name: 'Modifier' }).click();
   const ev = page.getByRole('dialog', { name: 'Événement' });
   await expect(ev.locator('.case-etiquette').getByRole('checkbox')).toBeChecked();
   await expect(ev.locator('.case-etiquette').getByRole('button', { name: 'David Muller' })).toHaveAttribute('aria-pressed', 'true');
   await ev.getByRole('button', { name: 'Annuler' }).click();
-  await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
+  await allerA(page, '/taches');
 
   // Un point du comité reçoit « Comité » d'office ; rangé dans « Groupe compétition », il prend l'étiquette du groupe.
   let fiche = await nouvelleTache(page, 'Renouveler la licence');
@@ -1215,17 +1215,15 @@ test('anciennes étiquettes reprises : en cochant « Groupe » sur la section, o
   await expect(page.locator('.topbar .brand')).toBeVisible();
   const donnees = () => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));
 
-  // Vue d'ensemble : elles sont « à relier ».
-  await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Étiquettes' }).locator('h3', { hasText: 'À relier' })).toBeVisible();
-  await page.keyboard.press('Escape');
+  // Page Étiquettes : elles sont « à relier ».
+  await allerA(page, '/etiquettes');
+  await expect(page.locator('main h2', { hasText: 'À relier' })).toBeVisible();
 
   // Section Gruppetto cochée « Groupe » : l'ancienne étiquette est proposée ; reprise, elle garde son identifiant et ses
   // membres, et tous les points de la section la portent.
   await allerA(page, '/admin/taches');
   await page.getByLabel('Groupe : la section Gruppetto est une étiquette').check();
-  await expect(page.getByLabel('Étiquette du groupe Gruppetto')).toHaveValue('et-gruppetto');
+  await expect(page.getByLabel('Étiquette de la section Gruppetto')).toHaveValue('et-gruppetto');
   await page.getByRole('button', { name: 'Créer le groupe' }).click();
   await expect.poll(async () => (await donnees()).etiquettes.find((e: { id: string }) => e.id === 'et-gruppetto')).toMatchObject({ sectionId: 'sec7', membres: ['p8'], nom: 'Gruppetto' });
   await expect.poll(async () => (await donnees()).tasks.find((t: { id: string }) => t.id === 't-g2').etiquettes).toEqual(['et-gruppetto']);
@@ -1247,9 +1245,48 @@ test('anciennes étiquettes reprises : en cochant « Groupe » sur la section, o
   expect((await donnees()).tasks.find((t: { id: string }) => t.id === 't-s1').etiquettes).toEqual(['et-st-martin']);
 
   // Plus rien « à relier ».
+  await allerA(page, '/etiquettes');
+  await expect(page.locator('main h1', { hasText: 'Étiquettes' })).toBeVisible();
+  await expect(page.locator('main h2', { hasText: 'À relier' })).toHaveCount(0);
+});
+
+test('page Étiquettes, dans le menu Club : tout le réglage ; une icône choisie dans la bibliothèque, sur les pastilles', async ({ page }) => {
+  // Le menu : Club › Étiquettes.
+  await page.locator('.topbar nav a', { hasText: 'Club' }).first().click();
+  await page.locator('nav.subtabs').getByRole('link', { name: 'Étiquettes' }).click();
+  await expect(page).toHaveURL(/#\/etiquettes$/);
+  await expect(page.locator('main h1', { hasText: 'Étiquettes' })).toBeVisible();
+
+  // Un événement coché ici a son étiquette (et sa sous-section) tout de suite.
+  // (Marche familiale, le 13.09.2026 : parmi les événements passés, repliés.)
+  await page.getByRole('button', { name: /Voir les événements passés/ }).click();
+  await page.getByLabel('Étiquette de l’événement Marche familiale').check();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).etiquettes.find((e: { eventId?: string }) => e.eventId === 'e6')?.nom)).toBe('Marche familiale');
+
+  // Groupe compétition : icône « VTT » choisie dans la bibliothèque (recherche).
+  const ligne = page.locator('.groupe-section', { has: page.getByLabel('Groupe : la section Groupe compétition est une étiquette') });
+  await ligne.getByRole('button', { name: /5 membres/ }).click();
+  await ligne.getByRole('button', { name: 'Icône de l’étiquette Groupe compétition' }).click();
+  await ligne.getByLabel('Chercher une icône').fill('vtt');
+  await ligne.getByRole('radio', { name: 'VTT', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).etiquettes.find((e: { id: string }) => e.id === 'et-u-competition')?.icone)).toBe('vtt');
+
+  // Sur la pastille d'un point du groupe : l'icône, puis le nom.
+  const fiche = await nouvelleTache(page, 'Inscrire l’équipe');
+  await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ label: 'Groupe compétition' });
+  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Groupe compétition/ }).locator('svg')).toHaveCount(1);
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await allerA(page, '/taches');
-  await page.getByRole('button', { name: 'Étiquettes', exact: true }).click();
-  await expect(page.getByRole('dialog', { name: 'Étiquettes' }).locator('h3', { hasText: 'À relier' })).toHaveCount(0);
+  const badge = page.locator('main tr', { hasText: 'Inscrire l’équipe' }).locator('.badge.etiquette');
+  await expect(badge).toHaveText('Groupe compétition');
+  await expect(badge.locator('svg')).toHaveCount(1);
+
+  // Sans droit de réglage (Émilie Rossi) : la page en lecture.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Émilie Rossi' }).first().click();
+  await allerA(page, '/etiquettes');
+  await expect(page.getByLabel('Groupe : la section Groupe compétition est une étiquette')).toBeDisabled();
+  await expect(page.getByLabel('Comité : l’étiquette des autres points')).toBeDisabled();
 });
 
 test('aide et textes de l’appli : plus d’entités, d’organigramme ni de comité central (admin et membre)', async ({ page }) => {

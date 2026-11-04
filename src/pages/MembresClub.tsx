@@ -11,6 +11,7 @@ import { Initials, Modal } from '../components/ui';
 import { ImportCsv } from '../components/ImportCsv';
 import { CompteDuClub } from '../components/Acces';
 import { Icone } from '../components/icones';
+import { BadgeEtiquette } from '../components/IconesEtiquette';
 
 // Personnes du club : la liste unique du club (une fiche par personne, avec ou sans accès à l'appli). Tout le monde la voit
 // (noms, postes, rôles, étiquettes) ; les coordonnées, avec le droit « voir les coordonnées » ; ajouter, modifier, retirer du
@@ -164,7 +165,7 @@ export function MembresClub() {
     if (m.masque && (k === 'email' || k === 'telephone' || k === 'iban')) return <Masque />;
     if (k === 'email' || k === 'telephone') return m[k];
     if (k === 'iban') return <span className="mono">{ibanCourt(m.iban)}</span>;
-    if (k === 'etiquettes') return etiquettesDe(m).map((e) => <span key={e.id} className="badge etiquette" style={{ background: e.couleur }}>{e.nom}</span>);
+    if (k === 'etiquettes') return etiquettesDe(m).map((e) => <BadgeEtiquette key={e.id} e={e} />);
     if (k === 'roles') return rolesDe(m).map((r) => <span key={r.id} className="badge" style={{ background: r.couleur }}>{r.label}</span>);
     return fiche(m)?.poste ?? '';
   };

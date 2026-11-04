@@ -704,6 +704,8 @@ export interface Etiquette {
   lieux?: LieuEtiquette[];
   /** « Comité » : l'étiquette des points qui n'ont ni groupe ni événement. Une seule. */
   parDefaut?: boolean;
+  /** Icône choisie dans la bibliothèque (IconesEtiquette.tsx) ; absente : celle de sa sorte. */
+  icone?: string;
 }
 
 /** Place d'une étiquette : une section entière, ou l'une de ses sous-sections. */

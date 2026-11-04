@@ -222,6 +222,13 @@ base de test : `outils/base-test/LISEZMOI.md`.
   - Tests : 46 (étiquettes refaites : groupe, événement et sa sous-section, point rattaché, Comité, membre limité à sa
     sous-section, anciennes étiquettes reprises).
 
+- **E3 (04.11.2026), page Étiquettes et icônes** : retour du président (une icône sur les étiquettes, celle qu'on avait
+  faite ; le réglage trop caché dans les menus). Page **Club › Étiquettes** (`/etiquettes`) : les événements (à venir,
+  passés repliés), les sections, « Comité », les étiquettes à relier ; pour chacune, icône, couleur, membres ; mêmes
+  réglages que le formulaire d'un événement et la console admin (composants partagés, `ReglageEtiquette.tsx`). Icône :
+  la bibliothèque des anciennes entités reprise (`IconesEtiquette.tsx`, champ `icone` de l'étiquette ; par défaut selon
+  sa sorte), sur toutes les pastilles. La fenêtre « Étiquettes » est remplacée par la page. Sans migration. Tests : 47.
+
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 
 D'après le rapport D2. Ce qui n'est pas écrit ici suit le rapport (`outils/reprise/rapport_reprise.sql`).

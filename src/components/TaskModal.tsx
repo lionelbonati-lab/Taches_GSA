@@ -31,6 +31,7 @@ import { commentairesDe, nonLus } from '../data/commentaires';
 import { Historique } from './tache/Historique';
 import { NotesSeances } from './tache/NotesSeances';
 import { etiquettesDesLieux, nomLieu, recaler } from '../data/etiquettes';
+import { IconeEtiquette } from './IconesEtiquette';
 
 /** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
 export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string; ouvrirDiscussion?: boolean };
@@ -384,7 +385,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
                   <button key={e.id} type="button" className={`chip ${on ? 'on' : ''} ${dOffice ? 'd-office' : ''}`} style={on ? { background: e.couleur, borderColor: e.couleur } : { borderColor: e.couleur }} disabled={fige} aria-pressed={on}
                     title={dOffice ? `D’office : le point est rangé dans ${placeDe}${t.eventId ? ' ou rattaché à son événement' : ''}` : !dis && fige ? 'Tu n’es pas membre de cette étiquette' : undefined}
                     onClick={() => setT((x) => ({ ...x, etiquettes: on ? (x.etiquettes ?? []).filter((y) => y !== e.id) : [...(x.etiquettes ?? []), e.id] }))}>
-                    {e.type === 'evenement' ? '📅 ' : ''}{e.nom}{dOffice ? ' 🔒' : ''}
+                    <IconeEtiquette e={e} /> {e.nom}{dOffice ? ' 🔒' : ''}
                   </button>
                 );
               })}

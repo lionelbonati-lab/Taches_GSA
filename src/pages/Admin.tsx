@@ -9,11 +9,8 @@ import { Modal } from '../components/ui';
 import { useClubOptional } from '../data/club';
 import { ImportsClub } from '../components/ImportsClub';
 import { LogoPanel } from '../components/LogoPanel';
-import { EtiquettesModal } from '../components/Etiquettes';
-import { aReprendre, etiquetteDeLaSection, etiquetteDuComite, etiquettesAReprendre, reglerComite, reglerGroupe, renommerSousSection, type ChoixEtiquette } from '../data/etiquettes';
-import { MembresEtiquette } from '../components/ReglageEtiquette';
-import { hasPermission, userRoles } from '../data/permissions';
-import type { Section } from '../data/types';
+import { renommerSousSection } from '../data/etiquettes';
+import { Comite, GroupeSection } from '../components/ReglageEtiquette';
 import { PageIntro } from '../components/Nav';
 import { COULEURS_APPLI } from '../data/couleur';
 import { EnteteReglage } from '../components/Entete';
@@ -372,7 +369,6 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
 
 function Lists() {
   const { data, update, setToast } = useStore();
-  const [etiquettes, setEtiquettes] = useState(false);
   const [newSec, setNewSec] = useState('');
   const [newSub, setNewSub] = useState<Record<string, string>>({});
   const [newStatus, setNewStatus] = useState('');
@@ -411,7 +407,7 @@ function Lists() {
           Coche <b>Groupe</b> à côté d’une section (Gruppetto, École de cyclisme…) : elle devient une étiquette ; ses membres, du comité ou non,
           voient ses points. Les événements ont leur étiquette dans leur formulaire (agenda), avec leur sous-section dans « Événements ».
         </p>
-        <Comite />
+        <Comite peut />
         {data.sections.map((s) => {
           const used = data.tasks.filter((t) => t.sectionId === s.id).length;
           return (
@@ -420,7 +416,7 @@ function Lists() {
                 <input className="grow" defaultValue={s.nom} aria-label={`Nom de la section ${s.nom}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.nom) update((d) => { d.sections.find((x) => x.id === s.id)!.nom = v; }, `Section « ${s.nom} » renommée en « ${v} »`); }} />
                 <button className="btn small danger" disabled={used > 0} title={used ? `${used} point(s) utilisent cette section` : ''} onClick={() => update((d) => { d.sections = d.sections.filter((x) => x.id !== s.id); d.etiquettes = d.etiquettes?.map((e) => (e.lieux?.some((l) => l.sectionId === s.id) ? { ...e, lieux: e.lieux.filter((l) => l.sectionId !== s.id) } : e)); }, `Suppression de la section « ${s.nom} »`)}>Supprimer</button>
               </div>
-              <GroupeSection s={s} />
+              <GroupeSection s={s} peut />
               {s.sousSections.length > 0 && (
                 <ul className="sub-list">
                   {s.sousSections.map((ss, i) => {
@@ -495,8 +491,7 @@ function Lists() {
           Les groupes (coche « Groupe » des sections, à gauche), les événements (case « Étiquette » de leur formulaire) et le comité ; ses membres voient
           les points qui la portent. {data.etiquettes?.length ?? 0} étiquette(s).
         </p>
-        <button className="btn" onClick={() => setEtiquettes(true)}><Icone n="etiquette" /> Toutes les étiquettes</button>
-        {etiquettes && <EtiquettesModal onClose={() => setEtiquettes(false)} />}
+        <Link className="btn" to="/etiquettes"><Icone n="etiquette" /> Page Étiquettes</Link>
       </section>
     </div>
   );
@@ -520,88 +515,3 @@ function Log() {
   );
 }
 
-/** Coche « Groupe » d'une section : son étiquette (à son nom), ses membres ; on peut reprendre une ancienne étiquette. */
-function GroupeSection({ s }: { s: Section }) {
-  const { data, update } = useStore();
-  const deja = etiquetteDeLaSection(data, s.id);
-  const [choix, setChoix] = useState<ChoixEtiquette>(null);
-  const [ouvert, setOuvert] = useState(false);
-  const creer = (c: ChoixEtiquette) => {
-    update((d) => reglerGroupe(d, s.id, c), `Section « ${s.nom} » : groupe (étiquette)`);
-    setChoix(null);
-    setOuvert(true);
-  };
-  const cocher = (on: boolean) => {
-    if (!on) {
-      if (choix) return setChoix(null);
-      const n = deja ? data.tasks.filter((t) => t.etiquettes?.includes(deja.id)).length : 0;
-      if (!confirm(`« ${s.nom} » n’est plus un groupe : son étiquette est retirée${n ? ` de ses ${n} point(s) (ils restent dans la section)` : ''}. Continuer ?`)) return;
-      return update((d) => reglerGroupe(d, s.id, null), `Section « ${s.nom} » : plus un groupe`);
-    }
-    // Une ancienne étiquette pourrait être reprise : on la propose avant de créer.
-    if (!etiquettesAReprendre(data, s.nom).length) return creer({ membres: [] });
-    const p = aReprendre(data, s.nom);
-    setChoix({ membres: p?.membres ?? [], reprise: p?.id });
-  };
-  const n = deja ? data.tasks.filter((t) => t.etiquettes?.includes(deja.id)).length : 0;
-  const candidates = choix ? etiquettesAReprendre(data, s.nom) : [];
-  return (
-    <div className="groupe-section">
-      <label className="inline" title="La section devient une étiquette : ses membres voient ses points">
-        <input type="checkbox" checked={!!deja || !!choix} aria-label={`Groupe : la section ${s.nom} est une étiquette`} onChange={(e) => cocher(e.target.checked)} /> Groupe
-      </label>
-      {choix && (
-        <span className="row wrap">
-          <select value={choix.reprise ?? ''} aria-label={`Étiquette du groupe ${s.nom}`}
-            onChange={(e) => { const x = candidates.find((y) => y.id === e.target.value); setChoix({ membres: x?.membres ?? [], reprise: x?.id }); }}>
-            <option value="">Nouvelle étiquette</option>
-            {candidates.map((e) => <option key={e.id} value={e.id}>Reprendre « {e.nom} »</option>)}
-          </select>
-          <button type="button" className="btn small primary" onClick={() => creer(choix)}>Créer le groupe</button>
-        </span>
-      )}
-      {deja && (
-        <button type="button" className="btn small" aria-expanded={ouvert} onClick={() => setOuvert(!ouvert)}>
-          {deja.membres?.length ?? 0} membre{(deja.membres?.length ?? 0) > 1 ? 's' : ''} · {n} point{n > 1 ? 's' : ''}
-        </button>
-      )}
-      {deja && ouvert && (
-        <MembresEtiquette nom={s.nom} membres={deja.membres ?? []} onChange={(membres) => update((d) => reglerGroupe(d, s.id, { membres }), `Groupe « ${s.nom} » : membres modifiés`)} />
-      )}
-    </div>
-  );
-}
-
-/** « Comité » : l'étiquette des points qui n'ont ni groupe ni événement ; ses membres (d'office : accès aux séances). */
-function Comite() {
-  const { data, update } = useStore();
-  const comite = etiquetteDuComite(data);
-  const [ouvert, setOuvert] = useState(false);
-  const n = comite ? data.tasks.filter((t) => t.etiquettes?.includes(comite.id)).length : 0;
-  const cocher = (on: boolean) => {
-    if (on) {
-      if (!confirm('Créer l’étiquette « Comité » ? Les points qui n’ont ni groupe ni événement la reçoivent ; leur discussion est alors réservée à ses membres (et aux personnes qu’on y ajoute).')) return;
-      const membres = data.people.filter((p) => p.actif && hasPermission(userRoles(data.roles, p), 'tab.meetings')).map((p) => p.id);
-      update((d) => reglerComite(d, membres), 'Étiquette « Comité » créée, pour les points qui n’ont ni groupe ni événement');
-      return setOuvert(true);
-    }
-    if (!confirm(`Retirer l’étiquette « Comité » ?${n ? ` Elle est retirée de ${n} point(s) ; les points restent.` : ''}`)) return;
-    update((d) => reglerComite(d, null), 'Étiquette « Comité » retirée');
-  };
-  return (
-    <div className="panel groupe-section comite-reglage">
-      <label className="inline">
-        <input type="checkbox" checked={!!comite} aria-label="Comité : l’étiquette des autres points" onChange={(e) => cocher(e.target.checked)} /> <b>Comité</b>
-      </label>
-      <small className="muted">l’étiquette des points qui n’ont ni groupe ni événement</small>
-      {comite && (
-        <button type="button" className="btn small" aria-expanded={ouvert} onClick={() => setOuvert(!ouvert)}>
-          {comite.membres?.length ?? 0} membre{(comite.membres?.length ?? 0) > 1 ? 's' : ''} · {n} point{n > 1 ? 's' : ''}
-        </button>
-      )}
-      {comite && ouvert && (
-        <MembresEtiquette nom="Comité" membres={comite.membres ?? []} onChange={(membres) => update((d) => reglerComite(d, membres), 'Étiquette « Comité » : membres modifiés')} />
-      )}
-    </div>
-  );
-}

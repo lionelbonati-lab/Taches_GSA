@@ -92,6 +92,12 @@ const RUBRIQUES: NavRubrique[] = [
     icon: 'membres',
     pages: [
       { to: '/membres-club', label: 'Personnes du club', icon: 'membres', registre: true, aide: 'Les personnes du club, avec ou sans accès à l’appli : une fiche par personne, avec ses rôles et ses étiquettes (événements, groupes).' },
+      {
+        to: '/etiquettes',
+        label: 'Étiquettes',
+        icon: 'etiquette',
+        aide: 'Les étiquettes du club et leurs membres, qui voient leurs points : un événement de l’agenda (sa sous-section dans « Événements »), un groupe (une section) ou le comité. Coche ce qui doit avoir son étiquette ; choisis son icône, sa couleur et ses membres.',
+      },
     ],
   },
 ];

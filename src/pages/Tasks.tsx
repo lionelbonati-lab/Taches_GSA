@@ -11,7 +11,6 @@ import { CircuitPaiements } from '../components/Tickets';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { APrendreTag, Avatar, DocPollIcons, Empty, EtiquettesTag, LinkIcon, PourInfoTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
-import { EtiquettesModal } from '../components/Etiquettes';
 import { lieuxDe } from '../data/etiquettes';
 import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
@@ -107,7 +106,6 @@ function ListeTaches() {
     const l = e ? lieuxDe(e, data.sections)[0] : undefined;
     return l ? { sectionId: l.sectionId, sousSection: l.sousSection ?? '' } : {};
   };
-  const [reglerEtiquettes, setReglerEtiquettes] = useState(false);
   // « Toutes » : celles des sections « Voir toutes », et celles de mes étiquettes.
   const viewAll = can('tasks.viewAll') || !!data.etiquettes?.some((e) => !!user && e.membres?.includes(user.id));
   const effScope = viewAll ? scope : 'mes';
@@ -241,7 +239,7 @@ function ListeTaches() {
               {archives ? '← Points en cours' : <><Icone n="archives" /> Archives ({nArchivees})</>}
             </button>
           )}
-          {can('settings.lists') && <button className="btn" onClick={() => setReglerEtiquettes(true)}><Icone n="etiquette" /> Étiquettes</button>}
+          <button className="btn" onClick={() => navigate('/etiquettes')}><Icone n="etiquette" /> Étiquettes</button>
           <button className="btn hide-mobile" onClick={exportCsv}>Export CSV</button>
           <button className="btn hide-mobile" onClick={() => window.print()}>Imprimer</button>
           {creatableSections().length > 0 && <button className="btn primary" onClick={() => setEdit({ task: nouvelleTache(), isNew: true })}>+ Nouveau point</button>}
@@ -392,7 +390,6 @@ function ListeTaches() {
       )}
 
       {edit && <TaskModal task={edit.task} isNew={edit.isNew} openEmailId={edit.email} ouvrirDiscussion={edit.discussion} onClose={closeEdit} />}
-      {reglerEtiquettes && <EtiquettesModal onClose={() => setReglerEtiquettes(false)} />}
     </div>
   );
 }

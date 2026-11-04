@@ -16,6 +16,7 @@ import { EmailSend } from '../components/EmailsField';
 import { AccueilModal, JOURS_A_FAIRE, joursAFaire, useAccueil } from '../components/Accueil';
 import { finAnticipee } from '../data/seances';
 import { Icone } from '../components/icones';
+import { IconeEtiquette } from '../components/IconesEtiquette';
 import { LieuSeance } from '../components/Liens';
 
 export function Dashboard() {
@@ -249,7 +250,7 @@ export function Dashboard() {
                 <Link key={et ? `et:${et.id}` : e!.id} to={lien} className="panel link-panel">
                   <strong>
                     {et ? et.nom : e!.nom}
-                    {et && <> <span className="badge etiquette" style={{ background: et.couleur }} title="Étiquette « événement » : ses points">🏷</span></>}
+                    {et && <> <span className="badge etiquette" style={{ background: et.couleur }} title="Étiquette de l’événement : ses points"><IconeEtiquette e={et} /></span></>}
                   </strong>
                   <span>
                     {[fmtRange(x.date, x.dateFin), e && horaire(e), e?.lieu].filter(Boolean).join(' · ')}

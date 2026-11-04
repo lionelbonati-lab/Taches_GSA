@@ -24,6 +24,7 @@ const charger = {
   sondages: () => import('./pages/Polls'),
   pv: () => import('./pages/Minutes'),
   membres: () => import('./pages/MembresClub'),
+  etiquettes: () => import('./pages/Etiquettes'),
   aide: () => import('./pages/Aide'),
   propositions: () => import('./pages/Propositions'),
   motsDePasse: () => import('./pages/MotsDePasse'),
@@ -38,6 +39,7 @@ const Pv = lazy(() => charger.odj().then((m) => ({ default: m.Pv })));
 const Polls = lazy(() => charger.sondages().then((m) => ({ default: m.Polls })));
 const Minutes = lazy(() => charger.pv().then((m) => ({ default: m.Minutes })));
 const MembresClub = lazy(() => charger.membres().then((m) => ({ default: m.MembresClub })));
+const EtiquettesPage = lazy(() => charger.etiquettes().then((m) => ({ default: m.EtiquettesPage })));
 const Aide = lazy(() => charger.aide().then((m) => ({ default: m.Aide })));
 const Propositions = lazy(() => charger.propositions().then((m) => ({ default: m.Propositions })));
 const MotsDePasse = lazy(() => charger.motsDePasse().then((m) => ({ default: m.MotsDePasse })));
@@ -92,6 +94,7 @@ export function App() {
           <Route path="sondages" element={<Polls />} />
           <Route path="paiements" element={<PaiementsRedirect />} />
           {club?.personnes.voir && <Route path="membres-club" element={<MembresClub />} />}
+          <Route path="etiquettes" element={<EtiquettesPage />} />
           <Route path="reglages" element={<Settings />} />
           {can('admin.access') && <Route path="admin" element={<Admin />} />}
           {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}

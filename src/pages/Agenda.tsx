@@ -10,6 +10,7 @@ import { RepriseModal } from '../components/Reprise';
 import { reprenable } from '../data/reprise';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
+import { BadgeEtiquette } from '../components/IconesEtiquette';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
@@ -503,7 +504,7 @@ function TachesEtiquette({ et }: { et: Etiquette }) {
   const taches = data.tasks.filter((t) => t.etiquettes?.includes(et.id));
   return (
     <div className="etiquette-taches">
-      <span className="badge etiquette" style={{ background: et.couleur }}>{et.nom}</span>{' '}
+      <BadgeEtiquette e={et} />{' '}
       <small className="muted">{et.membres?.length ?? 0} membre{(et.membres?.length ?? 0) > 1 ? 's' : ''}</small>
       {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
       <Link to={`/taches?etiquette=${encodeURIComponent(et.id)}`}>Points de l’étiquette →</Link>
