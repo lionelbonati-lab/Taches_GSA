@@ -664,7 +664,10 @@ export interface AppData {
 
 /** Discussion d'une tâche (ligne « discussions » du serveur, 062). */
 export interface DiscussionTache {
-  tache: string;
+  /** La tâche (discussion d'un point). */
+  tache?: string;
+  /** L'étiquette (discussion d'une étiquette, ligne « et:<id> », 066) : ses membres seulement. */
+  etiquette?: string;
   /** Du plus ancien au plus récent. */
   commentaires: Commentaire[];
   /**

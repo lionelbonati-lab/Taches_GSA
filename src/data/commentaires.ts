@@ -9,6 +9,12 @@ import { uid } from './utils';
 export const commentairesDe = (d: Pick<AppData, 'discussions'>, t: Pick<Task, 'id' | 'commentaires'>): Commentaire[] =>
   d.discussions?.[t.id]?.commentaires ?? t.commentaires ?? [];
 
+/** Discussion d'une étiquette (066) : sa clé (ligne « discussions », lecture, notifications) et ses messages. */
+export const cleEtiquette = (id: string) => `et:${id}`;
+export const commentairesEtiquette = (d: Pick<AppData, 'discussions'>, id: string): Commentaire[] => d.discussions?.[cleEtiquette(id)]?.commentaires ?? [];
+/** Les 500 derniers messages d'une étiquette sont gardés (comme le serveur). */
+export const COMMENTAIRES_ETIQUETTE_MAX = 500;
+
 /** Personnes ajoutées à la discussion de la tâche (063, fiches). */
 export const ajouteesDe = (d: Pick<AppData, 'discussions'>, t: Pick<Task, 'id'>): string[] => d.discussions?.[t.id]?.participants ?? [];
 

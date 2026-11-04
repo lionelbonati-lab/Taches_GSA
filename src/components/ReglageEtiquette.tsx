@@ -1,4 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Icone } from './icones';
+import { cleEtiquette, commentairesEtiquette, nonLus } from '../data/commentaires';
 import { useStore } from '../data/store';
 import type { ClubEvent, Etiquette, Section } from '../data/types';
 import { fmtRange, fullName } from '../data/utils';
@@ -121,9 +124,13 @@ const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
  * `onMembres` : enregistre les membres (selon la sorte : événement, groupe, comité).
  */
 export function EtiquetteReglee({ e, peut, onMembres, detail, deplie }: { e: Etiquette; peut: boolean; onMembres: (m: string[]) => void; detail?: string; deplie?: boolean }) {
-  const { data, update } = useStore();
+  const { data, user, update, discussionLueLe } = useStore();
+  const navigate = useNavigate();
   // Juste créée : dépliée, pour choisir ses membres.
   const [ouvert, setOuvert] = useState(!!deplie);
+  // Sa discussion (066) : pour ses membres ; les messages pas encore lus sur le bouton.
+  const membre = !!user && !!e.membres?.includes(user.id);
+  const aLire = membre ? nonLus(commentairesEtiquette(data, e.id), discussionLueLe(cleEtiquette(e.id)), user.id) : 0;
   const changer = (p: Partial<Etiquette>, quoi: string) =>
     update((d) => {
       d.etiquettes = (d.etiquettes ?? []).map((x) => (x.id === e.id ? { ...x, ...p } : x));
@@ -138,6 +145,12 @@ export function EtiquetteReglee({ e, peut, onMembres, detail, deplie }: { e: Eti
         <button type="button" className="btn small" aria-expanded={ouvert} onClick={() => setOuvert(!ouvert)}>
           {pluriel(m, 'membre')} · {pluriel(nbPoints(data, e), 'point')}
         </button>
+        {membre && (
+          <button type="button" className="btn small" title={`Discussion de « ${e.nom} » : ses membres`} aria-label={`Discussion de l’étiquette ${e.nom}`}
+            onClick={() => navigate(`/messages?d=${encodeURIComponent(cleEtiquette(e.id))}`)}>
+            <Icone n="message" /> Discussion{aLire > 0 && <span className="discussion-nb">{aLire}</span>}
+          </button>
+        )}
       </span>
       {ouvert && (
         <div className="etiquette-detail">

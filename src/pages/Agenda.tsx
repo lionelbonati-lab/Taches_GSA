@@ -500,7 +500,7 @@ export function Events() {
 
 /** Tâches d'une étiquette : avancement et lien. */
 function TachesEtiquette({ et }: { et: Etiquette }) {
-  const { data } = useStore();
+  const { data, user } = useStore();
   const taches = data.tasks.filter((t) => t.etiquettes?.includes(et.id));
   return (
     <div className="etiquette-taches">
@@ -508,6 +508,7 @@ function TachesEtiquette({ et }: { et: Etiquette }) {
       <small className="muted">{et.membres?.length ?? 0} membre{(et.membres?.length ?? 0) > 1 ? 's' : ''}</small>
       {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
       <Link to={`/taches?etiquette=${encodeURIComponent(et.id)}`}>Points de l’étiquette →</Link>
+      {!!user && et.membres?.includes(user.id) && <> · <Link to={`/messages?d=${encodeURIComponent(`et:${et.id}`)}`}>💬 Discussion</Link></>}
     </div>
   );
 }

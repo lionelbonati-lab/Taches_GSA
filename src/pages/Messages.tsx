@@ -5,6 +5,7 @@ import { PageIntro } from '../components/Nav';
 import { Discussion, quandMessage } from '../components/tache/Discussion';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
+import { IconeEtiquette } from '../components/IconesEtiquette';
 
 // Onglet « Messages » : les discussions des tâches comme une messagerie. Chaque discussion reste celle de sa tâche (même
 // fenêtre que la bulle 💬 de la fiche) ; « Nouvelle discussion » en ouvre une sur une tâche qui n'en a pas encore.
@@ -63,9 +64,10 @@ export function Messages() {
           titre={chat.titre}
           liste={chat.liste}
           tacheId={chat.cle}
+          etiquette={chat.etiquette}
           onClose={() => ouvrir(null)}
           actions={
-            <button type="button" className="icon-btn" title="Ouvrir le point" aria-label="Ouvrir le point" onClick={() => navigate(chat.lien)}>
+            <button type="button" className="icon-btn" title={chat.etiquette ? 'Les points de l’étiquette' : 'Ouvrir le point'} aria-label={chat.etiquette ? 'Les points de l’étiquette' : 'Ouvrir le point'} onClick={() => navigate(chat.lien)}>
               <Icone n="taches" />
             </button>
           }
@@ -91,7 +93,11 @@ function LigneDiscussion({ d, onOpen }: { d: DiscussionVue; onOpen: () => void }
   return (
     <li>
       <button type="button" className={`messages-ligne${d.nonLus ? ' nonlu' : ''}`} onClick={onOpen}>
-        <span className="messages-avatar" aria-hidden="true">{d.titre.trim().charAt(0).toUpperCase() || '?'}</span>
+        {d.etiquette ? (
+          <span className="messages-avatar" style={{ background: d.etiquette.couleur, color: '#fff' }} aria-hidden="true"><IconeEtiquette e={d.etiquette} /></span>
+        ) : (
+          <span className="messages-avatar" aria-hidden="true">{d.titre.trim().charAt(0).toUpperCase() || '?'}</span>
+        )}
         <span className="messages-corps">
           <span className="messages-haut">
             <span className="messages-titre">{d.titre}</span>
@@ -115,10 +121,20 @@ function ChoixTache({ taches, onChoix, onClose }: { taches: DiscussionVue[]; onC
   const liste = taches.filter((d) => cherche(q, d.titre)).sort((a, b) => a.titre.localeCompare(b.titre, 'fr'));
   return (
     <Modal title="Nouvelle discussion" onClose={onClose}>
-      <p className="muted" style={{ marginTop: 0 }}>Sur quel point ? Les personnes concernées par le point seront prévenues de ton message.</p>
-      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Titre du point…" aria-label="Chercher un point" autoFocus />
+      <p className="muted" style={{ marginTop: 0 }}>
+        Sur quel point, ou avec quelle étiquette (toute la manifestation, tout le groupe) ? Les personnes concernées seront prévenues de ton message.
+      </p>
+      <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="🔍 Titre du point, étiquette…" aria-label="Chercher un point" autoFocus />
       <ul className="messages-choix">
-        {liste.slice(0, 60).map((d) => (
+        {liste.filter((d) => d.etiquette).map((d) => (
+          <li key={d.cle}>
+            <button type="button" onClick={() => onChoix(d.cle)}>
+              <span><span className="badge etiquette" style={{ background: d.etiquette!.couleur }}><IconeEtiquette e={d.etiquette!} /> {d.titre}</span></span>
+              {d.liste.length > 0 && <small className="muted"><Icone n="message" /> {d.liste.length}</small>}
+            </button>
+          </li>
+        ))}
+        {liste.filter((d) => !d.etiquette).slice(0, 60).map((d) => (
           <li key={d.cle}>
             <button type="button" onClick={() => onChoix(d.cle)}>
               <span>{d.titre}</span>

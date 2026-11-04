@@ -840,6 +840,12 @@ export async function commenterTache(unite: string, tache: string, depuis: strin
   if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore la discussion sur les points (mise à jour 049 à appliquer).' : error.message);
 }
 
+/** Discussion d'une étiquette (066) : message ajouté, corrigé ou retiré ; ses membres sont prévenus (serveur). */
+export async function commenterEtiquette(unite: string, etiquette: string, a: { texte?: string; cle?: string; supprimer?: boolean }) {
+  const { error } = await sb().rpc('gsa_etiquette_commenter', { unite, etiquette, texte: a.texte ?? null, cle: a.cle ?? null, supprimer: !!a.supprimer });
+  if (error) throw new Error(absente(error) ? 'Le serveur ne gère pas encore la discussion des étiquettes (mise à jour 066 à appliquer).' : error.message);
+}
+
 /**
  * Historique (050) de la tâche `tache` de l'entité `unite`, vue depuis l'entité ouverte `depuis` (la même, ou une entité du
  * partage, ou mentionnée pour info) : de la modification la plus récente à la plus ancienne, avec les noms cités.

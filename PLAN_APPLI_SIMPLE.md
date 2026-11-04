@@ -229,6 +229,12 @@ base de test : `outils/base-test/LISEZMOI.md`.
   la bibliothèque des anciennes entités reprise (`IconesEtiquette.tsx`, champ `icone` de l'étiquette ; par défaut selon
   sa sorte), sur toutes les pastilles. La fenêtre « Étiquettes » est remplacée par la page. Sans migration. Tests : 47.
 
+- **E4 (04.11.2026), discussion de l'étiquette** : demande du président (une messagerie par étiquette, pour parler d'une
+  manifestation ou d'un groupe en entier). Migration **066** (essayée sur la base de test ; à appliquer) : ligne
+  « discussions » `et:<étiquette>`, écrite par `gsa_etiquette_commenter`, lue par ses membres seuls, notifications 💬 aux
+  autres membres. Appli : dans Messages (non-lus, « Nouvelle discussion »), bouton « Discussion » (page Étiquettes,
+  carte de l'événement) ; même fenêtre que la discussion d'un point. `gsa-push` inchangée. Tests : 48.
+
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 
 D'après le rapport D2. Ce qui n'est pas écrit ici suit le rapport (`outils/reprise/rapport_reprise.sql`).
