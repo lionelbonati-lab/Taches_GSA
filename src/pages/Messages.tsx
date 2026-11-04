@@ -6,6 +6,11 @@ import { Discussion, quandMessage } from '../components/tache/Discussion';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
 import { BadgeEtiquette, IconeEtiquette } from '../components/IconesEtiquette';
+import { sorteDe } from '../data/etiquettes';
+import type { Etiquette } from '../data/types';
+
+/** L'étiquette qui représente un point : celle de son événement ou de son groupe plutôt que « Comité ». */
+const principale = (l: Etiquette[]) => l.find((e) => sorteDe(e) !== 'comite') ?? l[0];
 
 // Onglet « Messages » : les discussions des tâches comme une messagerie. Chaque discussion reste celle de sa tâche (même
 // fenêtre que la bulle 💬 de la fiche) ; « Nouvelle discussion » en ouvre une sur une tâche qui n'en a pas encore.
@@ -87,14 +92,18 @@ export function Messages() {
   );
 }
 
-/** Une discussion de la liste : initiale de la tâche, titre, dernier message, moment et non lus. */
+/**
+ * Une discussion de la liste : l'icône de son étiquette (celle du point, ou l'étiquette elle-même ; sans étiquette,
+ * l'initiale du point), titre, dernier message, moment et non lus.
+ */
 function LigneDiscussion({ d, onOpen }: { d: DiscussionVue; onOpen: () => void }) {
   const der = d.liste.reduce((m, c) => (c.le > m.le ? c : m), d.liste[0]);
+  const et = d.etiquette ?? principale(d.etiquettes);
   return (
     <li>
       <button type="button" className={`messages-ligne${d.nonLus ? ' nonlu' : ''}`} onClick={onOpen}>
-        {d.etiquette ? (
-          <span className="messages-avatar" style={{ background: d.etiquette.couleur, color: '#fff' }} aria-hidden="true"><IconeEtiquette e={d.etiquette} /></span>
+        {et ? (
+          <span className="messages-avatar" style={{ background: et.couleur, color: '#fff' }} title={`Étiquette « ${et.nom} »`}><IconeEtiquette e={et} /></span>
         ) : (
           <span className="messages-avatar" aria-hidden="true">{d.titre.trim().charAt(0).toUpperCase() || '?'}</span>
         )}

@@ -1385,6 +1385,10 @@ test('discussions de points de même nom : chacune avec les étiquettes de son p
   await expect(lignes).toHaveCount(2);
   await expect(lignes.filter({ hasText: 'Tailles S à XL' }).locator('.badge.etiquette')).toHaveText('Bruntrutaine');
   await expect(lignes.filter({ hasText: 'Couleur bordeaux' }).locator('.badge.etiquette')).toHaveText('Soirée récréative');
+  // À la place de l'initiale du point : l'icône de son étiquette, dans sa couleur.
+  await expect(lignes.filter({ hasText: 'Tailles S à XL' }).locator('.messages-avatar')).toHaveAttribute('title', 'Étiquette « Bruntrutaine »');
+  await expect(lignes.filter({ hasText: 'Tailles S à XL' }).locator('.messages-avatar svg')).toHaveCount(1);
+  await expect(lignes.filter({ hasText: 'Couleur bordeaux' }).locator('.messages-avatar')).toHaveAttribute('title', 'Étiquette « Soirée récréative »');
   await page.getByLabel('Rechercher dans les messages').fill('bruntrutaine');
   await expect(lignes).toHaveCount(1);
 

@@ -237,8 +237,9 @@ base de test : `outils/base-test/LISEZMOI.md`.
 
 - **E5 (04.11.2026), étiquettes du point sur sa discussion** : demande du président (des points de même nom dans des
   événements différents). Messages (liste, recherche, « Nouvelle discussion »), titre de la fenêtre et notification 💬
-  montrent les étiquettes du point. Sans migration ; `gsa-push` : `notifs.js` régénéré (le même texte sur téléphone,
-  à redéployer). Tests : 53.
+  montrent les étiquettes du point ; dans la liste des Messages, l'icône de son étiquette remplace l'initiale du point
+  (visible aussi sur téléphone, où le titre est coupé). Sans migration ; `gsa-push` **v13** déployée le 04.11.2026 (le
+  même texte sur téléphone ; contenu déployé relu, identique au dépôt ; passage de 09:45 sans erreur). Tests : 53.
 
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 
