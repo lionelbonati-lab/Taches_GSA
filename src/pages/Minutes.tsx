@@ -5,7 +5,7 @@ import { FULL_AGENDA, blocsSection, echeanceSuivante, etatTerminee, meetingConte
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, resumerChangements, shortDate, stateOf } from '../data/minutes';
 import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
-import { fmtDate, fmtDateTime, fullName, initials, isDone, newTask, today, uid } from '../data/utils';
+import { finLe, fmtDate, fmtDateTime, fullName, initials, isDone, newTask, today, uid } from '../data/utils';
 import { NoteField, TexteNote } from '../components/NoteField';
 import { texteDe } from '../data/noteRiche';
 import { TaskModal } from '../components/FicheTache';
@@ -309,7 +309,14 @@ export function Minutes() {
   // tâches modifiées ou créées depuis le PV ; sauf ceux supprimés de l'ordre du jour de la séance (même après coup).
   const retires = retiresDe(s1);
   const ids = new Set<string>([...bucket.keys(), ...(etats ? [] : (m.pointIds ?? [])), ...journal.map((j) => j.taskId), ...nouvelles]);
-  const points = data.tasks.filter((t) => ids.has(t.id) && (!retires.has(t.id) || nouvelles.has(t.id))).map(vue);
+  const duPv = data.tasks.filter((t) => ids.has(t.id) && (!retires.has(t.id) || nouvelles.has(t.id)));
+  // Points rattachés à un point du PV (sous-points) : ils le suivent, même rattachés ailleurs ou après la séance ; terminés,
+  // seulement depuis la séance précédente.
+  const principaux = new Set(duPv.map((t) => t.id));
+  const sousPoints = data.tasks.filter(
+    (c) => !!c.parentId && principaux.has(c.parentId) && !principaux.has(c.id) && !retires.has(c.id) && (!isDone(data, c) || finLe(c) >= sel.since),
+  );
+  const points = [...duPv, ...sousPoints].map(vue);
   const polls = (data.polls ?? []).filter((p) => !retires.has(p.id) && (isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= sel.since));
   // Changements faits depuis le PV, résumés : l'état du départ et celui de la fin (plusieurs changements de statut : un seul).
   const changesOf = (t: Task) => resumerChangements(journal.filter((j) => j.taskId === t.id).flatMap((j) => j.changes));

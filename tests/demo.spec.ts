@@ -2281,7 +2281,7 @@ test('filtres des points : étiquette et événement aussi d’office (place, é
   await expect(note).toHaveCount(0);
 });
 
-test('PV repris après la séance : un sous-point créé ou rattaché depuis la fiche d’un point s’affiche sous lui', async ({ page }) => {
+test('PV repris après la séance : un sous-point s’affiche sous son point, rattaché depuis le PV ou ailleurs', async ({ page }) => {
   page.on('dialog', (d) => void d.accept());
   const cle = 'taches-gsa-demo-v7';
   await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
@@ -2293,14 +2293,24 @@ test('PV repris après la séance : un sous-point créé ou rattaché depuis la 
     d.meetings.push({ id: 'm-fige', titre: 'Comité figé', date: j.seance, heure: '19:30', lieu: '', minutes: { presents: [], excuses: [], notes: {}, demarreLe: `${j.seance}T17:30:00.000Z` } });
     const moi = d.people[0].id;
     const t = (id: string, titre: string, delai: string) => ({ id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: aFaire, delai, remarque: '', checklist: [], createdBy: moi, updatedAt: `${j.avant}T12:00:00.000Z` });
-    d.tasks.push(t('f3', 'Point figé', j.seance), t('f4', 'Point à part', j.loin));
+    // « Sous-point rattaché ailleurs » : rattaché à « Point figé » après la séance, sans passer par le PV ; « Sous-point
+    // fini avant » : terminé avant la séance précédente (pas au PV).
+    const fini = d.statuses.find((s: { done: boolean }) => s.done).id;
+    d.tasks.push(
+      t('f3', 'Point figé', j.seance), t('f4', 'Point à part', j.loin),
+      { ...t('f5', 'Sous-point rattaché ailleurs', j.loin), parentId: 'f3', updatedAt: `${j.auj}T08:00:00.000Z` },
+      { ...t('f6', 'Sous-point fini avant', j.vieux), parentId: 'f3', statusId: fini, termineeLe: j.vieux },
+    );
     localStorage.setItem(k, JSON.stringify(d));
     const creee = { le: `${j.avant}T09:00:00.000Z`, par: 'x', nom: 'Julien Moreau', quoi: 'creee', champs: {} };
-    localStorage.setItem('taches-gsa-demo-historique', JSON.stringify({ 'u-central': { f3: [creee], f4: [creee] } }));
-  }, { k: cle, j: { seance: dansJours(-5), avant: dansJours(-8), auj: dansJours(0), loin: dansJours(200) } });
+    localStorage.setItem('taches-gsa-demo-historique', JSON.stringify({ 'u-central': { f3: [creee], f4: [creee], f5: [{ ...creee, le: `${j.auj}T08:00:00.000Z` }], f6: [creee] } }));
+  }, { k: cle, j: { seance: dansJours(-5), avant: dansJours(-8), auj: dansJours(0), loin: dansJours(200), vieux: dansJours(-400) } });
   await page.reload();
   await allerA(page, '/pv?seance=m-fige');
   await expect(page.locator('.pv-fige')).toContainText('tels qu’à la fin de la séance');
+  // Rattaché ailleurs, après la séance : il suit son point principal ; terminé il y a longtemps : pas au PV.
+  await expect(page.locator('.min-task.child[data-point="Sous-point rattaché ailleurs"]')).toBeVisible();
+  await expect(page.locator('.min-task[data-point="Sous-point fini avant"]')).toHaveCount(0);
 
   // Fiche ouverte depuis le PV : un nouveau point rattaché (délai lointain), puis un point existant rattaché.
   const ouvrir = async () => {
