@@ -2316,7 +2316,9 @@ test('PV repris après la séance : un sous-point s’affiche sous son point, ra
   const ouvrir = async () => {
     await page.locator('.min-task[data-point="Point figé"]').getByRole('button', { name: 'Point figé' }).click();
     const fiche = page.locator('.modal').first();
-    if (!(await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).count())) await fiche.getByRole('button', { name: 'Rattacher à…' }).click();
+    // La fiche ouverte (ses points rattachés déjà là : « Point figé » en a).
+    await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point figé');
+    await expect(fiche.getByRole('button', { name: '+ Nouveau point rattaché' })).toBeVisible();
     return fiche;
   };
   let fiche = await ouvrir();
@@ -2356,7 +2358,11 @@ test('PV en cours : un sous-point créé depuis la fiche d’un point s’affich
   await allerA(page, '/pv');
   await page.locator('.min-task[data-point="Point du PV"]').getByRole('button', { name: 'Point du PV' }).click();
   const fiche = page.locator('.modal').first();
-  if (!(await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).count())) await fiche.getByRole('button', { name: 'Rattacher à…' }).click();
+  // La fiche ouverte, puis ses rattachements (déjà affichés si le point est lié à une séance).
+  await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point du PV');
+  const rattacher = fiche.getByRole('button', { name: 'Rattacher à…' });
+  if (await rattacher.isVisible()) await rattacher.click();
+  await expect(fiche.getByRole('button', { name: '+ Nouveau point rattaché' })).toBeVisible();
   await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).click();
   const enfant = page.locator('.modal').last();
   await enfant.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Sous-point lointain');
