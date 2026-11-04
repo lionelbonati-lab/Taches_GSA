@@ -503,14 +503,26 @@ export function Events() {
   const etiquettes = etiquettesDatees(data.etiquettes);
   const etiquetteDe = (e: ClubEvent) => (data.etiquettes ?? []).find((et) => et.eventId === e.id) ?? etiquettes.find((et) => !et.eventId && memeEvenement(et, e));
   const seules = etiquettes.filter((et) => !et.eventId && !data.events.some((e) => memeEvenement(et, e)));
+  // La newsletter (et ses dates modifiées seules) n'est pas dans la liste : bouton « Newsletter » en haut.
+  const deLaNewsletter = (e: ClubEvent) => !!e.newsletter || (!!newsletter && e.serie?.id === newsletter.id);
   const liste = [
-    ...data.events.map((e) => ({ date: affiche(e), e, et: etiquetteDe(e) })),
+    ...data.events.filter((e) => !deLaNewsletter(e)).map((e) => ({ date: affiche(e), e, et: etiquetteDe(e) })),
     ...seules.map((et) => ({ date: et.date!, e: undefined, et })),
   ].sort((a, b) => a.date.localeCompare(b.date) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? ''));
   // Passé : son dernier jour est derrière nous (celui de l'occurrence affichée, pour un événement qui se répète).
   const passe = (x: (typeof liste)[number]) => (x.e ? endOf(aLaDate(x.e, x.date)) : endOf({ date: x.date, dateFin: x.et?.dateFin })) < jour;
   const aVenir = liste.filter((x) => !passe(x));
   const passes = liste.filter(passe).reverse();
+
+  // Bouton « Newsletter » : ses points et leurs remarques, à sa prochaine date (‹ › pour les autres) ; pas encore de
+  // newsletter : la créer (le 1er du mois prochain, chaque mois, case « Newsletter du club » cochée).
+  const [nouvelleNewsletter, setNouvelleNewsletter] = useState<ClubEvent | null>(null);
+  const ouvrirNewsletter = () => {
+    if (newsletter) return setChrono({ serie: newsletter, date: affiche(newsletter) });
+    const [a, m] = jour.split('-').map(Number);
+    const premier = m === 12 ? `${a + 1}-01-01` : `${a}-${String(m + 1).padStart(2, '0')}-01`;
+    setNouvelleNewsletter({ ...newEvent(premier), nom: 'Newsletter', repetition: { freq: 'mois' }, newsletter: true });
+  };
 
   // Annoncer un événement dans la newsletter : un point rattaché à la dernière édition avant lui (sinon la prochaine,
   // avec un avertissement), sa remarque préremplie (date, heure, lieu, description) ; rangé chez l'événement (place de
@@ -555,7 +567,18 @@ export function Events() {
     <div>
       <div className="page-head">
         <h1>Événements</h1>
-        {can('events.manage') && <button className="btn primary" onClick={() => setNouveau(true)}>+ Nouvel événement</button>}
+        <div className="page-head-boutons">
+          {(newsletter || can('events.manage')) && (
+            <button
+              className="btn newsletter"
+              onClick={ouvrirNewsletter}
+              title={newsletter ? 'Les points de la newsletter et leurs remarques, édition par édition' : 'Créer la newsletter du club : un événement qui revient chaque mois'}
+            >
+              <Icone n="newsletter" /> Newsletter
+            </button>
+          )}
+          {can('events.manage') && <button className="btn primary" onClick={() => setNouveau(true)}>+ Nouvel événement</button>}
+        </div>
       </div>
       <PageIntro />
       <div className="agenda">
@@ -570,8 +593,20 @@ export function Events() {
       )}
       {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
       {nouveau && <EventModal event={newEvent()} onClose={() => setNouveau(false)} />}
+      {nouvelleNewsletter && <EventModal event={nouvelleNewsletter} titre="Nouvelle newsletter" onClose={() => setNouvelleNewsletter(null)} />}
       {reprise && <RepriseModal event={reprise.e} copie={reprise.copie} onClose={() => setReprise(null)} />}
-      {chrono && <Chronologie cible={chrono} onClose={() => setChrono(null)} />}
+      {chrono && (
+        <Chronologie
+          key={`${chrono.serie?.id ?? chrono.etiquette?.id}@${chrono.date}`}
+          cible={chrono}
+          onClose={() => setChrono(null)}
+          onModifier={chrono.serie && deLaNewsletter(chrono.serie) && can('events.manage') ? (jour) => {
+            const s = chrono.serie!;
+            setChrono(null);
+            setEdit({ e: s, jour: s.repetition ? jour : undefined });
+          } : undefined}
+        />
+      )}
       {fiche && <TaskModal task={fiche} isNew onClose={() => setFiche(null)} />}
     </div>
   );

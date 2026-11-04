@@ -76,9 +76,12 @@ const estSimple = (r: RepetitionEvenement, date: string) =>
 /**
  * Fiche d'un événement. `jour` : l'occurrence ouverte d'un événement qui se répète (ses dates sont celles de cette
  * occurrence ; à l'enregistrement, on choisit : cet événement, les suivants, ou tous). `onChronologie` : bouton
- * « Chronologie » (les points de l'événement dans le temps), sans enregistrer.
+ * « Chronologie » (les points de l'événement dans le temps), sans enregistrer. `titre` : celui de la fenêtre (« Nouvelle
+ * newsletter »).
  */
-export function EventModal({ event, jour, onClose, onChronologie }: { event: ClubEvent; jour?: string; onClose: () => void; onChronologie?: () => void }) {
+export function EventModal({ event, jour, titre, onClose, onChronologie }: {
+  event: ClubEvent; jour?: string; titre?: string; onClose: () => void; onChronologie?: () => void;
+}) {
   const { data, can } = useStore();
   const { saveEvent, saveOccurrence, removeEvent, removeOccurrence, reglerEtiquette } = useEventActions();
   const serie = jour && event.repetition ? event : undefined;
@@ -177,10 +180,12 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
   if (demande && serie) {
     // Règle de répétition changée : elle ne s'applique pas à une seule occurrence.
     const regleChangee = demande === 'modifier' && !memeRegle(normaliser(pret()).repetition, normaliser(depart).repetition);
+    // Case « Newsletter du club » changée : elle vaut pour toute la série.
+    const newsletterChangee = demande === 'modifier' && !!pret().newsletter !== !!depart.newsletter;
     return (
       <ChoixPortee
         action={demande}
-        sans={regleChangee ? ['une'] : []}
+        sans={newsletterChangee ? ['une', 'suivantes'] : regleChangee ? ['une'] : []}
         onChoisir={(p) => {
           if (demande === 'modifier') saveOccurrence(serie, jour!, pret(), p);
           else removeOccurrence(serie, jour!, p);
@@ -200,7 +205,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
   const origine = event.serie && data.events.find((x) => x.id === event.serie!.id);
 
   return (
-    <Modal title={isNew ? 'Nouvel événement' : 'Événement'} onClose={onClose}>
+    <Modal title={titre ?? (isNew ? 'Nouvel événement' : 'Événement')} onClose={onClose}>
       <div className="form event-form">
         <label className="full">
           Événement
@@ -342,7 +347,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
           <label className="inline full case-newsletter">
             <input type="checkbox" checked={!!v.newsletter} onChange={(e) => set({ newsletter: e.target.checked || undefined })} />
             <span>
-              <Icone n="newsletter" /> Newsletter du club
+              <span className="case-newsletter-titre"><Icone n="newsletter" /> Newsletter du club</span>
               <small className="muted">
                 Chaque date est une édition : on y rattache des points (bouton « Newsletter » des événements, ou « Pour quand ? »),
                 et « Remarques » liste leurs remarques pour la préparer.

@@ -252,7 +252,7 @@ export function Calendar() {
   const chipClass = (it: Item) => {
     const late = it.kind === 'task' && isLate(data, it.t);
     const done = it.kind === 'task' && isDone(data, it.t);
-    return `cal-chip k-${it.kind}${late ? ' late' : ''}${done ? ' done' : ''}`;
+    return `cal-chip k-${it.kind}${late ? ' late' : ''}${done ? ' done' : ''}${it.kind === 'event' && estNewsletter(it.e) ? ' newsletter' : ''}`;
   };
   const chipStyle = (it: Item) =>
     it.kind === 'task'
@@ -372,7 +372,7 @@ export function Calendar() {
             <ul className="cal-list">
               {dayItems.map((it) => (
                 <li key={it.key}>
-                  <button className={`cal-row k-${it.kind}`} style={it.kind === 'etiquette' ? chipStyle(it) : undefined} onClick={() => open(it)}>
+                  <button className={`cal-row k-${it.kind}${it.kind === 'event' && estNewsletter(it.e) ? ' newsletter' : ''}`} style={it.kind === 'etiquette' ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
                         <Icone n={icone(it)} /> {chipText(it)}

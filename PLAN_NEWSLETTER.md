@@ -109,3 +109,19 @@ Parties 1, 2 et 3, dans la démo. Rien sur le serveur : pas de migration ni de d
 - **Calendrier** : la newsletter avec son icône. Un clic montre ses remarques, même pour qui gère les événements.
 - **Aide et README** : quelques lignes « Newsletter ». Un test Playwright couvre le parcours.
 - **Pas fait** : « Imprimer / PDF » des remarques. « Copier » suffit pour l'instant.
+
+## Retour du président (04.11.2026) et suite
+
+*Un bouton en haut, à côté de « Nouvel événement », d'une autre couleur ; la liste des newsletters se mélange à la liste
+des événements.* Fait :
+
+- **Bouton orange « Newsletter »** en haut de Agenda › Événements, à côté de « + Nouvel événement ». Il ouvre les
+  remarques de la prochaine édition ; **‹ ›** passent aux autres éditions ; **« Modifier »** ouvre la fiche de la
+  newsletter (gérer les événements). Sans newsletter, il la **crée** : « Nouvelle newsletter », le 1er du mois prochain,
+  tous les mois, case cochée.
+- **La newsletter n'est plus dans la liste des événements**, ni dans les « Prochains événements » de l'accueil. Elle
+  reste dans le calendrier, en orange.
+- Le bouton « Newsletter » des cartes d'événements reste : il crée le point qui annonce l'événement.
+- La case « Newsletter du club » vaut pour toute la série : la changer sur une date ne propose que « Tous les
+  événements ».
+

@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, DelaiUnite, Etiquette, Task } from '../data/types';
-import { aLaDate, horaire } from '../data/repetition';
+import { aLaDate, horaire, occurrenceApres, occurrencesEntre } from '../data/repetition';
 import {
-  DELAI_MAX, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
+  DELAI_MAX, addDays, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
 } from '../data/utils';
 import { etiquetteDeLEvenement, lieuxDe, sectionEvenements } from '../data/etiquettes';
 import { Empty, Modal, StatusBadge } from './ui';
@@ -68,8 +68,15 @@ function ChampEcart({ v, onChange }: { v: Ecart; onChange: (v: Ecart) => void })
   );
 }
 
-export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: () => void }) {
+/**
+ * `onModifier` : bouton « Modifier » (l'événement à la date ouverte), pour la newsletter, qui n'a pas sa carte dans la liste
+ * des événements.
+ */
+export function Chronologie({ cible, onClose, onModifier }: { cible: CibleChrono; onClose: () => void; onModifier?: (date: string) => void }) {
   const { data, user, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
+  // Événement qui se répète : la date ouverte, et ‹ › pour passer à la précédente ou à la suivante (une autre édition de
+  // la newsletter).
+  const [date, setDate] = useState(cible.date);
   const [fiche, setFiche] = useState<{ task: Task; isNew: boolean } | null>(null);
   // La newsletter (ou une de ses dates modifiée seule) s'ouvre sur ses remarques.
   const [vue, setVue] = useState<'frise' | 'remarques'>(() => {
@@ -84,11 +91,13 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
   if (!user) return null;
 
   const serie = cible.serie ? data.events.find((x) => x.id === cible.serie!.id) ?? cible.serie : undefined;
-  const ev = serie ? aLaDate(serie, cible.date) : undefined;
+  const ev = serie ? aLaDate(serie, date) : undefined;
   // Son étiquette ; sans, celle du même jour montrée avec lui (ancienne étiquette pas encore reliée).
   const et = (serie && etiquetteDeLEvenement(data, serie.id)) || (cible.etiquette && (data.etiquettes ?? []).find((x) => x.id === cible.etiquette!.id)) || undefined;
   const nom = ev?.nom ?? et?.nom ?? '';
-  const debut = ev?.date ?? et?.date ?? cible.date;
+  const debut = ev?.date ?? et?.date ?? date;
+  const precedente = serie?.repetition ? occurrencesEntre(serie, addDays(date, -400), addDays(date, -1)).filter((o) => o < date).pop() : undefined;
+  const suivante = serie?.repetition ? occurrenceApres(serie, date) : undefined;
   const fin = ev ? endOf(ev) : endOf({ date: debut, dateFin: et?.dateFin });
   const jour = today();
   const annee = debut.slice(0, 4);
@@ -265,7 +274,13 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
     <Modal title={`${vue === 'remarques' ? 'Remarques' : 'Chronologie'} · ${nom}`} icone={vue === 'remarques' ? 'notes' : 'horloge'} onClose={onClose} wide className="chronologie">
       <div className="chrono-tete">
         <span className="chrono-quoi">
+          {serie?.repetition && (
+            <button type="button" className="btn small chrono-date-nav" disabled={!precedente} onClick={() => precedente && setDate(precedente)} aria-label="Date précédente" title={precedente ? `Le ${fmtDate(precedente)}` : undefined}>‹</button>
+          )}
           {et && <BadgeEtiquette e={et} />} <span>{[fmtRange(debut, fin), ev && horaire(ev), ev?.lieu].filter(Boolean).join(' · ')}</span>
+          {serie?.repetition && (
+            <button type="button" className="btn small chrono-date-nav" disabled={!suivante} onClick={() => suivante && setDate(suivante)} aria-label="Date suivante" title={suivante ? `Le ${fmtDate(suivante)}` : undefined}>›</button>
+          )}
         </span>
         {vue === 'remarques' ? (
           <Progress done={avecRemarques.filter((t) => isDone(data, t)).length} total={avecRemarques.length} />
@@ -388,6 +403,11 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
         {/* Avec une étiquette : tous ses points (rangés chez elle ou rattachés à l'événement) ; sinon, ceux rattachés. */}
         <Link to={et ? `/taches?etiquette=${encodeURIComponent(et.id)}` : `/taches?event=${encodeURIComponent(serie?.id ?? '')}`}>Voir dans la liste des points →</Link>
         <span className="grow" />
+        {onModifier && (
+          <button type="button" className="btn" onClick={() => onModifier(debut)}>
+            <Icone n="modifier" /> Modifier
+          </button>
+        )}
         <button type="button" className="btn" onClick={onClose}>Fermer</button>
       </div>
       {fiche && <TaskModal task={fiche.task} isNew={fiche.isNew} onClose={() => setFiche(null)} />}

@@ -2300,10 +2300,10 @@ test('newsletter : un point depuis un événement, ses remarques dans l’éditi
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // La newsletter n'a pas ce bouton ; un clic sur son nom ouvre les remarques de sa prochaine édition, à copier.
-  const carteNl = page.locator('.carte-evenement', { has: page.locator('.titre-evenement', { hasText: /^Newsletter$/ }) });
-  await expect(carteNl.getByRole('button', { name: 'Newsletter', exact: true })).toHaveCount(1);
-  await carteNl.locator('.titre-evenement').click();
+  // La newsletter n'est pas dans la liste des événements : le bouton « Newsletter » en haut ouvre les remarques de sa
+  // prochaine édition, à copier.
+  await expect(page.locator('.titre-evenement', { hasText: /^Newsletter$/ })).toHaveCount(0);
+  await page.locator('.page-head').getByRole('button', { name: 'Newsletter' }).click();
   const edition = page.getByRole('dialog', { name: 'Remarques · Newsletter' });
   await expect(edition.locator('.remarques-liste > li')).toHaveCount(1);
   await expect(edition.locator('.remarque-texte')).toHaveText('Vente de sapins au local, le samedi 6.\nCommande avant le 30.');
@@ -2311,9 +2311,21 @@ test('newsletter : un point depuis un événement, ses remarques dans l’éditi
   await expect(page.locator('.toast')).toContainText('Remarques copiées (1 point)');
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Newsletter : Vente de sapins\nVente de sapins au local, le samedi 6.\nCommande avant le 30.');
   // L'autre affichage : la chronologie.
-  await edition.getByRole('button', { name: 'Chronologie' }).click();
+  const fenetre = page.locator('.modal.chronologie');
+  await fenetre.getByRole('button', { name: 'Chronologie' }).click();
   await expect(page.getByRole('dialog', { name: 'Chronologie · Newsletter' }).locator('.chrono-point', { hasText: 'Newsletter : Vente de sapins' })).toHaveCount(1);
-  await page.getByRole('dialog', { name: 'Chronologie · Newsletter' }).locator('.modal-foot').getByRole('button', { name: 'Fermer' }).click();
+  // ‹ › : l'édition suivante, vide ; retour à la nôtre.
+  await fenetre.getByRole('button', { name: 'Remarques' }).click();
+  await fenetre.getByRole('button', { name: 'Date suivante' }).click();
+  await expect(fenetre.locator('.remarques-liste > li')).toHaveCount(0);
+  await fenetre.getByRole('button', { name: 'Date précédente' }).click();
+  await expect(fenetre.locator('.remarques-liste > li')).toHaveCount(1);
+  // « Modifier » : la fiche de la newsletter (sa carte n'est pas dans la liste).
+  await fenetre.locator('.modal-foot').getByRole('button', { name: 'Modifier' }).click();
+  const nl = page.getByRole('dialog', { name: 'Événement' });
+  await expect(nl.getByPlaceholder('Ajouter un titre')).toHaveValue('Newsletter');
+  await expect(nl.locator('.case-newsletter input')).toBeChecked();
+  await nl.getByRole('button', { name: 'Annuler' }).click();
 
   // Agenda : la newsletter le 1er du mois prochain ; un clic (même pour qui gère les événements) montre ses remarques.
   await allerA(page, '/agenda');

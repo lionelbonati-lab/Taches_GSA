@@ -56,10 +56,13 @@ export function Dashboard() {
   const memeNom = (a: string, b: string) => { const [x, y] = [simple(a), simple(b)]; return !!x && !!y && (x.includes(y) || y.includes(x)); };
   const voitEvenements = can('tab.events');
   // Événement qui se répète : sa prochaine occurrence.
+  // La newsletter (et ses dates modifiées seules) n'en est pas : elle a son bouton dans Agenda › Événements.
+  const deLaNewsletter = (e: ClubEvent) => !!e.newsletter || !!(e.serie && data.events.find((x) => x.id === e.serie!.id)?.newsletter);
   const evs = (voitEvenements ? data.events : [])
+    .filter((e) => !deLaNewsletter(e))
     .map((e) => (e.repetition ? (occurrenceDu(e, jour) ? aLaDate(e, occurrenceDu(e, jour)!) : undefined) : e))
     .filter((e): e is ClubEvent => !!e && endOf(e) >= jour);
-  const ets = (data.etiquettes ?? []).filter((x) => x.type === 'evenement' && !!x.date && endOf({ date: x.date, dateFin: x.dateFin }) >= jour && (voitEvenements || x.membres?.includes(user.id)));
+  const ets = (data.etiquettes ?? []).filter((x) => !data.events.some((e) => e.id === x.eventId && deLaNewsletter(e)) && x.type === 'evenement' && !!x.date && endOf({ date: x.date, dateFin: x.dateFin }) >= jour && (voitEvenements || x.membres?.includes(user.id)));
   const pareil = (et: Etiquette, e: ClubEvent) => et.eventId === e.id || (et.date === e.date && memeNom(et.nom, e.nom));
   const nextEvents: { date: string; e?: ClubEvent; et?: Etiquette }[] = [
     ...evs.filter((e) => !ets.some((et) => pareil(et, e))).map((e) => ({ date: e.date, e })),
