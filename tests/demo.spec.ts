@@ -1296,6 +1296,52 @@ test('page Étiquettes, dans le menu Club : tout le réglage ; une icône choisi
   await expect(page.getByLabel('Comité : l’étiquette des autres points')).toBeDisabled();
 });
 
+test('discussion d’une étiquette : ses membres seuls la lisent, sont prévenus et la retrouvent dans Messages', async ({ page }) => {
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
+  };
+  // Julien Moreau, membre de « Soirée récréative » : la discussion de l'étiquette depuis la page Étiquettes.
+  await changer('Julien Moreau');
+  await allerA(page, '/etiquettes');
+  await page.getByRole('button', { name: 'Discussion de l’étiquette Soirée récréative' }).click();
+  let fil = page.getByRole('region', { name: 'Discussion' });
+  await expect(fil.locator('.discussion-reservee')).toHaveText('🔒 Réservée aux membres de l’étiquette « Soirée récréative » (5)');
+  await expect(fil.getByRole('button', { name: '+ Ajouter quelqu’un' })).toHaveCount(0);
+  await fil.getByLabel('Nouveau commentaire').fill('Qui apporte la sono ?');
+  await fil.getByLabel('Nouveau commentaire').press('Enter');
+  await expect(fil.locator('.discussion-message.mien')).toContainText('Qui apporte la sono ?');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('main .messages-ligne', { hasText: 'Soirée récréative' })).toContainText('Qui apporte la sono ?');
+
+  // Pierre Favre, membre : prévenu ; Messages la montre non lue ; la notification l'ouvre.
+  await changer('Pierre Favre');
+  await allerA(page, '/messages');
+  await expect(page.locator('main .messages-ligne.nonlu', { hasText: 'Soirée récréative' })).toBeVisible();
+  await allerA(page, '/');
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  await page.locator('.bell-item', { hasText: 'Julien Moreau a commenté « Soirée récréative »' }).click();
+  fil = page.getByRole('region', { name: 'Discussion' });
+  await expect(fil.locator('.discussion-message:not(.mien)')).toContainText('Qui apporte la sono ?');
+  await fil.getByLabel('Nouveau commentaire').fill('Moi, je l’ai.');
+  await fil.getByLabel('Nouveau commentaire').press('Enter');
+  await expect(fil.locator('.discussion-message.mien')).toContainText('Moi, je l’ai.');
+  await page.keyboard.press('Escape');
+
+  // Marc Lambert, pas membre : ni la discussion dans Messages, ni par son adresse ; « Nouvelle discussion » propose les siennes.
+  await changer('Marc Lambert');
+  await allerA(page, '/messages');
+  await expect(page.locator('main')).not.toContainText('Qui apporte la sono');
+  await allerA(page, '/messages?d=et:et-u-soiree');
+  await expect(page.getByRole('region', { name: 'Discussion' })).toHaveCount(0);
+  await allerA(page, '/messages');
+  await page.getByRole('button', { name: 'Nouvelle discussion' }).click();
+  const choix = page.getByRole('dialog', { name: 'Nouvelle discussion' });
+  await expect(choix.locator('.badge.etiquette', { hasText: 'Bruntrutaine' })).toBeVisible();
+  await expect(choix.locator('.badge.etiquette', { hasText: 'Soirée récréative' })).toHaveCount(0);
+});
+
 test('aide et textes de l’appli : plus d’entités, d’organigramme ni de comité central (admin et membre)', async ({ page }) => {
   // Un seul espace (PLAN_APPLI_SIMPLE.md, D5) : l'aide, la console admin et les propositions ne parlent que du club.
   const ancien = /entit[ée]s?\b|organigramme|comité central|sous-comité|caisse centrale|vue « moi »/i;

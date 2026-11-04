@@ -2,7 +2,7 @@ import { Fragment, useEffect, useLayoutEffect, useRef, useState, type KeyboardEv
 import { useStore } from '../../data/store';
 import { COMMENTAIRE_MAX, ajouteesDe, dernierMessage, parMoi, type ActionCommentaire } from '../../data/commentaires';
 import { etiquettesDe } from '../../data/permissions';
-import type { Commentaire } from '../../data/types';
+import type { Commentaire, Etiquette } from '../../data/types';
 import { addDays, fmtDate, fmtDateTime, fullName, localNow } from '../../data/utils';
 import { AvecLiens } from '../Liens';
 import { ZoneTexte } from '../ZoneTexte';
@@ -37,9 +37,18 @@ export const quandMessage = (iso: string) => {
  * `actions` : boutons de plus dans l'en-tête (ex. ouvrir la tâche).
  * Tâche étiquetée (062) : réservée aux membres de ses étiquettes, rappelé en tête. Qui lit la discussion y ajoute une
  * personne du club, même hors de ces étiquettes (063), ou retire une personne ajoutée ; chacun peut s'en retirer.
+ * `etiquette` : la discussion de l'étiquette elle-même (066, clé « et:<id> »), pour parler de la manifestation ou du
+ * groupe en entier : ses membres seulement (on n'y ajoute personne : on devient membre de l'étiquette).
  */
-export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { titre: string; liste?: Commentaire[]; tacheId: string; actions?: ReactNode; onClose: () => void }) {
-  const { data, user, can, commenter, ajouterADiscussion, discussionLue, discussionLueLe } = useStore();
+export function Discussion({ titre, liste = [], tacheId, etiquette, actions, onClose }: {
+  titre: string;
+  liste?: Commentaire[];
+  tacheId: string;
+  etiquette?: Etiquette;
+  actions?: ReactNode;
+  onClose: () => void;
+}) {
+  const { data, user, can, commenter, commenterEtiquette, ajouterADiscussion, discussionLue, discussionLueLe } = useStore();
   const cle = tacheId;
   const [texte, setTexte] = useState('');
   const [corrige, setCorrige] = useState<{ id: string; texte: string } | null>(null);
@@ -47,13 +56,13 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
   const [err, setErr] = useState('');
   const fil = useRef<HTMLDivElement>(null);
   const repere = useRef<HTMLLIElement>(null);
-  const tache = data.tasks.find((t) => t.id === tacheId);
-  const reservee = tache ? etiquettesDe(tache, data.etiquettes) : [];
+  const tache = etiquette ? undefined : data.tasks.find((t) => t.id === tacheId);
+  const reservee = etiquette ? [etiquette] : tache ? etiquettesDe(tache, data.etiquettes) : [];
   // Personnes ajoutées (063) ; à proposer : les personnes actives qui ne la lisent pas déjà de droit ou par ajout.
   const ajoutees = tache ? ajouteesDe(data, tache) : [];
   const [ajout, setAjout] = useState(false);
   const nomDe = (id: string) => fullName(data.people.find((p) => p.id === id)) || '?';
-  const candidats = data.people
+  const candidats = etiquette ? [] : data.people
     .filter((p) => p.actif && fullName(p) && p.id !== user?.id && !ajoutees.includes(p.id) && !reservee.some((e) => e.membres.includes(p.id)))
     .sort((a, b) => fullName(a).localeCompare(fullName(b), 'fr'));
   // Messages des autres arrivés depuis la dernière lecture, à l'ouverture : le premier est repéré.
@@ -82,7 +91,7 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
     setBusy(true);
     setErr('');
     try {
-      await commenter(tacheId, a);
+      await (etiquette ? commenterEtiquette(etiquette.id, a) : commenter(tacheId, a));
       ensuite?.();
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -119,6 +128,7 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
         {reservee.length > 0 && (
           <p className="discussion-reservee">
             🔒 Réservée aux membres de {reservee.length > 1 ? 'ses étiquettes' : 'l’étiquette'} {reservee.map((e) => `« ${e.nom} »`).join(', ')}
+            {etiquette && ` (${etiquette.membres?.length ?? 0})`}
           </p>
         )}
         {/* Personnes ajoutées à la discussion (063) : chacune se retire (✕) ; soi-même : « Quitter ». */}
@@ -163,7 +173,13 @@ export function Discussion({ titre, liste = [], tacheId, actions, onClose }: { t
         </div>
         )}
         <div ref={fil} className="discussion-fil">
-          {!liste.length && <p className="discussion-vide">Aucun message. Une question, une info ? Les personnes concernées par le point sont prévenues 🔔.</p>}
+          {!liste.length && (
+            <p className="discussion-vide">
+              {etiquette
+                ? `Aucun message. Pour parler de « ${etiquette.nom} » en entier : les membres de l’étiquette sont prévenus 🔔.`
+                : 'Aucun message. Une question, une info ? Les personnes concernées par le point sont prévenues 🔔.'}
+            </p>
+          )}
           <ul className="discussion-liste">
             {liste.map((c, i) => {
               // De personne à personne : les miens à droite ; les autres avec le nom de leur auteur.

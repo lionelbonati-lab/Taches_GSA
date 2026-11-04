@@ -338,6 +338,22 @@ déclencheur `gsa_items_etiquettes_garde` est en place) : **étiquettes protég�
   fusionné, « Comité » retiré des points qui ont une autre étiquette (copie de l'état d'avant gardée hors du dépôt).
 - **Retour en arrière** : `drop trigger gsa_items_etiquettes_garde on public.gsa_items; drop function public.gsa_items_etiquettes_garde();`
 
+`supabase/migrations/066_gsa_discussions_etiquettes.sql` (**à appliquer**, éditeur SQL) : **une discussion par étiquette**.
+
+- **Sa ligne** : « discussions », identifiant `et:<étiquette>`, `{ etiquette, commentaires }` ; écrite par le serveur
+  seulement (`gsa_etiquette_commenter` : ajouter, corriger le sien, retirer ; un admin membre retire n'importe lequel ;
+  les 500 derniers messages gardés). Une ligne envoyée par l'appli est ignorée (062).
+- **Qui la lit** : les membres de l'étiquette, et eux seuls (`gsa_ligne_lisible` complétée, `gsa_etiquette_lisible`) ;
+  étiquette retirée : plus personne. Nouveau message : une notification 💬 à chaque autre membre actif (type « comment »,
+  `taskId` `et:<étiquette>`), lue par lui, l'auteur et les membres ; `gsa-push` l'envoie sur les téléphones sans
+  changement (lien vers Messages). Membres changés (064) : la discussion de l'étiquette est aussi renvoyée.
+- **Vérifiée** sur la base de test (9 cas : membre écrit et lit ; admin non membre refusé et ne lit pas ; nouveau
+  membre prévenu et lit ; corriger le message d'un autre refusé ; un admin membre retire ; ligne de l'appli ignorée ;
+  étiquette retirée ; discussion d'un point inchangée) ; `etiquettes_verif.sh`, `discussion_verif.sh` et
+  `instantane_verif.sh` toujours « Tout est bon ». Les fonctions remplacées étaient identiques au dépôt sur le serveur.
+- Sans elle, l'appli dit « mise à jour 066 à appliquer » quand on écrit dans la discussion d'une étiquette.
+- **Retour en arrière** : voir l'en-tête du fichier.
+
 Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.

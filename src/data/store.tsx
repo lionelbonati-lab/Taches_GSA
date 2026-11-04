@@ -5,7 +5,7 @@ import { applyDelaiRef, fmtDate, fullName, isDone, postesFor, today, uid } from 
 import type { ActivityNotif, AppData, Permission, Poll, Prefs, ScheduledEmail, Task } from './types';
 import { clearFiles } from './files';
 import { avecVote, finSondage, sondageEnregistre } from './polls';
-import { ajouterADiscussion as ajouterServeur, applyRows, commenterTache, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
+import { ajouterADiscussion as ajouterServeur, applyRows, commenterEtiquette as commenterEtiquetteServeur, commenterTache, pasDispoTache, pourInfoVu as vuServeur, prendreTache as prendreServeur, rattraper, type CloudSync } from './cloud';
 import { useClubOptional } from './club';
 import { ajouterVus, cleVu, dernierAttendu, epurerPourInfo, pourMoi, vuAvantModif } from './pourInfo';
 import { changementsTache } from './historique';
@@ -13,7 +13,7 @@ import { aPrendreOuverte, auteurAPrendre, epurerAPrendre, proposeeA } from './aP
 import { migrate } from './migrate';
 import { ajouterSuivante, preparerSuivante } from './suivante';
 import type { CloudMode, DemoMode, Store } from './storeTypes';
-import { ajouteesDe, appliquerCommentaire, commentairesDe, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
+import { ajouteesDe, appliquerCommentaire, cleEtiquette, commentairesDe, commentairesEtiquette, COMMENTAIRES_ETIQUETTE_MAX, destinatairesCommentaire, notifsCommentaire, type ActionCommentaire } from './commentaires';
 import { usePileAnnulation } from './pileAnnulation';
 import { StoreCtx } from './storeCtx';
 import { etiquettesDesLieux, lieuxDe, suivreLieux, synchroniserEtiquettes } from './etiquettes';
@@ -322,6 +322,41 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     [user, data, cloud, update, myRoles, espaceId],
   );
 
+  // Discussion d'une étiquette (066) : version réelle, le serveur écrit le message et prévient les autres membres, puis la
+  // discussion est relue ; démo : ici, mêmes règles (membres de l'étiquette seulement).
+  const commenterEtiquette = useCallback(
+    async (etiquetteId: string, a: ActionCommentaire) => {
+      if (!user) throw new Error('Connecte-toi d’abord.');
+      const e = data.etiquettes?.find((x) => x.id === etiquetteId);
+      if (!e) throw new Error('Étiquette introuvable');
+      const cle = cleEtiquette(e.id);
+      if (cloud) {
+        await cloud.sync.flushNow();
+        await commenterEtiquetteServeur(espaceId, e.id, a);
+        const fresh = await cloud.sync.fetchRows([{ kind: 'discussions', id: cle }]);
+        setData((prev) => applyRows(prev, fresh, cloud.sync.posOf));
+        return;
+      }
+      if (!e.membres?.includes(user.id)) throw new Error('Discussion réservée aux membres de l’étiquette');
+      const le = new Date().toISOString();
+      const avant = commentairesEtiquette(data, e.id);
+      // Les 500 derniers messages sont gardés.
+      const garde = !a.cle && avant.length >= COMMENTAIRES_ETIQUETTE_MAX ? avant.slice(1) : avant;
+      const commentaires = appliquerCommentaire(garde, a, { moi: user.id, nom: fullName(user), admin: hasPermission(myRoles, 'admin.access'), le });
+      const notifs = a.cle
+        ? []
+        : notifsCommentaire(
+            e.membres.filter((id) => id !== user.id && data.people.some((p) => p.id === id && p.actif)),
+            { tache: cle, titre: e.nom, moi: user.id, texte: a.texte ?? '', le },
+          );
+      update((d) => {
+        d.discussions = { ...d.discussions, [cle]: { etiquette: e.id, commentaires } };
+        avecNotifs(d, notifs);
+      }, `${fullName(user)} a ${a.supprimer ? 'retiré un message de' : a.cle ? 'corrigé un message de' : 'écrit dans'} la discussion de « ${e.nom} »`, { annulable: false });
+    },
+    [user, data, cloud, update, myRoles, espaceId],
+  );
+
   // Personne ajoutée à une discussion (063) : version réelle, le serveur l'ajoute, la prévient et lui envoie la tâche,
   // puis la discussion est relue ; démo : ici, mêmes règles (qui lit la discussion ajoute ou retire ; on se retire soi-même).
   const ajouterADiscussion = useCallback(
@@ -582,6 +617,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     pasDispo,
     vuPourInfo,
     commenter,
+    commenterEtiquette,
     ajouterADiscussion,
     relancerPourInfo,
     peutRelancer: (t) => !!user && !t.paiement && (t.createdBy === user.id || t.responsables.includes(user.id) || can('tasks.editAny', t.sectionId)),

@@ -514,12 +514,21 @@ export function Events() {
   );
 }
 
-/** L'étiquette de l'événement : sa pastille et ses membres (qui voient ses points). */
+/** L'étiquette de l'événement : sa pastille et ses membres (qui voient ses points) ; pour ses membres, sa discussion (066). */
 function EtiquetteCarte({ et }: { et: Etiquette }) {
+  const { user } = useStore();
   const n = et.membres?.length ?? 0;
   return (
     <div className="etiquette-taches">
       <BadgeEtiquette e={et} /> <small className="muted">{n} membre{n > 1 ? 's' : ''}</small>
+      {!!user && et.membres?.includes(user.id) && (
+        <>
+          {' '}
+          <Link className="btn small" to={`/messages?d=${encodeURIComponent(`et:${et.id}`)}`} title="Discussion de l’étiquette : ses membres">
+            <Icone n="message" /> Discussion
+          </Link>
+        </>
+      )}
     </div>
   );
 }

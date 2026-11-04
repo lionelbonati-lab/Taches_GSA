@@ -81,6 +81,8 @@ export interface Store {
   vuPourInfo: (tacheId: string) => Promise<void>;
   /** Discussion sur une tâche (049) : ajoute, corrige ou retire un commentaire ; les personnes concernées sont prévenues. */
   commenter: (tacheId: string, a: ActionCommentaire) => Promise<void>;
+  /** Discussion d'une étiquette (066) : ses membres seulement ; les autres membres sont prévenus (🔔). */
+  commenterEtiquette: (etiquetteId: string, a: ActionCommentaire) => Promise<void>;
   /** Ajoute la personne `fiche` à la discussion de la tâche (063), ou l'en retire (`retirer`, soi-même compris). */
   ajouterADiscussion: (tacheId: string, fiche: string, retirer?: boolean) => Promise<void>;
   /**
