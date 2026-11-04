@@ -1013,6 +1013,18 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .odj-live .odj-task { cursor: pointer; border-radius: 3px; }
 .odj-live .odj-task:hover { background: #fef9c3; }
 @media print { .odj-live .odj-task:hover { background: none; } }
+/* Supprimer un point de l'ordre du jour : bouton discret à côté du point, au survol (toujours visible au doigt). */
+.pv-sheet .odj-retirer {
+  border: 0; background: none; padding: 0 4px; margin: 0 0 0 2px; color: #94a3b8; cursor: pointer; opacity: 0;
+  font-size: 0.9em; line-height: 1; vertical-align: baseline; border-radius: 3px; min-height: 0; box-shadow: none;
+}
+.pv-sheet .odj-task:hover + .odj-retirer, .pv-sheet .odj-poll:hover + .odj-retirer, .pv-sheet .odj-retirer:hover, .pv-sheet .odj-retirer:focus-visible { opacity: 1; }
+.pv-sheet .odj-retirer:hover, .pv-sheet .odj-retirer:focus-visible { color: #be123c; background: #fee2e2; }
+@media (hover: none) { .pv-sheet .odj-retirer { opacity: 0.6; } }
+.pv-settings .odj-retires ul { list-style: none; margin: 6px 0; padding: 0; }
+.pv-settings .odj-retires li { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 0.85rem; padding: 3px 0; }
+.pv-settings .odj-retires li span { overflow-wrap: anywhere; }
+.pv-settings .odj-retires small { display: block; margin-top: 6px; }
 .odj-poll { color: #1d4ed8; }
 .pv-archives { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .pv-overlay { position: fixed; inset: 0; z-index: 70; background: var(--bg); overflow: auto; }

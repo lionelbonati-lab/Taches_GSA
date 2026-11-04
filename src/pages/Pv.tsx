@@ -5,7 +5,7 @@ import type { AppData, ChecklistItem, LienLieu, Meeting, Person, PvSettings, Sec
 import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
-import { JOURS_APRES, echeanceSuivante, etatTerminee, joursApresTexte, ordreSection, selectAgenda, type Echeance } from '../data/agenda';
+import { JOURS_APRES, echeanceSuivante, etatTerminee, joursApresTexte, ordreSection, retiresDe, selectAgenda, type Echeance } from '../data/agenda';
 import type { Poll } from '../data/types';
 import { archiveHtml, hydrateArchive, sansAnnexes } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
@@ -97,6 +97,19 @@ interface OSec {
   items: OItem[];
 }
 
+/** Point de l'ordre du jour que l'on peut en supprimer : une tâche ou un sondage. */
+interface PointOdj {
+  id: string;
+  titre: string;
+}
+
+/** HTML de la feuille sans ses boutons d'écran (supprimer un point) : pour l'archive et la version modifiée à la main. */
+function htmlFeuille(el: HTMLElement, outer = false) {
+  const c = el.cloneNode(true) as HTMLElement;
+  c.querySelectorAll('.odj-retirer').forEach((b) => b.remove());
+  return outer ? c.outerHTML : c.innerHTML;
+}
+
 const letter = (i: number) => {
   let r = '';
   for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) r = String.fromCharCode(97 + ((n - 1) % 26)) + r;
@@ -111,6 +124,8 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
   const { data, s0, s1, s2, titre, committee, excusesTxt, attendus } = c;
   const odj = data;
   const person = (id: string) => data.people.find((p) => p.id === id);
+  // Points retirés de l'ordre du jour de la séance (choix commun au comité) : ni ici, ni dans le PV.
+  const retires = retiresDe(s1);
 
   // ---------- Sélection des tâches (partagée avec l'onglet PV) ----------
   const { late, avant1, avant2, bilan, since } = selectAgenda(odj, s0, s1, s2, {
@@ -121,6 +136,7 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
     statutsExclus: s.statutsExclus,
     sectionsExclues: s.sectionsExclues,
     joursApres,
+    retires: [...retires],
   });
 
   // Échéance de chaque tâche retenue (retard, séance, séance suivante, terminée).
@@ -137,7 +153,7 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
   const polls: Poll[] = s.parts.sondages
     ? (data.polls ?? []).filter((p) => {
         const sec = pollSection(data, p);
-        if (sec && s.sectionsExclues.includes(sec)) return false;
+        if (retires.has(p.id) || (sec && s.sectionsExclues.includes(sec))) return false;
         return isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= since;
       })
     : [];
@@ -267,7 +283,7 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
 type ContenuOdj = ReturnType<typeof contenuOdj>;
 
 /** Feuille de l'ordre du jour générée selon des réglages : affichée, ou cachée pour le PDF joint à l'email. */
-function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir }: {
+function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir, onRetirer }: {
   c: ContexteOdj;
   s: PvSettings;
   o: ContenuOdj;
@@ -275,6 +291,8 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir }: {
   feuilleRef: RefObject<HTMLDivElement>;
   /** Clic sur une tâche, pour la modifier (feuille affichée). */
   onOuvrir?: (t: Task) => void;
+  /** Bouton à côté de chaque point (tâche, sondage), pour le supprimer de l'ordre du jour (feuille affichée). */
+  onRetirer?: (p: PointOdj) => void;
 }) {
   const { user } = useStore();
   const logo = useUnitLogo();
@@ -282,18 +300,38 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir }: {
   const { s1, s2, titre, committee, excusesTxt } = c;
   const { listSecs, annexes, bucketOf, taskMeta, itemText, maxDepth } = o;
 
+  // Bouton d'écran seulement : ni imprimé, ni dans le PDF, l'archive ou la version modifiée à la main (htmlFeuille).
+  const retirer = (it: OItem) => {
+    const p: PointOdj | undefined = it.task ? { id: it.task.id, titre: it.task.titre } : it.poll ? { id: it.poll.id, titre: `Sondage : ${it.poll.question}` } : undefined;
+    return onRetirer && p ? (
+      <button type="button" className="odj-retirer no-print" title="Supprimer de l’ordre du jour (et du PV) : le point lui-même est gardé" aria-label={`Supprimer « ${p.titre} » de l’ordre du jour`} onClick={() => onRetirer(p)}>
+        <Icone n="supprimer" />
+      </button>
+    ) : null;
+  };
   const itemNode = (it: OItem): ReactNode => {
-    if (!it.task) return it.poll ? <span className="odj-poll">{itemText(it)}</span> : it.node ?? <AvecLiens texte={it.text ?? ''} />;
+    if (!it.task)
+      return it.poll ? (
+        <>
+          <span className="odj-poll">{itemText(it)}</span>
+          {retirer(it)}
+        </>
+      ) : (
+        it.node ?? <AvecLiens texte={it.text ?? ''} />
+      );
     const t = it.task;
     const b = bucketOf.get(t.id);
     const meta = taskMeta(t);
     return (
-      <span className={`odj-task ${b === 'late' ? 'late' : b === 'bilan' ? 'done' : ''}`} onClick={onOuvrir && (() => onOuvrir(t))}>
-        {t.titre}
-        {meta.length > 0 && <span className="odj-meta"> ({meta.join(' · ')})</span>}
-        {s.colonnes.remarque && t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque.trim()} /></span>}
-        {!s.colonnes.documents && numerosDe(annexes, t).length > 0 && <span className="odj-meta"> 📎 annexe {numerosDe(annexes, t).join(', ')}</span>}
-      </span>
+      <>
+        <span className={`odj-task ${b === 'late' ? 'late' : b === 'bilan' ? 'done' : ''}`} onClick={onOuvrir && (() => onOuvrir(t))}>
+          {t.titre}
+          {meta.length > 0 && <span className="odj-meta"> ({meta.join(' · ')})</span>}
+          {s.colonnes.remarque && t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque.trim()} /></span>}
+          {!s.colonnes.documents && numerosDe(annexes, t).length > 0 && <span className="odj-meta"> 📎 annexe {numerosDe(annexes, t).join(', ')}</span>}
+        </span>
+        {retirer(it)}
+      </>
     );
   };
   const renderItems = (items: OItem[], depth: number): ReactNode => {
@@ -684,10 +722,42 @@ export function Pv() {
     };
   }, [nomDoc]);
 
+  // ---------- Points supprimés de l'ordre du jour ----------
+  // Choix commun au comité, pour cette séance : ni dans l'ordre du jour, ni dans le PV ; le point lui-même est gardé.
+  const retires = s1?.odjRetires ?? [];
+  const pointRetire = (id: string): PointOdj | undefined => {
+    const t = data.tasks.find((x) => x.id === id);
+    if (t) return { id, titre: t.titre };
+    const p = data.polls?.find((x) => x.id === id);
+    return p ? { id, titre: `Sondage : ${p.question}` } : undefined;
+  };
+  // Points supprimés qui existent encore (un point supprimé depuis de l'appli n'est plus proposé).
+  const pointsRetires = retires.map(pointRetire).filter((p): p is PointOdj => !!p);
+  const setRetires = (ids: string[], action: string) =>
+    s1 &&
+    update((d) => {
+      const x = d.meetings.find((y) => y.id === s1.id)!;
+      if (ids.length) x.odjRetires = ids;
+      else delete x.odjRetires;
+    }, action);
+  const retirer = (p: PointOdj) => {
+    if (!s1 || retires.includes(p.id)) return;
+    setRetires([...retires, p.id], `« ${p.titre} » supprimé de l’ordre du jour « ${nomDoc} »`);
+    setMsg(`🗑 « ${p.titre} » supprimé de l’ordre du jour (il n’apparaîtra pas dans le PV) ; le point lui-même est gardé. « Supprimés de l’ordre du jour », dans les réglages, pour le remettre.`);
+  };
+  const remettre = (p: PointOdj) => {
+    setRetires(retires.filter((id) => id !== p.id), `« ${p.titre} » remis à l’ordre du jour « ${nomDoc} »`);
+    setMsg(`↩ « ${p.titre} » remis à l’ordre du jour.`);
+  };
+  const toutRemettre = () => {
+    setRetires([], `Points supprimés remis à l’ordre du jour « ${nomDoc} »`);
+    setMsg('↩ Tous les points supprimés sont remis à l’ordre du jour.');
+  };
+
   // ---------- Actions ----------
   const print = () => window.print();
   // Les fichiers joints (adresses locales) sont remis par useAnnexesArchive.
-  const startEdit = () => sheetRef.current && setDraft(sansAnnexes(sheetRef.current.innerHTML));
+  const startEdit = () => sheetRef.current && setDraft(sansAnnexes(htmlFeuille(sheetRef.current)));
   const saveEdit = () => {
     if (!s1 || !sheetRef.current || !user) return;
     const html = cleanHtml(archiveHtml(sheetRef.current.innerHTML));
@@ -707,7 +777,7 @@ export function Pv() {
 
   const archive = () => {
     if (!s1 || !sheetRef.current || !user) return;
-    const html = archiveHtml(sheetRef.current.outerHTML);
+    const html = archiveHtml(htmlFeuille(sheetRef.current, true));
     update((d) => {
       const m = d.meetings.find((x) => x.id === s1.id)!;
       m.pvArchives = [{ id: uid('pv'), at: new Date().toISOString(), by: user.id, titre: nomDoc, html, orientation: s.orientation }, ...(m.pvArchives ?? [])].slice(0, 10);
@@ -791,6 +861,26 @@ export function Pv() {
                 <p className="muted">{excusesTxt || 'Personne pour l’instant.'}</p>
               )}
               <small className="muted">Chacun peut aussi s’excuser lui-même dans la liste des séances.</small>
+            </details>
+          )}
+          {s1 && pointsRetires.length > 0 && (
+            <details className="odj-retires">
+              <summary>Supprimés de l’ordre du jour ({pointsRetires.length})</summary>
+              <ul>
+                {pointsRetires.map((p) => (
+                  <li key={p.id}>
+                    <span>{p.titre}</span>
+                    <button type="button" className="btn small link" disabled={!canEdit} onClick={() => remettre(p)} aria-label={`Remettre « ${p.titre} » à l’ordre du jour`}>
+                      <Icone n="revenir" /> Remettre
+                    </button>
+                  </li>
+                ))}
+              </ul>
+              {pointsRetires.length > 1 && <button type="button" className="btn small" disabled={!canEdit} onClick={toutRemettre}><Icone n="revenir" /> Tout remettre</button>}
+              <small className="muted">
+                Pour cette séance, choix commun au comité : ni dans l’ordre du jour, ni dans le PV. Les points eux-mêmes sont gardés.
+                {edite && ' Ordre du jour modifié à la main : il garde son texte, le PV suit ce choix.'}
+              </small>
             </details>
           )}
           <details>
@@ -950,7 +1040,7 @@ export function Pv() {
           ) : edite ? (
             <div ref={sheetRef} className={`pv-sheet ${s.orientation} t-${s.taille}`} style={docStyle} dangerouslySetInnerHTML={{ __html: htmlEdite }} />
           ) : (
-            <FeuilleOdj c={ctx} s={s} o={contenu} style={data.reglagesOdj?.style} feuilleRef={sheetRef} onOuvrir={setOuverte} />
+            <FeuilleOdj c={ctx} s={s} o={contenu} style={data.reglagesOdj?.style} feuilleRef={sheetRef} onOuvrir={setOuverte} onRetirer={canEdit && s1 ? retirer : undefined} />
           )}
         </div>
       </div>

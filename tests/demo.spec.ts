@@ -1857,6 +1857,55 @@ test('PV : un appui sur le titre d’un point l’ouvre (plus de crayon)', async
   await expect(page.locator('.modal')).toHaveCount(0);
 });
 
+test('ordre du jour : un point supprimé n’apparaît plus, ni dans le PV ; le point est gardé, puis remis', async ({ page }) => {
+  const supprime = 'Point à supprimer de l’ordre du jour';
+  const garde = 'Point gardé à l’ordre du jour';
+  await page.goto('./?demo#/taches');
+  for (const titre of [supprime, garde]) {
+    const fiche = await nouvelleTache(page, titre);
+    await fiche.getByRole('button', { name: /^Créer$/ }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+  }
+
+  await allerA(page, '/ordre-du-jour');
+  const feuille = page.locator('.pv-sheet');
+  const point = feuille.locator('.odj-task', { hasText: supprime });
+  await expect(point).toBeVisible();
+  await point.hover();
+  await feuille.getByRole('button', { name: `Supprimer « ${supprime} » de l’ordre du jour` }).click();
+  await expect(point).toHaveCount(0);
+  await expect(feuille.locator('.odj-task', { hasText: garde })).toBeVisible();
+  await expect(page.locator('.pv-msg')).toContainText('il n’apparaîtra pas dans le PV');
+
+  // L'archive (comme l'impression et le PDF) n'a pas les boutons de l'écran.
+  await page.getByRole('button', { name: /Archiver dans la séance/ }).click();
+  const archives = () =>
+    page.evaluate(() => JSON.stringify(JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).meetings.flatMap((m: { pvArchives?: { html: string }[] }) => (m.pvArchives ?? []).map((a) => a.html))));
+  await expect.poll(archives).toContain(garde);
+  expect(await archives()).not.toContain('odj-retirer');
+  expect(await archives()).not.toContain(supprime);
+
+  // PV : le point supprimé n'y est pas, les autres oui.
+  await allerA(page, '/pv');
+  await expect(page.locator(`.min-task[data-point="${garde}"]`)).toBeVisible();
+  await expect(page.locator(`.min-task[data-point="${supprime}"]`)).toHaveCount(0);
+
+  // Le point lui-même est gardé.
+  await allerA(page, '/taches');
+  await expect(page.locator('main').getByText(supprime).filter({ visible: true }).first()).toBeVisible();
+
+  // Remis à l'ordre du jour : de nouveau là, et dans le PV.
+  await allerA(page, '/ordre-du-jour');
+  const retires = page.locator('.pv-settings details.odj-retires');
+  await retires.locator('summary').click();
+  await expect(retires).toContainText(supprime);
+  await retires.getByRole('button', { name: `Remettre « ${supprime} » à l’ordre du jour` }).click();
+  await expect(point).toBeVisible();
+  await expect(retires).toHaveCount(0);
+  await allerA(page, '/pv');
+  await expect(page.locator(`.min-task[data-point="${supprime}"]`)).toBeVisible();
+});
+
 const champSection = (fiche: ReturnType<Page['locator']>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
 const champSousSection = (fiche: ReturnType<Page['locator']>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
 const lireDonnees = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
-import { FULL_AGENDA, blocsSection, echeanceSuivante, etatTerminee, meetingContext, ordreSection, selectAgenda, sortedMeetings } from '../data/agenda';
+import { FULL_AGENDA, blocsSection, echeanceSuivante, etatTerminee, meetingContext, ordreSection, retiresDe, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
 import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
@@ -267,7 +267,7 @@ export function Minutes() {
   // ---------- Points de la séance ----------
   // Séance passée : points figés à la fin de la séance (etats), sinon tels qu'aujourd'hui.
   const etats = m.etats;
-  const sel = selectAgenda(data, s0, s1, s2, { ...FULL_AGENDA, joursApres: data.reglagesOdj?.joursApres });
+  const sel = selectAgenda(data, s0, s1, s2, { ...FULL_AGENDA, joursApres: data.reglagesOdj?.joursApres, retires: s1?.odjRetires });
   const bucket = new Map<string, 'late' | 'p1' | 'p2' | 'bilan'>();
   if (etats) Object.entries(etats).forEach(([id, e]) => bucket.set(id, e.rang));
   else {
@@ -284,10 +284,11 @@ export function Minutes() {
   const newTasks = data.tasks.filter((t) => nouvelles.has(t.id)).map(vue);
   const deleted = m.supprimees ?? [];
   // Points affichés : ordre du jour (figé : celui de la fin de la séance) + points présents au début de la séance +
-  // tâches modifiées ou créées depuis le PV.
+  // tâches modifiées ou créées depuis le PV ; sauf ceux supprimés de l'ordre du jour de la séance (même après coup).
+  const retires = retiresDe(s1);
   const ids = new Set<string>([...bucket.keys(), ...(etats ? [] : (m.pointIds ?? [])), ...journal.map((j) => j.taskId), ...nouvelles]);
-  const points = data.tasks.filter((t) => ids.has(t.id)).map(vue);
-  const polls = (data.polls ?? []).filter((p) => isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= sel.since);
+  const points = data.tasks.filter((t) => ids.has(t.id) && (!retires.has(t.id) || nouvelles.has(t.id))).map(vue);
+  const polls = (data.polls ?? []).filter((p) => !retires.has(p.id) && (isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= sel.since));
   const changesOf = (t: Task) => journal.filter((j) => j.taskId === t.id).flatMap((j) => j.changes);
   const isNewTask = (t: Task) => nouvelles.has(t.id);
 

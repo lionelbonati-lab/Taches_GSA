@@ -340,6 +340,11 @@ export interface Meeting {
   excuses?: Excuse[];
   /** Ordre du jour modifié à la main : remplace le document généré tant qu'on ne revient pas à celui-ci. */
   odjEdite?: { html: string; le: string; par: string };
+  /**
+   * Points (tâches, sondages : leurs identifiants) retirés de l'ordre du jour de la séance : ni dans l'ordre du jour, ni
+   * dans le PV. Le point lui-même reste tel quel (liste des points, séances suivantes).
+   */
+  odjRetires?: string[];
   /** Fichiers liés (identifiants des documents) retirés des annexes de l'ordre du jour de la séance ; les autres y sont. */
   odjAnnexesExclues?: string[];
   /** Mise en page choisie pour certains fichiers joints à l'ordre du jour (identifiant → photos ou pages par page). */

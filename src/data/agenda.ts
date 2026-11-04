@@ -15,7 +15,12 @@ export interface AgendaOptions {
   joursApres?: number;
   /** Jour de référence des retards (le jour de la séance, pour un PV figé) ; défaut : aujourd'hui. */
   jour?: string;
+  /** Points retirés de l'ordre du jour de la séance (`Meeting.odjRetires`) : laissés de côté. */
+  retires?: string[];
 }
+
+/** Points (tâches, sondages) retirés de l'ordre du jour d'une séance : ni dans l'ordre du jour, ni dans le PV. */
+export const retiresDe = (s1?: Meeting) => new Set(s1?.odjRetires ?? []);
 
 export const FULL_AGENDA: AgendaOptions = {
   retards: true,
@@ -118,7 +123,7 @@ export const echeanceSuivante = (t: Task, s2: Meeting) =>
  * en retard, à faire d'ici s1, d'ici la séance suivante s2 (et peu après : « joursApres »), terminées depuis la séance précédente s0.
  */
 export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting | undefined, s2: Meeting | undefined, o: AgendaOptions) {
-  const eligible = (t: Task) => !o.sectionsExclues.includes(t.sectionId);
+  const eligible = (t: Task) => !o.sectionsExclues.includes(t.sectionId) && !o.retires?.includes(t.id);
   const open = data.tasks.filter((t) => !isDone(data, t) && eligible(t) && !o.statutsExclus.includes(t.statusId));
   const jour = o.jour ?? today();
   const late = o.retards ? open.filter((t) => !!t.delai && t.delai < jour) : [];
