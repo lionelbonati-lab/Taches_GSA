@@ -1,127 +1,59 @@
-# Plan : la newsletter du mois (version simple)
+# Plan : la newsletter du mois
 
-Demande du président (04.11.2026) : *on fait une newsletter chaque mois. On doit pouvoir y rattacher des infos, pour
-que la personne qui la prépare les ait chaque mois. Quand on planifie un événement, on doit pouvoir mettre une
-communication pour la newsletter. La newsletter doit apparaître dans l'agenda, comme un événement.*
+## Demandes du président (04.11.2026)
 
-Précision (04.11.2026) : *quelque chose de beaucoup plus simple. La personne voit les points rattachés à la newsletter
-et la liste de leurs remarques.* Une première version de ce plan, plus lourde, est remplacée par celle-ci.
+1. *On fait une newsletter chaque mois. On doit pouvoir y rattacher des infos, pour que la personne qui la prépare les
+   ait chaque mois. Quand on planifie un événement, on doit pouvoir mettre une communication pour la newsletter. La
+   newsletter doit apparaître dans l'agenda, comme un événement.*
+2. *Beaucoup plus simple : la personne voit les points rattachés à la newsletter et la liste de leurs remarques.* Le
+   texte de l'info est la remarque du point. Il faut un bouton sur les événements. Les points de la newsletter peuvent
+   figurer à l'ordre du jour.
+3. *Un bouton en haut, à côté de « Nouvel événement », d'une autre couleur. La liste des newsletters ne doit pas se
+   mélanger à celle des événements.*
+4. *Une newsletter peut contenir plusieurs points ou plusieurs événements différents. La newsletter n'est rien de plus
+   qu'un point auquel on rattache d'autres points : des informations, des points de groupes ou d'événements différents.
+   Pour simplifier la tâche de celui qui fait la newsletter, on peut rassembler les remarques des points rattachés dans
+   la remarque de la newsletter.*
 
-## Le principe
+Les versions 1 à 3 faisaient de la newsletter un événement qui revient chaque mois. La version 4 les remplace : la
+newsletter est un point.
 
-- **La newsletter est un événement** de l'agenda qui revient **tous les mois**. Chaque date est une édition.
-- **Une info pour la newsletter est un point** rattaché à cette édition. **Sa remarque est le texte de l'info.**
-- **La personne qui prépare la newsletter** ouvre l'édition. Elle voit **la liste des points et de leurs remarques**,
-  et peut tout copier d'un clic.
+## Ce qui est en place (version 4)
 
-Rien de nouveau dans les données : pas de nouveau type, pas de migration, rien à déployer sur le serveur.
-
-## Ce qui marche déjà aujourd'hui
-
-1. **Créer la newsletter** : Agenda › Événements › **+ Nouvel événement**, nom « Newsletter », Répétition
-   **Tous les mois**, case **« Newsletter du club »** cochée (ajoutée par la partie 1). Elle est alors dans l'agenda chaque mois, ainsi que dans l'export `.ics` et le lien d'abonnement.
-2. **Rattacher une info à une édition** : dans la fiche d'un point, **Pour quand ? › Newsletter**, puis le champ
-   **Occurrence** pour choisir l'édition (par exemple le 01.02.2027). Le texte de l'info s'écrit dans la **remarque**.
-   Le délai du point devient la date de la newsletter, et il suit cette date si l'édition est déplacée.
-3. **Info sur un événement** (la Bruntrutaine, par exemple) : on crée le point **dans la sous-section de l'événement**
-   (Événements › Bruntrutaine 27.02.27) et on le cale sur la newsletter de février. Le point garde l'étiquette de la
-   Bruntrutaine : l'équipe de l'événement le voit, et il figure dans la chronologie de l'événement. Il est aussi
-   rattaché à la newsletter.
-4. **Que la personne de la newsletter voie tous ces points** : si son rôle ne voit pas tous les points, on lui donne
-   l'**étiquette** de l'événement Newsletter (case « Étiquette » de sa fiche, avec elle comme membre). Les points
-   rattachés à la newsletter reçoivent cette étiquette d'office.
-
-## Ce qu'il faut ajouter
-
-### 1. La liste des remarques d'une édition (l'essentiel)
-
-Un clic sur la newsletter (dans l'agenda, ou sur sa carte dans Événements) ouvre déjà sa **chronologie**. On y ajoute
-un bouton **« Remarques »** qui montre, pour **cette édition seulement** :
-
-- chaque point : son **titre**, puis sa **remarque** en entier, ses fichiers et liens (images, affiche…) et qui l'a
-  proposé ;
-- les points sont dans l'ordre de la liste des points (section, sous-section) ;
-- un bouton **Copier**, qui copie tous les titres et toutes les remarques, prêts à coller dans l'outil d'envoi.
-
-Les points d'une édition sont ceux calés sur cette date (Occurrence). Ceux qui sont rattachés à la newsletter avec
-une date fixe vont dans l'édition qui suit leur délai.
-
-Ce bouton marche pour **tout événement**, pas seulement la newsletter : par exemple pour relire d'un coup les remarques
-des points de la Bruntrutaine.
-
-Fichiers : `src/components/Chronologie.tsx` (bouton, points de l'occurrence) et un petit composant pour la liste ;
-`tests/demo.spec.ts`.
-
-### 2. Raccourci depuis un événement (facultatif)
-
-Sur la carte d'un événement (Agenda › Événements), un bouton **📰 Newsletter** ouvre un **nouveau point déjà rempli** :
-
-- titre « Newsletter : Bruntrutaine » ;
-- rangé dans la sous-section de l'événement ;
-- calé sur **la dernière édition avant l'événement** ;
-- remarque préremplie avec la date, l'heure et le lieu de l'événement.
-
-On complète la remarque et on enregistre. Sans ce raccourci, on fait la même chose avec un point ordinaire (voir
-« Ce qui marche déjà », point 3).
-
-Fichier : `src/pages/Agenda.tsx` (carte d'un événement).
-
-### 3. Démo et aide
-
-- Démo (`seedData.ts`) : un événement « Newsletter » tous les mois, le 1er. Pas de point d'exemple, comme d'habitude.
-- README et « Comment ça marche ? » (`Aide.tsx`) : quelques lignes « Newsletter ».
+- **La newsletter est un point**, rangé dans « Communication › Newsletter ». Il revient chaque mois (répétition
+  « Chaque mois ») et porte le champ `newsletter` (`src/data/newsletter.ts`).
+- **Bouton orange « Newsletter »** en haut de Agenda › Événements, à côté de « + Nouvel événement ». Il ouvre la
+  newsletter en cours : le point `newsletter` pas encore terminé au délai le plus proche. S'il n'y en a pas, il en crée
+  une : « Newsletter », pour le 1er du mois prochain, chaque mois.
+- **Y rattacher des infos** : dans n'importe quel point, « Point principal » › Newsletter. Ou, depuis la newsletter,
+  « + Nouveau point rattaché » ou « Rattacher un point existant ». Le texte de l'info est la **remarque** du point.
+- **Bouton « Newsletter » sur la carte d'un événement à venir** (s'il y a une newsletter en cours). Il ouvre un point
+  déjà rempli :
+  - titre « Newsletter : … » ;
+  - remarque avec la date, l'heure, le lieu et la description de l'événement ;
+  - rangé chez l'événement : place de son étiquette ou sa sous-section, sinon « Communication › Newsletter » ;
+  - rattaché à l'événement **et** à la newsletter ;
+  - son délai est celui de la newsletter, avec un avertissement si elle paraît après l'événement.
+- **« Rassembler leurs remarques »**, dans la fiche de la newsletter et de tout point qui a des points rattachés.
+  - Il reprend, dans sa remarque, le titre, la remarque et les liens de chaque point rattaché, dans l'ordre des
+    sections et sous-sections. On obtient le texte de la newsletter, prêt à copier.
+  - Il faut ensuite enregistrer le point.
+  - Une remarque déjà écrite n'est remplacée qu'après confirmation.
+- **Newsletter envoyée** : on la passe à « Terminé ». Celle du mois suivant est alors créée, **sans** les remarques
+  rassemblées ni les documents. Les points rattachés restent avec celle qui est partie.
+- **Agenda** : la newsletter est un point en orange, à son délai, comme un événement. Elle est montrée même dans
+  « Mes points » à qui la voit.
+- **Ordre du jour** : la newsletter et ses points y figurent comme les autres points (décision du 04.11.2026).
+- **Chronologie d'un événement qui se répète** : ‹ › à côté de la date passent à la date précédente ou suivante.
+  Cela reste de la version 3.
+- **Rien sur le serveur** : `newsletter` est un champ du point, sans migration ni déploiement.
 
 ## À savoir
 
-- Ces points sont des points comme les autres. Avec un délai proche d'une séance, ils figurent aussi à l'**ordre du
-  jour**. Si on ne le veut pas, il faudra en reparler : par exemple, ne pas mettre à l'ordre du jour les points
-  rattachés à la newsletter.
-- Une fois la newsletter envoyée, la personne passe les points à **Terminé**, et l'édition suivante repart vide.
-- Un mois sans newsletter : on supprime cette date-là (« Cet événement »). Les points de cette édition perdent leur
-  lien et gardent leur délai : il faut les recaler sur l'édition suivante.
-
-## Étapes
-
-Une seule session suffit pour 1 et 3 ; le raccourci (2) peut suivre dans la même session ou plus tard. Règles
-habituelles : publier à la fin, tests Playwright, données fictives seulement. **Environ 1 à 2 M tokens** en tout.
-
-## Décisions (04.11.2026)
-
-1. Le texte de l'info est la **remarque du point** : oui.
-2. Le **raccourci depuis un événement** (partie 2) : oui, tout de suite.
-3. Les points de la newsletter restent à l'**ordre du jour** : oui, c'est bien ainsi.
-
-## Fait (04.11.2026)
-
-Parties 1, 2 et 3, dans la démo. Rien sur le serveur : pas de migration ni de déploiement.
-
-- **Case « Newsletter du club »** dans la fiche d'un événement (`ClubEvent.newsletter`). C'est ainsi que l'appli sait
-  quel événement est la newsletter. Démo : l'événement « Newsletter », le 1er de chaque mois. Il n'apparaît qu'après
-  « Réinitialiser la démo » pour un navigateur qui avait déjà la démo.
-- **`src/data/newsletter.ts`** : la newsletter du club, ses éditions, l'édition où annoncer un événement, les points
-  d'une date, le point prérempli et le texte à copier.
-- **Chronologie** : deux affichages, **Chronologie** et **Remarques**. « Remarques » : chaque point de la date, avec
-  sa remarque en entier, ses fichiers et ses liens. Boutons **Copier** (titres, remarques et liens) et
-  **Ajouter un point**. La newsletter s'ouvre sur ses remarques.
-- **Carte d'un événement à venir** : le bouton **Newsletter** (icône seule sur téléphone). Il ouvre un point prérempli,
-  rangé chez l'événement et calé sur la dernière édition avant lui. S'il est trop tard, l'appli prend l'édition
-  suivante et affiche un avertissement.
-- **Calendrier** : la newsletter avec son icône. Un clic montre ses remarques, même pour qui gère les événements.
-- **Aide et README** : quelques lignes « Newsletter ». Un test Playwright couvre le parcours.
-- **Pas fait** : « Imprimer / PDF » des remarques. « Copier » suffit pour l'instant.
-
-## Retour du président (04.11.2026) et suite
-
-*Un bouton en haut, à côté de « Nouvel événement », d'une autre couleur ; la liste des newsletters se mélange à la liste
-des événements.* Fait :
-
-- **Bouton orange « Newsletter »** en haut de Agenda › Événements, à côté de « + Nouvel événement ». Il ouvre les
-  remarques de la prochaine édition ; **‹ ›** passent aux autres éditions ; **« Modifier »** ouvre la fiche de la
-  newsletter (gérer les événements). Sans newsletter, il la **crée** : « Nouvelle newsletter », le 1er du mois prochain,
-  tous les mois, case cochée.
-- **La newsletter n'est plus dans la liste des événements**, ni dans les « Prochains événements » de l'accueil. Elle
-  reste dans le calendrier, en orange.
-- Le bouton « Newsletter » des cartes d'événements reste : il crée le point qui annonce l'événement.
-- La case « Newsletter du club » vaut pour toute la série : la changer sur une date ne propose que « Tous les
-  événements ».
-
+- **Rattachement à un seul niveau.** Un point qui a déjà un point principal, ou qui a lui-même des points rattachés,
+  ne peut pas être rattaché à la newsletter. Il faut alors créer un point d'info à part (« + Nouveau point rattaché »).
+- **Il faut voir la newsletter pour s'y rattacher.** Qui ne voit pas son point (rôle sans « Voir toutes les tâches »)
+  ne peut pas s'y rattacher. Le mettre « Pour info » sur la newsletter le lui permet.
+- **Version réelle** : un événement « Newsletter » créé avec la version 3 (case « Newsletter du club ») redevient un
+  événement ordinaire. On peut le supprimer.
+- **Démo** : pas de newsletter d'exemple, comme pour les autres points. Le bouton orange la crée.

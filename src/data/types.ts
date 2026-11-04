@@ -257,6 +257,11 @@ export interface Task {
   aPrendre?: APrendre;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
   paiement?: Paiement;
+  /**
+   * Le point de la newsletter (newsletter.ts) : les infos sont les points rattachés à lui ; « Rassembler leurs remarques »
+   * les reprend dans sa remarque. Il revient chaque mois (répétition), sa remarque repartant vide.
+   */
+  newsletter?: boolean;
 }
 
 /** « Pour info » d'une tâche : des personnes la voient (accueil, « Mes tâches », 🔔) sans en être responsables. */
@@ -537,11 +542,6 @@ export interface ClubEvent {
   serie?: { id: string; date: string };
   /** Nouvelle édition d'un événement passé, avec ses tâches reprises (« Reprendre », reprise.ts) : celui-ci. */
   repriseDe?: string;
-  /**
-   * La newsletter du club (newsletter.ts) : chaque date est une édition ; les infos sont les points rattachés à une date,
-   * leur remarque en est le texte.
-   */
-  newsletter?: boolean;
 }
 
 /** Répétition d'un événement, comme dans un agenda : tous les N jours, semaines, mois ou ans. */

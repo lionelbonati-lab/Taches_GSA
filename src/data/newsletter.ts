@@ -1,79 +1,45 @@
 import type { AppData, ClubEvent, Task } from './types';
-import { occurrenceDu, occurrencesEntre } from './repetition';
-import { evenementPasse } from './etiquettes';
-import { addDays, occurrenceSuivie, today } from './utils';
+import { isDone } from './utils';
 
-// La newsletter du club (PLAN_NEWSLETTER.md) : un événement de l'agenda coché « Newsletter du club » (fiche de
-// l'événement), qui revient d'ordinaire chaque mois ; chaque date est une édition. Une info pour la newsletter est un
-// point rattaché à une édition (« Pour quand ? » › la newsletter, à cette date ; ou le bouton « Newsletter » d'un
-// événement) ; sa remarque est le texte de l'info. « Remarques » (Chronologie.tsx) les liste pour une édition.
+// La newsletter du club (PLAN_NEWSLETTER.md) : un point, rien de plus, qui revient chaque mois (répétition « Chaque
+// mois »). Les infos sont les points rattachés à lui (« Point principal » dans leur fiche ; ou le bouton « Newsletter »
+// de la carte d'un événement) : des informations, des points de groupes ou d'événements différents. Dans sa fiche,
+// « Rassembler leurs remarques » reprend leurs remarques dans la sienne, pour celui qui fait la newsletter.
 
-/** Une édition : l'événement (la série, ou une date modifiée seule) et son jour. */
-export interface Edition {
-  eventId: string;
-  date: string;
+/**
+ * Le point de la newsletter : celui pas encore terminé au délai le plus proche (parmi ceux que `voit` laisse voir) ; sinon
+ * aucun.
+ */
+export function newsletterEnCours(data: AppData, voit: (t: Task) => boolean = () => true): Task | undefined {
+  return data.tasks
+    .filter((t) => t.newsletter && !isDone(data, t) && voit(t))
+    .sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'))[0];
+}
+
+/** Le premier jour du mois qui suit `jour` (AAAA-MM-JJ). */
+export function premierDuMoisSuivant(jour: string): string {
+  const [a, m] = jour.split('-').map(Number);
+  return m === 12 ? `${a + 1}-01-01` : `${a}-${String(m + 1).padStart(2, '0')}-01`;
 }
 
 /**
- * La newsletter du club : l'événement coché (une série, pas une date modifiée seule) qui a encore des éditions à venir ;
- * sinon le premier coché.
+ * Nouveau point qui annonce `ev` dans la newsletter `nl` : rattaché à elle et à l'événement, son délai celui de la
+ * newsletter ; la remarque reprend la date, l'heure, le lieu et la description de l'événement. La place (section,
+ * sous-section) est celle de `base`.
  */
-export function newsletterDuClub(events: ClubEvent[], jour = today()): ClubEvent | undefined {
-  const cochees = events.filter((e) => e.newsletter && !e.serie);
-  return cochees.find((e) => !evenementPasse(e, jour)) ?? cochees[0];
-}
-
-/** Éditions du `de` au `a` (inclus) : les dates de la série, et celles modifiées seules (événements à part). */
-export function editionsEntre(events: ClubEvent[], nl: ClubEvent, de: string, a: string): Edition[] {
-  const dates = nl.repetition ? occurrencesEntre(nl, de, a) : nl.date >= de && nl.date <= a ? [nl.date] : [];
-  const aPart = events.filter((e) => e.serie?.id === nl.id && e.date >= de && e.date <= a).map((e) => ({ eventId: e.id, date: e.date }));
-  return [...dates.map((date) => ({ eventId: nl.id, date })), ...aPart].sort((x, y) => x.date.localeCompare(y.date));
-}
-
-/**
- * Édition où annoncer un événement qui commence le `debut` : la dernière avant lui (ou le jour même) qui n'est pas encore
- * passée ; sinon la prochaine, qui paraît après lui (`apres`).
- */
-export function editionPour(events: ClubEvent[], nl: ClubEvent, debut: string, jour = today()): (Edition & { apres?: boolean }) | undefined {
-  const avant = editionsEntre(events, nl, jour, debut);
-  if (avant.length) return avant[avant.length - 1];
-  const suivante = editionsEntre(events, nl, jour, addDays(jour, 400))[0];
-  return suivante && { ...suivante, apres: true };
-}
-
-/**
- * Points d'une date d'un événement qui se répète (une édition de la newsletter) : ceux calés sur cette date ; les autres
- * rattachés à la série, d'après leur délai (la première date qui le suit ; sans délai : la prochaine date). Un événement
- * qui ne se répète pas : tous ceux rattachés à lui.
- */
-export function pointsDeLaDate(tasks: Task[], serie: ClubEvent, date: string, jour = today()): Task[] {
-  return tasks.filter((t) => {
-    if (t.eventId !== serie.id) return false;
-    if (!serie.repetition) return true;
-    const o = t.delaiRef?.type === 'event' ? t.delaiRef.occurrence : undefined;
-    if (o) return occurrenceSuivie(serie, o) === date;
-    return occurrenceDu(serie, t.delai || jour) === date;
-  });
-}
-
-/**
- * Nouveau point pour annoncer `ev` dans l'édition `ed` de la newsletter : titre, remarque (date, heure, lieu, description
- * de l'événement) ; délai calé sur l'édition (le jour même). La place (section, sous-section) est à mettre par l'appelant.
- */
-export function pointNewsletter(data: AppData, base: Task, ev: ClubEvent, quand: string, ed: Edition): Task {
-  const serie = data.events.find((e) => e.id === ed.eventId);
+export function pointPourNewsletter(base: Task, nl: Task, ev: ClubEvent, quand: string): Task {
   const remarque = [[ev.nom, quand, ev.lieu].filter(Boolean).join(' · '), ev.description.trim()].filter(Boolean).join('\n');
-  return {
-    ...base,
-    titre: `Newsletter : ${ev.nom}`,
-    remarque,
-    eventId: ed.eventId,
-    delai: ed.date,
-    delaiRef: { type: 'event', joursAvant: 0, unite: 'jours', ...(serie?.repetition ? { occurrence: ed.date } : {}) },
-  };
+  return { ...base, titre: `Newsletter : ${ev.nom}`, remarque, parentId: nl.id, eventId: ev.id, delai: nl.delai || base.delai };
 }
 
-/** Texte à copier : chaque point, son titre puis sa remarque, et ses liens ; une ligne vide entre deux points. */
+/** Points rattachés dans l'ordre des sections et des sous-sections, puis par titre. */
+export function dansLOrdre(data: AppData, points: Task[]): Task[] {
+  const sec = (t: Task) => data.sections.findIndex((s) => s.id === t.sectionId);
+  const sous = (t: Task) => data.sections.find((s) => s.id === t.sectionId)?.sousSections.indexOf(t.sousSection) ?? -1;
+  return [...points].sort((a, b) => sec(a) - sec(b) || sous(a) - sous(b) || a.titre.localeCompare(b.titre, 'fr'));
+}
+
+/** Leurs remarques rassemblées : chaque point, son titre puis sa remarque et ses liens ; une ligne vide entre deux. */
 export function texteRemarques(points: Task[]): string {
   return points
     .map((t) => {

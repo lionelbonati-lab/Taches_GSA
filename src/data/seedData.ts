@@ -569,15 +569,6 @@ export const events: AppData['events'] = [
     "lieu": "Salle de gym",
     "description": "Programme hivernal : chaque mardi.",
     "repetition": { "freq": "semaine", "jours": [2], "jusquau": "2027-03-23" }
-  },
-  {
-    "id": "e14",
-    "nom": "Newsletter",
-    "date": "2026-09-01",
-    "lieu": "",
-    "description": "Newsletter du club, le 1er de chaque mois : les infos sont les remarques des points rattachés à chaque date.",
-    "repetition": { "freq": "mois" },
-    "newsletter": true
   }
 ];
 

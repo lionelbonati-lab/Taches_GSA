@@ -12,18 +12,13 @@ import { Icone } from './icones';
 import { BadgeEtiquette } from './IconesEtiquette';
 import { TaskModal } from './FicheTache';
 import { Progress } from '../pages/Dashboard';
-import { AvecLiens } from './Liens';
-import { voirFichier } from './Visionneuse';
-import { pointsDeLaDate, texteRemarques } from '../data/newsletter';
 
 // Chronologie d'un événement (Agenda › Événements, accueil, calendrier) : ses points dans le temps, avant, pendant et
 // après lui (J-60 … Jour J … J+7), avec « Aujourd'hui » et les points sans délai à placer. Pour planifier : « Planifier un
 // point » (fiche préremplie, délai calé sur l'événement) et « Placer » / « Déplacer » un point (« 2 semaines avant ») ;
 // le délai suit ensuite la date de l'événement, et une reprise l'an prochain garde le même écart.
 // Les points de l'événement : rattachés à lui, ou qui portent son étiquette (ceux qu'on voit).
-// « Remarques » : les mêmes points (pour un événement qui se répète, ceux de cette date), chacun avec sa remarque en
-// entier et ses documents, et « Copier » ; la newsletter du club (newsletter.ts) s'ouvre ainsi, ses infos étant les
-// remarques des points rattachés à l'édition.
+// Événement qui se répète : ‹ › passent à la date précédente ou suivante.
 
 /** L'événement ouvert : un événement de l'agenda (`serie`, à sa date `date` s'il se répète) ou une étiquette datée seule. */
 export type CibleChrono = { serie?: ClubEvent; date: string; etiquette?: Etiquette };
@@ -68,21 +63,11 @@ function ChampEcart({ v, onChange }: { v: Ecart; onChange: (v: Ecart) => void })
   );
 }
 
-/**
- * `onModifier` : bouton « Modifier » (l'événement à la date ouverte), pour la newsletter, qui n'a pas sa carte dans la liste
- * des événements.
- */
-export function Chronologie({ cible, onClose, onModifier }: { cible: CibleChrono; onClose: () => void; onModifier?: (date: string) => void }) {
+export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: () => void }) {
   const { data, user, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
-  // Événement qui se répète : la date ouverte, et ‹ › pour passer à la précédente ou à la suivante (une autre édition de
-  // la newsletter).
+  // Événement qui se répète : la date ouverte, et ‹ › pour passer à la précédente ou à la suivante.
   const [date, setDate] = useState(cible.date);
   const [fiche, setFiche] = useState<{ task: Task; isNew: boolean } | null>(null);
-  // La newsletter (ou une de ses dates modifiée seule) s'ouvre sur ses remarques.
-  const [vue, setVue] = useState<'frise' | 'remarques'>(() => {
-    const s = cible.serie && (data.events.find((x) => x.id === cible.serie!.serie?.id) ?? cible.serie);
-    return s?.newsletter ? 'remarques' : 'frise';
-  });
   const [cacherFaits, setCacherFaits] = useState(false);
   const [titre, setTitre] = useState('');
   const [ecart, setEcart] = useState<Ecart>({ n: '1', unite: 'semaines', apres: false });
@@ -153,36 +138,21 @@ export function Chronologie({ cible, onClose, onModifier }: { cible: CibleChrono
   };
 
   // Planifier un point : sa fiche, préremplie (titre, délai calé sur l'événement, rangé à la place de son étiquette ou
-  // dans la sous-section de l'événement, sinon dans une sous-section du même nom ailleurs, comme « Communication ›
-  // Newsletter » pour la newsletter ; quand on peut y ranger le point).
+  // dans la sous-section de l'événement, quand on peut y ranger le point).
   const peutCreer = creatableSections().length > 0;
   const dateEcart = delaiDepuis(decalage(ecart), debut);
-  const planifier = (quoi = titre.trim(), de = ecart) => {
-    const s = sectionEvenements(data);
+  const planifier = () => {
     const places = [
       ...(et ? lieuxDe(et, data.sections) : []),
-      ...(s && ev && s.sousSections.includes(ev.nom) ? [{ sectionId: s.id, sousSection: ev.nom }] : []),
-      ...(ev ? data.sections.filter((x) => x.sousSections.includes(ev.nom)).map((x) => ({ sectionId: x.id, sousSection: ev.nom })) : []),
+      ...(() => {
+        const s = sectionEvenements(data);
+        return s && ev && s.sousSections.includes(ev.nom) ? [{ sectionId: s.id, sousSection: ev.nom }] : [];
+      })(),
     ];
     const ici = places.find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
-    const base = newTask(user.id, { titre: quoi, ...(ici ? { sectionId: ici.sectionId, sousSection: ici.sousSection ?? '' } : {}) });
-    setFiche({ task: caler(base, de) ?? { ...base, delai: delaiDepuis(decalage(de), debut) }, isNew: true });
+    const base = newTask(user.id, { titre: titre.trim(), ...(ici ? { sectionId: ici.sectionId, sousSection: ici.sousSection ?? '' } : {}) });
+    setFiche({ task: caler(base, ecart) ?? { ...base, delai: dateEcart }, isNew: true });
     setTitre('');
-  };
-
-  // Remarques : pour un événement qui se répète, les points de cette date (calés sur elle, ou d'après leur délai) ; dans
-  // l'ordre des sections et des sous-sections, puis par titre.
-  const ordreSection = (t: Task) => data.sections.findIndex((s) => s.id === t.sectionId);
-  const ordreSous = (t: Task) => data.sections.find((s) => s.id === t.sectionId)?.sousSections.indexOf(t.sousSection) ?? -1;
-  const avecRemarques = (serie?.repetition ? pointsDeLaDate(data.tasks, serie, debut, jour).filter((t) => !t.paiement && canSeeTask(t)) : points)
-    .slice()
-    .sort((a, b) => ordreSection(a) - ordreSection(b) || ordreSous(a) - ordreSous(b) || a.titre.localeCompare(b.titre, 'fr'));
-  const copier = () => {
-    const texte = texteRemarques(avecRemarques);
-    void navigator.clipboard?.writeText(texte).then(
-      () => setToast(`Remarques copiées (${avecRemarques.length} point${avecRemarques.length > 1 ? 's' : ''})`),
-      () => setToast('Copie impossible : sélectionne le texte et copie-le à la main.'),
-    );
   };
 
   const qui = (t: Task) => {
@@ -271,7 +241,7 @@ export function Chronologie({ cible, onClose, onModifier }: { cible: CibleChrono
   }
 
   return (
-    <Modal title={`${vue === 'remarques' ? 'Remarques' : 'Chronologie'} · ${nom}`} icone={vue === 'remarques' ? 'notes' : 'horloge'} onClose={onClose} wide className="chronologie">
+    <Modal title={`Chronologie · ${nom}`} icone="horloge" onClose={onClose} wide className="chronologie">
       <div className="chrono-tete">
         <span className="chrono-quoi">
           {serie?.repetition && (
@@ -282,79 +252,13 @@ export function Chronologie({ cible, onClose, onModifier }: { cible: CibleChrono
             <button type="button" className="btn small chrono-date-nav" disabled={!suivante} onClick={() => suivante && setDate(suivante)} aria-label="Date suivante" title={suivante ? `Le ${fmtDate(suivante)}` : undefined}>›</button>
           )}
         </span>
-        {vue === 'remarques' ? (
-          <Progress done={avecRemarques.filter((t) => isDone(data, t)).length} total={avecRemarques.length} />
-        ) : (
-          <Progress done={faits} total={points.length} />
-        )}
+        <Progress done={faits} total={points.length} />
         <span className="muted chrono-compte">
-          {vue === 'frise' && [enRetard && `${enRetard} en retard`, points.filter((t) => !t.delai).length && `${points.filter((t) => !t.delai).length} sans délai`].filter(Boolean).join(' · ')}
+          {[enRetard && `${enRetard} en retard`, points.filter((t) => !t.delai).length && `${points.filter((t) => !t.delai).length} sans délai`].filter(Boolean).join(' · ')}
         </span>
       </div>
 
-      <div className="chips chrono-vues" role="group" aria-label="Affichage">
-        <button type="button" className={`chip ${vue === 'frise' ? 'on' : ''}`} aria-pressed={vue === 'frise'} onClick={() => setVue('frise')}>
-          <Icone n="horloge" /> Chronologie
-        </button>
-        <button type="button" className={`chip ${vue === 'remarques' ? 'on' : ''}`} aria-pressed={vue === 'remarques'} onClick={() => setVue('remarques')}>
-          <Icone n="notes" /> Remarques
-        </button>
-      </div>
-
-      {vue === 'remarques' && (
-        <section className="chrono-remarques" aria-label={`Remarques des points de « ${nom} »`}>
-          <div className="remarques-tete">
-            <span className="muted">
-              {avecRemarques.length} point{avecRemarques.length > 1 ? 's' : ''}
-              {serie?.repetition ? ` le ${jourCourt(debut, '')}` : ''}
-            </span>
-            <span className="grow" />
-            {peutCreer && (
-              <button type="button" className="btn small" onClick={() => planifier('', { n: '0', unite: 'jours', apres: false })} title="Nouveau point pour cette date">
-                <Icone n="ajoutTache" /> Ajouter un point
-              </button>
-            )}
-            {avecRemarques.length > 0 && (
-              <button type="button" className="btn small primary" onClick={copier} title="Copier les titres et les remarques, pour les coller ailleurs">
-                <Icone n="copier" /> Copier
-              </button>
-            )}
-          </div>
-          {avecRemarques.length ? (
-            <ol className="remarques-liste">
-              {avecRemarques.map((t) => (
-                <li key={t.id} className={isDone(data, t) ? 'fait' : ''}>
-                  <button type="button" className="chrono-titre" onClick={() => setFiche({ task: t, isNew: false })} title="Ouvrir le point">
-                    {t.titre || '(sans titre)'}
-                  </button>
-                  <span className="chrono-info">
-                    <StatusBadge task={t} />
-                    <span className="muted">{qui(t)}</span>
-                  </span>
-                  {t.remarque.trim() ? <p className="remarque-texte"><AvecLiens texte={t.remarque.trim()} /></p> : <p className="muted remarque-vide">Pas de remarque.</p>}
-                  {(t.documents ?? []).length > 0 && (
-                    <ul className="remarque-docs">
-                      {t.documents!.map((d) => (
-                        <li key={d.id}>
-                          {d.kind === 'lien' ? (
-                            <a href={d.url} target="_blank" rel="noopener noreferrer"><Icone n="lien" /> {d.nom}</a>
-                          ) : (
-                            <button type="button" className="link-btn" onClick={() => voirFichier(d.id, d.nom)}><Icone n="fichier" /> {d.nom}</button>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <Empty>Aucun point pour l’instant.{peutCreer ? ' « Ajouter un point » en crée un pour cette date.' : ''}</Empty>
-          )}
-        </section>
-      )}
-
-      {vue === 'frise' && peutCreer && (
+      {peutCreer && (
         <form className="chrono-planifier" onSubmit={(e) => { e.preventDefault(); planifier(); }}>
           <strong><Icone n="ajoutTache" /> Planifier un point</strong>
           <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Que faut-il faire ?" aria-label="Point à planifier" maxLength={200} />
@@ -376,38 +280,29 @@ export function Chronologie({ cible, onClose, onModifier }: { cible: CibleChrono
         </form>
       )}
 
-      {vue === 'frise' && points.length > 0 && (
+      {points.length > 0 && (
         <label className="inline hide-toggle chrono-filtre">
           <input type="checkbox" checked={cacherFaits} onChange={(e) => setCacherFaits(e.target.checked)} /> Masquer les terminés
         </label>
       )}
 
-      {vue === 'frise' && sansDelai.length > 0 && (
+      {sansDelai.length > 0 && (
         <section className="chrono-sans-delai">
           <h3><Icone n="alerte" /> À placer dans le temps ({sansDelai.length}) <small className="muted">· sans délai</small></h3>
           <ul className="chrono-liste">{sansDelai.map(ligne)}</ul>
         </section>
       )}
 
-      {vue === 'frise' && (
-        <>
-          <ol className="chrono-liste chrono-frise" aria-label={`Points de « ${nom} » dans le temps`}>{frise}</ol>
-          {!points.length && <Empty>Aucun point pour l’instant.{peutCreer ? ' Planifie le premier ci-dessus : « 1 mois avant », « la veille »…' : ''}</Empty>}
+      <ol className="chrono-liste chrono-frise" aria-label={`Points de « ${nom} » dans le temps`}>{frise}</ol>
+      {!points.length && <Empty>Aucun point pour l’instant.{peutCreer ? ' Planifie le premier ci-dessus : « 1 mois avant », « la veille »…' : ''}</Empty>}
 
-          <p className="muted chrono-note">
-            <Icone n="epingle" /> Calé sur l’événement : le délai suit sa date, et une reprise l’an prochain garde le même écart.
-          </p>
-        </>
-      )}
+      <p className="muted chrono-note">
+        <Icone n="epingle" /> Calé sur l’événement : le délai suit sa date, et une reprise l’an prochain garde le même écart.
+      </p>
       <div className="modal-foot">
         {/* Avec une étiquette : tous ses points (rangés chez elle ou rattachés à l'événement) ; sinon, ceux rattachés. */}
         <Link to={et ? `/taches?etiquette=${encodeURIComponent(et.id)}` : `/taches?event=${encodeURIComponent(serie?.id ?? '')}`}>Voir dans la liste des points →</Link>
         <span className="grow" />
-        {onModifier && (
-          <button type="button" className="btn" onClick={() => onModifier(debut)}>
-            <Icone n="modifier" /> Modifier
-          </button>
-        )}
         <button type="button" className="btn" onClick={onClose}>Fermer</button>
       </div>
       {fiche && <TaskModal task={fiche.task} isNew={fiche.isNew} onClose={() => setFiche(null)} />}

@@ -252,7 +252,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     checklist: t.checklist.length > 0,
     docs: (t.documents ?? []).length > 0,
     repetition: !!t.recurrence,
-    liens: !!(t.eventId || t.meetingId || t.parentId || kids.length),
+    // La newsletter : ses points rattachés toujours affichés (« Rattacher un point existant », « Rassembler leurs remarques »).
+    liens: !!(t.eventId || t.meetingId || t.parentId || kids.length || (t.newsletter && !isNew)),
     emails: !isNew && emailsOf(data, task.id).length > 0,
     info: nbPourInfo(t.pourInfo) > 0,
     prendre: !!t.aPrendre?.personnes.length,

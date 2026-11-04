@@ -2281,55 +2281,89 @@ test('filtres des points : étiquette et événement aussi d’office (place, é
   await expect(note).toHaveCount(0);
 });
 
-test('newsletter : un point depuis un événement, ses remarques dans l’édition, copiées ; dans l’agenda', async ({ page, context }) => {
-  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
-  // La démo a sa newsletter le 1er de chaque mois : la prochaine est le 1er du mois prochain ; l'événement, le 6.
+test('newsletter : un point auquel on rattache les autres ; leurs remarques rassemblées dans la sienne ; chaque mois', async ({ page }) => {
+  page.on('dialog', (d) => void d.accept());
   const iso = (x: Date) => `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
   const auj = new Date();
-  const jour = iso(new Date(auj.getFullYear(), auj.getMonth() + 1, 6));
-  await evenementEtiquete(page, 'Vente de sapins', jour, []);
+  const premier = iso(new Date(auj.getFullYear(), auj.getMonth() + 1, 1));
+  const champ = (fiche: ReturnType<typeof page.locator>, nom: RegExp) => fiche.locator('label', { hasText: nom }).locator('select, textarea').first();
 
-  // Sa carte : « Newsletter » ouvre un point déjà rempli, rangé chez l'événement, calé sur l'édition d'avant lui.
-  await page.locator('.carte-evenement', { hasText: 'Vente de sapins' }).getByRole('button', { name: 'Newsletter' }).click();
-  const fiche = page.locator('.modal').first();
-  await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Newsletter : Vente de sapins');
-  await expect(fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first()).toHaveValue('Vente de sapins');
-  const remarque = fiche.locator('label', { hasText: /^\s*Remarque/ }).locator('textarea');
-  await expect(remarque).toHaveValue(/^Vente de sapins/);
-  await remarque.fill('Vente de sapins au local, le samedi 6.\nCommande avant le 30.');
+  // Pas encore de newsletter : le bouton orange en crée une, rangée dans « Communication › Newsletter », pour le 1er du
+  // mois prochain, chaque mois.
+  await allerA(page, '/evenements');
+  await page.locator('.page-head').getByRole('button', { name: 'Newsletter' }).click();
+  let fiche = page.locator('.modal').first();
+  await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Newsletter');
+  await expect(champ(fiche, /^\s*Section/)).toHaveValue('sec11');
+  await expect(champ(fiche, /^\s*Sous-section/)).toHaveValue('Newsletter');
+  await expect(fiche.getByLabel('Pour quand ?').first()).toHaveValue(premier);
+  await expect(fiche.locator('.recur-note').first()).toBeVisible();
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // La newsletter n'est pas dans la liste des événements : le bouton « Newsletter » en haut ouvre les remarques de sa
-  // prochaine édition, à copier.
-  await expect(page.locator('.titre-evenement', { hasText: /^Newsletter$/ })).toHaveCount(0);
-  await page.locator('.page-head').getByRole('button', { name: 'Newsletter' }).click();
-  const edition = page.getByRole('dialog', { name: 'Remarques · Newsletter' });
-  await expect(edition.locator('.remarques-liste > li')).toHaveCount(1);
-  await expect(edition.locator('.remarque-texte')).toHaveText('Vente de sapins au local, le samedi 6.\nCommande avant le 30.');
-  await edition.getByRole('button', { name: 'Copier' }).click();
-  await expect(page.locator('.toast')).toContainText('Remarques copiées (1 point)');
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Newsletter : Vente de sapins\nVente de sapins au local, le samedi 6.\nCommande avant le 30.');
-  // L'autre affichage : la chronologie.
-  const fenetre = page.locator('.modal.chronologie');
-  await fenetre.getByRole('button', { name: 'Chronologie' }).click();
-  await expect(page.getByRole('dialog', { name: 'Chronologie · Newsletter' }).locator('.chrono-point', { hasText: 'Newsletter : Vente de sapins' })).toHaveCount(1);
-  // ‹ › : l'édition suivante, vide ; retour à la nôtre.
-  await fenetre.getByRole('button', { name: 'Remarques' }).click();
-  await fenetre.getByRole('button', { name: 'Date suivante' }).click();
-  await expect(fenetre.locator('.remarques-liste > li')).toHaveCount(0);
-  await fenetre.getByRole('button', { name: 'Date précédente' }).click();
-  await expect(fenetre.locator('.remarques-liste > li')).toHaveCount(1);
-  // « Modifier » : la fiche de la newsletter (sa carte n'est pas dans la liste).
-  await fenetre.locator('.modal-foot').getByRole('button', { name: 'Modifier' }).click();
-  const nl = page.getByRole('dialog', { name: 'Événement' });
-  await expect(nl.getByPlaceholder('Ajouter un titre')).toHaveValue('Newsletter');
-  await expect(nl.locator('.case-newsletter input')).toBeChecked();
-  await nl.getByRole('button', { name: 'Annuler' }).click();
+  // Un événement : « Newsletter » sur sa carte ouvre un point déjà rempli, rangé chez lui, rattaché à la newsletter.
+  const jour = iso(new Date(auj.getFullYear(), auj.getMonth() + 1, 6));
+  await evenementEtiquete(page, 'Vente de sapins', jour, []);
+  await page.locator('.carte-evenement', { hasText: 'Vente de sapins' }).getByRole('button', { name: 'Newsletter' }).click();
+  fiche = page.locator('.modal').first();
+  await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Newsletter : Vente de sapins');
+  await expect(champ(fiche, /^\s*Sous-section/)).toHaveValue('Vente de sapins');
+  await expect(champ(fiche, /^\s*Point principal/).locator('option:checked')).toHaveText(/^Newsletter/);
+  const remarque = champ(fiche, /^\s*Remarque/);
+  await expect(remarque).toHaveValue(/^Vente de sapins/);
+  await remarque.fill('Vente de sapins au local, le samedi 6.');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
 
-  // Agenda : la newsletter le 1er du mois prochain ; un clic (même pour qui gère les événements) montre ses remarques.
+  // La newsletter : un autre point rattaché depuis sa fiche (une simple information).
+  await page.locator('.page-head').getByRole('button', { name: 'Newsletter' }).click();
+  fiche = page.locator('.modal').first();
+  await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).click();
+  const info = page.locator('.modal').last();
+  await info.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Nouveaux maillots');
+  await champ(info, /^\s*Remarque/).fill('Les maillots 2027 sont arrivés.');
+  await info.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(1);
+
+  // « Rassembler leurs remarques » : dans la remarque de la newsletter, dans l'ordre des sections ; enregistrée.
+  await expect(fiche.locator('.linked-list li')).toHaveCount(2);
+  await fiche.getByRole('button', { name: 'Rassembler leurs remarques' }).click();
+  const texte = 'Newsletter : Vente de sapins\nVente de sapins au local, le samedi 6.\n\nNouveaux maillots\nLes maillots 2027 sont arrivés.';
+  await expect(champ(fiche, /^\s*Remarque/)).toHaveValue(texte);
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await page.locator('.page-head').getByRole('button', { name: 'Newsletter' }).click();
+  await expect(champ(page.locator('.modal').first(), /^\s*Remarque/)).toHaveValue(texte);
+  await page.locator('.modal').first().getByRole('button', { name: 'Annuler' }).click();
+
+  // Agenda : la newsletter le 1er du mois prochain, en orange, comme un événement.
   await allerA(page, '/agenda');
   await page.getByRole('button', { name: 'Mois suivant' }).click();
-  await page.locator('.cal-chip.k-event', { hasText: 'Newsletter' }).first().click();
-  await expect(page.getByRole('dialog', { name: 'Remarques · Newsletter' }).locator('.remarques-liste > li')).toHaveCount(1);
+  await expect(page.locator('.cal-chip.k-task.newsletter', { hasText: 'Newsletter' })).toHaveCount(1);
+
+  // Envoyée (terminée) : celle du mois suivant est prête, sans les remarques ni les points de celle-ci.
+  await page.locator('.cal-chip.k-task.newsletter').click();
+  fiche = page.locator('.modal').first();
+  await fiche.getByRole('combobox', { name: 'Statut' }).click();
+  await page.getByRole('option', { name: 'Terminé' }).click();
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await allerA(page, '/evenements');
+  await page.locator('.page-head').getByRole('button', { name: 'Newsletter' }).click();
+  fiche = page.locator('.modal').first();
+  await expect(fiche.getByLabel('Pour quand ?').first()).toHaveValue(iso(new Date(auj.getFullYear(), auj.getMonth() + 2, 1)));
+  await expect(champ(fiche, /^\s*Remarque/)).toHaveValue('');
+  await expect(fiche.locator('.linked-list li')).toHaveCount(0);
+});
+
+test('chronologie d’un événement qui se répète : ‹ › passent à la date précédente ou suivante', async ({ page }) => {
+  await allerA(page, '/evenements');
+  await page.locator('.carte-evenement', { hasText: 'Entraînement en salle' }).getByRole('button', { name: 'Chronologie' }).click();
+  const chrono = page.getByRole('dialog', { name: 'Chronologie · Entraînement en salle' });
+  const date = chrono.locator('.chrono-quoi > span').first();
+  const avant = await date.textContent();
+  await chrono.getByRole('button', { name: 'Date suivante' }).click();
+  await expect(date).not.toHaveText(avant ?? '');
+  await chrono.getByRole('button', { name: 'Date précédente' }).click();
+  await expect(date).toHaveText(avant ?? '');
 });
