@@ -121,8 +121,7 @@ export function Calendar() {
       map.set(it.date, [...(map.get(it.date) ?? []), it]);
     };
     const mine = (t: Task) => t.responsables.includes(user.id);
-    // La newsletter (newsletter.ts) : comme un événement, aussi dans « Mes points » quand on la voit.
-    const visible = (t: Task) => (effScope === 'mes' ? mine(t) || (!!t.newsletter && canSeeTask(t)) : canSeeTask(t)) && (showDone || !isDone(data, t));
+    const visible = (t: Task) => (effScope === 'mes' ? mine(t) : canSeeTask(t)) && (showDone || !isDone(data, t));
     if (seeMeetings && kinds.includes('meeting')) data.meetings.forEach((m) => push({ kind: 'meeting', key: m.id, date: m.date, m }));
     // Événement sur plusieurs jours : une case par jour (31 au plus) ; qui se répète : chaque occurrence du mois affiché.
     if (seeEvents && kinds.includes('event'))
@@ -145,8 +144,7 @@ export function Calendar() {
     // Par genre ; séances et événements : toute la journée d'abord, puis par heure.
     const rank: Record<Kind, number> = { meeting: 0, etiquette: 1, event: 2, poll: 3, task: 4 };
     const heure = (it: Item) => (it.kind === 'meeting' ? it.m.heure : it.kind === 'event' ? it.e.heure : it.kind === 'poll' ? it.p.heureLimite : '') ?? '';
-    const rang = (it: Item) => (it.kind === 'task' && it.t.newsletter ? rank.event : rank[it.kind]);
-    map.forEach((list) => list.sort((a, b) => rang(a) - rang(b) || heure(a).localeCompare(heure(b))));
+    map.forEach((list) => list.sort((a, b) => rank[a.kind] - rank[b.kind] || heure(a).localeCompare(heure(b))));
     return map;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data, user, days, kinds, effScope, showDone, seeMeetings, seeEvents, canSeeTask]);
@@ -170,10 +168,6 @@ export function Calendar() {
     addTask && { kind: 'task' as const, label: 'Point' },
     addEvent && { kind: 'event' as const, label: 'Événement' },
   ].filter(Boolean) as { kind: 'meeting' | 'task' | 'event'; label: string }[];
-
-  // Le point de la newsletter : son icône et sa couleur (orange), comme le bouton « Newsletter » des événements.
-  const estNewsletter = (it: Item) => it.kind === 'task' && !!it.t.newsletter;
-  const icone = (it: Item): IconeNom => (estNewsletter(it) ? 'newsletter' : ICONE[it.kind]);
 
   const open = (it: Item) => {
     if (it.kind === 'task') setTask({ t: it.t, isNew: false });
@@ -239,10 +233,6 @@ export function Calendar() {
         return `Événement : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
       }
       case 'task': {
-        if (it.t.newsletter) {
-          const n = data.tasks.filter((x) => x.parentId === it.t.id).length;
-          return `Newsletter : ${it.t.titre} · ${n} point${n > 1 ? 's' : ''} rattaché${n > 1 ? 's' : ''} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}`;
-        }
         const p = parentOf(data, it.t);
         return `Point : ${it.t.titre} · ${data.statuses.find((s) => s.id === it.t.statusId)?.label ?? ''}${p ? ` · rattaché à « ${p.titre} »` : ''}`;
       }
@@ -253,10 +243,10 @@ export function Calendar() {
   const chipClass = (it: Item) => {
     const late = it.kind === 'task' && isLate(data, it.t);
     const done = it.kind === 'task' && isDone(data, it.t);
-    return `cal-chip k-${it.kind}${late ? ' late' : ''}${done ? ' done' : ''}${estNewsletter(it) ? ' newsletter' : ''}`;
+    return `cal-chip k-${it.kind}${late ? ' late' : ''}${done ? ' done' : ''}`;
   };
   const chipStyle = (it: Item) =>
-    it.kind === 'task' && !it.t.newsletter
+    it.kind === 'task'
       ? { borderLeftColor: data.statuses.find((s) => s.id === it.t.statusId)?.couleur }
       : it.kind === 'etiquette'
         ? ({ '--c': it.et.couleur } as React.CSSProperties)
@@ -350,7 +340,7 @@ export function Calendar() {
                       onDragEnd={() => { setDrag(null); setOver(null); }}
                       onClick={(e) => { e.stopPropagation(); setSelected(d); open(it); }}
                     >
-                      {estNewsletter(it) && <><Icone n="newsletter" />{' '}</>}{chipText(it)}
+                      {chipText(it)}
                     </button>
                   ))}
                   {items.length > MAX_CHIPS && <span className="cal-more">+{items.length - MAX_CHIPS} autre{items.length - MAX_CHIPS > 1 ? 's' : ''}</span>}
@@ -373,10 +363,10 @@ export function Calendar() {
             <ul className="cal-list">
               {dayItems.map((it) => (
                 <li key={it.key}>
-                  <button className={`cal-row k-${it.kind}${estNewsletter(it) ? ' newsletter' : ''}`} style={it.kind === 'etiquette' ? chipStyle(it) : undefined} onClick={() => open(it)}>
+                  <button className={`cal-row k-${it.kind}`} style={it.kind === 'etiquette' ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
-                        <Icone n={icone(it)} /> {chipText(it)}
+                        <Icone n={ICONE[it.kind]} /> {chipText(it)}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}

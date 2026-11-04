@@ -7,7 +7,7 @@ import {
   Play, Printer, Puzzle, RefreshCw, Repeat, RotateCcw, Save, ScrollText, Send, Settings, Share2, ShieldCheck, ShieldHalf, Signature,
   Smartphone, Sparkles, SquareCheckBig, Stamp, Undo2, Upload, UserLock, UserX, Users, Calendar, Camera, CreditCard, Receipt, FolderTree, PanelTop, History,
   MapPin, Search, LocateFixed, Redo2, GripVertical, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ListPlus, TriangleAlert, Clock, Hash,
-  Monitor, Bold, Italic, Underline, Strikethrough, Baseline, Tag, Presentation, Newspaper,
+  Monitor, Bold, Italic, Underline, Strikethrough, Baseline, Tag, Presentation,
 } from 'lucide-react';
 
 // Icônes dessinées au trait (bibliothèque Lucide, licence ISC), de la couleur du texte et à sa taille : boutons, titres,
@@ -32,7 +32,6 @@ export const ICONES = {
   taches: SquareCheckBig,
   calendrier: Calendar,
   evenements: PartyPopper,
-  newsletter: Newspaper,
   seances: CalendarRange,
   odj: ClipboardList,
   pv: NotebookPen,

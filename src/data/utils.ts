@@ -325,8 +325,6 @@ export function nextOccurrence(data: AppData, t: Task, seance?: Meeting): Task {
     contenuLe: undefined,
     commentaires: undefined,
     checklist: t.checklist.map((c) => ({ ...c, id: uid('c'), done: false })),
-    // Newsletter : celle du mois suivant repart sans les infos rassemblées de celle-ci, ni ses documents.
-    ...(t.newsletter ? { remarque: '', documents: undefined } : {}),
     parentId: nextParent(data, t),
     // L'événement de cette année ne concerne pas l'occurrence suivante (sauf un événement qui se répète : son occurrence
     // suivante) ; la séance, seulement celle du même mois l'an prochain (ou la séance suivante, pour une tâche « à chaque

@@ -257,11 +257,6 @@ export interface Task {
   aPrendre?: APrendre;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
   paiement?: Paiement;
-  /**
-   * Le point de la newsletter (newsletter.ts) : les infos sont les points rattachés à lui ; « Rassembler leurs remarques »
-   * les reprend dans sa remarque. Il revient chaque mois (répétition), sa remarque repartant vide.
-   */
-  newsletter?: boolean;
 }
 
 /** « Pour info » d'une tâche : des personnes la voient (accueil, « Mes tâches », 🔔) sans en être responsables. */

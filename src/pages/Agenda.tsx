@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Etiquette, Meeting, PvArchive, Task } from '../data/types';
-import { daysUntil, diffDays, endOf, fmtDate, fmtDateTime, fmtRange, fullName, isDone, newTask, today, uid } from '../data/utils';
+import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
 import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu } from '../data/repetition';
 import { EventModal, newEvent } from '../components/EventModal';
 import { RepriseModal } from '../components/Reprise';
@@ -12,9 +12,6 @@ import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
 import { BadgeEtiquette } from '../components/IconesEtiquette';
 import { Chronologie, type CibleChrono } from '../components/Chronologie';
-import { TaskModal } from '../components/FicheTache';
-import { newsletterEnCours, pointPourNewsletter, premierDuMoisSuivant } from '../data/newsletter';
-import { lieuxDe, sectionEvenements } from '../data/etiquettes';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
 import { cleanHtml } from '../data/sanitize';
@@ -486,11 +483,8 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
  * repliés en bas (les plus récents d'abord) ; un clic sur un événement ouvre sa chronologie (Chronologie.tsx).
  */
 export function Events() {
-  const { data, can, user, canSeeTask, creatableSections, peutRanger, setToast } = useStore();
+  const { data, can } = useStore();
   const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string } | null>(null);
-  // La newsletter (newsletter.ts) : un point, auquel on rattache les autres. Sa fiche, ou un nouveau point.
-  const [fiche, setFiche] = useState<{ task: Task; isNew: boolean } | null>(null);
-  const newsletter = newsletterEnCours(data, canSeeTask);
   const [nouveau, setNouveau] = useState(false);
   // Événement passé repris pour une nouvelle édition, avec ses tâches (Reprise.tsx).
   // Reprendre un événement passé (nouvelle édition) ou en copier un à venir (`copie`).
@@ -512,40 +506,6 @@ export function Events() {
   const aVenir = liste.filter((x) => !passe(x));
   const passes = liste.filter(passe).reverse();
 
-  // Où ranger un nouveau point : la première de ces places où l'on peut le ranger (sinon, à choisir dans sa fiche).
-  const ranger = (places: { sectionId: string; sousSection?: string }[]) => {
-    const ici = places.find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
-    return ici ? { sectionId: ici.sectionId, sousSection: ici.sousSection ?? '' } : {};
-  };
-  // Sous-sections « Newsletter » (Communication › Newsletter).
-  const placesNewsletter = data.sections.filter((x) => x.sousSections.includes('Newsletter')).map((x) => ({ sectionId: x.id, sousSection: 'Newsletter' }));
-  const peutCreer = !!user && creatableSections().length > 0;
-
-  // Bouton « Newsletter » (en haut) : le point de la newsletter en cours ; sans, en créer un : « Newsletter », chaque mois,
-  // pour le 1er du mois prochain, rangé dans « Communication › Newsletter ».
-  const ouvrirNewsletter = () => {
-    if (newsletter) return setFiche({ task: newsletter, isNew: false });
-    if (!user) return;
-    setFiche({ task: newTask(user.id, { titre: 'Newsletter', ...ranger(placesNewsletter), delai: premierDuMoisSuivant(jour), recurrence: 'mensuelle', newsletter: true }), isNew: true });
-  };
-
-  // Bouton « Newsletter » d'un événement : un point qui l'annonce, rattaché à la newsletter en cours et à l'événement,
-  // rangé chez l'événement (place de son étiquette, sa sous-section), sinon dans « Communication › Newsletter » ; sa
-  // remarque reprend la date, l'heure, le lieu et la description.
-  const annoncer = (serie: ClubEvent, date: string, et?: Etiquette) => {
-    if (!user || !newsletter) return;
-    const ev = aLaDate(serie, date);
-    const s = sectionEvenements(data);
-    const base = newTask(user.id, ranger([
-      ...(et ? lieuxDe(et, data.sections) : []),
-      ...(s && s.sousSections.includes(ev.nom) ? [{ sectionId: s.id, sousSection: ev.nom }] : []),
-      ...placesNewsletter,
-    ]));
-    const quand = [fmtRange(ev.date, ev.dateFin), horaire(ev)].filter(Boolean).join(' · ');
-    setFiche({ task: pointPourNewsletter(base, newsletter, serie, quand), isNew: true });
-    if (newsletter.delai && newsletter.delai > ev.date) setToast(`Attention : « ${newsletter.titre} » (${fmtDate(newsletter.delai)}) paraît après l’événement.`);
-  };
-
   const carte = ({ e: serie, et, date }: (typeof liste)[number]) =>
     serie ? (
       <CarteEvenement
@@ -557,7 +517,6 @@ export function Events() {
         onEdit={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}
         onReprise={(copie) => setReprise({ e: serie, copie })}
         onChrono={() => setChrono({ serie, date, etiquette: et })}
-        onNewsletter={newsletter && peutCreer ? () => annoncer(serie, date, et) : undefined}
       />
     ) : (
       et && <CarteEtiquette key={`et:${et.id}`} et={et} onChrono={() => setChrono({ date: et.date!, etiquette: et })} />
@@ -567,18 +526,7 @@ export function Events() {
     <div>
       <div className="page-head">
         <h1>Événements</h1>
-        <div className="page-head-boutons">
-          {(newsletter || peutCreer) && (
-            <button
-              className="btn newsletter"
-              onClick={ouvrirNewsletter}
-              title={newsletter ? `« ${newsletter.titre} »${newsletter.delai ? ` du ${fmtDate(newsletter.delai)}` : ''} : les points rattachés et leurs remarques` : 'Créer la newsletter : un point qui revient chaque mois, auquel on rattache les autres'}
-            >
-              <Icone n="newsletter" /> Newsletter
-            </button>
-          )}
-          {can('events.manage') && <button className="btn primary" onClick={() => setNouveau(true)}>+ Nouvel événement</button>}
-        </div>
+        {can('events.manage') && <button className="btn primary" onClick={() => setNouveau(true)}>+ Nouvel événement</button>}
       </div>
       <PageIntro />
       <div className="agenda">
@@ -595,7 +543,6 @@ export function Events() {
       {nouveau && <EventModal event={newEvent()} onClose={() => setNouveau(false)} />}
       {reprise && <RepriseModal event={reprise.e} copie={reprise.copie} onClose={() => setReprise(null)} />}
       {chrono && <Chronologie cible={chrono} onClose={() => setChrono(null)} />}
-      {fiche && <TaskModal task={fiche.task} isNew={fiche.isNew} onClose={() => setFiche(null)} />}
     </div>
   );
 }
@@ -655,12 +602,10 @@ function CarteEtiquette({ et, onChrono }: { et: Etiquette; onChrono: () => void 
  * Carte d'un événement (à la date `date` s'il se répète) : avancement de ses points (rattachés à lui ou qui portent son
  * étiquette, comme à l'accueil et dans sa chronologie) ; `etiquette` : la sienne, ou celle du même jour. Un clic sur son
  * nom ou sa date ouvre sa chronologie ; ses boutons (à droite ; sur téléphone, sous la date et leur icône seule) :
- * chronologie, points, newsletter (un point qui l'annonce, s'il y a une newsletter en cours), modifier, reprendre.
+ * chronologie, points, modifier, reprendre.
  */
-function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onChrono, onNewsletter }: {
+function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onChrono }: {
   serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: (copie: boolean) => void; onChrono: () => void;
-  /** « Newsletter » : un point qui annonce l'événement, rattaché à la newsletter (absent : pas de bouton). */
-  onNewsletter?: () => void;
 }) {
   const { data, can } = useStore();
   const jour = today();
@@ -692,11 +637,6 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
       <div className="agenda-actions">
         <BoutonChrono onClick={onChrono} />
         <BoutonPoints to={liste} />
-        {onNewsletter && !past && (
-          <button className="btn small" onClick={onNewsletter} title="Annoncer l’événement dans la newsletter : un point rattaché à elle, sa remarque déjà remplie">
-            <Icone n="newsletter" /> <span className="libelle">Newsletter</span>
-          </button>
-        )}
         {can('events.manage') && (
           <>
             <button className="btn small" onClick={onEdit} title="Modifier l’événement">

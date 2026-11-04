@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, DelaiUnite, Etiquette, Task } from '../data/types';
-import { aLaDate, horaire, occurrenceApres, occurrencesEntre } from '../data/repetition';
+import { aLaDate, horaire } from '../data/repetition';
 import {
-  DELAI_MAX, addDays, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
+  DELAI_MAX, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
 } from '../data/utils';
 import { etiquetteDeLEvenement, lieuxDe, sectionEvenements } from '../data/etiquettes';
 import { Empty, Modal, StatusBadge } from './ui';
@@ -18,7 +18,6 @@ import { Progress } from '../pages/Dashboard';
 // point » (fiche préremplie, délai calé sur l'événement) et « Placer » / « Déplacer » un point (« 2 semaines avant ») ;
 // le délai suit ensuite la date de l'événement, et une reprise l'an prochain garde le même écart.
 // Les points de l'événement : rattachés à lui, ou qui portent son étiquette (ceux qu'on voit).
-// Événement qui se répète : ‹ › passent à la date précédente ou suivante.
 
 /** L'événement ouvert : un événement de l'agenda (`serie`, à sa date `date` s'il se répète) ou une étiquette datée seule. */
 export type CibleChrono = { serie?: ClubEvent; date: string; etiquette?: Etiquette };
@@ -65,8 +64,6 @@ function ChampEcart({ v, onChange }: { v: Ecart; onChange: (v: Ecart) => void })
 
 export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: () => void }) {
   const { data, user, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
-  // Événement qui se répète : la date ouverte, et ‹ › pour passer à la précédente ou à la suivante.
-  const [date, setDate] = useState(cible.date);
   const [fiche, setFiche] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [cacherFaits, setCacherFaits] = useState(false);
   const [titre, setTitre] = useState('');
@@ -76,13 +73,11 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
   if (!user) return null;
 
   const serie = cible.serie ? data.events.find((x) => x.id === cible.serie!.id) ?? cible.serie : undefined;
-  const ev = serie ? aLaDate(serie, date) : undefined;
+  const ev = serie ? aLaDate(serie, cible.date) : undefined;
   // Son étiquette ; sans, celle du même jour montrée avec lui (ancienne étiquette pas encore reliée).
   const et = (serie && etiquetteDeLEvenement(data, serie.id)) || (cible.etiquette && (data.etiquettes ?? []).find((x) => x.id === cible.etiquette!.id)) || undefined;
   const nom = ev?.nom ?? et?.nom ?? '';
-  const debut = ev?.date ?? et?.date ?? date;
-  const precedente = serie?.repetition ? occurrencesEntre(serie, addDays(date, -400), addDays(date, -1)).filter((o) => o < date).pop() : undefined;
-  const suivante = serie?.repetition ? occurrenceApres(serie, date) : undefined;
+  const debut = ev?.date ?? et?.date ?? cible.date;
   const fin = ev ? endOf(ev) : endOf({ date: debut, dateFin: et?.dateFin });
   const jour = today();
   const annee = debut.slice(0, 4);
@@ -244,13 +239,7 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
     <Modal title={`Chronologie · ${nom}`} icone="horloge" onClose={onClose} wide className="chronologie">
       <div className="chrono-tete">
         <span className="chrono-quoi">
-          {serie?.repetition && (
-            <button type="button" className="btn small chrono-date-nav" disabled={!precedente} onClick={() => precedente && setDate(precedente)} aria-label="Date précédente" title={precedente ? `Le ${fmtDate(precedente)}` : undefined}>‹</button>
-          )}
           {et && <BadgeEtiquette e={et} />} <span>{[fmtRange(debut, fin), ev && horaire(ev), ev?.lieu].filter(Boolean).join(' · ')}</span>
-          {serie?.repetition && (
-            <button type="button" className="btn small chrono-date-nav" disabled={!suivante} onClick={() => suivante && setDate(suivante)} aria-label="Date suivante" title={suivante ? `Le ${fmtDate(suivante)}` : undefined}>›</button>
-          )}
         </span>
         <Progress done={faits} total={points.length} />
         <span className="muted chrono-compte">

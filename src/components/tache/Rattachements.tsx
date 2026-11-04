@@ -5,7 +5,6 @@ import { childrenOf, fmtDate, isDone, isLate, newTask } from '../../data/utils';
 import { Avatar, StatusBadge } from '../ui';
 import { Icone } from '../icones';
 import { EvenementLie, SeanceLiee, type SetT } from './Quand';
-import { dansLOrdre, texteRemarques } from '../../data/newsletter';
 
 type Props = {
   t: Task;
@@ -22,22 +21,13 @@ type Props = {
 
 /** Fiche d'une tâche : « 🧩 Rattachements » (événement, séance, tâche principale, tâches rattachées). */
 export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvrir }: Props) {
-  const { data, user, linkTask, setToast } = useStore();
+  const { data, user, linkTask } = useStore();
   const [linking, setLinking] = useState(false);
   if (!user) return null;
   const parentChoices = data.tasks
     .filter((x) => !x.paiement && (x.id === t.parentId || (x.id !== task.id && !x.parentId && !isDone(data, x))))
     .sort((a, b) => a.titre.localeCompare(b.titre));
   const linkable = data.tasks.filter((x) => !x.paiement && x.id !== task.id && !x.parentId && !childrenOf(data, x.id).length && !isDone(data, x));
-  // « Rassembler leurs remarques » : celles des points rattachés, dans la remarque de celui-ci (la newsletter : son texte,
-  // prêt à copier) ; enregistrée avec la fiche (« Annuler » la laisse comme avant).
-  const avecRemarque = kids.filter((k) => k.remarque.trim() || k.documents?.some((d) => d.kind === 'lien'));
-  const rassembler = () => {
-    const texte = texteRemarques(dansLOrdre(data, kids));
-    if (t.remarque.trim() && t.remarque.trim() !== texte && !confirm('Remplacer la remarque de ce point par les remarques des points rattachés ?')) return;
-    setT((x) => ({ ...x, remarque: texte }));
-    setToast(`Remarques de ${kids.length} point${kids.length > 1 ? 's' : ''} rassemblées dans la remarque`);
-  };
   const bySection = <T extends Task>(list: T[]) =>
     data.sections.map((sec) => ({ sec, list: list.filter((x) => x.sectionId === sec.id) })).filter((g) => g.list.length);
   return (
@@ -110,14 +100,6 @@ export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvri
                   </select>
                 )}
                 {kids.length > 0 && <a className="small-link" href={`#/taches?parent=${task.id}`}>Voir dans la liste →</a>}
-              </div>
-            )}
-            {!dis && avecRemarque.length > 0 && (
-              <div className="row wrap rassembler">
-                <button type="button" className="btn small primary" onClick={rassembler} title="Leurs titres, leurs remarques et leurs liens, dans la remarque de ce point (à enregistrer)">
-                  <Icone n="notes" /> Rassembler leurs remarques
-                </button>
-                <small className="muted">dans la remarque de ce point{t.newsletter ? ' : le texte de la newsletter' : ''}</small>
               </div>
             )}
           </div>
