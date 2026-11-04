@@ -2188,12 +2188,10 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
   .chrono-planifier > button[type='submit'] { margin-left: 0; }
 }
 
-/* Agenda › Événements : boutons de la carte (chronologie, points, discussion, modifier, reprendre) ; « Points » et
-   « Discussion » sont des liens en boutons. Discussion réservée à ses membres : pour les autres, grisée (un clic dit pourquoi). */
+/* Agenda › Événements : boutons de la carte (chronologie, points, modifier, reprendre) ; « Points » est un lien en bouton. */
 .agenda-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; position: relative; }
 .agenda-actions a.btn { color: var(--text); }
 .agenda-actions a.btn:hover { text-decoration: none; }
-.agenda-actions .discussion-reservee-btn { color: var(--muted); border-style: dashed; }
 @media (max-width: 767px) {
   /* Téléphone : la date à gauche et ses boutons dessous ; le nom, les détails et l'avancement sur le reste de la largeur.
      Les boutons : leur icône seule, deux par ligne (leur nom reste pour les lecteurs d'écran, et au survol). */

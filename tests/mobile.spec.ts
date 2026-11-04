@@ -79,23 +79,19 @@ test('événements sur téléphone : les boutons à gauche sous la date ; « Poi
   await expect(page).toHaveURL(/#\/taches\?etiquette=et-u-bruntrutaine/);
 });
 
-test('événements sur téléphone : boutons en icônes seules, « Discussion » avec eux ; nom d’étiquette trop long rogné au milieu', async ({ page }) => {
+test('événements sur téléphone : boutons en icônes seules, pas de « Discussion » ; nom d’étiquette trop long rogné au milieu', async ({ page }) => {
   await page.goto('./?demo#/evenements');
   const soiree = page.locator('article.carte-evenement', { hasText: 'Courtemautruy' });
   const actions = soiree.locator('.agenda-actions');
   // Leur nom reste pour les lecteurs d'écran, sans prendre de place.
-  for (const [role, nom] of [['button', 'Chronologie'], ['link', 'Points'], ['link', 'Discussion'], ['button', 'Modifier'], ['button', 'Copier']] as const) {
+  for (const [role, nom] of [['button', 'Chronologie'], ['link', 'Points'], ['button', 'Modifier'], ['button', 'Copier']] as const) {
     const b = actions.getByRole(role, { name: nom, exact: true });
     await expect(b, nom).toBeVisible();
     expect((await b.locator('.libelle').boundingBox())!.width, `${nom} : icône seule`).toBeLessThanOrEqual(1);
   }
-  await expect(soiree.locator('.etiquette-taches').getByRole('link', { name: 'Discussion' })).toHaveCount(0);
-
-  // Pas membre de l'étiquette de la Bruntrutaine : le bouton est là, et dit pourquoi la discussion ne s'ouvre pas.
-  const brunt = page.locator('article.carte-evenement', { has: page.getByRole('button', { name: 'Bruntrutaine', exact: true }) });
-  await brunt.locator('.agenda-actions').getByRole('button', { name: 'Discussion' }).click();
-  await expect(page.locator('.toast')).toContainText('La discussion de « Bruntrutaine » est réservée à ses 6 membres');
-  await expect(page).toHaveURL(/#\/evenements/);
+  // La discussion de l'étiquette se trouve dans « Messages », plus sur la carte (même pour ses membres).
+  await expect(page.locator('main .agenda').getByRole('link', { name: 'Discussion' })).toHaveCount(0);
+  await expect(page.locator('main .agenda').getByRole('button', { name: 'Discussion' })).toHaveCount(0);
 
   // Nom long (celui de l'événement) : la pastille reste dans la carte, le début et l'année visibles.
   await actions.getByRole('button', { name: 'Modifier' }).click();
