@@ -58,3 +58,23 @@ test('clavier ouvert : le « + » et la barre du bas laissent la place', async (
   await expect(page.locator('.fab')).toBeVisible();
   await expect(page.locator('.bottomnav')).toBeVisible();
 });
+
+test('événements sur téléphone : les boutons à gauche sous la date ; « Points » mène à ses points', async ({ page }) => {
+  await page.goto('./?demo#/evenements');
+  // La Bruntrutaine (son étiquette, ses membres) : un seul avancement, plus de liens « Voir les points ».
+  const carte = page.locator('article.carte-evenement', { has: page.getByRole('button', { name: 'Bruntrutaine', exact: true }) });
+  await expect(carte).toContainText('6 membres');
+  await expect(carte.locator('.progress-wrap')).toHaveCount(1);
+  await expect(carte.getByRole('link', { name: /Voir les points|Points de l’étiquette/ })).toHaveCount(0);
+  const date = (await carte.locator('.dateblock').boundingBox())!;
+  const titre = (await carte.getByRole('button', { name: 'Bruntrutaine', exact: true }).boundingBox())!;
+  for (const nom of ['Chronologie', 'Points', 'Modifier']) {
+    const b = (await carte.locator('.agenda-actions').getByRole(nom === 'Points' ? 'link' : 'button', { name: nom }).boundingBox())!;
+    expect(b.y, `${nom} sous la date`).toBeGreaterThanOrEqual(date.y + date.height - 1);
+    expect(b.x + b.width, `${nom} à gauche du nom`).toBeLessThanOrEqual(titre.x + 1);
+  }
+  const deborde = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(deborde).toBeLessThanOrEqual(1);
+  await carte.getByRole('link', { name: 'Points' }).click();
+  await expect(page).toHaveURL(/#\/taches\?etiquette=et-u-bruntrutaine/);
+});

@@ -2110,3 +2110,15 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
   .chrono-bouger { grid-column: 3; justify-self: start; margin-top: 4px; }
   .chrono-planifier > button[type='submit'] { margin-left: 0; }
 }
+
+/* Agenda › Événements : boutons de la carte (chronologie, points, modifier, reprendre) ; « Points » est un lien en bouton. */
+.agenda-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+.agenda-actions a.btn { color: var(--text); }
+.agenda-actions a.btn:hover { text-decoration: none; }
+@media (max-width: 767px) {
+  /* Téléphone : la date à gauche et ses boutons dessous ; le nom, les détails et l'avancement sur le reste de la largeur. */
+  .agenda-item.carte-evenement { display: grid; grid-template-columns: max-content minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 8px 12px; align-items: start; }
+  .carte-evenement > .dateblock { grid-column: 1; grid-row: 1; }
+  .carte-evenement > .grow { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
+  .carte-evenement > .agenda-actions { grid-column: 1; grid-row: 2; }
+}

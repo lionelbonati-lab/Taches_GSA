@@ -514,46 +514,62 @@ export function Events() {
   );
 }
 
-/** Tâches d'une étiquette : avancement et lien. */
-function TachesEtiquette({ et }: { et: Etiquette }) {
-  const { data } = useStore();
-  const taches = data.tasks.filter((t) => t.etiquettes?.includes(et.id));
+/** L'étiquette de l'événement : sa pastille et ses membres (qui voient ses points). */
+function EtiquetteCarte({ et }: { et: Etiquette }) {
+  const n = et.membres?.length ?? 0;
   return (
     <div className="etiquette-taches">
-      <BadgeEtiquette e={et} />{' '}
-      <small className="muted">{et.membres?.length ?? 0} membre{(et.membres?.length ?? 0) > 1 ? 's' : ''}</small>
-      {taches.length > 0 && <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />}
-      {!taches.length && ' '}
-      <Link to={`/taches?etiquette=${encodeURIComponent(et.id)}`}>Points de l’étiquette →</Link>
+      <BadgeEtiquette e={et} /> <small className="muted">{n} membre{n > 1 ? 's' : ''}</small>
     </div>
   );
 }
 
-/** Étiquette « événement » datée, sans événement du même jour dans l'agenda : ses tâches ; un clic, sa chronologie. */
+/**
+ * « Points » : la liste de ses points. Avec son étiquette, tous ceux qui la portent (rangés chez elle, ou rattachés à
+ * l'événement : ils la reçoivent d'office) ; sinon, ceux rattachés à l'événement.
+ */
+function BoutonPoints({ to }: { to: string }) {
+  return (
+    <Link className="btn small" to={to} title="Voir ses points dans la liste des points">
+      <Icone n="taches" /> Points
+    </Link>
+  );
+}
+
+/**
+ * Étiquette « événement » datée, sans événement du même jour dans l'agenda : avancement de ses points ; un clic, sa
+ * chronologie.
+ */
 function CarteEtiquette({ et, onChrono }: { et: Etiquette; onChrono: () => void }) {
+  const { data } = useStore();
   const jour = today();
   const fin = endOf({ date: et.date!, dateFin: et.dateFin });
   const past = fin < jour;
   const jours = diffDays(et.date!, fin) + 1;
   const quand = past ? '' : et.date! <= jour ? 'en cours' : `dans ${daysUntil(et.date!)} j`;
+  const taches = data.tasks.filter((t) => t.etiquettes?.includes(et.id));
   return (
-    <article className={`panel agenda-item etiquette-evenement ${past ? 'past' : ''}`} style={{ '--c': et.couleur } as React.CSSProperties}>
+    <article className={`panel agenda-item carte-evenement etiquette-evenement ${past ? 'past' : ''}`} style={{ '--c': et.couleur } as React.CSSProperties}>
       <DateBlock date={et.date!} fin={et.dateFin} onClick={onChrono} />
       <div className="grow">
         <TitreEvenement nom={et.nom} onClick={onChrono} />
         <div className="muted">{['Événement (étiquette)', jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
-        <TachesEtiquette et={et} />
+        <EtiquetteCarte et={et} />
+        <Progress done={taches.filter((t) => isDone(data, t)).length} total={taches.length} />
       </div>
       <div className="agenda-actions">
         <BoutonChrono onClick={onChrono} />
+        <BoutonPoints to={`/taches?etiquette=${encodeURIComponent(et.id)}`} />
       </div>
     </article>
   );
 }
 
 /**
- * Carte d'un événement (à la date `date` s'il se répète) : avancement de ses tâches ; `etiquette` : celle du même jour.
- * Un clic sur son nom ou sa date ouvre sa chronologie.
+ * Carte d'un événement (à la date `date` s'il se répète) : avancement de ses points (rattachés à lui ou qui portent son
+ * étiquette, comme à l'accueil et dans sa chronologie) ; `etiquette` : la sienne, ou celle du même jour. Un clic sur son
+ * nom ou sa date ouvre sa chronologie ; ses boutons (à droite, sous la date sur téléphone) : chronologie, points,
+ * modifier, reprendre.
  */
 function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onChrono }: {
   serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: () => void; onChrono: () => void;
@@ -561,27 +577,33 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
   const { data, can } = useStore();
   const jour = today();
   const e = aLaDate(serie, date);
-  const tasks = data.tasks.filter((t) => t.eventId === e.id);
+  const rattaches = data.tasks.filter((t) => t.eventId === e.id);
+  const tasks = data.tasks.filter((t) => t.eventId === e.id || (!!etiquette && !!t.etiquettes?.includes(etiquette.id)));
   const fin = endOf(e);
   const past = fin < jour;
   const jours = diffDays(e.date, fin) + 1;
   const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
   const suite = data.events.find((x) => x.repriseDe === serie.id);
+  // Liste de ses points : ceux de son étiquette (ses points rattachés la reçoivent d'office) ; une étiquette du même jour
+  // pas encore reliée ne les a pas : ceux rattachés à l'événement, s'il en a.
+  const liste = etiquette && (etiquette.eventId === serie.id || !rattaches.length)
+    ? `/taches?etiquette=${encodeURIComponent(etiquette.id)}`
+    : `/taches?event=${encodeURIComponent(e.id)}`;
   return (
-    <article id={`cible-${serie.id}`} className={`panel agenda-item ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
+    <article id={`cible-${serie.id}`} className={`panel agenda-item carte-evenement ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
       <DateBlock date={e.date} fin={e.dateFin} onClick={onChrono} />
       <div className="grow">
         <TitreEvenement nom={e.nom} onClick={onChrono} />
         <div className="muted">{[horaire(e), e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
         {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
-        <p>{e.description}</p>
+        {e.description && <p>{e.description}</p>}
+        {etiquette && <EtiquetteCarte et={etiquette} />}
         <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
-        <Link to={`/taches?event=${encodeURIComponent(e.id)}`}>Voir les points →</Link>
-        {etiquette && <TachesEtiquette et={etiquette} />}
         {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
       </div>
       <div className="agenda-actions">
         <BoutonChrono onClick={onChrono} />
+        <BoutonPoints to={liste} />
         {can('events.manage') && (
           <>
             <button className="btn small" onClick={onEdit}>Modifier</button>
