@@ -2388,3 +2388,38 @@ test('PV : un statut changé plusieurs fois n’y figure qu’une fois, de l’�
   await statut.selectOption({ label: 'À faire' });
   await expect(point.locator('.min-changes')).toHaveCount(0);
 });
+
+test('PV imprimé : sous chaque point, ses étapes et ses points rattachés, comme dans l’ordre du jour', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    const t = (id: string, titre: string, o: object) => ({ id, sectionId: 'sec11', sousSection: 'Newsletter', titre, responsables: [moi], statusId: 's1', delai: j, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...o });
+    d.tasks.push(
+      t('n1', 'Newsletter novembre', { checklist: [{ id: 'c1', label: 'Relire le texte', done: true }, { id: 'c2', label: 'Envoyer', done: false }] }),
+      t('n2', 'Communiquer le remboursement', { parentId: 'n1' }),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, { k: cle, j: dansJours(2) });
+  await page.reload();
+
+  // Ordre du jour : sous « Newsletter novembre », ses deux étapes puis son point rattaché.
+  await allerA(page, '/ordre-du-jour');
+  const odj = page.locator('li', { has: page.locator('> .odj-task', { hasText: 'Newsletter novembre' }) });
+  await expect(odj.locator('> ul > li')).toHaveText(['☑ Relire le texte', '☐ Envoyer', /^Communiquer le remboursement/]);
+
+  // PV : pareil.
+  await allerA(page, '/pv');
+  await page.getByRole('button', { name: 'PV', exact: true }).click();
+  await page.getByLabel('Inclure tous les points de l’ordre du jour').check();
+  const pv = page.locator('.pv-sheet li', { hasText: /^Newsletter novembre/ }).first();
+  await expect(pv.locator('> ul > li')).toHaveText(['☑ Relire le texte', '☐ Envoyer', /^Communiquer le remboursement/]);
+  // Le point rattaché n'est plus au même niveau que son point principal.
+  await expect(page.locator('.pv-sheet ul.odj-l2 > li', { hasText: /^Communiquer le remboursement/ })).toHaveCount(0);
+  // Texte copié : imbriqué de même.
+  await page.getByRole('button', { name: 'Copier le texte' }).click();
+  const texte = await page.evaluate(() => navigator.clipboard.readText());
+  expect(texte).toMatch(/\n {6}■ Newsletter novembre[^\n]*\n {9}◦ ☑ Relire le texte\n {9}◦ ☐ Envoyer\n {9}◦ Communiquer le remboursement/);
+});

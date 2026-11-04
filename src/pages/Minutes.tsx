@@ -587,6 +587,12 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
         : `Version ${version} – corrigée le ${fmtDate(m.valideLe!.slice(0, 10))}`
       : '';
 
+  // Comme l'ordre du jour : sous chaque point, ses étapes de checklist (☑ / ☐, si l'ordre du jour les montre), puis ses
+  // points rattachés (ceux du même bloc), un niveau plus bas.
+  const etapesPv = reglagesOdj?.colonnes?.checklist ?? true;
+  const etapeTexte = (c: Task['checklist'][number]) => `${c.done ? '☑' : '☐'} ${c.label}`;
+  const racinesDe = (tasks: Task[]) => tasks.filter((t) => !t.parentId || !tasks.some((x) => x.id === t.parentId));
+  const rattachesDe = (t: Task, tasks: Task[]) => tasks.filter((x) => x.parentId === t.id && x.id !== t.id);
   const nouvelleInfo = (t: Task) =>
     [data.sections.find((x) => x.id === t.sectionId)?.nom, ...(opts.details ? meta(t).filter((x) => x !== '🆕 nouvelle') : [])].filter(Boolean).join(' · ');
   const taskLine = (t: Task) =>
@@ -603,18 +609,23 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
     pvSections.forEach((g, i) => {
       out.push(`${i + 1}. ${g.sec.nom}`);
       let j = 0;
+      // Un point, puis (un niveau plus bas) ses étapes et ses points rattachés : a. → ■ → ◦.
+      const point = (t: Task, tasks: Task[], pad: string, marque: string) => {
+        out.push(`${pad}${marque} ${taskLine(t)}`);
+        texteNote(`task:${t.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}   → ${l}`));
+        if (opts.misesAJour) changesOf(t).forEach((c) => out.push(`${pad}   ↻ ${c}`));
+        pollsDe(t).filter(pollInPv).forEach((p) => {
+          out.push(`${pad}   ◦ Sondage : ${p.question} — ${pollSummary(p)}`);
+          texteNote(`poll:${p.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}      → ${l}`));
+        });
+        const sous = marque.endsWith('.') ? '■' : '◦';
+        if (etapesPv) t.checklist.forEach((c) => out.push(`${pad}   ${sous} ${etapeTexte(c)}`));
+        rattachesDe(t, tasks).forEach((c) => point(c, tasks, `${pad}   `, sous));
+      };
       g.subs.forEach((s) => {
         const pad = s.label ? '      ' : '   ';
         if (s.label) out.push(`   ${letter(j++)}. ${s.label}`);
-        s.tasks.forEach((t) => {
-          out.push(`${pad}${s.label ? '■' : `${letter(j++)}.`} ${taskLine(t)}`);
-          texteNote(`task:${t.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}   → ${l}`));
-          if (opts.misesAJour) changesOf(t).forEach((c) => out.push(`${pad}   ↻ ${c}`));
-          pollsDe(t).filter(pollInPv).forEach((p) => {
-            out.push(`${pad}   ◦ Sondage : ${p.question} — ${pollSummary(p)}`);
-            texteNote(`poll:${p.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}      → ${l}`));
-          });
-        });
+        racinesDe(s.tasks).forEach((t) => point(t, s.tasks, pad, s.label ? '■' : `${letter(j++)}.`));
       });
       g.polls.forEach((p) => {
         out.push(`   ${letter(j++)}. Sondage : ${p.question} — ${pollSummary(p)}`);
@@ -798,6 +809,23 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
     );
   }
 
+  // Un point du document, puis ses étapes et ses points rattachés dans une liste du niveau suivant (classe `cls`).
+  const pvPoint = (t: Task, tasks: Task[], cls: string): ReactNode => {
+    const etapes = etapesPv ? t.checklist : [];
+    const rattaches = rattachesDe(t, tasks);
+    return (
+      <li key={t.id}>
+        {pvTask(t)}
+        {(etapes.length > 0 || rattaches.length > 0) && (
+          <ul className={cls}>
+            {etapes.map((c) => <li key={c.id}>{etapeTexte(c)}</li>)}
+            {rattaches.map((c) => pvPoint(c, tasks, 'odj-l3'))}
+          </ul>
+        )}
+      </li>
+    );
+  };
+
   const pvDoc: ReactNode = (
     <div ref={sheetRef} className={`pv-sheet portrait t-${opts.taille}`} style={styleVars(data.reglagesOdj?.style)}>
       <header className="pv-head">
@@ -831,10 +859,10 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
                       s.label ? (
                         <li key={s.key}>
                           {s.label}
-                          <ul className="odj-l2">{s.tasks.map((t) => <li key={t.id}>{pvTask(t)}</li>)}</ul>
+                          <ul className="odj-l2">{racinesDe(s.tasks).map((t) => pvPoint(t, s.tasks, 'odj-l3'))}</ul>
                         </li>
                       ) : (
-                        s.tasks.map((t) => <li key={t.id}>{pvTask(t)}</li>)
+                        racinesDe(s.tasks).map((t) => pvPoint(t, s.tasks, 'odj-l2'))
                       ),
                     )}
                     {g.polls.map((p) => (
