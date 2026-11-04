@@ -1,11 +1,11 @@
 import { useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { useDiscussions, type DiscussionVue } from '../data/discussions';
+import { titreAvecEtiquettes, useDiscussions, type DiscussionVue } from '../data/discussions';
 import { PageIntro } from '../components/Nav';
 import { Discussion, quandMessage } from '../components/tache/Discussion';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
-import { IconeEtiquette } from '../components/IconesEtiquette';
+import { BadgeEtiquette, IconeEtiquette } from '../components/IconesEtiquette';
 
 // Onglet « Messages » : les discussions des tâches comme une messagerie. Chaque discussion reste celle de sa tâche (même
 // fenêtre que la bulle 💬 de la fiche) ; « Nouvelle discussion » en ouvre une sur une tâche qui n'en a pas encore.
@@ -34,7 +34,7 @@ export function Messages() {
   const chat = ouverte ? trouver(toutes, ouverte) : undefined;
 
   const avecMessages = toutes.filter((d) => d.liste.length).sort((a, b) => b.dernier.localeCompare(a.dernier));
-  const liste = avecMessages.filter((d) => (filtre === 'toutes' || d.nonLus > 0) && cherche(q, d.titre, ...d.liste.map((c) => c.texte), ...d.liste.map((c) => c.nom)));
+  const liste = avecMessages.filter((d) => (filtre === 'toutes' || d.nonLus > 0) && cherche(q, d.titre, ...d.etiquettes.map((e) => e.nom), ...d.liste.map((c) => c.texte), ...d.liste.map((c) => c.nom)));
 
   return (
     <div className="narrow">
@@ -61,7 +61,7 @@ export function Messages() {
       )}
       {chat && (
         <Discussion
-          titre={chat.titre}
+          titre={titreAvecEtiquettes(chat)}
           liste={chat.liste}
           tacheId={chat.cle}
           etiquette={chat.etiquette}
@@ -100,7 +100,10 @@ function LigneDiscussion({ d, onOpen }: { d: DiscussionVue; onOpen: () => void }
         )}
         <span className="messages-corps">
           <span className="messages-haut">
-            <span className="messages-titre">{d.titre}</span>
+            <span className="messages-titre">
+              {d.titre}
+              {d.etiquettes.length > 0 && <span className="messages-etiquettes">{d.etiquettes.map((e) => <BadgeEtiquette key={e.id} e={e} />)}</span>}
+            </span>
             <small className="messages-quand">{quandMessage(der.le)}</small>
           </span>
           <span className="messages-bas">
@@ -118,7 +121,7 @@ function LigneDiscussion({ d, onOpen }: { d: DiscussionVue; onOpen: () => void }
 /** Nouvelle discussion : choisir la tâche (en cours) dont on ouvre la discussion. */
 function ChoixTache({ taches, onChoix, onClose }: { taches: DiscussionVue[]; onChoix: (cle: string) => void; onClose: () => void }) {
   const [q, setQ] = useState('');
-  const liste = taches.filter((d) => cherche(q, d.titre)).sort((a, b) => a.titre.localeCompare(b.titre, 'fr'));
+  const liste = taches.filter((d) => cherche(q, d.titre, ...d.etiquettes.map((e) => e.nom))).sort((a, b) => a.titre.localeCompare(b.titre, 'fr'));
   return (
     <Modal title="Nouvelle discussion" onClose={onClose}>
       <p className="muted" style={{ marginTop: 0 }}>
@@ -137,7 +140,10 @@ function ChoixTache({ taches, onChoix, onClose }: { taches: DiscussionVue[]; onC
         {liste.filter((d) => !d.etiquette).slice(0, 60).map((d) => (
           <li key={d.cle}>
             <button type="button" onClick={() => onChoix(d.cle)}>
-              <span>{d.titre}</span>
+              <span>
+                {d.titre}
+                {d.etiquettes.length > 0 && <span className="messages-etiquettes">{d.etiquettes.map((e) => <BadgeEtiquette key={e.id} e={e} />)}</span>}
+              </span>
               {d.liste.length > 0 && <small className="muted"><Icone n="message" /> {d.liste.length}</small>}
             </button>
           </li>

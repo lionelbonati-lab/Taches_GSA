@@ -96,6 +96,7 @@ function hasPermission(roles, perm, sectionId) {
     (r) => (r.locked || r.permissions.includes(perm)) && (!sectionId || r.sections.length === 0 || r.sections.includes(sectionId))
   );
 }
+var etiquettesDe = (t, etiquettes = []) => (t.etiquettes ?? []).flatMap((id) => etiquettes.filter((x) => x.id === id));
 
 // src/data/seances.ts
 function convoquesDe(data) {
@@ -402,7 +403,8 @@ function computeNotifications(data, user, p, demandesMdp = []) {
     if (n.type === "comment" && mentions.has(memeMessage(n))) continue;
     if (n.type === "comment" || n.type === "mention" || n.type === "discussion" || n.type === "relance") {
       const ici = data.tasks.find((x) => x.id === n.taskId);
-      const titre = ici?.titre ?? n.titre;
+      const noms = ici ? etiquettesDe(ici, data.etiquettes).map((e) => e.nom).join(", ") : "";
+      const titre = ici?.titre !== void 0 ? noms ? `${ici.titre} » (${noms})` : `${ici.titre} »` : n.titre !== void 0 ? `${n.titre} »` : void 0;
       if (titre === void 0) continue;
       const auteur = fullName(data.people.find((x) => x.id === n.by)) || n.byName || "?";
       if (n.type === "relance") {
@@ -410,7 +412,7 @@ function computeNotifications(data, user, p, demandesMdp = []) {
         items.push({
           key: n.id,
           icon: "🔔",
-          text: `${auteur} te rappelle « ${titre} »`,
+          text: `${auteur} te rappelle « ${titre}`,
           sub: "pour info · pas encore marqué « ✓ Vu »",
           link: `/taches?tache=${n.taskId}`,
           at: n.at,
@@ -421,7 +423,7 @@ function computeNotifications(data, user, p, demandesMdp = []) {
       items.push({
         key: n.id,
         icon: n.type === "mention" ? "📣" : "💬",
-        text: `${auteur} ${n.type === "mention" ? "te mentionne dans" : n.type === "discussion" ? "t’ajoute à la discussion de" : "a commenté"} « ${titre} »`,
+        text: `${auteur} ${n.type === "mention" ? "te mentionne dans" : n.type === "discussion" ? "t’ajoute à la discussion de" : "a commenté"} « ${titre}`,
         sub: n.detail,
         link: `/taches?tache=${n.taskId}&discussion=1`,
         at: n.at,

@@ -31,6 +31,8 @@ import { commentairesDe, nonLus } from '../data/commentaires';
 import { Historique } from './tache/Historique';
 import { NotesSeances } from './tache/NotesSeances';
 import { clePlace, etiquettePassee, etiquettesDesLieux, nomLieu, placesPassees, recaler } from '../data/etiquettes';
+import { etiquettesDe } from '../data/permissions';
+import { titreAvecEtiquettes } from '../data/discussions';
 import { IconeEtiquette } from './IconesEtiquette';
 
 /** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
@@ -525,7 +527,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}
       {externe && <PersonneExterne deja={t.respHors ?? []} onAjoutee={ajouterExterne} onClose={() => setExterne(false)} />}
       {chat && discussion && (
-        <Discussion titre={task.titre} liste={commentaires} tacheId={task.id} onClose={() => setChat(false)} />
+        <Discussion titre={titreAvecEtiquettes({ titre: task.titre, etiquettes: etiquettesDe(task, data.etiquettes) })} liste={commentaires} tacheId={task.id} onClose={() => setChat(false)} />
       )}
       {other && <TaskModal task={other.task} isNew={other.isNew} onClose={() => setOther(null)} />}
     </Modal>

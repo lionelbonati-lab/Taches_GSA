@@ -1342,6 +1342,68 @@ test('discussion d’une étiquette : ses membres seuls la lisent, sont prévenu
   await expect(choix.locator('.badge.etiquette', { hasText: 'Soirée récréative' })).toHaveCount(0);
 });
 
+test('discussions de points de même nom : chacune avec les étiquettes de son point (Messages, fenêtre, notification)', async ({ page }) => {
+  const section = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
+  const sousSection = (fiche: ReturnType<typeof page.locator>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
+  const changer = async (nom: string) => {
+    await page.getByRole('button', { name: 'Changer', exact: true }).click();
+    await page.locator('.login-user', { hasText: nom }).first().click();
+    await expect(page.locator('.topbar .brand')).toBeVisible();
+  };
+  // Julien Moreau, membre de la Soirée récréative, devient aussi membre de la Bruntrutaine (page Étiquettes).
+  await changer('Julien Moreau');
+  await allerA(page, '/etiquettes');
+  const brunt = page.locator('.groupe-section', { has: page.getByLabel('Étiquette de l’événement Bruntrutaine') });
+  await brunt.getByRole('button', { name: /6 membres/ }).click();
+  await brunt.locator('fieldset').getByRole('button', { name: 'Julien Moreau', exact: true }).click();
+  await expect(brunt.locator('fieldset').getByRole('button', { name: 'Julien Moreau', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  // « Commander les maillots » pour la Bruntrutaine et pour la Soirée récréative, avec un message chacun.
+  for (const [sous, texte] of [['Bruntrutaine 27.02.27', 'Tailles S à XL'], ['Soirée récréative 28.11', 'Couleur bordeaux']]) {
+    const fiche = await nouvelleTache(page, 'Commander les maillots');
+    await section(fiche).selectOption({ label: 'Événements' });
+    await sousSection(fiche).selectOption(sous);
+    await fiche.getByRole('button', { name: /^Créer$/ }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+    await allerA(page, '/taches');
+    await page.getByRole('button', { name: 'Tous', exact: true }).click();
+    await page.locator('main tr', { hasText: 'Commander les maillots' }).filter({ has: page.locator('.badge.etiquette', { hasText: sous.split(' ')[0] }) }).getByText('Commander les maillots').click();
+    const vue = page.locator('.modal').first();
+    await vue.getByRole('button', { name: /^Discussion/ }).click();
+    const fil = page.getByRole('region', { name: 'Discussion' });
+    await expect(page.getByRole('dialog', { name: `Commander les maillots · ${sous.startsWith('Bruntrutaine') ? 'Bruntrutaine' : 'Soirée récréative'}` })).toBeVisible();
+    await fil.getByLabel('Nouveau commentaire').fill(texte);
+    await fil.getByLabel('Nouveau commentaire').press('Enter');
+    await expect(fil.locator('.discussion-message.mien')).toContainText(texte);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.modal')).toHaveCount(0);
+  }
+
+  // Messages : deux discussions de même titre, chacune avec l'étiquette de son point ; la recherche trouve par étiquette.
+  await allerA(page, '/messages');
+  const lignes = page.locator('main .messages-ligne', { hasText: 'Commander les maillots' });
+  await expect(lignes).toHaveCount(2);
+  await expect(lignes.filter({ hasText: 'Tailles S à XL' }).locator('.badge.etiquette')).toHaveText('Bruntrutaine');
+  await expect(lignes.filter({ hasText: 'Couleur bordeaux' }).locator('.badge.etiquette')).toHaveText('Soirée récréative');
+  await page.getByLabel('Rechercher dans les messages').fill('bruntrutaine');
+  await expect(lignes).toHaveCount(1);
+
+  // Pierre Favre (membre de la Soirée) répond ; Julien, l'auteur du point, est prévenu : la notification dit de quel
+  // événement il s'agit.
+  await changer('Pierre Favre');
+  await allerA(page, '/messages');
+  await page.locator('main .messages-ligne', { hasText: 'Couleur bordeaux' }).click();
+  const fil = page.getByRole('region', { name: 'Discussion' });
+  await fil.getByLabel('Nouveau commentaire').fill('Vu, je m’en occupe.');
+  await fil.getByLabel('Nouveau commentaire').press('Enter');
+  await expect(fil.locator('.discussion-message.mien')).toContainText('Vu, je m’en occupe.');
+  await page.keyboard.press('Escape');
+  await changer('Julien Moreau');
+  await allerA(page, '/');
+  await page.getByRole('button', { name: /^Notifications/ }).click();
+  await expect(page.locator('.bell-item', { hasText: 'Pierre Favre a commenté « Commander les maillots » (Soirée récréative)' })).toBeVisible();
+});
+
 test('aide et textes de l’appli : plus d’entités, d’organigramme ni de comité central (admin et membre)', async ({ page }) => {
   // Un seul espace (PLAN_APPLI_SIMPLE.md, D5) : l'aide, la console admin et les propositions ne parlent que du club.
   const ancien = /entit[ée]s?\b|organigramme|comité central|sous-comité|caisse centrale|vue « moi »/i;

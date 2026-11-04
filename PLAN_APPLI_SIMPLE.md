@@ -235,6 +235,11 @@ base de test : `outils/base-test/LISEZMOI.md`.
   autres membres. Appli : dans Messages (non-lus, « Nouvelle discussion »), bouton « Discussion » (page Étiquettes,
   carte de l'événement) ; même fenêtre que la discussion d'un point. `gsa-push` inchangée. Tests : 48.
 
+- **E5 (04.11.2026), étiquettes du point sur sa discussion** : demande du président (des points de même nom dans des
+  événements différents). Messages (liste, recherche, « Nouvelle discussion »), titre de la fenêtre et notification 💬
+  montrent les étiquettes du point. Sans migration ; `gsa-push` : `notifs.js` régénéré (le même texte sur téléphone,
+  à redéployer). Tests : 53.
+
 ## Règles de la reprise (D3), décidées par le président le 03.11.2026
 
 D'après le rapport D2. Ce qui n'est pas écrit ici suit le rapport (`outils/reprise/rapport_reprise.sql`).

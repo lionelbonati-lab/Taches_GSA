@@ -5,7 +5,7 @@ import { echeance, isOpen } from './polls';
 import { finDeSemaine, jourSemaine } from './repetition';
 import { aPrendreOuverte, aPrendrePourMoi, plusPersonne, sansReponse } from './aPrendre';
 import { daysUntil, fmtDate, fullName, isDone, shortName, today } from './utils';
-import { hasPermission, userRoles } from './permissions';
+import { etiquettesDe, hasPermission, userRoles } from './permissions';
 import { convoquesDe } from './seances';
 import { GENRES, chf, genre, holders, paiementTasks } from './paiements';
 import type { DemandeMdp } from './cloud';
@@ -238,7 +238,9 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
     if (n.type === 'comment' || n.type === 'mention' || n.type === 'discussion' || n.type === 'relance') {
       // Tâche d'ici ; sinon (plus visible), son titre au moment de la notification.
       const ici = data.tasks.find((x) => x.id === n.taskId);
-      const titre = ici?.titre ?? n.titre;
+      // Ses étiquettes à la suite : des points de même nom, dans des événements différents, se distinguent.
+      const noms = ici ? etiquettesDe(ici, data.etiquettes).map((e) => e.nom).join(', ') : '';
+      const titre = ici?.titre !== undefined ? (noms ? `${ici.titre} » (${noms})` : `${ici.titre} »`) : n.titre !== undefined ? `${n.titre} »` : undefined;
       if (titre === undefined) continue;
       // Auteur : sa fiche ; ancienne notification écrite depuis une autre entité : son nom, gardé dessus.
       const auteur = fullName(data.people.find((x) => x.id === n.by)) || (n as { byName?: string }).byName || '?';
@@ -248,7 +250,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
         items.push({
           key: n.id,
           icon: '🔔',
-          text: `${auteur} te rappelle « ${titre} »`,
+          text: `${auteur} te rappelle « ${titre}`,
           sub: 'pour info · pas encore marqué « ✓ Vu »',
           link: `/taches?tache=${n.taskId}`,
           at: n.at,
@@ -259,7 +261,7 @@ export function computeNotifications(data: AppData, user: Person, p: NotifPrefs,
       items.push({
         key: n.id,
         icon: n.type === 'mention' ? '📣' : '💬',
-        text: `${auteur} ${n.type === 'mention' ? 'te mentionne dans' : n.type === 'discussion' ? 't’ajoute à la discussion de' : 'a commenté'} « ${titre} »`,
+        text: `${auteur} ${n.type === 'mention' ? 'te mentionne dans' : n.type === 'discussion' ? 't’ajoute à la discussion de' : 'a commenté'} « ${titre}`,
         sub: n.detail,
         link: `/taches?tache=${n.taskId}&discussion=1`,
         at: n.at,

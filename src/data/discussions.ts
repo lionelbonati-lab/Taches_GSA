@@ -1,6 +1,7 @@
 import { useStore } from './store';
 import { cleEtiquette, commentairesDe, commentairesEtiquette, dernierMessage, nonLus } from './commentaires';
 import type { Commentaire, Etiquette } from './types';
+import { etiquettesDe } from './permissions';
 
 // Messagerie : les discussions que la personne lit (tâche étiquetée : membres de ses étiquettes seulement, 062), la plus
 // récente d'abord, avec le nombre de messages pas encore lus (aussi sur l'onglet « Messages »).
@@ -17,7 +18,13 @@ export interface DiscussionVue {
   terminee: boolean;
   /** Discussion d'une étiquette (066) : l'étiquette. */
   etiquette?: Etiquette;
+  /** Étiquettes du point (des points de même nom, dans des événements différents, se distinguent ainsi). */
+  etiquettes: Etiquette[];
 }
+
+/** Titre d'une discussion avec les étiquettes du point : « Commander les maillots · Week-end VTT ». */
+export const titreAvecEtiquettes = (d: Pick<DiscussionVue, 'titre' | 'etiquettes'>) =>
+  d.etiquettes.length ? `${d.titre} · ${d.etiquettes.map((e) => e.nom).join(', ')}` : d.titre;
 
 /** Toutes les discussions possibles (celles que je lis), avec ou sans messages. */
 export function useDiscussions() {
@@ -36,6 +43,7 @@ export function useDiscussions() {
         dernier: dernierMessage(liste),
         nonLus: nonLus(liste, discussionLueLe(t.id), user.id),
         terminee: fini.has(t.statusId),
+        etiquettes: etiquettesDe(t, data.etiquettes),
       };
     });
   // Discussions des étiquettes dont je suis membre (066).
@@ -52,6 +60,7 @@ export function useDiscussions() {
       nonLus: nonLus(liste, discussionLueLe(cle), user.id),
       terminee: false,
       etiquette: e,
+      etiquettes: [],
     });
   }
   return { toutes, nonLus: toutes.reduce((n, d) => n + d.nonLus, 0) };
