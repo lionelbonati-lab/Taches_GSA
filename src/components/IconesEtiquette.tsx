@@ -221,12 +221,22 @@ export function IconeEtiquette({ e }: { e: Etiquette }) {
   return e.icone && ICONES_BIBLIO[e.icone] ? <IconeBiblio cle={e.icone} /> : <IconeDefaut s={sorteDe(e)} />;
 }
 
-/** Pastille d'une étiquette : sa couleur, son icône, son nom. */
+/**
+ * Pastille d'une étiquette : sa couleur, son icône, son nom. Trop long pour la place, le nom est rogné au milieu : son
+ * début et son dernier mot (l'année de l'édition : « Soirée récré… 2026 ») restent.
+ */
 export function BadgeEtiquette({ e, sansNom }: { e: Etiquette; sansNom?: boolean }) {
+  const nom = e.nom.trim();
+  const i = nom.lastIndexOf(' ');
   return (
     <span className="badge etiquette" style={{ background: e.couleur }} title={`Étiquette « ${e.nom} »`}>
       <IconeEtiquette e={e} />
-      {!sansNom && <> {e.nom}</>}
+      {!sansNom && (
+        <span className="etiquette-nom">
+          <span className="etiquette-debut">{i > 0 ? nom.slice(0, i) : nom}</span>
+          {i > 0 && <span className="etiquette-fin">{nom.slice(i)}</span>}
+        </span>
+      )}
     </span>
   );
 }

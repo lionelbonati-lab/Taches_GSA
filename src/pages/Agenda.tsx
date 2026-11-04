@@ -11,6 +11,7 @@ import { reprenable } from '../data/reprise';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
 import { BadgeEtiquette } from '../components/IconesEtiquette';
+import { cleEtiquette, commentairesEtiquette, nonLus } from '../data/commentaires';
 import { Chronologie, type CibleChrono } from '../components/Chronologie';
 import { Progress } from './Dashboard';
 import { hydrateArchive } from '../data/entete';
@@ -547,22 +548,45 @@ export function Events() {
   );
 }
 
-/** L'étiquette de l'événement : sa pastille et ses membres (qui voient ses points) ; pour ses membres, sa discussion (066). */
+/** L'étiquette de l'événement : sa pastille et ses membres (qui voient ses points) ; sa discussion : avec les boutons. */
 function EtiquetteCarte({ et }: { et: Etiquette }) {
-  const { user } = useStore();
   const n = et.membres?.length ?? 0;
   return (
     <div className="etiquette-taches">
       <BadgeEtiquette e={et} /> <small className="muted">{n} membre{n > 1 ? 's' : ''}</small>
-      {!!user && et.membres?.includes(user.id) && (
-        <>
-          {' '}
-          <Link className="btn small" to={`/messages?d=${encodeURIComponent(`et:${et.id}`)}`} title="Discussion de l’étiquette : ses membres">
-            <Icone n="message" /> Discussion
-          </Link>
-        </>
-      )}
     </div>
+  );
+}
+
+/**
+ * « Discussion » de l'étiquette (066), avec les autres boutons de la carte ; ses messages pas encore lus dessus. Elle est
+ * réservée à ses membres (ni les admins, ni « Voir tous les points ») : aux autres, le bouton dit pourquoi elle ne
+ * s'ouvre pas et comment y prendre part.
+ */
+function BoutonDiscussion({ et }: { et: Etiquette }) {
+  const { data, user, can, discussionLueLe, setToast } = useStore();
+  const cle = cleEtiquette(et.id);
+  if (user && et.membres?.includes(user.id)) {
+    const aLire = nonLus(commentairesEtiquette(data, et.id), discussionLueLe(cle), user.id);
+    return (
+      <Link className="btn small" to={`/messages?d=${encodeURIComponent(cle)}`} title={`Discussion de « ${et.nom} » : ses membres`}
+        aria-label={aLire ? `Discussion (${aLire} non lu${aLire > 1 ? 's' : ''})` : undefined}>
+        <Icone n="message" /> <span className="libelle">Discussion</span>
+        {aLire > 0 && <span className="discussion-nb">{aLire}</span>}
+      </Link>
+    );
+  }
+  const n = et.membres?.length ?? 0;
+  const qui = n ? `ses ${n} membre${n > 1 ? 's' : ''}` : 'ses membres (aucun pour l’instant)';
+  // Qui règle ses membres : l'étiquette de l'événement, son formulaire ; une étiquette seule, la page Étiquettes.
+  const comment = et.eventId
+    ? can('events.manage') ? 'ajoute-toi à ses membres (« Modifier », case « Étiquette »)' : 'demande qu’on t’ajoute à ses membres'
+    : can('settings.lists') ? 'ajoute-toi à ses membres (page Étiquettes)' : 'demande qu’on t’ajoute à ses membres';
+  return (
+    <button type="button" className="btn small discussion-reservee-btn" title={`Discussion réservée à ${qui}`}
+      onClick={() => setToast(`🔒 La discussion de « ${et.nom} » est réservée à ${qui}. Pour y prendre part : ${comment}.`)}>
+      <Icone n="message" /> <span className="libelle">Discussion</span>
+    </button>
   );
 }
 
@@ -573,7 +597,7 @@ function EtiquetteCarte({ et }: { et: Etiquette }) {
 function BoutonPoints({ to }: { to: string }) {
   return (
     <Link className="btn small" to={to} title="Voir ses points dans la liste des points">
-      <Icone n="taches" /> Points
+      <Icone n="taches" /> <span className="libelle">Points</span>
     </Link>
   );
 }
@@ -602,6 +626,7 @@ function CarteEtiquette({ et, onChrono }: { et: Etiquette; onChrono: () => void 
       <div className="agenda-actions">
         <BoutonChrono onClick={onChrono} />
         <BoutonPoints to={`/taches?etiquette=${encodeURIComponent(et.id)}`} />
+        <BoutonDiscussion et={et} />
       </div>
     </article>
   );
@@ -610,8 +635,8 @@ function CarteEtiquette({ et, onChrono }: { et: Etiquette; onChrono: () => void 
 /**
  * Carte d'un événement (à la date `date` s'il se répète) : avancement de ses points (rattachés à lui ou qui portent son
  * étiquette, comme à l'accueil et dans sa chronologie) ; `etiquette` : la sienne, ou celle du même jour. Un clic sur son
- * nom ou sa date ouvre sa chronologie ; ses boutons (à droite, sous la date sur téléphone) : chronologie, points,
- * modifier, reprendre.
+ * nom ou sa date ouvre sa chronologie ; ses boutons (à droite ; sur téléphone, sous la date et leur icône seule) :
+ * chronologie, points, discussion de son étiquette, modifier, reprendre.
  */
 function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onChrono }: {
   serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: (copie: boolean) => void; onChrono: () => void;
@@ -646,17 +671,20 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
       <div className="agenda-actions">
         <BoutonChrono onClick={onChrono} />
         <BoutonPoints to={liste} />
+        {etiquette && <BoutonDiscussion et={etiquette} />}
         {can('events.manage') && (
           <>
-            <button className="btn small" onClick={onEdit}>Modifier</button>
+            <button className="btn small" onClick={onEdit} title="Modifier l’événement">
+              <Icone n="modifier" /> <span className="libelle">Modifier</span>
+            </button>
             {reprenable(serie) &&
               (past ? (
                 <button className="btn small" onClick={() => onReprise(false)} title="Nouvelle édition de cet événement, avec ses points">
-                  <Icone n="dupliquer" /> Reprendre
+                  <Icone n="dupliquer" /> <span className="libelle">Reprendre</span>
                 </button>
               ) : (
                 <button className="btn small" onClick={() => onReprise(true)} title="Un autre événement à une autre date, avec les mêmes points (à faire)">
-                  <Icone n="dupliquer" /> Copier
+                  <Icone n="dupliquer" /> <span className="libelle">Copier</span>
                 </button>
               ))}
           </>
@@ -721,7 +749,7 @@ function TitreEvenement({ nom, onClick }: { nom: string; onClick: () => void }) 
 function BoutonChrono({ onClick }: { onClick: () => void }) {
   return (
     <button type="button" className="btn small" onClick={onClick} title="Les points de l’événement dans le temps, pour les planifier">
-      <Icone n="horloge" /> Chronologie
+      <Icone n="horloge" /> <span className="libelle">Chronologie</span>
     </button>
   );
 }

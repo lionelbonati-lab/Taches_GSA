@@ -78,3 +78,39 @@ test('événements sur téléphone : les boutons à gauche sous la date ; « Poi
   await carte.getByRole('link', { name: 'Points' }).click();
   await expect(page).toHaveURL(/#\/taches\?etiquette=et-u-bruntrutaine/);
 });
+
+test('événements sur téléphone : boutons en icônes seules, « Discussion » avec eux ; nom d’étiquette trop long rogné au milieu', async ({ page }) => {
+  await page.goto('./?demo#/evenements');
+  const soiree = page.locator('article.carte-evenement', { hasText: 'Courtemautruy' });
+  const actions = soiree.locator('.agenda-actions');
+  // Leur nom reste pour les lecteurs d'écran, sans prendre de place.
+  for (const [role, nom] of [['button', 'Chronologie'], ['link', 'Points'], ['link', 'Discussion'], ['button', 'Modifier'], ['button', 'Copier']] as const) {
+    const b = actions.getByRole(role, { name: nom, exact: true });
+    await expect(b, nom).toBeVisible();
+    expect((await b.locator('.libelle').boundingBox())!.width, `${nom} : icône seule`).toBeLessThanOrEqual(1);
+  }
+  await expect(soiree.locator('.etiquette-taches').getByRole('link', { name: 'Discussion' })).toHaveCount(0);
+
+  // Pas membre de l'étiquette de la Bruntrutaine : le bouton est là, et dit pourquoi la discussion ne s'ouvre pas.
+  const brunt = page.locator('article.carte-evenement', { has: page.getByRole('button', { name: 'Bruntrutaine', exact: true }) });
+  await brunt.locator('.agenda-actions').getByRole('button', { name: 'Discussion' }).click();
+  await expect(page.locator('.toast')).toContainText('La discussion de « Bruntrutaine » est réservée à ses 6 membres');
+  await expect(page).toHaveURL(/#\/evenements/);
+
+  // Nom long (celui de l'événement) : la pastille reste dans la carte, le début et l'année visibles.
+  await actions.getByRole('button', { name: 'Modifier' }).click();
+  const f = page.getByRole('dialog', { name: 'Événement' });
+  await f.getByPlaceholder('Ajouter un titre').fill('Soirée récréative et repas de soutien du club 2026');
+  await f.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const badge = soiree.locator('.etiquette-taches .badge.etiquette');
+  await expect(badge).toHaveText('Soirée récréative et repas de soutien du club 2026');
+  const debut = badge.locator('.etiquette-debut');
+  expect(await debut.evaluate((x) => x.scrollWidth > x.clientWidth), 'début rogné').toBe(true);
+  await expect(badge.locator('.etiquette-fin')).toHaveText('2026');
+  const b = (await badge.boundingBox())!;
+  const carte = (await soiree.locator('.grow').boundingBox())!;
+  expect(b.x + b.width, 'pastille dans la carte').toBeLessThanOrEqual(carte.x + carte.width + 1);
+  const deborde = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  expect(deborde).toBeLessThanOrEqual(1);
+});

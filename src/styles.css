@@ -2099,7 +2099,13 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .etiquette-reglee .btn { position: relative; }
 .etiquette-detail { flex-basis: 100%; display: flex; flex-direction: column; gap: 8px; padding: 6px 0 4px 26px; }
 .badge.etiquette { display: inline-flex; align-items: center; gap: 4px; }
-.badge.etiquette .icone-trait { vertical-align: 0; }
+.badge.etiquette .icone-trait { vertical-align: 0; flex-shrink: 0; }
+/* Nom trop long pour la place (carte d'un événement sur téléphone…) : rogné au milieu, « Soirée récré… 2026 » ; le
+   début et le dernier mot (l'année de l'édition) restent, le nom entier au survol. */
+.badge.etiquette { max-width: 100%; box-sizing: border-box; }
+.etiquette-nom { display: inline-flex; min-width: 0; }
+.etiquette-debut { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.etiquette-fin { flex-shrink: 0; white-space: pre; }
 
 /* Événements passés (Club › Étiquettes) : à part, avec ce que devient leur étiquette. */
 .etiquettes-passees { margin-top: 8px; padding-top: 6px; border-top: 1px dashed var(--border); }
@@ -2182,14 +2188,19 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
   .chrono-planifier > button[type='submit'] { margin-left: 0; }
 }
 
-/* Agenda › Événements : boutons de la carte (chronologie, points, modifier, reprendre) ; « Points » est un lien en bouton. */
-.agenda-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; }
+/* Agenda › Événements : boutons de la carte (chronologie, points, discussion, modifier, reprendre) ; « Points » et
+   « Discussion » sont des liens en boutons. Discussion réservée à ses membres : pour les autres, grisée (un clic dit pourquoi). */
+.agenda-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; position: relative; }
 .agenda-actions a.btn { color: var(--text); }
 .agenda-actions a.btn:hover { text-decoration: none; }
+.agenda-actions .discussion-reservee-btn { color: var(--muted); border-style: dashed; }
 @media (max-width: 767px) {
-  /* Téléphone : la date à gauche et ses boutons dessous ; le nom, les détails et l'avancement sur le reste de la largeur. */
+  /* Téléphone : la date à gauche et ses boutons dessous ; le nom, les détails et l'avancement sur le reste de la largeur.
+     Les boutons : leur icône seule, deux par ligne (leur nom reste pour les lecteurs d'écran, et au survol). */
   .agenda-item.carte-evenement { display: grid; grid-template-columns: max-content minmax(0, 1fr); grid-template-rows: auto 1fr; gap: 8px 12px; align-items: start; }
   .carte-evenement > .dateblock { grid-column: 1; grid-row: 1; }
   .carte-evenement > .grow { grid-column: 2; grid-row: 1 / span 2; min-width: 0; }
-  .carte-evenement > .agenda-actions { grid-column: 1; grid-row: 2; }
+  .carte-evenement > .agenda-actions { grid-column: 1; grid-row: 2; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+  .agenda-actions .btn { padding: 7px 0; font-size: 1rem; }
+  .agenda-actions .libelle { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 }
