@@ -1024,8 +1024,10 @@ test('tâches : le filtre « Étiquette » ; « Événement » ne propose que de
   await page.getByLabel('Étiquette', { exact: true }).selectOption({ label: 'Soirée récréative' });
   await expect(page.locator('main tbody tr')).toHaveCount(1);
   await expect(page.locator('main tr', { hasText: 'Louer la sono' })).toHaveCount(1);
-  // Aucune tâche n'est rattachée à un événement : rien à choisir.
-  expect((await page.getByLabel('Événement').locator('option').allTextContents()).map((x) => x.trim())).toEqual(['Tous événements']);
+  // « Événement » : seulement celui de l'étiquette (son point la porte), comme sur la carte de l'événement ; pas les autres.
+  expect((await page.getByLabel('Événement').locator('option').allTextContents()).map((x) => x.trim())).toEqual(['Tous événements', 'Soirée récréative']);
+  await page.getByLabel('Événement').selectOption({ label: 'Soirée récréative' });
+  await expect(page.locator('main tbody tr')).toHaveCount(1);
 });
 
 test('lien d’avant, avec son entité : la tâche s’ouvre dans l’espace du club', async ({ page }) => {
@@ -2226,4 +2228,55 @@ test('ordre du jour : excusé avec motif et retard annoncé, repris dans le PV (
   const excuses = page.locator('.excuses').first();
   await expect(excuses).toContainText('Excusé : Julien Moreau (Grippe)');
   await expect(excuses).toContainText('En retard : Marc Lambert (vers 20h15 – Train)');
+});
+
+test('filtres des points : étiquette et événement aussi d’office (place, événement), tous les points depuis un lien, « Mes points » signalé', async ({ page }) => {
+  // Points enregistrés sans leurs étiquettes d'office (d'avant le réglage, ou venus d'ailleurs) : la Soirée récréative
+  // (sa sous-section, ou rattaché à l'événement), l'École de cyclisme (sa section) ; deux sont à une autre personne.
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+    const [moi, autre] = d.people.map((p: { id: string }) => p.id);
+    const t = (id: string, titre: string, o: object) => ({ id, sousSection: '', titre, responsables: [autre], statusId: ouvert, delai: '', remarque: '', checklist: [], createdBy: autre, updatedAt: new Date().toISOString(), ...o });
+    d.tasks.push(
+      t('fs1', 'Réserver la salle', { sectionId: 'sec8', sousSection: 'Soirée récréative 28.11' }),
+      t('fs2', 'Annoncer la soirée', { sectionId: 'sec1', eventId: 'e10', responsables: [moi] }),
+      t('fs3', 'Commander les maillots', { sectionId: 'sec6' }),
+      t('fs4', 'Renouveler l’assurance', { sectionId: 'sec1' }),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await page.reload();
+  const nombre = page.locator('.page-head h1 .count');
+  const filtre = (nom: string) => page.locator('.filters select').filter({ has: page.locator('option', { hasText: nom }) });
+
+  // Lien vers les points d'une étiquette (carte de l'événement, recherche…) : tous ses points, pas seulement les miens.
+  await page.goto('./?demo#/taches?etiquette=et-u-soiree');
+  await expect(nombre).toHaveText('2');
+  await expect(page.locator('main').getByText('Réserver la salle').filter({ visible: true }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Tous' })).toHaveClass(/on/);
+
+  // Filtre « Événement » : les points rattachés et ceux rangés chez son étiquette ; l'événement est proposé.
+  await page.getByRole('button', { name: /^Filtres/ }).click();
+  await filtre('Toutes étiquettes').selectOption('');
+  await filtre('Tous événements').selectOption({ label: 'Soirée récréative' });
+  await expect(nombre).toHaveText('2');
+  // Filtre « Étiquette » d'un groupe : les points de sa section.
+  await filtre('Tous événements').selectOption('');
+  await filtre('Toutes étiquettes').selectOption({ label: 'École de cyclisme' });
+  await expect(nombre).toHaveText('1');
+  await expect(page.locator('main').getByText('Commander les maillots').filter({ visible: true }).first()).toBeVisible();
+
+  // « Mes points » filtrés : la page dit combien « Tous » en montre, et y mène.
+  await page.getByRole('button', { name: 'Effacer' }).click();
+  await page.getByRole('button', { name: 'Mes points' }).click();
+  await filtre('Toutes sections').selectOption({ label: 'Administration' });
+  await expect(nombre).toHaveText('1');
+  const note = page.locator('.filtre-mes');
+  await expect(note).toContainText('tes points seulement : 1 sur 2');
+  await note.getByRole('button', { name: 'Voir les 2 points' }).click();
+  await expect(nombre).toHaveText('2');
+  await expect(note).toHaveCount(0);
 });

@@ -11,7 +11,7 @@ import { CircuitPaiements } from '../components/Tickets';
 import { GENRES, genreDe } from '../data/paiements';
 import { nomAppli } from '../data/nomAppli';
 import { APrendreTag, Avatar, DocPollIcons, Empty, EtiquettesTag, LinkIcon, PourInfoTag, RecurIcon, StatusBadge, TicketTag } from '../components/ui';
-import { etiquettesRangees, evenementPasse, lieuxDe } from '../data/etiquettes';
+import { etiquettesDesLieux, etiquettesRangees, evenementPasse, lieuxDe } from '../data/etiquettes';
 import { attendDesVus, bilanVu, pourMoi } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
@@ -39,7 +39,8 @@ function ListeTaches() {
   const { data, user, can, canSeeTask, canEditTask, creatableSections, prefs, setPrefs, saveTask } = useStore();
   const [params] = useSearchParams();
   const [scope, setScope] = useState<'mes' | 'toutes'>(
-    params.get('statut') || params.get('delai') ? 'mes' : params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
+    // Lien vers les points d'une étiquette, d'un événement, d'une séance… : tous ses points, pas seulement les miens.
+    params.get('statut') || params.get('delai') ? 'mes' : params.get('etiquette') || params.get('event') || params.get('meeting') || params.get('resp') || params.get('parent') || params.get('type') ? 'toutes' : prefs.vueDefaut,
   );
   const [f, setF] = useState({
     ...EMPTY_FILTERS,
@@ -113,25 +114,36 @@ function ListeTaches() {
   const statusOf = (t: Task) => data.statuses.find((s) => s.id === t.statusId);
   const respNames = (t: Task) => t.responsables.map((id) => fullName(data.people.find((p) => p.id === id))).join(', ');
 
-  const { list, nArchivees, evenementsAvec } = useMemo(() => {
-    if (!user) return { list: [], nArchivees: 0, evenementsAvec: new Set<string>() };
+  const { list, nArchivees, evenementsAvec, nTous } = useMemo(() => {
+    if (!user) return { list: [], nArchivees: 0, evenementsAvec: new Set<string>(), nTous: 0 };
     const q = f.q.trim().toLowerCase();
+    // Étiquettes d'un point : celles qu'il porte, et celles d'office de sa place (section, sous-section, événement) ; un
+    // point pas réenregistré depuis qu'une étiquette a reçu sa place ne la porte pas encore, mais il est bien à elle.
+    const auto = etiquettesDesLieux(data);
+    const etiquettesDe = (t: Task) => (t.paiement ? t.etiquettes ?? [] : [...(t.etiquettes ?? []), ...auto(t.sectionId, t.sousSection, t.eventId)]);
+    // Événements d'un point : celui auquel il est rattaché (une date modifiée à part compte pour sa série), et celui dont il
+    // porte l'étiquette (rangé dans sa sous-section), comme sur la carte de l'événement et dans sa chronologie.
+    const serieDe = new Map(data.events.filter((x) => x.serie).map((x) => [x.id, x.serie!.id]));
+    const evenementDe = new Map((data.etiquettes ?? []).filter((e) => e.eventId).map((e) => [e.id, e.eventId!]));
+    const evenementsDe = (t: Task) =>
+      [...new Set([...(t.eventId ? [t.eventId, serieDe.get(t.eventId) ?? ''] : []), ...etiquettesDe(t).map((id) => evenementDe.get(id) ?? '')])].filter(Boolean);
     // Tous les filtres, sauf `sauf` : les choix du filtre « Événement » sont ceux qui ont des tâches avec les autres filtres.
-    const garde = (t: Task, sauf?: 'event') => {
+    // `portee` : mes points ou tous (pour dire combien « Tous » en montrerait).
+    const garde = (t: Task, sauf?: 'event', portee = effScope) => {
       // « Mes tâches » : aussi mes demandes de remboursement / paiement, pour en suivre l'état, les tâches pour info et celles
       // qu'on me propose (à prendre, tant qu'il reste une place).
       // Mes « Pour info » pas encore vus : les tâches dont je suis l'auteur ou responsable, que des personnes doivent encore voir.
       if (f.delai === 'pourinfo') {
         if (!(t.createdBy === user.id || t.responsables.includes(user.id)) || !canSeeTask(t) || t.paiement || !t.pourInfo || !attendDesVus(bilanVu(t, suivi[t.id]))) return false;
-      } else if (effScope === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
+      } else if (portee === 'mes' ? !(t.responsables.includes(user.id) || t.paiement?.demandePar === user.id || pourMoi(t, user.id) || peutPrendre(t, user.id)) : !canSeeTask(t)) return false;
       if (f.type && !(t.paiement && (f.type === 'tickets' || genreDe(t.paiement) === f.type))) return false;
-      if (f.etiquette && !t.etiquettes?.includes(f.etiquette)) return false;
+      if (f.etiquette && !etiquettesDe(t).includes(f.etiquette)) return false;
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
       if (f.resp && !t.responsables.includes(f.resp)) return false;
       if (f.parent && t.id !== f.parent && t.parentId !== f.parent) return false;
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
-      if (sauf !== 'event' && f.event && t.eventId !== f.event) return false;
+      if (sauf !== 'event' && f.event && !evenementsDe(t).includes(f.event)) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
       if (f.delai && ['passe', '7', '30', 'semaine'].includes(f.delai) && !t.delai) return false;
       if (f.delai) {
@@ -159,7 +171,9 @@ function ListeTaches() {
       if (archivee(t)) nArchivees++;
       return montree(t);
     });
-    const evenementsAvec = new Set(data.tasks.filter((t) => garde(t, 'event') && montree(t)).flatMap((t) => (t.eventId ? [t.eventId] : [])));
+    const evenementsAvec = new Set(data.tasks.filter((t) => garde(t, 'event') && montree(t)).flatMap(evenementsDe));
+    // « Mes points » filtrés : combien « Tous » en montrerait (les filtres ne gardent que mes points).
+    const nTous = effScope === 'mes' && viewAll ? data.tasks.filter((t) => garde(t, undefined, 'toutes') && montree(t)).length : 0;
     const val = (t: Task): string | number => {
       switch (sort.key) {
         case 'section': return sectionName(t.sectionId);
@@ -170,9 +184,9 @@ function ListeTaches() {
         case 'delai': return t.delai || (sort.dir === 1 ? '9999' : '0000'); // sans délai : en fin de liste
       }
     };
-    return { list: res.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir), nArchivees, evenementsAvec };
+    return { list: res.sort((a, b) => (val(a) > val(b) ? 1 : val(a) < val(b) ? -1 : 0) * sort.dir), nArchivees, evenementsAvec, nTous };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data, user, effScope, f, sort, hideDone, view, archives, seancePassee, suivi]);
+  }, [data, user, effScope, viewAll, f, sort, hideDone, view, archives, seancePassee, suivi]);
 
   // Filtre « Toutes séances » : les séances à venir et celles qui ont encore des tâches dans la liste (archives : celles
   // de leurs tâches) ; pas les anciennes séances, dont les tâches terminées sont archivées.
@@ -272,7 +286,7 @@ function ListeTaches() {
         )}
         <select value={f.section} onChange={(e) => setF({ ...f, section: e.target.value, sous: '' })}>
           <option value="">Toutes sections</option>
-          {data.sections.filter((s) => effScope === 'mes' || can('tasks.viewAll', s.id)).map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+          {data.sections.filter((s) => effScope === 'mes' || can('tasks.viewAll', s.id) || data.tasks.some((t) => t.sectionId === s.id && canSeeTask(t))).map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
         </select>
         <select value={f.sous} disabled={!sec} onChange={(e) => setF({ ...f, sous: e.target.value })}>
           <option value="">Toutes sous-sections</option>
@@ -339,8 +353,23 @@ function ListeTaches() {
 
       <p className="print-only">{nomAppli()} – export du {fmtDate(new Date().toISOString().slice(0, 10))} – {list.length} points</p>
 
+      {activeFilters > 0 && nTous > list.length && (
+        <p className="archives-note filtre-mes no-print">
+          Filtres appliqués à <b>tes points</b> seulement : {list.length} sur {nTous}.{' '}
+          <button type="button" className="btn small link" onClick={() => setScope('toutes')}>Voir les {nTous} points</button>
+        </p>
+      )}
+
       {list.length === 0 ? (
-        <Empty>Aucun point ne correspond.</Empty>
+        <Empty>
+          Aucun point {archives ? 'archivé ' : nArchivees > 0 ? 'en cours ' : ''}ne correspond.
+          {!archives && nArchivees > 0 && (
+            <>
+              {' '}{nArchivees} point{nArchivees > 1 ? 's' : ''} terminé{nArchivees > 1 ? 's' : ''} dans les archives.{' '}
+              <button type="button" className="btn small link" onClick={() => setArchives(true)}>Les voir</button>
+            </>
+          )}
+        </Empty>
       ) : view === 'tableau' ? (
         <>
           <table className="table desktop-only">
