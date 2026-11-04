@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
 import { FULL_AGENDA, blocsSection, echeanceSuivante, etatTerminee, meetingContext, ordreSection, retiresDe, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
-import { EMPTY_MINUTES, diffTask, shortDate, stateOf } from '../data/minutes';
+import { EMPTY_MINUTES, diffTask, resumerChangements, shortDate, stateOf } from '../data/minutes';
 import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
 import { fmtDate, fmtDateTime, fullName, initials, isDone, newTask, today, uid } from '../data/utils';
 import { NoteField, TexteNote } from '../components/NoteField';
@@ -311,7 +311,8 @@ export function Minutes() {
   const ids = new Set<string>([...bucket.keys(), ...(etats ? [] : (m.pointIds ?? [])), ...journal.map((j) => j.taskId), ...nouvelles]);
   const points = data.tasks.filter((t) => ids.has(t.id) && (!retires.has(t.id) || nouvelles.has(t.id))).map(vue);
   const polls = (data.polls ?? []).filter((p) => !retires.has(p.id) && (isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= sel.since));
-  const changesOf = (t: Task) => journal.filter((j) => j.taskId === t.id).flatMap((j) => j.changes);
+  // Changements faits depuis le PV, résumés : l'état du départ et celui de la fin (plusieurs changements de statut : un seul).
+  const changesOf = (t: Task) => resumerChangements(journal.filter((j) => j.taskId === t.id).flatMap((j) => j.changes));
   const isNewTask = (t: Task) => nouvelles.has(t.id);
 
   const meta = (t: Task) => {

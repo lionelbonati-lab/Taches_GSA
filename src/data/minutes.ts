@@ -35,6 +35,34 @@ export function diffTask(data: AppData, before: TaskSnapshot, after: Task): stri
   return out;
 }
 
+const CHAMP = /^(statut|délai|responsable) : (.*) → (.*)$/;
+const COCHE = /^sous-point « (.*) » (fait|rouvert)$/;
+
+/**
+ * Changements d'un point au PV, résumés : pour le statut, le délai et les responsables, l'état du départ et celui de la
+ * fin (« statut : À faire → Terminé » au lieu de chaque étape ; rien s'il revient au départ) ; une étape de checklist
+ * cochée puis décochée ne compte plus ; les autres changements, une fois chacun. Dans l'ordre de leur première fois.
+ */
+export function resumerChangements(changes: string[]): string[] {
+  type Ligne = { champ: string; de: string; a: string } | { etape: string; fois: number; dernier: string } | { texte: string };
+  const lignes = new Map<string, Ligne>();
+  for (const c of changes) {
+    const m = CHAMP.exec(c);
+    const k = COCHE.exec(c);
+    const l = lignes.get(m ? m[1] : k ? `étape:${k[1]}` : c);
+    if (m) {
+      if (l && 'champ' in l) l.a = m[3];
+      else lignes.set(m[1], { champ: m[1], de: m[2], a: m[3] });
+    } else if (k) {
+      if (l && 'etape' in l) Object.assign(l, { fois: l.fois + 1, dernier: k[2] });
+      else lignes.set(`étape:${k[1]}`, { etape: k[1], fois: 1, dernier: k[2] });
+    } else if (!l) lignes.set(c, { texte: c });
+  }
+  return [...lignes.values()].flatMap((l) =>
+    'champ' in l ? (l.de === l.a ? [] : [`${l.champ} : ${l.de} → ${l.a}`]) : 'etape' in l ? (l.fois % 2 ? [`sous-point « ${l.etape} » ${l.dernier}`] : []) : [l.texte],
+  );
+}
+
 /**
  * Ancien format (état des tâches au début de la séance) → journal des changements.
  * Utilisé une seule fois lors de la mise à niveau des données enregistrées.

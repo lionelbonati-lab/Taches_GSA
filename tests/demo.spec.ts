@@ -2357,3 +2357,24 @@ test('PV en cours : un sous-point créé depuis la fiche d’un point s’affich
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(page.locator('.min-task.child[data-point="Sous-point lointain"]')).toBeVisible();
 });
+
+test('PV : un statut changé plusieurs fois n’y figure qu’une fois, de l’état du départ à celui de la fin', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Point aux statuts');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await allerA(page, '/pv');
+  const statut = page.getByLabel('Statut de Point aux statuts');
+  const point = page.locator('.min-task[data-point="Point aux statuts"]');
+  await statut.selectOption({ label: 'En cours' });
+  await statut.selectOption({ label: 'En attente' });
+  await statut.selectOption({ label: 'Terminé' });
+  await expect(point.locator('.min-changes')).toHaveText('↻ statut : À faire → Terminé');
+  // Le document du PV aussi.
+  await page.getByRole('button', { name: 'PV', exact: true }).click();
+  await expect(page.locator('.min-pv-change', { hasText: 'statut' })).toHaveText('↻ statut : À faire → Terminé');
+  await page.getByRole('button', { name: 'Prise de notes', exact: true }).click();
+  // Revenu à l'état du départ : plus de changement.
+  await statut.selectOption({ label: 'À faire' });
+  await expect(point.locator('.min-changes')).toHaveCount(0);
+});
