@@ -392,6 +392,13 @@ function Lists() {
     // Les points et la place des étiquettes (sous-section d'un événement…) suivent.
     update((d) => renommerSousSection(d, secId, old, v), `Sous-section « ${old} » (${sec.nom}) renommée en « ${v} »${n ? ` · ${n} point(s)` : ''}`);
   };
+  // Sections : changer leur ordre (listes de choix, liste des points, ordre du jour, PV ; la première sert d'office).
+  const moveSection = (secId: string, dir: -1 | 1) =>
+    update((d) => {
+      const i = d.sections.findIndex((x) => x.id === secId);
+      const j = i + dir;
+      if (i >= 0 && j >= 0 && j < d.sections.length) [d.sections[i], d.sections[j]] = [d.sections[j], d.sections[i]];
+    }, `Section « ${data.sections.find((x) => x.id === secId)?.nom ?? ''} » déplacée vers le ${dir < 0 ? 'haut' : 'bas'}`);
   const moveSub = (secId: string, i: number, dir: -1 | 1) =>
     update((d) => {
       const l = d.sections.find((y) => y.id === secId)!.sousSections;
@@ -406,13 +413,16 @@ function Lists() {
         <p className="muted">
           Coche <b>Groupe</b> à côté d’une section (Gruppetto, École de cyclisme…) : elle devient une étiquette ; ses membres, du comité ou non,
           voient ses points. Les événements ont leur étiquette dans leur formulaire (agenda), avec leur sous-section dans « Événements ».
+          Les flèches changent l’ordre des sections, repris partout : listes de choix, liste des points, ordre du jour et PV.
         </p>
         <Comite peut />
-        {data.sections.map((s) => {
+        {data.sections.map((s, i) => {
           const used = data.tasks.filter((t) => t.sectionId === s.id).length;
           return (
             <div key={s.id} className="panel">
               <div className="row">
+                <button className="icon-btn" disabled={i === 0} onClick={() => moveSection(s.id, -1)} aria-label={`Monter la section ${s.nom}`} title="Monter la section"><Icone n="monter" /></button>
+                <button className="icon-btn" disabled={i === data.sections.length - 1} onClick={() => moveSection(s.id, 1)} aria-label={`Descendre la section ${s.nom}`} title="Descendre la section"><Icone n="descendre" /></button>
                 <input className="grow" defaultValue={s.nom} aria-label={`Nom de la section ${s.nom}`} onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== s.nom) update((d) => { d.sections.find((x) => x.id === s.id)!.nom = v; }, `Section « ${s.nom} » renommée en « ${v} »`); }} />
                 <button className="btn small danger" disabled={used > 0} title={used ? `${used} point(s) utilisent cette section` : ''} onClick={() => update((d) => { d.sections = d.sections.filter((x) => x.id !== s.id); d.etiquettes = d.etiquettes?.map((e) => (e.lieux?.some((l) => l.sectionId === s.id) ? { ...e, lieux: e.lieux.filter((l) => l.sectionId !== s.id) } : e)); }, `Suppression de la section « ${s.nom} »`)}>Supprimer</button>
               </div>

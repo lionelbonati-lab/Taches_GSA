@@ -1906,6 +1906,33 @@ test('ordre du jour : un point supprimé n’apparaît plus, ni dans le PV ; le 
   await expect(page.locator(`.min-task[data-point="${supprime}"]`)).toBeVisible();
 });
 
+test('console admin : trier les sections ; l’ordre du jour suit, gardé après un rechargement', async ({ page }) => {
+  await allerA(page, '/admin/taches');
+  const noms = () => page.locator('main input[aria-label^="Nom de la section "]').evaluateAll((els) => els.map((e) => (e as HTMLInputElement).value));
+  await expect(page.locator('main input[aria-label^="Nom de la section "]').first()).toBeVisible();
+  const avant = await noms();
+  expect(avant.length).toBeGreaterThan(3);
+  const [premiere, deuxieme] = avant;
+  const derniere = avant[avant.length - 1];
+  await expect(page.getByRole('button', { name: `Monter la section ${premiere}` })).toBeDisabled();
+  await expect(page.getByRole('button', { name: `Descendre la section ${derniere}` })).toBeDisabled();
+
+  await page.getByRole('button', { name: `Descendre la section ${premiere}` }).click();
+  await page.getByRole('button', { name: `Monter la section ${derniere}` }).click();
+  const apres = [deuxieme, premiere, ...avant.slice(2, -2), derniere, avant[avant.length - 2]];
+  await expect.poll(noms).toEqual(apres);
+
+  // Ordre du jour (sections sans point comprises) : le même ordre.
+  await allerA(page, '/ordre-du-jour');
+  await expect(page.locator('.pv-sheet .odj-sec').first()).toHaveText(deuxieme);
+  expect(await page.locator('.pv-sheet .odj-sec').allTextContents()).toEqual(apres);
+
+  await page.reload();
+  await allerA(page, '/admin/taches');
+  await expect(page.locator('main input[aria-label^="Nom de la section "]').first()).toHaveValue(deuxieme);
+  expect(await noms()).toEqual(apres);
+});
+
 const champSection = (fiche: ReturnType<Page['locator']>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
 const champSousSection = (fiche: ReturnType<Page['locator']>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
 const lireDonnees = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));
