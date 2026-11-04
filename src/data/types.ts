@@ -338,6 +338,8 @@ export interface Meeting {
   minutesArchives?: PvArchive[];
   /** Excuses annoncées avant la séance (onglet Comité ou ordre du jour). */
   excuses?: Excuse[];
+  /** Retards annoncés avant la séance (onglet Comité ou ordre du jour) : la personne viendra, mais plus tard. */
+  retards?: RetardAnnonce[];
   /** Ordre du jour modifié à la main : remplace le document généré tant qu'on ne revient pas à celui-ci. */
   odjEdite?: { html: string; le: string; par: string };
   /**
@@ -362,6 +364,16 @@ export interface Excuse {
   le: string;
 }
 
+/** Retard annoncé : la personne arrivera après le début de la séance (une seule annonce par personne : absente ou en retard). */
+export interface RetardAnnonce {
+  personId: string;
+  /** Heure d'arrivée prévue (« 20:15 »), si elle est connue. */
+  vers?: string;
+  motif?: string;
+  /** Date de l'annonce. */
+  le: string;
+}
+
 /** État d'une tâche au début de la séance, pour repérer ce qui a changé pendant la séance. */
 export interface TaskSnapshot {
   statusId: string;
@@ -381,6 +393,13 @@ export interface EtatPoint extends TaskSnapshot {
 export interface MeetingMinutes {
   presents: string[];
   excuses: string[];
+  /** Arrivés en retard, comptés aussi parmi les présents : heure d'arrivée (« 20:15 » ; vide si elle n'est pas notée). */
+  retards?: Record<string, string>;
+  /**
+   * Motif d'un excusé ou d'un retard (personne → motif), écrit dans le PV. Tant que le PV n'est pas validé, ceux annoncés
+   * avant la séance (ordre du jour, liste des séances) y sont repris ; changés ici, l'annonce suit. Figés à la validation.
+   */
+  motifs?: Record<string, string>;
   invites?: string;
   heureDebut?: string;
   heureFin?: string;

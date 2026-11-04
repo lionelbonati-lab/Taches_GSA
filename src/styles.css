@@ -640,11 +640,18 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .min-session-row input[type='time'] { width: 130px; }
 .small-note { margin: 4px 0 0; font-size: 0.85rem; }
 .mon-profil .ecart { color: var(--late); }
-.min-presence { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 6px 14px; margin-bottom: 8px; }
-.min-person { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.min-presence { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(350px, 100%), 1fr)); gap: 6px 14px; margin-bottom: 8px; }
+.min-person { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 4px 8px; }
 .seg.small button { padding: 4px 10px; font-size: 0.82rem; }
 .seg button.on.present { background: #16a34a; color: #fff; }
 .seg button.on.excuse { background: #d97706; color: #fff; }
+.seg button.on.retard { background: #2563eb; color: #fff; }
+/* Sous la personne : retard annoncé, heure d'arrivée et motif. */
+.min-annonce { flex-basis: 100%; font-size: 0.8rem; }
+.min-motif { flex-basis: 100%; display: flex; gap: 6px; margin-bottom: 4px; }
+.min-motif input { padding: 4px 8px; font-size: 0.85rem; }
+.min-motif input[type='time'] { flex: none; width: 8.5em; }
+.min-motif input:not([type='time']) { flex: 1; }
 .min-section h3 { margin: 0 0 6px; font-size: 1.05rem; }
 .min-fin { height: calc(100vh - 190px); }
 /* Note de la section : à la fin de la section, après ses points. */
@@ -747,6 +754,7 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 }
 @media (max-width: 767px) {
   .min-presence { grid-template-columns: 1fr; }
+  .min-presence .seg.small button { padding: 4px 7px; }
   .min-controls { flex-wrap: wrap; flex-shrink: 1; width: 100%; }
   .min-controls .min-status { flex: 1 1 110px; }
   .min-task { margin-left: 0; }
@@ -1741,6 +1749,19 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .excuses { margin: 6px 0; }
 .excuses p { margin: 4px 0; }
 .excuses input { max-width: 220px; }
+.excuses-vers { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+.excuses-vers input { width: 8.5em; }
+/* Ordre du jour › Excusés et retards : une ligne par convoqué, motif (et arrivée) dessous une fois choisi. */
+.odj-annonces { list-style: none; margin: 6px 0 8px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.odj-annonce-ligne { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.odj-annonce-nom { font-size: 0.88rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.odj-annonces li:not(.on) .odj-annonce-nom { color: var(--muted); }
+.odj-annonces .seg { flex-shrink: 0; }
+.odj-annonces .seg.small button { padding: 3px 8px; font-size: 0.78rem; }
+.odj-annonce-detail { display: flex; gap: 4px; margin: 4px 0 4px; }
+.pv-settings .odj-annonce-detail input { padding: 4px 6px; font-size: 0.82rem; }
+.odj-annonce-detail input[type='time'] { flex: none; width: 8em; }
+.odj-annonce-detail input:not([type='time']) { flex: 1; }
 
 /* Membres du club, personnes de l'entité, imports CSV */
 .person-roles { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 2px 0; }

@@ -2175,3 +2175,55 @@ test('reprendre un événement passé étiqueté : la nouvelle édition a sa pro
   expect(copie).toMatchObject({ sousSection: 'Marché d’été 2027', etiquettes: [nouvelle.id] });
   expect(original).toMatchObject({ sousSection: 'Marché d’été 2026', etiquettes: [ancienne.id] });
 });
+
+test('ordre du jour : excusé avec motif et retard annoncé, repris dans le PV (motif, heure d’arrivée)', async ({ page }) => {
+  await allerA(page, '/ordre-du-jour');
+  const annonces = page.locator('.pv-settings details', { has: page.locator('summary', { hasText: 'Excusés et retards' }) });
+  await annonces.locator('summary').click();
+  await annonces.getByRole('button', { name: 'Julien Moreau : excusé(e)' }).click();
+  await annonces.getByLabel('Motif de Julien Moreau').fill('Malade');
+  await annonces.getByLabel('Motif de Julien Moreau').press('Enter');
+  await annonces.getByRole('button', { name: 'Marc Lambert : en retard' }).click();
+  await annonces.getByLabel('Arrivée prévue de Marc Lambert').fill('20:15');
+  await annonces.getByLabel('Motif de Marc Lambert').fill('Train');
+  await annonces.getByLabel('Motif de Marc Lambert').press('Enter');
+  await expect(annonces.locator('summary')).toHaveText('Excusés et retards (2)');
+
+  // Dans le document : la ligne des excusés avec le motif, celle des retards annoncés.
+  const entete = page.locator('.pv-sheet .odj-head');
+  await expect(entete).toContainText('Excusés : Julien Moreau (JM) – Malade');
+  await expect(entete).toContainText('Retards annoncés : Marc Lambert (ML) – arrivée vers 20h15 – Train');
+
+  // PV : l'excusé et son motif repris ; le retard annoncé rappelé, laissé de côté par « Tous présents ».
+  await allerA(page, '/pv');
+  const julien = page.locator('.min-person', { hasText: 'Julien Moreau' });
+  const marc = page.locator('.min-person', { hasText: 'Marc Lambert' });
+  await expect(julien.locator('button.on')).toHaveText('Excusé');
+  await expect(julien.getByLabel('Motif de Julien Moreau')).toHaveValue('Malade');
+  await expect(marc.locator('.min-annonce')).toContainText('Retard annoncé (arrivée vers 20h15) – Train');
+  await page.getByRole('button', { name: 'Tous présents (sauf excusés et retards annoncés)' }).click();
+  await expect(marc.locator('button.on')).toHaveCount(0);
+  await expect(page.locator('.min-person', { hasText: 'Sophie Girard' }).locator('button.on')).toHaveText('Présent');
+  // Arrivé : « Retard » (séance pas démarrée : l'heure annoncée), motif repris.
+  await marc.getByRole('button', { name: 'Retard' }).click();
+  await expect(marc.getByLabel('Arrivée de Marc Lambert')).toHaveValue('20:15');
+  await expect(marc.getByLabel('Motif de Marc Lambert')).toHaveValue('Train');
+  // Motif corrigé dans le PV : l'annonce de la séance suit.
+  await julien.getByLabel('Motif de Julien Moreau').fill('Grippe');
+  await julien.getByLabel('Motif de Julien Moreau').press('Enter');
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).meetings.flatMap((m: { excuses?: { motif?: string }[] }) => (m.excuses ?? []).map((e) => e.motif))))
+    .toEqual(['Grippe']);
+
+  await page.getByRole('button', { name: /Voir le PV/ }).click();
+  const pv = page.locator('.pv-sheet .odj-head');
+  await expect(pv).toContainText('En retard : Marc Lambert (arrivée à 20h15 – Train)');
+  await expect(pv).toContainText('Excusés : Julien Moreau (Grippe)');
+  await expect(pv).toContainText(/Présents : .*Marc Lambert \(ML\)/);
+
+  // Liste des séances : excusés et retards avec leur motif.
+  await allerA(page, '/comite');
+  const excuses = page.locator('.excuses').first();
+  await expect(excuses).toContainText('Excusé : Julien Moreau (Grippe)');
+  await expect(excuses).toContainText('En retard : Marc Lambert (vers 20h15 – Train)');
+});

@@ -26,6 +26,8 @@ import { Icone } from '../components/icones';
 import { Modal } from '../components/ui';
 import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
+import { annonceDe, annoncer, texteExcusesOdj, texteRetardsOdj, type Annonce, type SorteAnnonce } from '../data/presences';
+import { ChampValide } from '../components/ChampValide';
 
 // Onglet « Ordre du jour » : document imprimable préparant la prochaine séance de comité
 // (et la suivante), sur le modèle des ordres du jour du club : en-tête (le nom du comité), convoqués, liste numérotée
@@ -77,6 +79,8 @@ interface ContexteOdj {
   titre: string;
   committee: Person[];
   excusesTxt: string;
+  /** Retards annoncés (vide : pas de ligne dans le document). */
+  retardsTxt: string;
   /** Personnes attendues des tâches « Pour info » (052), pour « vue par 3 sur 4 ». */
   attendus?: Record<string, string[]>;
 }
@@ -121,7 +125,7 @@ const letter = (i: number) => {
  * liste numérotée, annexes, version texte.
  */
 function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
-  const { data, s0, s1, s2, titre, committee, excusesTxt, attendus } = c;
+  const { data, s0, s1, s2, titre, committee, excusesTxt, retardsTxt, attendus } = c;
   const odj = data;
   const person = (id: string) => data.people.find((p) => p.id === id);
   // Points retirés de l'ordre du jour de la séance (choix commun au comité) : ni ici, ni dans le PV.
@@ -271,7 +275,10 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
     const out: string[] = [s1 ? `${titre} – ${longDate(s1.date)}` : titre];
     if (s1 && heure(s1)) out.push(`Début de séance : ${heure(s1)}`);
     if (s1) out.push(`Lieu : ${texteLieu(s1)}`);
-    if (s.parts.presences) out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, `Excusés : ${excusesTxt}`);
+    if (s.parts.presences) {
+      out.push(`Convoqués : ${committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}`, `Excusés : ${excusesTxt}`);
+      if (retardsTxt) out.push(`Retards annoncés : ${retardsTxt}`);
+    }
     out.push('', 'Ordre du jour', ...outlineText(listSecs));
     if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${heure(s2) ? ` à ${heure(s2)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
     if (annexes.length) out.push('', 'Annexes', ...annexes.map((a) => `   ${a.n}. ${a.d.nom} (${annexeInfo(a, s1?.odjAnnexesPages)})`));
@@ -297,7 +304,7 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir, onRetirer }: {
   const { user } = useStore();
   const logo = useUnitLogo();
   const entete = useEntete();
-  const { s1, s2, titre, committee, excusesTxt } = c;
+  const { s1, s2, titre, committee, excusesTxt, retardsTxt } = c;
   const { listSecs, annexes, bucketOf, taskMeta, itemText, maxDepth } = o;
 
   // Bouton d'écran seulement : ni imprimé, ni dans le PDF, l'archive ou la version modifiée à la main (htmlFeuille).
@@ -374,6 +381,7 @@ function FeuilleOdj({ c, s, o, style, feuilleRef, onOuvrir, onRetirer }: {
           <>
             <p><b>Convoqués :</b> {committee.map((p) => `${fullName(p)} (${initials(p)})`).join(', ')}</p>
             <p className="odj-fill-line"><b>Excusés :</b> <span className={excusesTxt ? '' : 'odj-fill'} data-champ="excuses">{excusesTxt}</span></p>
+            {retardsTxt && <p className="odj-fill-line"><b>Retards annoncés :</b> <span data-champ="retards">{retardsTxt}</span></p>}
           </>
         )}
       </section>
@@ -657,21 +665,24 @@ export function Pv() {
   const committee: Person[] = convoquesDe(data);
   const canEdit = can('tab.pv');
 
-  // ---------- Excusés ----------
-  const excuses = s1?.excuses ?? [];
-  const isExcused = (id: string) => excuses.some((e) => e.personId === id);
-  const excusesTxt = excuses
-    .map((e) => data.people.find((x) => x.id === e.personId))
-    .filter((p): p is Person => !!p)
-    .map((p) => `${fullName(p)} (${initials(p)})${excuses.find((e) => e.personId === p.id)?.motif ? ` – ${excuses.find((e) => e.personId === p.id)!.motif}` : ''}`)
-    .join(', ');
-  const toggleExcuse = (p: Person) =>
+  // ---------- Excusés et retards annoncés (avec leur motif : repris dans le PV) ----------
+  const excusesTxt = texteExcusesOdj(data.people, s1);
+  const retardsTxt = texteRetardsOdj(data.people, s1);
+  const nbAnnonces = (s1?.excuses?.length ?? 0) + (s1?.retards?.length ?? 0);
+  // Lu dans les données au moment du changement (un motif validé en quittant son champ juste avant compte).
+  const changerAnnonce = (p: Person, fn: (a: Annonce | undefined) => Annonce | null | undefined, action: string) =>
     s1 &&
     update((d) => {
       const m = d.meetings.find((x) => x.id === s1.id)!;
-      const has = (m.excuses ?? []).some((e) => e.personId === p.id);
-      m.excuses = has ? (m.excuses ?? []).filter((e) => e.personId !== p.id) : [...(m.excuses ?? []), { personId: p.id, le: today() }];
-    }, `${fullName(p)} ${isExcused(p.id) ? 'n’est plus excusé(e)' : 'excusé(e)'} pour ${s1.titre}`);
+      const a = fn(annonceDe(m, p.id));
+      if (a !== undefined) annoncer(m, p.id, a);
+    }, `${action} pour ${s1.titre}`);
+  const basculer = (p: Person, sorte: SorteAnnonce) => {
+    const quoi = sorte === 'excuse' ? 'excusé(e)' : 'annoncé(e) en retard';
+    changerAnnonce(p, (a) => (a?.sorte === sorte ? null : { ...a, sorte }), `${fullName(p)} ${annonceDe(s1, p.id)?.sorte === sorte ? `n’est plus ${quoi}` : quoi}`);
+  };
+  const preciser = (p: Person, champ: Pick<Annonce, 'motif'> | Pick<Annonce, 'vers'>) =>
+    changerAnnonce(p, (a) => a && { ...a, ...champ }, `${'vers' in champ ? 'Arrivée prévue' : 'Motif'} de ${fullName(p)}`);
 
   // ---------- Texte modifié à la main ----------
   const edite = s1?.odjEdite;
@@ -690,7 +701,7 @@ export function Pv() {
   // Titre : le nom du comité ; avec la date de la séance pour nommer le document (PDF, archive, email).
   const titre = club?.espace.nom ?? 'Comité';
   const nomDoc = s1 ? `${titre} ${shortDate(s1.date)}` : titre;
-  const ctx: ContexteOdj = { data, s0, s1, s2, titre, committee, excusesTxt, attendus };
+  const ctx: ContexteOdj = { data, s0, s1, s2, titre, committee, excusesTxt, retardsTxt, attendus };
   const contenu = contenuOdj(ctx, s, joursApres);
   const { odj, tachesOdj, annexes } = contenu;
   const exclues = s1?.odjAnnexesExclues ?? [];
@@ -799,7 +810,7 @@ export function Pv() {
   };
 
   // Version modifiée à la main (ou en cours de modification) : photos et pages de PDF joints remis à l'affichage.
-  const htmlEdite = edite ? cleanHtml(hydrateArchive(edite.html, data, logo), { excuses: excusesTxt }) : '';
+  const htmlEdite = edite ? cleanHtml(hydrateArchive(edite.html, data, logo), { excuses: excusesTxt, retards: retardsTxt }) : '';
   useAnnexesArchive(sheetRef, draft ?? htmlEdite, draft !== null || !!edite);
   usePiedImprime(sheetRef);
   useOuvrirDocs();
@@ -847,20 +858,39 @@ export function Pv() {
           </details>
           {s1 && (
             <details>
-              <summary>Excusés</summary>
-              <span className="field-label">Excusés {excuses.length > 0 && `(${excuses.length})`}</span>
+              <summary>Excusés et retards{nbAnnonces > 0 && ` (${nbAnnonces})`}</summary>
               {canEdit ? (
-                <div className="chips">
-                  {committee.map((p) => (
-                    <button key={p.id} type="button" className={`chip ${isExcused(p.id) ? 'on' : ''}`} onClick={() => toggleExcuse(p)} title={excuses.find((e) => e.personId === p.id)?.motif}>
-                      {isExcused(p.id) && <><Icone n="absent" /> </>}{shortName(p)}
-                    </button>
-                  ))}
-                </div>
+                <ul className="odj-annonces">
+                  {committee.map((p) => {
+                    const a = annonceDe(s1, p.id);
+                    return (
+                      <li key={p.id} className={a ? `on ${a.sorte}` : ''}>
+                        <div className="odj-annonce-ligne">
+                          <span className="odj-annonce-nom" title={fullName(p)}>{shortName(p)}</span>
+                          <span className="seg small">
+                            <button type="button" className={a?.sorte === 'excuse' ? 'on excuse' : ''} aria-pressed={a?.sorte === 'excuse'} aria-label={`${fullName(p)} : excusé(e)`} onClick={() => basculer(p, 'excuse')}>Excusé</button>
+                            <button type="button" className={a?.sorte === 'retard' ? 'on retard' : ''} aria-pressed={a?.sorte === 'retard'} aria-label={`${fullName(p)} : en retard`} onClick={() => basculer(p, 'retard')}>En retard</button>
+                          </span>
+                        </div>
+                        {a && (
+                          <div className="odj-annonce-detail">
+                            {a.sorte === 'retard' && (
+                              <ChampValide type="time" valeur={a.vers ?? ''} onValider={(v) => preciser(p, { vers: v })} aria-label={`Arrivée prévue de ${fullName(p)}`} title="Arrivée prévue (facultatif)" />
+                            )}
+                            <ChampValide valeur={a.motif ?? ''} onValider={(v) => preciser(p, { motif: v })} placeholder="Motif (facultatif)" aria-label={`Motif de ${fullName(p)}`} maxLength={120} />
+                          </div>
+                        )}
+                      </li>
+                    );
+                  })}
+                </ul>
               ) : (
-                <p className="muted">{excusesTxt || 'Personne pour l’instant.'}</p>
+                <>
+                  <p className="muted"><b>Excusés :</b> {excusesTxt || 'personne pour l’instant.'}</p>
+                  {retardsTxt && <p className="muted"><b>Retards annoncés :</b> {retardsTxt}</p>}
+                </>
               )}
-              <small className="muted">Chacun peut aussi s’excuser lui-même dans la liste des séances.</small>
+              <small className="muted">Motif et heure d’arrivée figurent dans l’ordre du jour et le PV. Chacun peut aussi s’excuser ou annoncer un retard lui-même dans la liste des séances.</small>
             </details>
           )}
           {s1 && pointsRetires.length > 0 && (

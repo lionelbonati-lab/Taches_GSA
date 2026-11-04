@@ -24,6 +24,7 @@ import { margesArchive, policeArchive } from '../data/styleDocs';
 import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
 import { LieuSeance, Lien } from '../components/Liens';
 import { dernierPoint, lienCarte, lieuxConnus } from '../data/lieux';
+import { annonceDe, annoncer, enHeures, type Annonce, type SorteAnnonce } from '../data/presences';
 
 // Carte (Leaflet) chargée seulement quand on place un lieu.
 const CarteLieu = lazy(() => import('../components/CarteLieu'));
@@ -88,44 +89,75 @@ export function newMeeting(meetings: Meeting[], date = today(), mot = 'Comité')
 export const linkedTasksNote = (tasks: Task[], id: string, type: 'meeting' | 'event') =>
   linkedNote(tasks.filter((t) => (type === 'meeting' ? t.meetingId : t.eventId) === id && t.delaiRef?.type === type).length);
 
-/** Excusés d'une séance, et « Je serai absent(e) » pour les membres convoqués. */
+/**
+ * Excusés et retards d'une séance (avec leur motif) ; « Je serai absent(e) » et « Je serai en retard » pour les membres
+ * convoqués.
+ */
 function Excuses({ m, past }: { m: Meeting; past: boolean }) {
   const { data, user, update } = useStore();
-  const [open, setOpen] = useState(false);
+  const [ouvert, setOuvert] = useState<SorteAnnonce | null>(null);
   const [motif, setMotif] = useState('');
-  const list = m.excuses ?? [];
-  const mine = user ? list.find((e) => e.personId === user.id) : undefined;
+  const [vers, setVers] = useState('');
+  const mine = user ? annonceDe(m, user.id) : undefined;
   // Convoqués : les personnes dont un rôle donne le droit « Séances ».
   const convoque = !!user && convoquesDe(data).some((p) => p.id === user.id);
-  const set = (excuse: boolean) => {
-    if (!user) return;
-    update((d) => {
-      const x = d.meetings.find((y) => y.id === m.id)!;
-      const others = (x.excuses ?? []).filter((e) => e.personId !== user.id);
-      x.excuses = excuse ? [...others, { personId: user.id, le: today(), ...(motif.trim() ? { motif: motif.trim() } : {}) }] : others;
-    }, excuse ? `${fullName(user)} s’excuse pour ${m.titre}` : `${fullName(user)} sera finalement présent(e) à ${m.titre}`);
-    setOpen(false);
+  const fermer = () => {
+    setOuvert(null);
     setMotif('');
+    setVers('');
   };
-  const names = list.map((e) => {
-    const p = data.people.find((x) => x.id === e.personId);
-    return p ? `${fullName(p)}${e.motif ? ` (${e.motif})` : ''}` : '';
-  }).filter(Boolean);
-  if (!names.length && (past || !convoque)) return null;
+  const set = (a: Annonce | null) => {
+    if (!user) return;
+    update(
+      (d) => annoncer(d.meetings.find((y) => y.id === m.id)!, user.id, a),
+      a?.sorte === 'excuse'
+        ? `${fullName(user)} s’excuse pour ${m.titre}`
+        : a
+          ? `${fullName(user)} annonce un retard pour ${m.titre}`
+          : `${fullName(user)} sera finalement ${mine?.sorte === 'retard' ? 'à l’heure' : 'présent(e)'} à ${m.titre}`,
+    );
+    fermer();
+  };
+  const nom = (id: string) => {
+    const p = data.people.find((x) => x.id === id);
+    return p ? fullName(p) : '';
+  };
+  const avec = (n: string, details: (string | undefined)[]) => {
+    const d = details.filter(Boolean).join(' – ');
+    return n && `${n}${d ? ` (${d})` : ''}`;
+  };
+  const excuses = (m.excuses ?? []).map((e) => avec(nom(e.personId), [e.motif])).filter(Boolean);
+  const retards = (m.retards ?? []).map((r) => avec(nom(r.personId), [r.vers && `vers ${enHeures(r.vers)}`, r.motif])).filter(Boolean);
+  if (!excuses.length && !retards.length && (past || !convoque)) return null;
   return (
     <div className="excuses">
-      {names.length > 0 && <p className="muted"><Icone n="absent" /> Excusé{names.length > 1 ? 's' : ''} : {names.join(', ')}</p>}
+      {excuses.length > 0 && <p className="muted"><Icone n="absent" /> Excusé{excuses.length > 1 ? 's' : ''} : {excuses.join(', ')}</p>}
+      {retards.length > 0 && <p className="muted"><Icone n="horloge" /> En retard : {retards.join(', ')}</p>}
       {!past && convoque && (
         mine ? (
-          <p><span className="chip on"><Icone n="ok" /> Tu es excusé(e)</span> <button className="btn small link" onClick={() => set(false)}>Je serai finalement présent(e)</button></p>
-        ) : open ? (
+          <p>
+            <span className="chip on">
+              <Icone n={mine.sorte === 'excuse' ? 'ok' : 'horloge'} /> {mine.sorte === 'excuse' ? 'Tu es excusé(e)' : `Tu as annoncé un retard${mine.vers ? ` (vers ${enHeures(mine.vers)})` : ''}`}
+            </span>{' '}
+            <button className="btn small link" onClick={() => set(null)}>{mine.sorte === 'excuse' ? 'Je serai finalement présent(e)' : 'Je serai finalement à l’heure'}</button>
+          </p>
+        ) : ouvert ? (
           <div className="row wrap">
+            {ouvert === 'retard' && (
+              <label className="excuses-vers">
+                Arrivée vers
+                <input type="time" value={vers} onChange={(e) => setVers(e.target.value)} aria-label="Heure d’arrivée prévue" />
+              </label>
+            )}
             <input value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Motif (facultatif)" aria-label="Motif" maxLength={120} />
-            <button className="btn small primary" onClick={() => set(true)}>Confirmer mon absence</button>
-            <button className="btn small" onClick={() => setOpen(false)}>Annuler</button>
+            <button className="btn small primary" onClick={() => set({ sorte: ouvert, motif, vers })}>{ouvert === 'excuse' ? 'Confirmer mon absence' : 'Confirmer mon retard'}</button>
+            <button className="btn small" onClick={fermer}>Annuler</button>
           </div>
         ) : (
-          <button className="btn small" onClick={() => setOpen(true)}><Icone n="absent" /> Je serai absent(e)</button>
+          <div className="row wrap">
+            <button className="btn small" onClick={() => setOuvert('excuse')}><Icone n="absent" /> Je serai absent(e)</button>
+            <button className="btn small" onClick={() => setOuvert('retard')}><Icone n="horloge" /> Je serai en retard</button>
+          </div>
         )
       )}
     </div>

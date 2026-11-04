@@ -30,6 +30,8 @@ import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { aFiger, figerPoints, reporterChangement, vueFigee } from '../data/etatsPv';
 import { PiecesJointesPoint } from '../components/PiecesJointesPoint';
+import { annonceDe, avecAnnonces, reporterSurAnnonces } from '../data/presences';
+import { ChampValide } from '../components/ChampValide';
 
 // Onglet « PV » (secrétaire) : reprend l'ordre du jour de la séance, prise de notes sous chaque point,
 // mise à jour des tâches (enregistrée dans le PV), génération / validation / envoi du procès-verbal,
@@ -146,10 +148,8 @@ export function Minutes() {
       {x.titre} – {fmtDate(x.date)}{x.minutes?.valideLe ? ` ✓${(x.minutes.version ?? 1) > 1 ? ` v${x.minutes.version}` : ''}` : ''}
     </option>
   );
-  // Excuses annoncées avant la séance : reprises dans les présences tant que le PV n'est pas validé.
-  const withExcuses = (mm: MeetingMinutes, pre: { personId: string }[] = []): MeetingMinutes =>
-    mm.valideLe && !mm.enCorrection ? mm : { ...mm, excuses: [...new Set([...mm.excuses, ...pre.map((e) => e.personId).filter((id) => !mm.presents.includes(id))])] };
-  const m: MeetingMinutes = withExcuses({ ...EMPTY_MINUTES, ...s1?.minutes }, s1?.excuses);
+  // Excuses et retards annoncés avant la séance : excusés et motifs repris dans le PV tant qu'il n'est pas validé.
+  const m: MeetingMinutes = avecAnnonces({ ...EMPTY_MINUTES, ...s1?.minutes }, s1);
   const committee = committeeOf(data);
   const person = (id: string) => data.people.find((p) => p.id === id);
   // Titre : le nom du comité (comme l'ordre du jour) ; avec la date de la séance pour nommer le PDF, l'archive et l'email.
@@ -179,11 +179,12 @@ export function Minutes() {
     s1 &&
     updateSilent((d) => {
       const x = d.meetings.find((y) => y.id === s1.id)!;
-      const mm: MeetingMinutes = structuredClone(withExcuses({ ...EMPTY_MINUTES, ...x.minutes }, x.excuses));
+      const avant = avecAnnonces({ ...EMPTY_MINUTES, ...x.minutes }, x);
+      const mm: MeetingMinutes = structuredClone(avant);
       fn(mm, d);
       x.minutes = mm;
-      // Excusé retiré (ou finalement présent) dans le PV : l'excuse annoncée tombe aussi.
-      if (x.excuses) x.excuses = x.excuses.filter((e) => mm.excuses.includes(e.personId));
+      // Excusé retiré (ou finalement présent) dans le PV : l'excuse annoncée tombe aussi ; motif changé : l'annonce suit.
+      reporterSurAnnonces(x, avant, mm);
     }, o);
   // Tâche modifiée, créée (avant : null) ou supprimée depuis le PV : son état d'avant (la première fois) et d'après,
   // pour « Remettre à zéro » ; terminer une tâche répétée crée l'occurrence suivante, retenue comme créée.
@@ -326,15 +327,39 @@ export function Minutes() {
       x.demarreLe = new Date().toISOString();
       x.pointIds = [...bucket.keys()];
     }, { annulable: `Séance « ${s1?.titre} » démarrée` });
-  const setPresence = (id: string, kind: 'present' | 'excuse') =>
+  // Présent, arrivé en retard (présent aussi, avec son heure d'arrivée) ou excusé ; re-clic sur le choix en cours : retiré.
+  const presenceDe = (x: MeetingMinutes, id: string) =>
+    x.excuses.includes(id) ? 'excuse' : x.presents.includes(id) ? (x.retards?.[id] !== undefined ? 'retard' : 'present') : undefined;
+  const setPresence = (id: string, kind: 'present' | 'retard' | 'excuse') =>
     setMinutes((x) => {
-      const inP = x.presents.includes(id);
-      const inE = x.excuses.includes(id);
+      const avant = presenceDe(x, id);
       x.presents = x.presents.filter((v) => v !== id);
       x.excuses = x.excuses.filter((v) => v !== id);
-      if (kind === 'present' && !inP) x.presents.push(id);
-      if (kind === 'excuse' && !inE) x.excuses.push(id);
+      const retards = { ...x.retards };
+      delete retards[id];
+      if (kind !== avant) {
+        if (kind === 'excuse') x.excuses.push(id);
+        else x.presents.push(id);
+        // Arrivée : maintenant pendant la séance, sinon l'heure annoncée (modifiable à côté).
+        if (kind === 'retard') retards[id] = x.demarreLe && !x.heureFin ? nowHM() : annonceDe(s1, id)?.vers ?? '';
+      }
+      if (Object.keys(retards).length) x.retards = retards;
+      else delete x.retards;
     }, { annulable: `Présences : ${fullName(person(id))}` });
+  const setArrivee = (id: string, h: string) =>
+    setMinutes((x) => {
+      if (x.retards?.[id] !== undefined) x.retards = { ...x.retards, [id]: h };
+    }, { annulable: `Arrivée de ${fullName(person(id))}` });
+  const setMotif = (id: string, v: string) =>
+    setMinutes((x) => {
+      const motifs = { ...x.motifs };
+      if (v) motifs[id] = v;
+      else delete motifs[id];
+      if (Object.keys(motifs).length) x.motifs = motifs;
+      else delete x.motifs;
+    }, { annulable: `Motif de ${fullName(person(id))}` });
+  // Retards annoncés pas encore arrivés : « Tous présents » les laisse de côté (« Retard » à leur arrivée).
+  const retardsAttendus = new Set((s1?.retards ?? []).map((r) => r.personId).filter((id) => !m.presents.includes(id) && !m.excuses.includes(id)));
 
   const quickChange = (t: Task, patch: Partial<Task>) => {
     const live = vivante(t);
@@ -418,7 +443,7 @@ Notes, présences, invités, heures et début de séance sont effacés.` +
           (n ? `
 Les points modifiés, créés ou supprimés depuis le PV (${n}) reviennent comme avant${gardees.size ? ' (sauf ce qui a été changé depuis ailleurs)' : ''}.` : '') +
           `
-Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arrière.`,
+Les excuses et retards annoncés restent. « Annuler » (en haut) permet de revenir en arrière.`,
       )
     )
       return;
@@ -514,7 +539,14 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
   const numeros = (t: Task) => (opts.documents && t.documents?.length ? [] : numerosDe(joints, t));
   const docs = (t: Task) => (opts.documents && t.documents?.length ? ` – 📎 ${docsTexte(t, joints)}` : '');
   const presentsTxt = m.presents.map((id) => `${fullName(person(id))} (${initials(person(id))})`).join(', ') || '—';
-  const excusesTxt = m.excuses.map((id) => fullName(person(id))).join(', ') || '—';
+  // Avec leur motif (et l'heure d'arrivée des retards) : « Nom (arrivée à 20h15 – motif) ».
+  const avecDetails = (id: string, details: (string | undefined)[]) => {
+    const d = details.filter(Boolean).join(' – ');
+    return `${fullName(person(id))}${d ? ` (${d})` : ''}`;
+  };
+  const motifDe = (id: string) => m.motifs?.[id]?.trim();
+  const retardsTxt = m.presents.filter((id) => m.retards?.[id] !== undefined).map((id) => avecDetails(id, [m.retards?.[id] && `arrivée à ${hm(m.retards[id])}`, motifDe(id)])).join(', ');
+  const excusesTxt = m.excuses.map((id) => avecDetails(id, [motifDe(id)])).join(', ') || '—';
   const absents = committee.filter((p) => !m.presents.includes(p.id) && !m.excuses.includes(p.id));
   const versionLine =
     draftVersion > 1
@@ -531,7 +563,9 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     const out: string[] = [`PROCÈS-VERBAL – ${titre}`];
     if (versionLine) out.push(versionLine);
     if (s1) out.push(`${longDate(s1.date)} · ${hm(m.heureDebut ?? s1.heure)}${m.heureFin ? ` – ${hm(m.heureFin)}` : ''} · Lieu : ${texteLieu(s1)}`);
-    out.push(`Présents : ${presentsTxt}`, `Excusés : ${excusesTxt}`);
+    out.push(`Présents : ${presentsTxt}`);
+    if (retardsTxt) out.push(`En retard : ${retardsTxt}`);
+    out.push(`Excusés : ${excusesTxt}`);
     if (m.invites?.trim()) out.push(`Invités : ${m.invites.trim()}`);
     out.push('');
     pvSections.forEach((g, i) => {
@@ -605,8 +639,8 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
     const now = new Date().toISOString();
     update((d) => {
       const x = d.meetings.find((y) => y.id === s1.id)!;
-      // Excusés annoncés (ordre du jour, « Je m'excuse ») : enregistrés dans le PV validé, comme affichés.
-      const mm: MeetingMinutes = { ...withExcuses({ ...EMPTY_MINUTES, ...x.minutes }, x.excuses), valideLe: now, validePar: user.id, version: n, enCorrection: false };
+      // Excusés et motifs annoncés (ordre du jour, « Je serai absent(e) / en retard ») : enregistrés dans le PV validé, comme affichés.
+      const mm: MeetingMinutes = { ...avecAnnonces({ ...EMPTY_MINUTES, ...x.minutes }, x), valideLe: now, validePar: user.id, version: n, enCorrection: false };
       delete mm.tachesAvant;
       // Fichiers joints : le choix du moment est fixé (l'ordre du jour peut encore changer).
       mm.annexesExclues = mm.annexesExclues ?? x.odjAnnexesExclues ?? [];
@@ -745,6 +779,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
         <p><b>Début de séance :</b> {hm(m.heureDebut ?? s1?.heure) || '—'}{m.heureFin && <> · <b>Fin :</b> {hm(m.heureFin)}</>}</p>
         <p><b>Lieu :</b> {s1 ? <LieuSeance m={s1} /> : 'à définir'}</p>
         <p><b>Présents :</b> {presentsTxt}</p>
+        {retardsTxt && <p><b>En retard :</b> {retardsTxt}</p>}
         <p><b>Excusés :</b> {excusesTxt}</p>
         {absents.length > 0 && (m.presents.length > 0 || m.excuses.length > 0) && <p><b>Absents :</b> {absents.map((p) => fullName(p)).join(', ')}</p>}
         {m.invites?.trim() && <p><b>Invités :</b> {m.invites.trim()}</p>}
@@ -925,18 +960,40 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
             <section className="panel">
               <h2 className="min-h2">Présences</h2>
               <div className="min-presence">
-                {committee.map((p) => (
-                  <div key={p.id} className="min-person">
-                    <span>{fullName(p)} <span className="muted">({initials(p)})</span></span>
-                    <span className="seg small">
-                      <button disabled={!editable} className={m.presents.includes(p.id) ? 'on present' : ''} onClick={() => setPresence(p.id, 'present')}>Présent</button>
-                      <button disabled={!editable} className={m.excuses.includes(p.id) ? 'on excuse' : ''} onClick={() => setPresence(p.id, 'excuse')}>Excusé</button>
-                    </span>
-                  </div>
-                ))}
+                {committee.map((p) => {
+                  const etat = presenceDe(m, p.id);
+                  const annonce = annonceDe(s1, p.id);
+                  return (
+                    <div key={p.id} className="min-person">
+                      <span>{fullName(p)} <span className="muted">({initials(p)})</span></span>
+                      <span className="seg small">
+                        <button disabled={!editable} className={etat === 'present' ? 'on present' : ''} onClick={() => setPresence(p.id, 'present')}>Présent</button>
+                        <button disabled={!editable} className={etat === 'retard' ? 'on retard' : ''} onClick={() => setPresence(p.id, 'retard')} title="Arrivé(e) après le début de la séance">Retard</button>
+                        <button disabled={!editable} className={etat === 'excuse' ? 'on excuse' : ''} onClick={() => setPresence(p.id, 'excuse')}>Excusé</button>
+                      </span>
+                      {retardsAttendus.has(p.id) && annonce && (
+                        <small className="min-annonce muted">
+                          <Icone n="horloge" /> Retard annoncé{annonce.vers ? ` (arrivée vers ${hm(annonce.vers)})` : ''}{annonce.motif ? ` – ${annonce.motif}` : ''}
+                        </small>
+                      )}
+                      {(etat === 'retard' || etat === 'excuse') && (
+                        <span className="min-motif">
+                          {etat === 'retard' && (
+                            <ChampValide type="time" valeur={m.retards?.[p.id] ?? ''} onValider={(v) => setArrivee(p.id, v)} readOnly={!editable} aria-label={`Arrivée de ${fullName(p)}`} title="Heure d’arrivée" />
+                          )}
+                          <ChampValide valeur={m.motifs?.[p.id] ?? ''} onValider={(v) => setMotif(p.id, v)} readOnly={!editable} placeholder="Motif (facultatif)" aria-label={`Motif de ${fullName(p)}`} maxLength={120} />
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
               <div className="row">
-                {editable && <button className="btn small" onClick={() => setMinutes((x) => { x.presents = committee.map((p) => p.id).filter((id) => !x.excuses.includes(id)); }, { annulable: 'Présences : tous présents' })}>Tous présents (sauf excusés)</button>}
+                {editable && (
+                  <button className="btn small" onClick={() => setMinutes((x) => { x.presents = committee.map((p) => p.id).filter((id) => !x.excuses.includes(id) && (x.presents.includes(id) || !retardsAttendus.has(id))); }, { annulable: 'Présences : tous présents' })}>
+                    Tous présents (sauf excusés{retardsAttendus.size ? ' et retards annoncés' : ''})
+                  </button>
+                )}
                 <input className="grow" placeholder="Invités / autres personnes présentes" value={m.invites ?? ''} readOnly={!editable} onChange={(e) => setMinutes((x) => { x.invites = e.target.value; })} />
               </div>
             </section>
@@ -987,7 +1044,7 @@ Les excuses annoncées restent. « Annuler » (en haut) permet de revenir en arr
             {projection && <PiecesJointesPoint point={enCours && { nom: enCours.nom, tache: enCours.id ? data.tasks.find((x) => x.id === enCours.id) : undefined }} />}
             <div className="panel min-suivi">
               <h2 className="min-h2">Suivi de la séance</h2>
-              <p>{m.presents.length} présent(s) · {m.excuses.length} excusé(s)</p>
+              <p>{m.presents.length} présent(s){retardsTxt ? ` dont ${Object.keys(m.retards ?? {}).filter((id) => m.presents.includes(id)).length} en retard` : ''} · {m.excuses.length} excusé(s)</p>
               <p>{Object.keys(m.notes).length} note(s)</p>
               <p>{new Set(journal.map((j) => j.taskId)).size} point(s) mis à jour</p>
               <p>{newTasks.length} nouveau(x) point(s)</p>
