@@ -17,6 +17,7 @@ import { motSeance } from '../data/seances';
 import { Icone, type IconeNom } from '../components/icones';
 import { ExportAgenda } from '../components/ExportAgenda';
 import { etiquettesDatees } from '../data/agendaIcs';
+import { pointsDeLaDate } from '../data/newsletter';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
@@ -169,13 +170,17 @@ export function Calendar() {
     addEvent && { kind: 'event' as const, label: 'Événement' },
   ].filter(Boolean) as { kind: 'meeting' | 'task' | 'event'; label: string }[];
 
+  // La newsletter du club (ou une de ses dates modifiée seule) : son icône ; un clic montre les remarques de ses points.
+  const estNewsletter = (e: ClubEvent) => !!e.newsletter || !!(e.serie && data.events.find((x) => x.id === e.serie!.id)?.newsletter);
+  const icone = (it: Item): IconeNom => (it.kind === 'event' && estNewsletter(it.e) ? 'newsletter' : ICONE[it.kind]);
+
   const open = (it: Item) => {
     if (it.kind === 'task') setTask({ t: it.t, isNew: false });
     else if (it.kind === 'meeting') {
       if (addMeeting) setMeeting(it.m);
       else navigate(`/comite?seance=${encodeURIComponent(it.m.id)}`);
     }
-    else if (it.kind === 'event') (addEvent ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : setChrono({ serie: it.e, date: it.o }));
+    else if (it.kind === 'event') (addEvent && !estNewsletter(it.e) ? setEvent({ e: it.e, jour: it.e.repetition ? it.o : undefined }) : setChrono({ serie: it.e, date: it.o }));
     // Étiquette « événement » : la chronologie de ses points.
     else if (it.kind === 'etiquette') setChrono({ date: it.et.date!, etiquette: it.et });
     else navigate(`/sondages?id=${encodeURIComponent(it.p.id)}`);
@@ -230,6 +235,10 @@ export function Calendar() {
       case 'meeting': return `Séance : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
       case 'event': {
         const x = aLaDate(it.e, it.o);
+        if (estNewsletter(it.e)) {
+          const n = pointsDeLaDate(data.tasks, it.e, it.o).filter(canSeeTask).length;
+          return `Newsletter : ${[it.e.nom, fmtRange(x.date, x.dateFin), `${n} point${n > 1 ? 's' : ''}`].join(' · ')} · un clic montre leurs remarques`;
+        }
         return `Événement : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
       }
       case 'task': {
@@ -340,7 +349,7 @@ export function Calendar() {
                       onDragEnd={() => { setDrag(null); setOver(null); }}
                       onClick={(e) => { e.stopPropagation(); setSelected(d); open(it); }}
                     >
-                      {chipText(it)}
+                      {it.kind === 'event' && estNewsletter(it.e) && <><Icone n="newsletter" />{' '}</>}{chipText(it)}
                     </button>
                   ))}
                   {items.length > MAX_CHIPS && <span className="cal-more">+{items.length - MAX_CHIPS} autre{items.length - MAX_CHIPS > 1 ? 's' : ''}</span>}
@@ -366,7 +375,7 @@ export function Calendar() {
                   <button className={`cal-row k-${it.kind}`} style={it.kind === 'etiquette' ? chipStyle(it) : undefined} onClick={() => open(it)}>
                     <span className="cal-row-main">
                       <strong className={it.kind === 'task' && isDone(data, it.t) ? 'strike' : ''}>
-                        <Icone n={ICONE[it.kind]} /> {chipText(it)}
+                        <Icone n={icone(it)} /> {chipText(it)}
                       </strong>
                       <small className="muted">
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}

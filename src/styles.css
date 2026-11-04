@@ -2179,6 +2179,22 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .chrono-aujourdhui::after { content: ''; position: absolute; left: calc(var(--chrono-quand) + 36px); right: 0; top: 13px; border-top: 2px dashed color-mix(in srgb, var(--primary) 45%, transparent); pointer-events: none; }
 .chrono-aujourdhui .chrono-corps { background: var(--surface); padding-right: 8px; position: relative; z-index: 1; justify-self: start; font-size: 0.85rem; }
 .chrono-note { font-size: 0.82rem; margin: 10px 0 0; }
+/* Chronologie ou Remarques (titre, remarque en entier et documents de chaque point ; la newsletter s'ouvre ainsi). */
+.chrono-vues { margin: 0 0 10px; }
+.chrono-vues .chip { display: inline-flex; align-items: center; gap: 4px; }
+.remarques-tete { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 8px; }
+.remarques-tete .btn { display: inline-flex; align-items: center; gap: 4px; }
+.remarques-liste { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.remarques-liste > li { display: flex; flex-direction: column; gap: 4px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.remarques-liste > li.fait .chrono-titre { color: var(--muted); }
+.remarque-texte { margin: 2px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.remarque-vide { margin: 2px 0 0; font-size: 0.85rem; font-style: italic; }
+.remarque-docs { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 0.88rem; }
+.remarque-docs a, .remarque-docs .link-btn { display: inline-flex; align-items: center; gap: 4px; font-size: inherit; }
+/* Fiche d'un événement : case « Newsletter du club », son explication dessous. */
+.case-newsletter { align-items: flex-start; }
+.case-newsletter > span { display: flex; flex-direction: column; gap: 2px; }
+.case-newsletter small { font-weight: 400; }
 @media (max-width: 767px) {
   .chrono-liste { --chrono-quand: 72px; }
   .chrono-aujourdhui .chrono-quand b { font-size: 0.74rem; }

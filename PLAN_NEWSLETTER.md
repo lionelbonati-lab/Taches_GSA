@@ -19,7 +19,7 @@ Rien de nouveau dans les données : pas de nouveau type, pas de migration, rien 
 ## Ce qui marche déjà aujourd'hui
 
 1. **Créer la newsletter** : Agenda › Événements › **+ Nouvel événement**, nom « Newsletter », Répétition
-   **Tous les mois**. Elle est alors dans l'agenda chaque mois, ainsi que dans l'export `.ics` et le lien d'abonnement.
+   **Tous les mois**, case **« Newsletter du club »** cochée (ajoutée par la partie 1). Elle est alors dans l'agenda chaque mois, ainsi que dans l'export `.ics` et le lien d'abonnement.
 2. **Rattacher une info à une édition** : dans la fiche d'un point, **Pour quand ? › Newsletter**, puis le champ
    **Occurrence** pour choisir l'édition (par exemple le 01.02.2027). Le texte de l'info s'écrit dans la **remarque**.
    Le délai du point devient la date de la newsletter, et il suit cette date si l'édition est déplacée.
@@ -41,8 +41,7 @@ un bouton **« Remarques »** qui montre, pour **cette édition seulement** :
 - chaque point : son **titre**, puis sa **remarque** en entier, ses fichiers et liens (images, affiche…) et qui l'a
   proposé ;
 - les points sont dans l'ordre de la liste des points (section, sous-section) ;
-- un bouton **Copier**, qui copie tous les titres et toutes les remarques, prêts à coller dans l'outil d'envoi ;
-- un bouton **Imprimer / PDF**.
+- un bouton **Copier**, qui copie tous les titres et toutes les remarques, prêts à coller dans l'outil d'envoi.
 
 Les points d'une édition sont ceux calés sur cette date (Occurrence). Ceux qui sont rattachés à la newsletter avec
 une date fixe vont dans l'édition qui suit leur délai.
@@ -86,8 +85,27 @@ Fichier : `src/pages/Agenda.tsx` (carte d'un événement).
 Une seule session suffit pour 1 et 3 ; le raccourci (2) peut suivre dans la même session ou plus tard. Règles
 habituelles : publier à la fin, tests Playwright, données fictives seulement. **Environ 1 à 2 M tokens** en tout.
 
-## À confirmer
+## Décisions (04.11.2026)
 
-1. **Le texte de l'info dans la remarque du point** : est-ce bien ce que tu imagines ?
-2. **Le raccourci 📰 depuis un événement** (partie 2) : le faire maintenant, ou attendre de voir à l'usage ?
-3. **Les points de la newsletter à l'ordre du jour** : ça te va, ou il faut les en retirer ?
+1. Le texte de l'info est la **remarque du point** : oui.
+2. Le **raccourci depuis un événement** (partie 2) : oui, tout de suite.
+3. Les points de la newsletter restent à l'**ordre du jour** : oui, c'est bien ainsi.
+
+## Fait (04.11.2026)
+
+Parties 1, 2 et 3, dans la démo. Rien sur le serveur : pas de migration ni de déploiement.
+
+- **Case « Newsletter du club »** dans la fiche d'un événement (`ClubEvent.newsletter`). C'est ainsi que l'appli sait
+  quel événement est la newsletter. Démo : l'événement « Newsletter », le 1er de chaque mois. Il n'apparaît qu'après
+  « Réinitialiser la démo » pour un navigateur qui avait déjà la démo.
+- **`src/data/newsletter.ts`** : la newsletter du club, ses éditions, l'édition où annoncer un événement, les points
+  d'une date, le point prérempli et le texte à copier.
+- **Chronologie** : deux affichages, **Chronologie** et **Remarques**. « Remarques » : chaque point de la date, avec
+  sa remarque en entier, ses fichiers et ses liens. Boutons **Copier** (titres, remarques et liens) et
+  **Ajouter un point**. La newsletter s'ouvre sur ses remarques.
+- **Carte d'un événement à venir** : le bouton **Newsletter** (icône seule sur téléphone). Il ouvre un point prérempli,
+  rangé chez l'événement et calé sur la dernière édition avant lui. S'il est trop tard, l'appli prend l'édition
+  suivante et affiche un avertissement.
+- **Calendrier** : la newsletter avec son icône. Un clic montre ses remarques, même pour qui gère les événements.
+- **Aide et README** : quelques lignes « Newsletter ». Un test Playwright couvre le parcours.
+- **Pas fait** : « Imprimer / PDF » des remarques. « Copier » suffit pour l'instant.

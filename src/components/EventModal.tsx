@@ -151,6 +151,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
     nom: v.nom.trim(),
     heure: journee ? undefined : v.heure,
     heureFin: journee || !v.heureFin ? undefined : v.heureFin,
+    newsletter: v.newsletter || undefined,
   });
   const submit = () => {
     const bad = verifier();
@@ -337,6 +338,18 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
           Description
           <ZoneTexte rows={4} value={v.description} onChange={(e) => set({ description: e.target.value })} />
         </label>
+        {!event.serie && (
+          <label className="inline full case-newsletter">
+            <input type="checkbox" checked={!!v.newsletter} onChange={(e) => set({ newsletter: e.target.checked || undefined })} />
+            <span>
+              <Icone n="newsletter" /> Newsletter du club
+              <small className="muted">
+                Chaque date est une édition : on y rattache des points (bouton « Newsletter » des événements, ou « Pour quand ? »),
+                et « Remarques » liste leurs remarques pour la préparer.
+              </small>
+            </span>
+          </label>
+        )}
       </div>
       {can('events.manage') && !event.serie && (
         <div className="form">
