@@ -20,6 +20,29 @@ export const isCouleur = (s?: string | null): s is string => !!s && /^#[0-9a-f]{
 type Rgb = [number, number, number];
 const rgb = (hex: string): Rgb => [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as Rgb;
 const hex = (c: Rgb) => `#${c.map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+
+/** Teinte (0–360), saturation et luminosité (0–100) d'une couleur #rrggbb (noir si elle n'en est pas une). */
+export function versTsl(couleur: string): [number, number, number] {
+  const [r, g, b] = (isCouleur(couleur) ? rgb(couleur) : NOIR).map((v) => v / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  const d = max - min;
+  if (!d) return [0, 0, Math.round(l * 100)];
+  const s = d / (1 - Math.abs(2 * l - 1));
+  const h = max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [Math.round(h * 60) % 360, Math.round(s * 100), Math.round(l * 100)];
+}
+
+/** Couleur #rrggbb d'une teinte (0–360), d'une saturation et d'une luminosité (0–100). */
+export function deTsl(h: number, s: number, l: number): string {
+  const S = s / 100;
+  const L = l / 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = S * Math.min(L, 1 - L);
+  const f = (n: number) => L - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  return hex([f(0), f(8), f(4)].map((v) => Math.round(v * 255)) as Rgb);
+}
 const mix = (a: Rgb, b: Rgb, t: number): Rgb => a.map((v, i) => Math.round(v + (b[i] - v) * t)) as Rgb;
 const lum = (c: Rgb) => {
   const [r, g, b] = c.map((v) => {

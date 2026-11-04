@@ -235,8 +235,16 @@ export function BadgeEtiquette({ e, sansNom }: { e: Etiquette; sansNom?: boolean
  * Choix de l'icône d'une étiquette : l'actuelle dans sa couleur, et la bibliothèque (par thème, avec recherche) à déplier.
  * `icone` absente : celle de sa sorte.
  */
-export function ChoixIconeEtiquette({ e, disabled, onChange }: { e: Etiquette; disabled?: boolean; onChange: (icone: string | undefined) => void }) {
-  const [ouvert, setOuvert] = useState(false);
+export function ChoixIconeEtiquette({ e, disabled, onChange, ouvert: ouvertAuDepart, onFermer }: {
+  e: Etiquette;
+  disabled?: boolean;
+  onChange: (icone: string | undefined) => void;
+  /** La bibliothèque dépliée d'emblée (un clic sur la pastille de l'étiquette). */
+  ouvert?: boolean;
+  /** « Fermer la bibliothèque » : referme aussi ce qui l'a ouverte. */
+  onFermer?: () => void;
+}) {
+  const [ouvert, setOuvert] = useState(!!ouvertAuDepart);
   const [q, setQ] = useState('');
   const actuelle = e.icone && ICONES_BIBLIO[e.icone] ? e.icone : undefined;
   const defaut = PAR_DEFAUT[sorteDe(e)];
@@ -272,7 +280,7 @@ export function ChoixIconeEtiquette({ e, disabled, onChange }: { e: Etiquette; d
           <IconeEtiquette e={{ ...e, icone: actuelle }} />
         </span>
         <span>{actuelle ? nom : <span className="muted">Par défaut : {nom}</span>}</span>
-        <button type="button" className="btn small" disabled={disabled} aria-expanded={ouvert} aria-label={`Icône de l’étiquette ${e.nom}`} onClick={() => setOuvert(!ouvert)}>
+        <button type="button" className="btn small" disabled={disabled} aria-expanded={ouvert} aria-label={`Icône de l’étiquette ${e.nom}`} onClick={() => (ouvert && onFermer ? onFermer() : setOuvert(!ouvert))}>
           {ouvert ? 'Fermer la bibliothèque' : 'Choisir une icône…'}
         </button>
         {actuelle && !ouvert && (

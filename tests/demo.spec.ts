@@ -1933,6 +1933,97 @@ test('console admin : trier les sections ; l’ordre du jour suit, gardé après
   expect(await noms()).toEqual(apres);
 });
 
+test('étiquette déjà créée : sa couleur retouchée à partir de l’actuelle, son icône changée deux fois', async ({ page }) => {
+  const etiquette = () => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).etiquettes.find((e: { id: string }) => e.id === 'et-u-competition'));
+  const depart = (await etiquette()).couleur;
+  expect(depart).toBe('#ea580c');
+  await allerA(page, '/etiquettes');
+  const ligne = page.locator('.groupe-section', { has: page.getByLabel('Groupe : la section Groupe compétition est une étiquette') });
+
+  // Les curseurs partent de la couleur actuelle (pas de zéro).
+  await ligne.getByRole('button', { name: 'Changer la couleur (Groupe compétition)' }).click();
+  const choix = ligne.getByRole('group', { name: 'Couleur de l’étiquette Groupe compétition' });
+  await expect(choix.getByLabel('Teinte')).toHaveValue('21');
+  await expect(choix.getByLabel('Saturation')).toHaveValue('90');
+  await expect(choix.getByLabel('Luminosité')).toHaveValue('48');
+  await expect(choix.getByLabel('Code de la couleur de Groupe compétition')).toHaveValue('#ea580c');
+
+  // Un peu plus foncée : même teinte, enregistrée une fois le curseur lâché.
+  await choix.getByLabel('Luminosité').fill('40');
+  await expect(choix.getByLabel('Teinte')).toHaveValue('21');
+  const foncee = await choix.getByLabel('Code de la couleur de Groupe compétition').inputValue();
+  expect(foncee).not.toBe(depart);
+  await expect.poll(async () => (await etiquette()).couleur).toBe(foncee);
+  await expect(choix).toContainText(`avant : ${depart}`);
+  await choix.getByRole('button', { name: /Revenir à la couleur d’avant/ }).click();
+  await expect.poll(async () => (await etiquette()).couleur).toBe(depart);
+  await choix.getByLabel('Code de la couleur de Groupe compétition').fill('#0f766e');
+  await choix.getByRole('button', { name: 'OK' }).click();
+  await expect(choix).toHaveCount(0);
+  await expect.poll(async () => (await etiquette()).couleur).toBe('#0f766e');
+  // Rouvert : les curseurs partent de la nouvelle couleur.
+  await ligne.getByRole('button', { name: 'Changer la couleur (Groupe compétition)' }).click();
+  await expect(choix.getByLabel('Code de la couleur de Groupe compétition')).toHaveValue('#0f766e');
+  await expect(choix.getByLabel('Teinte')).not.toHaveValue('0');
+  await choix.getByRole('button', { name: 'OK' }).click();
+
+  // Un clic sur l'étiquette ouvre la bibliothèque d'icônes ; une deuxième fois, pour en changer.
+  for (const [cherche, nom, cle] of [['vtt', 'VTT', 'vtt'], ['course', 'Course à pied', 'course']]) {
+    await ligne.getByRole('button', { name: 'Changer l’icône (Groupe compétition)' }).click();
+    await ligne.getByLabel('Chercher une icône').fill(cherche);
+    await ligne.getByRole('radio', { name: nom, exact: true }).click();
+    await expect.poll(async () => (await etiquette()).icone).toBe(cle);
+    await expect(ligne.getByLabel('Chercher une icône')).toHaveCount(0);
+  }
+});
+
+test('copier un événement à venir : la copie à la date choisie, avec ses points à faire, délais décalés', async ({ page }) => {
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Course de côte dans 30 jours (deux jours) ; un point lié, 7 jours avant, commencé, checklist cochée.
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    const enCours = d.statuses.filter((s: { done: boolean }) => !s.done)[1].id;
+    d.events.push({ id: 'e-cote', nom: 'Course de côte', date: j.date, dateFin: j.fin, lieu: 'Fontenais', description: '' });
+    d.tasks.push({
+      id: 't-cote', sectionId: d.sections[0].id, sousSection: '', titre: 'Réserver la route', responsables: [moi], statusId: enCours, delai: j.avant, eventId: 'e-cote',
+      delaiRef: { type: 'event', joursAvant: 7, unite: 'jours' }, remarque: '', checklist: [{ id: 'c1', label: 'Demande à la commune', done: true }], createdBy: moi, updatedAt: new Date().toISOString(),
+    });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, { k: cle, j: { date: dansJours(30), fin: dansJours(31), avant: dansJours(23) } });
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+
+  const carte = page.locator('main .agenda').first().locator('.agenda-item', { hasText: 'Course de côte' });
+  await expect(carte.getByRole('button', { name: 'Reprendre' })).toHaveCount(0);
+  await carte.getByRole('button', { name: 'Copier' }).click();
+  const copie = page.getByRole('dialog', { name: 'Copier « Course de côte »' });
+  await expect(copie.getByLabel('Premier jour')).toHaveValue('');
+  await copie.getByLabel('Premier jour').fill(dansJours(60));
+  await expect(copie.getByLabel('Dernier jour')).toHaveValue(dansJours(61));
+  await copie.getByLabel('Nom', { exact: true }).fill('Course de côte (manche 2)');
+  const ligne = copie.locator('.anciennes-liste li', { hasText: 'Réserver la route' });
+  await expect(ligne.locator('input')).toBeChecked();
+  await expect(ligne).toContainText('(7 jours avant)');
+  await copie.getByRole('button', { name: 'Copier avec 1 point' }).click();
+
+  // La copie du point : à faire, 7 jours avant la nouvelle date, checklist décochée ; l'original n'a pas changé.
+  await expect(page).toHaveURL(/#\/taches\?event=/);
+  const donnees = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle);
+  const ev = donnees.events.find((x: { nom: string }) => x.nom === 'Course de côte (manche 2)');
+  expect(ev).toMatchObject({ date: dansJours(60), dateFin: dansJours(61), lieu: 'Fontenais', repriseDe: 'e-cote' });
+  const points = donnees.tasks.filter((x: { titre: string }) => x.titre === 'Réserver la route');
+  expect(points).toHaveLength(2);
+  const nouveau = points.find((x: { id: string }) => x.id !== 't-cote');
+  const ouvert = donnees.statuses.find((s: { done: boolean }) => !s.done).id;
+  expect(nouveau).toMatchObject({ eventId: ev.id, delai: dansJours(53), statusId: ouvert, checklist: [{ label: 'Demande à la commune', done: false }] });
+  expect(points.find((x: { id: string }) => x.id === 't-cote')).toMatchObject({ eventId: 'e-cote', delai: dansJours(23) });
+
+  await page.goto('./?demo#/evenements');
+  await expect(page.locator('.agenda-item', { hasText: 'Course de côte' }).first().locator('.reprise')).toContainText('Copie : Course de côte (manche 2)');
+});
+
 const champSection = (fiche: ReturnType<Page['locator']>) => fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first();
 const champSousSection = (fiche: ReturnType<Page['locator']>) => fiche.locator('label', { hasText: /^\s*Sous-section/ }).locator('select').first();
 const lireDonnees = (page: Page) => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));

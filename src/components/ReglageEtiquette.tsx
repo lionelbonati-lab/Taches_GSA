@@ -4,7 +4,8 @@ import { Icone } from './icones';
 import { cleEtiquette, commentairesEtiquette, nonLus } from '../data/commentaires';
 import { useStore } from '../data/store';
 import type { ClubEvent, Etiquette, Section } from '../data/types';
-import { fmtRange, fullName } from '../data/utils';
+import { COULEURS, fmtRange, fullName } from '../data/utils';
+import { COULEURS_APPLI, deTsl, isCouleur, versTsl } from '../data/couleur';
 import { hasPermission, userRoles } from '../data/permissions';
 import {
   aReprendre, etiquetteDeLaSection, etiquetteDeLEvenement, etiquetteDuComite, etiquettesAReprendre, lieuxDe, nomLieu, reglerComite,
@@ -15,25 +16,106 @@ import { BadgeEtiquette, ChoixIconeEtiquette } from './IconesEtiquette';
 // Pièces communes du réglage des étiquettes : la case « Étiquette » d'un événement, la coche « Groupe » d'une section,
 // leurs membres, leur couleur (etiquettes.ts).
 
-/** Couleur d'une étiquette : enregistrée une fois choisie (pas à chaque mouvement dans la palette). */
-export function CouleurEtiquette({ valeur, onChange, disabled, label }: { valeur: string; onChange: (c: string) => void; disabled?: boolean; label: string }) {
-  const [c, setC] = useState(valeur);
+/** Couleurs proposées pour une étiquette. */
+const PROPOSEES = [...new Set([...COULEURS, ...COULEURS_APPLI.map((x) => x.c)])];
+
+/**
+ * Couleur d'une étiquette, choisie dans l'appli (le sélecteur des appareils ne repart pas toujours de la couleur
+ * actuelle) : teinte, saturation et luminosité partent de la couleur actuelle, pour la retoucher un peu ; son code
+ * (#rrggbb) ; des couleurs proposées ; « Revenir à la couleur d'avant ». Enregistrée une fois choisie (pas à chaque
+ * mouvement des curseurs), et en fermant.
+ */
+export function CouleurEtiquette({ e, onChange, onFermer }: { e: Etiquette; onChange: (c: string) => void; onFermer: () => void }) {
+  const avant = useRef(e.couleur);
+  // Couleur choisie (son code) et position des curseurs : gardée à part, pour ne pas perdre la teinte d'un gris.
+  const [couleur, setCouleur] = useState(e.couleur);
+  const [tsl, setTsl] = useState(() => versTsl(e.couleur));
+  const [code, setCode] = useState(e.couleur);
+  const envoyee = useRef(e.couleur);
+  const derniere = useRef(e.couleur);
   const minuterie = useRef<ReturnType<typeof setTimeout>>();
-  useEffect(() => setC(valeur), [valeur]);
-  useEffect(() => () => clearTimeout(minuterie.current), []);
-  const envoyer = (x: string) => {
+  const envoyer = () => {
     clearTimeout(minuterie.current);
-    if (x !== valeur) onChange(x);
+    minuterie.current = undefined;
+    if (derniere.current !== envoyee.current) {
+      envoyee.current = derniere.current;
+      onChange(derniere.current);
+    }
   };
+  const envoyerRef = useRef(envoyer);
+  envoyerRef.current = envoyer;
+  // En fermant : la couleur pas encore enregistrée l'est.
+  useEffect(() => () => envoyerRef.current(), []);
+  // Changée ailleurs (Annuler, autre appareil) : les curseurs la reprennent.
+  useEffect(() => {
+    if (e.couleur === envoyee.current) return;
+    envoyee.current = derniere.current = e.couleur;
+    setCouleur(e.couleur);
+    setCode(e.couleur);
+    setTsl(versTsl(e.couleur));
+  }, [e.couleur]);
+  const choisir = (c: string, o: { tsl?: [number, number, number]; tout?: boolean } = {}) => {
+    derniere.current = c;
+    setCouleur(c);
+    setCode(c);
+    setTsl(o.tsl ?? versTsl(c));
+    clearTimeout(minuterie.current);
+    if (o.tout) envoyer();
+    else minuterie.current = setTimeout(envoyer, 600);
+  };
+  const [h, s, l] = tsl;
+  const curseur = (nom: string, i: 0 | 1 | 2, max: number, fond: string) => (
+    <label className="couleur-curseur">
+      <span>{nom}</span>
+      <input type="range" min={0} max={max} value={tsl[i]} style={{ background: fond }}
+        onChange={(ev) => {
+          const x = [...tsl] as [number, number, number];
+          x[i] = Number(ev.target.value);
+          choisir(deTsl(...x), { tsl: x });
+        }} />
+    </label>
+  );
+  const teintes = [0, 60, 120, 180, 240, 300, 360].map((x) => `hsl(${x} ${s}% ${l}%)`).join(', ');
   return (
-    <input type="color" value={c} disabled={disabled} aria-label={label}
-      onChange={(e) => {
-        const x = e.target.value;
-        setC(x);
-        clearTimeout(minuterie.current);
-        minuterie.current = setTimeout(() => envoyer(x), 700);
-      }}
-      onBlur={() => envoyer(c)} />
+    <div className="couleur-etiquette" role="group" aria-label={`Couleur de l’étiquette ${e.nom}`}>
+      <div className="row wrap couleur-apercu">
+        <BadgeEtiquette e={{ ...e, couleur }} />
+        {couleur !== avant.current && (
+          <small className="muted">
+            avant : <span className="couleur-pastille" style={{ background: avant.current }} aria-hidden /> {avant.current}
+          </small>
+        )}
+      </div>
+      {curseur('Teinte', 0, 360, `linear-gradient(to right, ${teintes})`)}
+      {curseur('Saturation', 1, 100, `linear-gradient(to right, hsl(${h} 0% ${l}%), hsl(${h} 100% ${l}%))`)}
+      {curseur('Luminosité', 2, 100, `linear-gradient(to right, hsl(${h} ${s}% 0%), hsl(${h} ${s}% 50%), hsl(${h} ${s}% 100%))`)}
+      <div className="row wrap couleur-codes">
+        <label className="inline">
+          Code
+          <input className="couleur-code" value={code} maxLength={7} spellCheck={false} aria-label={`Code de la couleur de ${e.nom}`}
+            onChange={(ev) => {
+              const v = ev.target.value.trim();
+              setCode(v);
+              const x = (v.startsWith('#') ? v : `#${v}`).toLowerCase();
+              if (isCouleur(x)) choisir(x);
+            }}
+            onBlur={() => setCode(couleur)}
+            onKeyDown={(ev) => ev.key === 'Enter' && ev.currentTarget.blur()} />
+        </label>
+        <span className="couleur-proposees">
+          {PROPOSEES.map((c) => (
+            <button key={c} type="button" className={`couleur-pastille choix ${c === couleur ? 'on' : ''}`} style={{ background: c }} title={c} aria-label={`Couleur ${c}`} aria-pressed={c === couleur}
+              onClick={() => choisir(c, { tout: true })} />
+          ))}
+        </span>
+      </div>
+      <div className="row wrap">
+        {couleur !== avant.current && (
+          <button type="button" className="btn small link" onClick={() => choisir(avant.current, { tout: true })}><Icone n="revenir" /> Revenir à la couleur d’avant</button>
+        )}
+        <button type="button" className="btn small" onClick={onFermer}>OK</button>
+      </div>
+    </div>
   );
 }
 
@@ -120,14 +202,16 @@ const nbPoints = (data: { tasks: { etiquettes?: string[] }[] }, e: Etiquette) =>
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
 
 /**
- * Une étiquette réglée : sa pastille, sa couleur, ses membres et ses points ; dépliée, son icône et ses membres.
- * `onMembres` : enregistre les membres (selon la sorte : événement, groupe, comité).
+ * Une étiquette réglée : sa couleur et sa pastille (un clic sur chacune pour la changer), ses membres et ses points ;
+ * dépliée, son icône et ses membres. `onMembres` : enregistre les membres (selon la sorte : événement, groupe, comité).
  */
 export function EtiquetteReglee({ e, peut, onMembres, detail, deplie }: { e: Etiquette; peut: boolean; onMembres: (m: string[]) => void; detail?: string; deplie?: boolean }) {
   const { data, user, update, discussionLueLe } = useStore();
   const navigate = useNavigate();
-  // Juste créée : dépliée, pour choisir ses membres.
-  const [ouvert, setOuvert] = useState(!!deplie);
+  // Une partie dépliée à la fois : sa couleur, son icône, ou ses membres (juste créée : ses membres, à choisir).
+  const [panneau, setPanneau] = useState<'couleur' | 'icone' | 'membres' | null>(deplie ? 'membres' : null);
+  const basculer = (p: typeof panneau) => setPanneau(panneau === p ? null : p);
+  const ouvert = panneau === 'membres';
   // Sa discussion (066) : pour ses membres ; les messages pas encore lus sur le bouton.
   const membre = !!user && !!e.membres?.includes(user.id);
   const aLire = membre ? nonLus(commentairesEtiquette(data, e.id), discussionLueLe(cleEtiquette(e.id)), user.id) : 0;
@@ -139,10 +223,18 @@ export function EtiquetteReglee({ e, peut, onMembres, detail, deplie }: { e: Eti
   return (
     <>
       <span className="etiquette-reglee">
-        <CouleurEtiquette valeur={e.couleur} disabled={!peut} label={`Couleur de l’étiquette ${e.nom}`} onChange={(c) => changer({ couleur: c }, 'couleur')} />
-        <BadgeEtiquette e={e} />
+        <button type="button" className="couleur-bouton" style={{ background: e.couleur }} disabled={!peut} aria-expanded={panneau === 'couleur'}
+          aria-label={`Changer la couleur (${e.nom})`} title="Changer la couleur" onClick={() => basculer('couleur')} />
+        {peut ? (
+          <button type="button" className="etiquette-badge-btn" aria-expanded={panneau === 'icone'} aria-label={`Changer l’icône (${e.nom})`} title="Changer l’icône"
+            onClick={() => basculer('icone')}>
+            <BadgeEtiquette e={e} /> <Icone n="modifier" />
+          </button>
+        ) : (
+          <BadgeEtiquette e={e} />
+        )}
         {detail && <small className="muted">{detail}</small>}
-        <button type="button" className="btn small" aria-expanded={ouvert} onClick={() => setOuvert(!ouvert)}>
+        <button type="button" className="btn small" aria-expanded={ouvert} onClick={() => basculer('membres')}>
           {pluriel(m, 'membre')} · {pluriel(nbPoints(data, e), 'point')}
         </button>
         {membre && (
@@ -152,6 +244,16 @@ export function EtiquetteReglee({ e, peut, onMembres, detail, deplie }: { e: Eti
           </button>
         )}
       </span>
+      {panneau === 'couleur' && peut && (
+        <div className="etiquette-detail">
+          <CouleurEtiquette e={e} onChange={(c) => changer({ couleur: c }, 'couleur')} onFermer={() => setPanneau(null)} />
+        </div>
+      )}
+      {panneau === 'icone' && peut && (
+        <div className="etiquette-detail">
+          <ChoixIconeEtiquette e={e} ouvert onFermer={() => setPanneau(null)} onChange={(icone) => { changer({ icone }, icone ? 'icône' : 'icône par défaut'); setPanneau(null); }} />
+        </div>
+      )}
       {ouvert && (
         <div className="etiquette-detail">
           <ChoixIconeEtiquette e={e} disabled={!peut} onChange={(icone) => changer({ icone }, icone ? 'icône' : 'icône par défaut')} />

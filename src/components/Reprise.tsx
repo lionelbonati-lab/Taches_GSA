@@ -14,13 +14,16 @@ const JOUR = /^\d{4}-\d{2}-\d{2}$/;
 /**
  * Reprendre un événement passé pour une nouvelle édition (reprise.ts) : son nom (années décalées), ses dates (un an plus
  * tard, le même jour de la semaine, ou celles données), les tâches à recopier (liées à l'événement : cochées, sauf les
- * récurrentes) et leurs responsables.
+ * récurrentes) et leurs responsables. `copie` : copier un événement pas encore passé, de la même façon, à une date à
+ * choisir (un autre événement du même genre, pour ne pas refaire ses points).
  */
-export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, onClose }: { event: ClubEvent; date?: string; dateFin?: string; onClose: () => void }) {
+export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, copie, onClose }: { event: ClubEvent; date?: string; dateFin?: string; copie?: boolean; onClose: () => void }) {
   const { data, user, can, update, setToast } = useStore();
   const navigate = useNavigate();
-  const [date, setDate] = useState(dateDonnee ?? dateReprise(e));
-  const [fin, setFin] = useState(finDonnee ?? (e.dateFin && e.dateFin > e.date ? addDays(date, diffDays(e.date, e.dateFin)) : ''));
+  const [date, setDate] = useState(dateDonnee ?? (copie ? '' : dateReprise(e)));
+  const duree = e.dateFin && e.dateFin > e.date ? diffDays(e.date, e.dateFin) : 0;
+  const [fin, setFin] = useState(finDonnee ?? (duree && JOUR.test(date) ? addDays(date, duree) : ''));
+  const verbe = copie ? 'Copier' : 'Reprendre';
   const ans = (d: string) => Number(d.slice(0, 4)) - Number(e.date.slice(0, 4));
   const [nom, setNom] = useState(() => nomReprise(e.nom, ans(date)));
   const [nomChoisi, setNomChoisi] = useState(false);
@@ -42,6 +45,7 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
   // Début déplacé : la fin suit (même durée) et le nom suit l'année, tant qu'on ne l'a pas changé.
   const changerDate = (d: string) => {
     if (JOUR.test(d) && JOUR.test(date) && fin) setFin(addDays(fin, diffDays(date, d)));
+    else if (JOUR.test(d) && !fin && duree) setFin(addDays(d, duree));
     setDate(d);
     if (JOUR.test(d) && !nomChoisi) setNom(nomReprise(e.nom, ans(d)));
   };
@@ -63,7 +67,7 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
       d.tasks = [...r.tasks, ...d.tasks];
       if (r.notifs.length) d.notifications = [...r.notifs, ...(d.notifications ?? [])].slice(0, 300);
       suiteEtiquette(d, e, r.event, r.tasks.map((t) => t.id), garderEtiquette);
-    }, `Reprise de l’événement « ${e.nom} » : « ${r.event.nom} » le ${fmtRange(r.event.date, r.event.dateFin)}${n ? `, ${n} point${n > 1 ? 's' : ''} repris` : ''}${etiquette ? (garderEtiquette ? ', avec son étiquette' : ', sans étiquette') : ''}`);
+    }, `${copie ? 'Copie' : 'Reprise'} de l’événement « ${e.nom} » : « ${r.event.nom} » le ${fmtRange(r.event.date, r.event.dateFin)}${n ? `, ${n} point${n > 1 ? 's' : ''} repris` : ''}${etiquette ? (garderEtiquette ? ', avec son étiquette' : ', sans étiquette') : ''}`);
     setToast(`✅ « ${r.event.nom} » ajouté${n ? ` avec ${n} point${n > 1 ? 's' : ''} à faire` : ''}.`);
     onClose();
     if (n) navigate(`/taches?event=${r.event.id}`);
@@ -107,15 +111,18 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
   };
 
   return (
-    <Modal title={`Reprendre « ${e.nom} »`} icone="dupliquer" onClose={onClose} wide>
+    <Modal title={`${verbe} « ${e.nom} »`} icone="dupliquer" onClose={onClose} wide>
       <p className="muted">
-        Une nouvelle édition, avec les points qui préparaient celle du {fmtRange(e.date, e.dateFin)}. Chaque point repart « à faire », au même écart de
+        {copie
+          ? `Un autre événement, à la date choisie, avec les points qui préparent celui du ${fmtRange(e.date, e.dateFin)} : pas besoin de les refaire.`
+          : `Une nouvelle édition, avec les points qui préparaient celle du ${fmtRange(e.date, e.dateFin)}.`}{' '}
+        Chaque point repart « à faire », au même écart de
         l’événement (« 30 jours avant », « la veille ») ; checklist décochée, sans discussion ni séance. Les fichiers joints restent ; emails et sondages ne
         suivent pas.
       </p>
       {deja && (
         <p className="reprise-deja">
-          <Icone n="alerte" /> Déjà reprise dans « {deja.nom} » ({fmtRange(deja.date, deja.dateFin)}) : reprendre de nouveau recopie ses points une seconde fois.
+          <Icone n="alerte" /> Déjà recopié dans « {deja.nom} » ({fmtRange(deja.date, deja.dateFin)}) : le recopier de nouveau recopie ses points une seconde fois.
         </p>
       )}
       <div className="form">
@@ -125,7 +132,7 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
         </label>
         <label>
           Premier jour
-          <input type="date" value={date} onChange={(x) => changerDate(x.target.value)} />
+          <input type="date" value={date} autoFocus={copie} onChange={(x) => changerDate(x.target.value)} />
         </label>
         <label>
           Dernier jour <small className="muted">(si plusieurs jours)</small>
@@ -142,7 +149,7 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
             <label className="inline">
               <input type="checkbox" checked={garderEtiquette} onChange={(x) => setGarderEtiquette(x.target.checked)} />
               <span>
-                Une étiquette pour la nouvelle édition, avec les mêmes membres ({etiquette.membres?.length ?? 0}), la même couleur et la même icône
+                Une étiquette pour {copie ? 'la copie' : 'la nouvelle édition'}, avec les mêmes membres ({etiquette.membres?.length ?? 0}), la même couleur et la même icône
               </span>
             </label>
             <small className="muted">
@@ -155,13 +162,13 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, o
         )}
       </div>
       {liees.length > 0 && groupe(`Points liés à « ${e.nom} »`, liees)}
-      {!liste.length && <p className="muted">Aucun point lié à cet événement : seul l’événement sera repris.</p>}
+      {!liste.length && <p className="muted">Aucun point lié à cet événement : seul l’événement sera {copie ? 'copié' : 'repris'}.</p>}
       {horsDroits > 0 && <p className="muted small-note">{horsDroits} point(s) lié(s) dans des sections où tu ne crées pas de points pour d’autres : pas proposé(s).</p>}
       {err && <p className="error">{err}</p>}
       <div className="modal-foot">
         <span className="grow" />
         <button className="btn" onClick={onClose}>Annuler</button>
-        <button className="btn primary" onClick={submit}>{choix.size ? `Reprendre avec ${choix.size} point${choix.size > 1 ? 's' : ''}` : 'Reprendre l’événement seul'}</button>
+        <button className="btn primary" onClick={submit}>{choix.size ? `${verbe} avec ${choix.size} point${choix.size > 1 ? 's' : ''}` : `${verbe} l’événement seul`}</button>
       </div>
     </Modal>
   );

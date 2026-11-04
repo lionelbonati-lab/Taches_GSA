@@ -455,7 +455,8 @@ export function Events() {
   const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string } | null>(null);
   const [nouveau, setNouveau] = useState(false);
   // Événement passé repris pour une nouvelle édition, avec ses tâches (Reprise.tsx).
-  const [reprise, setReprise] = useState<ClubEvent | null>(null);
+  // Reprendre un événement passé (nouvelle édition) ou en copier un à venir (`copie`).
+  const [reprise, setReprise] = useState<{ e: ClubEvent; copie: boolean } | null>(null);
   const [chrono, setChrono] = useState<CibleChrono | null>(null);
   const cible = useCible('id');
   // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
@@ -482,7 +483,7 @@ export function Events() {
         etiquette={et}
         cible={estCible(cible, serie.id)}
         onEdit={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}
-        onReprise={() => setReprise(serie)}
+        onReprise={(copie) => setReprise({ e: serie, copie })}
         onChrono={() => setChrono({ serie, date, etiquette: et })}
       />
     ) : (
@@ -508,7 +509,7 @@ export function Events() {
       )}
       {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
       {nouveau && <EventModal event={newEvent()} onClose={() => setNouveau(false)} />}
-      {reprise && <RepriseModal event={reprise} onClose={() => setReprise(null)} />}
+      {reprise && <RepriseModal event={reprise.e} copie={reprise.copie} onClose={() => setReprise(null)} />}
       {chrono && <Chronologie cible={chrono} onClose={() => setChrono(null)} />}
     </div>
   );
@@ -581,7 +582,7 @@ function CarteEtiquette({ et, onChrono }: { et: Etiquette; onChrono: () => void 
  * modifier, reprendre.
  */
 function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onChrono }: {
-  serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: () => void; onChrono: () => void;
+  serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: (copie: boolean) => void; onChrono: () => void;
 }) {
   const { data, can } = useStore();
   const jour = today();
@@ -608,7 +609,7 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
         {e.description && <p>{e.description}</p>}
         {etiquette && <EtiquetteCarte et={etiquette} />}
         <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
-        {suite && <p className="muted reprise"><Icone n="dupliquer" /> Reprise : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
+        {suite && <p className="muted reprise"><Icone n="dupliquer" /> {past ? 'Reprise' : 'Copie'} : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
       </div>
       <div className="agenda-actions">
         <BoutonChrono onClick={onChrono} />
@@ -616,11 +617,16 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
         {can('events.manage') && (
           <>
             <button className="btn small" onClick={onEdit}>Modifier</button>
-            {past && reprenable(serie) && (
-              <button className="btn small" onClick={onReprise} title="Nouvelle édition de cet événement, avec ses points">
-                <Icone n="dupliquer" /> Reprendre
-              </button>
-            )}
+            {reprenable(serie) &&
+              (past ? (
+                <button className="btn small" onClick={() => onReprise(false)} title="Nouvelle édition de cet événement, avec ses points">
+                  <Icone n="dupliquer" /> Reprendre
+                </button>
+              ) : (
+                <button className="btn small" onClick={() => onReprise(true)} title="Un autre événement à une autre date, avec les mêmes points (à faire)">
+                  <Icone n="dupliquer" /> Copier
+                </button>
+              ))}
           </>
         )}
       </div>
