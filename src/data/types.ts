@@ -382,6 +382,8 @@ export interface TaskSnapshot {
   titre: string;
   /** Sous-tâches : identifiant → faite. */
   sous?: Record<string, boolean>;
+  /** Remarque du point ('' : aucune). Absente : état noté avant qu'on la garde (PV figé avant le 05.11.2026). */
+  remarque?: string;
 }
 
 /** Point du PV tel qu'il était à la fin de la séance (MeetingMinutes.etats). */
@@ -457,6 +459,8 @@ export interface PvOptions {
   misesAJour?: boolean;
   /** Documents (fichiers et liens) de chaque point, nommés ; un clic les ouvre (défaut : oui). */
   documents?: boolean;
+  /** Remarque de chaque point, en gris sous lui (les notes de la séance ressortent) (défaut : oui). */
+  remarques?: boolean;
   /**
    * Fichiers liés aux points du PV joints en fin de PV (défaut : non) : liste des annexes, puis les photos et les pages
    * des PDF reproduites (1, 2 ou 4 par page) ; les liens et les autres fichiers sont nommés.

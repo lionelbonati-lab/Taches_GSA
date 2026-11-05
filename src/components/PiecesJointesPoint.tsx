@@ -17,9 +17,13 @@ export interface PointEnCours {
   tache?: Task;
 }
 
-export function PiecesJointesPoint({ point }: { point?: PointEnCours }) {
+/** Pièce jointe choisie, point par point (tâche → document), et son réglage : partagé entre la prise de notes et la fiche du PV. */
+export type ChoixPieces = [Record<string, string>, (c: Record<string, string>) => void];
+
+export function PiecesJointesPoint({ point, choix: partage }: { point?: PointEnCours; choix?: ChoixPieces }) {
   // Pièce jointe choisie, point par point (on la retrouve en revenant au point).
-  const [choix, setChoix] = useState<Record<string, string>>({});
+  const local = useState<Record<string, string>>({});
+  const [choix, setChoix] = partage ?? local;
   const t = point?.tache;
   const docs = t ? docsDuDocument(t) : [];
   const doc = (t && docs.find((d) => d.id === choix[t.id])) ?? docs.find(annexeVisible) ?? docs[0];

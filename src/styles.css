@@ -717,6 +717,9 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .min-pv-poll { margin: 2px 0 4px; }
 .pv-fige { margin: 0 0 10px; font-size: 0.85rem; }
 .min-pv-change { margin: 0 0 4px; color: #1d4ed8; font-size: 0.9em; }
+/* Remarque d'un point : en gris (dans le PV, sous le point ; dans la prise de notes, à côté), les notes de la séance ressortent. */
+.pv-sheet .min-pv-rem { margin: 1px 0 3px; color: var(--e-remarque-c, #6b7280); }
+.min-title .odj-rem { color: var(--muted); }
 /* Projection (PV diffusé sur un beamer) : les pièces jointes du point en cours en grand, à droite des notes, à la
    hauteur de l'écran ; le PDF défile dans le panneau (sans faire défiler les notes). */
 .min-layout.projection { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
@@ -747,7 +750,7 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 }
 /* Téléphone : pas de projection (le bouton n'y est pas) ; le suivi de la séance comme d'habitude. */
 @media (max-width: 767px) {
-  .min-projeter, .min-projection { display: none; }
+  .min-projeter, .min-projection, .pilule .pilule-projeter { display: none; }
   .min-layout.projection { grid-template-columns: 1fr; }
   .min-layout.projection .min-side { position: static; order: -1; }
   .min-layout.projection .min-suivi { display: flex; }
@@ -760,6 +763,50 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
   .min-task { margin-left: 0; }
   .min-date { width: 132px; }
   .minutes-page .page-head .actions select { flex: 1 1 100%; }
+}
+
+/* Fiche du PV : par-dessus la prise de notes (et l'en-tête), à gauche le point et dessous ses notes, à droite la
+   projection ; sans projection, au centre. Les barres entre les fenêtres se tirent (hauteur du point, largeur de la
+   projection). La pilule (z-index 35), les listes et les fenêtres ouvertes par-dessus restent au-dessus. */
+body:has(.pv-fiche-ecran) { overflow: hidden; }
+.pv-fiche-ecran {
+  position: fixed; inset: 0; z-index: 34; background: var(--bg);
+  display: grid; grid-template-columns: minmax(0, 900px); grid-template-rows: minmax(0, 1fr); justify-content: center;
+  padding: 12px 16px 0;
+}
+.pv-fiche-ecran.avec-projection { grid-template-columns: minmax(0, var(--fr-fiche, 1fr)) 14px minmax(0, var(--fr-projection, 1fr)); justify-content: stretch; }
+.pv-fiche-gauche { display: grid; grid-template-rows: minmax(0, var(--fr-point, 1fr)) 14px minmax(0, var(--fr-notes, 1fr)); min-height: 0; padding-bottom: 12px; }
+/* La pilule à sa place d'origine, en bas : la fiche s'arrête au-dessus. */
+body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: 132px; }
+@media (min-width: 768px) { body:has(.pv-fiche-ecran.avec-projection) .pilule.defaut { left: var(--centre-fiche, 24%); } }
+.pv-fiche-ecran .panel { margin: 0; min-height: 0; }
+.pv-fiche-point { overflow-y: auto; overscroll-behavior: contain; }
+.pv-fiche-notes { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.pv-fiche-notes .min-h2 { display: flex; align-items: center; gap: 6px; }
+.pv-fiche-notes .note-riche { flex: 1 0 auto; min-height: 4.5em; margin: 0; font-size: 1rem; }
+.pv-fiche-ecran .min-projection { height: auto; margin-bottom: 12px; }
+.pv-fiche-tete { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.pv-fiche-ou { padding-top: 4px; overflow-wrap: anywhere; }
+.pv-fiche-boutons { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.pv-fiche-nom { margin: 0 0 4px; font-size: 1.2rem; overflow-wrap: anywhere; }
+.pv-fiche-info { margin: 0; font-size: 0.88rem; }
+.pv-fiche-champs { gap: 10px 12px; }
+.pv-fiche-champs .pv-fiche-titre { font-size: 1.1rem; font-weight: 600; }
+.pv-fiche-champs .check-row { margin: 0; }
+/* Barre entre deux fenêtres : à tirer (souris, doigt) ou au clavier. */
+.pv-separateur { display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 6px; }
+.pv-separateur.haut { cursor: row-resize; }
+.pv-separateur.large { cursor: col-resize; margin-bottom: 12px; }
+.pv-separateur > span { background: var(--border); border-radius: 3px; transition: background 0.15s; }
+.pv-separateur.haut > span { width: 56px; height: 5px; }
+.pv-separateur.large > span { width: 5px; height: 56px; }
+.pv-separateur:hover > span, .pv-separateur:active > span, .pv-separateur:focus-visible > span { background: var(--primary); }
+.pv-separateur:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+@media (max-width: 767px) {
+  .pv-fiche-ecran, .pv-fiche-ecran.avec-projection { grid-template-columns: minmax(0, 1fr); padding: calc(8px + env(safe-area-inset-top)) 8px 0; }
+  .pv-fiche-ecran .pv-separateur.large { display: none; }
+  body:has(.pv-fiche-ecran) .pilule.defaut { bottom: calc(8px + env(safe-area-inset-bottom)); }
+  body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
 }
 
 /* ---------- Notifications ---------- */

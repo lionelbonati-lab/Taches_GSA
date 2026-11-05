@@ -16,6 +16,7 @@ export const stateOf = (t: Task): TaskSnapshot => ({
   responsables: [...t.responsables],
   titre: t.titre,
   sous: Object.fromEntries(t.checklist.map((c) => [c.id, c.done])),
+  remarque: t.remarque ?? '',
 });
 
 /** Description lisible des changements entre deux états d'une tâche. */
@@ -27,6 +28,8 @@ export function diffTask(data: AppData, before: TaskSnapshot, after: Task): stri
   if (before.delai !== after.delai) out.push(`délai : ${before.delai ? shortDate(before.delai) : 'libre'} → ${after.delai ? shortDate(after.delai) : 'libre'}`);
   if (before.responsables.join() !== after.responsables.join()) out.push(`responsable : ${who(before.responsables)} → ${who(after.responsables)}`);
   if (before.titre !== after.titre) out.push('intitulé modifié');
+  // Ancien état (sans la remarque) : rien à comparer.
+  if (before.remarque !== undefined && before.remarque.trim() !== (after.remarque ?? '').trim()) out.push('remarque modifiée');
   if (before.sous)
     for (const c of after.checklist) {
       if (!(c.id in before.sous)) out.push(`sous-point ajouté : ${c.label}`);

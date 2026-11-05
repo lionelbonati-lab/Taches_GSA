@@ -4,7 +4,7 @@ import { TROP_LONG, type EntreeHistorique, type HistoriqueTache } from './histor
 import { stateOf } from './minutes';
 
 // PV repris après la séance : ses points restent tels qu'ils étaient à la fin de la séance (statut, délai, responsables,
-// intitulé, checklist, échéance). Figés le lendemain d'après l'historique des tâches (050) : les changements notés
+// intitulé, remarque, checklist, échéance). Figés le lendemain d'après l'historique des tâches (050) : les changements notés
 // depuis sont défaits, sauf ceux faits depuis le PV (son journal). Ensuite, les changements faits depuis le PV s'y
 // reportent ; ceux faits ailleurs n'y apparaissent plus.
 
@@ -15,7 +15,8 @@ export const finSeance = (date: string) => new Date(`${date}T23:59:59.999`).getT
 export const aFiger = (s1: Meeting | undefined, jour: string) => !!s1 && s1.date < jour && !s1.minutes?.etats;
 
 /** Champs remis comme à la fin de la séance (ceux du PV, et ceux qui décident de son échéance). */
-const CHAMPS = ['statusId', 'delai', 'responsables', 'titre', 'checklist', 'meetingId'] as const;
+const CHAMPS = ['statusId', 'delai', 'responsables', 'titre', 'remarque', 'checklist', 'meetingId'] as const;
+type Champ = (typeof CHAMPS)[number];
 /** Écart toléré entre une modification faite depuis le PV (journal) et sa ligne d'historique (regroupée sur 10 min). */
 const MARGE_MS = 15 * 60 * 1000;
 
@@ -24,7 +25,13 @@ const MARGE_MS = 15 * 60 * 1000;
  * notés après sont défaits, sauf ceux à `garder` (faits depuis le PV), qui l'emportent sur les plus anciens. null : elle
  * n'existait pas encore.
  */
-export function tacheAuMoment(t: Task, entrees: EntreeHistorique[], a: number, garder: (e: EntreeHistorique) => boolean): Task | null {
+export function tacheAuMoment(
+  t: Task,
+  entrees: EntreeHistorique[],
+  a: number,
+  garder: (e: EntreeHistorique) => boolean,
+  champs: readonly Champ[] = CHAMPS,
+): Task | null {
   const x = structuredClone(t) as unknown as Record<string, unknown>;
   const gardes = new Set<string>();
   let defait = false;
@@ -36,7 +43,7 @@ export function tacheAuMoment(t: Task, entrees: EntreeHistorique[], a: number, g
     }
     if (e.quoi === 'creee') return null;
     if (e.quoi) continue;
-    for (const k of CHAMPS) {
+    for (const k of champs) {
       if (!(k in e.champs) || gardes.has(k)) continue;
       const avant = e.champs[k][0];
       if (avant === TROP_LONG) continue;
@@ -104,6 +111,33 @@ export async function figerPoints(
   return etats;
 }
 
+/** PV figé avant qu'on y garde la remarque des points : à compléter (`figerRemarques`). */
+export const remarquesAFiger = (m: MeetingMinutes) => Object.values(m.etats ?? {}).some((e) => e.remarque === undefined);
+
+/**
+ * PV figé avant qu'on y garde la remarque des points : leur remarque à la fin de la séance, d'après l'historique des
+ * tâches (une remarque écrite ou changée après la séance n'y apparaît plus, sauf depuis le PV). Point supprimé depuis :
+ * aucune remarque.
+ */
+export async function figerRemarques(
+  data: AppData,
+  s1: Meeting,
+  m: MeetingMinutes,
+  lire: (id: string) => Promise<HistoriqueTache>,
+): Promise<Record<string, string>> {
+  const a = finSeance(s1.date);
+  const ids = Object.entries(m.etats ?? {}).filter(([, e]) => e.remarque === undefined).map(([id]) => id);
+  const taches = new Map(data.tasks.filter((t) => ids.includes(t.id)).map((t) => [t.id, t]));
+  const historiques = await lireTout([...taches.keys()], lire);
+  return Object.fromEntries(
+    ids.map((id) => {
+      const t = taches.get(id);
+      const alors = t && tacheAuMoment(t, historiques.get(id) ?? [], a, faitDepuisLePv(m, id), ['remarque']);
+      return [id, alors?.remarque ?? t?.remarque ?? ''];
+    }),
+  );
+}
+
 /** Point affiché dans le PV figé : ses champs de la fin de la séance, le reste tel qu'aujourd'hui. */
 export function vueFigee(t: Task, e?: EtatPoint): Task {
   if (!e) return t;
@@ -113,6 +147,8 @@ export function vueFigee(t: Task, e?: EtatPoint): Task {
     delai: e.delai,
     responsables: [...e.responsables],
     titre: e.titre,
+    // État noté avant qu'on garde la remarque : celle d'aujourd'hui (le temps de la retrouver, voir figerRemarques).
+    remarque: e.remarque ?? t.remarque,
     // Étapes ajoutées depuis ailleurs : pas encore là à la fin de la séance.
     checklist: t.checklist.filter((c) => !e.sous || c.id in e.sous).map((c) => ({ ...c, done: e.sous?.[c.id] ?? c.done })),
   };
@@ -126,6 +162,7 @@ export function reporterChangement(e: EtatPoint, avant: TaskSnapshot, apres: Tas
   if (avant.delai !== n.delai) x.delai = n.delai;
   if (avant.responsables.join() !== n.responsables.join()) x.responsables = n.responsables;
   if (avant.titre !== n.titre) x.titre = n.titre;
+  if (avant.remarque !== undefined && avant.remarque !== n.remarque) x.remarque = n.remarque;
   for (const [id, fait] of Object.entries(n.sous ?? {})) if (avant.sous?.[id] !== fait) x.sous![id] = fait;
   return x;
 }

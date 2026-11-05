@@ -1789,7 +1789,7 @@ test('PV en projection : les pièces jointes du point en cours à côté des not
   await allerA(page, '/pv');
   const panneau = page.getByRole('region', { name: 'Pièces jointes du point en cours' });
   await expect(panneau).toHaveCount(0);
-  const projeter = page.getByRole('button', { name: 'Projection' });
+  const projeter = page.getByRole('button', { name: 'Projection', exact: true });
   await projeter.click();
   await expect(projeter).toHaveAttribute('aria-pressed', 'true');
   await expect(panneau).toBeVisible();
@@ -1834,16 +1834,26 @@ test('PV en projection : les pièces jointes du point en cours à côté des not
   await expect(panneau.locator('h2')).toHaveText('Point sans pièce jointe');
   await expect(panneau).toContainText('Pas de pièce jointe pour ce point.');
 
+  // Aussi dans la pilule (icône du projecteur) : enfoncée, elle l'arrête ; re-clic, elle reprend.
+  const projecteur = pilule.getByRole('button', { name: /^Projection/ });
+  await expect(projecteur).toHaveAttribute('aria-pressed', 'true');
+  await projecteur.click();
+  await expect(panneau).toHaveCount(0);
+  await expect(projeter).toHaveAttribute('aria-pressed', 'false');
+  await projecteur.click();
+  await expect(panneau).toBeVisible();
+  await expect(projecteur).toHaveAttribute('aria-pressed', 'true');
+
   // Retenu sur l'appareil.
   await page.reload();
-  await expect(page.getByRole('button', { name: 'Projection' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Projection', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(panneau).toBeVisible();
-  await page.getByRole('button', { name: 'Projection' }).click();
+  await page.getByRole('button', { name: 'Projection', exact: true }).click();
   await expect(panneau).toHaveCount(0);
   await expect(page.locator('.min-suivi')).toBeVisible();
 });
 
-test('PV : un appui sur le titre d’un point l’ouvre (plus de crayon)', async ({ page }) => {
+test('PV : un appui sur le titre d’un point ouvre sa fiche du PV, et de là sa fiche complète', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Point à ouvrir depuis le PV');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
@@ -1853,10 +1863,17 @@ test('PV : un appui sur le titre d’un point l’ouvre (plus de crayon)', async
   await expect(point).toBeVisible();
   await expect(point.getByRole('button', { name: 'Modifier le point' })).toHaveCount(0);
   await point.getByRole('button', { name: 'Point à ouvrir depuis le PV' }).click();
+  const fichePv = page.getByRole('dialog', { name: 'Fiche du PV : Point à ouvrir depuis le PV' });
+  await expect(fichePv.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point à ouvrir depuis le PV');
+  await fichePv.getByRole('button', { name: 'Fiche complète' }).click();
   const ouverte = page.locator('.modal').first();
   await expect(ouverte.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point à ouvrir depuis le PV');
+  // Échap : la fiche complète d'abord, puis la fiche du PV.
   await page.keyboard.press('Escape');
   await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(fichePv).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(fichePv).toHaveCount(0);
 });
 
 test('ordre du jour : un point supprimé n’apparaît plus, ni dans le PV ; le point est gardé, puis remis', async ({ page }) => {
@@ -2313,8 +2330,10 @@ test('PV repris après la séance : un sous-point s’affiche sous son point, ra
   await expect(page.locator('.min-task[data-point="Sous-point fini avant"]')).toHaveCount(0);
 
   // Fiche ouverte depuis le PV : un nouveau point rattaché (délai lointain), puis un point existant rattaché.
+  // Fiche du PV du point, puis sa fiche complète ; une fois enregistrée, retour à la prise de notes.
   const ouvrir = async () => {
     await page.locator('.min-task[data-point="Point figé"]').getByRole('button', { name: 'Point figé' }).click();
+    await page.getByRole('dialog', { name: 'Fiche du PV : Point figé' }).getByRole('button', { name: 'Fiche complète' }).click();
     const fiche = page.locator('.modal').first();
     // La fiche ouverte (ses points rattachés déjà là : « Point figé » en a).
     await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point figé');
@@ -2330,6 +2349,8 @@ test('PV repris après la séance : un sous-point s’affiche sous son point, ra
   await expect(page.locator('.modal')).toHaveCount(1);
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.pv-fiche-ecran')).toHaveCount(0);
   const sous = page.locator('.min-task.child[data-point="Sous-point décidé au PV"]');
   await expect(sous).toBeVisible();
   await expect(sous).toContainText('nouvelle');
@@ -2339,6 +2360,7 @@ test('PV repris après la séance : un sous-point s’affiche sous son point, ra
   await fiche.locator('select', { has: page.locator('option', { hasText: '— Choisir le point à rattacher —' }) }).selectOption({ label: `Point à part (${dansJours(200).split('-').reverse().join('.')})` });
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
+  await page.keyboard.press('Escape');
   const rattache = page.locator('.min-task.child[data-point="Point à part"]');
   await expect(rattache).toBeVisible();
   await expect(rattache.locator('.min-changes')).toContainText('rattaché à « Point figé »');
@@ -2357,6 +2379,7 @@ test('PV en cours : un sous-point créé depuis la fiche d’un point s’affich
   await expect(page.locator('.modal')).toHaveCount(0);
   await allerA(page, '/pv');
   await page.locator('.min-task[data-point="Point du PV"]').getByRole('button', { name: 'Point du PV' }).click();
+  await page.getByRole('dialog', { name: 'Fiche du PV : Point du PV' }).getByRole('button', { name: 'Fiche complète' }).click();
   const fiche = page.locator('.modal').first();
   // La fiche ouverte, puis ses rattachements (déjà affichés si le point est lié à une séance).
   await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point du PV');
@@ -2371,6 +2394,7 @@ test('PV en cours : un sous-point créé depuis la fiche d’un point s’affich
   await expect(page.locator('.modal')).toHaveCount(1);
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
+  await page.keyboard.press('Escape');
   await expect(page.locator('.min-task.child[data-point="Sous-point lointain"]')).toBeVisible();
 });
 
@@ -2428,4 +2452,151 @@ test('PV imprimé : sous chaque point, ses étapes et ses points rattachés, com
   await page.getByRole('button', { name: 'Copier le texte' }).click();
   const texte = await page.evaluate(() => navigator.clipboard.readText());
   expect(texte).toMatch(/\n {6}■ Newsletter novembre[^\n]*\n {9}◦ ☑ Relire le texte\n {9}◦ ☐ Envoyer\n {9}◦ Communiquer le remboursement/);
+});
+
+test('fiche du PV : d’un point à l’autre par la pilule, le point quitté enregistré ; fenêtres réglables, projection à droite', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  for (const titre of ['Point A de la fiche', 'Point B de la fiche']) {
+    const f = await nouvelleTache(page, titre);
+    await f.getByRole('button', { name: /^Créer$/ }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+  }
+  await page.evaluate(() => {
+    localStorage.removeItem('taches-gsa-pv-projection');
+    localStorage.removeItem('taches-gsa-pv-fiche-hauteur');
+  });
+  await allerA(page, '/pv');
+  await page.locator('.min-task[data-point="Point A de la fiche"]').getByRole('button', { name: 'Point A de la fiche' }).click();
+  const fiche = page.getByRole('dialog', { name: /^Fiche du PV : / });
+  await expect(fiche).toHaveAccessibleName('Fiche du PV : Point A de la fiche');
+  // Sans projection : le point et ses notes au centre de l'écran.
+  const boite = (await fiche.locator('.pv-fiche-gauche').boundingBox())!;
+  const largeur = page.viewportSize()!.width;
+  expect(Math.abs(boite.x + boite.width / 2 - largeur / 2)).toBeLessThan(20);
+  await expect(page.getByRole('region', { name: 'Pièces jointes du point en cours' })).toHaveCount(0);
+
+  // Le point changé dans la fiche (statut, remarque) et sa note de séance.
+  await fiche.getByRole('combobox', { name: 'Statut' }).click();
+  await page.getByRole('listbox').getByRole('option', { name: 'En cours' }).click();
+  await fiche.getByPlaceholder('Détails utiles (facultatif)').fill('Remarque écrite en séance');
+  const notes = fiche.getByRole('textbox', { name: 'Notes / décisions sur ce point…' });
+  await notes.click();
+  await page.keyboard.type('Décidé : on commande.');
+  const lire = () =>
+    page.evaluate(() => {
+      const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
+      const t = d.tasks.find((x: { titre: string }) => x.titre === 'Point A de la fiche');
+      const statut = d.statuses.find((s: { id: string }) => s.id === t.statusId).label;
+      const pv = d.meetings.map((m: { minutes?: { notes: Record<string, string>; journal?: { taskId: string; changes: string[] }[] } }) => m.minutes).find((m: { notes: Record<string, string> } | undefined) => m?.notes[`task:${t.id}`]);
+      return { statut, remarque: t.remarque, note: pv?.notes[`task:${t.id}`], journal: (pv?.journal ?? []).filter((j: { taskId: string }) => j.taskId === t.id).flatMap((j: { changes: string[] }) => j.changes) };
+    });
+  // Pas encore enregistré : le point reste tel quel tant qu'on ne passe pas au suivant.
+  expect((await lire()).statut).toBe('À faire');
+
+  // La pilule passe au point suivant sans rouvrir la fiche : le point quitté est enregistré, inscrit au PV.
+  const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  const suivant = pilule.getByRole('button', { name: /^Point suivant/ });
+  const precedent = pilule.getByRole('button', { name: /^Point précédent/ });
+  await expect(pilule.locator('.pilule-titre')).toContainText('1.');
+  // D'arrêt en arrêt (vers l'avant, puis vers l'arrière), jusqu'au point voulu.
+  const allerAu = async (titre: string) => {
+    for (const bouton of [suivant, precedent])
+      for (let i = 0; i < 30 && (await fiche.getAttribute('aria-label')) !== `Fiche du PV : ${titre}` && (await bouton.isEnabled()); i++) {
+        const vers = (await bouton.getAttribute('title'))!.replace(/^Point (suivant|précédent) : /, '');
+        await bouton.click();
+        await expect(fiche).toHaveAccessibleName(`Fiche du PV : ${vers}`);
+      }
+    await expect(fiche).toHaveAccessibleName(`Fiche du PV : ${titre}`);
+  };
+  await allerAu('Point B de la fiche');
+  await expect.poll(lire).toEqual({ statut: 'En cours', remarque: 'Remarque écrite en séance', note: 'Décidé : on commande.', journal: ['statut : À faire → En cours', 'remarque modifiée'] });
+  await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point B de la fiche');
+  // Retour au point A : enregistré, avec sa note.
+  await allerAu('Point A de la fiche');
+  await expect(fiche.getByPlaceholder('Détails utiles (facultatif)')).toHaveValue('Remarque écrite en séance');
+  await expect(fiche.getByRole('combobox', { name: 'Statut' })).toHaveText('En cours');
+  await expect(notes).toHaveText('Décidé : on commande.');
+  await expect(fiche.locator('.min-changes')).toContainText('statut : À faire → En cours');
+
+  // Hauteur du point et de ses notes : réglable (clavier, souris), retenue ; double-clic : comme à l'origine.
+  const hauteur = fiche.getByRole('separator', { name: 'Hauteur du point et de ses notes' });
+  await expect(hauteur).toHaveAttribute('aria-valuenow', '50');
+  const hPoint = async () => (await fiche.getByRole('region', { name: 'Point' }).boundingBox())!.height;
+  const avant = await hPoint();
+  await hauteur.focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(hauteur).toHaveAttribute('aria-valuenow', '55');
+  const b = (await hauteur.boundingBox())!;
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2 + 80, { steps: 4 });
+  await page.mouse.up();
+  expect(Number(await hauteur.getAttribute('aria-valuenow'))).toBeGreaterThan(60);
+  expect(await hPoint()).toBeGreaterThan(avant + 60);
+  expect(Number(await page.evaluate(() => localStorage.getItem('taches-gsa-pv-fiche-hauteur')))).toBeGreaterThan(0.6);
+  await hauteur.dblclick();
+  await expect(hauteur).toHaveAttribute('aria-valuenow', '50');
+
+  // Projection (icône de la pilule) : les pièces jointes du point à droite, la barre entre les deux réglable.
+  await pilule.getByRole('button', { name: /^Projection/ }).click();
+  const panneau = page.getByRole('region', { name: 'Pièces jointes du point en cours' });
+  await expect(panneau.locator('h2')).toHaveText('Point A de la fiche');
+  expect((await panneau.boundingBox())!.x).toBeGreaterThan(largeur / 2 - 20);
+  expect((await fiche.locator('.pv-fiche-gauche').boundingBox())!.x).toBeLessThan(40);
+  await expect(fiche.getByRole('separator', { name: 'Largeur de la fiche et de la projection' })).toBeVisible();
+  await suivant.click();
+  await expect(panneau.locator('h2')).not.toHaveText('Point A de la fiche');
+
+  // Échap : retour à la prise de notes, au point où l'on était.
+  await page.keyboard.press('Escape');
+  await expect(fiche).toHaveCount(0);
+  await expect(page.locator('.min-task[data-point="Point A de la fiche"] .min-changes')).toContainText('statut : À faire → En cours');
+});
+
+test('PV corrigé après la séance : la remarque des points telle qu’à la fin de la séance, en gris dans le PV', async ({ page }) => {
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Séance il y a 5 jours, PV validé et figé avant qu'on garde la remarque (états sans remarque). « Point annoté après » :
+  // remarque écrite après la séance ; « Point annoté avant » : remarque d'avant la séance.
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const aFaire = d.statuses.filter((s: { done: boolean }) => !s.done)[0].id;
+    d.meetings = d.meetings.filter((m: { date: string }) => !(m.date >= j.seance && m.date < j.auj));
+    const moi = d.people[0].id;
+    const etat = (titre: string) => ({ statusId: aFaire, delai: j.seance, responsables: [moi], titre, sous: {}, rang: 'p1' });
+    const minutes = { presents: [moi], excuses: [], notes: { 'task:r1': 'Note de la séance.' }, demarreLe: `${j.seance}T17:30:00.000Z`, valideLe: `${j.seance}T20:00:00.000Z`, validePar: moi, version: 1, etats: { r1: etat('Point annoté après'), r2: etat('Point annoté avant') } };
+    d.meetings.push({ id: 'm-rem', titre: 'Comité des remarques', date: j.seance, heure: '19:30', lieu: '', minutes: { ...minutes, derniereValidee: structuredClone(minutes) } });
+    const t = (id: string, titre: string, remarque: string, maj: string) => ({ id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: aFaire, delai: j.seance, meetingId: 'm-rem', remarque, checklist: [], createdBy: moi, updatedAt: `${maj}T12:00:00.000Z` });
+    d.tasks.push(t('r1', 'Point annoté après', 'Écrite après la séance', j.hier), t('r2', 'Point annoté avant', 'Remarque d’avant la séance', j.avant));
+    localStorage.setItem(k, JSON.stringify(d));
+    const creee = { le: `${j.avant}T09:00:00.000Z`, par: 'x', nom: 'Julien Moreau', quoi: 'creee', champs: {} };
+    localStorage.setItem('taches-gsa-demo-historique', JSON.stringify({ 'u-central': {
+      r1: [{ le: `${j.hier}T12:00:00.000Z`, par: 'lea', nom: 'Léa', champs: { remarque: [null, 'Écrite après la séance'] } }, creee],
+      r2: [creee],
+    } }));
+  }, { k: cle, j: { seance: dansJours(-5), avant: dansJours(-8), hier: dansJours(-1), auj: dansJours(0) } });
+  await page.reload();
+  await allerA(page, '/pv?seance=m-rem');
+  await page.getByRole('button', { name: 'Corriger le PV' }).first().click();
+  const ligne = (titre: string) => page.locator(`.min-task[data-point="${titre}"]`);
+  // Prise de notes : pas la remarque écrite après la séance ; celle d'avant, en gris.
+  await expect(ligne('Point annoté avant').locator('.odj-rem')).toContainText('Remarque d’avant la séance');
+  await expect(ligne('Point annoté après')).toBeVisible();
+  await expect(ligne('Point annoté après').locator('.odj-rem')).toHaveCount(0);
+  // Retrouvée une fois, gardée dans le PV.
+  await expect
+    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k)!).meetings.find((m: { id: string }) => m.id === 'm-rem').minutes.etats, cle))
+    .toMatchObject({ r1: { remarque: '' }, r2: { remarque: 'Remarque d’avant la séance' } });
+
+  // Document du PV : la remarque sous le point, en gris ; les notes de la séance en noir. Option pour la retirer.
+  await page.getByRole('button', { name: 'PV', exact: true }).click();
+  await page.getByLabel('Inclure tous les points de l’ordre du jour').check();
+  const rem = page.locator('.pv-sheet .min-pv-rem');
+  await expect(rem).toHaveText(['Remarque d’avant la séance']);
+  const couleur = (l: typeof rem) => l.evaluate((e) => getComputedStyle(e).color);
+  expect(await couleur(rem)).toBe('rgb(107, 114, 128)');
+  expect(await couleur(page.locator('.pv-sheet .min-pv-note').first())).toBe('rgb(17, 17, 17)');
+  await expect(page.locator('.pv-sheet')).not.toContainText('Écrite après la séance');
+  await page.getByRole('checkbox', { name: 'Remarques des points' }).uncheck();
+  await expect(rem).toHaveCount(0);
 });

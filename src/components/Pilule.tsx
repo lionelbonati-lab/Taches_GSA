@@ -18,6 +18,10 @@ export interface OutilPilule {
   etat?: 'ok' | 'envoi' | 'off';
   /** Trait de séparation avant cet outil. */
   separe?: boolean;
+  /** Bouton à bascule (projection…) : enfoncé. */
+  actif?: boolean;
+  /** Classe de l'outil (le cacher sur téléphone…). */
+  classe?: string;
 }
 
 type Pos = { x: number; y: number };
@@ -132,10 +136,10 @@ export function Pilule({ id, label, titre, outils, ligne2 }: { id: string; label
           <Icone n="poignee" />
         </button>
         {(reduite ? outils.filter((o) => !o.icone) : outils).map((o) => (
-          <span key={o.icone ?? o.titre} className="pilule-outil">
+          <span key={o.icone ?? o.titre} className={`pilule-outil ${o.classe ?? ''}`}>
             {o.separe && !reduite && <span className="pilule-sep" aria-hidden />}
             {o.icone ? (
-              <button type="button" title={o.titre} aria-label={o.titre} disabled={o.disabled} onClick={o.onClick}>
+              <button type="button" title={o.titre} aria-label={o.titre} disabled={o.disabled} onClick={o.onClick} className={o.actif ? 'on' : undefined} aria-pressed={o.actif}>
                 <Icone n={o.icone} />
                 {o.etat && <span className={`pilule-etat ${o.etat}`} aria-hidden />}
               </button>

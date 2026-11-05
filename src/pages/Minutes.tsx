@@ -28,8 +28,10 @@ import { Pilule, type OutilPilule } from '../components/Pilule';
 import { OutilsTexte } from '../components/OutilsTexte';
 import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
-import { aFiger, figerPoints, reporterChangement, vueFigee } from '../data/etatsPv';
+import { aFiger, figerPoints, figerRemarques, remarquesAFiger, reporterChangement, vueFigee } from '../data/etatsPv';
 import { PiecesJointesPoint } from '../components/PiecesJointesPoint';
+import { FichePv, type ArretPv } from '../components/FichePv';
+import type { SetT } from '../components/tache/Quand';
 import { annonceDe, avecAnnonces, reporterSurAnnonces } from '../data/presences';
 import { ChampValide } from '../components/ChampValide';
 
@@ -43,7 +45,7 @@ const nowHMde = (d: Date) => d.toTimeString().slice(0, 5);
 const nowHM = () => nowHMde(new Date());
 const hm = (h?: string) => (h ? h.replace(':', 'h') : '');
 /** Options du PV par défaut. */
-const OPTIONS: Required<PvOptions> = { details: true, misesAJour: true, documents: true, annexes: false, annexesParPage: 1, annexesPdfParPage: 1, taille: 'normale' };
+const OPTIONS: Required<PvOptions> = { details: true, misesAJour: true, documents: true, remarques: true, annexes: false, annexesParPage: 1, annexesPdfParPage: 1, taille: 'normale' };
 
 /** Adresse de la page de dépôt du PV : http(s) seulement (« www… » complété en https), sinon null. */
 const urlDepot = (s?: string): string | null => {
@@ -76,6 +78,34 @@ const ecrireProjection = (on: boolean) => {
     /* navigation privée : non retenu */
   }
 };
+
+/** Ligne de changement du PV (diffTask) → champ de la tâche qu'elle décrit. */
+const CHAMP_DU_CHANGEMENT: [string, keyof Task][] = [
+  ['statut', 'statusId'],
+  ['délai', 'delai'],
+  ['responsable', 'responsables'],
+  ['intitulé', 'titre'],
+  ['remarque', 'remarque'],
+  ['sous-point', 'checklist'],
+];
+
+/**
+ * Checklist changée depuis le PV (`modifiee`, à partir de `montree`, celle que le PV montrait) reportée sur celle de la
+ * tâche (`actuelle`) : étapes retirées, cochées ou renommées depuis le PV ; les autres telles qu'elles sont (ajoutées ou
+ * cochées ailleurs depuis la séance) ; les nouvelles à la fin.
+ */
+function fusionChecklist(actuelle: Task['checklist'], montree: Task['checklist'], modifiee: Task['checklist']): Task['checklist'] {
+  const avant = new Map(montree.map((c) => [c.id, c]));
+  const apres = new Map(modifiee.map((c) => [c.id, c]));
+  const gardees = actuelle
+    .filter((c) => !avant.has(c.id) || apres.has(c.id))
+    .map((c) => {
+      const a = avant.get(c.id);
+      const b = apres.get(c.id);
+      return a && b && JSON.stringify(a) !== JSON.stringify(b) ? b : c;
+    });
+  return [...gardees, ...modifiee.filter((c) => !avant.has(c.id) && !actuelle.some((x) => x.id === c.id))];
+}
 
 const letter = (i: number) => {
   let r = '';
@@ -285,6 +315,29 @@ export function Minutes() {
     // Une fois par séance : les données qui changent pendant la lecture ne la relancent pas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [figer, s1?.id]);
+  // PV figé avant qu'on y garde la remarque des points : leur remarque à la fin de la séance, retrouvée une fois (sinon
+  // une remarque écrite après la séance s'y affichait, à la correction du PV par exemple).
+  const remarquesManquantes = can('tab.minutes') && !!lireHistorique && remarquesAFiger(m);
+  useEffect(() => {
+    if (!remarquesManquantes || !s1 || !lireHistorique) return;
+    let fini = false;
+    figerRemarques(data, s1, m, lireHistorique).then(
+      (r) => {
+        if (fini) return;
+        setMinutes((x) => {
+          if (!x.etats) return;
+          x.etats = Object.fromEntries(Object.entries(x.etats).map(([id, e]) => [id, e.remarque === undefined ? { ...e, remarque: r[id] ?? '' } : e]));
+        });
+      },
+      // Historique illisible : la remarque d'aujourd'hui, nouvel essai à la prochaine ouverture.
+      (err: unknown) => console.warn('Remarques du PV à la fin de la séance introuvables', err),
+    );
+    return () => {
+      fini = true;
+    };
+    // Une fois par séance, comme ci-dessus.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remarquesManquantes, s1?.id]);
 
   // ---------- Points de la séance ----------
   // Séance passée : points figés à la fin de la séance (etats), sinon tels qu'aujourd'hui.
@@ -390,14 +443,27 @@ export function Minutes() {
   // Retards annoncés pas encore arrivés : « Tous présents » les laisse de côté (« Retard » à leur arrivée).
   const retardsAttendus = new Set((s1?.retards ?? []).map((r) => r.personId).filter((id) => !m.presents.includes(id) && !m.excuses.includes(id)));
 
-  const quickChange = (t: Task, patch: Partial<Task>) => {
+  // Point changé depuis le PV (sa ligne, ou la fiche du PV) : `t` tel que le PV le montre, `patch` les champs changés.
+  // Enregistré sur la tâche telle qu'elle est (un champ changé ailleurs depuis la séance est gardé) et inscrit au PV par
+  // rapport à ce que le PV montrait, pour ces champs seulement. false : pas enregistré (question refusée).
+  const changerPoint = (t: Task, patch: Partial<Task>) => {
     const live = vivante(t);
-    const after = { ...live, ...patch };
+    const after: Task = { ...live, ...patch, ...(patch.checklist ? { checklist: fusionChecklist(live.checklist, t.checklist, patch.checklist) } : {}) };
+    if (JSON.stringify(after) === JSON.stringify(live)) return true;
     const q = finAnticipee(data, live, after);
-    if (q && !confirm(q)) return;
+    if (q && !confirm(q)) return false;
     saveTask(after, false);
-    record(t, diffTask(data, stateOf(t), after), live);
+    // Étapes ajoutées ailleurs depuis la séance : déjà là (pas « ajoutées » au PV).
+    const base = { ...stateOf(t), sous: { ...stateOf(live).sous, ...stateOf(t).sous } };
+    const changes = diffTask(data, base, after).filter((l) => CHAMP_DU_CHANGEMENT.some(([debut, k]) => l.startsWith(debut) && k in patch));
+    setMinutes((x, d) => {
+      if (changes.length) x.journal = [...(x.journal ?? []), { taskId: t.id, titre: t.titre, changes, at: new Date().toISOString() }];
+      retenir(x, d, t.id, live);
+      reporter(x, d, t.id, stateOf(live));
+    }, { suite: true });
+    return true;
   };
+  const quickChange = (t: Task, patch: Partial<Task>) => void changerPoint(t, patch);
   const openTask = (t: Task) => {
     const live = vivante(t);
     setEdit({ task: live, isNew: false });
@@ -416,6 +482,119 @@ export function Minutes() {
     });
     setEdit({ task: t, isNew: true });
     setPending({ id: t.id, isNew: true });
+  };
+
+  // ---------- Fiche du PV ----------
+  // Un point à la fois, par-dessus la prise de notes (à gauche le point et ses notes, à droite la projection) : la pilule
+  // passe d'un point à l'autre sans rouvrir chacun, et le point quitté est enregistré. `brouillon` : le point changé dans
+  // la fiche, pas encore enregistré ; `origine` : tel que la fiche le montrait avant.
+  const [fiche, setFiche] = useState<{ cle: string; origine?: Task; brouillon?: Task } | null>(null);
+  const [ficheErreur, setFicheErreur] = useState('');
+  // « Fiche complète » : ouverte une fois le point enregistré (la fenêtre part de la tâche enregistrée).
+  const [ficheComplete, setFicheComplete] = useState<string | null>(null);
+  // Fiche refermée : la prise de notes revient à son dernier point.
+  const [revenirA, setRevenirA] = useState<string | null>(null);
+  // Pièce jointe projetée, point par point : la même dans la prise de notes et dans la fiche.
+  const choixPieces = useState<Record<string, string>>({});
+  // Arrêts de la fiche, dans l'ordre de la prise de notes : points (et leurs sondages), sondages, note de chaque section, Divers.
+  const arrets: ArretPv[] = [];
+  bySection.forEach((g, i) => {
+    const section = `${i + 1}. ${g.sec.nom}`;
+    const sectionId = g.sec.id;
+    const sondage = (p: Poll, t?: Task) => arrets.push({ cle: `poll:${p.id}`, nom: `Sondage : ${p.question}`, section, sectionId, poll: p, pointDuSondage: t });
+    g.subs.forEach((sub, j) =>
+      sub.tasks.forEach((t) => {
+        arrets.push({ cle: `task:${t.id}`, nom: t.titre, section, sous: sub.label ? `${letter(j)}. ${sub.label}` : undefined, sectionId, tache: t });
+        pollsDe(t).forEach((p) => sondage(p, t));
+      }),
+    );
+    g.polls.forEach((p) => sondage(p));
+    if (editable || m.notes[`sec:${g.sec.id}`]?.trim()) arrets.push({ cle: `sec:${g.sec.id}`, nom: `Notes de « ${g.sec.nom} »`, section, sectionId });
+  });
+  orphanPolls.forEach((p) => arrets.push({ cle: `poll:${p.id}`, nom: `Sondage : ${p.question}`, section: 'Sondages', poll: p }));
+  arrets.push({ cle: 'divers', nom: 'Notes de « Divers »', section: 'Divers' });
+  const iFiche = fiche ? arrets.findIndex((a) => a.cle === fiche.cle) : -1;
+  const arret = iFiche >= 0 ? arrets[iFiche] : undefined;
+  const ouvrirFiche = (cle: string) => {
+    setFiche({ cle });
+    setFicheErreur('');
+  };
+  const setPointFiche: SetT = (fn) =>
+    setFiche((f) => {
+      if (!f || !arret?.tache || f.cle !== arret.cle) return f;
+      const origine = f.origine ?? arret.tache;
+      return { ...f, origine, brouillon: fn(f.brouillon ?? origine) };
+    });
+  // Point changé dans la fiche : enregistré (seulement les champs changés). false : pas enregistré (intitulé vide, question refusée).
+  const sauverFiche = (): boolean => {
+    const f = fiche;
+    if (!f?.origine || !f.brouillon) return true;
+    const { origine, brouillon } = f;
+    const champs = [...new Set([...Object.keys(origine), ...Object.keys(brouillon)])] as (keyof Task)[];
+    const patch = Object.fromEntries(champs.filter((k) => JSON.stringify(origine[k]) !== JSON.stringify(brouillon[k])).map((k) => [k, brouillon[k]])) as Partial<Task>;
+    if (patch.titre !== undefined) {
+      if (!patch.titre.trim()) {
+        setFicheErreur('Le point doit avoir un intitulé.');
+        return false;
+      }
+      patch.titre = patch.titre.trim();
+    }
+    if (Object.keys(patch).length && !changerPoint(origine, patch)) return false;
+    setFiche((x) => (x?.cle === f.cle ? { cle: x.cle } : x));
+    setFicheErreur('');
+    return true;
+  };
+  // Vers un autre arrêt (null : fiche refermée) ; le point quitté est enregistré, sa note aussi (en quittant le champ).
+  const allerFiche = (cle: string | null) => {
+    const actif = document.activeElement;
+    if (actif instanceof HTMLElement && actif.closest('.pv-fiche-ecran')) actif.blur();
+    if (!sauverFiche()) return;
+    if (cle) return ouvrirFiche(cle);
+    if (fiche) setRevenirA(fiche.cle);
+    setFiche(null);
+    setFicheErreur('');
+  };
+  useEffect(() => {
+    if (!revenirA) return;
+    defile.montrer(revenirA);
+    setRevenirA(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revenirA]);
+  useEffect(() => {
+    if (!ficheComplete) return;
+    setFicheComplete(null);
+    const t = data.tasks.find((x) => x.id === ficheComplete);
+    if (t) openTask(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ficheComplete]);
+  // Arrêt disparu (point supprimé depuis sa fiche complète…) : fiche refermée.
+  useEffect(() => {
+    if (fiche && iFiche < 0) setFiche(null);
+  }, [fiche, iFiche]);
+  // Échap : fiche refermée (pas quand une fenêtre est ouverte par-dessus, ni une liste déroulante).
+  const allerFicheRef = useRef(allerFiche);
+  allerFicheRef.current = allerFiche;
+  const ficheOuverte = !!fiche;
+  useEffect(() => {
+    if (!ficheOuverte) return;
+    const k = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('.modal-back')) return;
+      allerFicheRef.current(null);
+    };
+    window.addEventListener('keydown', k);
+    return () => window.removeEventListener('keydown', k);
+  }, [ficheOuverte]);
+  // Page quittée la fiche ouverte : le point changé est enregistré.
+  const sauverFicheRef = useRef(sauverFiche);
+  sauverFicheRef.current = sauverFiche;
+  useEffect(() => () => void sauverFicheRef.current(), []);
+  // Pilule, fiche ouverte : d'un arrêt de la fiche à l'autre ; « section précédente » revient d'abord au début de la section.
+  const debutSection = (i: number) => arrets.findIndex((a) => a.section === arrets[i].section);
+  const ficheNav = arret && {
+    sectionPrec: iFiche > debutSection(iFiche) ? debutSection(iFiche) : iFiche > 0 ? debutSection(iFiche - 1) : -1,
+    pointPrec: iFiche - 1,
+    pointSuiv: iFiche + 1 < arrets.length ? iFiche + 1 : -1,
+    sectionSuiv: arrets.findIndex((a, k) => k > iFiche && a.section !== arret.section),
   };
 
   // Correction après coup : rouvrir un PV validé ; la prochaine validation crée une nouvelle version.
@@ -491,8 +670,10 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
   // Pilule flottante de la prise de notes : les gestes de la séance, en icônes, toujours à portée de main.
   const terminer = () => s1 && setMinutes((x) => { x.heureFin = nowHM(); }, { annulable: `Séance « ${s1.titre} » terminée` });
   const enregistrer = () => {
-    // Note en cours de frappe : enregistrée tout de suite (sinon après une courte pause), puis envoyée au serveur.
+    // Note en cours de frappe : enregistrée tout de suite (sinon après une courte pause), puis envoyée au serveur ; le
+    // point changé dans la fiche du PV aussi.
     if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+    if (!sauverFiche()) return;
     if (!cloud) return setToast('✓ Tout est enregistré (démo : dans ce navigateur).');
     setTimeout(() => {
       cloud.sync
@@ -503,35 +684,76 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
   };
   const etatEnvoi = !cloud ? 'ok' : sync.status === 'horsLigne' ? 'off' : sync.status === 'envoi' || sync.pending ? 'envoi' : 'ok';
   // Section à l'écran (sous l'en-tête) : nouvelle tâche décidée de la pilule rangée dedans, si on peut y en créer.
-  const secIci = sections.actuelle?.id && can('tasks.createAny', sections.actuelle.id) ? sections.actuelle.id : undefined;
+  const secActuelle = fiche ? arret?.sectionId : sections.actuelle?.id;
+  const secIci = secActuelle && can('tasks.createAny', secActuelle) ? secActuelle : undefined;
   const outils: OutilPilule[] = [
     { icone: 'annuler', titre: annulable ? `Annuler : ${annulable.action}` : 'Annuler (rien à annuler)', onClick: annuler, disabled: !annulable },
     { icone: 'refaire', titre: refaisable ? `Refaire : ${refaisable.action}` : 'Refaire (rien à refaire)', onClick: refaire, disabled: !refaisable },
-    // D'une section à l'autre (double chevron, à l'extérieur) ou d'un point à l'autre (simple, au milieu).
-    {
-      icone: 'sectionPrec',
-      titre: !sections.prec ? 'Section précédente' : sections.prec.i < 0 ? 'Haut de la page (séance, présences)' : `Section précédente : ${sections.prec.nom}`,
-      onClick: () => defile.aller('section', -1),
-      disabled: !sections.prec,
-      separe: true,
-    },
-    {
-      icone: 'pointPrec',
-      titre: !parPoint.prec ? 'Point précédent' : parPoint.prec.i < 0 ? 'Haut de la page (séance, présences)' : `Point précédent : ${parPoint.prec.nom}`,
-      onClick: () => defile.aller('point', -1),
-      disabled: !parPoint.prec,
-    },
-    { icone: 'pointSuiv', titre: parPoint.suiv ? `Point suivant : ${parPoint.suiv.nom}` : 'Point suivant', onClick: () => defile.aller('point', 1), disabled: !parPoint.suiv },
-    { icone: 'sectionSuiv', titre: sections.suiv ? `Section suivante : ${sections.suiv.nom}` : 'Section suivante', onClick: () => defile.aller('section', 1), disabled: !sections.suiv },
+    // D'une section à l'autre (double chevron, à l'extérieur) ou d'un point à l'autre (simple, au milieu) ; fiche du PV
+    // ouverte : d'un point de la fiche à l'autre.
+    ...(ficheNav
+      ? ([
+          {
+            icone: 'sectionPrec',
+            titre: ficheNav.sectionPrec < 0 ? 'Section précédente' : arrets[ficheNav.sectionPrec].section === arret?.section ? `Début de la section : ${arrets[ficheNav.sectionPrec].nom}` : `Section précédente : ${arrets[ficheNav.sectionPrec].section}`,
+            onClick: () => allerFiche(arrets[ficheNav.sectionPrec].cle),
+            disabled: ficheNav.sectionPrec < 0,
+            separe: true,
+          },
+          {
+            icone: 'pointPrec',
+            titre: ficheNav.pointPrec < 0 ? 'Point précédent' : `Point précédent : ${arrets[ficheNav.pointPrec].nom}`,
+            onClick: () => allerFiche(arrets[ficheNav.pointPrec].cle),
+            disabled: ficheNav.pointPrec < 0,
+          },
+          {
+            icone: 'pointSuiv',
+            titre: ficheNav.pointSuiv < 0 ? 'Point suivant' : `Point suivant : ${arrets[ficheNav.pointSuiv].nom}`,
+            onClick: () => allerFiche(arrets[ficheNav.pointSuiv].cle),
+            disabled: ficheNav.pointSuiv < 0,
+          },
+          {
+            icone: 'sectionSuiv',
+            titre: ficheNav.sectionSuiv < 0 ? 'Section suivante' : `Section suivante : ${arrets[ficheNav.sectionSuiv].section}`,
+            onClick: () => allerFiche(arrets[ficheNav.sectionSuiv].cle),
+            disabled: ficheNav.sectionSuiv < 0,
+          },
+        ] satisfies OutilPilule[])
+      : ([
+          {
+            icone: 'sectionPrec',
+            titre: !sections.prec ? 'Section précédente' : sections.prec.i < 0 ? 'Haut de la page (séance, présences)' : `Section précédente : ${sections.prec.nom}`,
+            onClick: () => defile.aller('section', -1),
+            disabled: !sections.prec,
+            separe: true,
+          },
+          {
+            icone: 'pointPrec',
+            titre: !parPoint.prec ? 'Point précédent' : parPoint.prec.i < 0 ? 'Haut de la page (séance, présences)' : `Point précédent : ${parPoint.prec.nom}`,
+            onClick: () => defile.aller('point', -1),
+            disabled: !parPoint.prec,
+          },
+          { icone: 'pointSuiv', titre: parPoint.suiv ? `Point suivant : ${parPoint.suiv.nom}` : 'Point suivant', onClick: () => defile.aller('point', 1), disabled: !parPoint.suiv },
+          { icone: 'sectionSuiv', titre: sections.suiv ? `Section suivante : ${sections.suiv.nom}` : 'Section suivante', onClick: () => defile.aller('section', 1), disabled: !sections.suiv },
+        ] satisfies OutilPilule[])),
     ...(data.sections.some((x) => can('tasks.createAny', x.id))
       ? [
           {
             icone: 'ajoutTache' as const,
-            titre: secIci ? `Nouveau point décidé dans « ${sections.actuelle?.nom} »` : 'Nouveau point décidé (section à choisir)',
+            titre: secIci ? `Nouveau point décidé dans « ${data.sections.find((x) => x.id === secIci)?.nom} »` : 'Nouveau point décidé (section à choisir)',
             onClick: () => addTask(secIci ?? ''),
           },
         ]
       : []),
+    // Projection (beamer) : comme le bouton à côté de « Prise de notes | PV » (pas sur téléphone).
+    {
+      icone: 'projection',
+      titre: projection ? 'Projection : arrêter (pièces jointes du point en grand)' : 'Projection (beamer) : les pièces jointes du point en cours en grand, à droite',
+      onClick: basculerProjection,
+      actif: projection,
+      classe: 'pilule-projeter',
+      separe: true,
+    },
     !m.demarreLe
       ? { icone: 'demarrer', titre: 'Démarrer la séance', onClick: start, separe: true }
       : { icone: 'terminer', titre: m.heureFin ? `Séance terminée à ${hm(m.heureFin)}` : 'Terminer la séance', onClick: terminer, disabled: !!m.heureFin, separe: true },
@@ -595,6 +817,8 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
   const rattachesDe = (t: Task, tasks: Task[]) => tasks.filter((x) => x.parentId === t.id && x.id !== t.id);
   const nouvelleInfo = (t: Task) =>
     [data.sections.find((x) => x.id === t.sectionId)?.nom, ...(opts.details ? meta(t).filter((x) => x !== '🆕 nouvelle') : [])].filter(Boolean).join(' · ');
+  // Remarque du point (telle qu'à la fin de la séance, PV repris après coup), si les options du PV la montrent.
+  const remarqueDe = (t: Task) => (opts.remarques ? t.remarque?.trim() ?? '' : '');
   const taskLine = (t: Task) =>
     `${t.titre}${opts.details && meta(t).length ? ` (${meta(t).join(' · ')})` : ''}${numeros(t).length ? ` 📎 annexe ${numeros(t).join(', ')}` : ''}${docs(t)}`;
   const plainText = () => {
@@ -612,6 +836,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
       // Un point, puis (un niveau plus bas) ses étapes et ses points rattachés : a. → ■ → ◦.
       const point = (t: Task, tasks: Task[], pad: string, marque: string) => {
         out.push(`${pad}${marque} ${taskLine(t)}`);
+        if (remarqueDe(t)) remarqueDe(t).split('\n').filter((l) => l.trim()).forEach((l, k) => out.push(`${pad}   ${k ? '  ' : 'Remarque : '}${l.trim()}`));
         texteNote(`task:${t.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}   → ${l}`));
         if (opts.misesAJour) changesOf(t).forEach((c) => out.push(`${pad}   ↻ ${c}`));
         pollsDe(t).filter(pollInPv).forEach((p) => {
@@ -730,12 +955,16 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
     const b = bucket.get(t.id);
     const can2 = editable && canEditTask(t);
     return (
-      <div key={t.id} data-point={t.titre} data-tache={t.id} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild(t) ? 'child' : ''}`}>
+      <div key={t.id} data-point={t.titre} data-tache={t.id} data-arret={`task:${t.id}`} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild(t) ? 'child' : ''}`}>
         <div className="min-task-head">
           <span className="min-title">
             {isChild(t) && <span className="muted">↳ </span>}
             {/* Un appui sur le titre ouvre le point (le modifier, comme dans la liste des points). */}
-            {editable ? <button type="button" className="min-ouvrir" title="Ouvrir le point" onClick={() => openTask(t)}>{t.titre}</button> : t.titre}{' '}
+            {editable ? (
+              <button type="button" className="min-ouvrir" title="Ouvrir le point (fiche du PV : la pilule passe d’un point à l’autre)" onClick={() => ouvrirFiche(`task:${t.id}`)}>{t.titre}</button>
+            ) : (
+              t.titre
+            )}{' '}
             <span className="odj-meta">({meta(t).join(' · ')})</span>
             {t.remarque && <span className="odj-rem"> – <AvecLiens texte={t.remarque.trim()} /></span>}
           </span>
@@ -762,7 +991,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
                     type="checkbox"
                     checked={c.done}
                     disabled={!(editable && can2)}
-                    onChange={() => quickChange(t, { checklist: vivante(t).checklist.map((x) => (x.id === c.id ? { ...x, done: !c.done } : x)) })}
+                    onChange={() => quickChange(t, { checklist: t.checklist.map((x) => (x.id === c.id ? { ...x, done: !c.done } : x)) })}
                   />
                   <span className={c.done ? 'strike' : ''}>{c.label}</span>
                 </label>
@@ -777,7 +1006,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
   };
   // Sondage rattaché à un point (`tache`) : ses pièces jointes sont celles du point.
   const pollRow = (p: Poll, tache?: string) => (
-    <div key={p.id} className="min-task poll-row-min" data-point={`Sondage : ${p.question}`} data-tache={tache}>
+    <div key={p.id} className="min-task poll-row-min" data-point={`Sondage : ${p.question}`} data-tache={tache} data-arret={`poll:${p.id}`}>
       <div className="min-task-head">
         <span className="min-title odj-poll">📊 Sondage : {p.question} <span className="odj-meta">— {pollSummary(p)}</span></span>
         {editable && !noteOf(`poll:${p.id}`) && !openNotes[`poll:${p.id}`] && (
@@ -796,6 +1025,8 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
         {t.titre}
         {opts.details && meta(t).length > 0 && <span className="odj-meta"> ({meta(t).join(' · ')})</span>}
         {numeros(t).length > 0 && <span className="odj-meta"> 📎 annexe {numeros(t).join(', ')}</span>}
+        {/* Remarque du point : en gris, les notes de la séance ressortent. */}
+        {remarqueDe(t) && <p className="odj-rem min-pv-rem"><AvecLiens texte={remarqueDe(t)} /></p>}
         {opts.documents && !!t.documents?.length && <p className="min-pv-docs"><DocsTache t={t} annexes={joints} /></p>}
         {noteOf(`task:${t.id}`) && <p className="min-pv-note">→ <TexteNote note={noteOf(`task:${t.id}`)} /></p>}
         {opts.misesAJour && changesOf(t).length > 0 && <p className="min-pv-change">↻ {changesOf(t).join(' · ')}</p>}
@@ -1077,7 +1308,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
                   {editable && can('tasks.createAny', g.sec.id) && <button className="btn small link" onClick={() => addTask(g.sec.id)}>+ Nouveau point décidé</button>}
                   {/* Note de la section : à la fin, après ses points (le défilement point par point y mène). */}
                   {(editable || noteOf(`sec:${g.sec.id}`)) && (
-                    <div className="min-note-sec" data-point={`Notes de « ${g.sec.nom} »`}>
+                    <div className="min-note-sec" data-point={`Notes de « ${g.sec.nom} »`} data-arret={`sec:${g.sec.id}`}>
                       <NoteField value={m.notes[`sec:${g.sec.id}`] ?? ''} onCommit={(v) => setNote(`sec:${g.sec.id}`, v)} placeholder={`Notes pour « ${g.sec.nom} »…`} readOnly={!editable} />
                     </div>
                   )}
@@ -1091,7 +1322,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               )}
               <div className="panel min-section">
                 <h3>Divers</h3>
-                <div className="min-note-sec" data-point="Notes de « Divers »">
+                <div className="min-note-sec" data-point="Notes de « Divers »" data-arret="divers">
                   <NoteField value={m.notes.divers ?? ''} onCommit={(v) => setNote('divers', v)} placeholder="Points divers, informations, prochaine séance…" readOnly={!editable} />
                 </div>
               </div>
@@ -1099,9 +1330,33 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               {editable && <div className="min-fin" aria-hidden />}
             </section>
           </div>
-          {editable && <Pilule id="pv" label="Outils de la prise de notes" titre={sections.actuelle?.nom ?? 'Séance et présences'} outils={outils} ligne2={<OutilsTexte />} />}
+          {editable && (
+            <Pilule id="pv" label="Outils de la prise de notes" titre={arret ? arret.section : sections.actuelle?.nom ?? 'Séance et présences'} outils={outils} ligne2={<OutilsTexte />} />
+          )}
+          {arret && (
+            <FichePv
+              arret={arret}
+              position={{ i: iFiche, n: arrets.length }}
+              point={arret.tache && (fiche?.brouillon ?? arret.tache)}
+              setPoint={setPointFiche}
+              modifiable={!!arret.tache && editable && canEditTask(arret.tache)}
+              editable={editable}
+              meta={arret.tache ? meta(arret.tache) : []}
+              changes={arret.tache ? changesOf(arret.tache) : []}
+              note={m.notes[arret.cle] ?? ''}
+              onNote={(v) => setNote(arret.cle, v)}
+              projection={projection}
+              projete={arret.tache ? vivante(arret.tache) : arret.pointDuSondage && vivante(arret.pointDuSondage)}
+              choixPieces={choixPieces}
+              erreur={ficheErreur}
+              onFermer={() => allerFiche(null)}
+              onFicheComplete={arret.tache && editable ? () => sauverFiche() && setFicheComplete(arret.tache!.id) : undefined}
+            />
+          )}
           <aside className="min-side">
-            {projection && <PiecesJointesPoint point={enCours && { nom: enCours.nom, tache: enCours.id ? data.tasks.find((x) => x.id === enCours.id) : undefined }} />}
+            {projection && !arret && (
+              <PiecesJointesPoint point={enCours && { nom: enCours.nom, tache: enCours.id ? data.tasks.find((x) => x.id === enCours.id) : undefined }} choix={choixPieces} />
+            )}
             <div className="panel min-suivi">
               <h2 className="min-h2">Suivi de la séance</h2>
               <p>{m.presents.length} présent(s){retardsTxt ? ` dont ${Object.keys(m.retards ?? {}).filter((id) => m.presents.includes(id)).length} en retard` : ''} · {m.excuses.length} excusé(s)</p>
@@ -1120,6 +1375,9 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
             <label className="inline"><input type="checkbox" checked={!!m.tousLesPoints} disabled={!editable} onChange={(e) => setMinutes((x) => { x.tousLesPoints = e.target.checked; }, { annulable: 'Options du PV' })} /> Inclure tous les points de l’ordre du jour</label>
             <label className="inline"><input type="checkbox" checked={opts.details} disabled={!editable} onChange={(e) => setOpt({ details: e.target.checked })} /> Responsables, délais et échéances</label>
             <label className="inline"><input type="checkbox" checked={opts.misesAJour} disabled={!editable} onChange={(e) => setOpt({ misesAJour: e.target.checked })} /> Mises à jour des points (↻)</label>
+            <label className="inline" title="La remarque de chaque point, en gris sous lui : les notes de la séance ressortent">
+              <input type="checkbox" checked={opts.remarques} disabled={!editable} onChange={(e) => setOpt({ remarques: e.target.checked })} /> Remarques des points
+            </label>
             <label className="inline" title="Fichiers et liens de chaque point, nommés ; un clic les ouvre">
               <input type="checkbox" checked={opts.documents} disabled={!editable} onChange={(e) => setOpt({ documents: e.target.checked })} /> 📎 Documents des points
             </label>
@@ -1401,6 +1659,13 @@ function useDefilement(zone: RefObject<HTMLElement>) {
     if (note) ecrireDans(note);
     else if (active instanceof HTMLElement && active.closest('.min-agenda .note-riche')) active.blur();
   };
-  return { ...nav, aller };
+  /** Ligne de la prise de notes (`data-arret`, fiche du PV refermée) : à la ligne de lecture, et point en cours. */
+  const montrer = (cle: string) => {
+    const el = zone.current?.querySelector<HTMLElement>(`[data-arret="${CSS.escape(cle)}"]`);
+    if (!el) return;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - ligne(), behavior: 'auto' });
+    ecrit.current = el;
+  };
+  return { ...nav, aller, montrer };
 }
 
