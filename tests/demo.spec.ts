@@ -1490,6 +1490,15 @@ test('notes des séances : dans la fiche de la tâche, PV en cours pour qui tien
   await expect(page.locator('fieldset.notes-seances')).toHaveCount(0);
 });
 
+/** Prise de notes du PV : la vue en fenêtres ouverte par la pilule, au point voulu (le curseur placé sur sa ligne). */
+async function vueEnFenetres(page: Page, titre: string) {
+  await page.locator(`.min-task[data-point="${titre}"] select.min-status`).focus();
+  await page.getByRole('toolbar', { name: 'Outils de la prise de notes' }).getByRole('button', { name: /^Vue en fenêtres/ }).click();
+  const fiche = page.getByRole('dialog', { name: `Fiche du PV : ${titre}` });
+  await expect(fiche).toBeVisible();
+  return fiche;
+}
+
 /** Date locale dans `n` jours (AAAA-MM-JJ). */
 const dansJours = (n: number) => {
   const d = new Date(Date.now() + n * 864e5);
@@ -1853,7 +1862,7 @@ test('PV en projection : les pièces jointes du point en cours à côté des not
   await expect(page.locator('.min-suivi')).toBeVisible();
 });
 
-test('PV : un appui sur le titre d’un point ouvre sa fiche du PV ; « Qui s’en occupe ? » sous le statut', async ({ page }) => {
+test('PV : un appui sur le titre d’un point ouvre sa fiche ; la vue en fenêtres, une option de la pilule', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Point à ouvrir depuis le PV');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
@@ -1862,10 +1871,18 @@ test('PV : un appui sur le titre d’un point ouvre sa fiche du PV ; « Qui s’
   const point = page.locator('.min-task[data-point="Point à ouvrir depuis le PV"]');
   await expect(point).toBeVisible();
   await expect(point.getByRole('button', { name: 'Modifier le point' })).toHaveCount(0);
+  // Le titre : la fiche standard du point.
   await point.getByRole('button', { name: 'Point à ouvrir depuis le PV' }).click();
-  const fichePv = page.getByRole('dialog', { name: 'Fiche du PV : Point à ouvrir depuis le PV' });
-  await expect(fichePv.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point à ouvrir depuis le PV');
-  // Plus de lien vers la fiche complète.
+  const ouverte = page.locator('.modal').first();
+  await expect(ouverte.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point à ouvrir depuis le PV');
+  await expect(page.locator('.pv-fiche-ecran')).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // La pilule : la vue en fenêtres, au point en cours.
+  const fichePv = await vueEnFenetres(page, 'Point à ouvrir depuis le PV');
+  const bouton = page.getByRole('toolbar', { name: 'Outils de la prise de notes' }).getByRole('button', { name: /^Vue en fenêtres/ });
+  await expect(bouton).toHaveAttribute('aria-pressed', 'true');
   await expect(fichePv.getByRole('button', { name: 'Fiche complète' })).toHaveCount(0);
   // « Qui s'en occupe ? » sous le statut, « Pour quand ? » à côté.
   const statut = (await fichePv.locator('label.statut-choix').boundingBox())!;
@@ -1875,9 +1892,20 @@ test('PV : un appui sur le titre d’un point ouvre sa fiche du PV ; « Qui s’
   expect(Math.abs(qui.x - statut.x)).toBeLessThan(2);
   expect(quand.x).toBeGreaterThan(statut.x + statut.width);
   expect(Math.abs(quand.y - statut.y)).toBeLessThan(2);
-  // Échap : retour à la prise de notes.
-  await page.keyboard.press('Escape');
+  // Re-clic : retour à la prise de notes.
+  await bouton.click();
   await expect(fichePv).toHaveCount(0);
+  await expect(bouton).toHaveAttribute('aria-pressed', 'false');
+
+  // Retenue sur l'appareil : rouverte au rechargement (au premier point) ; Échap la referme, et l'oublie.
+  await vueEnFenetres(page, 'Point à ouvrir depuis le PV');
+  await page.reload();
+  await expect(page.getByRole('dialog', { name: /^Fiche du PV : / })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.pv-fiche-ecran')).toHaveCount(0);
+  await page.reload();
+  await expect(page.locator('.min-task[data-point="Point à ouvrir depuis le PV"]')).toBeVisible();
+  await expect(page.locator('.pv-fiche-ecran')).toHaveCount(0);
 });
 
 test('ordre du jour : un point supprimé n’apparaît plus, ni dans le PV ; le point est gardé, puis remis', async ({ page }) => {
@@ -2333,12 +2361,12 @@ test('PV repris après la séance : un sous-point s’affiche sous son point, ra
   await expect(page.locator('.min-task.child[data-point="Sous-point rattaché ailleurs"]')).toBeVisible();
   await expect(page.locator('.min-task[data-point="Sous-point fini avant"]')).toHaveCount(0);
 
-  // Fiche du PV du point, onglet « Rattachements » : un nouveau point rattaché (délai lointain), puis un point existant
-  // rattaché ; Échap : retour à la prise de notes.
+  // Fiche ouverte depuis le PV : un nouveau point rattaché (délai lointain), puis un point existant rattaché.
   const ouvrir = async () => {
     await page.locator('.min-task[data-point="Point figé"]').getByRole('button', { name: 'Point figé' }).click();
-    const fiche = page.getByRole('dialog', { name: 'Fiche du PV : Point figé' });
-    await fiche.getByRole('tab', { name: /^Rattachements/ }).click();
+    const fiche = page.locator('.modal').first();
+    // La fiche ouverte (ses points rattachés déjà là : « Point figé » en a).
+    await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point figé');
     await expect(fiche.getByRole('button', { name: '+ Nouveau point rattaché' })).toBeVisible();
     return fiche;
   };
@@ -2348,9 +2376,9 @@ test('PV repris après la séance : un sous-point s’affiche sous son point, ra
   await enfant.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Sous-point décidé au PV');
   await enfant.getByLabel('Pour quand ?').first().fill(dansJours(200));
   await enfant.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(1);
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.pv-fiche-ecran')).toHaveCount(0);
   const sous = page.locator('.min-task.child[data-point="Sous-point décidé au PV"]');
   await expect(sous).toBeVisible();
   await expect(sous).toContainText('nouvelle');
@@ -2358,9 +2386,8 @@ test('PV repris après la séance : un sous-point s’affiche sous son point, ra
   fiche = await ouvrir();
   await fiche.getByRole('button', { name: 'Rattacher un point existant' }).click();
   await fiche.locator('select', { has: page.locator('option', { hasText: '— Choisir le point à rattacher —' }) }).selectOption({ label: `Point à part (${dansJours(200).split('-').reverse().join('.')})` });
-  await expect(fiche.locator('.linked-row', { hasText: 'Point à part' })).toBeVisible();
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.pv-fiche-ecran')).toHaveCount(0);
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
   const rattache = page.locator('.min-task.child[data-point="Point à part"]');
   await expect(rattache).toBeVisible();
   await expect(rattache.locator('.min-changes')).toContainText('rattaché à « Point figé »');
@@ -2379,16 +2406,20 @@ test('PV en cours : un sous-point créé depuis la fiche d’un point s’affich
   await expect(page.locator('.modal')).toHaveCount(0);
   await allerA(page, '/pv');
   await page.locator('.min-task[data-point="Point du PV"]').getByRole('button', { name: 'Point du PV' }).click();
-  // Fiche du PV du point, onglet « Rattachements ».
-  const fiche = page.getByRole('dialog', { name: 'Fiche du PV : Point du PV' });
-  await fiche.getByRole('tab', { name: /^Rattachements/ }).click();
+  const fiche = page.locator('.modal').first();
+  // La fiche ouverte, puis ses rattachements (déjà affichés si le point est lié à une séance).
+  await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point du PV');
+  const rattacher = fiche.getByRole('button', { name: 'Rattacher à…' });
+  if (await rattacher.isVisible()) await rattacher.click();
+  await expect(fiche.getByRole('button', { name: '+ Nouveau point rattaché' })).toBeVisible();
   await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).click();
   const enfant = page.locator('.modal').last();
   await enfant.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Sous-point lointain');
   await enfant.getByLabel('Pour quand ?').first().fill(dansJours(200));
   await enfant.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(1);
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await page.keyboard.press('Escape');
   await expect(page.locator('.min-task.child[data-point="Sous-point lointain"]')).toBeVisible();
 });
 
@@ -2460,7 +2491,7 @@ test('fiche du PV : d’un point à l’autre par la pilule, le point quitté en
     localStorage.removeItem('taches-gsa-pv-fiche-hauteur');
   });
   await allerA(page, '/pv');
-  await page.locator('.min-task[data-point="Point A de la fiche"]').getByRole('button', { name: 'Point A de la fiche' }).click();
+  await vueEnFenetres(page, 'Point A de la fiche');
   const fiche = page.getByRole('dialog', { name: /^Fiche du PV : / });
   await expect(fiche).toHaveAccessibleName('Fiche du PV : Point A de la fiche');
   // Sans projection : le point et ses notes au centre de l'écran.
@@ -2604,8 +2635,7 @@ test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, 
     await expect(page.locator('.modal')).toHaveCount(0);
   }
   await allerA(page, '/pv');
-  await page.locator('.min-task[data-point="Point aux onglets"]').getByRole('button', { name: 'Point aux onglets' }).click();
-  const fiche = page.getByRole('dialog', { name: 'Fiche du PV : Point aux onglets' });
+  const fiche = await vueEnFenetres(page, 'Point aux onglets');
   const onglet = (nom: string) => fiche.getByRole('tab', { name: new RegExp(`^${nom}`) });
   // Premier onglet : le point, sa remarque juste sous l'intitulé.
   await expect(onglet('Point')).toHaveAttribute('aria-selected', 'true');
@@ -2643,6 +2673,12 @@ test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, 
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(fiche.locator('.linked-row', { hasText: 'Sous-point de la fiche' })).toBeVisible();
   await expect.poll(liens).toBe(avant + 1);
+  // Un point existant rattaché tout de suite (inscrit au PV : « rattaché à « … » »).
+  await fiche.getByRole('button', { name: 'Rattacher un point existant' }).click();
+  const choix = fiche.locator('select', { has: page.locator('option', { hasText: '— Choisir le point à rattacher —' }) });
+  await choix.selectOption((await choix.locator('option', { hasText: 'Point voisin' }).getAttribute('value'))!);
+  await expect(fiche.locator('.linked-row', { hasText: 'Point voisin' })).toBeVisible();
+  await expect.poll(liens).toBe(avant + 2);
   // Toujours le brouillon du point (pas encore enregistré) : checklist et étiquette encore là.
   await expect(onglet('Checklist')).toContainText('0/1');
 
@@ -2651,6 +2687,7 @@ test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, 
       const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
       const t = d.tasks.find((x: { titre: string }) => x.titre === 'Point aux onglets');
       const enfant = d.tasks.find((x: { titre: string }) => x.titre === 'Sous-point de la fiche');
+      const voisin = d.tasks.find((x: { titre: string }) => x.titre === 'Point voisin');
       const etiquette = d.etiquettes.find((e: { nom: string }) => e.nom === 'Groupe compétition').id;
       const pv = d.meetings.map((m: { minutes?: { nouvelles?: string[]; journal?: { taskId: string; changes: string[] }[] } }) => m.minutes).find((m: { nouvelles?: string[] } | undefined) => m?.nouvelles?.includes(enfant?.id));
       return {
@@ -2660,6 +2697,7 @@ test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, 
         enfant: enfant?.parentId === t.id,
         auPv: !!pv,
         journal: (pv?.journal ?? []).filter((j: { taskId: string }) => j.taskId === t.id).flatMap((j: { changes: string[] }) => j.changes),
+        voisin: voisin.parentId === t.id ? (pv?.journal ?? []).filter((j: { taskId: string }) => j.taskId === voisin.id).flatMap((j: { changes: string[] }) => j.changes) : null,
       };
     });
   expect((await lire()).etapes).toEqual([]);
@@ -2671,7 +2709,15 @@ test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, 
   await expect(page.getByRole('dialog', { name: /^Fiche du PV : / }).getByRole('tab', { name: /^Rattachements/ })).toHaveAttribute('aria-selected', 'true');
   await expect
     .poll(lire)
-    .toEqual({ etapes: ['Relancer le fournisseur'], etiquette: true, documents: ['devis.png'], enfant: true, auPv: true, journal: ['sous-point ajouté : Relancer le fournisseur'] });
+    .toEqual({
+      etapes: ['Relancer le fournisseur'],
+      etiquette: true,
+      documents: ['devis.png'],
+      enfant: true,
+      auPv: true,
+      journal: ['sous-point ajouté : Relancer le fournisseur'],
+      voisin: ['rattaché à « Point aux onglets »'],
+    });
 
   // Dans la prise de notes : le sous-point sous son point, nouveau.
   await page.keyboard.press('Escape');
@@ -2686,7 +2732,7 @@ test('PV au clavier : ↑ ↓ d’un point à l’autre, dans la fiche du PV et 
     await expect(page.locator('.modal')).toHaveCount(0);
   }
   await allerA(page, '/pv');
-  await page.locator('.min-task[data-point="Point clavier 1"]').getByRole('button', { name: 'Point clavier 1' }).click();
+  await vueEnFenetres(page, 'Point clavier 1');
   const fiche = page.getByRole('dialog', { name: /^Fiche du PV : / });
   await expect(fiche).toHaveAccessibleName('Fiche du PV : Point clavier 1');
   const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
@@ -2761,8 +2807,7 @@ test('fiche du PV : onglet « Séances précédentes », ce que les PV d’avant
   }, { avant: dansJours(-30), loin: dansJours(400) });
   await page.reload();
   await allerA(page, '/pv');
-  await page.locator('.min-task[data-point="Point suivi de séance en séance"]').getByRole('button', { name: 'Point suivi de séance en séance' }).click();
-  const fiche = page.getByRole('dialog', { name: 'Fiche du PV : Point suivi de séance en séance' });
+  const fiche = await vueEnFenetres(page, 'Point suivi de séance en séance');
   // La note de cette séance-ci : dans le rectangle des notes, pas dans l'onglet.
   await fiche.getByRole('region', { name: 'Notes de la séance' }).getByRole('textbox').click();
   await page.keyboard.type('Note de la séance en cours.');
@@ -2802,10 +2847,7 @@ test('fiche du PV : bandeau de la séance en haut ; onglet « Vote » des membre
   await expect(page.locator('.modal')).toHaveCount(0);
   await allerA(page, '/pv');
   const seance = (await page.locator('.minutes-page .page-head select').first().locator('option:checked').textContent())!.split(' – ')[0];
-  const ouvrir = async () => {
-    await page.locator('.min-task[data-point="Acheter une remorque"]').getByRole('button', { name: 'Acheter une remorque' }).click();
-    return page.getByRole('dialog', { name: 'Fiche du PV : Acheter une remorque' });
-  };
+  const ouvrir = () => vueEnFenetres(page, 'Acheter une remorque');
   let fiche = await ouvrir();
   // Bandeau : le comité, la séance, sa date et son lieu.
   const bandeau = fiche.locator('.pv-fiche-entete');

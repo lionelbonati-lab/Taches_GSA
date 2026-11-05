@@ -18,7 +18,8 @@ import { DelaiField, type SetT } from './tache/Quand';
 import { Checklist } from './tache/Checklist';
 import { Icone } from './icones';
 
-// Fiche du PV : la prise de notes point par point, sans rouvrir chaque point. Par-dessus la prise de notes, à gauche le
+// Fiche du PV (vue en fenêtres) : une option d'affichage de la prise de notes, ouverte et refermée par la pilule (retenue
+// sur l'appareil), pour la mener point par point sans rouvrir chaque point. Par-dessus la prise de notes, à gauche le
 // point, en onglets (le point : intitulé, remarque, statut, délai, responsables ; puis checklist, rattachements,
 // étiquettes, documents, notes des séances précédentes) et dessous le rectangle de ses notes de séance ; à
 // droite, en projection, ses pièces jointes en grand (sans projection : au centre). Comme sur plusieurs écrans, les
@@ -147,7 +148,7 @@ export function FichePv({
               {arret.sous ? ` › ${arret.sous}` : ''} · {position.i + 1} / {position.n}
             </small>
             <span className="pv-fiche-boutons">
-              <button type="button" className="icon-btn" onClick={onFermer} aria-label="Fermer la fiche" title="Fermer (Échap) : retour à la prise de notes, le point enregistré">
+              <button type="button" className="icon-btn" onClick={onFermer} aria-label="Revenir à la prise de notes" title="Revenir à la prise de notes (Échap), le point enregistré">
                 ✕
               </button>
             </span>

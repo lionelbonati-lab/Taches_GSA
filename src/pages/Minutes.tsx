@@ -63,23 +63,27 @@ const urlDepot = (s?: string): string | null => {
 };
 const hote = (u: string) => new URL(u).hostname.replace(/^www\./, '');
 
-/** Mode « Projection » de la prise de notes (PV diffusé sur un beamer) : retenu sur l'appareil. */
+/** Options d'affichage de la prise de notes, retenues sur l'appareil : « Projection » (PV diffusé sur un beamer) et la
+ *  vue en fenêtres (fiche du PV). */
 const CLE_PROJECTION = 'taches-gsa-pv-projection';
-const lireProjection = () => {
+const CLE_FENETRES = 'taches-gsa-pv-fenetres';
+const lireOption = (cle: string) => {
   try {
-    return localStorage.getItem(CLE_PROJECTION) === '1';
+    return localStorage.getItem(cle) === '1';
   } catch {
     return false;
   }
 };
-const ecrireProjection = (on: boolean) => {
+const ecrireOption = (cle: string, on: boolean) => {
   try {
-    if (on) localStorage.setItem(CLE_PROJECTION, '1');
-    else localStorage.removeItem(CLE_PROJECTION);
+    if (on) localStorage.setItem(cle, '1');
+    else localStorage.removeItem(cle);
   } catch {
-    /* navigation privée : non retenu */
+    /* navigation privée : non retenue */
   }
 };
+const lireProjection = () => lireOption(CLE_PROJECTION);
+const ecrireProjection = (on: boolean) => ecrireOption(CLE_PROJECTION, on);
 
 /** Ligne de changement du PV (diffTask) → champ de la tâche qu'elle décrit. */
 const CHAMP_DU_CHANGEMENT: [string, keyof Task][] = [
@@ -522,7 +526,8 @@ export function Minutes() {
   // Un point à la fois, par-dessus la prise de notes (à gauche le point et ses notes, à droite la projection) : la pilule
   // passe d'un point à l'autre sans rouvrir chacun, et le point quitté est enregistré. `brouillon` : le point changé dans
   // la fiche, pas encore enregistré ; `origine` : tel que la fiche le montrait avant.
-  const [fiche, setFiche] = useState<{ cle: string; origine?: Task; brouillon?: Task } | null>(null);
+  // Vue en fenêtres : une option d'affichage (pilule), retenue sur l'appareil ; rouverte au premier point (cle '').
+  const [fiche, setFiche] = useState<{ cle: string; origine?: Task; brouillon?: Task } | null>(() => (lireOption(CLE_FENETRES) ? { cle: '' } : null));
   const [ficheErreur, setFicheErreur] = useState('');
   // Fiche refermée : la prise de notes revient à son dernier point.
   const [revenirA, setRevenirA] = useState<string | null>(null);
@@ -550,6 +555,7 @@ export function Minutes() {
   const iFiche = fiche ? arrets.findIndex((a) => a.cle === fiche.cle) : -1;
   const arret = iFiche >= 0 ? arrets[iFiche] : undefined;
   const ouvrirFiche = (cle: string) => {
+    ecrireOption(CLE_FENETRES, true);
     setFiche({ cle });
     setFicheErreur('');
     docsFiche.current = { added: [], removed: [] };
@@ -592,6 +598,7 @@ export function Minutes() {
     if (!sauverFiche()) return;
     if (cle) return ouvrirFiche(cle);
     if (fiche) setRevenirA(fiche.cle);
+    ecrireOption(CLE_FENETRES, false);
     setFiche(null);
     setFicheErreur('');
   };
@@ -601,10 +608,20 @@ export function Minutes() {
     setRevenirA(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revenirA]);
-  // Arrêt disparu (point supprimé depuis sa fiche complète…) : fiche refermée.
+  // Arrêt pas (ou plus) là (vue rouverte au chargement, point supprimé…) : celui à sa place, sinon le premier.
+  const dernierArret = useRef(0);
+  if (iFiche >= 0) dernierArret.current = iFiche;
   useEffect(() => {
-    if (fiche && iFiche < 0) setFiche(null);
+    if (fiche && iFiche < 0) setFiche({ cle: arrets[Math.min(dernierArret.current, arrets.length - 1)].cle });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fiche, iFiche]);
+  // Pilule : la vue en fenêtres, au point en cours de la prise de notes (où l'on a cliqué ou écrit, sinon en haut de
+  // l'écran) ; re-clic : retour à la prise de notes, à ce point.
+  const basculerFenetres = () => {
+    if (fiche) return allerFiche(null);
+    const cle = defile.cleEnCours();
+    ouvrirFiche(cle && arrets.some((a) => a.cle === cle) ? cle : arrets[0].cle);
+  };
   // Échap : fiche refermée (pas quand une fenêtre est ouverte par-dessus, ni une liste déroulante).
   const allerFicheRef = useRef(allerFiche);
   allerFicheRef.current = allerFiche;
@@ -825,14 +842,21 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
           },
         ]
       : []),
-    // Projection (beamer) : comme le bouton à côté de « Prise de notes | PV » (pas sur téléphone).
+    // Affichage : la vue en fenêtres (un point à la fois, ses notes, la projection), et la projection (beamer) comme le
+    // bouton à côté de « Prise de notes | PV » (pas sur téléphone).
+    {
+      icone: 'colonnes',
+      titre: fiche ? 'Vue en fenêtres : revenir à la prise de notes' : 'Vue en fenêtres : un point à la fois (le point, ses notes, la projection)',
+      onClick: basculerFenetres,
+      actif: !!fiche,
+      separe: true,
+    },
     {
       icone: 'projection',
       titre: projection ? 'Projection : arrêter (pièces jointes du point en grand)' : 'Projection (beamer) : les pièces jointes du point en cours en grand, à droite',
       onClick: basculerProjection,
       actif: projection,
       classe: 'pilule-projeter',
-      separe: true,
     },
     !m.demarreLe
       ? { icone: 'demarrer', titre: 'Démarrer la séance', onClick: start, separe: true }
@@ -1043,7 +1067,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
             {isChild(t) && <span className="muted">↳ </span>}
             {/* Un appui sur le titre ouvre le point (le modifier, comme dans la liste des points). */}
             {editable ? (
-              <button type="button" className="min-ouvrir" title="Ouvrir le point (fiche du PV : la pilule passe d’un point à l’autre)" onClick={() => ouvrirFiche(`task:${t.id}`)}>{t.titre}</button>
+              <button type="button" className="min-ouvrir" title="Ouvrir le point" onClick={() => openTask(t)}>{t.titre}</button>
             ) : (
               t.titre
             )}{' '}
@@ -1793,6 +1817,15 @@ function useDefilement(zone: RefObject<HTMLElement>) {
     window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - ligne(), behavior: 'auto' });
     ecrit.current = el;
   };
-  return { ...nav, aller, montrer };
+  /** Ligne du point en cours (`data-arret`) : où l'on a cliqué ou écrit en dernier s'il est à l'écran, sinon celui à la
+   *  ligne de lecture (la vue en fenêtres s'ouvre sur lui). */
+  const cleEnCours = (): string | undefined => {
+    const e = ecrit.current?.isConnected ? ecrit.current : null;
+    const r = e?.getBoundingClientRect();
+    if (e?.dataset.arret && r && r.bottom > ligne() && r.top < window.innerHeight) return e.dataset.arret;
+    const i = nav.point.actuelle?.i;
+    return i === undefined ? undefined : arrets('point')[i]?.el.dataset.arret;
+  };
+  return { ...nav, aller, montrer, cleEnCours };
 }
 
