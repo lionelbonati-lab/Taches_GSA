@@ -95,6 +95,10 @@ export interface NoteSeance {
   occurrence?: Task;
 }
 
+/** Notes des séances d'avant `seance` (ni la sienne, ni celles d'après) : fiche du PV, onglet « Séances précédentes ». */
+export const avantSeance = (notes: NoteSeance[], seance?: Meeting) =>
+  seance ? notes.filter((n) => n.meeting.id !== seance.id && n.meeting.date <= seance.date) : notes;
+
 /** Occurrences précédentes d'une tâche qui se répète, de la plus récente à la plus ancienne. */
 export function occurrencesAvant(data: AppData, t: Task): Task[] {
   const out: Task[] = [];

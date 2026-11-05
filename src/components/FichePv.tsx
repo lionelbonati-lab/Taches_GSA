@@ -1,6 +1,7 @@
 import { useLayoutEffect, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
 import { useStore } from '../data/store';
-import type { Poll, Task } from '../data/types';
+import type { Meeting, Poll, Task } from '../data/types';
+import { avantSeance, notesSeances } from '../data/minutes';
 import { childrenOf, fullName, nomPoste } from '../data/utils';
 import { etiquettePassee, etiquettesDesLieux } from '../data/etiquettes';
 import { pollSummary } from '../data/polls';
@@ -10,6 +11,7 @@ import { PiecesJointesPoint, type ChoixPieces } from './PiecesJointesPoint';
 import { DocsField, type DocTracking } from './DocsField';
 import { IconeEtiquette } from './IconesEtiquette';
 import { Rattachements } from './tache/Rattachements';
+import { NotesSeances } from './tache/NotesSeances';
 import { Deroulante } from './Deroulante';
 import { ZoneTexte } from './ZoneTexte';
 import { DelaiField, type SetT } from './tache/Quand';
@@ -18,7 +20,7 @@ import { Icone } from './icones';
 
 // Fiche du PV : la prise de notes point par point, sans rouvrir chaque point. Par-dessus la prise de notes, à gauche le
 // point, en onglets (le point : intitulé, remarque, statut, délai, responsables ; puis checklist, rattachements,
-// étiquettes, documents) et dessous le rectangle de ses notes de séance ; à
+// étiquettes, documents, notes des séances précédentes) et dessous le rectangle de ses notes de séance ; à
 // droite, en projection, ses pièces jointes en grand (sans projection : au centre). Comme sur plusieurs écrans, les
 // barres entre les fenêtres se tirent (hauteur du point, largeur de la projection). La pilule reste au-dessus et passe
 // d'un point à l'autre ; le point quitté est enregistré (Minutes.tsx).
@@ -59,6 +61,7 @@ export function FichePv({
   ouvrir,
   rattacher,
   track,
+  seance,
 }: {
   arret: ArretPv;
   position: { i: number; n: number };
@@ -87,6 +90,8 @@ export function FichePv({
   rattacher: (taskId: string, parentId: string | undefined) => void;
   /** Fichiers ajoutés ou retirés dans la fiche (retirés : effacés une fois le point enregistré). */
   track: DocTracking;
+  /** Séance du PV : l'onglet « Séances précédentes » montre les notes des PV d'avant. */
+  seance?: Meeting;
 }) {
   const gauche = useRef<HTMLDivElement>(null);
   const ecran = useRef<HTMLDivElement>(null);
@@ -150,6 +155,7 @@ export function FichePv({
               ouvrir={ouvrir}
               rattacher={rattacher}
               track={track}
+              seance={seance}
             />
           ) : arret.poll ? (
             <>
@@ -272,12 +278,13 @@ function Separateur({ sens, part, setPart, zone, nom }: { sens: 'haut' | 'large'
   );
 }
 
-type Onglet = 'point' | 'checklist' | 'rattachements' | 'etiquettes' | 'documents';
+type Onglet = 'point' | 'checklist' | 'rattachements' | 'etiquettes' | 'documents' | 'seances';
 
 /**
  * Le point dans la fiche du PV, en onglets : « Point » (intitulé, remarque, statut et responsables dessous, délai à
  * côté), « Checklist », « Rattachements » (événement, séance, point principal, points rattachés), « Étiquettes »,
- * « Documents ». Le reste (répétition, pour info, à prendre, emails…) : depuis la page Points.
+ * « Documents », « Séances précédentes » (ce qu'en disent les PV d'avant). Le reste (répétition, pour info, à prendre,
+ * emails…) : depuis la page Points.
  */
 function ChampsPoint({
   t,
@@ -291,6 +298,7 @@ function ChampsPoint({
   ouvrir,
   rattacher,
   track,
+  seance,
 }: {
   t: Task;
   setT: SetT;
@@ -303,8 +311,9 @@ function ChampsPoint({
   ouvrir: (x: Task, nouvelle: boolean) => void;
   rattacher: (taskId: string, parentId: string | undefined) => void;
   track: DocTracking;
+  seance?: Meeting;
 }) {
-  const { data, user, canAssignOthers, peutEtiqueter } = useStore();
+  const { data, user, can, canAssignOthers, peutEtiqueter } = useStore();
   if (!user) return null;
   const set = <K extends keyof Task>(k: K, v: Task[K]) => setT((x) => ({ ...x, [k]: v }));
   const assignable = data.people.filter((p) => p.actif && (canAssignOthers(t.sectionId) || p.id === user.id));
@@ -321,12 +330,15 @@ function ChampsPoint({
   const portees = etiquettes.filter((e) => auto.includes(e.id) || t.etiquettes?.includes(e.id)).length;
   const nbLiens = kids.length + (t.parentId ? 1 : 0) + (t.eventId ? 1 : 0) + (t.meetingId ? 1 : 0);
   const faites = t.checklist.filter((c) => c.done).length;
+  // Notes des PV des séances d'avant (et des occurrences précédentes d'un point qui se répète).
+  const precedentes = avantSeance(notesSeances(data, enregistre, can('tab.minutes')), seance).length;
   const onglets: { id: Onglet; nom: string; nb?: string }[] = [
     { id: 'point', nom: 'Point' },
     { id: 'checklist', nom: 'Checklist', nb: t.checklist.length ? `${faites}/${t.checklist.length}` : undefined },
     { id: 'rattachements', nom: 'Rattachements', nb: nbLiens ? String(nbLiens) : undefined },
     { id: 'etiquettes', nom: 'Étiquettes', nb: portees ? String(portees) : undefined },
     { id: 'documents', nom: 'Documents', nb: t.documents?.length ? String(t.documents.length) : undefined },
+    { id: 'seances', nom: 'Séances précédentes', nb: precedentes ? String(precedentes) : undefined },
   ];
   // Au clavier : ← → d'un onglet à l'autre.
   const parFleche = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -463,6 +475,7 @@ function ChampsPoint({
             )}
           </div>
         )}
+        {onglet === 'seances' && <NotesSeances task={enregistre} avant={seance} toujours />}
         {onglet === 'documents' && (
           <DocsField docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track} liens />
         )}

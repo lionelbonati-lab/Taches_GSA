@@ -1409,6 +1409,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               ouvrir={ouvrirDepuisFiche}
               rattacher={rattacherDepuisPv}
               track={docsFiche.current}
+              seance={s1}
             />
           )}
           <aside className="min-side">

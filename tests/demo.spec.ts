@@ -2739,3 +2739,57 @@ test('PV au clavier : ↑ ↓ d’un point à l’autre, dans la fiche du PV et 
   await page.keyboard.press('ArrowUp');
   await expect(panneau.locator('h2')).toHaveText(premier);
 });
+
+test('fiche du PV : onglet « Séances précédentes », ce que les PV d’avant disent du point (pas celui de la séance)', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  for (const titre of ['Point suivi de séance en séance', 'Point dont on n’a jamais parlé']) {
+    const f = await nouvelleTache(page, titre);
+    await f.getByRole('button', { name: /^Créer$/ }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+  }
+  // Une séance passée (PV validé) en parle ; une séance d'après aussi (pas « précédente »).
+  await page.evaluate((j) => {
+    const k = 'taches-gsa-demo-v7';
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const t = d.tasks.find((x: { titre: string }) => x.titre === 'Point suivi de séance en séance');
+    const pv = (note: string) => ({ presents: [], excuses: [], notes: { [`task:${t.id}`]: note }, valideLe: `${j.avant}T20:00:00.000Z`, version: 1 });
+    d.meetings.push(
+      { id: 'm-avant', titre: 'Comité d’il y a un mois', date: j.avant, heure: '19:30', lieu: '', minutes: pv('Devis demandé à deux fournisseurs.') },
+      { id: 'm-apres', titre: 'Comité lointain', date: j.loin, heure: '19:30', lieu: '', minutes: pv('Note d’une séance d’après.') },
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, { avant: dansJours(-30), loin: dansJours(400) });
+  await page.reload();
+  await allerA(page, '/pv');
+  await page.locator('.min-task[data-point="Point suivi de séance en séance"]').getByRole('button', { name: 'Point suivi de séance en séance' }).click();
+  const fiche = page.getByRole('dialog', { name: 'Fiche du PV : Point suivi de séance en séance' });
+  // La note de cette séance-ci : dans le rectangle des notes, pas dans l'onglet.
+  await fiche.getByRole('region', { name: 'Notes de la séance' }).getByRole('textbox').click();
+  await page.keyboard.type('Note de la séance en cours.');
+  const onglet = fiche.getByRole('tab', { name: /^Séances précédentes/ });
+  await expect(onglet).toContainText('1');
+  await onglet.click();
+  const notes = fiche.getByRole('tabpanel').locator('.notes-seances');
+  await expect(notes.locator('legend')).toContainText('Notes des séances précédentes');
+  await expect(notes.locator('li')).toHaveCount(1);
+  await expect(notes.locator('li')).toContainText('Comité d’il y a un mois');
+  await expect(notes.locator('li')).toContainText('Devis demandé à deux fournisseurs.');
+  await expect(notes).not.toContainText('Note de la séance en cours.');
+  await expect(notes).not.toContainText('Note d’une séance d’après.');
+
+  // Un point dont aucun PV d'avant ne parle : un mot, pas de nombre ; l'onglet reste choisi d'un point à l'autre.
+  const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  const autre = page.getByRole('dialog', { name: /^Fiche du PV : / });
+  for (const sens of ['suivant', 'précédent']) {
+    const bouton = pilule.getByRole('button', { name: new RegExp(`^Point ${sens}`) });
+    for (let i = 0; i < 30 && (await autre.getAttribute('aria-label')) !== 'Fiche du PV : Point dont on n’a jamais parlé' && (await bouton.isEnabled()); i++) {
+      const vers = (await bouton.getAttribute('title'))!.replace(/^Point (suivant|précédent) : /, '');
+      await bouton.click();
+      await expect(autre).toHaveAccessibleName(`Fiche du PV : ${vers}`);
+    }
+  }
+  await expect(autre).toHaveAccessibleName('Fiche du PV : Point dont on n’a jamais parlé');
+  await expect(autre.getByRole('tab', { name: /^Séances précédentes/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(autre.getByRole('tab', { name: /^Séances précédentes/ }).locator('.pv-fiche-nb')).toHaveCount(0);
+  await expect(autre.getByRole('tabpanel')).toContainText('Le PV des séances précédentes ne dit rien de ce point.');
+});

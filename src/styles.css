@@ -796,8 +796,9 @@ body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: 132px; }
 .pv-fiche-champs { gap: 10px 12px; }
 .pv-fiche-champs .pv-fiche-titre { font-size: 1.1rem; font-weight: 600; }
 .pv-fiche-champs .check-row { margin: 0; }
-/* Onglets du point (Point, Checklist, Rattachements, Étiquettes, Documents), avec leur nombre. */
-.pv-fiche-onglets { display: flex; gap: 2px; margin: 0 0 12px; padding: 3px; background: var(--surface2); border-radius: 8px; overflow-x: auto; scrollbar-width: none; }
+/* Onglets du point (Point, Checklist, Rattachements, Étiquettes, Documents, Séances précédentes), avec leur nombre. */
+/* Trop étroit pour tous : à la ligne (aucun onglet caché). */
+.pv-fiche-onglets { display: flex; flex-wrap: wrap; gap: 2px; margin: 0 0 12px; padding: 3px; background: var(--surface2); border-radius: 8px; }
 .pv-fiche-onglets button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; border: none; background: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--muted); font: inherit; font-size: 0.9rem; white-space: nowrap; }
 .pv-fiche-onglets button:hover { color: var(--text); }
 .pv-fiche-onglets button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
