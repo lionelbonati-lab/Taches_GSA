@@ -392,6 +392,9 @@ export interface EtatPoint extends TaskSnapshot {
   rang: 'late' | 'p1' | 'p2' | 'bilan';
 }
 
+/** Voix d'un membre présent, au vote d'un point en séance. */
+export type Voix = 'pour' | 'contre' | 'abstention';
+
 export interface MeetingMinutes {
   presents: string[];
   excuses: string[];
@@ -432,6 +435,11 @@ export interface MeetingMinutes {
   annexesPages?: Record<string, string>;
   /** Changements de tâches faits depuis l'onglet PV (seuls ceux-ci figurent dans le PV). */
   journal?: MinutesChange[];
+  /**
+   * Votes en séance (fiche du PV, onglet « Vote ») : point → membre → sa voix. Seules celles des présents comptent ; le
+   * résultat figure sous le point dans le PV.
+   */
+  votes?: Record<string, Record<string, Voix>>;
   /** Tâches créées pendant la séance (« nouvelle tâche décidée »). */
   nouvelles?: string[];
   /** Intitulés des tâches supprimées depuis l'onglet PV. */

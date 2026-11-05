@@ -771,9 +771,17 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 body:has(.pv-fiche-ecran) { overflow: hidden; }
 .pv-fiche-ecran {
   position: fixed; inset: 0; z-index: 34; background: var(--bg);
-  display: grid; grid-template-columns: minmax(0, 900px); grid-template-rows: minmax(0, 1fr); justify-content: center;
+  display: grid; grid-template-columns: minmax(0, 900px); grid-template-rows: auto minmax(0, 1fr); justify-content: center;
   padding: 12px 16px 0;
 }
+/* Bandeau du haut, sur toute la largeur (aussi au beamer) : le comité, la séance, sa date, son heure et son lieu. */
+.pv-fiche-entete {
+  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin-bottom: 10px; padding: 8px 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 0.95rem;
+}
+.pv-fiche-entete > * + *::before { content: '·'; margin-right: 14px; color: var(--muted); }
+.pv-fiche-comite { font-size: 1.1rem; }
+.pv-fiche-entete a { color: inherit; }
 .pv-fiche-ecran.avec-projection { grid-template-columns: minmax(0, var(--fr-fiche, 1fr)) 14px minmax(0, var(--fr-projection, 1fr)); justify-content: stretch; }
 .pv-fiche-gauche { display: grid; grid-template-rows: minmax(0, var(--fr-point, 1fr)) 14px minmax(0, var(--fr-notes, 1fr)); min-height: 0; padding-bottom: 12px; }
 /* La pilule à sa place d'origine, en bas : la fiche s'arrête au-dessus. */
@@ -803,6 +811,23 @@ body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: 132px; }
 .pv-fiche-onglets button:hover { color: var(--text); }
 .pv-fiche-onglets button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
 .pv-fiche-onglets button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+/* Vote d'un point en séance : chaque membre présent, pour / contre / abstention, et le bilan. */
+.pv-vote-tete { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 6px; }
+.pv-vote-tous { display: inline-flex; gap: 6px; }
+.pv-vote-liste { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(330px, 100%), 1fr)); gap: 6px 16px; }
+.pv-vote-liste li { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.pv-vote-nom { min-width: 0; overflow-wrap: anywhere; }
+.seg button.on.pour { background: #16a34a; color: #fff; }
+.seg button.on.contre { background: #dc2626; color: #fff; }
+.seg button.on.abstention { background: #64748b; color: #fff; }
+.pv-vote-bilan { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: var(--surface2); }
+.pv-vote-bilan.accepte strong { color: #15803d; }
+.pv-vote-bilan.refuse strong { color: #b91c1c; }
+:root[data-theme='dark'] .pv-vote-bilan.accepte strong { color: #4ade80; }
+:root[data-theme='dark'] .pv-vote-bilan.refuse strong { color: #f87171; }
+/* Le vote sous le point : dans la prise de notes et dans le PV. */
+.min-vote { font-size: 0.85rem; margin-top: 2px; font-weight: 600; }
+.min-pv-vote { margin: 0 0 4px; font-size: 0.95em; }
 .pv-fiche-nb { font-size: 0.72rem; font-weight: 600; line-height: 1.5; padding: 0 6px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); }
 /* Barre entre deux fenêtres : à tirer (souris, doigt) ou au clavier. */
 .pv-separateur { display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 6px; }

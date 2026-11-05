@@ -2793,3 +2793,63 @@ test('fiche du PV : onglet « Séances précédentes », ce que les PV d’avant
   await expect(autre.getByRole('tab', { name: /^Séances précédentes/ }).locator('.pv-fiche-nb')).toHaveCount(0);
   await expect(autre.getByRole('tabpanel')).toContainText('Le PV des séances précédentes ne dit rien de ce point.');
 });
+
+test('fiche du PV : bandeau de la séance en haut ; onglet « Vote » des membres présents, le résultat dans le PV', async ({ page, context }) => {
+  await context.grantPermissions(['clipboard-read', 'clipboard-write']);
+  await page.goto('./?demo#/taches');
+  const f = await nouvelleTache(page, 'Acheter une remorque');
+  await f.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await allerA(page, '/pv');
+  const seance = (await page.locator('.minutes-page .page-head select').first().locator('option:checked').textContent())!.split(' – ')[0];
+  const ouvrir = async () => {
+    await page.locator('.min-task[data-point="Acheter une remorque"]').getByRole('button', { name: 'Acheter une remorque' }).click();
+    return page.getByRole('dialog', { name: 'Fiche du PV : Acheter une remorque' });
+  };
+  let fiche = await ouvrir();
+  // Bandeau : le comité, la séance, sa date et son lieu.
+  const bandeau = fiche.locator('.pv-fiche-entete');
+  await expect(bandeau).toContainText(seance);
+  await expect(bandeau).toContainText('Lieu :');
+  await expect(bandeau).toContainText(/\d{4}/);
+  // Personne de présent : rien à voter.
+  await fiche.getByRole('tab', { name: /^Vote/ }).click();
+  await expect(fiche.getByRole('tabpanel')).toContainText('Personne n’est noté présent');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: /^Tous présents/ }).click();
+
+  fiche = await ouvrir();
+  await fiche.getByRole('tab', { name: /^Vote/ }).click();
+  const voix = fiche.getByRole('group', { name: /^Voix de / });
+  const n = await voix.count();
+  expect(n).toBeGreaterThan(2);
+  await fiche.getByRole('button', { name: 'Tous pour' }).click();
+  await expect(fiche.locator('.pv-vote-bilan strong')).toHaveText(`Accepté à l’unanimité (${n} pour)`);
+  await expect(fiche.getByRole('tab', { name: /^Vote/ })).toContainText(`${n}/${n}`);
+  await voix.nth(1).getByRole('button', { name: 'Contre' }).click();
+  await voix.nth(2).getByRole('button', { name: 'Abstention' }).click();
+  // Re-clic : la voix est retirée.
+  await voix.nth(2).getByRole('button', { name: 'Abstention' }).click();
+  await expect(voix.nth(2).getByRole('button', { name: 'Abstention' })).toHaveAttribute('aria-pressed', 'false');
+  await expect(fiche.locator('.pv-vote-bilan')).toContainText('pas encore votés : 1');
+  await voix.nth(2).getByRole('button', { name: 'Abstention' }).click();
+  const attendu = `accepté – ${n - 2} pour, 1 contre, 1 abstention`;
+  await expect(fiche.locator('.pv-vote-bilan')).toContainText(`Vote : ${attendu}`);
+  await page.keyboard.press('Escape');
+
+  // Prise de notes, document et texte du PV : le résultat sous le point (au PV même sans note).
+  await expect(page.locator('.min-task[data-point="Acheter une remorque"] .min-vote')).toHaveText(`Vote : ${attendu}`);
+  await page.getByRole('button', { name: 'PV', exact: true }).click();
+  await expect(page.locator('.pv-sheet li', { hasText: /^Acheter une remorque/ }).locator('.min-pv-vote')).toHaveText(`Vote : ${attendu}`);
+  await page.getByRole('button', { name: 'Copier le texte' }).click();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toContain(`Vote : ${attendu}`);
+
+  // « Effacer » : plus de vote.
+  await page.getByRole('button', { name: 'Prise de notes', exact: true }).click();
+  fiche = await ouvrir();
+  await fiche.getByRole('tab', { name: /^Vote/ }).click();
+  await fiche.getByRole('button', { name: 'Effacer' }).click();
+  await expect(fiche.locator('.pv-vote-bilan')).toContainText('Aucune voix');
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.min-task[data-point="Acheter une remorque"] .min-vote')).toHaveCount(0);
+});

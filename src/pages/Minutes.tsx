@@ -3,8 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
 import { FULL_AGENDA, blocsSection, echeanceSuivante, etatTerminee, meetingContext, ordreSection, retiresDe, selectAgenda, sortedMeetings } from '../data/agenda';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
-import { EMPTY_MINUTES, diffTask, resumerChangements, shortDate, stateOf } from '../data/minutes';
-import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot } from '../data/types';
+import { EMPTY_MINUTES, bilanVote, diffTask, resumerChangements, shortDate, stateOf, texteVote } from '../data/minutes';
+import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot, Voix } from '../data/types';
 import { finLe, fmtDate, fmtDateTime, fullName, initials, isDone, newTask, today, uid } from '../data/utils';
 import { NoteField, TexteNote } from '../components/NoteField';
 import { texteDe } from '../data/noteRiche';
@@ -30,7 +30,7 @@ import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { aFiger, figerPoints, figerRemarques, remarquesAFiger, reporterChangement, vueFigee } from '../data/etatsPv';
 import { PiecesJointesPoint } from '../components/PiecesJointesPoint';
-import { FichePv, type ArretPv } from '../components/FichePv';
+import { FichePv, type ArretPv, type VotePv } from '../components/FichePv';
 import type { DocTracking } from '../components/DocsField';
 import { deleteFiles } from '../data/files';
 import type { SetT } from '../components/tache/Quand';
@@ -445,6 +445,31 @@ export function Minutes() {
   // Retards annoncés pas encore arrivés : « Tous présents » les laisse de côté (« Retard » à leur arrivée).
   const retardsAttendus = new Set((s1?.retards ?? []).map((r) => r.personId).filter((id) => !m.presents.includes(id) && !m.excuses.includes(id)));
 
+  // Vote d'un point en séance (fiche du PV, onglet « Vote ») : les voix des membres présents, gardées dans le PV.
+  const presentsVote = committee.filter((p) => m.presents.includes(p.id));
+  const voteDe = (t: Task) => bilanVote(m.votes?.[t.id], m.presents);
+  const setVoix = (t: Task, voix: (avant: Record<string, Voix>) => Record<string, Voix>) =>
+    setMinutes((x) => {
+      const votes = { ...x.votes };
+      const v = voix({ ...votes[t.id] });
+      if (Object.keys(v).length) votes[t.id] = v;
+      else delete votes[t.id];
+      if (Object.keys(votes).length) x.votes = votes;
+      else delete x.votes;
+    }, { annulable: `Vote sur « ${t.titre} »` });
+  const votePv = (t: Task): VotePv => ({
+    presents: presentsVote,
+    voix: m.votes?.[t.id],
+    modifiable: editable,
+    voter: (id, v) =>
+      setVoix(t, (x) => {
+        if (v) x[id] = v;
+        else delete x[id];
+        return x;
+      }),
+    tous: (v) => setVoix(t, () => (v ? Object.fromEntries(presentsVote.map((p) => [p.id, v])) : {})),
+  });
+
   // Point changé depuis le PV (sa ligne, ou la fiche du PV) : `t` tel que le PV le montre, `patch` les champs changés.
   // Enregistré sur la tâche telle qu'elle est (un champ changé ailleurs depuis la séance est gardé) et inscrit au PV par
   // rapport à ce que le PV montrait, pour ces champs seulement. false : pas enregistré (question refusée).
@@ -678,7 +703,7 @@ export function Minutes() {
   const pvTouche =
     !m.valideLe &&
     !!(m.demarreLe || m.heureDebut || m.heureFin || m.presents.length || m.excuses.some((id) => !annoncees.has(id)) || m.invites?.trim() ||
-      Object.values(m.notes).some((n) => n.trim()) || journal.length || nouvelles.size || deleted.length || m.tousLesPoints || m.pointIds?.length || retour.length);
+      Object.values(m.notes).some((n) => n.trim()) || journal.length || nouvelles.size || deleted.length || m.tousLesPoints || m.pointIds?.length || retour.length || m.votes);
   const remettreTaches = (tasks: Task[], conflit: () => void) => {
     const out = [...tasks];
     for (const [id, { avant, apres }] of retour) {
@@ -825,7 +850,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
   const noteOf = (key: string) => m.notes[key]?.trim() ?? '';
   // Texte seul (copie, email) : sans la mise en forme.
   const texteNote = (key: string) => texteDe(noteOf(key)).trim();
-  const taskInPv = (t: Task) => m.tousLesPoints || !!noteOf(`task:${t.id}`) || changesOf(t).length > 0 || isNewTask(t);
+  const taskInPv = (t: Task) => m.tousLesPoints || !!noteOf(`task:${t.id}`) || changesOf(t).length > 0 || isNewTask(t) || !!voteDe(t);
   const pollInPv = (p: Poll) => m.tousLesPoints || !!noteOf(`poll:${p.id}`) || !isOpen(p);
   const pvSections = bySection
     .map((g) => {
@@ -894,6 +919,8 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
         if (remarqueDe(t)) remarqueDe(t).split('\n').filter((l) => l.trim()).forEach((l, k) => out.push(`${pad}   ${k ? '  ' : 'Remarque : '}${l.trim()}`));
         texteNote(`task:${t.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}   → ${l}`));
         if (opts.misesAJour) changesOf(t).forEach((c) => out.push(`${pad}   ↻ ${c}`));
+        const vote = voteDe(t);
+        if (vote) out.push(`${pad}   Vote : ${texteVote(vote)}`);
         pollsDe(t).filter(pollInPv).forEach((p) => {
           out.push(`${pad}   ◦ Sondage : ${p.question} — ${pollSummary(p)}`);
           texteNote(`poll:${p.id}`).split('\n').filter(Boolean).forEach((l) => out.push(`${pad}      → ${l}`));
@@ -1055,6 +1082,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
           </ul>
         )}
         {ch.length > 0 && <div className="min-changes">↻ {ch.join(' · ')}</div>}
+        {voteDe(t) && <div className="min-vote">Vote : {texteVote(voteDe(t)!)}</div>}
         {noteToggle(`task:${t.id}`, 'Note / décision sur ce point…')}
       </div>
     );
@@ -1085,6 +1113,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
         {opts.documents && !!t.documents?.length && <p className="min-pv-docs"><DocsTache t={t} annexes={joints} /></p>}
         {noteOf(`task:${t.id}`) && <p className="min-pv-note">→ <TexteNote note={noteOf(`task:${t.id}`)} /></p>}
         {opts.misesAJour && changesOf(t).length > 0 && <p className="min-pv-change">↻ {changesOf(t).join(' · ')}</p>}
+        {voteDe(t) && <p className="min-pv-vote"><b>Vote :</b> {texteVote(voteDe(t)!)}</p>}
         {pollsDe(t).filter(pollInPv).map((p) => (
           <p key={p.id} className="min-pv-poll">
             <span className="odj-poll">Sondage : {p.question} — {pollSummary(p)}</span>
@@ -1410,6 +1439,18 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               rattacher={rattacherDepuisPv}
               track={docsFiche.current}
               seance={s1}
+              vote={votePv(arret.tache ?? ({ id: arret.cle, titre: arret.nom } as Task))}
+              entete={
+                <>
+                  <strong className="pv-fiche-comite">{nomComite}</strong>
+                  <span>{s1.titre}</span>
+                  <span>
+                    {longDate(s1.date)}
+                    {(m.heureDebut ?? s1.heure) && ` · ${hm(m.heureDebut ?? s1.heure)}${m.heureFin ? ` – ${hm(m.heureFin)}` : ''}`}
+                  </span>
+                  <span>Lieu : <LieuSeance m={s1} /></span>
+                </>
+              }
             />
           )}
           <aside className="min-side">

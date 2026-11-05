@@ -1,7 +1,7 @@
-import { useLayoutEffect, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type RefObject } from 'react';
+import { useLayoutEffect, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
 import { useStore } from '../data/store';
-import type { Meeting, Poll, Task } from '../data/types';
-import { avantSeance, notesSeances } from '../data/minutes';
+import type { Meeting, Person, Poll, Task, Voix } from '../data/types';
+import { avantSeance, bilanVote, notesSeances, texteVote } from '../data/minutes';
 import { childrenOf, fullName, nomPoste } from '../data/utils';
 import { etiquettePassee, etiquettesDesLieux } from '../data/etiquettes';
 import { pollSummary } from '../data/polls';
@@ -62,6 +62,8 @@ export function FichePv({
   rattacher,
   track,
   seance,
+  entete,
+  vote,
 }: {
   arret: ArretPv;
   position: { i: number; n: number };
@@ -92,6 +94,10 @@ export function FichePv({
   track: DocTracking;
   /** Séance du PV : l'onglet « Séances précédentes » montre les notes des PV d'avant. */
   seance?: Meeting;
+  /** Bandeau du haut : le comité, la séance, sa date, son heure et son lieu. */
+  entete?: ReactNode;
+  /** Onglet « Vote » : le vote des membres présents sur ce point. */
+  vote: VotePv;
 }) {
   const gauche = useRef<HTMLDivElement>(null);
   const ecran = useRef<HTMLDivElement>(null);
@@ -128,6 +134,11 @@ export function FichePv({
       role="dialog"
       aria-label={`Fiche du PV : ${arret.nom}`}
     >
+      {entete && (
+        <header className="pv-fiche-entete" aria-label="Séance">
+          {entete}
+        </header>
+      )}
       <div className="pv-fiche-gauche" ref={gauche}>
         <section className="panel pv-fiche-point" aria-label="Point">
           <div className="pv-fiche-tete">
@@ -156,6 +167,7 @@ export function FichePv({
               rattacher={rattacher}
               track={track}
               seance={seance}
+              vote={vote}
             />
           ) : arret.poll ? (
             <>
@@ -278,11 +290,23 @@ function Separateur({ sens, part, setPart, zone, nom }: { sens: 'haut' | 'large'
   );
 }
 
-type Onglet = 'point' | 'checklist' | 'rattachements' | 'etiquettes' | 'documents' | 'seances';
+type Onglet = 'point' | 'vote' | 'checklist' | 'rattachements' | 'etiquettes' | 'documents' | 'seances';
+
+/** Vote d'un point en séance (onglet « Vote ») : les membres présents, leurs voix, et de quoi les noter. */
+export interface VotePv {
+  presents: Person[];
+  voix?: Record<string, Voix>;
+  /** Voix d'un membre (null : retirée). */
+  voter: (personId: string, v: Voix | null) => void;
+  /** La même voix pour tous les présents (null : vote effacé). */
+  tous: (v: Voix | null) => void;
+  /** PV modifiable. */
+  modifiable: boolean;
+}
 
 /**
  * Le point dans la fiche du PV, en onglets : « Point » (intitulé, remarque, statut et responsables dessous, délai à
- * côté), « Checklist », « Rattachements » (événement, séance, point principal, points rattachés), « Étiquettes »,
+ * côté), « Vote » (des membres présents), « Checklist », « Rattachements » (événement, séance, point principal, points rattachés), « Étiquettes »,
  * « Documents », « Séances précédentes » (ce qu'en disent les PV d'avant). Le reste (répétition, pour info, à prendre,
  * emails…) : depuis la page Points.
  */
@@ -299,6 +323,7 @@ function ChampsPoint({
   rattacher,
   track,
   seance,
+  vote,
 }: {
   t: Task;
   setT: SetT;
@@ -312,6 +337,7 @@ function ChampsPoint({
   rattacher: (taskId: string, parentId: string | undefined) => void;
   track: DocTracking;
   seance?: Meeting;
+  vote: VotePv;
 }) {
   const { data, user, can, canAssignOthers, peutEtiqueter } = useStore();
   if (!user) return null;
@@ -332,8 +358,10 @@ function ChampsPoint({
   const faites = t.checklist.filter((c) => c.done).length;
   // Notes des PV des séances d'avant (et des occurrences précédentes d'un point qui se répète).
   const precedentes = avantSeance(notesSeances(data, enregistre, can('tab.minutes')), seance).length;
+  const bilan = bilanVote(vote.voix, vote.presents.map((p) => p.id));
   const onglets: { id: Onglet; nom: string; nb?: string }[] = [
     { id: 'point', nom: 'Point' },
+    { id: 'vote', nom: 'Vote', nb: bilan ? `${bilan.pour + bilan.contre + bilan.abstention}/${vote.presents.length}` : undefined },
     { id: 'checklist', nom: 'Checklist', nb: t.checklist.length ? `${faites}/${t.checklist.length}` : undefined },
     { id: 'rattachements', nom: 'Rattachements', nb: nbLiens ? String(nbLiens) : undefined },
     { id: 'etiquettes', nom: 'Étiquettes', nb: portees ? String(portees) : undefined },
@@ -476,10 +504,77 @@ function ChampsPoint({
           </div>
         )}
         {onglet === 'seances' && <NotesSeances task={enregistre} avant={seance} toujours />}
+        {onglet === 'vote' && <VotePoint vote={vote} />}
         {onglet === 'documents' && (
           <DocsField docs={t.documents ?? []} setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))} disabled={dis} track={track} liens />
         )}
       </div>
     </>
+  );
+}
+
+const majuscule = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+
+const VOIX: [Voix, string][] = [
+  ['pour', 'Pour'],
+  ['contre', 'Contre'],
+  ['abstention', 'Abstention'],
+];
+
+/**
+ * Vote du point en séance : chaque membre présent (présences de la prise de notes, retards compris) pour, contre ou
+ * abstention (re-clic : retirée) ; « Tous pour » d'un coup, « Effacer ». Le bilan et le résultat (majorité des voix
+ * exprimées) au-dessus des noms, toujours à l'écran ; enregistré tout de suite dans le PV, sous le point.
+ */
+function VotePoint({ vote }: { vote: VotePv }) {
+  const { presents, voix = {}, voter, tous, modifiable } = vote;
+  if (!presents.length)
+    return <p className="full muted pv-fiche-info">Personne n’est noté présent : note d’abord les présences, en haut de la prise de notes.</p>;
+  const bilan = bilanVote(voix, presents.map((p) => p.id));
+  return (
+    <div className="full pv-vote">
+      <div className="pv-vote-tete">
+        <span className="field-label">Membres présents ({presents.length})</span>
+        {modifiable && (
+          <span className="pv-vote-tous">
+            <button type="button" className="btn small" onClick={() => tous('pour')}>Tous pour</button>
+            <button type="button" className="btn small" disabled={!bilan} onClick={() => tous(null)}>Effacer</button>
+          </span>
+        )}
+      </div>
+      <p className={`pv-vote-bilan ${bilan?.resultat ?? ''}`} role="status">
+        {bilan ? (
+          <>
+            Pour {bilan.pour} · Contre {bilan.contre} · Abstention {bilan.abstention}
+            {bilan.sans > 0 && <span className="muted"> · pas encore votés : {bilan.sans}</span>}
+            <br />
+            <strong>{majuscule(texteVote(bilan).replace(/ – .*$/, ''))}</strong> <span className="muted">(majorité des voix exprimées ; dans le PV : « Vote : {texteVote(bilan)} »)</span>
+          </>
+        ) : (
+          <span className="muted">Aucune voix pour l’instant.</span>
+        )}
+      </p>
+      <ul className="pv-vote-liste">
+        {presents.map((p) => (
+          <li key={p.id}>
+            <span className="pv-vote-nom">{fullName(p)}</span>
+            <span className="seg small" role="group" aria-label={`Voix de ${fullName(p)}`}>
+              {VOIX.map(([v, nom]) => (
+                <button
+                  key={v}
+                  type="button"
+                  disabled={!modifiable}
+                  className={voix[p.id] === v ? `on ${v}` : ''}
+                  aria-pressed={voix[p.id] === v}
+                  onClick={() => voter(p.id, voix[p.id] === v ? null : v)}
+                >
+                  {nom}
+                </button>
+              ))}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

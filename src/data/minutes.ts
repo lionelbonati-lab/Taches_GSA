@@ -1,4 +1,4 @@
-import type { AppData, Meeting, MeetingMinutes, Task, TaskSnapshot } from './types';
+import type { AppData, Meeting, MeetingMinutes, Task, TaskSnapshot, Voix } from './types';
 import { initials } from './utils';
 
 // Outils du PV partagés par l'onglet PV et la mise à niveau des données.
@@ -133,4 +133,40 @@ export function notesSeances(data: AppData, t: Task, brouillons: boolean): NoteS
     }
   }
   return out.sort((a, b) => b.meeting.date.localeCompare(a.meeting.date));
+}
+
+/** Bilan du vote d'un point : les voix des présents (celles des autres ne comptent pas), et le résultat. */
+export interface BilanVote {
+  pour: number;
+  contre: number;
+  abstention: number;
+  /** Présents qui n'ont pas (encore) voté. */
+  sans: number;
+  /** Plus de « pour » que de « contre » : accepté ; l'inverse : refusé ; autant : égalité. */
+  resultat: 'accepte' | 'refuse' | 'egalite';
+  /** Tous les présents ont voté pour. */
+  unanimite: boolean;
+}
+
+/** Vote d'un point au PV (aucune voix d'un présent : undefined). Majorité des voix exprimées (pour / contre). */
+export function bilanVote(votes: Record<string, Voix> | undefined, presents: string[]): BilanVote | undefined {
+  const voix = presents.map((id) => votes?.[id]);
+  const n = (v: Voix) => voix.filter((x) => x === v).length;
+  const [pour, contre, abstention] = [n('pour'), n('contre'), n('abstention')];
+  if (!pour && !contre && !abstention) return undefined;
+  return {
+    pour,
+    contre,
+    abstention,
+    sans: voix.filter((x) => !x).length,
+    resultat: pour > contre ? 'accepte' : contre > pour ? 'refuse' : 'egalite',
+    unanimite: pour === presents.length,
+  };
+}
+
+/** « accepté à l'unanimité (7 pour) », « accepté – 5 pour, 1 contre, 1 abstention », « refusé – … », « égalité – … ». */
+export function texteVote(b: BilanVote): string {
+  if (b.unanimite) return `accepté à l’unanimité (${b.pour} pour)`;
+  const voix = [`${b.pour} pour`, `${b.contre} contre`, b.abstention && `${b.abstention} abstention${b.abstention > 1 ? 's' : ''}`].filter(Boolean).join(', ');
+  return `${b.resultat === 'accepte' ? 'accepté' : b.resultat === 'refuse' ? 'refusé' : 'égalité'} – ${voix}`;
 }
