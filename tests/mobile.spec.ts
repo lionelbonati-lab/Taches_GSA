@@ -110,3 +110,17 @@ test('événements sur téléphone : boutons en icônes seules, pas de « Discus
   const deborde = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
   expect(deborde).toBeLessThanOrEqual(1);
 });
+
+test('PV sur téléphone : pas de vue en fenêtres, même choisie sur un ordinateur', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const fiche = await nouvelleTache(page, 'Point du PV au téléphone');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await page.evaluate(() => localStorage.setItem('taches-gsa-pv-fenetres', '1'));
+  await page.goto('./?demo#/pv');
+  await expect(page.locator('.min-task[data-point="Point du PV au téléphone"]')).toBeVisible();
+  await expect(page.locator('.pv-fiche-ecran')).toHaveCount(0);
+  const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  await expect(pilule).toBeVisible();
+  await expect(pilule.getByRole('button', { name: /^Vue en fenêtres/ })).toBeHidden();
+});

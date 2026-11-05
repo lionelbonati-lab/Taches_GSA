@@ -24,7 +24,7 @@ import { texteLieu } from '../data/lieux';
 import { lienMailto } from '../data/lienPartage';
 import { Icone } from '../components/icones';
 import { revenir } from '../data/annuler';
-import { Pilule, type OutilPilule } from '../components/Pilule';
+import { BarreOutils, Pilule, type OutilPilule } from '../components/Pilule';
 import { OutilsTexte } from '../components/OutilsTexte';
 import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
@@ -83,6 +83,18 @@ const ecrireOption = (cle: string, on: boolean) => {
   }
 };
 const lireProjection = () => lireOption(CLE_PROJECTION);
+/** Écran de téléphone (comme les règles « max-width: 767px » de styles.css). */
+const ETROIT = '(max-width: 767px)';
+function useEcranEtroit() {
+  const [etroit, setEtroit] = useState(() => matchMedia(ETROIT).matches);
+  useEffect(() => {
+    const q = matchMedia(ETROIT);
+    const suivre = () => setEtroit(q.matches);
+    q.addEventListener('change', suivre);
+    return () => q.removeEventListener('change', suivre);
+  }, []);
+  return etroit;
+}
 const ecrireProjection = (on: boolean) => ecrireOption(CLE_PROJECTION, on);
 
 /** Ligne de changement du PV (diffTask) → champ de la tâche qu'elle décrit. */
@@ -526,8 +538,12 @@ export function Minutes() {
   // Un point à la fois, par-dessus la prise de notes (à gauche le point et ses notes, à droite la projection) : la pilule
   // passe d'un point à l'autre sans rouvrir chacun, et le point quitté est enregistré. `brouillon` : le point changé dans
   // la fiche, pas encore enregistré ; `origine` : tel que la fiche le montrait avant.
-  // Vue en fenêtres : une option d'affichage (pilule), retenue sur l'appareil ; rouverte au premier point (cle '').
-  const [fiche, setFiche] = useState<{ cle: string; origine?: Task; brouillon?: Task } | null>(() => (lireOption(CLE_FENETRES) ? { cle: '' } : null));
+  // Vue en fenêtres : une option d'affichage (pilule), retenue sur l'appareil ; rouverte au premier point (cle '') ; pas
+  // sur téléphone (le PV ne s'y tient pas).
+  const telephone = useEcranEtroit();
+  const [fiche, setFiche] = useState<{ cle: string; origine?: Task; brouillon?: Task } | null>(() =>
+    lireOption(CLE_FENETRES) && !matchMedia(ETROIT).matches ? { cle: '' } : null,
+  );
   const [ficheErreur, setFicheErreur] = useState('');
   // Fiche refermée : la prise de notes revient à son dernier point.
   const [revenirA, setRevenirA] = useState<string | null>(null);
@@ -619,9 +635,16 @@ export function Minutes() {
   // l'écran) ; re-clic : retour à la prise de notes, à ce point.
   const basculerFenetres = () => {
     if (fiche) return allerFiche(null);
+    if (telephone) return;
     const cle = defile.cleEnCours();
     ouvrirFiche(cle && arrets.some((a) => a.cle === cle) ? cle : arrets[0].cle);
   };
+  // Écran devenu étroit (téléphone) : la vue se referme, le point enregistré ; l'option reste pour l'ordinateur.
+  useEffect(() => {
+    if (!telephone || !fiche) return;
+    if (sauverFiche()) setFiche(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [telephone]);
   // Échap : fiche refermée (pas quand une fenêtre est ouverte par-dessus, ni une liste déroulante).
   const allerFicheRef = useRef(allerFiche);
   allerFicheRef.current = allerFiche;
@@ -849,6 +872,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
       titre: fiche ? 'Vue en fenêtres : revenir à la prise de notes' : 'Vue en fenêtres : un point à la fois (le point, ses notes, la projection)',
       onClick: basculerFenetres,
       actif: !!fiche,
+      classe: 'pilule-fenetres',
       separe: true,
     },
     {
@@ -1438,9 +1462,8 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               {editable && <div className="min-fin" aria-hidden />}
             </section>
           </div>
-          {editable && (
-            <Pilule id="pv" label="Outils de la prise de notes" titre={arret ? arret.section : sections.actuelle?.nom ?? 'Séance et présences'} outils={outils} ligne2={<OutilsTexte />} />
-          )}
+          {/* Vue en fenêtres : les outils en barre fixe, sous son bandeau ; sinon la pilule flottante. */}
+          {editable && !arret && <Pilule id="pv" label="Outils de la prise de notes" titre={sections.actuelle?.nom ?? 'Séance et présences'} outils={outils} ligne2={<OutilsTexte />} />}
           {arret && (
             <FichePv
               arret={arret}
@@ -1464,6 +1487,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               track={docsFiche.current}
               seance={s1}
               vote={votePv(arret.tache ?? ({ id: arret.cle, titre: arret.nom } as Task))}
+              barre={editable ? <BarreOutils label="Outils de la prise de notes" outils={outils} ligne2={<OutilsTexte />} /> : undefined}
               entete={
                 <>
                   <strong className="pv-fiche-comite">{nomComite}</strong>

@@ -1,4 +1,4 @@
-import { useLayoutEffect, useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
+import { useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode, type RefObject } from 'react';
 import { useStore } from '../data/store';
 import type { Meeting, Person, Poll, Task, Voix } from '../data/types';
 import { avantSeance, bilanVote, notesSeances, texteVote } from '../data/minutes';
@@ -23,8 +23,9 @@ import { Icone } from './icones';
 // point, en onglets (le point : intitulé, remarque, statut, délai, responsables ; puis checklist, rattachements,
 // étiquettes, documents, notes des séances précédentes) et dessous le rectangle de ses notes de séance ; à
 // droite, en projection, ses pièces jointes en grand (sans projection : au centre). Comme sur plusieurs écrans, les
-// barres entre les fenêtres se tirent (hauteur du point, largeur de la projection). La pilule reste au-dessus et passe
-// d'un point à l'autre ; le point quitté est enregistré (Minutes.tsx).
+// barres entre les fenêtres se tirent (hauteur du point, largeur de la projection). En haut, le bandeau de la séance et,
+// dessous, les outils de la pilule en barre fixe (elle passe d'un point à l'autre ; le point quitté est enregistré :
+// Minutes.tsx). Pas sur téléphone (le PV ne s'y tient pas).
 
 /** Arrêt de la fiche : un point, un sondage, la note d'une section ou « Divers », dans l'ordre de la prise de notes. */
 export interface ArretPv {
@@ -64,6 +65,7 @@ export function FichePv({
   track,
   seance,
   entete,
+  barre,
   vote,
 }: {
   arret: ArretPv;
@@ -97,6 +99,8 @@ export function FichePv({
   seance?: Meeting;
   /** Bandeau du haut : le comité, la séance, sa date, son heure et son lieu. */
   entete?: ReactNode;
+  /** Sous le bandeau : les outils de la pilule, en barre fixe (la pilule flottante n'est pas là). */
+  barre?: ReactNode;
   /** Onglet « Vote » : le vote des membres présents sur ce point. */
   vote: VotePv;
 }) {
@@ -108,12 +112,6 @@ export function FichePv({
   const [largeFiche, setLargeFiche] = usePart(CLE_LARGE, 0.48);
   // Onglet du point : le même d'un point à l'autre (cocher les checklists point après point…).
   const [onglet, setOnglet] = useState<Onglet>('point');
-  // La pilule (à sa place d'origine) au milieu de la fiche, à côté de la projection.
-  useEffect(() => {
-    const r = document.documentElement.style;
-    if (projection) r.setProperty('--centre-fiche', `${Math.round(largeFiche * 50)}%`);
-    return () => void r.removeProperty('--centre-fiche');
-  }, [projection, largeFiche]);
   // Autre point : la fiche repart du haut ; à la souris (ordinateur, beamer), on écrit tout de suite dans ses notes.
   useLayoutEffect(() => {
     gauche.current?.querySelector('.pv-fiche-point')?.scrollTo({ top: 0 });
@@ -135,11 +133,14 @@ export function FichePv({
       role="dialog"
       aria-label={`Fiche du PV : ${arret.nom}`}
     >
-      {entete && (
-        <header className="pv-fiche-entete" aria-label="Séance">
-          {entete}
-        </header>
-      )}
+      <div className="pv-fiche-haut">
+        {entete && (
+          <header className="pv-fiche-entete" aria-label="Séance">
+            {entete}
+          </header>
+        )}
+        {barre}
+      </div>
       <div className="pv-fiche-gauche" ref={gauche}>
         <section className="panel pv-fiche-point" aria-label="Point">
           <div className="pv-fiche-tete">

@@ -2,7 +2,8 @@ import { useLayoutEffect, useRef, useState, type KeyboardEvent, type PointerEven
 import { Icone, type IconeNom } from './icones';
 
 // Barre d'outils flottante (« pilule »), en icônes seulement : on la déplace en la tenant par sa poignée (souris ou
-// doigt, flèches du clavier) ; un double-clic sur la poignée la remet à sa place. Place et état (réduite ou non)
+// doigt, flèches du clavier) ; un double-clic sur la poignée la remet à sa place. BarreOutils : les mêmes outils en
+// barre fixe. Place et état (réduite ou non)
 // retenus sur l'appareil. Un affichage (chrono…) reste visible quand elle est réduite. `titre` : une ligne au-dessus des
 // outils (coupée à leur largeur) ; `ligne2` : une 2e ligne d'outils (mise en forme du texte), cachée quand elle est réduite.
 
@@ -135,26 +136,55 @@ export function Pilule({ id, label, titre, outils, ligne2 }: { id: string; label
         >
           <Icone n="poignee" />
         </button>
-        {(reduite ? outils.filter((o) => !o.icone) : outils).map((o) => (
-          <span key={o.icone ?? o.titre} className={`pilule-outil ${o.classe ?? ''}`}>
-            {o.separe && !reduite && <span className="pilule-sep" aria-hidden />}
-            {o.icone ? (
-              <button type="button" title={o.titre} aria-label={o.titre} disabled={o.disabled} onClick={o.onClick} className={o.actif ? 'on' : undefined} aria-pressed={o.actif}>
-                <Icone n={o.icone} />
-                {o.etat && <span className={`pilule-etat ${o.etat}`} aria-hidden />}
-              </button>
-            ) : (
-              <span className="pilule-texte" title={o.titre}>
-                {o.texte}
-              </span>
-            )}
-          </span>
-        ))}
+        <Outils outils={reduite ? outils.filter((o) => !o.icone) : outils} separes={!reduite} />
         <button type="button" className="pilule-plier" title={reduite ? 'Afficher les outils' : 'Réduire'} aria-label={reduite ? 'Afficher les outils' : 'Réduire la barre d’outils'} aria-expanded={!reduite} onClick={basculer}>
           <Icone n={reduite ? 'pleinEcran' : 'quitterPleinEcran'} />
         </button>
       </div>
       {ligne2 && !reduite && <div className="pilule-barre pilule-ligne2">{ligne2}</div>}
+    </div>
+  );
+}
+
+/** Les outils, en icônes (et leurs affichages : chrono…), séparés par groupe (`separes`). */
+function Outils({ outils, separes }: { outils: OutilPilule[]; separes: boolean }) {
+  return (
+    <>
+      {outils.map((o) => (
+        <span key={o.icone ?? o.titre} className={`pilule-outil ${o.classe ?? ''}`}>
+          {o.separe && separes && <span className="pilule-sep" aria-hidden />}
+          {o.icone ? (
+            <button type="button" title={o.titre} aria-label={o.titre} disabled={o.disabled} onClick={o.onClick} className={o.actif ? 'on' : undefined} aria-pressed={o.actif}>
+              <Icone n={o.icone} />
+              {o.etat && <span className={`pilule-etat ${o.etat}`} aria-hidden />}
+            </button>
+          ) : (
+            <span className="pilule-texte" title={o.titre}>
+              {o.texte}
+            </span>
+          )}
+        </span>
+      ))}
+    </>
+  );
+}
+
+/**
+ * Les outils de la pilule en barre fixe (vue en fenêtres du PV, sous son bandeau) : sur une ligne, la mise en forme
+ * (`ligne2`) à la suite ; ni poignée ni réduction.
+ */
+export function BarreOutils({ label, outils, ligne2 }: { label: string; outils: OutilPilule[]; ligne2?: ReactNode }) {
+  return (
+    <div className="pilule ancree no-print" role="toolbar" aria-label={label}>
+      <div className="pilule-barre">
+        <Outils outils={outils} separes />
+        {ligne2 && (
+          <>
+            <span className="pilule-sep" aria-hidden />
+            {ligne2}
+          </>
+        )}
+      </div>
     </div>
   );
 }

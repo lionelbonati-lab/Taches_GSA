@@ -1883,6 +1883,15 @@ test('PV : un appui sur le titre d’un point ouvre sa fiche ; la vue en fenêtr
   const fichePv = await vueEnFenetres(page, 'Point à ouvrir depuis le PV');
   const bouton = page.getByRole('toolbar', { name: 'Outils de la prise de notes' }).getByRole('button', { name: /^Vue en fenêtres/ });
   await expect(bouton).toHaveAttribute('aria-pressed', 'true');
+  // Ses outils : en barre fixe sous le bandeau de la séance, à la place de la pilule flottante (mise en forme comprise).
+  const barre = fichePv.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  await expect(barre).toHaveClass(/\bancree\b/);
+  await expect(page.locator('.pilule:not(.ancree)')).toHaveCount(0);
+  const bandeau = (await fichePv.locator('.pv-fiche-entete').boundingBox())!;
+  const haut = (await barre.boundingBox())!;
+  expect(haut.y).toBeGreaterThanOrEqual(bandeau.y + bandeau.height);
+  expect(haut.y).toBeLessThan((await fichePv.locator('.pv-fiche-gauche').boundingBox())!.y);
+  await expect(barre.getByRole('button', { name: /^Gras/ })).toBeVisible();
   await expect(fichePv.getByRole('button', { name: 'Fiche complète' })).toHaveCount(0);
   // « Qui s'en occupe ? » sous le statut, « Pour quand ? » à côté.
   const statut = (await fichePv.locator('label.statut-choix').boundingBox())!;
@@ -1892,10 +1901,12 @@ test('PV : un appui sur le titre d’un point ouvre sa fiche ; la vue en fenêtr
   expect(Math.abs(qui.x - statut.x)).toBeLessThan(2);
   expect(quand.x).toBeGreaterThan(statut.x + statut.width);
   expect(Math.abs(quand.y - statut.y)).toBeLessThan(2);
-  // Re-clic : retour à la prise de notes.
+  // Re-clic : retour à la prise de notes, la pilule flottante revient.
   await bouton.click();
   await expect(fichePv).toHaveCount(0);
   await expect(bouton).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('.pilule.ancree')).toHaveCount(0);
+  await expect(page.locator('.pilule')).toHaveCount(1);
 
   // Retenue sur l'appareil : rouverte au rechargement (au premier point) ; Échap la referme, et l'oublie.
   await vueEnFenetres(page, 'Point à ouvrir depuis le PV');
@@ -2522,7 +2533,9 @@ test('fiche du PV : d’un point à l’autre par la pilule, le point quitté en
   const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
   const suivant = pilule.getByRole('button', { name: /^Point suivant/ });
   const precedent = pilule.getByRole('button', { name: /^Point précédent/ });
-  await expect(pilule.locator('.pilule-titre')).toContainText('1.');
+  // La section du point en haut de la fiche ; les outils en barre fixe (pas de pilule flottante).
+  await expect(fiche.locator('.pv-fiche-ou')).toContainText('1.');
+  await expect(page.locator('.pilule:not(.ancree)')).toHaveCount(0);
   // D'arrêt en arrêt (vers l'avant, puis vers l'arrière), jusqu'au point voulu.
   const allerAu = async (titre: string) => {
     for (const bouton of [suivant, precedent])

@@ -774,9 +774,11 @@ body:has(.pv-fiche-ecran) { overflow: hidden; }
   display: grid; grid-template-columns: minmax(0, 900px); grid-template-rows: auto minmax(0, 1fr); justify-content: center;
   padding: 12px 16px 0;
 }
-/* Bandeau du haut, sur toute la largeur (aussi au beamer) : le comité, la séance, sa date, son heure et son lieu. */
+/* En haut, sur toute la largeur (aussi au beamer) : le bandeau (le comité, la séance, sa date, son heure et son lieu),
+   puis les outils de la pilule en barre fixe. */
+.pv-fiche-haut { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
 .pv-fiche-entete {
-  grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; margin-bottom: 10px; padding: 8px 14px;
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 14px; padding: 8px 14px;
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 0.95rem;
 }
 .pv-fiche-entete > * + *::before { content: '·'; margin-right: 14px; color: var(--muted); }
@@ -784,9 +786,9 @@ body:has(.pv-fiche-ecran) { overflow: hidden; }
 .pv-fiche-entete a { color: inherit; }
 .pv-fiche-ecran.avec-projection { grid-template-columns: minmax(0, var(--fr-fiche, 1fr)) 14px minmax(0, var(--fr-projection, 1fr)); justify-content: stretch; }
 .pv-fiche-gauche { display: grid; grid-template-rows: minmax(0, var(--fr-point, 1fr)) 14px minmax(0, var(--fr-notes, 1fr)); min-height: 0; padding-bottom: 12px; }
-/* La pilule à sa place d'origine, en bas : la fiche s'arrête au-dessus. */
-body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: 132px; }
-@media (min-width: 768px) { body:has(.pv-fiche-ecran.avec-projection) .pilule.defaut { left: var(--centre-fiche, 24%); } }
+/* Les outils de la pilule en barre fixe (sous le bandeau) : à leur place, sur une ligne (à la ligne si besoin). */
+.pilule.ancree { position: static; transform: none; width: auto; max-width: none; border-radius: var(--radius); box-shadow: var(--shadow); padding: 3px 8px; }
+.pilule.ancree .pilule-barre { flex-wrap: wrap; }
 .pv-fiche-ecran .panel { margin: 0; min-height: 0; }
 .pv-fiche-point { overflow-y: auto; overscroll-behavior: contain; }
 .pv-fiche-notes { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
@@ -838,12 +840,8 @@ body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: 132px; }
 .pv-separateur.large > span { width: 5px; height: 56px; }
 .pv-separateur:hover > span, .pv-separateur:active > span, .pv-separateur:focus-visible > span { background: var(--primary); }
 .pv-separateur:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-@media (max-width: 767px) {
-  .pv-fiche-ecran, .pv-fiche-ecran.avec-projection { grid-template-columns: minmax(0, 1fr); padding: calc(8px + env(safe-area-inset-top)) 8px 0; }
-  .pv-fiche-ecran .pv-separateur.large { display: none; }
-  body:has(.pv-fiche-ecran) .pilule.defaut { bottom: calc(8px + env(safe-area-inset-bottom)); }
-  body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
-}
+/* Pas de vue en fenêtres sur téléphone (le PV ne s'y tient pas). */
+@media (max-width: 767px) { .pilule .pilule-fenetres { display: none; } }
 
 /* ---------- Notifications ---------- */
 .bell-wrap { position: relative; margin-left: auto; }
