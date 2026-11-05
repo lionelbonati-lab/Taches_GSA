@@ -632,6 +632,34 @@ export function Minutes() {
     pointSuiv: iFiche + 1 < arrets.length ? iFiche + 1 : -1,
     sectionSuiv: arrets.findIndex((a, k) => k > iFiche && a.section !== arret.section),
   };
+  // Au clavier : ↑ ↓ d'un point à l'autre, comme les flèches simples de la pilule (fiche du PV ou prise de notes).
+  const pointVoisin = useRef<(sens: 1 | -1) => void>(() => {});
+  pointVoisin.current = (sens) => {
+    if (!ficheNav) return defile.aller('point', sens);
+    const i = sens > 0 ? ficheNav.pointSuiv : ficheNav.pointPrec;
+    if (i >= 0) allerFiche(arrets[i].cle);
+  };
+  useEffect(() => {
+    if (view !== 'saisie') return;
+    // Dernier clic dans un document projeté : ↑ ↓ le font défiler (pas les points).
+    let dansDocument = false;
+    const clic = (e: PointerEvent) => {
+      dansDocument = e.target instanceof Element && !!e.target.closest('.min-projection-doc');
+    };
+    const touche = (e: KeyboardEvent) => {
+      if ((e.key !== 'ArrowDown' && e.key !== 'ArrowUp') || e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.isComposing) return;
+      const sens = e.key === 'ArrowDown' ? 1 : -1;
+      if (dansDocument || document.querySelector('.modal-back') || !flecheLibre(e.target, sens)) return;
+      e.preventDefault();
+      pointVoisin.current(sens);
+    };
+    window.addEventListener('pointerdown', clic, true);
+    window.addEventListener('keydown', touche);
+    return () => {
+      window.removeEventListener('pointerdown', clic, true);
+      window.removeEventListener('keydown', touche);
+    };
+  }, [view]);
 
   // Correction après coup : rouvrir un PV validé ; la prochaine validation crée une nouvelle version.
   const startCorrection = () => {
@@ -1590,6 +1618,33 @@ function usePose<T>(v: T, ms: number): T {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cle, ms]);
   return pose;
+}
+
+/**
+ * ↑ ↓ libres pour passer d'un point à l'autre : pas dans ce qui s'en sert (liste, date, nombre, liste déroulante, barre
+ * à tirer, poignée de la pilule, pièces jointes projetées) ; dans un texte (note, remarque, intitulé), seulement au bord :
+ * le curseur au début (↑) ou à la fin (↓), sinon il y monte ou descend comme d'habitude.
+ */
+function flecheLibre(cible: EventTarget | null, sens: 1 | -1): boolean {
+  if (!(cible instanceof HTMLElement)) return true;
+  if (cible.closest('select, [role="combobox"], [role="listbox"], [role="option"], [role="separator"], [role="slider"], .poignee, .min-projection')) return false;
+  const auBord = (debut: number | null, fin: number | null, n: number) => debut === fin && (sens > 0 ? fin === n : debut === 0);
+  if (cible instanceof HTMLInputElement) {
+    if (['checkbox', 'button', 'submit'].includes(cible.type)) return true;
+    return ['text', 'search', 'url', 'email', 'tel'].includes(cible.type) && auBord(cible.selectionStart, cible.selectionEnd, cible.value.length);
+  }
+  if (cible instanceof HTMLTextAreaElement) return auBord(cible.selectionStart, cible.selectionEnd, cible.value.length);
+  if (cible.isContentEditable) {
+    const sel = document.getSelection();
+    if (!sel?.rangeCount || !sel.isCollapsed || !sel.focusNode || !cible.contains(sel.focusNode)) return false;
+    // Texte entre le curseur et le bord : aucun, il est au bord.
+    const r = document.createRange();
+    r.selectNodeContents(cible);
+    if (sens > 0) r.setStart(sel.focusNode, sel.focusOffset);
+    else r.setEnd(sel.focusNode, sel.focusOffset);
+    return !r.toString().length;
+  }
+  return true;
 }
 
 /** Note de la section atteinte : on y écrit tout de suite, à la suite de ce qu'elle contient déjà. */

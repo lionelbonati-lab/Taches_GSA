@@ -173,7 +173,12 @@ export function FichePv({
         </section>
         <Separateur sens="haut" part={hautPoint} setPart={setHautPoint} zone={gauche} nom="Hauteur du point et de ses notes" />
         <section className="panel pv-fiche-notes" aria-label="Notes de la séance">
-          <h3 className="min-h2"><Icone n="notes" /> Notes de la séance</h3>
+          <h3 className="min-h2">
+            <Icone n="notes" /> Notes de la séance
+            <small className="muted pv-fiche-clavier" title="Au clavier : ↑ au début du texte, ↓ à la fin (ou hors d’un texte) : point précédent / suivant, le point quitté enregistré">
+              ↑ ↓ point précédent / suivant
+            </small>
+          </h3>
           <NoteField key={arret.cle} value={note} onCommit={onNote} placeholder={titreNote} readOnly={!editable} />
         </section>
       </div>

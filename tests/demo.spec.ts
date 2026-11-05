@@ -2683,3 +2683,65 @@ test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, 
   await page.keyboard.press('Escape');
   await expect(page.locator('.min-task.child[data-point="Sous-point de la fiche"]')).toContainText('nouvelle');
 });
+
+test('PV au clavier : ↑ ↓ d’un point à l’autre, dans la fiche du PV et dans la prise de notes', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  for (const titre of ['Point clavier 1', 'Point clavier 2']) {
+    const f = await nouvelleTache(page, titre);
+    await f.getByRole('button', { name: /^Créer$/ }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+  }
+  await allerA(page, '/pv');
+  await page.locator('.min-task[data-point="Point clavier 1"]').getByRole('button', { name: 'Point clavier 1' }).click();
+  const fiche = page.getByRole('dialog', { name: /^Fiche du PV : / });
+  await expect(fiche).toHaveAccessibleName('Fiche du PV : Point clavier 1');
+  const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  const nom = async (sens: 'suivant' | 'précédent') =>
+    (await pilule.getByRole('button', { name: new RegExp(`^Point ${sens}`) }).getAttribute('title'))!.replace(/^Point (suivant|précédent) : /, '');
+
+  // Fiche : le curseur dans les notes (vides) ; ↓ au point suivant, ↑ revient.
+  const notes = fiche.getByRole('region', { name: 'Notes de la séance' }).getByRole('textbox');
+  await expect(notes).toBeFocused();
+  const suivant = await nom('suivant');
+  await page.keyboard.press('ArrowDown');
+  await expect(fiche).toHaveAccessibleName(`Fiche du PV : ${suivant}`);
+  await expect(notes).toBeFocused();
+  await page.keyboard.press('ArrowUp');
+  await expect(fiche).toHaveAccessibleName('Fiche du PV : Point clavier 1');
+
+  // Dans un texte, seulement au bord : la remarque, curseur au début, ↓ y descend d'abord (pas de point suivant).
+  const remarque = fiche.getByPlaceholder('Détails utiles (facultatif)');
+  await remarque.fill('Une remarque');
+  await remarque.evaluate((e: HTMLTextAreaElement) => e.setSelectionRange(0, 0));
+  await page.keyboard.press('ArrowDown');
+  await expect(fiche).toHaveAccessibleName('Fiche du PV : Point clavier 1');
+  await expect.poll(() => remarque.evaluate((e: HTMLTextAreaElement) => e.selectionStart)).toBe('Une remarque'.length);
+  // À la fin : point suivant, le point quitté enregistré.
+  await page.keyboard.press('ArrowDown');
+  await expect(fiche).toHaveAccessibleName(`Fiche du PV : ${suivant}`);
+  await expect
+    .poll(() => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.find((x: { titre: string }) => x.titre === 'Point clavier 1').remarque))
+    .toBe('Une remarque');
+  // La liste déroulante du statut garde ses flèches.
+  await page.keyboard.press('ArrowUp');
+  await expect(fiche).toHaveAccessibleName('Fiche du PV : Point clavier 1');
+  await fiche.getByRole('combobox', { name: 'Statut' }).focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(fiche).toHaveAccessibleName('Fiche du PV : Point clavier 1');
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Escape');
+  await expect(fiche).toHaveCount(0);
+
+  // Prise de notes (projection : le point en cours) : ↓ au point suivant, ↑ au précédent.
+  await page.getByRole('button', { name: 'Projection', exact: true }).click();
+  const panneau = page.getByRole('region', { name: 'Pièces jointes du point en cours' });
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  const premier = await nom('suivant');
+  await page.keyboard.press('ArrowDown');
+  await expect(panneau.locator('h2')).toHaveText(premier);
+  const second = await nom('suivant');
+  await page.keyboard.press('ArrowDown');
+  await expect(panneau.locator('h2')).toHaveText(second);
+  await page.keyboard.press('ArrowUp');
+  await expect(panneau.locator('h2')).toHaveText(premier);
+});

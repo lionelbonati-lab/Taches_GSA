@@ -783,6 +783,9 @@ body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: 132px; }
 .pv-fiche-point { overflow-y: auto; overscroll-behavior: contain; }
 .pv-fiche-notes { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
 .pv-fiche-notes .min-h2 { display: flex; align-items: center; gap: 6px; }
+/* Rappel du clavier (↑ ↓), là où il y en a un : pas au doigt. */
+.pv-fiche-clavier { margin-left: auto; font-weight: 400; font-size: 0.78rem; white-space: nowrap; }
+@media (hover: none), (pointer: coarse) { .pv-fiche-clavier { display: none; } }
 .pv-fiche-notes .note-riche { flex: 1 0 auto; min-height: 4.5em; margin: 0; font-size: 1rem; }
 .pv-fiche-ecran .min-projection { height: auto; margin-bottom: 12px; }
 .pv-fiche-tete { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
