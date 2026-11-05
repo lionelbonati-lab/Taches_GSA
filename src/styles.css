@@ -793,6 +793,13 @@ body:has(.pilule.defaut) .pv-fiche-gauche { padding-bottom: 132px; }
 .pv-fiche-champs { gap: 10px 12px; }
 .pv-fiche-champs .pv-fiche-titre { font-size: 1.1rem; font-weight: 600; }
 .pv-fiche-champs .check-row { margin: 0; }
+/* Onglets du point (Point, Checklist, Rattachements, Étiquettes, Documents), avec leur nombre. */
+.pv-fiche-onglets { display: flex; gap: 2px; margin: 0 0 12px; padding: 3px; background: var(--surface2); border-radius: 8px; overflow-x: auto; scrollbar-width: none; }
+.pv-fiche-onglets button { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 6px; border: none; background: none; padding: 6px 12px; border-radius: 6px; cursor: pointer; color: var(--muted); font: inherit; font-size: 0.9rem; white-space: nowrap; }
+.pv-fiche-onglets button:hover { color: var(--text); }
+.pv-fiche-onglets button.on { background: var(--surface); color: var(--text); box-shadow: var(--shadow); font-weight: 600; }
+.pv-fiche-onglets button:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.pv-fiche-nb { font-size: 0.72rem; font-weight: 600; line-height: 1.5; padding: 0 6px; border-radius: 999px; background: var(--primary-soft); color: var(--primary); }
 /* Barre entre deux fenêtres : à tirer (souris, doigt) ou au clavier. */
 .pv-separateur { display: flex; align-items: center; justify-content: center; touch-action: none; user-select: none; -webkit-user-select: none; border-radius: 6px; }
 .pv-separateur.haut { cursor: row-resize; }

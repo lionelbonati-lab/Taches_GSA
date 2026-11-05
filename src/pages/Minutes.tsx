@@ -31,6 +31,8 @@ import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { aFiger, figerPoints, figerRemarques, remarquesAFiger, reporterChangement, vueFigee } from '../data/etatsPv';
 import { PiecesJointesPoint } from '../components/PiecesJointesPoint';
 import { FichePv, type ArretPv } from '../components/FichePv';
+import type { DocTracking } from '../components/DocsField';
+import { deleteFiles } from '../data/files';
 import type { SetT } from '../components/tache/Quand';
 import { annonceDe, avecAnnonces, reporterSurAnnonces } from '../data/presences';
 import { ChampValide } from '../components/ChampValide';
@@ -114,7 +116,7 @@ const letter = (i: number) => {
 };
 
 export function Minutes() {
-  const { data, user, can, canEditTask, saveTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast, prefs } = useStore();
+  const { data, user, can, canEditTask, saveTask, linkTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast, prefs } = useStore();
   const sync = useSyncStatus();
   // Pour info (052) : « vue par 3 sur 4 », comme l'ordre du jour (même réglage).
   const attendus = useSuiviPourInfo(data.tasks);
@@ -456,6 +458,8 @@ export function Minutes() {
     // Étapes ajoutées ailleurs depuis la séance : déjà là (pas « ajoutées » au PV).
     const base = { ...stateOf(t), sous: { ...stateOf(live).sous, ...stateOf(t).sous } };
     const changes = diffTask(data, base, after).filter((l) => CHAMP_DU_CHANGEMENT.some(([debut, k]) => l.startsWith(debut) && k in patch));
+    // Point principal changé (fiche du PV, onglet « Rattachements ») : comme « Rattacher un point existant ».
+    if ('parentId' in patch && after.parentId !== live.parentId) changes.push(texteRattache(after.parentId, live.parentId));
     setMinutes((x, d) => {
       if (changes.length) x.journal = [...(x.journal ?? []), { taskId: t.id, titre: t.titre, changes, at: new Date().toISOString() }];
       retenir(x, d, t.id, live);
@@ -464,6 +468,11 @@ export function Minutes() {
     return true;
   };
   const quickChange = (t: Task, patch: Partial<Task>) => void changerPoint(t, patch);
+  // « rattaché à « … » » / « détaché de « … » » (journal du PV).
+  const texteRattache = (parentId: string | undefined, avant: string | undefined) => {
+    const titre = (id?: string) => data.tasks.find((x) => x.id === id)?.titre ?? '?';
+    return parentId ? `rattaché à « ${titre(parentId)} »` : `détaché de « ${titre(avant)} »`;
+  };
   const openTask = (t: Task) => {
     const live = vivante(t);
     setEdit({ task: live, isNew: false });
@@ -496,6 +505,8 @@ export function Minutes() {
   const [revenirA, setRevenirA] = useState<string | null>(null);
   // Pièce jointe projetée, point par point : la même dans la prise de notes et dans la fiche.
   const choixPieces = useState<Record<string, string>>({});
+  // Fichiers ajoutés ou retirés dans la fiche (onglet « Documents ») : les retirés sont effacés une fois le point enregistré.
+  const docsFiche = useRef<DocTracking>({ added: [], removed: [] });
   // Arrêts de la fiche, dans l'ordre de la prise de notes : points (et leurs sondages), sondages, note de chaque section, Divers.
   const arrets: ArretPv[] = [];
   bySection.forEach((g, i) => {
@@ -518,6 +529,7 @@ export function Minutes() {
   const ouvrirFiche = (cle: string) => {
     setFiche({ cle });
     setFicheErreur('');
+    docsFiche.current = { added: [], removed: [] };
   };
   const setPointFiche: SetT = (fn) =>
     setFiche((f) => {
@@ -540,6 +552,12 @@ export function Minutes() {
       patch.titre = patch.titre.trim();
     }
     if (Object.keys(patch).length && !changerPoint(origine, patch)) return false;
+    // Fichiers retirés du point : effacés, s'ils ne sont joints à aucun autre point (occurrences d'un point répété…).
+    const retires = docsFiche.current.removed.filter(
+      (id) => !brouillon.documents?.some((d) => d.id === id) && !data.tasks.some((x) => x.id !== origine.id && x.documents?.some((d) => d.id === id)),
+    );
+    if (retires.length) void deleteFiles(retires);
+    docsFiche.current = { added: [], removed: [] };
     setFiche((x) => (x?.cle === f.cle ? { cle: x.cle } : x));
     setFicheErreur('');
     return true;
@@ -588,6 +606,24 @@ export function Minutes() {
   const sauverFicheRef = useRef(sauverFiche);
   sauverFicheRef.current = sauverFiche;
   useEffect(() => () => void sauverFicheRef.current(), []);
+  // Onglet « Rattachements » de la fiche : un point existant rattaché ou détaché tout de suite, inscrit au PV (il y suit
+  // son point principal) ; un nouveau point rattaché, comme une tâche décidée en séance ; un point rattaché, ouvert
+  // par-dessus (ses changements inscrits au PV).
+  const rattacherDepuisPv = (id: string, parentId: string | undefined) => {
+    const avant = data.tasks.find((x) => x.id === id);
+    if (!avant || avant.parentId === parentId) return;
+    linkTask(id, parentId);
+    setMinutes((x, d) => {
+      x.journal = [...(x.journal ?? []), { taskId: id, titre: avant.titre, changes: [texteRattache(parentId, avant.parentId)], at: new Date().toISOString() }];
+      retenir(x, d, id, avant);
+      if (x.etats && parentId && !x.etats[id]) x.etats = { ...x.etats, [id]: { ...stateOf(avant), rang: 'p1' } };
+    }, { suite: true });
+  };
+  const ouvrirDepuisFiche = (x: Task, nouvelle: boolean) => {
+    if (!nouvelle) return openTask(x);
+    setEdit({ task: x, isNew: true });
+    setPending({ id: x.id, isNew: true });
+  };
   // Pilule, fiche ouverte : d'un arrêt de la fiche à l'autre ; « section précédente » revient d'abord au début de la section.
   const debutSection = (i: number) => arrets.findIndex((a) => a.section === arrets[i].section);
   const ficheNav = arret && {
@@ -1351,6 +1387,10 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               erreur={ficheErreur}
               onFermer={() => allerFiche(null)}
               onFicheComplete={arret.tache && editable ? () => sauverFiche() && setFicheComplete(arret.tache!.id) : undefined}
+              enregistre={arret.tache && vivante(arret.tache)}
+              ouvrir={ouvrirDepuisFiche}
+              rattacher={rattacherDepuisPv}
+              track={docsFiche.current}
             />
           )}
           <aside className="min-side">

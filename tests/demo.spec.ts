@@ -2600,3 +2600,86 @@ test('PV corrigé après la séance : la remarque des points telle qu’à la fi
   await page.getByRole('checkbox', { name: 'Remarques des points' }).uncheck();
   await expect(rem).toHaveCount(0);
 });
+
+test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, enregistrés en passant au point suivant', async ({ page }) => {
+  page.on('dialog', (d) => void d.accept());
+  await page.goto('./?demo#/taches');
+  for (const titre of ['Point aux onglets', 'Point voisin']) {
+    const f = await nouvelleTache(page, titre);
+    await f.getByRole('button', { name: /^Créer$/ }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+  }
+  await allerA(page, '/pv');
+  await page.locator('.min-task[data-point="Point aux onglets"]').getByRole('button', { name: 'Point aux onglets' }).click();
+  const fiche = page.getByRole('dialog', { name: 'Fiche du PV : Point aux onglets' });
+  const onglet = (nom: string) => fiche.getByRole('tab', { name: new RegExp(`^${nom}`) });
+  // Premier onglet : le point, sa remarque juste sous l'intitulé.
+  await expect(onglet('Point')).toHaveAttribute('aria-selected', 'true');
+  await expect(fiche.getByRole('tabpanel').locator('label').nth(1)).toContainText('Remarque');
+
+  // Checklist : une étape ajoutée (le nombre suit sur l'onglet).
+  await onglet('Checklist').click();
+  await fiche.getByPlaceholder('Ajouter une étape…').fill('Relancer le fournisseur');
+  await fiche.getByRole('button', { name: 'Ajouter', exact: true }).click();
+  await expect(onglet('Checklist')).toContainText('0/1');
+  // Étiquettes : une étiquette mise à la main.
+  await onglet('Étiquettes').click();
+  await fiche.getByRole('button', { name: 'Groupe compétition' }).click();
+  await expect(fiche.getByRole('button', { name: 'Groupe compétition' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(onglet('Étiquettes')).toContainText('1');
+  // Documents : une photo jointe.
+  await onglet('Documents').click();
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await fiche.locator('fieldset.docs input[type=file]').first().setInputFiles([{ name: 'devis.png', mimeType: 'image/png', buffer: png }]);
+  await expect(fiche.locator('.doc-list li')).toHaveCount(1);
+  await expect(onglet('Documents')).toContainText('1');
+
+  // Rattachements : un nouveau point rattaché, inscrit au PV comme décidé en séance, sous son point.
+  await onglet('Rattachements').click();
+  // Le nombre de l'onglet : séance ou événement liés, point principal et points rattachés.
+  const liens = async () => {
+    const nb = onglet('Rattachements').locator('.pv-fiche-nb');
+    return (await nb.count()) ? Number(await nb.textContent()) : 0;
+  };
+  const avant = await liens();
+  await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).click();
+  const enfant = page.locator('.modal').last();
+  await enfant.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Sous-point de la fiche');
+  await enfant.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(fiche.locator('.linked-row', { hasText: 'Sous-point de la fiche' })).toBeVisible();
+  await expect.poll(liens).toBe(avant + 1);
+  // Toujours le brouillon du point (pas encore enregistré) : checklist et étiquette encore là.
+  await expect(onglet('Checklist')).toContainText('0/1');
+
+  const lire = () =>
+    page.evaluate(() => {
+      const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
+      const t = d.tasks.find((x: { titre: string }) => x.titre === 'Point aux onglets');
+      const enfant = d.tasks.find((x: { titre: string }) => x.titre === 'Sous-point de la fiche');
+      const etiquette = d.etiquettes.find((e: { nom: string }) => e.nom === 'Groupe compétition').id;
+      const pv = d.meetings.map((m: { minutes?: { nouvelles?: string[]; journal?: { taskId: string; changes: string[] }[] } }) => m.minutes).find((m: { nouvelles?: string[] } | undefined) => m?.nouvelles?.includes(enfant?.id));
+      return {
+        etapes: t.checklist.map((c: { label: string }) => c.label),
+        etiquette: (t.etiquettes ?? []).includes(etiquette),
+        documents: (t.documents ?? []).map((x: { nom: string }) => x.nom),
+        enfant: enfant?.parentId === t.id,
+        auPv: !!pv,
+        journal: (pv?.journal ?? []).filter((j: { taskId: string }) => j.taskId === t.id).flatMap((j: { changes: string[] }) => j.changes),
+      };
+    });
+  expect((await lire()).etapes).toEqual([]);
+
+  // Point suivant : le point quitté est enregistré ; l'onglet reste le même d'un point à l'autre.
+  const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  await pilule.getByRole('button', { name: /^Point suivant/ }).click();
+  await expect(page.getByRole('dialog', { name: /^Fiche du PV : / })).not.toHaveAccessibleName('Fiche du PV : Point aux onglets');
+  await expect(page.getByRole('dialog', { name: /^Fiche du PV : / }).getByRole('tab', { name: /^Rattachements/ })).toHaveAttribute('aria-selected', 'true');
+  await expect
+    .poll(lire)
+    .toEqual({ etapes: ['Relancer le fournisseur'], etiquette: true, documents: ['devis.png'], enfant: true, auPv: true, journal: ['sous-point ajouté : Relancer le fournisseur'] });
+
+  // Dans la prise de notes : le sous-point sous son point, nouveau.
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.min-task.child[data-point="Sous-point de la fiche"]')).toContainText('nouvelle');
+});

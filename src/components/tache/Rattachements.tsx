@@ -17,11 +17,14 @@ type Props = {
   kids: Task[];
   /** Ouvre une autre tâche par-dessus la fiche (rattachée, ou nouvelle). */
   ouvrir: (x: Task, nouvelle: boolean) => void;
+  /** Rattacher (ou détacher : undefined) un point existant ; par défaut tout de suite (fiche du PV : inscrit aussi au PV). */
+  rattacher?: (taskId: string, parentId: string | undefined) => void;
 };
 
 /** Fiche d'une tâche : « 🧩 Rattachements » (événement, séance, tâche principale, tâches rattachées). */
-export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvrir }: Props) {
-  const { data, user, linkTask } = useStore();
+export function Rattachements({ t, setT, task, isNew, dis, editable, kids, ouvrir, rattacher }: Props) {
+  const { data, user, linkTask: lier } = useStore();
+  const linkTask = rattacher ?? lier;
   const [linking, setLinking] = useState(false);
   if (!user) return null;
   const parentChoices = data.tasks
