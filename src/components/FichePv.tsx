@@ -55,7 +55,6 @@ export function FichePv({
   choixPieces,
   erreur,
   onFermer,
-  onFicheComplete,
   enregistre,
   ouvrir,
   rattacher,
@@ -80,7 +79,6 @@ export function FichePv({
   choixPieces: ChoixPieces;
   erreur?: string;
   onFermer: () => void;
-  onFicheComplete?: () => void;
   /** Le point tel qu'il est enregistré (ses points rattachés, ses liens). */
   enregistre?: Task;
   /** Ouvre un point par-dessus la fiche (rattaché, ou nouveau point rattaché). */
@@ -133,11 +131,6 @@ export function FichePv({
               {arret.sous ? ` › ${arret.sous}` : ''} · {position.i + 1} / {position.n}
             </small>
             <span className="pv-fiche-boutons">
-              {onFicheComplete && (
-                <button type="button" className="btn small" onClick={onFicheComplete} title="Toute la fiche du point (répétition, pour info, à prendre, emails, discussion…), par-dessus">
-                  <Icone n="modifier" /> Fiche complète
-                </button>
-              )}
               <button type="button" className="icon-btn" onClick={onFermer} aria-label="Fermer la fiche" title="Fermer (Échap) : retour à la prise de notes, le point enregistré">
                 ✕
               </button>
@@ -282,9 +275,9 @@ function Separateur({ sens, part, setPart, zone, nom }: { sens: 'haut' | 'large'
 type Onglet = 'point' | 'checklist' | 'rattachements' | 'etiquettes' | 'documents';
 
 /**
- * Le point dans la fiche du PV, en onglets : « Point » (intitulé, remarque, statut, délai, responsables), « Checklist »,
- * « Rattachements » (événement, séance, point principal, points rattachés), « Étiquettes », « Documents ». Le reste
- * (répétition, pour info, à prendre, emails…) : « Fiche complète ».
+ * Le point dans la fiche du PV, en onglets : « Point » (intitulé, remarque, statut et responsables dessous, délai à
+ * côté), « Checklist », « Rattachements » (événement, séance, point principal, points rattachés), « Étiquettes »,
+ * « Documents ». Le reste (répétition, pour info, à prendre, emails…) : depuis la page Points.
  */
 function ChampsPoint({
   t,
@@ -385,48 +378,51 @@ function ChampsPoint({
                 <ZoneTexte rows={3} value={t.remarque ?? ''} disabled={dis} onChange={(e) => set('remarque', e.target.value)} placeholder="Détails utiles (facultatif)" />
               </label>
             )}
-            <label className="statut-choix" style={{ '--c': statut?.couleur } as CSSProperties}>
-              Statut
-              <Deroulante
-                aria-label="Statut"
-                value={t.statusId}
-                disabled={dis}
-                onChange={(v) => set('statusId', v)}
-                options={data.statuses.map((s) => ({ value: s.id, label: s.label, icone: <span className="statut-jeton" style={{ background: s.couleur }} /> }))}
-              />
-            </label>
-            <DelaiField t={t} setT={setT} disabled={dis} />
-            <div className="full qui">
-              <span className="field-label">Qui s’en occupe ?</span>
-              <div className="chips">
-                {t.responsables.map((id) => {
-                  const p = data.people.find((x) => x.id === id);
-                  const retirable = !dis && assignable.some((x) => x.id === id);
-                  return (
-                    <span key={id} className={`chip on ${retirable ? '' : 'locked'}`}>
-                      {fullName(p)}
-                      {retirable && <button type="button" className="chip-x" aria-label={`Retirer ${fullName(p)}`} onClick={() => set('responsables', t.responsables.filter((x) => x !== id))}>✕</button>}
+            {/* Statut, et dessous qui s'en occupe ; « Pour quand ? » à côté (sur téléphone : après eux). */}
+            <div className="tache-colonne">
+              <label className="statut-choix" style={{ '--c': statut?.couleur } as CSSProperties}>
+                Statut
+                <Deroulante
+                  aria-label="Statut"
+                  value={t.statusId}
+                  disabled={dis}
+                  onChange={(v) => set('statusId', v)}
+                  options={data.statuses.map((s) => ({ value: s.id, label: s.label, icone: <span className="statut-jeton" style={{ background: s.couleur }} /> }))}
+                />
+              </label>
+              <div className="qui">
+                <span className="field-label">Qui s’en occupe ?</span>
+                <div className="chips">
+                  {t.responsables.map((id) => {
+                    const p = data.people.find((x) => x.id === id);
+                    const retirable = !dis && assignable.some((x) => x.id === id);
+                    return (
+                      <span key={id} className={`chip on ${retirable ? '' : 'locked'}`}>
+                        {fullName(p)}
+                        {retirable && <button type="button" className="chip-x" aria-label={`Retirer ${fullName(p)}`} onClick={() => set('responsables', t.responsables.filter((x) => x !== id))}>✕</button>}
+                      </span>
+                    );
+                  })}
+                  {(t.respHors ?? []).map((p) => (
+                    <span key={p.id} className="chip on locked" title="Pas de fiche dans l’appli">
+                      <Icone n="compte" /> {p.prenom} {p.nom}
                     </span>
-                  );
-                })}
-                {(t.respHors ?? []).map((p) => (
-                  <span key={p.id} className="chip on locked" title="Pas de fiche dans l’appli">
-                    <Icone n="compte" /> {p.prenom} {p.nom}
-                  </span>
-                ))}
-                {!t.responsables.length && !t.respHors?.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
-                {!dis && aAjouter.length > 0 && (
-                  <Deroulante
-                    puce
-                    value=""
-                    libelle="＋ Ajouter…"
-                    aria-label="Ajouter une personne"
-                    onChange={(v) => v && set('responsables', [...t.responsables, v])}
-                    options={aAjouter.map((p) => ({ value: p.id, label: nomPoste(p, user.id) }))}
-                  />
-                )}
+                  ))}
+                  {!t.responsables.length && !t.respHors?.length && <span className="muted">Personne pour l’instant{aPrendreOuverte(t) ? ' : 🙋 à prendre' : ''}.</span>}
+                  {!dis && aAjouter.length > 0 && (
+                    <Deroulante
+                      puce
+                      value=""
+                      libelle="＋ Ajouter…"
+                      aria-label="Ajouter une personne"
+                      onChange={(v) => v && set('responsables', [...t.responsables, v])}
+                      options={aAjouter.map((p) => ({ value: p.id, label: nomPoste(p, user.id) }))}
+                    />
+                  )}
+                </div>
               </div>
             </div>
+            <DelaiField t={t} setT={setT} disabled={dis} />
           </>
         )}
         {onglet === 'checklist' &&

@@ -499,8 +499,6 @@ export function Minutes() {
   // la fiche, pas encore enregistré ; `origine` : tel que la fiche le montrait avant.
   const [fiche, setFiche] = useState<{ cle: string; origine?: Task; brouillon?: Task } | null>(null);
   const [ficheErreur, setFicheErreur] = useState('');
-  // « Fiche complète » : ouverte une fois le point enregistré (la fenêtre part de la tâche enregistrée).
-  const [ficheComplete, setFicheComplete] = useState<string | null>(null);
   // Fiche refermée : la prise de notes revient à son dernier point.
   const [revenirA, setRevenirA] = useState<string | null>(null);
   // Pièce jointe projetée, point par point : la même dans la prise de notes et dans la fiche.
@@ -578,13 +576,6 @@ export function Minutes() {
     setRevenirA(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revenirA]);
-  useEffect(() => {
-    if (!ficheComplete) return;
-    setFicheComplete(null);
-    const t = data.tasks.find((x) => x.id === ficheComplete);
-    if (t) openTask(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ficheComplete]);
   // Arrêt disparu (point supprimé depuis sa fiche complète…) : fiche refermée.
   useEffect(() => {
     if (fiche && iFiche < 0) setFiche(null);
@@ -1414,7 +1405,6 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               choixPieces={choixPieces}
               erreur={ficheErreur}
               onFermer={() => allerFiche(null)}
-              onFicheComplete={arret.tache && editable ? () => sauverFiche() && setFicheComplete(arret.tache!.id) : undefined}
               enregistre={arret.tache && vivante(arret.tache)}
               ouvrir={ouvrirDepuisFiche}
               rattacher={rattacherDepuisPv}
