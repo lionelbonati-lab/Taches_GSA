@@ -17,6 +17,7 @@ import { motSeance } from '../data/seances';
 import { Icone, type IconeNom } from '../components/icones';
 import { ExportAgenda } from '../components/ExportAgenda';
 import { etiquettesDatees } from '../data/agendaIcs';
+import { nomAvecSerie, serieDe } from '../data/seriesEvenements';
 
 // Onglet « Agenda » : vue mensuelle des séances, événements, délais des tâches et fins de sondage.
 // Un « + » sur chaque jour pour ajouter une séance, une tâche ou un événement ; glisser-déposer pour changer une date.
@@ -230,7 +231,7 @@ export function Calendar() {
       case 'meeting': return `Séance : ${it.m.titre}${it.m.heure ? ` à ${it.m.heure.replace(':', 'h')}` : ''} · ${it.m.lieu || 'lieu à définir'}`;
       case 'event': {
         const x = aLaDate(it.e, it.o);
-        return `Événement : ${[it.e.nom, fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
+        return `Événement : ${[nomAvecSerie(data, it.e), fmtRange(x.date, x.dateFin), horaire(x), it.e.lieu, it.e.repetition && libelleRepetition(it.e)].filter(Boolean).join(' · ')}`;
       }
       case 'task': {
         const p = parentOf(data, it.t);
@@ -372,6 +373,7 @@ export function Calendar() {
                         {it.kind === 'meeting' && (it.m.lieu || 'Lieu à définir')}
                         {it.kind === 'event' && ([horaire(it.e), it.e.lieu].filter(Boolean).join(' · ') || (!it.e.repetition && 'Événement du club'))}
                         {it.kind === 'event' && it.e.repetition && <>{(horaire(it.e) || it.e.lieu) && ' · '}<Icone n="repetition" /> {libelleRepetition(it.e)}</>}
+                        {it.kind === 'event' && serieDe(data, it.e) && <> · <Icone n="serie" /> {serieDe(data, it.e)!.nom}</>}
                         {it.kind === 'task' && (parentOf(data, it.t) ? `↳ ${parentOf(data, it.t)!.titre}` : [data.sections.find((s) => s.id === it.t.sectionId)?.nom, it.t.sousSection].filter(Boolean).join(' › '))}
                         {it.kind === 'poll' && `date limite pour répondre${it.p.heureLimite ? ` à ${it.p.heureLimite.replace(':', 'h')}` : ''}${it.p.clotureAuto === false ? ' (indicative)' : ', clôture automatique'}`}
                         {it.kind === 'etiquette' && `Événement (étiquette) · ${fmtRange(it.et.date, it.et.dateFin)} · ${data.tasks.filter((t) => t.etiquettes?.includes(it.et.id)).length} point(s)`}

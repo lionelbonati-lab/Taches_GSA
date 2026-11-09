@@ -53,7 +53,7 @@ const RUBRIQUES: NavRubrique[] = [
     mobile: true,
     pages: [
       { to: '/agenda', label: 'Calendrier', icon: 'calendrier', aide: 'Le mois en un coup d’œil : séances, événements, échéances des points et fins de sondage. Clique sur un jour pour le détail.' },
-      { to: '/evenements', label: 'Événements', icon: 'evenements', perm: 'tab.events', aide: 'Les manifestations du club, avec l’avancement des points qui les préparent. Touche un événement pour sa chronologie : ses points dans le temps, pour les planifier. Les événements passés sont repliés en bas.' },
+      { to: '/evenements', label: 'Événements', icon: 'evenements', perm: 'tab.events', aide: 'Les manifestations du club, avec l’avancement des points qui les préparent. Touche un événement pour sa chronologie : ses points dans le temps, pour les planifier. Une série (programme hivernal, championnat en manches) réunit ses événements sur une seule carte. Les événements passés sont repliés en bas.' },
     ],
   },
   {

@@ -2294,3 +2294,24 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
   .agenda-actions .btn { padding: 7px 0; font-size: 1rem; }
   .agenda-actions .libelle { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 }
+
+/* Agenda › Événements : carte d'une série d'événements (programme hivernal, championnat ; seriesEvenements.ts), ses
+   événements dedans, numérotés quand aucun ne se répète (les manches). */
+.carte-serie .titre-serie { margin: 0; font-size: 1rem; display: flex; align-items: center; gap: 6px; }
+.serie-ev-liste { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 4px; counter-reset: manche; }
+.serie-ev { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 8px; }
+ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: counter(manche); font-weight: 700; color: var(--primary); min-width: 1.2em; text-align: right; }
+.serie-ev > .grow { min-width: 0; }
+.serie-ev .muted { font-size: 0.88rem; }
+.serie-ev .etiquette-taches { margin-top: 2px; }
+.carte-serie:not(.past) .serie-ev.past { opacity: 0.6; }
+.serie-ev.prochain { border-color: var(--primary); }
+.badge.serie-ev-prochain { margin-left: 6px; background: var(--primary-soft); color: var(--primary); vertical-align: 1px; }
+.serie-ev .reprise { display: block; margin-top: 2px; }
+.serie-ev-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.serie-ev-actions .btn { display: inline-flex; align-items: center; justify-content: center; }
+.serie-ev-choix h3 { margin: 12px 0 4px; font-size: 1rem; }
+.serie-ev-choix details { margin-top: 8px; }
+.serie-ev-choix > small { display: block; margin-top: 8px; }
+/* À l'accueil (« Prochains événements ») : la série au-dessus du nom de son prochain événement. */
+.prochain-evenement .serie-nom { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); }

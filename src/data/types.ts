@@ -564,6 +564,22 @@ export interface ClubEvent {
   serie?: { id: string; date: string };
   /** Nouvelle édition d'un événement passé, avec ses tâches reprises (« Reprendre », reprise.ts) : celui-ci. */
   repriseDe?: string;
+  /**
+   * Série d'événements dont il fait partie (SerieEvenements : programme hivernal, championnat en plusieurs manches…).
+   * Un événement qui se répète y est avec toutes ses dates, celles modifiées seules comprises.
+   */
+  dansSerie?: string;
+}
+
+/**
+ * Série d'événements (seriesEvenements.ts) : des événements de l'agenda réunis sous un nom, chacun avec ses dates, son
+ * lieu, sa répétition, son étiquette et ses points. Le programme hivernal (salle, course à pied, natation… chaque semaine),
+ * un championnat interne en 5 manches.
+ */
+export interface SerieEvenements {
+  id: string;
+  nom: string;
+  description?: string;
 }
 
 /** Répétition d'un événement, comme dans un agenda : tous les N jours, semaines, mois ou ans. */
@@ -739,6 +755,8 @@ export interface AppData {
   propositions?: Proposition[];
   /** Étiquettes des tâches : événements et groupes, avec leurs membres. */
   etiquettes?: Etiquette[];
+  /** Séries d'événements (programme hivernal, championnat) : leurs événements les nomment (ClubEvent.dansSerie). */
+  seriesEvenements?: SerieEvenements[];
   /**
    * Discussions des tâches (062), par tâche : à part de la tâche, pour qu'une discussion réservée aux membres de ses
    * étiquettes ne parte pas avec la tâche. Version réelle : écrites par le serveur seulement (gsa_commenter), reçues

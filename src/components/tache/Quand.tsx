@@ -6,6 +6,7 @@ import { DELAI_MAX, addDays, applyDelaiRef, endOf, fmtRange, fmtDate, makeDelai,
 import { Icone } from '../icones';
 import { Deroulante } from '../Deroulante';
 import { etiquettesAuto, evenementPasse, recaler } from '../../data/etiquettes';
+import { nomAvecSerie } from '../../data/seriesEvenements';
 
 // Fiche d'une tâche : « Pour quand ? » (délai, séance, événement, occurrence) et rattachement à une séance ou un événement.
 
@@ -40,7 +41,7 @@ export function EvenementLie({ t, setT, disabled }: { t: Task; setT: SetT; disab
   const parDate = [...data.events].sort((a, b) => a.date.localeCompare(b.date));
   const aVenirParDate = parDate.filter((e) => !evenementPasse(e));
   const passes = parDate.filter((e) => evenementPasse(e)).reverse();
-  const option = (e: ClubEvent) => <option key={e.id} value={e.id}>{e.nom}{e.repetition ? ' 🔁' : ''}</option>;
+  const option = (e: ClubEvent) => <option key={e.id} value={e.id}>{nomAvecSerie(data, e)}{e.repetition ? ' 🔁' : ''}</option>;
   return (
     <label>
       Événement
@@ -124,7 +125,7 @@ export function DelaiField({ t, setT, disabled }: { t: Task; setT: SetT; disable
           groupe: 'Selon un événement',
           options: events.map((e) => ({
             value: `event:${e.id}`,
-            label: `${e.nom} (${e.repetition ? libelleRegle(e.repetition, e.date).toLowerCase() : fmtRange(e.date, e.dateFin)})`,
+            label: `${nomAvecSerie(data, e)} (${e.repetition ? libelleRegle(e.repetition, e.date).toLowerCase() : fmtRange(e.date, e.dateFin)})`,
             icone: <Icone n={e.repetition ? 'repetition' : 'evenements'} />,
           })),
         },

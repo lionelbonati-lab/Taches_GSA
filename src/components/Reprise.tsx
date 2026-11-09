@@ -8,6 +8,7 @@ import { etiquetteDeLEvenement, lieuxDe, nomLieu, sectionEvenements, suiteEtique
 import { Modal } from './ui';
 import { Icone } from './icones';
 import { BadgeEtiquette } from './IconesEtiquette';
+import { serieDe } from '../data/seriesEvenements';
 
 const JOUR = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -33,6 +34,9 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, c
   // Étiquette de l'édition passée : la nouvelle édition a la sienne, avec les mêmes membres (etiquettes.ts, suiteEtiquette).
   const etiquette = etiquetteDeLEvenement(data, e.id);
   const [garderEtiquette, setGarderEtiquette] = useState(true);
+  // Série d'événements : une copie (une autre manche) y reste d'office ; une nouvelle édition (la saison suivante), non.
+  const serie = serieDe(data, e);
+  const [garderSerie, setGarderSerie] = useState(!!copie);
   const placeAvant = etiquette ? lieuxDe(etiquette, data.sections).find((l) => l.sousSection) : undefined;
   const [err, setErr] = useState('');
   if (!user) return null;
@@ -60,7 +64,7 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, c
     if (!nom.trim()) return setErr('« Nom » est obligatoire.');
     if (!JOUR.test(date)) return setErr('Indique le premier jour.');
     if (fin && fin < date) return setErr('Le dernier jour ne peut pas précéder le premier.');
-    const r = reprendre(data, e, { nom, date, dateFin: fin || undefined, taches: [...choix], responsables: memes }, user.id);
+    const r = reprendre(data, e, { nom, date, dateFin: fin || undefined, taches: [...choix], responsables: memes, serie: garderSerie }, user.id);
     const n = r.tasks.length;
     update((d) => {
       d.events = [...d.events, r.event];
@@ -159,6 +163,12 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, c
               {garderEtiquette ? ' et portent la nouvelle étiquette' : ''} ; ceux de l’édition passée gardent <BadgeEtiquette e={etiquette} />.
             </small>
           </fieldset>
+        )}
+        {serie && (
+          <label className="inline full">
+            <input type="checkbox" checked={garderSerie} onChange={(x) => setGarderSerie(x.target.checked)} />
+            <span><Icone n="serie" /> Dans la série « {serie.nom} »</span>
+          </label>
         )}
       </div>
       {liees.length > 0 && groupe(`Points liés à « ${e.nom} »`, liees)}

@@ -1,5 +1,5 @@
 import { ADMIN_ROLE_ID, ALL_PERMISSIONS, EXTERNE_COULEUR, EXTERNE_PERMS, MEMBRE_PERMS, MEMBRE_ROLE_ID } from './permissions';
-import type { AppData, ClubEvent, Etiquette, Person, Role } from './types';
+import type { AppData, ClubEvent, Etiquette, Person, Role, SerieEvenements } from './types';
 import { COMPTA_SECTION, events, meetings, people, sections, statuses } from './seedData';
 
 // Données de départ de la démo (voir seedData.ts) : postes, rôles, sections, séances et événements du club, sans tâches.
@@ -34,9 +34,34 @@ const ETIQUETTES: Etiquette[] = [
   { id: 'et-u-soiree', nom: 'Soirée récréative', couleur: '#db2777', type: 'evenement', date: '2026-11-28', eventId: 'e10', lieux: [{ sectionId: 'sec8', sousSection: 'Soirée récréative 28.11' }], membres: ['p8', 'p1', 'p7', 'p17', 'p18'] },
 ];
 
-/** Événement de l'école de cyclisme (ancienne entité), qui se répète. */
+/**
+ * Séries d'événements (seriesEvenements.ts) : le programme hivernal, une activité par jour de la semaine (l'entraînement
+ * en salle du mardi, seedData.ts, et ceux ci-dessous), et le championnat interne en 5 manches.
+ */
+const SERIES: SerieEvenements[] = [
+  { id: 'se-hiver', nom: 'Programme hivernal 2026-27', description: 'Une activité par jour de la semaine, ouverte à tous les membres.' },
+  { id: 'se-championnat', nom: 'Championnat interne 2027', description: '5 manches ; classement aux points, prix à la finale.' },
+];
+
+const hiver = (id: string, nom: string, date: string, heure: string, heureFin: string, lieu: string, jour: number, jusquau: string): ClubEvent => ({
+  id, nom, date, heure, heureFin, lieu, description: '', repetition: { freq: 'semaine', jours: [jour], jusquau }, dansSerie: 'se-hiver',
+});
+const manche = (n: number, nom: string, date: string, lieu: string): ClubEvent => ({
+  id: `e-champ-${n}`, nom: `Manche ${n} – ${nom}`, date, lieu, description: '', dansSerie: 'se-championnat',
+});
+
+/** Événement de l'école de cyclisme (ancienne entité), qui se répète ; ceux des séries. */
 const EVENEMENTS: ClubEvent[] = [
   { id: 'e-u-ecole-e2', nom: 'Entraînement du mercredi', date: '2026-08-19', heure: '14:00', heureFin: '16:00', lieu: 'Piste du club', description: 'Pour tous les enfants de l’école de cyclisme.', repetition: { freq: 'semaine', jours: [3], jusquau: '2027-06-30' } },
+  hiver('e-hiver-cap', 'Course à pied', '2026-10-28', '18:15', '19:30', 'Stade du Tirage', 3, '2027-03-24'),
+  hiver('e-hiver-renfo', 'Spinning ou renfo', '2026-10-29', '19:15', '20:30', 'Salle de gym', 4, '2027-03-25'),
+  hiver('e-hiver-natation', 'Natation', '2026-10-30', '20:00', '21:00', 'Piscine couverte', 5, '2027-03-26'),
+  hiver('e-hiver-vtt', 'Sortie VTT', '2026-10-31', '09:00', '11:30', 'Départ du local', 6, '2027-03-27'),
+  manche(1, 'Contre-la-montre', '2027-04-10', 'Fahy'),
+  manche(2, 'Montée de Montvoie', '2027-05-08', 'Montvoie'),
+  manche(3, 'VTT cross-country', '2027-06-12', 'Les Rangiers'),
+  manche(4, 'Critérium', '2027-08-21', 'Porrentruy'),
+  manche(5, 'Finale', '2027-09-18', 'Porrentruy'),
 ];
 
 const roles: Role[] = [
@@ -62,6 +87,7 @@ export function makeSeed(): AppData {
     polls: [],
     emails: [],
     etiquettes: structuredClone(ETIQUETTES),
+    seriesEvenements: structuredClone(SERIES),
     schema: 12,
     log: [{ id: 'l0', at: new Date().toISOString(), userId: 'p1', action: 'Données de départ de la démo (sans points)' }],
     prefs: {},
