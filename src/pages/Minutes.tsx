@@ -1480,7 +1480,6 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               projete={arret.tache ? vivante(arret.tache) : arret.pointDuSondage && vivante(arret.pointDuSondage)}
               choixPieces={choixPieces}
               erreur={ficheErreur}
-              onFermer={() => allerFiche(null)}
               enregistre={arret.tache && vivante(arret.tache)}
               ouvrir={ouvrirDepuisFiche}
               rattacher={rattacherDepuisPv}

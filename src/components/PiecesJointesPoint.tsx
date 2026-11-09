@@ -20,7 +20,8 @@ export interface PointEnCours {
 /** Pièce jointe choisie, point par point (tâche → document), et son réglage : partagé entre la prise de notes et la fiche du PV. */
 export type ChoixPieces = [Record<string, string>, (c: Record<string, string>) => void];
 
-export function PiecesJointesPoint({ point, choix: partage }: { point?: PointEnCours; choix?: ChoixPieces }) {
+/** `fenetre` : dans une fenêtre de la vue en fenêtres du PV (sans cadre à lui, ni boutons « Agrandir » et « Télécharger »). */
+export function PiecesJointesPoint({ point, choix: partage, fenetre }: { point?: PointEnCours; choix?: ChoixPieces; fenetre?: boolean }) {
   // Pièce jointe choisie, point par point (on la retrouve en revenant au point).
   const local = useState<Record<string, string>>({});
   const [choix, setChoix] = partage ?? local;
@@ -37,7 +38,7 @@ export function PiecesJointesPoint({ point, choix: partage }: { point?: PointEnC
     </div>
   );
   return (
-    <section className="panel min-projection" aria-label="Pièces jointes du point en cours">
+    <section className={`min-projection ${fenetre ? 'min-projection-fenetre' : 'panel'}`} aria-label="Pièces jointes du point en cours">
       <div className="min-projection-tete">
         <small className="muted"><Icone n="fichier" /> {t ? 'Pièces jointes du point' : 'Point en cours'}</small>
         <h2 className="min-h2">{point?.nom ?? 'Séance et présences'}</h2>
@@ -52,7 +53,7 @@ export function PiecesJointesPoint({ point, choix: partage }: { point?: PointEnC
           <LienProjete d={doc} />
         </>
       ) : (
-        <FichierProjete key={doc.id} d={doc} choisir={choisir} />
+        <FichierProjete key={doc.id} d={doc} choisir={choisir} boutons={!fenetre} />
       )}
     </section>
   );
@@ -62,17 +63,19 @@ export function PiecesJointesPoint({ point, choix: partage }: { point?: PointEnC
  * Le fichier en grand ; au-dessus (le bouton « + » de l'appli couvre le bas), le choix des pièces jointes (sinon son nom)
  * et les boutons.
  */
-function FichierProjete({ d, choisir }: { d: TaskDoc; choisir?: ReactNode }) {
+function FichierProjete({ d, choisir, boutons }: { d: TaskDoc; choisir?: ReactNode; boutons: boolean }) {
   const fichier = useFichierJoint(d.id, d.nom);
   const { f } = fichier;
   return (
     <>
       <div className="row min-projection-actions">
         {choisir || <span className="muted min-projection-nom">{docIcon(d)} {d.nom}</span>}
-        <span className="min-projection-boutons">
-          <button type="button" className="btn small" disabled={!f} onClick={() => voirFichier(d.id, d.nom)} title="Agrandir (visionneuse)" aria-label="Agrandir"><Icone n="pleinEcran" /></button>
-          <button type="button" className="btn small" disabled={!f} onClick={() => f && ouvrirBlob(f.blob, d.nom, true)} title="Télécharger" aria-label="Télécharger"><Icone n="telecharger" /></button>
-        </span>
+        {boutons && (
+          <span className="min-projection-boutons">
+            <button type="button" className="btn small" disabled={!f} onClick={() => voirFichier(d.id, d.nom)} title="Agrandir (visionneuse)" aria-label="Agrandir"><Icone n="pleinEcran" /></button>
+            <button type="button" className="btn small" disabled={!f} onClick={() => f && ouvrirBlob(f.blob, d.nom, true)} title="Télécharger" aria-label="Télécharger"><Icone n="telecharger" /></button>
+          </span>
+        )}
       </div>
       <div className="min-projection-doc">
         <ContenuFichier id={d.id} nom={d.nom} fichier={fichier} />

@@ -1893,6 +1893,8 @@ test('PV : un appui sur le titre d’un point ouvre sa fiche ; la vue en fenêtr
   expect(haut.y).toBeLessThan((await fichePv.locator('.pv-fiche-gauche').boundingBox())!.y);
   await expect(barre.getByRole('button', { name: /^Gras/ })).toBeVisible();
   await expect(fichePv.getByRole('button', { name: 'Fiche complète' })).toHaveCount(0);
+  // Pas de bouton pour fermer la fenêtre du point : l'icône de la barre (ou Échap) ramène à la prise de notes.
+  await expect(fichePv.getByRole('button', { name: 'Revenir à la prise de notes', exact: true })).toHaveCount(0);
   // « Qui s'en occupe ? » sous le statut, « Pour quand ? » à côté.
   const statut = (await fichePv.locator('label.statut-choix').boundingBox())!;
   const qui = (await fichePv.locator('.qui').boundingBox())!;
@@ -2556,10 +2558,11 @@ test('fiche du PV : d’un point à l’autre par la pilule, le point quitté en
   await expect(notes).toHaveText('Décidé : on commande.');
   await expect(fiche.locator('.min-changes')).toContainText('statut : À faire → En cours');
 
-  // Hauteur du point et de ses notes : réglable (clavier, souris), retenue ; double-clic : comme à l'origine.
-  const hauteur = fiche.getByRole('separator', { name: 'Hauteur du point et de ses notes' });
+  // Hauteur des fenêtres du haut (le point) et du bas (ses notes) : réglable (clavier, souris), retenue ; double-clic :
+  // comme à l'origine.
+  const hauteur = fiche.getByRole('separator', { name: 'Hauteur des fenêtres du haut et du bas' });
   await expect(hauteur).toHaveAttribute('aria-valuenow', '50');
-  const hPoint = async () => (await fiche.getByRole('region', { name: 'Point' }).boundingBox())!.height;
+  const hPoint = async () => (await fiche.getByRole('region', { name: 'Fenêtre du haut' }).boundingBox())!.height;
   const avant = await hPoint();
   await hauteur.focus();
   await page.keyboard.press('ArrowDown');
@@ -2581,7 +2584,7 @@ test('fiche du PV : d’un point à l’autre par la pilule, le point quitté en
   await expect(panneau.locator('h2')).toHaveText('Point A de la fiche');
   expect((await panneau.boundingBox())!.x).toBeGreaterThan(largeur / 2 - 20);
   expect((await fiche.locator('.pv-fiche-gauche').boundingBox())!.x).toBeLessThan(40);
-  await expect(fiche.getByRole('separator', { name: 'Largeur de la fiche et de la projection' })).toBeVisible();
+  await expect(fiche.getByRole('separator', { name: 'Largeur des fenêtres de gauche et de droite' })).toBeVisible();
   await suivant.click();
   await expect(panneau.locator('h2')).not.toHaveText('Point A de la fiche');
 
@@ -2652,7 +2655,7 @@ test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, 
   const onglet = (nom: string) => fiche.getByRole('tab', { name: new RegExp(`^${nom}`) });
   // Premier onglet : le point, sa remarque juste sous l'intitulé.
   await expect(onglet('Point')).toHaveAttribute('aria-selected', 'true');
-  await expect(fiche.getByRole('tabpanel').locator('label').nth(1)).toContainText('Remarque');
+  await expect(fiche.getByRole('tabpanel', { name: /^Point/ }).locator('label').nth(1)).toContainText('Remarque');
 
   // Checklist : une étape ajoutée (le nombre suit sur l'onglet).
   await onglet('Checklist').click();
@@ -2753,7 +2756,7 @@ test('PV au clavier : ↑ ↓ d’un point à l’autre, dans la fiche du PV et 
     (await pilule.getByRole('button', { name: new RegExp(`^Point ${sens}`) }).getAttribute('title'))!.replace(/^Point (suivant|précédent) : /, '');
 
   // Fiche : le curseur dans les notes (vides) ; ↓ au point suivant, ↑ revient.
-  const notes = fiche.getByRole('region', { name: 'Notes de la séance' }).getByRole('textbox');
+  const notes = fiche.getByRole('tabpanel', { name: /^Notes de la séance/ }).getByRole('textbox');
   await expect(notes).toBeFocused();
   const suivant = await nom('suivant');
   await page.keyboard.press('ArrowDown');
@@ -2822,12 +2825,12 @@ test('fiche du PV : onglet « Séances précédentes », ce que les PV d’avant
   await allerA(page, '/pv');
   const fiche = await vueEnFenetres(page, 'Point suivi de séance en séance');
   // La note de cette séance-ci : dans le rectangle des notes, pas dans l'onglet.
-  await fiche.getByRole('region', { name: 'Notes de la séance' }).getByRole('textbox').click();
+  await fiche.getByRole('tabpanel', { name: /^Notes de la séance/ }).getByRole('textbox').click();
   await page.keyboard.type('Note de la séance en cours.');
   const onglet = fiche.getByRole('tab', { name: /^Séances précédentes/ });
   await expect(onglet).toContainText('1');
   await onglet.click();
-  const notes = fiche.getByRole('tabpanel').locator('.notes-seances');
+  const notes = fiche.getByRole('tabpanel', { name: /^Séances précédentes/ }).locator('.notes-seances');
   await expect(notes.locator('legend')).toContainText('Notes des séances précédentes');
   await expect(notes.locator('li')).toHaveCount(1);
   await expect(notes.locator('li')).toContainText('Comité d’il y a un mois');
@@ -2849,7 +2852,7 @@ test('fiche du PV : onglet « Séances précédentes », ce que les PV d’avant
   await expect(autre).toHaveAccessibleName('Fiche du PV : Point dont on n’a jamais parlé');
   await expect(autre.getByRole('tab', { name: /^Séances précédentes/ })).toHaveAttribute('aria-selected', 'true');
   await expect(autre.getByRole('tab', { name: /^Séances précédentes/ }).locator('.pv-fiche-nb')).toHaveCount(0);
-  await expect(autre.getByRole('tabpanel')).toContainText('Le PV des séances précédentes ne dit rien de ce point.');
+  await expect(autre.getByRole('tabpanel', { name: /^Séances précédentes/ })).toContainText('Le PV des séances précédentes ne dit rien de ce point.');
 });
 
 test('fiche du PV : bandeau de la séance en haut ; onglet « Vote » des membres présents, le résultat dans le PV', async ({ page, context }) => {
@@ -2869,7 +2872,7 @@ test('fiche du PV : bandeau de la séance en haut ; onglet « Vote » des membre
   await expect(bandeau).toContainText(/\d{4}/);
   // Personne de présent : rien à voter.
   await fiche.getByRole('tab', { name: /^Vote/ }).click();
-  await expect(fiche.getByRole('tabpanel')).toContainText('Personne n’est noté présent');
+  await expect(fiche.getByRole('tabpanel', { name: /^Vote/ })).toContainText('Personne n’est noté présent');
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: /^Tous présents/ }).click();
 
@@ -2907,4 +2910,65 @@ test('fiche du PV : bandeau de la séance en haut ; onglet « Vote » des membre
   await expect(fiche.locator('.pv-vote-bilan')).toContainText('Aucune voix');
   await page.keyboard.press('Escape');
   await expect(page.locator('.min-task[data-point="Acheter une remorque"] .min-vote')).toHaveCount(0);
+});
+
+test('vue en fenêtres : un onglet se glisse dans une autre fenêtre (retenu) ; pièces jointes sans agrandir ni télécharger', async ({ page }) => {
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+  await page.goto('./?demo#/taches');
+  const f = await nouvelleTache(page, 'Point aux pièces');
+  await f.getByRole('button', { name: /Document/ }).first().click();
+  await f.locator('fieldset.docs input[type=file]').first().setInputFiles([{ name: 'plan.png', mimeType: 'image/png', buffer: png }]);
+  await expect(f.locator('.doc-list li')).toHaveCount(1);
+  await f.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await allerA(page, '/pv');
+  await page.getByRole('button', { name: 'Projection', exact: true }).click();
+  const fiche = await vueEnFenetres(page, 'Point aux pièces');
+  const haut = fiche.getByRole('region', { name: 'Fenêtre du haut' });
+  const bas = fiche.getByRole('region', { name: 'Fenêtre du bas' });
+  const droite = fiche.getByRole('region', { name: 'Fenêtre de droite' });
+
+  // À l'origine : le point en haut, ses notes en bas, ses pièces jointes à droite, sans « Agrandir » ni « Télécharger ».
+  await expect(haut.getByRole('tab', { name: /^Point/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(bas.getByRole('tab', { name: /^Notes de la séance/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(droite.getByRole('tab', { name: /^Pièces jointes/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(droite.locator('.visionneuse-image img')).toBeVisible();
+  await expect(droite.getByRole('button', { name: 'Agrandir' })).toHaveCount(0);
+  await expect(droite.getByRole('button', { name: 'Télécharger' })).toHaveCount(0);
+  await expect(fiche.getByRole('button', { name: 'Onglets d’origine' })).toHaveCount(0);
+
+  // « Vote » glissé à droite (au beamer) : il s'y montre, et quitte la fenêtre du haut.
+  await haut.getByRole('tab', { name: /^Vote/ }).dragTo(droite.getByRole('tablist'));
+  await expect(droite.getByRole('tab', { name: /^Vote/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(droite.getByRole('tabpanel', { name: /^Vote/ })).toBeVisible();
+  await expect(haut.getByRole('tab', { name: /^Vote/ })).toHaveCount(0);
+  // Les notes aussi : la fenêtre du bas, vide, invite à y glisser un onglet.
+  await bas.getByRole('tab', { name: /^Notes de la séance/ }).dragTo(droite.getByRole('tablist'));
+  await expect(droite.getByRole('tabpanel', { name: /^Notes de la séance/ }).getByRole('textbox')).toBeVisible();
+  await expect(bas).toContainText('Glisse ici un onglet');
+  // Un onglet choisi dans la fenêtre : il s'y montre.
+  await droite.getByRole('tab', { name: /^Pièces jointes/ }).click();
+  await expect(droite.locator('.visionneuse-image img')).toBeVisible();
+
+  // Retenu sur l'appareil (la vue se rouvre au rechargement).
+  await page.reload();
+  const rouverte = page.getByRole('dialog', { name: /^Fiche du PV : / });
+  const droite2 = rouverte.getByRole('region', { name: 'Fenêtre de droite' });
+  await expect(droite2.getByRole('tab', { name: /^Vote/ })).toBeVisible();
+  await expect(droite2.getByRole('tab', { name: /^Notes de la séance/ })).toBeVisible();
+  await expect(droite2.getByRole('tab', { name: /^Pièces jointes/ })).toHaveAttribute('aria-selected', 'true');
+
+  // Sans projection, pas de fenêtre de droite : ses onglets dans celle du haut.
+  const barre = rouverte.getByRole('toolbar', { name: 'Outils de la prise de notes' });
+  await barre.getByRole('button', { name: /^Projection/ }).click();
+  await expect(rouverte.getByRole('region', { name: 'Fenêtre de droite' })).toHaveCount(0);
+  const haut2 = rouverte.getByRole('region', { name: 'Fenêtre du haut' });
+  await expect(haut2.getByRole('tab', { name: /^Notes de la séance/ })).toBeVisible();
+  await expect(haut2.getByRole('tab', { name: /^Vote/ })).toBeVisible();
+
+  // « Onglets d'origine » : chacun à sa place.
+  await rouverte.getByRole('button', { name: 'Onglets d’origine' }).click();
+  await expect(rouverte.getByRole('region', { name: 'Fenêtre du bas' }).getByRole('tab', { name: /^Notes de la séance/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(rouverte.getByRole('button', { name: 'Onglets d’origine' })).toHaveCount(0);
+  expect(await page.evaluate(() => localStorage.getItem('taches-gsa-pv-onglets'))).toBeNull();
 });

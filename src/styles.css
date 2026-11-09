@@ -782,6 +782,9 @@ body:has(.pv-fiche-ecran) { overflow: hidden; }
   background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); font-size: 0.95rem;
 }
 .pv-fiche-entete > * + *::before { content: '·'; margin-right: 14px; color: var(--muted); }
+/* Le point en cours (section, rang) à droite du bandeau ; « Onglets d'origine » si on les a déplacés. */
+.pv-fiche-entete > .pv-fiche-ou { margin-left: auto; }
+.pv-fiche-entete > .pv-fiche-ou::before, .pv-fiche-entete > .pv-fiche-origine::before { content: none; }
 .pv-fiche-comite { font-size: 1.1rem; }
 .pv-fiche-entete a { color: inherit; }
 .pv-fiche-ecran.avec-projection { grid-template-columns: minmax(0, var(--fr-fiche, 1fr)) 14px minmax(0, var(--fr-projection, 1fr)); justify-content: stretch; }
@@ -790,17 +793,26 @@ body:has(.pv-fiche-ecran) { overflow: hidden; }
 .pilule.ancree { position: static; transform: none; width: auto; max-width: none; border-radius: var(--radius); box-shadow: var(--shadow); padding: 3px 8px; }
 .pilule.ancree .pilule-barre { flex-wrap: wrap; }
 .pv-fiche-ecran .panel { margin: 0; min-height: 0; }
-.pv-fiche-point { overflow-y: auto; overscroll-behavior: contain; }
-.pv-fiche-notes { display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
-.pv-fiche-notes .min-h2 { display: flex; align-items: center; gap: 6px; }
+/* Une fenêtre : ses onglets, et l'onglet choisi dessous (qui défile seul). Pendant qu'on fait glisser un onglet, la
+   fenêtre où il tomberait est encadrée. */
+.pv-fenetre { display: flex; flex-direction: column; overflow: hidden; }
+.pv-fenetre.f-droite { margin-bottom: 12px; }
+.pv-fenetre > .pv-fiche-onglets { flex: none; }
+.pv-fenetre-corps { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; overflow-y: auto; overscroll-behavior: contain; }
+.pv-fenetre-corps > .pv-fiche-champs { flex: none; }
+.pv-fenetre-vide { margin: auto; padding: 12px; text-align: center; }
+.pv-fiche-ecran.glisse .pv-fenetre { outline: 2px dashed transparent; outline-offset: -2px; transition: outline-color 0.1s; }
+.pv-fiche-ecran.glisse .pv-fenetre.cible { outline-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+.pv-fiche-onglets button[draggable='true'] { cursor: grab; }
+.pv-fiche-onglets button[draggable='true']:active { cursor: grabbing; }
 /* Rappel du clavier (↑ ↓), là où il y en a un : pas au doigt. */
-.pv-fiche-clavier { margin-left: auto; font-weight: 400; font-size: 0.78rem; white-space: nowrap; }
+.pv-fiche-clavier { align-self: flex-end; margin: -4px 0 4px; font-weight: 400; font-size: 0.78rem; white-space: nowrap; }
 @media (hover: none), (pointer: coarse) { .pv-fiche-clavier { display: none; } }
-.pv-fiche-notes .note-riche { flex: 1 0 auto; min-height: 4.5em; margin: 0; font-size: 1rem; }
-.pv-fiche-ecran .min-projection { height: auto; margin-bottom: 12px; }
-.pv-fiche-tete { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
-.pv-fiche-ou { padding-top: 4px; overflow-wrap: anywhere; }
-.pv-fiche-boutons { display: inline-flex; align-items: center; gap: 6px; flex-shrink: 0; }
+.pv-fenetre-corps.p-notes .note-riche { flex: 1 0 auto; min-height: 4.5em; margin: 0; font-size: 1rem; }
+/* Les pièces jointes dans une fenêtre : à sa hauteur, le PDF défile dans la fenêtre. */
+.pv-fenetre-corps.p-pieces { overflow: hidden; }
+.min-projection.min-projection-fenetre { flex: 1 1 auto; height: auto; min-height: 0; }
+.pv-fiche-ou { overflow-wrap: anywhere; }
 .pv-fiche-nom { margin: 0 0 4px; font-size: 1.2rem; overflow-wrap: anywhere; }
 .pv-fiche-info { margin: 0; font-size: 0.88rem; }
 .pv-fiche-champs { gap: 10px 12px; }
