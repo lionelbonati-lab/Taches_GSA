@@ -131,9 +131,11 @@ function ListeTaches() {
     const evenementDe = new Map((data.etiquettes ?? []).filter((e) => e.eventId).map((e) => [e.id, e.eventId!]));
     const evenementsDe = (t: Task) =>
       [...new Set([...(t.eventId ? [t.eventId, serieDe.get(t.eventId) ?? ''] : []), ...etiquettesDe(t).map((id) => evenementDe.get(id) ?? '')])].filter(Boolean);
-    // Série d'événements filtrée : les points de l'un de ses événements.
+    // Série d'événements filtrée : les points de l'un de ses événements, et ceux de son étiquette (sa sous-section).
     const dansLaSerie = serieFiltree ? new Set(data.events.filter((e) => e.dansSerie === serieFiltree).map((e) => e.id)) : undefined;
-    const duFiltre = (t: Task) => (dansLaSerie ? evenementsDe(t).some((id) => dansLaSerie.has(id)) : evenementsDe(t).includes(f.event));
+    const etiquetteSerie = serieFiltree ? (data.etiquettes ?? []).find((e) => e.serieId === serieFiltree)?.id : undefined;
+    const duFiltre = (t: Task) =>
+      dansLaSerie ? evenementsDe(t).some((id) => dansLaSerie.has(id)) || (!!etiquetteSerie && etiquettesDe(t).includes(etiquetteSerie)) : evenementsDe(t).includes(f.event);
     // Tous les filtres, sauf `sauf` : les choix du filtre « Événement » sont ceux qui ont des tâches avec les autres filtres.
     // `portee` : mes points ou tous (pour dire combien « Tous » en montrerait).
     const garde = (t: Task, sauf?: 'event', portee = effScope) => {
@@ -211,7 +213,9 @@ function ListeTaches() {
   // Filtre « Événement » : ceux qui ont des tâches avec les autres filtres, par date (les passés à part).
   const evenementsChoix = data.events.filter((e) => evenementsAvec.has(e.id) || e.id === f.event).sort((a, b) => a.date.localeCompare(b.date));
   // Séries d'événements qui ont des points avec les autres filtres (et celle filtrée).
-  const seriesChoix = seriesDuClub(data).filter((s) => s.id === serieFiltree || data.events.some((e) => e.dansSerie === s.id && evenementsAvec.has(e.id)));
+  const seriesChoix = seriesDuClub(data).filter(
+    (s) => s.id === serieFiltree || data.events.some((e) => e.dansSerie === s.id && evenementsAvec.has(e.id)) || (data.etiquettes ?? []).some((e) => e.serieId === s.id),
+  );
   // Filtre « Étiquette » : les groupes, les événements à venir, puis les passés à part.
   const rangees = etiquettesRangees(data.etiquettes, data.events);
 

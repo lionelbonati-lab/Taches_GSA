@@ -3,16 +3,18 @@ import { useStore } from '../data/store';
 import type { ClubEvent, SerieEvenements } from '../data/types';
 import { fmtRange, today } from '../data/utils';
 import { aLaDate, horaire, libelleRepetition } from '../data/repetition';
-import { evenementPasse } from '../data/etiquettes';
+import { etiquetteDeLaSerie, evenementPasse, reglerEtiquetteSerie, type ChoixEtiquette } from '../data/etiquettes';
 import { dateAffichee, enregistrerSerieEtEvenements, evenementsDeLaSerie, racine, serieDe, supprimerSerie } from '../data/seriesEvenements';
 import { Modal } from './ui';
 import { Icone } from './icones';
 import { ZoneTexte } from './ZoneTexte';
+import { CaseEtiquetteSerie } from './ReglageEtiquette';
 
 /**
- * Fiche d'une série d'événements (seriesEvenements.ts) : son nom, sa description et ses événements, cochés parmi ceux de
- * l'agenda (à venir ; les passés repliés à part). Un événement coché qui était dans une autre série passe dans celle-ci.
- * Supprimer la série : ses événements restent dans l'agenda, avec leurs points, sans série.
+ * Fiche d'une série d'événements (seriesEvenements.ts) : son nom, sa description, son étiquette (nouvelle, ou une déjà
+ * là : ses membres voient les points de toute la série) et ses événements, cochés parmi ceux de l'agenda (à venir ; les
+ * passés repliés à part). Un événement coché qui était dans une autre série passe dans celle-ci. Supprimer la série : ses
+ * événements restent dans l'agenda, avec leurs points, sans série.
  */
 export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose: () => void }) {
   const { data, update } = useStore();
@@ -20,6 +22,18 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
   const [nom, setNom] = useState(serie.nom);
   const [description, setDescription] = useState(serie.description ?? '');
   const [err, setErr] = useState('');
+  // Case « Étiquette de la série » : enregistrée avec la série, si on l'a touchée.
+  const deja = etiquetteDeLaSerie(data, serie.id);
+  const [etiquette, setEtiquette] = useState<ChoixEtiquette>(deja ? { membres: deja.membres ?? [] } : null);
+  const [etiquetteTouchee, setEtiquetteTouchee] = useState(false);
+  const choixEtiquette = (c: ChoixEtiquette) => {
+    if (!c && deja) {
+      const n = data.tasks.filter((t) => t.etiquettes?.includes(deja.id)).length;
+      if (!confirm(`Retirer l’étiquette « ${deja.nom} » ?${n ? ` Ses ${n} point(s) la perdent ; ils restent dans leur sous-section.` : ''}`)) return;
+    }
+    setEtiquette(c);
+    setEtiquetteTouchee(true);
+  };
   const jour = today();
   // Événements proposés : ceux d'origine (une date modifiée seule d'un événement qui se répète suit le sien).
   const candidats = data.events
@@ -40,15 +54,20 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
   const submit = () => {
     if (!nom.trim()) return setErr('« Nom de la série » est obligatoire.');
     const n = ids.size;
+    const quoiEtiquette = !etiquetteTouchee ? '' : etiquette ? `, étiquette (${etiquette.membres.length} membre${etiquette.membres.length > 1 ? 's' : ''})` : ', sans étiquette';
     update(
-      (d) => enregistrerSerieEtEvenements(d, { ...serie, nom, description }, [...ids]),
-      `${isNew ? 'Création' : 'Modification'} de la série d’événements « ${nom.trim()} » (${n} événement${n > 1 ? 's' : ''})`,
+      (d) => {
+        enregistrerSerieEtEvenements(d, { ...serie, nom, description }, [...ids]);
+        // Après ses événements : leurs points reçoivent l'étiquette de la série.
+        if (etiquetteTouchee) reglerEtiquetteSerie(d, { id: serie.id, nom: nom.trim() }, etiquette);
+      },
+      `${isNew ? 'Création' : 'Modification'} de la série d’événements « ${nom.trim()} » (${n} événement${n > 1 ? 's' : ''}${quoiEtiquette})`,
     );
     onClose();
   };
   const supprimer = () => {
     const n = evenementsDeLaSerie(data.events, serie.id).length;
-    if (!confirm(`Supprimer la série « ${serie.nom} » ?${n ? ` Ses ${n} événement(s) restent dans l’agenda, avec leurs points, sans série.` : ''}`)) return;
+    if (!confirm(`Supprimer la série « ${serie.nom} » ?${n ? ` Ses ${n} événement(s) restent dans l’agenda, avec leurs points, sans série.` : ''}${deja ? ` Son étiquette reste sur ses points (à relier, page Étiquettes).` : ''}`)) return;
     update((d) => supprimerSerie(d, serie.id), `Suppression de la série d’événements « ${serie.nom} »`);
     onClose();
   };
@@ -88,6 +107,7 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
           Description
           <ZoneTexte rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
         </label>
+        <CaseEtiquetteSerie serie={{ id: serie.id, nom }} valeur={etiquette} onChange={choixEtiquette} />
       </div>
       <section className="serie-ev-choix" aria-label="Événements de la série">
         <h3>Événements de la série <small className="muted">({ids.size})</small></h3>

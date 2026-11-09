@@ -209,6 +209,7 @@ const PAR_DEFAUT: Record<SorteEtiquette, { cle?: string; n?: IconeNom; nom: stri
   evenement: { cle: 'fete', nom: 'celle des événements' },
   groupe: { cle: 'equipe', nom: 'celle des groupes' },
   comite: { cle: 'comite', nom: 'celle du comité' },
+  serie: { n: 'serie', nom: 'celle des séries d’événements' },
   libre: { n: 'etiquette', nom: 'celle des étiquettes' },
 };
 const IconeDefaut = ({ s }: { s: SorteEtiquette }) => {

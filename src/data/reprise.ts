@@ -81,23 +81,43 @@ export function reprendre(data: AppData, e: ClubEvent, c: ChoixReprise, moi: str
     ...reste, id: uid('e'), nom: c.nom.trim(), date: c.date, dateFin: c.dateFin && c.dateFin > c.date ? c.dateFin : undefined, repriseDe: e.id,
     ...(c.serie && dansSerie ? { dansSerie } : {}),
   };
-  const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
   const choisies = data.tasks.filter((t) => c.taches.includes(t.id) && !t.paiement);
+  const { tasks, notifs } = copierPoints(data, choisies, (t) => {
+    const liee = t.eventId === e.id;
+    return {
+      eventId: liee ? event.id : undefined,
+      delaiRef: liee && t.delaiRef?.type === 'event' ? (({ occurrence: _, ...r }) => r)(t.delaiRef) : undefined,
+      delai: delaiRepris(t, e, c.date),
+    };
+  }, c.responsables, moi);
+  return { event, tasks, notifs };
+}
+
+/**
+ * Copies des points choisis (dans leur ordre), avec les notifications des responsables et des personnes à qui un point à
+ * prendre est proposé (`moi` : qui reprend). Chaque copie repart « à faire », checklist décochée, sans discussion, « ✓ Vu »,
+ * séance ni récurrence ; `suite` : son événement, son délai lié et son délai ; `memes` : les mêmes responsables (encore
+ * actifs), sinon à attribuer ensuite. Point principal repris aussi : la copie y est rattachée.
+ */
+export function copierPoints(
+  data: AppData,
+  choisies: Task[],
+  suite: (t: Task) => Pick<Task, 'eventId' | 'delaiRef' | 'delai'>,
+  memes: boolean,
+  moi: string,
+): { tasks: Task[]; notifs: ActivityNotif[] } {
+  const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
   const ids = new Map(choisies.map((t) => [t.id, uid('t')]));
   const actifs = new Set(data.people.filter((p) => p.actif).map((p) => p.id));
   const now = new Date().toISOString();
   const tasks = choisies.map((t): Task => {
     const { suivanteId: _a, termineeLe: _b, pourInfoVus: _i, commentaires: _j, recurrence: _k, postesResp: _l, meetingId: _m, contenuLe: _p, ...x } = t;
-    const liee = t.eventId === e.id;
-    const ref = liee && t.delaiRef?.type === 'event' ? (({ occurrence: _, ...r }) => r)(t.delaiRef) : undefined;
     return {
       ...x,
       id: ids.get(t.id)!,
       statusId: ouvert.id,
-      eventId: liee ? event.id : undefined,
-      delaiRef: ref,
-      delai: delaiRepris(t, e, c.date),
-      responsables: c.responsables ? sansVolontaires(t.responsables.filter((id) => actifs.has(id)), t.aPrendre) : [],
+      ...suite(t),
+      responsables: memes ? sansVolontaires(t.responsables.filter((id) => actifs.has(id)), t.aPrendre) : [],
       aPrendre: aPrendreSuivante(t.aPrendre),
       checklist: t.checklist.map((i) => ({ ...i, id: uid('c'), done: false })),
       // Tâche principale reprise aussi : sa copie ; sinon la même.
@@ -112,5 +132,5 @@ export function reprendre(data: AppData, e: ClubEvent, c: ChoixReprise, moi: str
     t.responsables.forEach((id) => prevenir(id, 'assign', t.id));
     if (aPrendreOuverte(t)) t.aPrendre!.personnes.filter((id) => !t.responsables.includes(id)).forEach((id) => prevenir(id, 'propose', t.id));
   }
-  return { event, tasks, notifs };
+  return { tasks, notifs };
 }

@@ -3,10 +3,13 @@ import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Etiquette } from '../data/types';
 import { fmtRange, isDone, today } from '../data/utils';
-import { etiquetteDeLEvenement, etiquettesDesLieux, evenementPasse, lieuxDe, nomLieu, retirerEtiquette, sansEtiquetteDeLeurPlace, sorteDe } from '../data/etiquettes';
+import {
+  etiquetteDeLaSerie, etiquetteDeLEvenement, etiquettePassee, etiquettesDesLieux, evenementPasse, lieuxDe, nomLieu, retirerEtiquette, sansEtiquetteDeLeurPlace, sorteDe,
+} from '../data/etiquettes';
+import { evenementsDeLaSerie, seriePassee, seriesDuClub } from '../data/seriesEvenements';
 import { PageIntro } from '../components/Nav';
 import { Icone } from '../components/icones';
-import { Comite, EtiquetteReglee, EvenementEtiquette, GroupeSection } from '../components/ReglageEtiquette';
+import { Comite, EtiquetteReglee, EvenementEtiquette, GroupeSection, SerieEtiquette } from '../components/ReglageEtiquette';
 
 /**
  * Page Club › Étiquettes : tout le réglage des étiquettes au même endroit (etiquettes.ts). Les événements de l'agenda
@@ -36,6 +39,16 @@ export function EtiquettesPage() {
   const aFinir = (e: ClubEvent) => {
     const et = etiquetteDeLEvenement(data, e.id);
     return et ? data.tasks.filter((t) => t.etiquettes?.includes(et.id) && !isDone(data, t)).length : 0;
+  };
+
+  // Séries d'événements (programme hivernal, championnat) : sans « Événements » dans le menu, celles qui ont une étiquette.
+  const series = seriesDuClub(data).filter((s) => can('tab.events') || !!etiquetteDeLaSerie(data, s.id));
+  /** Où en est une série passée qui a une étiquette (« passée · 2 points pas terminés »). */
+  const etatSerie = (id: string) => {
+    const et = etiquetteDeLaSerie(data, id);
+    if (!et || !etiquettePassee(et, data.events, jour) || !seriePassee(evenementsDeLaSerie(data.events, id), jour)) return undefined;
+    const n = data.tasks.filter((t) => t.etiquettes?.includes(et.id) && !isDone(data, t)).length;
+    return n ? `passée · ${n} point${n > 1 ? 's' : ''} pas terminé${n > 1 ? 's' : ''}` : 'passée · ses points sont terminés';
   };
 
   const libres = (data.etiquettes ?? []).filter((e) => sorteDe(e) === 'libre');
@@ -111,6 +124,18 @@ export function EtiquettesPage() {
         )}
       </section>
 
+      {series.length > 0 && (
+        <section className="panel etiquettes-bloc">
+          <h2><Icone n="serie" /> Séries d’événements</h2>
+          <p className="muted">
+            Coche une série (programme hivernal, championnat…) : elle a son étiquette, à son nom, et sa sous-section dans « Événements ». Ses membres voient
+            les points de toute la série : ceux rattachés à ses événements et ceux de sa sous-section. Tu peux aussi reprendre une étiquette déjà là, avec ses
+            membres et ses points.
+          </p>
+          {series.map((s) => <SerieEtiquette key={s.id} s={s} peut={evenementsGeres} etat={etatSerie(s.id)} />)}
+        </section>
+      )}
+
       <section className="panel etiquettes-bloc">
         <h2><Icone n="membres" /> Groupes</h2>
         <p className="muted">Coche une section (Gruppetto, École de cyclisme…) : elle devient un groupe ; ses membres voient ses points.</p>
@@ -126,8 +151,8 @@ export function EtiquettesPage() {
         <section className="panel etiquettes-bloc">
           <h2>À relier</h2>
           <p className="muted">
-            Étiquettes d’avant, ni d’un événement ni d’une section : elles marchent comme avant. Pour en faire celle d’un événement ou d’un groupe, coche-le
-            plus haut et choisis « Reprendre » : ses points et ses membres suivent.
+            Étiquettes d’avant, ni d’un événement, ni d’une série, ni d’une section : elles marchent comme avant. Pour en faire celle d’un événement, d’une
+            série ou d’un groupe, coche-le plus haut et choisis « Reprendre » : ses points et ses membres suivent.
           </p>
           {libres.map((e) => {
             const lieux = lieuxDe(e, data.sections);

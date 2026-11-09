@@ -20,7 +20,7 @@ const occ = (t: Task) => (t.delaiRef?.type === 'event' ? t.delaiRef.occurrence :
 const decaler = (xs: string[] | undefined, n: number) => xs?.map((x) => addDays(x, n));
 
 /** Jours de la semaine décalés de `n` jours (lundi et jeudi + 1 → mardi et vendredi). */
-const decalerJours = (r: RepetitionEvenement, n: number): RepetitionEvenement =>
+export const decalerJours = (r: RepetitionEvenement, n: number): RepetitionEvenement =>
   r.jours ? { ...r, jours: r.jours.map((j) => ((((j - 1 + n) % 7) + 7) % 7) + 1).sort() } : r;
 
 /** Enregistre `v` : l'occurrence du `jour` de la série `serie`, modifiée pour `portee`. */

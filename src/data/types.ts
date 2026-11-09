@@ -580,6 +580,8 @@ export interface SerieEvenements {
   id: string;
   nom: string;
   description?: string;
+  /** Saison suivante d'une série reprise (« Reprendre la série », repriseSerie.ts) : celle-ci. */
+  repriseDe?: string;
 }
 
 /** Répétition d'un événement, comme dans un agenda : tous les N jours, semaines, mois ou ans. */
@@ -802,6 +804,11 @@ export interface Etiquette {
   eventId?: string;
   /** Étiquette d'une section, un groupe (coche « Groupe » de la section) : son nom est celui de la section. */
   sectionId?: string;
+  /**
+   * Étiquette d'une série d'événements (fiche de la série) : son nom est celui de la série ; sa sous-section dans
+   * « Événements » est `lieux` ; les points rattachés à l'un des événements de la série la reçoivent aussi. Sans date.
+   */
+  serieId?: string;
   /**
    * Sa place dans les sections (etiquettes.ts) : un point rangé là reçoit l'étiquette d'office, et ses membres (sans « Voir
    * tous les points ») n'y rangent leurs points que là. Événement : sa sous-section ; groupe : sa section (sans `lieux`).

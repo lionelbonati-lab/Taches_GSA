@@ -11,6 +11,9 @@ import { evenementPasse } from './etiquettes';
 // coup dans la liste des points (filtre « Événement »).
 // Un événement qui se répète est dans la série avec toutes ses dates (celles modifiées seules comprises). Retirer un
 // événement de la série, ou supprimer la série, ne touche ni à l'événement ni à ses points.
+// La série peut avoir son étiquette (etiquettes.ts, reglerEtiquetteSerie) : ses membres voient les points de tous ses
+// événements, et ceux de sa sous-section dans « Événements » (ce qui vaut pour toute la série). « Reprendre la série »
+// (repriseSerie.ts) prépare la saison suivante : ses événements décalés, avec leurs points.
 // Les séries sont une liste de l'appli comme les autres (« seriesEvenements », lisible par tout le club : rien à faire
 // sur le serveur) ; ce que les événements en disent est dans leur fiche (ClubEvent.dansSerie).
 
@@ -78,11 +81,11 @@ export const etiquettesDeLaSerie = (etiquettes: Etiquette[] = [], evs: ClubEvent
 
 /**
  * Points de la série : rattachés à l'un de ses événements, ou qui portent l'étiquette de l'un d'eux (comme sur la carte
- * d'un événement).
+ * d'un événement) ou celle de la série (rangés dans sa sous-section, par exemple).
  */
-export function pointsDeLaSerie(data: Pick<AppData, 'tasks' | 'etiquettes'>, evs: ClubEvent[]): Task[] {
+export function pointsDeLaSerie(data: Pick<AppData, 'tasks' | 'etiquettes'>, serieId: string, evs: ClubEvent[]): Task[] {
   const ids = new Set(evs.map((e) => e.id));
-  const ets = new Set(etiquettesDeLaSerie(data.etiquettes, evs).map((et) => et.id));
+  const ets = new Set([...etiquettesDeLaSerie(data.etiquettes, evs), ...(data.etiquettes ?? []).filter((et) => et.serieId === serieId)].map((et) => et.id));
   return data.tasks.filter((t) => (!!t.eventId && ids.has(t.eventId)) || !!t.etiquettes?.some((id) => ets.has(id)));
 }
 
@@ -115,7 +118,10 @@ export function enregistrerSerieEtEvenements(d: AppData, s: SerieEvenements, ids
   });
 }
 
-/** Supprime la série : ses événements restent dans l'agenda, avec leurs points, sans série. */
+/**
+ * Supprime la série : ses événements restent dans l'agenda, avec leurs points, sans série ; son étiquette reste sur ses
+ * points, à relier (page Étiquettes ; etiquettes.ts, synchroniserEtiquettes).
+ */
 export function supprimerSerie(d: AppData, id: string) {
   d.seriesEvenements = (d.seriesEvenements ?? []).filter((s) => s.id !== id);
   d.events.forEach((e) => {

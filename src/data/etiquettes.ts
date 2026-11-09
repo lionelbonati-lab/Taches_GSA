@@ -1,4 +1,4 @@
-import type { AppData, ClubEvent, Etiquette, LieuEtiquette, Section, Task } from './types';
+import type { AppData, ClubEvent, Etiquette, LieuEtiquette, Section, SerieEvenements, Task } from './types';
 import { COULEURS, endOf, today, uid } from './utils';
 import { occurrenceDu } from './repetition';
 
@@ -7,7 +7,10 @@ import { occurrenceDu } from './repetition';
 //    ceux de l'événement ; elle a sa sous-section dans « Événements » (créée d'office) ; les points rangés là, ou
 //    rattachés à l'événement, la reçoivent ;
 //  • l'étiquette d'une section, un groupe (coche « Groupe » de la section, console admin) : les points de la section ;
-//  • « Comité » (console admin) : les points qui n'ont ni groupe ni événement.
+//  • « Comité » (console admin) : les points qui n'ont ni groupe ni événement ;
+//  • l'étiquette d'une série d'événements (fiche de la série, seriesEvenements.ts) : son nom est celui de la série, sans
+//    date ; elle a sa sous-section dans « Événements » ; les points rangés là, ou rattachés à l'un des événements de la
+//    série, la reçoivent. Elle peut reprendre une étiquette déjà là (à relier, d'un événement, d'une autre série).
 // Ses membres voient ses points (règle du serveur, 062). Ce que chacun peut ranger et étiqueter : store.tsx
 // (peutRanger, peutEtiqueter). Les étiquettes d'avant ce réglage, pas encore reliées, gardent leur place (réglée, ou
 // devinée d'après le nom) et se relient en cochant la case de l'événement ou de la section (« Reprendre »).
@@ -20,9 +23,10 @@ import { occurrenceDu } from './repetition';
 
 type Donnees = Pick<AppData, 'etiquettes' | 'sections'> & Partial<Pick<AppData, 'events'>>;
 
-/** Sorte d'une étiquette : d'un événement, d'une section (groupe), du comité, ou ancienne, pas encore reliée. */
-export type SorteEtiquette = 'evenement' | 'groupe' | 'comite' | 'libre';
-export const sorteDe = (e: Etiquette): SorteEtiquette => (e.parDefaut ? 'comite' : e.eventId ? 'evenement' : e.sectionId ? 'groupe' : 'libre');
+/** Sorte d'une étiquette : d'un événement, d'une section (groupe), du comité, d'une série d'événements, ou ancienne, pas encore reliée. */
+export type SorteEtiquette = 'evenement' | 'groupe' | 'comite' | 'serie' | 'libre';
+export const sorteDe = (e: Etiquette): SorteEtiquette =>
+  e.parDefaut ? 'comite' : e.eventId ? 'evenement' : e.sectionId ? 'groupe' : e.serieId ? 'serie' : 'libre';
 
 /** Événement passé : son dernier jour est avant `jour` ; un événement qui se répète : plus aucune occurrence à venir. */
 export const evenementPasse = (ev: ClubEvent, jour = today()) => (ev.repetition ? !occurrenceDu(ev, jour) : endOf(ev) < jour);
@@ -33,6 +37,11 @@ export const evenementPasse = (ev: ClubEvent, jour = today()) => (ev.repetition 
 export function etiquettePassee(e: Etiquette, events: ClubEvent[] = [], jour = today()): boolean {
   const ev = e.eventId ? events.find((x) => x.id === e.eventId) : undefined;
   if (ev) return evenementPasse(ev, jour);
+  // Série d'événements : tous ses événements sont passés (sans événement : pas encore).
+  if (e.serieId) {
+    const evs = events.filter((x) => x.dansSerie === e.serieId);
+    return evs.length > 0 && evs.every((x) => evenementPasse(x, jour));
+  }
   return e.type === 'evenement' && !e.parDefaut && !!e.date && endOf({ date: e.date, dateFin: e.dateFin }) < jour;
 }
 
@@ -42,7 +51,7 @@ export function etiquettePassee(e: Etiquette, events: ClubEvent[] = [], jour = t
  */
 export function etiquettesRangees(liste: Etiquette[] = [], events: ClubEvent[] = [], jour = today()) {
   const date = (e: Etiquette) => e.date ?? '';
-  const evts = liste.filter((e) => e.type === 'evenement' || !!e.eventId);
+  const evts = liste.filter((e) => e.type === 'evenement' || !!e.eventId || !!e.serieId);
   const passees = evts.filter((e) => etiquettePassee(e, events, jour));
   return {
     groupes: liste.filter((e) => !evts.includes(e)),
@@ -101,7 +110,7 @@ export function lieuxDevines(e: Pick<Etiquette, 'nom'>, sections: Section[]): Li
  * devinée d'après son nom. Le comité n'en a pas (il a le reste).
  */
 export const lieuxDe = (e: Etiquette, sections: Section[]): LieuEtiquette[] =>
-  e.parDefaut ? [] : e.sectionId ? [{ sectionId: e.sectionId }] : e.eventId ? e.lieux ?? [] : e.lieux ?? lieuxDevines(e, sections);
+  e.parDefaut ? [] : e.sectionId ? [{ sectionId: e.sectionId }] : e.eventId || e.serieId ? e.lieux ?? [] : e.lieux ?? lieuxDevines(e, sections);
 
 /** La place couvre le point rangé dans `sectionId` › `sousSection` (une section entière couvre ses sous-sections). */
 const couvre = (l: LieuEtiquette, sectionId: string, sousSection: string) => l.sectionId === sectionId && (!l.sousSection || l.sousSection === sousSection);
@@ -113,8 +122,9 @@ export const nomLieu = (l: LieuEtiquette, sections: Section[]) => {
 };
 
 /**
- * Étiquettes d'office d'un point, calculées une fois pour toutes : celles de sa place (sa section, sa sous-section) et
- * celle de l'événement auquel il est rattaché ; sinon, le comité. Rien pour un point sans section.
+ * Étiquettes d'office d'un point, calculées une fois pour toutes : celles de sa place (sa section, sa sous-section),
+ * celle de l'événement auquel il est rattaché et celle de la série d'événements de celui-ci ; sinon, le comité. Rien
+ * pour un point sans section.
  */
 export function etiquettesDesLieux(data: Donnees) {
   const liste = data.etiquettes ?? [];
@@ -122,12 +132,18 @@ export function etiquettesDesLieux(data: Donnees) {
   // Événement d'une série modifié seul : celui de la série.
   const serieDe = new Map((data.events ?? []).filter((x) => x.serie).map((x) => [x.id, x.serie!.id]));
   const parEvenement = new Map(liste.filter((e) => e.eventId).map((e) => [e.eventId!, e.id]));
+  // Série d'événements de l'événement, et son étiquette.
+  const dansSerie = new Map((data.events ?? []).filter((x) => x.dansSerie).map((x) => [x.id, x.dansSerie!]));
+  const parSerie = new Map(liste.filter((e) => e.serieId).map((e) => [e.serieId!, e.id]));
   const autres = liste.find((e) => e.parDefaut)?.id;
   return (sectionId: string, sousSection = '', eventId?: string): string[] => {
     if (!sectionId) return [];
     const ici = places.filter((p) => p.lieux.some((l) => couvre(l, sectionId, sousSection))).map((p) => p.id);
     const ev = eventId ? parEvenement.get(eventId) ?? parEvenement.get(serieDe.get(eventId) ?? '') : undefined;
     if (ev && !ici.includes(ev)) ici.push(ev);
+    const serie = eventId ? dansSerie.get(eventId) ?? dansSerie.get(serieDe.get(eventId) ?? '') : undefined;
+    const es = serie ? parSerie.get(serie) : undefined;
+    if (es && !ici.includes(es)) ici.push(es);
     return ici.length ? ici : autres ? [autres] : [];
   };
 }
@@ -203,6 +219,7 @@ export function sectionEvenements(d: Pick<AppData, 'sections'>, creer = false): 
 export const etiquetteDeLEvenement = (data: Pick<AppData, 'etiquettes'>, eventId: string) => data.etiquettes?.find((e) => e.eventId === eventId);
 export const etiquetteDeLaSection = (data: Pick<AppData, 'etiquettes'>, sectionId: string) => data.etiquettes?.find((e) => e.sectionId === sectionId);
 export const etiquetteDuComite = (data: Pick<AppData, 'etiquettes'>) => data.etiquettes?.find((e) => e.parDefaut);
+export const etiquetteDeLaSerie = (data: Pick<AppData, 'etiquettes'>, serieId: string) => data.etiquettes?.find((e) => e.serieId === serieId);
 
 /**
  * Anciennes étiquettes pas encore reliées, à reprendre pour cet événement ou cette section : d'abord celles du même nom
@@ -336,6 +353,110 @@ export function suiteEtiquette(d: AppData, ancien: ClubEvent, nouveau: ClubEvent
   reglerEtiquetteEvenement(d, nouveau, { membres: avant.membres ?? [] });
 }
 
+/**
+ * Étiquettes qu'une série d'événements peut reprendre (case « Étiquette » de la série) : les anciennes à relier, celles
+ * des événements, celles des autres séries ; pas les groupes ni le comité (leur place est une section, ou le reste). La
+ * série en reprend une avec son identifiant, ses membres, sa couleur, son icône et ses points ; l'événement ou la série
+ * qui l'avait n'en a plus.
+ */
+export const reprenablePourSerie = (e: Etiquette, serieId: string) => ['libre', 'evenement', 'serie'].includes(sorteDe(e)) && e.serieId !== serieId;
+
+/**
+ * Étiquettes à reprendre pour la série, les plus proches d'abord : même nom, celles de ses événements, les anciennes à
+ * relier, puis celles des autres événements (à venir, puis passés) et des autres séries.
+ */
+export function etiquettesAReprendrePourSerie(data: Pick<AppData, 'etiquettes' | 'events'>, s: Pick<SerieEvenements, 'id' | 'nom'>): Etiquette[] {
+  const siennes = new Set(data.events.filter((x) => x.dansSerie === s.id).map((x) => x.id));
+  const rang = (e: Etiquette) =>
+    memeNom(e.nom, s.nom) ? 0 : e.eventId && siennes.has(e.eventId) ? 1 : sorteDe(e) === 'libre' ? 2 : sorteDe(e) === 'evenement' ? (etiquettePassee(e, data.events) ? 4 : 3) : 5;
+  return (data.etiquettes ?? []).filter((e) => reprenablePourSerie(e, s.id)).sort((a, b) => rang(a) - rang(b) || (a.date ?? '').localeCompare(b.date ?? '') || a.nom.localeCompare(b.nom, 'fr'));
+}
+/** Celle qu'on propose de reprendre d'office : même nom que la série. */
+export const aReprendrePourSerie = (data: Pick<AppData, 'etiquettes'>, s: Pick<SerieEvenements, 'id' | 'nom'>) =>
+  (data.etiquettes ?? []).find((e) => reprenablePourSerie(e, s.id) && memeNom(e.nom, s.nom));
+
+/** Sous-section d'une série qui reçoit son étiquette : son nom ; déjà la place d'une autre étiquette : « (série) », numérotée. */
+function sousSectionSerie(d: AppData, sectionId: string, nom: string, sauf?: string) {
+  const noms = [nom, `${nom} (série)`, ...[2, 3, 4, 5, 6, 7, 8, 9].map((n) => `${nom} (série ${n})`)];
+  return noms.find((x) => !placePrise(d, sectionId, x, sauf)) ?? noms[noms.length - 1];
+}
+
+/**
+ * Case « Étiquette » d'une série d'événements (fiche de la série, page Étiquettes), dans la modification qui l'enregistre :
+ * l'étiquette prend le nom de la série, sans date, et sa sous-section dans « Événements » (créée au besoin ; celle d'une
+ * étiquette reprise est gardée, renommée comme la série si elle portait son nom) ; ses points la reçoivent : ceux de sa
+ * sous-section et ceux rattachés aux événements de la série. `null` : la série n'a plus d'étiquette (retirée des points).
+ */
+export function reglerEtiquetteSerie(d: AppData, s: Pick<SerieEvenements, 'id' | 'nom'>, choix: ChoixEtiquette) {
+  const deja = etiquetteDeLaSerie(d, s.id);
+  if (!choix) {
+    if (deja) retirerEtiquette(d, deja.id);
+    return;
+  }
+  const reprise = !deja && choix.reprise ? d.etiquettes?.find((x) => x.id === choix.reprise && reprenablePourSerie(x, s.id)) : undefined;
+  const e = deja ?? reprise ?? nouvelle(d);
+  const evts = sectionEvenements(d, true)!;
+  const lieux = e.lieux ?? (sorteDe(e) === 'libre' ? lieuxDevines(e, d.sections) : []);
+  let sous = lieux.find((l) => l.sectionId === evts.id && l.sousSection)?.sousSection;
+  // Série renommée, ou étiquette reprise : sa sous-section, si elle porte son nom, prend celui de la série (sauf si ce nom
+  // est déjà la place d'une autre étiquette : on ne mélange pas leurs points).
+  if (sous && e.nom && sous === e.nom && e.nom !== s.nom && !placePrise(d, evts.id, s.nom, e.id)) {
+    renommerSousSection(d, evts.id, sous, s.nom);
+    sous = s.nom;
+  }
+  sous ??= sousSectionSerie(d, evts.id, s.nom, e.id);
+  if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
+  placer(d, {
+    ...e,
+    nom: s.nom,
+    type: 'evenement',
+    date: undefined,
+    dateFin: undefined,
+    eventId: undefined,
+    sectionId: undefined,
+    parDefaut: undefined,
+    serieId: s.id,
+    lieux: [{ sectionId: evts.id, sousSection: sous }],
+    membres: [...new Set(choix.membres)],
+  });
+  completer(d, e.id);
+}
+
+/**
+ * Saison suivante d'une série reprise (« Reprendre la série », repriseSerie.ts), dans la modification qui l'ajoute avec
+ * les copies des points (`copies`). Si la série avait son étiquette : les copies quittent sa sous-section pour celle de
+ * la nouvelle série et ne la portent plus ; `garder` : la nouvelle série a la sienne, avec les mêmes membres, la même
+ * couleur et la même icône. Les points de la saison passée gardent la leur.
+ */
+export function suiteEtiquetteSerie(d: AppData, ancienne: Pick<SerieEvenements, 'id'>, suite: Pick<SerieEvenements, 'id' | 'nom'>, copies: string[], garder: boolean) {
+  const avant = etiquetteDeLaSerie(d, ancienne.id);
+  if (!avant) return;
+  const evts = sectionEvenements(d, true)!;
+  const place = lieuxDe(avant, d.sections).find((l) => l.sousSection);
+  const sous = sousSectionSerie(d, evts.id, suite.nom);
+  if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
+  const ids = new Set(copies);
+  d.tasks.forEach((t) => {
+    if (!ids.has(t.id)) return;
+    if (place && t.sectionId === place.sectionId && t.sousSection === place.sousSection) {
+      t.sectionId = evts.id;
+      t.sousSection = sous;
+    }
+    const l = (t.etiquettes ?? []).filter((x) => x !== avant.id);
+    t.etiquettes = l.length ? l : undefined;
+  });
+  if (!garder) return;
+  placer(d, {
+    ...nouvelle(d),
+    type: 'evenement',
+    serieId: suite.id,
+    couleur: avant.couleur,
+    ...(avant.icone ? { icone: avant.icone } : {}),
+    lieux: [{ sectionId: evts.id, sousSection: sous }],
+  });
+  reglerEtiquetteSerie(d, suite, { membres: avant.membres ?? [] });
+}
+
 /** Coche « Groupe » d'une section (console admin) : l'étiquette de la section, à son nom ; ses points la reçoivent. */
 export function reglerGroupe(d: AppData, sectionId: string, choix: ChoixEtiquette) {
   const s = d.sections.find((x) => x.id === sectionId);
@@ -363,8 +484,9 @@ export function reglerComite(d: AppData, membres: string[] | null) {
 }
 
 /**
- * Les étiquettes suivent leur événement ou leur section (à chaque modification, store.tsx) : nom et dates ; événement
- * renommé, sa sous-section aussi. Événement ou section disparus : l'étiquette reste, à relier (ses points la gardent).
+ * Les étiquettes suivent leur événement, leur section ou leur série (à chaque modification, store.tsx) : nom et dates ;
+ * événement ou série renommés, leur sous-section aussi. Événement, section ou série disparus : l'étiquette reste, à relier
+ * (ses points la gardent).
  * Ne change rien quand tout est déjà d'accord.
  */
 export function synchroniserEtiquettes(d: AppData) {
@@ -381,6 +503,11 @@ export function synchroniserEtiquettes(d: AppData) {
       const s = d.sections.find((x) => x.id === e.sectionId);
       if (!s) placer(d, { ...e, sectionId: undefined, lieux: [] });
       else if (e.nom !== s.nom) placer(d, { ...e, nom: s.nom });
+    } else if (e.serieId) {
+      // Série supprimée : l'étiquette reste, à relier (ses points la gardent) ; renommée : son nom et sa sous-section suivent.
+      const s = d.seriesEvenements?.find((x) => x.id === e.serieId);
+      if (!s) placer(d, { ...e, serieId: undefined });
+      else if (e.nom !== s.nom) reglerEtiquetteSerie(d, s, { membres: e.membres ?? [] });
     }
   }
 }

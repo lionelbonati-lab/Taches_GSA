@@ -3320,3 +3320,172 @@ test('séries d’événements : une carte par série, son prochain événement 
   await expect(page.locator('article.agenda-item', { hasText: 'Marche aux flambeaux' })).toHaveCount(1);
   expect((await evenement('e9')).dansSerie).toBeUndefined();
 });
+
+test('étiquette d’une série : une étiquette déjà là reprise (ses membres, ses points) ; ses membres voient les points de toutes les manches', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Une ancienne étiquette « Championnat interne 2027 » (à relier), Émilie Rossi membre, sur un point ; deux points
+  // rattachés à des manches, que Émilie ne voit pas encore.
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+    const point = (id: string, titre: string, o: object) => ({
+      id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: ouvert, delai: '2027-03-01', remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...o,
+    });
+    d.etiquettes.push({ id: 'et-champ', nom: 'Championnat interne 2027', couleur: '#0891b2', type: 'groupe', membres: ['p9'] });
+    d.tasks.push(
+      point('t-medailles', 'Commander les médailles', { etiquettes: ['et-champ'] }),
+      point('t-chrono', 'Réserver le chronométrage', { eventId: 'e-champ-1' }),
+      point('t-balisage', 'Baliser le parcours', { eventId: 'e-champ-3' }),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  const donnees = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle);
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+
+  // Fiche de la série : la case « Étiquette de la série » propose d'office l'étiquette du même nom.
+  const championnat = page.locator('article.carte-serie', { hasText: 'Championnat interne 2027' });
+  await championnat.getByRole('button', { name: 'Modifier', exact: true }).click();
+  const fiche = page.getByRole('dialog', { name: 'Série d’événements' });
+  await fiche.getByRole('checkbox', { name: 'Étiquette de la série' }).check();
+  const laquelle = fiche.getByRole('combobox', { name: 'Étiquette de la série : nouvelle, ou une étiquette déjà là' });
+  await expect(laquelle.locator('option:checked')).toHaveText('Reprendre « Championnat interne 2027 » (à relier, 1 point, 1 membre)');
+  await expect(fiche.locator('.etiquette-personnes').getByRole('button', { name: 'Émilie Rossi', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // La même étiquette (ses membres, son point), devenue celle de la série : sa sous-section, ses manches.
+  const d = await donnees();
+  const et = d.etiquettes.find((x: { id: string }) => x.id === 'et-champ');
+  expect(et).toMatchObject({ serieId: 'se-championnat', nom: 'Championnat interne 2027', membres: ['p9'], lieux: [{ sectionId: 'sec8', sousSection: 'Championnat interne 2027' }] });
+  expect(et.date).toBeUndefined();
+  for (const id of ['t-medailles', 't-chrono', 't-balisage']) expect(d.tasks.find((t: { id: string }) => t.id === id).etiquettes).toContain('et-champ');
+  await expect(championnat.locator('.etiquette-taches')).toContainText('Championnat interne 2027');
+  await expect(championnat).toContainText('0/3 points terminés');
+
+  // Une manche ajoutée à la série : ses points la reçoivent aussi ; un point rangé dans sa sous-section aussi.
+  await page.evaluate((k) => {
+    const x = JSON.parse(localStorage.getItem(k)!);
+    const moi = x.people[0].id;
+    x.tasks.push({ id: 't-podium', sectionId: 'sec8', sousSection: 'Soirée récréative 28.11', titre: 'Monter le podium', responsables: [moi], statusId: x.statuses[0].id, delai: '', eventId: 'e10', remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString() });
+    localStorage.setItem(k, JSON.stringify(x));
+  }, cle);
+  await page.reload();
+  await page.locator('article.agenda-item', { hasText: 'Soirée récréative' }).getByRole('button', { name: 'Modifier' }).click();
+  const soiree = page.getByRole('dialog', { name: 'Événement' });
+  await soiree.getByLabel('Série d’événements').selectOption({ label: 'Championnat interne 2027' });
+  await soiree.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect.poll(async () => (await donnees()).tasks.find((t: { id: string }) => t.id === 't-podium').etiquettes).toContain('et-champ');
+
+  // Page Étiquettes : dans « Séries d'événements », plus « à relier ».
+  await allerA(page, '/etiquettes');
+  await expect(page.getByRole('checkbox', { name: 'Étiquette de la série Championnat interne 2027' })).toBeChecked();
+  await expect(page.getByRole('checkbox', { name: 'Étiquette de la série Programme hivernal 2026-27' })).not.toBeChecked();
+  await expect(page.locator('section.etiquettes-bloc', { hasText: 'À relier' })).toHaveCount(0);
+
+  // Émilie Rossi (sans « Voir tous les points »), membre : les points de toutes les manches.
+  await page.getByRole('button', { name: 'Changer', exact: true }).click();
+  await page.locator('.login-user', { hasText: 'Émilie Rossi' }).first().click();
+  await expect(page.locator('.topbar .brand')).toBeVisible();
+  await allerA(page, '/taches?event=serie:se-championnat');
+  for (const titre of ['Commander les médailles', 'Réserver le chronométrage', 'Baliser le parcours', 'Monter le podium']) await expect(page.locator('main tr', { hasText: titre })).toHaveCount(1);
+});
+
+test('étiquette d’une série : celle d’un événement reprise pour toute la série (l’événement n’en a plus) ; série renommée, elle suit', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  await page.goto('./?demo#/evenements');
+  await page.getByRole('button', { name: 'Nouvelle série' }).click();
+  const fiche = page.getByRole('dialog', { name: 'Nouvelle série d’événements' });
+  await fiche.getByLabel('Nom de la série').fill('Fêtes d’automne');
+  await fiche.locator('.anciennes-liste li', { hasText: 'Soirée récréative' }).getByRole('checkbox').check();
+  await fiche.getByRole('checkbox', { name: 'Étiquette de la série' }).check();
+  await fiche.getByRole('combobox', { name: 'Étiquette de la série : nouvelle, ou une étiquette déjà là' }).selectOption({ label: 'Reprendre « Soirée récréative » (de l’événement « Soirée récréative », 0 point, 5 membres)' });
+  await expect(fiche.locator('.reprise-deja')).toContainText('l’événement « Soirée récréative » n’en aura plus');
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const lire = () => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));
+  const serieId = (await lire()).seriesEvenements.find((s: { nom: string }) => s.nom === 'Fêtes d’automne').id;
+  let et = (await lire()).etiquettes.find((x: { id: string }) => x.id === 'et-u-soiree');
+  expect(et).toMatchObject({ serieId, nom: 'Fêtes d’automne', membres: ['p8', 'p1', 'p7', 'p17', 'p18'] });
+  expect(et.eventId).toBeUndefined();
+  // Sa sous-section, celle de l'événement, garde son nom (pas le nom de l'étiquette) ; la série renommée : l'étiquette suit.
+  const carte = page.locator('article.carte-serie', { hasText: 'Fêtes d’automne' });
+  await carte.getByRole('button', { name: 'Modifier', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Série d’événements' }).getByLabel('Nom de la série').fill('Fêtes d’automne 2026');
+  await page.getByRole('dialog', { name: 'Série d’événements' }).getByRole('button', { name: 'Enregistrer' }).click();
+  await expect.poll(async () => (await lire()).etiquettes.find((x: { id: string }) => x.id === 'et-u-soiree').nom).toBe('Fêtes d’automne 2026');
+  et = (await lire()).etiquettes.find((x: { id: string }) => x.id === 'et-u-soiree');
+  expect(et.lieux).toEqual([{ sectionId: 'sec8', sousSection: 'Soirée récréative 28.11' }]);
+});
+
+test('reprendre une série : la saison suivante en une fois, événements décalés de 52 semaines, points et étiquette', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Le programme hivernal a son étiquette (Antoine Mercier membre) ; un point de la natation (le 20.11), un point de la
+  // série, dans sa sous-section (le 15.10).
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+    const fini = d.statuses.find((s: { done: boolean }) => s.done).id;
+    d.etiquettes.push({ id: 'et-hiver', nom: 'Programme hivernal 2026-27', couleur: '#0284c7', type: 'evenement', serieId: 'se-hiver', lieux: [{ sectionId: 'sec8', sousSection: 'Programme hivernal 26-27' }], membres: ['p19'] });
+    const point = (id: string, titre: string, o: object) => ({
+      id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: fini, remarque: '', checklist: [{ id: 'c1', label: 'Fait', done: true }], createdBy: moi, updatedAt: new Date().toISOString(), ...o,
+    });
+    d.tasks.push(
+      point('t-piscine', 'Réserver les lignes d’eau', { eventId: 'e-hiver-natation', delai: '2026-11-20' }),
+      point('t-salles', 'Demander les salles à la commune', { sectionId: 'sec8', sousSection: 'Programme hivernal 26-27', etiquettes: ['et-hiver'], delai: '2026-10-15' }),
+      point('t-vtt', 'Prévoir les lampes VTT', { eventId: 'e-hiver-vtt', delai: '2026-11-01', statusId: ouvert }),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+
+  const hiver = page.locator('article.carte-serie', { hasText: 'Programme hivernal 2026-27' });
+  await hiver.getByRole('button', { name: 'Reprendre', exact: true }).click();
+  const reprise = page.getByRole('dialog', { name: 'Reprendre la série « Programme hivernal 2026-27 »' });
+  await expect(reprise.getByLabel('Nom de la nouvelle série')).toHaveValue('Programme hivernal 2027-28');
+  await expect(reprise.getByLabel('Premier jour de la nouvelle saison')).toHaveValue('2027-10-26');
+  await expect(reprise).toContainText('tout est décalé de 52 semaines (le même jour de la semaine)');
+  await expect(reprise.locator('.anciennes-liste li', { hasText: 'Natation' })).toContainText('ven. 30.10.2026 → ven. 29.10.2027');
+  // Pas de VTT la saison prochaine : ni l'événement, ni son point.
+  await reprise.locator('.anciennes-liste li', { hasText: 'Sortie VTT' }).getByRole('checkbox').uncheck();
+  await expect(reprise.locator('.reprise-groupe', { hasText: 'Prévoir les lampes VTT' })).toHaveCount(0);
+  await expect(reprise.locator('.anciennes-liste li', { hasText: 'Réserver les lignes d’eau' })).toContainText('délai 19.11.2027');
+  await expect(reprise.locator('.anciennes-liste li', { hasText: 'Demander les salles à la commune' })).toContainText('délai 14.10.2027');
+  await reprise.getByRole('button', { name: 'Reprendre 4 événements et 2 points' }).click();
+
+  // La liste des points de la nouvelle saison : les deux copies, à faire.
+  await expect(page).toHaveURL(/#\/taches\?event=serie%3A/);
+  await expect(page.locator('main tbody tr')).toHaveCount(2);
+  const d = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle);
+  const suite = d.seriesEvenements.find((s: { repriseDe?: string }) => s.repriseDe === 'se-hiver');
+  expect(suite.nom).toBe('Programme hivernal 2027-28');
+  const evs = d.events.filter((e: { dansSerie?: string }) => e.dansSerie === suite.id);
+  expect(evs.map((e: { nom: string }) => e.nom).sort()).toEqual(['Course à pied', 'Entraînement en salle', 'Natation', 'Spinning ou renfo']);
+  const natation = evs.find((e: { nom: string }) => e.nom === 'Natation');
+  expect(natation).toMatchObject({ date: '2027-10-29', heure: '20:00', lieu: 'Piscine couverte', repetition: { freq: 'semaine', jours: [5], jusquau: '2028-03-24' } });
+  const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+  const copie = (titre: string) => d.tasks.find((t: { titre: string; id: string }) => t.titre === titre && !t.id.startsWith('t-'));
+  expect(copie('Réserver les lignes d’eau')).toMatchObject({ eventId: natation.id, delai: '2027-11-19', statusId: ouvert, checklist: [{ label: 'Fait', done: false }] });
+  // L'étiquette de la nouvelle saison : mêmes membres et couleur ; le point de la série dans sa sous-section, avec elle.
+  const et = d.etiquettes.find((x: { serieId?: string }) => x.serieId === suite.id);
+  expect(et).toMatchObject({ nom: 'Programme hivernal 2027-28', membres: ['p19'], couleur: '#0284c7' });
+  expect(copie('Demander les salles à la commune')).toMatchObject({ sectionId: 'sec8', sousSection: 'Programme hivernal 2027-28', delai: '2027-10-14', etiquettes: [et.id] });
+  expect(copie('Réserver les lignes d’eau').etiquettes).toContain(et.id);
+  // La saison passée ne change pas.
+  expect(d.tasks.find((t: { id: string }) => t.id === 't-salles')).toMatchObject({ sousSection: 'Programme hivernal 26-27', etiquettes: ['et-hiver'] });
+
+  // Page Événements : la nouvelle série, et « Saison suivante » sur l'ancienne.
+  await allerA(page, '/evenements');
+  const nouvelle = page.locator('article.carte-serie').filter({ has: page.locator('h3.titre-serie', { hasText: 'Programme hivernal 2027-28' }) });
+  await expect(nouvelle.locator('.serie-ev')).toHaveCount(4);
+  await expect(nouvelle.locator('.etiquette-taches')).toContainText('Programme hivernal 2027-28');
+  await expect(hiver.locator('.reprise')).toContainText('Saison suivante : Programme hivernal 2027-28');
+});

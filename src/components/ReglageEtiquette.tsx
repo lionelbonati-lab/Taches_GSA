@@ -3,18 +3,19 @@ import { useNavigate } from 'react-router-dom';
 import { Icone } from './icones';
 import { cleEtiquette, commentairesEtiquette, nonLus } from '../data/commentaires';
 import { useStore } from '../data/store';
-import type { ClubEvent, Etiquette, Section } from '../data/types';
+import type { AppData, ClubEvent, Etiquette, Section, SerieEvenements } from '../data/types';
 import { COULEURS, fmtRange, fullName } from '../data/utils';
 import { COULEURS_APPLI, deTsl, isCouleur, versTsl } from '../data/couleur';
 import { hasPermission, userRoles } from '../data/permissions';
 import {
-  aReprendre, etiquetteDeLaSection, etiquetteDeLEvenement, etiquetteDuComite, etiquettesAReprendre, lieuxDe, nomLieu, reglerComite,
-  reglerEtiquetteEvenement, reglerGroupe, type ChoixEtiquette,
+  aReprendre, aReprendrePourSerie, etiquetteDeLaSection, etiquetteDeLaSerie, etiquetteDeLEvenement, etiquetteDuComite, etiquettesAReprendre,
+  etiquettesAReprendrePourSerie, lieuxDe, nomLieu, reglerComite, reglerEtiquetteEvenement, reglerEtiquetteSerie, reglerGroupe, sectionEvenements, sorteDe,
+  type ChoixEtiquette,
 } from '../data/etiquettes';
 import { BadgeEtiquette, ChoixIconeEtiquette } from './IconesEtiquette';
 
-// Pièces communes du réglage des étiquettes : la case « Étiquette » d'un événement, la coche « Groupe » d'une section,
-// leurs membres, leur couleur (etiquettes.ts).
+// Pièces communes du réglage des étiquettes : la case « Étiquette » d'un événement ou d'une série d'événements, la coche
+// « Groupe » d'une section, leurs membres, leur couleur (etiquettes.ts).
 
 /** Couleurs proposées pour une étiquette. */
 const PROPOSEES = [...new Set([...COULEURS, ...COULEURS_APPLI.map((x) => x.c)])];
@@ -197,6 +198,75 @@ export function CaseEtiquette({ titre, aide, deja, nom, date, valeur, onChange, 
   );
 }
 
+/**
+ * D'où vient une étiquette qu'une série peut reprendre : celle d'un événement, d'une autre série, ou ancienne, à relier.
+ */
+export function origineEtiquette(data: Pick<AppData, 'events' | 'seriesEvenements'>, e: Etiquette) {
+  switch (sorteDe(e)) {
+    case 'evenement': return `de l’événement « ${data.events.find((x) => x.id === e.eventId)?.nom ?? e.nom} »`;
+    case 'serie': return `de la série « ${data.seriesEvenements?.find((x) => x.id === e.serieId)?.nom ?? e.nom} »`;
+    default: return 'à relier';
+  }
+}
+
+/** « Reprendre « Championnat » (de l'événement « Manche 1 », 3 points, 4 membres) ». */
+const libelleReprise = (data: AppData, e: Etiquette) => `Reprendre « ${e.nom} » (${origineEtiquette(data, e)}, ${resume(data, e)})`;
+
+/**
+ * Case « Étiquette » d'une série d'événements (fiche de la série) : cochée, on choisit ses membres. Sans étiquette
+ * reliée, on peut reprendre une étiquette déjà là (proposée d'office si elle a le même nom que la série) : une ancienne à
+ * relier, celle d'un événement ou d'une autre série ; elle garde ses membres, sa couleur, son icône et ses points.
+ */
+export function CaseEtiquetteSerie({ serie, valeur, onChange, disabled }: {
+  serie: Pick<SerieEvenements, 'id' | 'nom'>;
+  valeur: ChoixEtiquette;
+  onChange: (c: ChoixEtiquette) => void;
+  disabled?: boolean;
+}) {
+  const { data } = useStore();
+  const deja = etiquetteDeLaSerie(data, serie.id);
+  const candidates = deja ? [] : etiquettesAReprendrePourSerie(data, serie);
+  const cocher = (on: boolean) => {
+    if (!on) return onChange(null);
+    const p = deja ? undefined : aReprendrePourSerie(data, serie);
+    onChange({ membres: deja?.membres ?? p?.membres ?? [], reprise: p?.id });
+  };
+  const reprendre = (id: string) => {
+    const e = candidates.find((x) => x.id === id);
+    onChange({ membres: e?.membres ?? valeur?.membres ?? [], reprise: e?.id });
+  };
+  const choisie = valeur?.reprise ? candidates.find((x) => x.id === valeur.reprise) : undefined;
+  const lieu = (deja ?? choisie) && lieuxDe((deja ?? choisie)!, data.sections).find((l) => l.sousSection);
+  const place = lieu && (deja || sorteDe(choisie!) !== 'libre') ? nomLieu(lieu, data.sections) : `${sectionEvenements(data)?.nom ?? 'Événements'} › ${serie.nom.trim() || '…'}`;
+  return (
+    <fieldset className="full case-etiquette">
+      <label className="inline">
+        <input type="checkbox" checked={!!valeur} disabled={disabled} onChange={(e) => cocher(e.target.checked)} /> <b>Étiquette de la série</b>
+      </label>
+      <small className="muted">
+        Ses membres, du comité ou non, voient les points de toute la série : ceux rattachés à ses événements, et ceux de la sous-section « {place} »
+        {deja || choisie ? '' : ' (créée d’office)'}, pour ce qui vaut pour toute la série.
+      </small>
+      {valeur && candidates.length > 0 && (
+        <label>
+          Laquelle
+          <select value={valeur.reprise ?? ''} disabled={disabled} aria-label="Étiquette de la série : nouvelle, ou une étiquette déjà là" onChange={(e) => reprendre(e.target.value)}>
+            <option value="">Nouvelle étiquette</option>
+            {candidates.map((e) => <option key={e.id} value={e.id}>{libelleReprise(data, e)}</option>)}
+          </select>
+        </label>
+      )}
+      {choisie && sorteDe(choisie) !== 'libre' && (
+        <small className="reprise-deja">
+          <Icone n="alerte" /> « {choisie.nom} » devient l’étiquette de la série, avec ses membres et ses points : {sorteDe(choisie) === 'evenement' ? 'l’événement' : 'la série'}{' '}
+          {origineEtiquette(data, choisie).replace(/^de (l’événement|la série) /, '')} n’en aura plus.
+        </small>
+      )}
+      {valeur && <MembresEtiquette nom={serie.nom} membres={valeur.membres} disabled={disabled} onChange={(membres) => onChange({ ...valeur, membres })} />}
+    </fieldset>
+  );
+}
+
 /** Points qui portent l'étiquette. */
 const nbPoints = (data: { tasks: { etiquettes?: string[] }[] }, e: Etiquette) => data.tasks.filter((t) => t.etiquettes?.includes(e.id)).length;
 const pluriel = (n: number, mot: string) => `${n} ${mot}${n > 1 ? 's' : ''}`;
@@ -268,18 +338,18 @@ export function EtiquetteReglee({ e, peut, onMembres, detail, deplie }: { e: Eti
  * Cocher crée l'étiquette ; s'il y a d'anciennes étiquettes à reprendre, on choisit d'abord (la plus proche proposée).
  * Renvoie l'état du choix en cours et les actions.
  */
-function useCreation(nom: string, date: string | undefined, creer: (c: ChoixEtiquette) => void) {
+function useCreation(nom: string, date: string | undefined, creer: (c: ChoixEtiquette) => void, autres?: { candidates: Etiquette[]; proposee?: Etiquette }) {
   const { data } = useStore();
   const [choix, setChoix] = useState<ChoixEtiquette>(null);
   const [cree, setCree] = useState(false);
-  const candidates = etiquettesAReprendre(data, nom, date);
+  const candidates = autres?.candidates ?? etiquettesAReprendre(data, nom, date);
   const faire = (c: ChoixEtiquette) => {
     setCree(true);
     creer(c);
   };
   const commencer = () => {
     if (!candidates.length) return faire({ membres: [] });
-    const p = aReprendre(data, nom, date);
+    const p = autres ? autres.proposee : aReprendre(data, nom, date);
     setChoix({ membres: p?.membres ?? [], reprise: p?.id });
   };
   const valider = () => {
@@ -293,14 +363,14 @@ function useCreation(nom: string, date: string | undefined, creer: (c: ChoixEtiq
   return { choix, cree, candidates, commencer, valider, choisir, annuler: () => setChoix(null) };
 }
 
-/** Choix « Nouvelle étiquette / Reprendre « … » », puis « Créer ». */
-function ChoixReprise({ nom, c, bouton }: { nom: string; c: ReturnType<typeof useCreation>; bouton: string }) {
+/** Choix « Nouvelle étiquette / Reprendre « … » », puis « Créer ». `libelle` : le texte de chaque étiquette à reprendre. */
+function ChoixReprise({ nom, c, bouton, libelle }: { nom: string; c: ReturnType<typeof useCreation>; bouton: string; libelle?: (e: Etiquette) => string }) {
   if (!c.choix) return null;
   return (
     <span className="row wrap">
       <select value={c.choix.reprise ?? ''} aria-label={`Étiquette de ${nom}`} onChange={(e) => c.choisir(e.target.value)}>
         <option value="">Nouvelle étiquette</option>
-        {c.candidates.map((e) => <option key={e.id} value={e.id}>Reprendre « {e.nom} »</option>)}
+        {c.candidates.map((e) => <option key={e.id} value={e.id}>{libelle ? libelle(e) : `Reprendre « ${e.nom} »`}</option>)}
       </select>
       <button type="button" className="btn small primary" onClick={c.valider}>{bouton}</button>
     </span>
@@ -363,6 +433,42 @@ export function EvenementEtiquette({ ev, peut, etat }: { ev: ClubEvent; peut: bo
       {deja && (
         <EtiquetteReglee e={deja} peut={peut} deplie={c.cree} detail={lieu ? nomLieu(lieu, data.sections) : undefined}
           onMembres={(membres) => update((d) => reglerEtiquetteEvenement(d, ev, { membres }), `Événement « ${ev.nom} » : membres de l’étiquette modifiés`)} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * Case « Étiquette » d'une série d'événements (page Étiquettes) : enregistrée tout de suite ; sa sous-section dans
+ * « Événements » ; on peut reprendre une étiquette déjà là (à relier, d'un événement, d'une autre série).
+ */
+export function SerieEtiquette({ s, peut, etat }: { s: SerieEvenements; peut: boolean; etat?: string }) {
+  const { data, update } = useStore();
+  const deja = etiquetteDeLaSerie(data, s.id);
+  const c = useCreation(s.nom, undefined, (x) => update((d) => reglerEtiquetteSerie(d, s, x), `Série « ${s.nom} » : étiquette`), {
+    candidates: etiquettesAReprendrePourSerie(data, s),
+    proposee: aReprendrePourSerie(data, s),
+  });
+  const cocher = (on: boolean) => {
+    if (on) return c.commencer();
+    if (c.choix) return c.annuler();
+    const n = deja ? nbPoints(data, deja) : 0;
+    if (!confirm(`Retirer l’étiquette de la série « ${s.nom} » ?${n ? ` Ses ${n} point(s) la perdent ; ils restent dans leur sous-section.` : ''}`)) return;
+    update((d) => reglerEtiquetteSerie(d, s, null), `Série « ${s.nom} » : sans étiquette`);
+  };
+  const n = data.events.filter((e) => e.dansSerie === s.id && !e.serie).length;
+  const lieu = deja ? lieuxDe(deja, data.sections)[0] : undefined;
+  return (
+    <div className="groupe-section">
+      <label className="inline">
+        <input type="checkbox" checked={!!deja || !!c.choix} disabled={!peut} aria-label={`Étiquette de la série ${s.nom}`} onChange={(e) => cocher(e.target.checked)} />
+        <b>{s.nom}</b> <small className="muted">série · {pluriel(n, 'événement')}</small>
+      </label>
+      {etat && <small className="etat-passe">{etat}</small>}
+      <ChoixReprise nom={`la série ${s.nom}`} c={c} bouton="Créer l’étiquette" libelle={(e) => libelleReprise(data, e)} />
+      {deja && (
+        <EtiquetteReglee e={deja} peut={peut} deplie={c.cree} detail={lieu ? nomLieu(lieu, data.sections) : undefined}
+          onMembres={(membres) => update((d) => reglerEtiquetteSerie(d, s, { membres }), `Série « ${s.nom} » : membres de l’étiquette modifiés`)} />
       )}
     </div>
   );
