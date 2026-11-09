@@ -1,9 +1,9 @@
 import { useState, type ReactNode } from 'react';
-import { docIcon, ouvrirBlob } from '../data/files';
+import { docIcon } from '../data/files';
 import type { Task, TaskDoc } from '../data/types';
 import { annexeVisible, docsDuDocument } from './Annexes';
 import { Lien } from './Liens';
-import { ContenuFichier, useFichierJoint, voirFichier } from './Visionneuse';
+import { ContenuFichier, useFichierJoint } from './Visionneuse';
 import { Icone } from './icones';
 
 // PV diffusé en séance (beamer) : en mode « Projection », à côté des notes, les pièces jointes du point en cours (celui
@@ -20,7 +20,7 @@ export interface PointEnCours {
 /** Pièce jointe choisie, point par point (tâche → document), et son réglage : partagé entre la prise de notes et la fiche du PV. */
 export type ChoixPieces = [Record<string, string>, (c: Record<string, string>) => void];
 
-/** `fenetre` : dans une fenêtre de la vue en fenêtres du PV (sans cadre à lui, ni boutons « Agrandir » et « Télécharger »). */
+/** `fenetre` : dans une fenêtre de la vue en fenêtres du PV (sans cadre à lui). */
 export function PiecesJointesPoint({ point, choix: partage, fenetre }: { point?: PointEnCours; choix?: ChoixPieces; fenetre?: boolean }) {
   // Pièce jointe choisie, point par point (on la retrouve en revenant au point).
   const local = useState<Record<string, string>>({});
@@ -53,29 +53,19 @@ export function PiecesJointesPoint({ point, choix: partage, fenetre }: { point?:
           <LienProjete d={doc} />
         </>
       ) : (
-        <FichierProjete key={doc.id} d={doc} choisir={choisir} boutons={!fenetre} />
+        <FichierProjete key={doc.id} d={doc} choisir={choisir} />
       )}
     </section>
   );
 }
 
-/**
- * Le fichier en grand ; au-dessus (le bouton « + » de l'appli couvre le bas), le choix des pièces jointes (sinon son nom)
- * et les boutons.
- */
-function FichierProjete({ d, choisir, boutons }: { d: TaskDoc; choisir?: ReactNode; boutons: boolean }) {
+/** Le fichier en grand ; au-dessus (le bouton « + » de l'appli couvre le bas), le choix des pièces jointes, sinon son nom. */
+function FichierProjete({ d, choisir }: { d: TaskDoc; choisir?: ReactNode }) {
   const fichier = useFichierJoint(d.id, d.nom);
-  const { f } = fichier;
   return (
     <>
       <div className="row min-projection-actions">
         {choisir || <span className="muted min-projection-nom">{docIcon(d)} {d.nom}</span>}
-        {boutons && (
-          <span className="min-projection-boutons">
-            <button type="button" className="btn small" disabled={!f} onClick={() => voirFichier(d.id, d.nom)} title="Agrandir (visionneuse)" aria-label="Agrandir"><Icone n="pleinEcran" /></button>
-            <button type="button" className="btn small" disabled={!f} onClick={() => f && ouvrirBlob(f.blob, d.nom, true)} title="Télécharger" aria-label="Télécharger"><Icone n="telecharger" /></button>
-          </span>
-        )}
       </div>
       <div className="min-projection-doc">
         <ContenuFichier id={d.id} nom={d.nom} fichier={fichier} />

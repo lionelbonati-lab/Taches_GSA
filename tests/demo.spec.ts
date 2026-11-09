@@ -1813,11 +1813,8 @@ test('PV en projection : les pièces jointes du point en cours à côté des not
   await expect(panneau.locator('.visionneuse-image img')).toBeVisible();
   await panneau.getByRole('button', { name: /devis\.pdf/ }).click();
   await expect(panneau.locator('img.pdf-page')).toHaveCount(2);
-  // « Agrandir » : la visionneuse de l'appli.
-  await panneau.getByRole('button', { name: /Agrandir/ }).click();
-  await expect(page.locator('.modal.visionneuse img.pdf-page')).toHaveCount(2);
-  await page.keyboard.press('Escape');
-  await expect(page.locator('.modal.visionneuse')).toHaveCount(0);
+  // Ni « Agrandir » ni « Télécharger » : la pièce jointe, seulement montrée.
+  await expect(panneau.getByRole('button', { name: /Agrandir|Télécharger/ })).toHaveCount(0);
 
   // Un point sans pièce jointe n'en montre aucune ; en revenant, le PDF choisi.
   await sans.locator('select.min-status').focus();
