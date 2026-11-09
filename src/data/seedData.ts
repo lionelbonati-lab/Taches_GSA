@@ -516,13 +516,6 @@ export const events: AppData['events'] = [
     "description": ""
   },
   {
-    "id": "e7",
-    "nom": "Programme hivernal 2026-27",
-    "date": "2026-10-25",
-    "lieu": "",
-    "description": "Du 25.10.2026 au 28.03.2027 : mardi salle 18h30, mercredi course à pied 18h15, jeudi renfo ou spinning 19h15, vendredi natation 20h."
-  },
-  {
     "id": "e8",
     "nom": "Souper du comité",
     "date": "2026-11-01",
@@ -568,7 +561,8 @@ export const events: AppData['events'] = [
     "heureFin": "20:00",
     "lieu": "Salle de gym",
     "description": "Programme hivernal : chaque mardi.",
-    "repetition": { "freq": "semaine", "jours": [2], "jusquau": "2027-03-23" }
+    "repetition": { "freq": "semaine", "jours": [2], "jusquau": "2027-03-23" },
+    "dansSerie": "se-hiver"
   }
 ];
 

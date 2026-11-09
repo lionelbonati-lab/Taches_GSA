@@ -53,7 +53,7 @@ export interface UnitInfo {
 }
 
 /** Collections de l'appli enregistrées élément par élément. */
-const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions', 'etiquettes'] as const;
+const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions', 'etiquettes', 'seriesEvenements'] as const;
 /** Tables clé → valeur (réglages, notifications vues, discussions lues ; discussions des tâches, par tâche). */
 const MAP_KINDS = ['prefs', 'notifLues', 'discussionsLues', 'discussions'] as const;
 /** Écrites par le serveur seulement (062) : jamais envoyées par l'appli (ni effacées, ni réécrites). */

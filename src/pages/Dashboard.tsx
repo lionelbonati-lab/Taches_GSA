@@ -19,6 +19,7 @@ import { Icone } from '../components/icones';
 import { IconeEtiquette } from '../components/IconesEtiquette';
 import { LieuSeance } from '../components/Liens';
 import { Chronologie, type CibleChrono } from '../components/Chronologie';
+import { serieDe } from '../data/seriesEvenements';
 
 export function Dashboard() {
   const { data, user, saveTask, prefs, setPrefs, can, canSeeTask, setToast, vuPourInfo } = useStore();
@@ -61,11 +62,20 @@ export function Dashboard() {
     .filter((e): e is ClubEvent => !!e && endOf(e) >= jour);
   const ets = (data.etiquettes ?? []).filter((x) => x.type === 'evenement' && !!x.date && endOf({ date: x.date, dateFin: x.dateFin }) >= jour && (voitEvenements || x.membres?.includes(user.id)));
   const pareil = (et: Etiquette, e: ClubEvent) => et.eventId === e.id || (et.date === e.date && memeNom(et.nom, e.nom));
+  // Série d'événements (programme hivernal…) : son prochain événement seulement, pour laisser la place aux autres.
+  const dejaVues = new Set<string>();
   const nextEvents: { date: string; e?: ClubEvent; et?: Etiquette }[] = [
     ...evs.filter((e) => !ets.some((et) => pareil(et, e))).map((e) => ({ date: e.date, e })),
     ...ets.map((et) => ({ date: et.date!, et, e: evs.find((e) => pareil(et, e)) })),
   ]
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort((a, b) => a.date.localeCompare(b.date) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? ''))
+    .filter((x) => {
+      const s = serieDe(data, x.e);
+      if (!s) return true;
+      if (dejaVues.has(s.id)) return false;
+      dejaVues.add(s.id);
+      return true;
+    })
     .slice(0, 3);
   const onStatus = (t: Task, s: string) => {
     const q = finAnticipee(data, t, { ...t, statusId: s });
@@ -254,6 +264,7 @@ export function Dashboard() {
               return (
                 <div key={et ? `et:${et.id}` : e!.id} className="panel link-panel lien-etendu prochain-evenement">
                   <button type="button" className="titre-lien" onClick={ouvrir} title="Voir la chronologie de ses points">
+                    {serieDe(data, e) && <small className="serie-nom"><Icone n="serie" /> {serieDe(data, e)!.nom}</small>}
                     <strong>{et ? et.nom : e!.nom}</strong>
                     {et && <> <span className="badge etiquette" style={{ background: et.couleur }} title="Étiquette de l’événement : ses points"><IconeEtiquette e={et} /></span></>}
                   </button>

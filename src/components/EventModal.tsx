@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
-import type { ClubEvent, RepetitionEvenement } from '../data/types';
+import type { ClubEvent, RepetitionEvenement, SerieEvenements } from '../data/types';
 import { addDays, diffDays, fmtDate, today, uid } from '../data/utils';
 import { stable } from '../data/cloud';
 import {
@@ -12,28 +12,50 @@ import { Icone } from './icones';
 import { ZoneTexte } from './ZoneTexte';
 import { CaseEtiquette } from './ReglageEtiquette';
 import { etiquetteDeLEvenement, nomLieu, reglerEtiquetteEvenement, sectionEvenements, type ChoixEtiquette } from '../data/etiquettes';
+import { enregistrerSerie, rangerDansSerie, seriesDuClub } from '../data/seriesEvenements';
 
 // Fiche d'un événement, comme dans un agenda : toute la journée ou de telle heure à telle heure, sur un ou plusieurs
 // jours, une seule fois ou répété (tous les jours, semaines, mois, ans, ou personnalisé). Une occurrence d'un événement
-// qui se répète se modifie ou se supprime seule, avec les suivantes, ou toute la série.
+// qui se répète se modifie ou se supprime seule, avec les suivantes, ou toute la série. « Série d'événements » : la série
+// dont il fait partie (programme hivernal, championnat ; seriesEvenements.ts), une existante ou une nouvelle, nommée ici.
 
 /** Texte du journal pour la case « Étiquette » d'un événement. */
 const quoiEtiquette = (c: ChoixEtiquette) => (c ? ` · étiquette (${c.membres.length} membre${c.membres.length > 1 ? 's' : ''})` : ' · sans étiquette');
+
+/** Choix « Nouvelle série… » de la liste « Série d'événements ». */
+const NOUVELLE_SERIE = '+';
 
 /** Enregistrement / suppression des événements (Agenda, Événements). */
 export function useEventActions() {
   const { data, update } = useStore();
   const portee = (p: Portee) => ({ une: 'cette occurrence', suivantes: 'celle-ci et les suivantes', toutes: 'toute la série' })[p];
+  /** Texte du journal pour la série d'un événement (`nouvelle` : créée en même temps). */
+  const quoiSerie = (id?: string, nouvelle?: SerieEvenements) =>
+    id ? ` · série « ${nouvelle?.nom ?? data.seriesEvenements?.find((s) => s.id === id)?.nom ?? ''} »` : ' · hors série';
   return {
-    /** `etiquette` : la case « Étiquette » réglée dans le formulaire (absente : pas touchée). */
-    saveEvent: (x: ClubEvent, etiquette?: ChoixEtiquette) => {
+    /**
+     * `etiquette` : la case « Étiquette » réglée dans le formulaire (absente : pas touchée) ; `nouvelle` : la série
+     * créée depuis le formulaire, où l'événement entre.
+     */
+    saveEvent: (x: ClubEvent, etiquette?: ChoixEtiquette, nouvelle?: SerieEvenements) => {
       const e = normaliser(sansFinVide(x));
-      const isNew = !data.events.some((y) => y.id === e.id);
+      const avant = data.events.find((y) => y.id === e.id);
+      const isNew = !avant;
+      const serieChangee = (avant?.dansSerie ?? '') !== (e.dansSerie ?? '');
       update((d) => {
+        if (nouvelle) enregistrerSerie(d, nouvelle);
         d.events = isNew ? [...d.events, e] : d.events.map((y) => (y.id === e.id ? e : y));
+        // Ses dates modifiées seules (s'il s'est répété) suivent.
+        if (serieChangee) rangerDansSerie(d, e.id, e.dansSerie);
         if (etiquette !== undefined) reglerEtiquetteEvenement(d, e, etiquette);
-      }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »${etiquette !== undefined ? quoiEtiquette(etiquette) : ''}`);
+      }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »${serieChangee ? quoiSerie(e.dansSerie, nouvelle) : ''}${etiquette !== undefined ? quoiEtiquette(etiquette) : ''}`);
     },
+    /** Série d'un événement qui se répète : celle de toutes ses dates (réglée tout de suite, comme son étiquette). */
+    rangerSerie: (eventId: string, serieId?: string, nouvelle?: SerieEvenements) =>
+      update((d) => {
+        if (nouvelle) enregistrerSerie(d, nouvelle);
+        rangerDansSerie(d, eventId, serieId);
+      }, `Événement « ${data.events.find((y) => y.id === eventId)?.nom ?? ''} »${quoiSerie(serieId, nouvelle)}`),
     /** Étiquette d'un événement qui se répète : celle de toute la série. */
     reglerEtiquette: (serieId: string, etiquette: ChoixEtiquette) =>
       update((d) => {
@@ -55,7 +77,8 @@ export function useEventActions() {
 /** Sur un seul jour : pas de date de fin. */
 const sansFinVide = (e: ClubEvent): ClubEvent => ({ ...e, dateFin: e.dateFin && e.dateFin > e.date ? e.dateFin : undefined });
 
-export const newEvent = (date = today()): ClubEvent => ({ id: uid('e'), nom: '', date, lieu: '', description: '' });
+/** Nouvel événement, le `date` ; `dansSerie` : dans cette série (« + Événement » d'une série). */
+export const newEvent = (date = today(), dansSerie?: string): ClubEvent => ({ id: uid('e'), nom: '', date, lieu: '', description: '', ...(dansSerie ? { dansSerie } : {}) });
 
 const minutes = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
 const heureDe = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
@@ -80,7 +103,7 @@ const estSimple = (r: RepetitionEvenement, date: string) =>
  */
 export function EventModal({ event, jour, onClose, onChronologie }: { event: ClubEvent; jour?: string; onClose: () => void; onChronologie?: () => void }) {
   const { data, can } = useStore();
-  const { saveEvent, saveOccurrence, removeEvent, removeOccurrence, reglerEtiquette } = useEventActions();
+  const { saveEvent, saveOccurrence, removeEvent, removeOccurrence, reglerEtiquette, rangerSerie } = useEventActions();
   const serie = jour && event.repetition ? event : undefined;
   // Case « Étiquette » : celle de l'événement (d'une série : de toute la série).
   const deja = etiquetteDeLEvenement(data, event.serie?.id ?? event.id);
@@ -96,6 +119,13 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
   };
   const depart = serie ? aLaDate(serie, jour!) : event;
   const [v, setV] = useState<ClubEvent>(depart);
+  // « Série d'événements » : aucune, une existante, ou une nouvelle (son identifiant, prêt d'avance, et son nom).
+  const series = seriesDuClub(data);
+  const [choixSerie, setChoixSerie] = useState(event.dansSerie && series.some((s) => s.id === event.dansSerie) ? event.dansSerie : '');
+  const [idNouvelle] = useState(() => uid('se'));
+  const [nomNouvelle, setNomNouvelle] = useState('');
+  const dansSerie = choixSerie === NOUVELLE_SERIE ? idNouvelle : choixSerie || undefined;
+  const serieNouvelle = (): SerieEvenements | undefined => (choixSerie === NOUVELLE_SERIE ? { id: idNouvelle, nom: nomNouvelle.trim() } : undefined);
   const [perso, setPerso] = useState(false);
   const [err, setErr] = useState('');
   const [demande, setDemande] = useState<'modifier' | 'supprimer' | null>(null);
@@ -144,6 +174,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
     if (!journee && v.heure && v.heureFin && fin === v.date && v.heureFin < v.heure) return 'L’heure de fin doit suivre l’heure de début.';
     if (r?.jusquau !== undefined && (!r.jusquau || r.jusquau < v.date)) return 'La répétition doit se terminer après le premier jour.';
     if (r?.nombre !== undefined && !(r.nombre >= 1 && r.nombre <= 999)) return 'Nombre d’occurrences : de 1 à 999.';
+    if (choixSerie === NOUVELLE_SERIE && !nomNouvelle.trim()) return 'Donne un nom à la nouvelle série.';
     return undefined;
   };
   const pret = (): ClubEvent => ({
@@ -151,19 +182,21 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
     nom: v.nom.trim(),
     heure: journee ? undefined : v.heure,
     heureFin: journee || !v.heureFin ? undefined : v.heureFin,
+    dansSerie,
   });
   const submit = () => {
     const bad = verifier();
     if (bad) return setErr(bad);
     setErr('');
     if (!serie) {
-      saveEvent(pret(), etiquetteTouchee ? etiquette : undefined);
+      saveEvent(pret(), etiquetteTouchee ? etiquette : undefined, serieNouvelle());
       return onClose();
     }
-    // Étiquette d'une série : celle de toute la série, réglée tout de suite.
+    // Étiquette et série d'événements d'un événement qui se répète : celles de toutes ses dates, réglées tout de suite.
     if (etiquetteTouchee) reglerEtiquette(serie.id, etiquette);
-    // Rien de changé : rien à demander.
-    if (stable(normaliser(sansFinVide(pret()))) === stable(normaliser(sansFinVide(depart)))) return onClose();
+    if ((dansSerie ?? '') !== (serie.dansSerie ?? '')) rangerSerie(serie.id, dansSerie, serieNouvelle());
+    // Rien d'autre de changé : rien à demander.
+    if (stable(normaliser(sansFinVide(pret()))) === stable(normaliser(sansFinVide({ ...depart, dansSerie })))) return onClose();
     setDemande('modifier');
   };
   const supprimer = () => {
@@ -181,7 +214,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
         action={demande}
         sans={regleChangee ? ['une'] : []}
         onChoisir={(p) => {
-          if (demande === 'modifier') saveOccurrence(serie, jour!, pret(), p);
+          if (demande === 'modifier') saveOccurrence({ ...serie, dansSerie }, jour!, pret(), p);
           else removeOccurrence(serie, jour!, p);
           onClose();
         }}
@@ -337,6 +370,24 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
           Description
           <ZoneTexte rows={4} value={v.description} onChange={(e) => set({ description: e.target.value })} />
         </label>
+        {/* Une date modifiée seule suit l'événement qui se répète : sa série est la sienne. */}
+        {!event.serie && (
+          <label className="full">
+            Série d’événements
+            <select value={choixSerie} onChange={(e) => setChoixSerie(e.target.value)}>
+              <option value="">Aucune</option>
+              {series.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+              <option value={NOUVELLE_SERIE}>Nouvelle série…</option>
+            </select>
+            <small className="muted">Pour réunir des événements : le programme hivernal (une activité par jour de la semaine), un championnat en plusieurs manches…</small>
+          </label>
+        )}
+        {!event.serie && choixSerie === NOUVELLE_SERIE && (
+          <label className="full">
+            Nom de la nouvelle série
+            <input value={nomNouvelle} onChange={(e) => setNomNouvelle(e.target.value)} placeholder="Programme hivernal 2026-27, Championnat interne 2027…" />
+          </label>
+        )}
       </div>
       {can('events.manage') && !event.serie && (
         <div className="form">

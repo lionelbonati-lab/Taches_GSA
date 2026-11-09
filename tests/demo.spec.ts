@@ -3102,3 +3102,123 @@ test('PV : son cadre pris le jour de la séance est gardé ensuite (section reno
   await expect(page.locator('.min-section h3').first()).toContainText(nom);
   await expect(page.locator('.minutes-page')).not.toContainText('Renommée le lendemain');
 });
+
+test('séries d’événements : une carte par série, son prochain événement à l’accueil, ses points filtrés ; créer, ranger, copier, supprimer', async ({ page }) => {
+  // Lundi 9 novembre 2026 : le programme hivernal de la démo (une activité par jour, du mardi au samedi) a commencé.
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Un point de la natation (programme hivernal), un de la Sortie de la St-Martin (hors série).
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+    const point = (id: string, titre: string, eventId: string) => ({
+      id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: ouvert, delai: '2026-11-20', eventId, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(),
+    });
+    d.tasks.push(point('t-piscine', 'Réserver les lignes d’eau', 'e-hiver-natation'), point('t-martin', 'Choisir le parcours', 'e9'));
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  const donnees = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle);
+  const evenement = async (id: string) => (await donnees()).events.find((x: { id: string }) => x.id === id);
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+
+  // Page Événements : le programme hivernal en une carte, ses 5 activités dedans ; pas de carte à part pour elles.
+  const hiver = page.locator('article.carte-serie', { hasText: 'Programme hivernal 2026-27' });
+  await expect(hiver.locator('.serie-ev')).toHaveCount(5);
+  await expect(hiver).toContainText('du 27.10.2026 au 27.03.2027');
+  await expect(hiver).toContainText('prochain : Entraînement en salle, dans 1 j');
+  await expect(hiver.locator('.serie-ev.prochain')).toContainText('Entraînement en salle');
+  await expect(hiver.locator('.serie-ev', { hasText: 'Natation' })).toContainText('0/1 point');
+  await expect(hiver).toContainText('0/1 points terminés');
+  await expect(page.locator('article.agenda-item:not(.carte-serie)', { hasText: 'Natation' })).toHaveCount(0);
+  // Le championnat : ses 5 manches numérotées, dans l'ordre.
+  const championnat = page.locator('article.carte-serie', { hasText: 'Championnat interne 2027' });
+  await expect(championnat.locator('ol.serie-ev-liste > li')).toHaveCount(5);
+  await expect(championnat.locator('.serie-ev').first()).toContainText('Manche 1 – Contre-la-montre');
+
+  // Ses points : ceux de tous ses événements.
+  await hiver.getByRole('link', { name: 'Points' }).click();
+  await expect(page).toHaveURL(/#\/taches\?event=serie%3Ase-hiver/);
+  await expect(page.locator('main tbody tr')).toHaveCount(1);
+  await expect(page.locator('main tr', { hasText: 'Réserver les lignes d’eau' })).toHaveCount(1);
+  // Filtre « Événement » (replié) : la série entière.
+  const filtre = page.locator('main select[aria-label="Événement"]');
+  await expect(filtre).toHaveValue('serie:se-hiver');
+  await expect(filtre.locator('option:checked')).toHaveText('Programme hivernal 2026-27 (toute la série)');
+
+  // Accueil : la série une seule fois (son prochain événement), les autres événements gardent leur place.
+  await allerA(page, '/');
+  const prochains = page.locator('.bloc-evenements .link-panel');
+  await expect(prochains).toHaveCount(3);
+  await expect(prochains.first()).toContainText('Programme hivernal 2026-27');
+  await expect(prochains.first()).toContainText('Entraînement en salle');
+  await expect(prochains.filter({ hasText: 'Programme hivernal' })).toHaveCount(1);
+  await expect(prochains.nth(2)).toContainText('Sortie de la St-Martin');
+
+  // Nouvelle série : deux événements de l'agenda y sont rangés.
+  await allerA(page, '/evenements');
+  await page.getByRole('button', { name: 'Nouvelle série' }).click();
+  const nouvelle = page.getByRole('dialog', { name: 'Nouvelle série d’événements' });
+  await nouvelle.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(nouvelle.locator('.error')).toHaveText('« Nom de la série » est obligatoire.');
+  await nouvelle.getByLabel('Nom de la série').fill('Sorties d’automne');
+  await nouvelle.locator('.anciennes-liste li', { hasText: 'Sortie de la St-Martin' }).getByRole('checkbox').check();
+  await nouvelle.locator('.anciennes-liste li', { hasText: 'Soirée récréative' }).getByRole('checkbox').check();
+  await nouvelle.getByRole('button', { name: 'Enregistrer' }).click();
+  const automne = page.locator('article.carte-serie', { hasText: 'Sorties d’automne' });
+  await expect(automne.locator('.serie-ev')).toHaveCount(2);
+  await expect(automne).toContainText('0/1 points terminés');
+  await expect(page.locator('article.agenda-item:not(.carte-serie)', { hasText: 'Sortie de la St-Martin' })).toHaveCount(0);
+
+  // « Événement » : un nouvel événement, déjà dans la série.
+  await automne.getByRole('button', { name: 'Événement', exact: true }).click();
+  const fiche = page.getByRole('dialog', { name: 'Nouvel événement' });
+  await expect(fiche.getByLabel('Série d’événements').locator('option:checked')).toHaveText('Sorties d’automne');
+  await fiche.getByPlaceholder('Ajouter un titre').fill('Marche aux flambeaux');
+  await fiche.getByLabel('Premier jour').fill('2026-12-12');
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(automne.locator('.serie-ev')).toHaveCount(3);
+  await expect(automne.locator('.serie-ev').last()).toContainText('Marche aux flambeaux');
+
+  // Un événement qui se répète quitte la série avec toutes ses dates, sans demander lesquelles.
+  await hiver.getByRole('button', { name: 'Modifier « Sortie VTT »' }).click();
+  const vtt = page.getByRole('dialog', { name: 'Événement' });
+  await vtt.getByLabel('Série d’événements').selectOption({ label: 'Aucune' });
+  await vtt.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(hiver.locator('.serie-ev')).toHaveCount(4);
+  await expect(page.locator('article.agenda-item:not(.carte-serie)', { hasText: 'Sortie VTT' })).toHaveCount(1);
+  expect((await evenement('e-hiver-vtt')).dansSerie).toBeUndefined();
+  // … et entre dans une nouvelle série, nommée depuis sa fiche.
+  await page.locator('article.agenda-item', { hasText: 'Sortie VTT' }).getByRole('button', { name: 'Modifier' }).click();
+  await vtt.getByLabel('Série d’événements').selectOption({ label: 'Nouvelle série…' });
+  await vtt.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(vtt.locator('.error')).toHaveText('Donne un nom à la nouvelle série.');
+  await vtt.getByLabel('Nom de la nouvelle série').fill('VTT d’hiver');
+  await vtt.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('article.carte-serie', { hasText: 'VTT d’hiver' }).locator('.serie-ev')).toHaveCount(1);
+  const series = (await donnees()).seriesEvenements;
+  expect((await evenement('e-hiver-vtt')).dansSerie).toBe(series.find((s: { nom: string }) => s.nom === 'VTT d’hiver').id);
+
+  // Copier une manche : la copie reste dans le championnat.
+  await championnat.getByRole('button', { name: 'Copier « Manche 4 – Critérium »' }).click();
+  const copie = page.getByRole('dialog', { name: 'Copier « Manche 4 – Critérium »' });
+  await expect(copie.getByRole('checkbox', { name: 'Dans la série « Championnat interne 2027 »' })).toBeChecked();
+  await copie.getByLabel('Premier jour').fill('2027-09-04');
+  await copie.getByLabel('Nom', { exact: true }).fill('Manche 5 – Américaine');
+  await copie.getByRole('button', { name: 'Copier l’événement seul' }).click();
+  await expect(championnat.locator('.serie-ev')).toHaveCount(6);
+  await expect(championnat.locator('.serie-ev').nth(4)).toContainText('Manche 5 – Américaine');
+
+  // Supprimer une série : ses événements restent, sans série.
+  await automne.getByRole('button', { name: 'Modifier', exact: true }).click();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('dialog', { name: 'Série d’événements' }).getByRole('button', { name: 'Supprimer la série' }).click();
+  await expect(automne).toHaveCount(0);
+  await expect(page.locator('article.agenda-item', { hasText: 'Sortie de la St-Martin' })).toHaveCount(1);
+  await expect(page.locator('article.agenda-item', { hasText: 'Marche aux flambeaux' })).toHaveCount(1);
+  expect((await evenement('e9')).dansSerie).toBeUndefined();
+});

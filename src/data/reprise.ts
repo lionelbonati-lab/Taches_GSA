@@ -67,6 +67,8 @@ export interface ChoixReprise {
   taches: string[];
   /** Mêmes responsables (encore actifs) ; sinon à attribuer ensuite. */
   responsables: boolean;
+  /** Dans la même série d'événements (seriesEvenements.ts) ; sinon hors série. */
+  serie?: boolean;
 }
 
 /**
@@ -74,8 +76,11 @@ export interface ChoixReprise {
  * personnes à qui une tâche à prendre est proposée (`moi` : qui reprend).
  */
 export function reprendre(data: AppData, e: ClubEvent, c: ChoixReprise, moi: string): { event: ClubEvent; tasks: Task[]; notifs: ActivityNotif[] } {
-  const { sauf: _s, serie: _x, repetition: _r, ...reste } = e;
-  const event: ClubEvent = { ...reste, id: uid('e'), nom: c.nom.trim(), date: c.date, dateFin: c.dateFin && c.dateFin > c.date ? c.dateFin : undefined, repriseDe: e.id };
+  const { sauf: _s, serie: _x, repetition: _r, dansSerie, ...reste } = e;
+  const event: ClubEvent = {
+    ...reste, id: uid('e'), nom: c.nom.trim(), date: c.date, dateFin: c.dateFin && c.dateFin > c.date ? c.dateFin : undefined, repriseDe: e.id,
+    ...(c.serie && dansSerie ? { dansSerie } : {}),
+  };
   const ouvert = data.statuses.find((s) => !s.done) ?? data.statuses[0];
   const choisies = data.tasks.filter((t) => c.taches.includes(t.id) && !t.paiement);
   const ids = new Map(choisies.map((t) => [t.id, uid('t')]));

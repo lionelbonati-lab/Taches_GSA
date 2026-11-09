@@ -18,6 +18,7 @@ import { pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import { PageIntro } from '../components/Nav';
 import { AvisLien } from '../components/EnvoyerLien';
 import { Icone } from '../components/icones';
+import { FILTRE_SERIE, filtreSerie, nomAvecSerie, seriesDuClub } from '../data/seriesEvenements';
 
 type SortKey = 'section' | 'sousSection' | 'titre' | 'responsable' | 'statut' | 'delai';
 
@@ -89,6 +90,9 @@ function ListeTaches() {
   const seancePassee = derniereSeancePassee(data);
   const [dragId, setDragId] = useState<string | null>(null);
   const view = prefs.affichage;
+  // Filtre « Événement » : une série d'événements (« serie:<id> », seriesEvenements.ts), sinon un événement.
+  const serieFiltree = filtreSerie(f.event);
+  const evenementFiltre = serieFiltree ? '' : f.event;
   // Nouvelle tâche : pour la séance filtrée (le jour même), liée à l'événement filtré, avec l'étiquette filtrée ; sans
   // filtre, pour la prochaine séance.
   const nouvelleTache = () =>
@@ -96,8 +100,8 @@ function ListeTaches() {
       data,
       newTask(user!.id, {
         ...(f.meeting
-          ? { eventId: f.event || undefined, meetingId: f.meeting, delaiRef: { type: 'meeting', joursAvant: 0 } }
-          : f.event ? { eventId: f.event } : versProchaineSeance(data.meetings)),
+          ? { eventId: evenementFiltre || undefined, meetingId: f.meeting, delaiRef: { type: 'meeting', joursAvant: 0 } }
+          : evenementFiltre ? { eventId: evenementFiltre } : versProchaineSeance(data.meetings)),
         ...(f.etiquette ? { etiquettes: [f.etiquette], ...placeDe(f.etiquette) } : {}),
       }),
     );
@@ -127,6 +131,9 @@ function ListeTaches() {
     const evenementDe = new Map((data.etiquettes ?? []).filter((e) => e.eventId).map((e) => [e.id, e.eventId!]));
     const evenementsDe = (t: Task) =>
       [...new Set([...(t.eventId ? [t.eventId, serieDe.get(t.eventId) ?? ''] : []), ...etiquettesDe(t).map((id) => evenementDe.get(id) ?? '')])].filter(Boolean);
+    // Série d'événements filtrée : les points de l'un de ses événements.
+    const dansLaSerie = serieFiltree ? new Set(data.events.filter((e) => e.dansSerie === serieFiltree).map((e) => e.id)) : undefined;
+    const duFiltre = (t: Task) => (dansLaSerie ? evenementsDe(t).some((id) => dansLaSerie.has(id)) : evenementsDe(t).includes(f.event));
     // Tous les filtres, sauf `sauf` : les choix du filtre « Événement » sont ceux qui ont des tâches avec les autres filtres.
     // `portee` : mes points ou tous (pour dire combien « Tous » en montrerait).
     const garde = (t: Task, sauf?: 'event', portee = effScope) => {
@@ -143,7 +150,7 @@ function ListeTaches() {
       if (f.resp && !t.responsables.includes(f.resp)) return false;
       if (f.parent && t.id !== f.parent && t.parentId !== f.parent) return false;
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
-      if (sauf !== 'event' && f.event && !evenementsDe(t).includes(f.event)) return false;
+      if (sauf !== 'event' && f.event && !duFiltre(t)) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
       if (f.delai && ['passe', '7', '30', 'semaine'].includes(f.delai) && !t.delai) return false;
       if (f.delai) {
@@ -203,6 +210,8 @@ function ListeTaches() {
   const activeFilters = Object.entries(f).filter(([, v]) => v).length;
   // Filtre « Événement » : ceux qui ont des tâches avec les autres filtres, par date (les passés à part).
   const evenementsChoix = data.events.filter((e) => evenementsAvec.has(e.id) || e.id === f.event).sort((a, b) => a.date.localeCompare(b.date));
+  // Séries d'événements qui ont des points avec les autres filtres (et celle filtrée).
+  const seriesChoix = seriesDuClub(data).filter((s) => s.id === serieFiltree || data.events.some((e) => e.dansSerie === s.id && evenementsAvec.has(e.id)));
   // Filtre « Étiquette » : les groupes, les événements à venir, puis les passés à part.
   const rangees = etiquettesRangees(data.etiquettes, data.events);
 
@@ -305,10 +314,15 @@ function ListeTaches() {
         </select>
         <select value={f.event} onChange={(e) => setF({ ...f, event: e.target.value })} aria-label="Événement">
           <option value="">Tous événements</option>
-          {evenementsChoix.filter((e) => !evenementPasse(e)).map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+          {seriesChoix.length > 0 && (
+            <optgroup label="Séries d’événements">
+              {seriesChoix.map((s) => <option key={s.id} value={FILTRE_SERIE + s.id}>{s.nom} (toute la série)</option>)}
+            </optgroup>
+          )}
+          {evenementsChoix.filter((e) => !evenementPasse(e)).map((e) => <option key={e.id} value={e.id}>{nomAvecSerie(data, e)}</option>)}
           {evenementsChoix.some((e) => evenementPasse(e)) && (
             <optgroup label="Événements passés">
-              {evenementsChoix.filter((e) => evenementPasse(e)).reverse().map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+              {evenementsChoix.filter((e) => evenementPasse(e)).reverse().map((e) => <option key={e.id} value={e.id}>{nomAvecSerie(data, e)}</option>)}
             </optgroup>
           )}
         </select>

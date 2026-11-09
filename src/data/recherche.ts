@@ -1,6 +1,7 @@
 import type { AppData, Person, Poll, Task } from './types';
 import { fmtDate, fmtDateTime, fullName, isDone } from './utils';
 import { echeance, isOpen } from './polls';
+import { evenementsDeLaSerie, serieDe } from './seriesEvenements';
 
 // Recherche globale (loupe de l'en-tête) : tâches, séances, PV et ordres du jour archivés, sondages, événements,
 // personnes et étiquettes. Sans accents ni majuscules ; tous les mots doivent se trouver.
@@ -161,12 +162,24 @@ export function rechercher(q: string, c: Contexte): Resultat[] {
       [p.description ?? '', ...p.options.map((o) => o.label)],
     );
 
-  for (const e of data.events)
+  for (const e of data.events) {
+    const s = serieDe(data, e);
     ajouter(
-      { genre: 'evenement', id: e.id, titre: e.nom, detail: [fmtDate(e.date), e.lieu].filter(Boolean).join(' · '), lien: c.evenements ? `/evenements?id=${e.id}` : '/agenda', date: e.date },
+      { genre: 'evenement', id: e.id, titre: e.nom, detail: [fmtDate(e.date), e.lieu, s && `série « ${s.nom} »`].filter(Boolean).join(' · '), lien: c.evenements ? `/evenements?id=${e.id}` : '/agenda', date: e.date },
       [e.nom],
-      [e.lieu ?? '', e.description ?? ''],
+      [e.lieu ?? '', e.description ?? '', s?.nom ?? ''],
     );
+  }
+
+  // Séries d'événements (programme hivernal, championnat) : leur carte, dans la page Événements.
+  for (const s of data.seriesEvenements ?? []) {
+    const evs = evenementsDeLaSerie(data.events, s.id);
+    ajouter(
+      { genre: 'evenement', id: s.id, titre: s.nom, detail: `Série · ${evs.length} événement${evs.length > 1 ? 's' : ''}`, lien: c.evenements ? `/evenements?id=${s.id}` : '/agenda', date: evs[0]?.date ?? '' },
+      [s.nom],
+      [s.description ?? '', ...evs.map((e) => e.nom)],
+    );
+  }
 
   if (c.personnes)
     for (const p of data.people) {

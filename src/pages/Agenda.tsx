@@ -2,11 +2,16 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, Etiquette, Meeting, PvArchive, Task } from '../data/types';
-import { daysUntil, diffDays, endOf, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
-import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu } from '../data/repetition';
+import type { ClubEvent, Etiquette, Meeting, PvArchive, SerieEvenements, Task } from '../data/types';
+import { daysUntil, diffDays, endOf, fmtDate, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
+import { aLaDate, horaire, libelleRepetition } from '../data/repetition';
 import { EventModal, newEvent } from '../components/EventModal';
 import { RepriseModal } from '../components/Reprise';
+import { SerieModal } from '../components/SerieModal';
+import {
+  FILTRE_SERIE, dateAffichee, evenementsDeLaSerie, nouvelleSerie, periodeDeLaSerie, pointsDeLaSerie, prochainDeLaSerie, seriePassee,
+} from '../data/seriesEvenements';
+import { evenementPasse } from '../data/etiquettes';
 import { reprenable } from '../data/reprise';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
@@ -485,7 +490,10 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
 export function Events() {
   const { data, can } = useStore();
   const [edit, setEdit] = useState<{ e: ClubEvent; jour?: string } | null>(null);
-  const [nouveau, setNouveau] = useState(false);
+  // Nouvel événement ; `dansSerie` : « + Événement » d'une série.
+  const [nouveau, setNouveau] = useState<{ dansSerie?: string } | null>(null);
+  // Série d'événements ouverte (nouvelle ou existante).
+  const [serieOuverte, setSerieOuverte] = useState<SerieEvenements | null>(null);
   // Événement passé repris pour une nouvelle édition, avec ses tâches (Reprise.tsx).
   // Reprendre un événement passé (nouvelle édition) ou en copier un à venir (`copie`).
   const [reprise, setReprise] = useState<{ e: ClubEvent; copie: boolean } | null>(null);
@@ -493,21 +501,50 @@ export function Events() {
   const cible = useCible('id');
   // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
   const jour = today();
-  const affiche = (e: ClubEvent) => (e.repetition ? (occurrenceDu(e, jour) ?? derniereOccurrence(e) ?? e.date) : e.date);
+  const affiche = (e: ClubEvent) => dateAffichee(e, jour);
   const etiquettes = etiquettesDatees(data.etiquettes);
   const etiquetteDe = (e: ClubEvent) => (data.etiquettes ?? []).find((et) => et.eventId === e.id) ?? etiquettes.find((et) => !et.eventId && memeEvenement(et, e));
   const seules = etiquettes.filter((et) => !et.eventId && !data.events.some((e) => memeEvenement(et, e)));
-  const liste = [
-    ...data.events.map((e) => ({ date: affiche(e), e, et: etiquetteDe(e) })),
-    ...seules.map((et) => ({ date: et.date!, e: undefined, et })),
+  // Séries d'événements (seriesEvenements.ts) : une carte chacune, avec ses événements ; à la date de son prochain
+  // événement (sans événement : aujourd'hui, en tête).
+  const series = (data.seriesEvenements ?? []).map((s) => {
+    const evs = evenementsDeLaSerie(data.events, s.id);
+    return { s, evs, date: prochainDeLaSerie(evs, jour)?.date ?? jour };
+  });
+  const enSerie = new Set(series.flatMap((x) => x.evs.map((e) => e.id)));
+  type Element = { date: string; e?: ClubEvent; et?: Etiquette; serie?: (typeof series)[number] };
+  const liste: Element[] = [
+    ...data.events.filter((e) => !enSerie.has(e.id)).map((e): Element => ({ date: affiche(e), e, et: etiquetteDe(e) })),
+    ...seules.map((et): Element => ({ date: et.date!, et })),
+    ...series.map((x): Element => ({ date: x.date, serie: x })),
   ].sort((a, b) => a.date.localeCompare(b.date) || (a.e?.heure ?? '').localeCompare(b.e?.heure ?? ''));
-  // Passé : son dernier jour est derrière nous (celui de l'occurrence affichée, pour un événement qui se répète).
-  const passe = (x: (typeof liste)[number]) => (x.e ? endOf(aLaDate(x.e, x.date)) : endOf({ date: x.date, dateFin: x.et?.dateFin })) < jour;
+  // Passé : son dernier jour est derrière nous (celui de l'occurrence affichée, pour un événement qui se répète) ; une
+  // série : tous ses événements.
+  const passe = (x: Element) =>
+    x.serie ? seriePassee(x.serie.evs, jour) : (x.e ? endOf(aLaDate(x.e, x.date)) : endOf({ date: x.date, dateFin: x.et?.dateFin })) < jour;
   const aVenir = liste.filter((x) => !passe(x));
   const passes = liste.filter(passe).reverse();
+  // Carte visée (recherche, lien « Reprise ») : un événement d'une série amène à la carte de sa série.
+  const vise = (x: Element) => (x.serie ? estCible(cible, x.serie.s.id) || x.serie.evs.some((e) => estCible(cible, e.id)) : !!x.e && estCible(cible, x.e.id));
 
-  const carte = ({ e: serie, et, date }: (typeof liste)[number]) =>
-    serie ? (
+  const carte = (x: Element) => {
+    const { e: serie, et, date } = x;
+    if (x.serie)
+      return (
+        <CarteSerie
+          key={`s:${x.serie.s.id}`}
+          serie={x.serie.s}
+          evs={x.serie.evs}
+          cible={vise(x)}
+          etiquetteDe={etiquetteDe}
+          onEdit={() => setSerieOuverte(x.serie!.s)}
+          onAjout={() => setNouveau({ dansSerie: x.serie!.s.id })}
+          onEditEvent={(e) => setEdit({ e, jour: e.repetition ? affiche(e) : undefined })}
+          onReprise={(e, copie) => setReprise({ e, copie })}
+          onChrono={(e) => setChrono({ serie: e, date: affiche(e), etiquette: etiquetteDe(e) })}
+        />
+      );
+    return serie ? (
       <CarteEvenement
         key={serie.id}
         serie={serie}
@@ -521,12 +558,20 @@ export function Events() {
     ) : (
       et && <CarteEtiquette key={`et:${et.id}`} et={et} onChrono={() => setChrono({ date: et.date!, etiquette: et })} />
     );
+  };
 
   return (
     <div>
       <div className="page-head">
         <h1>Événements</h1>
-        {can('events.manage') && <button className="btn primary" onClick={() => setNouveau(true)}>+ Nouvel événement</button>}
+        {can('events.manage') && (
+          <div className="actions">
+            <button className="btn" onClick={() => setSerieOuverte(nouvelleSerie())} title="Réunir des événements : programme hivernal, championnat en plusieurs manches…">
+              <Icone n="serie" /> Nouvelle série
+            </button>
+            <button className="btn primary toujours" onClick={() => setNouveau({})}>+ Nouvel événement</button>
+          </div>
+        )}
       </div>
       <PageIntro />
       <div className="agenda">
@@ -534,13 +579,14 @@ export function Events() {
         {!aVenir.length && <Empty>{passes.length ? 'Aucun événement à venir.' : 'Aucun événement.'}</Empty>}
       </div>
       {passes.length > 0 && (
-        <details className="seances-passees evenements-passes" open={passes.some((x) => !!x.e && estCible(cible, x.e.id)) || undefined}>
+        <details className="seances-passees evenements-passes" open={passes.some(vise) || undefined}>
           <summary><Icone n="archives" /> Événements passés ({passes.length})</summary>
           <div className="agenda">{passes.map(carte)}</div>
         </details>
       )}
       {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
-      {nouveau && <EventModal event={newEvent()} onClose={() => setNouveau(false)} />}
+      {nouveau && <EventModal event={newEvent(undefined, nouveau.dansSerie)} onClose={() => setNouveau(null)} />}
+      {serieOuverte && <SerieModal serie={serieOuverte} onClose={() => setSerieOuverte(null)} />}
       {reprise && <RepriseModal event={reprise.e} copie={reprise.copie} onClose={() => setReprise(null)} />}
       {chrono && <Chronologie cible={chrono} onClose={() => setChrono(null)} />}
     </div>
@@ -656,6 +702,121 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
         )}
       </div>
     </article>
+  );
+}
+
+/** « mar. 17.11.2026 » (sur plusieurs jours : « sam. 27–28.02.2027 »). */
+const jourEtDates = (e: Pick<ClubEvent, 'date' | 'dateFin'>) =>
+  `${new Date(e.date + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'short' })} ${fmtRange(e.date, e.dateFin)}`;
+
+/**
+ * Carte d'une série d'événements (seriesEvenements.ts) : son nom, sa période, son prochain événement, ses événements
+ * (numérotés quand aucun ne se répète : les manches d'un championnat) et l'avancement de tous leurs points. Ses
+ * boutons : ses points, « + Événement » (un nouvel événement dans la série) et « Modifier » (nom, description, événements).
+ * Chaque événement garde les siens (chronologie, modifier, copier ou reprendre).
+ */
+function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onEditEvent, onReprise, onChrono }: {
+  serie: SerieEvenements;
+  evs: ClubEvent[];
+  cible: boolean;
+  etiquetteDe: (e: ClubEvent) => Etiquette | undefined;
+  onEdit: () => void;
+  onAjout: () => void;
+  onEditEvent: (e: ClubEvent) => void;
+  onReprise: (e: ClubEvent, copie: boolean) => void;
+  onChrono: (e: ClubEvent) => void;
+}) {
+  const { data, can } = useStore();
+  const jour = today();
+  const prochain = prochainDeLaSerie(evs, jour);
+  const periode = periodeDeLaSerie(evs);
+  const past = seriePassee(evs, jour);
+  const tasks = pointsDeLaSerie(data, evs);
+  const quand = !prochain || past ? '' : prochain.date <= jour ? `en cours : ${prochain.nom}` : `prochain : ${prochain.nom}, dans ${daysUntil(prochain.date)} j`;
+  const duree = periode && (periode.fin ? (periode.fin > periode.debut ? `du ${fmtDate(periode.debut)} au ${fmtDate(periode.fin)}` : fmtDate(periode.debut)) : `dès le ${fmtDate(periode.debut)}`);
+  // Aucun ne se répète (les manches d'un championnat) : numérotés.
+  const Liste = evs.length && evs.every((e) => !e.repetition) ? 'ol' : 'ul';
+  return (
+    <article id={`cible-${serie.id}`} className={`panel agenda-item carte-evenement carte-serie ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
+      {prochain ? <DateBlock date={prochain.date} fin={prochain.dateFin} /> : <div className="dateblock vide" aria-hidden="true"><b><Icone n="serie" /></b></div>}
+      <div className="grow">
+        <h3 className="titre-serie"><Icone n="serie" /> {serie.nom}</h3>
+        <div className="muted">{['Série', `${evs.length} événement${evs.length > 1 ? 's' : ''}`, duree, quand].filter(Boolean).join(' · ')}</div>
+        {serie.description && <p>{serie.description}</p>}
+        {evs.length > 0 ? (
+          <Liste className="serie-ev-liste">
+            {evs.map((e) => (
+              <LigneSerie
+                key={e.id}
+                e={e}
+                etiquette={etiquetteDe(e)}
+                prochain={!past && prochain?.id === e.id}
+                onChrono={() => onChrono(e)}
+                onEdit={() => onEditEvent(e)}
+                onReprise={(copie) => onReprise(e, copie)}
+              />
+            ))}
+          </Liste>
+        ) : (
+          <p className="muted">Aucun événement dans la série pour l’instant{can('events.manage') ? ' : « Événement » en ajoute un, « Modifier » y range ceux de l’agenda.' : '.'}</p>
+        )}
+        <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
+      </div>
+      <div className="agenda-actions">
+        <BoutonPoints to={`/taches?event=${encodeURIComponent(FILTRE_SERIE + serie.id)}`} />
+        {can('events.manage') && (
+          <>
+            <button className="btn small" onClick={onAjout} title="Ajouter un nouvel événement à la série">
+              <Icone n="ajouterSeance" /> <span className="libelle">Événement</span>
+            </button>
+            <button className="btn small" onClick={onEdit} title="Modifier la série : son nom, sa description, ses événements">
+              <Icone n="modifier" /> <span className="libelle">Modifier</span>
+            </button>
+          </>
+        )}
+      </div>
+    </article>
+  );
+}
+
+/**
+ * Un événement dans la carte de sa série : son nom (un clic : sa chronologie), sa date ou sa répétition, son heure, son
+ * lieu, son étiquette et ses points ; « Modifier », « Copier » (une autre manche) ou « Reprendre », leur icône seule.
+ */
+function LigneSerie({ e, etiquette, prochain, onChrono, onEdit, onReprise }: {
+  e: ClubEvent; etiquette?: Etiquette; prochain: boolean; onChrono: () => void; onEdit: () => void; onReprise: (copie: boolean) => void;
+}) {
+  const { data, can } = useStore();
+  const jour = today();
+  const past = evenementPasse(e, jour);
+  const x = aLaDate(e, dateAffichee(e, jour));
+  const tasks = data.tasks.filter((t) => t.eventId === e.id || (!!etiquette && !!t.etiquettes?.includes(etiquette.id)));
+  const faits = tasks.filter((t) => isDone(data, t)).length;
+  const suite = data.events.find((y) => y.repriseDe === e.id);
+  return (
+    <li className={`serie-ev ${past ? 'past' : ''} ${prochain ? 'prochain' : ''}`}>
+      <div className="grow">
+        <TitreEvenement nom={e.nom} onClick={onChrono} />
+        {prochain && <span className="badge serie-ev-prochain">{x.date <= jour ? 'en cours' : 'prochain'}</span>}
+        <div className="muted">
+          {[e.repetition ? null : jourEtDates(x), horaire(x), e.lieu, tasks.length ? `${faits}/${tasks.length} point${tasks.length > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')}
+          {e.repetition && <> {(horaire(x) || e.lieu) && '· '}<Icone n="repetition" /> {libelleRepetition(e)}</>}
+        </div>
+        {etiquette && <EtiquetteCarte et={etiquette} />}
+        {suite && <small className="muted reprise"><Icone n="dupliquer" /> {past ? 'Reprise' : 'Copie'} : {suite.nom} ({fmtRange(suite.date, suite.dateFin)})</small>}
+      </div>
+      {can('events.manage') && (
+        <span className="serie-ev-actions">
+          <button className="btn small" onClick={onEdit} title="Modifier l’événement" aria-label={`Modifier « ${e.nom} »`}><Icone n="modifier" /></button>
+          {reprenable(e) &&
+            (past ? (
+              <button className="btn small" onClick={() => onReprise(false)} title="Nouvelle édition de cet événement, avec ses points" aria-label={`Reprendre « ${e.nom} »`}><Icone n="dupliquer" /></button>
+            ) : (
+              <button className="btn small" onClick={() => onReprise(true)} title="Un autre événement à une autre date (une autre manche), avec les mêmes points (à faire)" aria-label={`Copier « ${e.nom} »`}><Icone n="dupliquer" /></button>
+            ))}
+        </span>
+      )}
+    </li>
   );
 }
 
