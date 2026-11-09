@@ -149,8 +149,10 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       task.postesResp = postesFor(data, task, before);
 
       // Date de clôture (pour le bilan de l'ordre du jour).
+      // Terminée depuis le PV d'une séance passée (le corriger, c'est être le soir de la séance) : le jour de la séance,
+      // donné par le PV ; sinon aujourd'hui.
       if (!isDone(data, task)) task.termineeLe = undefined;
-      else if (!(before && isDone(data, before))) task.termineeLe = new Date().toISOString().slice(0, 10);
+      else if (!(before && isDone(data, before))) task.termineeLe = task.termineeLe ?? new Date().toISOString().slice(0, 10);
 
       // Clôture d'une tâche récurrente → création de l'occurrence suivante. Tâche annuelle liée à une séance : elle passe à
       // la séance du même mois l'an prochain (créée au besoin) ; tâche « à chaque séance » : à la séance suivante.

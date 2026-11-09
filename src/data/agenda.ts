@@ -165,7 +165,8 @@ export const echeanceSuivante = (t: Task, s2: Meeting) =>
 
 /**
  * Tâches de l'ordre du jour de la séance s1 :
- * en retard, à faire d'ici s1, d'ici la séance suivante s2 (et peu après : « joursApres »), terminées depuis la séance précédente s0.
+ * en retard, à faire d'ici s1, d'ici la séance suivante s2 (et peu après : « joursApres »), terminées depuis la séance précédente s0
+ * (après son jour).
  */
 export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting | undefined, s2: Meeting | undefined, o: AgendaOptions) {
   const eligible = (t: Task) => !o.sectionsExclues.includes(t.sectionId) && !o.retires?.includes(t.id);
@@ -181,7 +182,9 @@ export function selectAgenda(data: AppData, s0: Meeting | undefined, s1: Meeting
   const since = s0?.date ?? addDays(jour, -60);
   const bilan = o.bilan
     ? data.tasks.filter(
-        (t) => isDone(data, t) && eligible(t) && finLe(t) >= since && data.statuses.find((x) => x.id === t.statusId)?.label !== 'Info',
+        // Terminées après le jour de la séance précédente : celles terminées ce jour-là (en séance, ou en corrigeant son PV,
+        // datées du jour de la séance) sont dans son PV et archivées ; elles ne reviennent pas.
+        (t) => isDone(data, t) && eligible(t) && finLe(t) > since && data.statuses.find((x) => x.id === t.statusId)?.label !== 'Info',
       )
     : [];
   return { late, avant1, avant2, bilan, since };

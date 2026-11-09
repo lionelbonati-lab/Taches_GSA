@@ -302,6 +302,12 @@ export function Minutes() {
       setMinutes((x, d) => { x.supprimees = [...(x.supprimees ?? []), pending.before!.titre]; if (tache) retenir(x, d, tache.id, tache); }, { suite: true });
     } else if (t && pending.before) {
       record(t, diffTask(data, pending.before, t), tache, true);
+      // Terminé dans sa fiche ouverte depuis le PV : le jour de la séance, comme depuis la ligne du point.
+      if (s1 && tache && isDone(data, t) && !isDone(data, tache) && t.termineeLe !== s1.date)
+        updateSilent((d) => {
+          const x = d.tasks.find((y) => y.id === t.id);
+          if (x) x.termineeLe = s1.date;
+        }, { suite: true });
     }
     // Points rattachés depuis la fiche (sous-points) : inscrits au PV, comme une tâche décidée en séance (créés), ou avec
     // le rattachement dans le journal (points existants) ; figé : ajoutés aux points du PV.
@@ -429,7 +435,7 @@ export function Minutes() {
   // seulement depuis la séance précédente.
   const principaux = new Set(duPv.map((t) => t.id));
   const sousPoints = data.tasks.filter(
-    (c) => !!c.parentId && principaux.has(c.parentId) && !principaux.has(c.id) && !retires.has(c.id) && (!isDone(data, c) || finLe(c) >= sel.since),
+    (c) => !!c.parentId && principaux.has(c.parentId) && !principaux.has(c.id) && !retires.has(c.id) && (!isDone(data, c) || finLe(c) > sel.since),
   );
   const points = [...duPv, ...sousPoints].map(vue);
   // Sondages : si l'ordre du jour les montre, hors des sections qu'il laisse de côté.
@@ -547,6 +553,8 @@ export function Minutes() {
   const changerPoint = (t: Task, patch: Partial<Task>) => {
     const live = vivante(t);
     const after: Task = { ...live, ...patch, ...(patch.checklist ? { checklist: fusionChecklist(live.checklist, t.checklist, patch.checklist) } : {}) };
+    // Terminé depuis le PV : le jour de la séance (même en corrigeant le PV après coup) ; archivé, il ne revient pas.
+    if (s1 && isDone(data, after) && !isDone(data, live)) after.termineeLe = s1.date;
     if (JSON.stringify(after) === JSON.stringify(live)) return true;
     const q = finAnticipee(data, live, after);
     if (q && !confirm(q)) return false;

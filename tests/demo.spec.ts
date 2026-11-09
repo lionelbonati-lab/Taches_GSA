@@ -3148,3 +3148,55 @@ test('PV figé avant la reprise des entités : les points de l’ordre du jour a
   await expect(page.locator('.min-task[data-point="Point de la soirée"]')).toBeVisible();
   await expect(page.locator('.pv-msg')).toHaveCount(0);
 });
+
+test('point terminé en séance ou en corrigeant le PV : daté de la séance, archivé, il ne revient pas à la séance d’après', async ({ page }) => {
+  page.on('dialog', (d) => void d.accept());
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Dernière séance passée il y a 10 jours (PV figé). « Terminé en séance » : terminé ce jour-là ; « Terminé entre-temps » :
+  // 3 jours plus tard ; « Terminé en corrigeant » : encore ouvert, on le termine en corrigeant le PV.
+  const ids = await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const aFaire = d.statuses.filter((s: { done: boolean }) => !s.done)[0].id;
+    const fini = d.statuses.find((s: { done: boolean }) => s.done).id;
+    d.meetings = d.meetings.filter((m: { date: string }) => !(m.date >= j.vieux && m.date < j.auj));
+    const moi = d.people[0].id;
+    const t = (id: string, titre: string, o: object) => ({ id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: aFaire, delai: j.seance, meetingId: 'm-pass', remarque: '', checklist: [], createdBy: moi, updatedAt: `${j.seance}T12:00:00.000Z`, ...o });
+    d.tasks.push(
+      t('a1', 'Terminé en séance', { statusId: fini, termineeLe: j.seance }),
+      t('a2', 'Terminé entre-temps', { statusId: fini, termineeLe: j.apres, updatedAt: `${j.apres}T12:00:00.000Z` }),
+      t('a3', 'Terminé en corrigeant', {}),
+    );
+    const etat = (titre: string) => ({ statusId: aFaire, delai: j.seance, responsables: [moi], titre, sous: {}, remarque: '', sectionId: d.sections[0].id, sousSection: '', rang: 'p1' });
+    const minutes = { presents: [moi], excuses: [], notes: {}, demarreLe: `${j.seance}T17:30:00.000Z`, valideLe: `${j.seance}T20:00:00.000Z`, validePar: moi, version: 1, relu: `${j.seance}T21:00:00.000Z`, etats: { a3: etat('Terminé en corrigeant') } };
+    d.meetings.push({ id: 'm-pass', titre: 'Comité passé', date: j.seance, heure: '19:30', lieu: '', minutes: { ...minutes, derniereValidee: structuredClone(minutes) } });
+    localStorage.setItem(k, JSON.stringify(d));
+    localStorage.setItem('taches-gsa-demo-historique', JSON.stringify({ 'u-central': {} }));
+    return { fini };
+  }, { k: cle, j: { seance: dansJours(-10), apres: dansJours(-7), vieux: dansJours(-40), auj: dansJours(0) } });
+  await page.reload();
+
+  // Corriger le PV : « Terminé en corrigeant » terminé, daté du jour de la séance.
+  await allerA(page, '/pv?seance=m-pass');
+  await page.getByRole('button', { name: 'Corriger le PV' }).first().click();
+  await page.getByLabel('Statut de Terminé en corrigeant').selectOption(ids.fini);
+  await expect
+    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k)!).tasks.find((x: { id: string }) => x.id === 'a3').termineeLe, cle))
+    .toBe(dansJours(-10));
+
+  // Ordre du jour de la séance suivante : seulement le point terminé entre les deux séances.
+  await allerA(page, '/ordre-du-jour');
+  const odj = page.locator('.pv-sheet');
+  await expect(odj).toContainText('Terminé entre-temps');
+  await expect(odj).not.toContainText('Terminé en séance');
+  await expect(odj).not.toContainText('Terminé en corrigeant');
+  // Points : ceux terminés en séance ou en corrigeant le PV sont archivés ; celui terminé entre-temps attend la séance.
+  await allerA(page, '/taches');
+  const liste = page.locator('main');
+  await expect(liste).toContainText('Terminé entre-temps');
+  await expect(liste).not.toContainText('Terminé en séance');
+  await expect(liste).not.toContainText('Terminé en corrigeant');
+  await page.getByRole('button', { name: /Archives \(/ }).click();
+  await expect(liste).toContainText('Terminé en séance');
+  await expect(liste).toContainText('Terminé en corrigeant');
+});
