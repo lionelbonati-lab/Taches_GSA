@@ -149,6 +149,26 @@ export async function completerEtats(
   );
 }
 
+/**
+ * PV figé avant que certains de ses points n'arrivent dans le club (reprise des anciennes entités le 03.11.2026, point
+ * rétabli) : ceux que l'ordre du jour de la séance retenait à la fin de celle-ci d'après leur historique (recopié avec
+ * eux), absents du PV, et « rétablis » dans le club après la séance. Un point créé après la séance n'en est pas.
+ */
+export async function pointsArrives(
+  data: AppData,
+  seances: { s0?: Meeting; s1: Meeting; s2?: Meeting },
+  m: MeetingMinutes,
+  lire: (id: string) => Promise<HistoriqueTache>,
+  joursApres?: number,
+): Promise<Record<string, EtatPoint>> {
+  const tous = await figerPoints(data, seances, m, lire, joursApres);
+  const fin = finSeance(seances.s1.date);
+  const absents = Object.keys(tous).filter((id) => !m.etats?.[id]);
+  const historiques = await lireTout(absents, lire);
+  const arrives = absents.filter((id) => (historiques.get(id) ?? []).some((e) => e.quoi === 'retablie' && Date.parse(e.le) > fin));
+  return Object.fromEntries(arrives.map((id) => [id, tous[id]]));
+}
+
 /** Point affiché dans le PV figé : ses champs de la fin de la séance, le reste tel qu'aujourd'hui. */
 export function vueFigee(t: Task, e?: EtatPoint): Task {
   if (!e) return t;

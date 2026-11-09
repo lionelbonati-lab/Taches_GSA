@@ -29,7 +29,7 @@ import { BarreOutils, Pilule, type OutilPilule } from '../components/Pilule';
 import { OutilsTexte } from '../components/OutilsTexte';
 import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
-import { aFiger, completerEtats, etatsACompleter, figerPoints, reporterChangement, vueFigee } from '../data/etatsPv';
+import { aFiger, completerEtats, etatsACompleter, figerPoints, pointsArrives, reporterChangement, vueFigee } from '../data/etatsPv';
 import { PiecesJointesPoint } from '../components/PiecesJointesPoint';
 import { FichePv, type ArretPv, type VotePv } from '../components/FichePv';
 import type { DocTracking } from '../components/DocsField';
@@ -340,6 +340,7 @@ export function Minutes() {
         if (fini) return;
         setMinutes((x, d) => {
           x.etats = x.etats ?? e;
+          x.relu = x.relu ?? new Date().toISOString();
           // Son cadre aussi, s'il n'a pas été pris le jour de la séance (renommages faits depuis défaits).
           x.cadre = x.cadre ?? cadreMaintenant(d, d.meetings.find((y) => y.id === s1.id)!, x.etats);
         });
@@ -357,19 +358,31 @@ export function Minutes() {
   }, [figer, s1?.id]);
   // PV figé avant qu'on y garde la remarque, la section et la sous-section des points, ou son cadre : retrouvés une fois
   // (sinon une remarque écrite, une section renommée après la séance s'y affichait, à la correction du PV par exemple).
+  // Et ses points relus une fois : ceux de l'ordre du jour arrivés dans le club après le gel (reprise des anciennes
+  // entités : Soirée récréative…) y sont ajoutés.
   const historiqueManquant = etatsACompleter(m);
-  const aCompleter = can('tab.minutes') && fige && !!m.etats && ((historiqueManquant && !!lireHistorique) || !m.cadre);
+  const aRelire = !m.relu && !!lireHistorique;
+  const aCompleter = can('tab.minutes') && fige && !!m.etats && (((historiqueManquant || aRelire) && !!lireHistorique) || !m.cadre);
   useEffect(() => {
     if (!aCompleter || !s1) return;
     let fini = false;
-    (historiqueManquant && lireHistorique ? completerEtats(data, s1, m, lireHistorique) : Promise.resolve({})).then(
-      (r: Record<string, Partial<EtatPoint>>) => {
+    Promise.all([
+      historiqueManquant && lireHistorique ? completerEtats(data, s1, m, lireHistorique) : Promise.resolve({} as Record<string, Partial<EtatPoint>>),
+      aRelire && lireHistorique ? pointsArrives(data, { s0, s1, s2 }, m, lireHistorique, joursApres) : Promise.resolve(null),
+    ]).then(
+      ([r, arrives]) => {
         if (fini) return;
         setMinutes((x, d) => {
           if (!x.etats) return;
-          x.etats = Object.fromEntries(Object.entries(x.etats).map(([id, e]) => [id, { ...e, ...r[id] }]));
+          x.etats = { ...Object.fromEntries(Object.entries(x.etats).map(([id, e]) => [id, { ...e, ...r[id] }])), ...arrives };
+          if (arrives) x.relu = new Date().toISOString();
           x.cadre = x.cadre ?? cadreMaintenant(d, d.meetings.find((y) => y.id === s1.id)!, x.etats);
         });
+        const n = Object.keys(arrives ?? {}).length;
+        if (n)
+          setMsg(
+            `📌 ${n > 1 ? `${n} points` : 'Un point'} de l’ordre du jour de cette séance, arrivé${n > 1 ? 's' : ''} dans le club après coup (reprise du 03.11), ${n > 1 ? 'ajoutés' : 'ajouté'} au PV, tel${n > 1 ? 's' : ''} qu’à la fin de la séance.`,
+          );
       },
       // Historique illisible : ces champs tels qu'aujourd'hui, nouvel essai à la prochaine ouverture.
       (err: unknown) => console.warn('Points du PV à la fin de la séance introuvables', err),

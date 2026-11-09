@@ -446,6 +446,11 @@ export interface MeetingMinutes {
   /** Date de la première validation (« PV établi le … »), gardée par les versions corrigées. */
   etabliLe?: string;
   /**
+   * Points du PV figé relus d'après l'historique (ISO) : ceux arrivés dans le club après le gel (reprise des entités)
+   * ajoutés, une fois (etatsPv.pointsArrives).
+   */
+  relu?: string;
+  /**
    * Votes en séance (fiche du PV, onglet « Vote ») : point → membre → sa voix. Seules celles des présents comptent ; le
    * résultat figure sous le point dans le PV.
    */

@@ -3102,3 +3102,49 @@ test('PV : son cadre pris le jour de la séance est gardé ensuite (section reno
   await expect(page.locator('.min-section h3').first()).toContainText(nom);
   await expect(page.locator('.minutes-page')).not.toContainText('Renommée le lendemain');
 });
+
+test('PV figé avant la reprise des entités : les points de l’ordre du jour arrivés après coup y sont ajoutés, une fois', async ({ page }) => {
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Séance il y a 10 jours, PV figé (le lendemain) avec « Point du club » seulement. La Soirée récréative (ancienne
+  // entité) reprise il y a 3 jours : « Point de la soirée », de son ordre du jour, rétabli dans le club ; « Point créé
+  // après » : créé après la séance (pas de son PV).
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const aFaire = d.statuses.filter((s: { done: boolean }) => !s.done)[0].id;
+    d.meetings = d.meetings.filter((m: { date: string }) => !(m.date >= j.seance && m.date < j.auj));
+    const moi = d.people[0].id;
+    const evts = d.sections.find((s: { nom: string }) => /vénement/.test(s.nom)) ?? d.sections[0];
+    if (!evts.sousSections.includes('Soirée récréative')) evts.sousSections.push('Soirée récréative');
+    const etat = { statusId: aFaire, delai: j.seance, responsables: [moi], titre: 'Point du club', sous: {}, remarque: '', sectionId: d.sections[0].id, sousSection: '', rang: 'p1' };
+    d.meetings.push({ id: 'm-oct', titre: 'Comité d’octobre', date: j.seance, heure: '19:30', lieu: '', minutes: { presents: [], excuses: [], notes: {}, demarreLe: `${j.seance}T17:30:00.000Z`, etats: { r1: etat } } });
+    const t = (id: string, titre: string, o: object) => ({ id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: aFaire, delai: j.seance, meetingId: 'm-oct', remarque: '', checklist: [], createdBy: moi, updatedAt: `${j.avant}T12:00:00.000Z`, ...o });
+    d.tasks.push(
+      t('r1', 'Point du club', {}),
+      t('r2', 'Point de la soirée', { sectionId: evts.id, sousSection: 'Soirée récréative' }),
+      t('r3', 'Point créé après', { sectionId: evts.id, sousSection: 'Soirée récréative', updatedAt: `${j.reprise}T12:00:00.000Z` }),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+    const creee = (le: string) => ({ le: `${le}T09:00:00.000Z`, par: 'x', nom: 'Julien Moreau', quoi: 'creee', champs: {} });
+    const retablie = { le: `${j.reprise}T08:00:00.000Z`, par: null, nom: 'Reprise des entités', quoi: 'retablie', champs: {} };
+    localStorage.setItem('taches-gsa-demo-historique', JSON.stringify({ 'u-central': { r1: [creee(j.avant)], r2: [retablie, creee(j.avant)], r3: [creee(j.reprise)] } }));
+    return evts.id;
+  }, { k: cle, j: { seance: dansJours(-10), avant: dansJours(-15), reprise: dansJours(-3), auj: dansJours(0) } });
+  await page.reload();
+  await allerA(page, '/pv?seance=m-oct');
+  await expect(page.locator('.min-task[data-point="Point de la soirée"]')).toBeVisible();
+  await expect(page.locator('.min-task[data-point="Point de la soirée"]').locator('xpath=ancestor::div[contains(@class,"min-sub")]')).toContainText('Soirée récréative');
+  await expect(page.locator('.min-task[data-point="Point créé après"]')).toHaveCount(0);
+  await expect(page.locator('.min-task[data-point="Point du club"]')).toBeVisible();
+  await expect(page.locator('.pv-msg')).toContainText('Un point de l’ordre du jour de cette séance, arrivé dans le club après coup');
+  // Gardé dans le PV, relu une seule fois.
+  const lire = () => page.evaluate((k) => {
+    const m = JSON.parse(localStorage.getItem(k)!).meetings.find((x: { id: string }) => x.id === 'm-oct').minutes;
+    return { points: Object.keys(m.etats).sort(), relu: !!m.relu };
+  }, cle);
+  await expect.poll(lire).toEqual({ points: ['r1', 'r2'], relu: true });
+  await page.reload();
+  await allerA(page, '/pv?seance=m-oct');
+  await expect(page.locator('.min-task[data-point="Point de la soirée"]')).toBeVisible();
+  await expect(page.locator('.pv-msg')).toHaveCount(0);
+});
