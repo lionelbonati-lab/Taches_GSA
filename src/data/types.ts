@@ -384,6 +384,9 @@ export interface TaskSnapshot {
   sous?: Record<string, boolean>;
   /** Remarque du point ('' : aucune). Absente : état noté avant qu'on la garde (PV figé avant le 05.11.2026). */
   remarque?: string;
+  /** Sa section et sa sous-section ('' : aucune). Absentes : état noté avant qu'on les garde (PV figé avant le 09.11.2026). */
+  sectionId?: string;
+  sousSection?: string;
 }
 
 /** Point du PV tel qu'il était à la fin de la séance (MeetingMinutes.etats). */
@@ -435,6 +438,13 @@ export interface MeetingMinutes {
   annexesPages?: Record<string, string>;
   /** Changements de tâches faits depuis l'onglet PV (seuls ceux-ci figurent dans le PV). */
   journal?: MinutesChange[];
+  /**
+   * Cadre du PV tel que le soir de la séance (comité, sections, convoqués, prochaine séance, réglages de l'ordre du
+   * jour) : un PV repris après coup, corrigé ou revalidé, le garde tel quel (cadrePv.ts).
+   */
+  cadre?: CadrePv;
+  /** Date de la première validation (« PV établi le … »), gardée par les versions corrigées. */
+  etabliLe?: string;
   /**
    * Votes en séance (fiche du PV, onglet « Vote ») : point → membre → sa voix. Seules celles des présents comptent ; le
    * résultat figure sous le point dans le PV.
@@ -564,6 +574,40 @@ export interface RepetitionEvenement {
   jusquau?: string;
   /** Se termine après N occurrences. */
   nombre?: number;
+}
+
+/**
+ * Ce qui décide des points de l'ordre du jour et de leur ordre, commun au club (ReglagesOdj.contenu) : le PV de la
+ * séance reprend les mêmes points, dans le même ordre.
+ */
+export interface ContenuOdj {
+  parts: { retards: boolean; avantProchaine: boolean; avantSuivante: boolean; bilan: boolean; sondages: boolean };
+  statutsExclus: string[];
+  sectionsExclues: string[];
+  tri: 'delai' | 'statut' | 'titre';
+  /** Sous-sections, étapes de checklist, « vue par » des points pour info. */
+  colonnes: { sousSection: boolean; checklist: boolean; pourInfo: boolean };
+}
+
+/** Cadre d'un PV, tel que le soir de la séance (MeetingMinutes.cadre). */
+export interface CadrePv {
+  /** Pris le (ISO). */
+  le: string;
+  /** Nom du comité (titre du PV). */
+  comite?: string;
+  /** La séance : son titre, son heure et son lieu. */
+  seance: Pick<Meeting, 'titre' | 'heure' | 'lieu' | 'lieuGeo'>;
+  /** Sections, dans leur ordre, avec leur nom et leurs sous-sections. */
+  sections: { id: string; nom: string; sousSections: string[] }[];
+  /** Convoqués (présences, absents). */
+  convoques: string[];
+  /** « PV établi par ». */
+  secretaire?: string;
+  /** Séance suivante (« Prochaine séance »). */
+  prochaine?: Pick<Meeting, 'id' | 'titre' | 'date' | 'heure' | 'lieu' | 'lieuGeo'>;
+  /** Réglages de l'ordre du jour. */
+  contenu: ContenuOdj;
+  joursApres?: number;
 }
 
 export interface LogEntry {
@@ -764,6 +808,8 @@ export interface ReglagesOdj {
   joursApres?: number;
   /** Mise en forme des documents (police, interligne, marges, et de chaque élément). */
   style?: StyleDocs;
+  /** Ce qui décide des points de l'ordre du jour et de leur ordre (commun : le PV les reprend). */
+  contenu?: ContenuOdj;
   /**
    * Page web où déposer le PV validé (dossier partagé du club, formulaire d'envoi…), http(s) seulement :
    * « Valider et archiver » l'ouvre dans une nouvelle fenêtre et crée le PDF du PV, à y déposer.

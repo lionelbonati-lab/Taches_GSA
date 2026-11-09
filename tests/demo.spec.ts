@@ -2969,3 +2969,136 @@ test('vue en fenêtres : un onglet se glisse dans une autre fenêtre (retenu) ; 
   await expect(rouverte.getByRole('button', { name: 'Onglets d’origine' })).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('taches-gsa-pv-onglets'))).toBeNull();
 });
+
+test('ordre du jour et PV : les mêmes points, les réglages de l’ordre du jour étant communs au club', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  for (const titre of ['Point ouvert à l’ordre du jour', 'Point mis en attente']) {
+    const f = await nouvelleTache(page, titre);
+    await f.getByRole('button', { name: /^Créer$/ }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+  }
+  await page.evaluate(() => {
+    const k = 'taches-gsa-demo-v7';
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const attente = d.statuses.find((s: { label: string }) => s.label === 'En attente').id;
+    d.tasks.find((t: { titre: string }) => t.titre === 'Point mis en attente').statusId = attente;
+    localStorage.setItem(k, JSON.stringify(d));
+  });
+  await page.reload();
+  // Ordre du jour : le statut « En attente » laissé de côté ; le réglage devient commun (dans les données du club).
+  await allerA(page, '/ordre-du-jour');
+  const contenu = page.locator('details', { has: page.locator('summary', { hasText: /^Contenu$/ }) });
+  await contenu.locator('summary').click();
+  await contenu.locator('.chips').nth(1).getByRole('button', { name: 'En attente', exact: true }).click();
+  await expect(page.locator('.pv-sheet')).not.toContainText('Point mis en attente');
+  await expect(page.locator('.pv-sheet')).toContainText('Point ouvert à l’ordre du jour');
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const d = JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!);
+        const attente = d.statuses.find((s: { label: string }) => s.label === 'En attente').id;
+        return !!d.reglagesOdj?.contenu?.statutsExclus?.includes(attente);
+      }),
+    )
+    .toBe(true);
+  // Les réglages personnels n'y changent rien : le PV reprend ceux de l'ordre du jour, communs.
+  await page.evaluate(() => {
+    const k = 'taches-gsa-demo-v7';
+    const d = JSON.parse(localStorage.getItem(k)!);
+    for (const id of Object.keys(d.prefs)) if (d.prefs[id].pv) d.prefs[id].pv.statutsExclus = [];
+    localStorage.setItem(k, JSON.stringify(d));
+  });
+  await page.reload();
+  await allerA(page, '/pv');
+  await expect(page.locator('.min-task[data-point="Point ouvert à l’ordre du jour"]')).toBeVisible();
+  await expect(page.locator('.min-task[data-point="Point mis en attente"]')).toHaveCount(0);
+});
+
+test('PV corrigé : sections et sous-sections comme le soir de la séance, même renommées depuis ; « établi le » d’origine', async ({ page }) => {
+  page.on('dialog', (d) => void d.accept());
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Séance il y a 5 jours, PV validé et figé avant qu'on garde son cadre et la place des points. Depuis : la sous-section
+  // « Ancienne sous » renommée « Nouvelle sous » (le point suit), puis la section « Ancien nom » renommée.
+  const ids = await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const aFaire = d.statuses.filter((s: { done: boolean }) => !s.done)[0].id;
+    d.meetings = d.meetings.filter((m: { date: string }) => !(m.date >= j.seance && m.date < j.auj));
+    const moi = d.people[0].id;
+    const sec = d.sections[0];
+    sec.nom = 'Section renommée';
+    sec.sousSections = [...sec.sousSections, 'Nouvelle sous'];
+    const etat = { statusId: aFaire, delai: j.seance, responsables: [moi], titre: 'Point de la sous-section', sous: {}, remarque: '', rang: 'p1' };
+    const minutes = { presents: [moi], excuses: [], notes: { 'task:c1': 'Décidé ce soir-là.' }, demarreLe: `${j.seance}T17:30:00.000Z`, valideLe: `${j.seance}T20:00:00.000Z`, validePar: moi, version: 1, etats: { c1: etat } };
+    d.meetings.push({ id: 'm-cadre', titre: 'Comité du cadre', date: j.seance, heure: '19:30', lieu: '', minutes: { ...minutes, derniereValidee: structuredClone(minutes) } });
+    d.tasks.push({ id: 'c1', sectionId: sec.id, sousSection: 'Nouvelle sous', titre: 'Point de la sous-section', responsables: [moi], statusId: aFaire, delai: j.seance, meetingId: 'm-cadre', remarque: '', checklist: [], createdBy: moi, updatedAt: `${j.hier}T10:00:00.000Z` });
+    d.log = [
+      { id: 'l2', at: `${j.hier}T11:00:00.000Z`, userId: moi, action: 'Section « Ancien nom » renommée en « Section renommée »' },
+      { id: 'l1', at: `${j.hier}T10:00:00.000Z`, userId: moi, action: 'Sous-section « Ancienne sous » (Ancien nom) renommée en « Nouvelle sous » · 1 point(s)' },
+      ...d.log,
+    ];
+    localStorage.setItem(k, JSON.stringify(d));
+    const creee = { le: `${j.avant}T09:00:00.000Z`, par: 'x', nom: 'Julien Moreau', quoi: 'creee', champs: {} };
+    localStorage.setItem('taches-gsa-demo-historique', JSON.stringify({ 'u-central': {
+      c1: [{ le: `${j.hier}T10:00:00.000Z`, par: 'x', nom: 'Julien Moreau', champs: { sousSection: ['Ancienne sous', 'Nouvelle sous'] } }, creee],
+    } }));
+    return { sec: sec.id };
+  }, { k: cle, j: { seance: dansJours(-5), avant: dansJours(-8), hier: dansJours(-1), auj: dansJours(0) } });
+  await page.reload();
+  await allerA(page, '/pv?seance=m-cadre');
+  await page.getByRole('button', { name: 'Corriger le PV' }).first().click();
+
+  // Prise de notes : la section et la sous-section de ce soir-là, le point dedans.
+  const section = page.locator(`.min-section[data-section="${ids.sec}"]`);
+  await expect(section.locator('h3')).toContainText('Ancien nom');
+  await expect(section.locator('.min-sub-title')).toHaveText(/Ancienne sous/);
+  await expect(section.locator('.min-sub', { hasText: 'Ancienne sous' }).locator('.min-task[data-point="Point de la sous-section"]')).toBeVisible();
+  await expect(page.locator('.minutes-page')).not.toContainText('Section renommée');
+  // Gardés dans le PV : son cadre et la place du point.
+  await expect
+    .poll(() =>
+      page.evaluate((k) => {
+        const m = JSON.parse(localStorage.getItem(k)!).meetings.find((x: { id: string }) => x.id === 'm-cadre').minutes;
+        return { nom: m.cadre?.sections?.[0]?.nom, sous: m.etats?.c1?.sousSection };
+      }, cle),
+    )
+    .toEqual({ nom: 'Ancien nom', sous: 'Ancienne sous' });
+
+  // Le PV corrigé, validé : les mêmes noms ; « PV établi le » reste la date de la première validation.
+  await page.getByRole('button', { name: 'PV', exact: true }).click();
+  await expect(page.locator('.pv-sheet .odj-sec').first()).toHaveText('Ancien nom');
+  await page.getByRole('button', { name: 'Valider la version 2' }).click();
+  await expect(page.locator('.pv-sheet .pv-foot')).toContainText(`le ${dansJours(-5).split('-').reverse().join('.')}`);
+  await expect(page.locator('.pv-sheet .odj-sec').first()).toHaveText('Ancien nom');
+});
+
+test('PV : son cadre pris le jour de la séance est gardé ensuite (section renommée le lendemain)', async ({ page }) => {
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  const nom = await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    d.meetings.push({ id: 'm-jour', titre: 'Comité du jour', date: j, heure: '19:30', lieu: '' });
+    localStorage.setItem(k, JSON.stringify(d));
+    return d.sections[0].nom as string;
+  }, { k: cle, j: dansJours(0) });
+  await page.reload();
+  await allerA(page, '/pv?seance=m-jour');
+  // Une note le jour de la séance : le cadre est pris (et suit jusqu'au soir).
+  await page.getByRole('textbox', { name: 'Points divers, informations, prochaine séance…' }).click();
+  await page.keyboard.type('Rien de plus.');
+  await page.getByRole('button', { name: 'PV', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate((k) => JSON.parse(localStorage.getItem(k)!).meetings.find((x: { id: string }) => x.id === 'm-jour').minutes?.cadre?.sections?.[0]?.nom, cle))
+    .toBe(nom);
+  // Le lendemain (la séance passée), la section renommée sans laisser de trace : le PV garde le nom de ce soir-là.
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    d.meetings.find((x: { id: string }) => x.id === 'm-jour').date = j;
+    d.sections[0].nom = 'Renommée le lendemain';
+    localStorage.setItem(k, JSON.stringify(d));
+  }, { k: cle, j: dansJours(-1) });
+  await page.reload();
+  await allerA(page, '/pv?seance=m-jour');
+  await expect(page.locator('.min-section h3').first()).toContainText(nom);
+  await expect(page.locator('.minutes-page')).not.toContainText('Renommée le lendemain');
+});

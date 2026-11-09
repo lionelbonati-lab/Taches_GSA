@@ -1,4 +1,4 @@
-import type { AppData, Meeting, PvSettings, Section, Task } from './types';
+import type { AppData, ContenuOdj, Meeting, PvSettings, Section, Task } from './types';
 import { addDays, finLe, isDone, today } from './utils';
 import { shortDate } from './minutes';
 
@@ -30,6 +30,51 @@ export const FULL_AGENDA: AgendaOptions = {
   statutsExclus: [],
   sectionsExclues: [],
 };
+
+/** Réglages de l'ordre du jour qui décident de ses points et de leur ordre, à l'origine : tout, par délai, sous-sections. */
+export const CONTENU_ODJ: ContenuOdj = {
+  parts: { retards: true, avantProchaine: true, avantSuivante: true, bilan: true, sondages: true },
+  statutsExclus: [],
+  sectionsExclues: [],
+  tri: 'delai',
+  colonnes: { sousSection: true, checklist: true, pourInfo: true },
+};
+
+/** Les réglages d'ordre du jour (ceux d'une personne, d'un profil, ou communs) qui décident de ses points. */
+export function contenuDe(p?: Partial<PvSettings> | Partial<ContenuOdj>): ContenuOdj {
+  const parts = { ...CONTENU_ODJ.parts, ...p?.parts };
+  const colonnes = { ...CONTENU_ODJ.colonnes, ...p?.colonnes };
+  return {
+    parts: { retards: parts.retards, avantProchaine: parts.avantProchaine, avantSuivante: parts.avantSuivante, bilan: parts.bilan, sondages: parts.sondages },
+    statutsExclus: [...(p?.statutsExclus ?? [])],
+    sectionsExclues: [...(p?.sectionsExclues ?? [])],
+    tri: p?.tri ?? CONTENU_ODJ.tri,
+    colonnes: { sousSection: colonnes.sousSection, checklist: colonnes.checklist, pourInfo: colonnes.pourInfo ?? true },
+  };
+}
+
+/**
+ * Réglages de l'ordre du jour communs au club (ReglagesOdj.contenu), que le PV reprend. Pas encore enregistrés : ceux de
+ * la personne qui prépare l'ordre du jour (la première qui a la page Ordre du jour et l'a réglé), sinon ceux d'origine.
+ */
+export function reglagesCommunsOdj(data: AppData): ContenuOdj {
+  if (data.reglagesOdj?.contenu) return contenuDe(data.reglagesOdj.contenu);
+  const prepare = data.people.find(
+    (p) => p.actif && !!data.prefs[p.id]?.pv && p.roles.some((r) => data.roles.find((x) => x.id === r)?.permissions.includes('tab.pv')),
+  );
+  return contenuDe(prepare ? data.prefs[prepare.id]?.pv : undefined);
+}
+
+/** Options de sélection des points selon ces réglages. */
+export const optionsDuContenu = (c: ContenuOdj, o?: Pick<AgendaOptions, 'joursApres' | 'jour' | 'retires'>): AgendaOptions => ({
+  retards: c.parts.retards,
+  avantProchaine: c.parts.avantProchaine,
+  avantSuivante: c.parts.avantSuivante,
+  bilan: c.parts.bilan,
+  statutsExclus: c.statutsExclus,
+  sectionsExclues: c.sectionsExclues,
+  ...o,
+});
 
 /** Où en est un point de l'ordre du jour : en retard, pour la séance, pour la suivante, terminé depuis la précédente. */
 export type Echeance = 'late' | 'p1' | 'p2' | 'bilan';

@@ -5,7 +5,7 @@ import type { AppData, ChecklistItem, LienLieu, Meeting, Person, PvSettings, Sec
 import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
-import { JOURS_APRES, echeanceSuivante, etatTerminee, joursApresTexte, ordreSection, retiresDe, selectAgenda, type Echeance } from '../data/agenda';
+import { JOURS_APRES, contenuDe, reglagesCommunsOdj, echeanceSuivante, etatTerminee, joursApresTexte, ordreSection, retiresDe, selectAgenda, type Echeance } from '../data/agenda';
 import type { Poll } from '../data/types';
 import { archiveHtml, hydrateArchive, sansAnnexes } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
@@ -639,8 +639,33 @@ export function Pv() {
   const { data, user, prefs, setPrefs, update, updateSilent, can } = useStore();
   const club = useClubOptional();
   const attendus = useSuiviPourInfo(data.tasks);
-  const s = withDefaults(prefs.pv);
-  const set = (patch: Partial<PvSettings>) => setPrefs({ pv: { ...s, ...patch } });
+  // Ce qui décide des points et de leur ordre (parties, statuts et sections exclus, tri, sous-sections, checklist, « vue
+  // par ») : commun au club, le PV de la séance le reprend ; le reste (présentation) : à chacun.
+  const commun = reglagesCommunsOdj(data);
+  const s: PvSettings = {
+    ...withDefaults(prefs.pv),
+    parts: { ...withDefaults(prefs.pv).parts, ...commun.parts },
+    statutsExclus: commun.statutsExclus,
+    sectionsExclues: commun.sectionsExclues,
+    tri: commun.tri,
+    colonnes: { ...withDefaults(prefs.pv).colonnes, ...commun.colonnes },
+  };
+  const canEdit = can('tab.pv');
+  const appliquer = (n: PvSettings) => {
+    setPrefs({ pv: n });
+    const c = contenuDe(n);
+    if (canEdit && JSON.stringify(c) !== JSON.stringify(data.reglagesOdj?.contenu && contenuDe(data.reglagesOdj.contenu)))
+      updateSilent((d) => {
+        d.reglagesOdj = { ...d.reglagesOdj, contenu: c };
+      });
+  };
+  // Pas encore communs : ceux affichés (de qui prépare l'ordre du jour) le deviennent.
+  const sansCommun = !data.reglagesOdj?.contenu;
+  useEffect(() => {
+    if (sansCommun && canEdit) appliquer(s);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sansCommun, canEdit]);
+  const set = (patch: Partial<PvSettings>) => appliquer({ ...s, ...patch });
   const setPart = (k: keyof PvSettings['parts'], v: boolean) => set({ parts: { ...s.parts, [k]: v } });
   const setCol = (k: keyof PvSettings['colonnes'], v: boolean) => set({ colonnes: { ...s.colonnes, [k]: v } });
 
@@ -663,7 +688,6 @@ export function Pv() {
 
   // Convoqués : ★ et postes du comité (PERSONNES_DU_CLUB.md).
   const committee: Person[] = convoquesDe(data);
-  const canEdit = can('tab.pv');
 
   // ---------- Excusés et retards annoncés (avec leur motif : repris dans le PV) ----------
   const excusesTxt = texteExcusesOdj(data.people, s1);
@@ -838,7 +862,7 @@ export function Pv() {
 
       <div className="pv-layout">
         <aside className="pv-settings no-print">
-          <ProfilsOdj s={s} normaliser={withDefaults} appliquerReglages={(r) => setPrefs({ pv: r })} canEdit={canEdit} />
+          <ProfilsOdj s={s} normaliser={withDefaults} appliquerReglages={appliquer} canEdit={canEdit} />
           <details>
             <summary>Séances</summary>
             <label>
@@ -1044,7 +1068,7 @@ export function Pv() {
               </>
             )}
           </details>
-          <button className="btn link" onClick={() => setPrefs({ pv: DEFAULT_PV })}>Rétablir les réglages par défaut</button>
+          <button className="btn link" onClick={() => appliquer(DEFAULT_PV)}>Rétablir les réglages par défaut</button>
           <p className="muted small">Tes réglages sont mémorisés pour la prochaine fois.</p>
         </aside>
 

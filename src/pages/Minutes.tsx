@@ -1,10 +1,11 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
-import { FULL_AGENDA, blocsSection, echeanceSuivante, etatTerminee, meetingContext, ordreSection, retiresDe, selectAgenda, sortedMeetings } from '../data/agenda';
+import { blocsSection, reglagesCommunsOdj, echeanceSuivante, etatTerminee, meetingContext, optionsDuContenu, ordreSection, retiresDe, selectAgenda, sortedMeetings } from '../data/agenda';
+import { cadreDe, cadreRetrouve, sectionsDuCadre } from '../data/cadrePv';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, bilanVote, diffTask, resumerChangements, shortDate, stateOf, texteVote } from '../data/minutes';
-import type { AppData, Meeting, MeetingMinutes, Poll, PvOptions, Task, TaskSnapshot, Voix } from '../data/types';
+import type { AppData, EtatPoint, Meeting, MeetingMinutes, Person, Poll, PvOptions, Task, TaskSnapshot, Voix } from '../data/types';
 import { finLe, fmtDate, fmtDateTime, fullName, initials, isDone, newTask, today, uid } from '../data/utils';
 import { NoteField, TexteNote } from '../components/NoteField';
 import { texteDe } from '../data/noteRiche';
@@ -28,7 +29,7 @@ import { BarreOutils, Pilule, type OutilPilule } from '../components/Pilule';
 import { OutilsTexte } from '../components/OutilsTexte';
 import { bilanVu, texteVu } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
-import { aFiger, figerPoints, figerRemarques, remarquesAFiger, reporterChangement, vueFigee } from '../data/etatsPv';
+import { aFiger, completerEtats, etatsACompleter, figerPoints, reporterChangement, vueFigee } from '../data/etatsPv';
 import { PiecesJointesPoint } from '../components/PiecesJointesPoint';
 import { FichePv, type ArretPv, type VotePv } from '../components/FichePv';
 import type { DocTracking } from '../components/DocsField';
@@ -132,11 +133,10 @@ const letter = (i: number) => {
 };
 
 export function Minutes() {
-  const { data, user, can, canEditTask, saveTask, linkTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast, prefs } = useStore();
+  const { data, user, can, canEditTask, saveTask, linkTask, update, updateSilent, annulable, annuler, refaisable, refaire, cloud, setToast } = useStore();
   const sync = useSyncStatus();
   // Pour info (052) : « vue par 3 sur 4 », comme l'ordre du jour (même réglage).
   const attendus = useSuiviPourInfo(data.tasks);
-  const avecVus = prefs.pv?.colonnes?.pourInfo ?? true;
   const agendaRef = useRef<HTMLElement>(null);
   const defile = useDefilement(agendaRef);
   const { section: sections, point: parPoint } = defile;
@@ -200,12 +200,30 @@ export function Minutes() {
   );
   // Excuses et retards annoncés avant la séance : excusés et motifs repris dans le PV tant qu'il n'est pas validé.
   const m: MeetingMinutes = avecAnnonces({ ...EMPTY_MINUTES, ...s1?.minutes }, s1);
-  const committee = committeeOf(data);
   const person = (id: string) => data.people.find((p) => p.id === id);
+  // Après le jour de la séance : le PV dans son cadre de ce soir-là (comité, séance, sections, convoqués, secrétaire,
+  // séance suivante, réglages de l'ordre du jour), comme si on était le soir de la séance ; avant, celui du moment
+  // (cadrePv.ts). Les réglages de l'ordre du jour, communs au club : le PV reprend ses points, dans le même ordre.
+  const fige = !!s1 && s1.date < jour;
+  const cadre = fige ? m.cadre : undefined;
+  const contenu = cadre?.contenu ?? reglagesCommunsOdj(data);
+  const joursApres = cadre ? cadre.joursApres : data.reglagesOdj?.joursApres;
+  const committee: Person[] = cadre ? cadre.convoques.map(person).filter((p): p is Person => !!p) : committeeOf(data);
+  const seance: Meeting | undefined = s1 && cadre ? { ...s1, ...cadre.seance } : s1;
+  const prochaine = cadre ? (cadre.prochaine as Meeting | undefined) : s2;
   // Titre : le nom du comité (comme l'ordre du jour) ; avec la date de la séance pour nommer le PDF, l'archive et l'email.
-  const nomComite = club?.espace.nom ?? 'Comité';
+  const nomCourant = club?.espace.nom ?? 'Comité';
+  const nomComite = cadre?.comite ?? nomCourant;
   const titre = s1 ? `${nomComite} ${shortDate(s1.date)}` : nomComite;
-  const secretaire = data.people.find((p) => p.actif && p.roles.includes('secretaire'));
+  const secretaire = cadre ? (cadre.secretaire ? person(cadre.secretaire) : undefined) : data.people.find((p) => p.actif && p.roles.includes('secretaire'));
+  // Cadre de la séance `x` maintenant : jusqu'à la fin de son jour, celui du moment ; ensuite, ses renommages défaits.
+  const cadreMaintenant = (d: AppData, x: Meeting, etatsX?: MeetingMinutes['etats']) => {
+    const c = cadreDe(d, x, { comite: nomCourant, contenu: reglagesCommunsOdj(d), joursApres: d.reglagesOdj?.joursApres });
+    return x.date < today() ? cadreRetrouve(d, x, c, etatsX) : c;
+  };
+  // « PV établi le » : la date de la première validation (gardée par les versions corrigées).
+  const premiereValidation = m.etabliLe ?? (m.valideLe ? [...(s1?.minutesArchives ?? []).map((a) => a.at), m.valideLe].sort()[0] : undefined);
+  const etabliLe = premiereValidation?.slice(0, 10) ?? today();
   const version = m.version ?? 0;
   const locked = !!m.valideLe && !m.enCorrection; // PV validé : lecture seule jusqu'à « Corriger »
   const editable = can('tab.minutes') && !locked;
@@ -232,6 +250,8 @@ export function Minutes() {
       const avant = avecAnnonces({ ...EMPTY_MINUTES, ...x.minutes }, x);
       const mm: MeetingMinutes = structuredClone(avant);
       fn(mm, d);
+      // Jusqu'à la fin du jour de la séance, son cadre suit ; ensuite il est gardé tel quel (le soir de la séance).
+      if (x.date >= today()) mm.cadre = cadreMaintenant(d, x);
       x.minutes = mm;
       // Excusé retiré (ou finalement présent) dans le PV : l'excuse annoncée tombe aussi ; motif changé : l'annonce suit.
       reporterSurAnnonces(x, avant, mm);
@@ -315,11 +335,13 @@ export function Minutes() {
     if (!figer || !s1 || !lireHistorique) return;
     let fini = false;
     setFigeage({ seance: s1.id });
-    figerPoints(data, { s0, s1, s2 }, m, lireHistorique, data.reglagesOdj?.joursApres).then(
+    figerPoints(data, { s0, s1, s2 }, m, lireHistorique, joursApres).then(
       (e) => {
         if (fini) return;
-        setMinutes((x) => {
+        setMinutes((x, d) => {
           x.etats = x.etats ?? e;
+          // Son cadre aussi, s'il n'a pas été pris le jour de la séance (renommages faits depuis défaits).
+          x.cadre = x.cadre ?? cadreMaintenant(d, d.meetings.find((y) => y.id === s1.id)!, x.etats);
         });
         setFigeage(null);
       },
@@ -333,36 +355,45 @@ export function Minutes() {
     // Une fois par séance : les données qui changent pendant la lecture ne la relancent pas.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [figer, s1?.id]);
-  // PV figé avant qu'on y garde la remarque des points : leur remarque à la fin de la séance, retrouvée une fois (sinon
-  // une remarque écrite après la séance s'y affichait, à la correction du PV par exemple).
-  const remarquesManquantes = can('tab.minutes') && !!lireHistorique && remarquesAFiger(m);
+  // PV figé avant qu'on y garde la remarque, la section et la sous-section des points, ou son cadre : retrouvés une fois
+  // (sinon une remarque écrite, une section renommée après la séance s'y affichait, à la correction du PV par exemple).
+  const historiqueManquant = etatsACompleter(m);
+  const aCompleter = can('tab.minutes') && fige && !!m.etats && ((historiqueManquant && !!lireHistorique) || !m.cadre);
   useEffect(() => {
-    if (!remarquesManquantes || !s1 || !lireHistorique) return;
+    if (!aCompleter || !s1) return;
     let fini = false;
-    figerRemarques(data, s1, m, lireHistorique).then(
-      (r) => {
+    (historiqueManquant && lireHistorique ? completerEtats(data, s1, m, lireHistorique) : Promise.resolve({})).then(
+      (r: Record<string, Partial<EtatPoint>>) => {
         if (fini) return;
-        setMinutes((x) => {
+        setMinutes((x, d) => {
           if (!x.etats) return;
-          x.etats = Object.fromEntries(Object.entries(x.etats).map(([id, e]) => [id, e.remarque === undefined ? { ...e, remarque: r[id] ?? '' } : e]));
+          x.etats = Object.fromEntries(Object.entries(x.etats).map(([id, e]) => [id, { ...e, ...r[id] }]));
+          x.cadre = x.cadre ?? cadreMaintenant(d, d.meetings.find((y) => y.id === s1.id)!, x.etats);
         });
       },
-      // Historique illisible : la remarque d'aujourd'hui, nouvel essai à la prochaine ouverture.
-      (err: unknown) => console.warn('Remarques du PV à la fin de la séance introuvables', err),
+      // Historique illisible : ces champs tels qu'aujourd'hui, nouvel essai à la prochaine ouverture.
+      (err: unknown) => console.warn('Points du PV à la fin de la séance introuvables', err),
     );
     return () => {
       fini = true;
     };
     // Une fois par séance, comme ci-dessus.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remarquesManquantes, s1?.id]);
+  }, [aCompleter, s1?.id]);
 
   // ---------- Points de la séance ----------
-  // Séance passée : points figés à la fin de la séance (etats), sinon tels qu'aujourd'hui.
+  // Séance passée : points figés à la fin de la séance (etats), sinon tels qu'aujourd'hui ; ceux que l'ordre du jour
+  // retient selon ses réglages (parties, statuts et sections exclus), comme lui.
   const etats = m.etats;
-  const sel = selectAgenda(data, s0, s1, s2, { ...FULL_AGENDA, joursApres: data.reglagesOdj?.joursApres, retires: s1?.odjRetires });
+  const sel = selectAgenda(data, s0, s1, s2, optionsDuContenu(contenu, { joursApres, retires: s1?.odjRetires }));
   const bucket = new Map<string, 'late' | 'p1' | 'p2' | 'bilan'>();
-  if (etats) Object.entries(etats).forEach(([id, e]) => bucket.set(id, e.rang));
+  const PART = { late: 'retards', p1: 'avantProchaine', p2: 'avantSuivante', bilan: 'bilan' } as const;
+  if (etats)
+    Object.entries(etats).forEach(([id, e]) => {
+      const sectionId = e.sectionId ?? data.tasks.find((x) => x.id === id)?.sectionId;
+      const exclu = (!!sectionId && contenu.sectionsExclues.includes(sectionId)) || (e.rang !== 'bilan' && contenu.statutsExclus.includes(e.statusId));
+      if (contenu.parts[PART[e.rang]] && !exclu) bucket.set(id, e.rang);
+    });
   else {
     sel.late.forEach((t) => bucket.set(t.id, 'late'));
     sel.avant1.forEach((t) => bucket.set(t.id, 'p1'));
@@ -388,7 +419,19 @@ export function Minutes() {
     (c) => !!c.parentId && principaux.has(c.parentId) && !principaux.has(c.id) && !retires.has(c.id) && (!isDone(data, c) || finLe(c) >= sel.since),
   );
   const points = [...duPv, ...sousPoints].map(vue);
-  const polls = (data.polls ?? []).filter((p) => !retires.has(p.id) && (isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= sel.since));
+  // Sondages : si l'ordre du jour les montre, hors des sections qu'il laisse de côté.
+  const polls = contenu.parts.sondages
+    ? (data.polls ?? []).filter((p) => {
+        const sec = pollSection(data, p);
+        return !retires.has(p.id) && !(sec && contenu.sectionsExclues.includes(sec)) && (isOpen(p) || (p.clotureLe ?? p.dateLimite ?? '') >= sel.since);
+      })
+    : [];
+  // Sections : celles du soir de la séance (cadre), sinon celles d'aujourd'hui ; sans celles que l'ordre du jour laisse de
+  // côté (sauf si un point du PV s'y trouve).
+  const avecPoints = new Set(points.map((t) => t.sectionId));
+  const sectionsPv = (cadre ? sectionsDuCadre(data, cadre, avecPoints) : data.sections).filter((x) => !contenu.sectionsExclues.includes(x.id) || avecPoints.has(x.id));
+  // « Vue par » des points pour info, comme l'ordre du jour.
+  const avecVus = contenu.colonnes.pourInfo;
   // Changements faits depuis le PV, résumés : l'état du départ et celui de la fin (plusieurs changements de statut : un seul).
   const changesOf = (t: Task) => resumerChangements(journal.filter((j) => j.taskId === t.id).flatMap((j) => j.changes));
   const isNewTask = (t: Task) => nouvelles.has(t.id);
@@ -399,7 +442,7 @@ export function Minutes() {
     return [
       t.responsables.map((id) => initials(person(id))).join(', '),
       b !== 'bilan' && t.delai && shortDate(t.delai),
-      b === 'late' ? '⚠ en retard' : b === 'p2' && s2 ? echeanceSuivante(t, s2) : b === 'bilan' ? etatTerminee(data, t, false) : '',
+      b === 'late' ? '⚠ en retard' : b === 'p2' && prochaine ? echeanceSuivante(t, prochaine) : b === 'bilan' ? etatTerminee(data, t, false) : '',
       isNewTask(t) && '🆕 nouvelle',
       // Pour info : qui l'a vue (réglage de l'ordre du jour).
       vus && `👁 ${vus}`,
@@ -408,17 +451,16 @@ export function Minutes() {
 
   // Regroupement : section → sous-section → tâches, dans l'ordre de l'ordre du jour (même tri, mêmes sous-sections,
   // tâches rattachées sous leur tâche principale : voir ordreSection et blocsSection).
-  const reglagesOdj = prefs.pv;
-  const bySection = data.sections.map((sec) => {
-    const tasks = ordreSection(data, points.filter((t) => t.sectionId === sec.id), sec, (t) => bucket.get(t.id), reglagesOdj?.tri);
-    const subs = blocsSection(tasks, reglagesOdj?.colonnes?.sousSection ?? true);
+  const bySection = sectionsPv.map((sec) => {
+    const tasks = ordreSection(data, points.filter((t) => t.sectionId === sec.id), sec, (t) => bucket.get(t.id), contenu.tri);
+    const subs = blocsSection(tasks, contenu.colonnes.sousSection);
     const ici = polls.filter((p) => pollSection(data, p) === sec.id);
     const lie = (p: Poll) => !!p.taskId && tasks.some((t) => t.id === p.taskId);
     return { sec, subs, polls: ici.filter((p) => !lie(p)), lies: ici.filter(lie) };
   });
   // Sondages rattachés à une tâche : sous elle.
   const pollsDe = (t: Task) => polls.filter((p) => p.taskId === t.id && pollSection(data, p) === t.sectionId);
-  const orphanPolls = polls.filter((p) => !data.sections.some((x) => x.id === pollSection(data, p)));
+  const orphanPolls = polls.filter((p) => !sectionsPv.some((x) => x.id === pollSection(data, p)));
 
   // ---------- Actions de séance ----------
   const start = () =>
@@ -939,12 +981,12 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
 
   // Comme l'ordre du jour : sous chaque point, ses étapes de checklist (☑ / ☐, si l'ordre du jour les montre), puis ses
   // points rattachés (ceux du même bloc), un niveau plus bas.
-  const etapesPv = reglagesOdj?.colonnes?.checklist ?? true;
+  const etapesPv = contenu.colonnes.checklist;
   const etapeTexte = (c: Task['checklist'][number]) => `${c.done ? '☑' : '☐'} ${c.label}`;
   const racinesDe = (tasks: Task[]) => tasks.filter((t) => !t.parentId || !tasks.some((x) => x.id === t.parentId));
   const rattachesDe = (t: Task, tasks: Task[]) => tasks.filter((x) => x.parentId === t.id && x.id !== t.id);
   const nouvelleInfo = (t: Task) =>
-    [data.sections.find((x) => x.id === t.sectionId)?.nom, ...(opts.details ? meta(t).filter((x) => x !== '🆕 nouvelle') : [])].filter(Boolean).join(' · ');
+    [sectionsPv.find((x) => x.id === t.sectionId)?.nom ?? data.sections.find((x) => x.id === t.sectionId)?.nom, ...(opts.details ? meta(t).filter((x) => x !== '🆕 nouvelle') : [])].filter(Boolean).join(' · ');
   // Remarque du point (telle qu'à la fin de la séance, PV repris après coup), si les options du PV la montrent.
   const remarqueDe = (t: Task) => (opts.remarques ? t.remarque?.trim() ?? '' : '');
   const taskLine = (t: Task) =>
@@ -952,7 +994,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
   const plainText = () => {
     const out: string[] = [`PROCÈS-VERBAL – ${titre}`];
     if (versionLine) out.push(versionLine);
-    if (s1) out.push(`${longDate(s1.date)} · ${hm(m.heureDebut ?? s1.heure)}${m.heureFin ? ` – ${hm(m.heureFin)}` : ''} · Lieu : ${texteLieu(s1)}`);
+    if (seance) out.push(`${longDate(seance.date)} · ${hm(m.heureDebut ?? seance.heure)}${m.heureFin ? ` – ${hm(m.heureFin)}` : ''} · Lieu : ${texteLieu(seance)}`);
     out.push(`Présents : ${presentsTxt}`);
     if (retardsTxt) out.push(`En retard : ${retardsTxt}`);
     out.push(`Excusés : ${excusesTxt}`);
@@ -1001,8 +1043,8 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
       annexes.forEach((a) => out.push(`   ${a.n}. ${a.d.nom} (${annexeInfo(a, miseEnPage.pages)})`));
     }
     if (deleted.length) out.push('', `Points supprimés : ${deleted.join(', ')}`);
-    if (s2) out.push('', `Prochaine séance : ${s2.titre}, ${longDate(s2.date)}${s2.heure ? ` à ${hm(s2.heure)}` : ''} – ${s2.lieu || 'lieu à définir'}`);
-    out.push('', `PV établi par ${fullName(secretaire ?? user ?? undefined)} le ${fmtDate(today())}`);
+    if (prochaine) out.push('', `Prochaine séance : ${prochaine.titre}, ${longDate(prochaine.date)}${prochaine.heure ? ` à ${hm(prochaine.heure)}` : ''} – ${prochaine.lieu || 'lieu à définir'}`);
+    out.push('', `PV établi par ${fullName(secretaire ?? user ?? undefined)} le ${fmtDate(etabliLe)}`);
     return out.join('\n');
   };
 
@@ -1039,6 +1081,10 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
       const x = d.meetings.find((y) => y.id === s1.id)!;
       // Excusés et motifs annoncés (ordre du jour, « Je serai absent(e) / en retard ») : enregistrés dans le PV validé, comme affichés.
       const mm: MeetingMinutes = { ...avecAnnonces({ ...EMPTY_MINUTES, ...x.minutes }, x), valideLe: now, validePar: user.id, version: n, enCorrection: false };
+      // Valider, c'est fermer la séance le soir même : le cadre de ce soir-là (pris maintenant s'il manque), et la date de
+      // la première validation (« PV établi le ») ; une version corrigée garde les deux.
+      mm.cadre = mm.cadre ?? cadreMaintenant(d, x, mm.etats);
+      mm.etabliLe = mm.etabliLe ?? premiereValidation ?? now;
       delete mm.tachesAvant;
       // Fichiers joints : le choix du moment est fixé (l'ordre du jour peut encore changer).
       mm.annexesExclues = mm.annexesExclues ?? x.odjAnnexesExclues ?? [];
@@ -1199,8 +1245,8 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
         {versionLine && <p className="pv-version">{versionLine}</p>}
       </header>
       <section className="odj-head">
-        <p><b>Début de séance :</b> {hm(m.heureDebut ?? s1?.heure) || '—'}{m.heureFin && <> · <b>Fin :</b> {hm(m.heureFin)}</>}</p>
-        <p><b>Lieu :</b> {s1 ? <LieuSeance m={s1} /> : 'à définir'}</p>
+        <p><b>Début de séance :</b> {hm(m.heureDebut ?? seance?.heure) || '—'}{m.heureFin && <> · <b>Fin :</b> {hm(m.heureFin)}</>}</p>
+        <p><b>Lieu :</b> {seance ? <LieuSeance m={seance} /> : 'à définir'}</p>
         <p><b>Présents :</b> {presentsTxt}</p>
         {retardsTxt && <p><b>En retard :</b> {retardsTxt}</p>}
         <p><b>Excusés :</b> {excusesTxt}</p>
@@ -1263,12 +1309,12 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
         </section>
       )}
       {deleted.length > 0 && <p><b>Points supprimés :</b> {deleted.join(', ')}</p>}
-      {s2 && (
-        <p className="pv-next"><b>Prochaine séance :</b> {s2.titre}, {longDate(s2.date)}{s2.heure && ` à ${hm(s2.heure)}`} – Lieu : <LieuSeance m={s2} /></p>
+      {prochaine && (
+        <p className="pv-next"><b>Prochaine séance :</b> {prochaine.titre}, {longDate(prochaine.date)}{prochaine.heure && ` à ${hm(prochaine.heure)}`} – Lieu : <LieuSeance m={prochaine} /></p>
       )}
       {opts.annexes && <ListeAnnexes annexes={annexes} pages={miseEnPage.pages} />}
       <footer className="pv-foot">
-        PV établi par {fullName(secretaire ?? user ?? undefined)} le {fmtDate(today())}
+        PV établi par {fullName(secretaire ?? user ?? undefined)} le {fmtDate(etabliLe)}
         {m.valideLe && !m.enCorrection && ` · version ${version} validée le ${fmtDate(m.valideLe.slice(0, 10))}`} · {nomAppli()}
       </footer>
       {/* Fichiers joints : à la suite du PV, sur des pages à part à l'impression. */}
@@ -1359,8 +1405,8 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
           <div className="min-main">
             <section className="panel min-session">
               <div className="min-session-row">
-                <strong>{s1.titre} · {longDate(s1.date)}</strong>
-                <span className="muted">Lieu : <LieuSeance m={s1} /></span>
+                <strong>{seance!.titre} · {longDate(s1.date)}</strong>
+                <span className="muted">Lieu : <LieuSeance m={seance!} /></span>
               </div>
               <div className="min-session-row">
                 <label className="inline">Début <input type="time" value={m.heureDebut ?? ''} disabled={!editable} onChange={(e) => setMinutes((x) => { x.heureDebut = e.target.value || undefined; })} /></label>
@@ -1490,12 +1536,12 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
               entete={
                 <>
                   <strong className="pv-fiche-comite">{nomComite}</strong>
-                  <span>{s1.titre}</span>
+                  <span>{seance!.titre}</span>
                   <span>
                     {longDate(s1.date)}
-                    {(m.heureDebut ?? s1.heure) && ` · ${hm(m.heureDebut ?? s1.heure)}${m.heureFin ? ` – ${hm(m.heureFin)}` : ''}`}
+                    {(m.heureDebut ?? seance!.heure) && ` · ${hm(m.heureDebut ?? seance!.heure)}${m.heureFin ? ` – ${hm(m.heureFin)}` : ''}`}
                   </span>
-                  <span>Lieu : <LieuSeance m={s1} /></span>
+                  <span>Lieu : <LieuSeance m={seance!} /></span>
                 </>
               }
             />

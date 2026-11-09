@@ -17,6 +17,8 @@ export const stateOf = (t: Task): TaskSnapshot => ({
   titre: t.titre,
   sous: Object.fromEntries(t.checklist.map((c) => [c.id, c.done])),
   remarque: t.remarque ?? '',
+  sectionId: t.sectionId,
+  sousSection: t.sousSection ?? '',
 });
 
 /** Description lisible des changements entre deux états d'une tâche. */
