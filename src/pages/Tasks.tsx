@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Task } from '../data/types';
-import { applyDelaiRef, childrenOf, daysUntil, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, newTask, parentOf, recurrenceLabel, today } from '../data/utils';
+import { applyDelaiRef, childrenOf, daysUntil, descendantsOf, derniereSeancePassee, estArchivee, fmtDate, fullName, isDone, isLate, newTask, parentOf, recurrenceLabel, today } from '../data/utils';
 import { finDeSemaine } from '../data/repetition';
 import { sortedMeetings } from '../data/agenda';
 import { finAnticipee, versProchaineSeance } from '../data/seances';
@@ -136,6 +136,8 @@ function ListeTaches() {
     const etiquetteSerie = serieFiltree ? (data.etiquettes ?? []).find((e) => e.serieId === serieFiltree)?.id : undefined;
     const duFiltre = (t: Task) =>
       dansLaSerie ? evenementsDe(t).some((id) => dansLaSerie.has(id)) || (!!etiquetteSerie && etiquettesDe(t).includes(etiquetteSerie)) : evenementsDe(t).includes(f.event);
+    // Points rattachés au point du filtre « Rattachés à », à tous les niveaux.
+    const sousLeFiltre = new Set(f.parent ? descendantsOf(data, f.parent).map((x) => x.id) : []);
     // Tous les filtres, sauf `sauf` : les choix du filtre « Événement » sont ceux qui ont des tâches avec les autres filtres.
     // `portee` : mes points ou tous (pour dire combien « Tous » en montrerait).
     const garde = (t: Task, sauf?: 'event', portee = effScope) => {
@@ -150,7 +152,8 @@ function ListeTaches() {
       if (f.section && t.sectionId !== f.section) return false;
       if (f.sous && t.sousSection !== f.sous) return false;
       if (f.resp && !t.responsables.includes(f.resp)) return false;
-      if (f.parent && t.id !== f.parent && t.parentId !== f.parent) return false;
+      // « Rattachés à … » : le point choisi et ceux qui lui sont rattachés, à tous les niveaux.
+      if (f.parent && t.id !== f.parent && !sousLeFiltre.has(t.id)) return false;
       if (f.statut === 'retard' ? !isLate(data, t) : f.statut && t.statusId !== f.statut) return false;
       if (sauf !== 'event' && f.event && !duFiltre(t)) return false;
       if (f.meeting && t.meetingId !== f.meeting) return false;
@@ -227,7 +230,7 @@ function ListeTaches() {
   };
 
   const exportCsv = () => {
-    const head = ['Section', 'Sous-section', 'Point', 'Point principal', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Étiquettes', 'Répétition', 'Remarque', 'Sous-points'];
+    const head = ['Section', 'Sous-section', 'Point', 'Rattaché à', 'Responsable(s)', 'Statut', 'Délai', 'En retard', 'Événement', 'Séance', 'Étiquettes', 'Répétition', 'Remarque', 'Checklist'];
     const subs = (t: Task) => t.checklist.map((c) => `${c.done ? '☑' : '☐'} ${c.label}`).join(' | ');
     const rows = list.map((t) => [
       sectionName(t.sectionId), t.sousSection, t.titre, parentOf(data, t)?.titre ?? '', respNames(t), statusOf(t)?.label ?? '', t.delai, isLate(data, t) ? 'oui' : '',
@@ -343,8 +346,8 @@ function ListeTaches() {
           <option value="lie">📌 Délai calé sur un événement / une séance</option>
           <option value="recurrente">🔁 Points récurrents</option>
           <option value="email">📧 Avec email programmé</option>
-          <option value="principale">🧩 Points principaux</option>
-          <option value="liee">↳ Points rattachés</option>
+          <option value="principale">🧩 Avec des points rattachés</option>
+          <option value="liee">↳ Rattachés à un autre point</option>
           <option value="pourinfo">👁 Mes « Pour info » pas encore vus</option>
         </select>
         <select value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
@@ -354,8 +357,8 @@ function ListeTaches() {
           <option value="facture">{GENRES.facture.icon} Paiements de factures</option>
         </select>
         <select value={f.parent} onChange={(e) => setF({ ...f, parent: e.target.value })}>
-          <option value="">Tous points principaux</option>
-          {data.tasks.filter((t) => childrenOf(data, t.id).length).map((t) => <option key={t.id} value={t.id}>🧩 {t.titre}</option>)}
+          <option value="">Rattachés à : tous les points</option>
+          {data.tasks.filter((t) => childrenOf(data, t.id).length).map((t) => <option key={t.id} value={t.id}>🧩 Rattachés à « {t.titre} »</option>)}
         </select>
         {!archives && <label className="inline hide-toggle" title="Les terminés restent affichés jusqu’au prochain comité, puis sont archivés"><input type="checkbox" checked={hideDone} onChange={() => setHideDone(!hideDone)} /> Masquer les terminés</label>}
         {activeFilters > 0 && <button className="btn link" onClick={() => setF(EMPTY_FILTERS)}>Effacer</button>}
@@ -519,17 +522,24 @@ export function TaskCard({ t, onOpen, onStatus, onVu }: { t: Task; onOpen: () =>
   );
 }
 
-/** Repères : « ↳ tâche principale » pour une tâche liée, « x/y tâches rattachées » pour une tâche principale. */
+/**
+ * Repères : « ↳ point » pour un point rattaché à un autre, « x/y points rattachés » pour un point qui en a ; en cascade,
+ * un point peut avoir les deux.
+ */
 export function Linked({ t }: { t: Task }) {
   const { data } = useStore();
   const parent = parentOf(data, t);
   const kids = childrenOf(data, t.id);
-  if (parent) return <small className="linked-to" title={`Point rattaché à « ${parent.titre} »`}>↳ {parent.titre}</small>;
-  if (!kids.length) return null;
+  if (!parent && !kids.length) return null;
   const done = kids.filter((k) => isDone(data, k)).length;
   return (
-    <small className={`linked-count ${done === kids.length ? 'all' : ''}`} title={`${kids.length} point(s) rattaché(s), ${done} terminé(s)`}>
-      <Icone n="rattacher" /> {done}/{kids.length} points rattachés
-    </small>
+    <>
+      {parent && <small className="linked-to" title={`Point rattaché à « ${parent.titre} »`}>↳ {parent.titre}</small>}
+      {kids.length > 0 && (
+        <small className={`linked-count ${done === kids.length ? 'all' : ''}`} title={`${kids.length} point(s) rattaché(s) à celui-ci, ${done} terminé(s)`}>
+          <Icone n="rattacher" /> {done}/{kids.length} points rattachés
+        </small>
+      )}
+    </>
   );
 }

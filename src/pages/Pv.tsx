@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import { useStore } from '../data/store';
 import { convoquesDe } from '../data/seances';
 import type { AppData, ChecklistItem, LienLieu, Meeting, Person, PvSettings, Section, StyleDocs, Task } from '../data/types';
-import { fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
+import { arbreDe, fmtDate, fmtDateTime, fullName, initials, shortName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
 import { isOpen, pollSection, pollSummary } from '../data/polls';
 import { JOURS_APRES, contenuDe, reglagesCommunsOdj, echeanceSuivante, etatTerminee, joursApresTexte, ordreSection, retiresDe, selectAgenda, type Echeance } from '../data/agenda';
@@ -173,14 +173,14 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
   // (choix commun au comité, enregistré dans la séance).
   const tachesOdj = unifiedGroups.flatMap((g) => g.tasks);
   const annexes = s.annexes ? annexesDe(tachesOdj, s1?.odjAnnexesExclues ?? []) : [];
-  // Sous-tâche : case, intitulé et initiales de la personne chargée.
+  // Étape de checklist : case et intitulé.
   const checkText = (_t: Task, ch: ChecklistItem) => `${ch.done ? '☑' : '☐'} ${ch.label}`;
   const respText = (t: Task) => t.responsables.map((id) => initials(person(id))).join(', ') || '—';
 
   const firstOpen = data.statuses.find((x) => !x.done)?.id;
   const pollItem = (p: Poll): OItem => ({ key: p.id, poll: p, children: [] });
   const textItem = (key: string, text: string): OItem => ({ key, text, children: [] });
-  // Sous-points d'une tâche : checklist, documents, sondages liés.
+  // Sous une tâche : sa checklist, ses documents, ses sondages liés (puis ses points rattachés : buildOutline).
   const taskItem = (t: Task): OItem => ({
     key: t.id,
     task: t,
@@ -194,12 +194,11 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
     groups.map((g) => {
       const items: OItem[] = [];
       const bySub = new Map<string, OItem>();
-      // Tâches liées dont la tâche principale figure aussi ici : placées sous elle.
-      const ids = new Set(g.tasks.map((t) => t.id));
-      const underParent = (t: Task) => !!t.parentId && ids.has(t.parentId);
+      // Points rattachés à un point qui figure aussi ici : placés sous lui, en cascade (niveau par niveau).
+      const { parentDe, profondeur } = arbreDe(g.tasks);
       const itemOf = new Map<string, OItem>();
       for (const t of g.tasks) {
-        if (underParent(t)) continue;
+        if (parentDe(t)) continue;
         const sub = s.colonnes.sousSection ? t.sousSection : '';
         if (!sub) {
           const it = taskItem(t);
@@ -224,7 +223,14 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
           head.children.push(it);
         }
       }
-      g.tasks.filter(underParent).forEach((t) => itemOf.get(t.parentId!)?.children.push(taskItem(t)));
+      g.tasks
+        .filter((t) => parentDe(t))
+        .sort((a, b) => profondeur(a) - profondeur(b))
+        .forEach((t) => {
+          const it = taskItem(t);
+          itemOf.set(t.id, it);
+          itemOf.get(parentDe(t)!.id)?.children.push(it);
+        });
       pollsOf(g.key).filter((p) => !g.tasks.some((t) => t.id === p.taskId)).forEach((p) => items.push(pollItem(p)));
       return { key: g.key, label: g.label, items };
     });
@@ -250,7 +256,7 @@ function contenuOdj(c: ContexteOdj, s: PvSettings, joursApres: number) {
       : it.poll
         ? `📊 Sondage : ${it.poll.question} — ${pollSummary(it.poll)}`
         : it.text ?? '';
-  // Niveaux : 1. section · a. point · ■ sous-point · ◦ détail
+  // Niveaux : 1. section · a. point · ■ point rattaché ou étape · ◦ niveau suivant
   // Niveau de détail : sections seulement (0), + sous-sections (1), complet.
   const maxDepth = s.detail === 'sections' ? -1 : s.detail === 'sousSections' ? 0 : 9;
   const outlineText = (secs: OSec[]) => {

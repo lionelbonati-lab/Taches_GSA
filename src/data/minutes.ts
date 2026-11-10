@@ -34,14 +34,17 @@ export function diffTask(data: AppData, before: TaskSnapshot, after: Task): stri
   if (before.remarque !== undefined && before.remarque.trim() !== (after.remarque ?? '').trim()) out.push('remarque modifiée');
   if (before.sous)
     for (const c of after.checklist) {
-      if (!(c.id in before.sous)) out.push(`sous-point ajouté : ${c.label}`);
-      else if (before.sous[c.id] !== c.done) out.push(`sous-point « ${c.label} » ${c.done ? 'fait' : 'rouvert'}`);
+      if (!(c.id in before.sous)) out.push(`étape ajoutée : ${c.label}`);
+      else if (before.sous[c.id] !== c.done) out.push(`étape « ${c.label} » ${c.done ? 'cochée' : 'décochée'}`);
     }
   return out;
 }
 
 const CHAMP = /^(statut|délai|responsable) : (.*) → (.*)$/;
-const COCHE = /^sous-point « (.*) » (fait|rouvert)$/;
+// Étapes de checklist : « étape … » ; avant le 10.11.2026, « sous-point … » (fait / rouvert), lus et réécrits pareil.
+const COCHE = /^(?:sous-point|étape) « (.*) » (fait|rouvert|cochée|décochée)$/;
+const COCHEE: Record<string, string> = { fait: 'cochée', rouvert: 'décochée' };
+const AJOUTEE = /^sous-point ajouté : /;
 
 /**
  * Changements d'un point au PV, résumés : pour le statut, le délai et les responsables, l'état du départ et celui de la
@@ -51,7 +54,8 @@ const COCHE = /^sous-point « (.*) » (fait|rouvert)$/;
 export function resumerChangements(changes: string[]): string[] {
   type Ligne = { champ: string; de: string; a: string } | { etape: string; fois: number; dernier: string } | { texte: string };
   const lignes = new Map<string, Ligne>();
-  for (const c of changes) {
+  for (const ligne of changes) {
+    const c = ligne.replace(AJOUTEE, 'étape ajoutée : ');
     const m = CHAMP.exec(c);
     const k = COCHE.exec(c);
     const l = lignes.get(m ? m[1] : k ? `étape:${k[1]}` : c);
@@ -59,12 +63,13 @@ export function resumerChangements(changes: string[]): string[] {
       if (l && 'champ' in l) l.a = m[3];
       else lignes.set(m[1], { champ: m[1], de: m[2], a: m[3] });
     } else if (k) {
-      if (l && 'etape' in l) Object.assign(l, { fois: l.fois + 1, dernier: k[2] });
-      else lignes.set(`étape:${k[1]}`, { etape: k[1], fois: 1, dernier: k[2] });
+      const etat = COCHEE[k[2]] ?? k[2];
+      if (l && 'etape' in l) Object.assign(l, { fois: l.fois + 1, dernier: etat });
+      else lignes.set(`étape:${k[1]}`, { etape: k[1], fois: 1, dernier: etat });
     } else if (!l) lignes.set(c, { texte: c });
   }
   return [...lignes.values()].flatMap((l) =>
-    'champ' in l ? (l.de === l.a ? [] : [`${l.champ} : ${l.de} → ${l.a}`]) : 'etape' in l ? (l.fois % 2 ? [`sous-point « ${l.etape} » ${l.dernier}`] : []) : [l.texte],
+    'champ' in l ? (l.de === l.a ? [] : [`${l.champ} : ${l.de} → ${l.a}`]) : 'etape' in l ? (l.fois % 2 ? [`étape « ${l.etape} » ${l.dernier}`] : []) : [l.texte],
   );
 }
 

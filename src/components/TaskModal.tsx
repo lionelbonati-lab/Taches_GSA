@@ -12,7 +12,7 @@ import { cleVu, nbPourInfo, pourMoi, vuAvantModif } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { aPrendreOuverte, auteurAPrendre, pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
 import type { AppData, PersonneHors, Task, VuPourInfo } from '../data/types';
-import { childrenOf, fmtDateTime, fullName, isDone, nomPoste, parentOf, recurrenceLabel, uid } from '../data/utils';
+import { ancetresOf, childrenOf, fmtDateTime, fullName, isDone, nomPoste, parentOf, recurrenceLabel, uid } from '../data/utils';
 import { finAnticipee, motSeance } from '../data/seances';
 import { Modal } from './ui';
 import { Icone, type IconeNom } from './icones';
@@ -168,9 +168,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       return { ...x, respHors: l.length ? l : undefined };
     });
 
-  // Tâches liées : un seul niveau (une tâche principale n'est pas elle-même liée à une autre).
+  // Points rattachés, en cascade : ceux rattachés directement à celui-ci ; celui auquel il est rattaché, et plus haut ceux
+  // auxquels ce dernier l'est.
   const kids = isNew ? [] : childrenOf(data, task.id).sort((a, b) => (a.delai || '9999').localeCompare(b.delai || '9999'));
   const parent = parentOf(data, t);
+  const plusHaut = ancetresOf(data, t).slice(1);
   const secName = (id: string) => data.sections.find((s) => s.id === id)?.nom ?? '';
 
   const toggleResp = (id: string) =>
@@ -313,7 +315,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     data.events.find((e) => e.id === t.eventId)?.nom,
     data.meetings.find((m) => m.id === t.meetingId)?.titre,
     parent && `↳ ${parent.titre}`,
-    kids.length > 0 && pluriel(kids.length, 'point rattaché'),
+    kids.length > 0 && `${kids.length} point${kids.length > 1 ? 's' : ''} rattaché${kids.length > 1 ? 's' : ''}`,
   ].filter(Boolean).join(', ');
   const nbInfo = nbPourInfo(t.pourInfo);
   const nbProposes = t.aPrendre?.personnes.length ?? 0;
@@ -377,7 +379,9 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       <div className="form">
         {parent && (
           <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>
-            ↳ Point rattaché à <b>{parent.titre}</b> <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
+            ↳ Point rattaché à <b>{parent.titre}</b>
+            {plusHaut.length > 0 && <span className="muted">, lui-même rattaché à {plusHaut.map((x) => `« ${x.titre} »`).join(' › ')}</span>}{' '}
+            <span className="muted">({secName(parent.sectionId)}) · ouvrir</span>
           </button>
         )}
         {pourMoiAPrendre && (

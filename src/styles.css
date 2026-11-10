@@ -566,7 +566,8 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .linked-to { display: block; font-size: 0.78rem; color: var(--muted); margin-top: 2px; }
 .linked-count { display: block; font-size: 0.78rem; color: var(--primary); font-weight: 500; margin-top: 2px; }
 .linked-count.all { color: #16a34a; }
-.min-task.child { margin-left: 22px; border-left: 2px solid var(--border); padding-left: 10px; }
+/* Point rattaché : en retrait sous le point auquel il est rattaché, d'un cran de plus à chaque niveau (--niveau). */
+.min-task.child { margin-left: min(calc(22px * var(--niveau, 1)), 35%); border-left: 2px solid var(--border); padding-left: 10px; }
 .pv-parent { color: #64748b; font-size: 0.9em; }
 
 /* ---------- Emails programmés ---------- */

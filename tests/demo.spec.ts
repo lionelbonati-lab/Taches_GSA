@@ -2444,6 +2444,95 @@ test('PV repris après la séance : un sous-point s’affiche sous son point, ra
   await expect(page.locator('.min-task.child[data-point="Point à part"]')).toBeVisible();
 });
 
+test('rattachements en cascade : un point rattaché à un point rattaché, sans boucle, partout l’un sous l’autre', async ({ page }) => {
+  // « AG du club » ← « Organiser le repas » ← « Réserver le traiteur » et « Commander les boissons » ; « Préparer le
+  // PowerPoint » ← « AG du club ». Le petit-enfant est enregistré avant son point : il doit quand même se ranger sous lui.
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+    let s1 = d.meetings.filter((m: { date: string }) => m.date >= j[0]).sort((a: { date: string }, b: { date: string }) => a.date.localeCompare(b.date))[0];
+    if (!s1) d.meetings.push((s1 = { id: 'm-test', titre: 'Comité test', date: j[1], heure: '19:30', lieu: '' }));
+    const moi = d.people[0].id;
+    const t = (id: string, titre: string, o: object = {}) => ({ id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: ouvert, delai: j[0], meetingId: s1.id, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...o });
+    d.tasks.push(
+      t('c3', 'Réserver le traiteur', { parentId: 'c2' }),
+      t('c1', 'AG du club'),
+      t('c2', 'Organiser le repas', { parentId: 'c1' }),
+      t('c4', 'Commander les boissons', { parentId: 'c2' }),
+      t('c5', 'Préparer le PowerPoint', { parentId: 'c1' }),
+      t('c6', 'Point à part'),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, { k: cle, j: [dansJours(0), dansJours(20)] });
+  await page.reload();
+  const cascade = ['AG du club', 'Organiser le repas', 'Réserver le traiteur', 'Commander les boissons', 'Préparer le PowerPoint'];
+
+  // Ordre du jour : chacun sous le point auquel il est rattaché, un cran plus bas à chaque niveau.
+  await allerA(page, '/ordre-du-jour');
+  await expect(page.locator('.pv-sheet .odj-task', { hasText: 'Réserver le traiteur' })).toBeVisible();
+  const odj = await page.locator('.pv-sheet .odj-task').evaluateAll((els) =>
+    els.map((e) => ({ titre: [...e.childNodes].filter((n) => n.nodeType === 3).map((n) => n.textContent).join('').trim(), niveau: [...document.querySelectorAll('.pv-sheet li')].filter((li) => li.contains(e)).length })),
+  );
+  const ici = odj.filter((x) => cascade.includes(x.titre));
+  expect(ici.map((x) => x.titre)).toEqual(cascade);
+  const n0 = ici[0].niveau;
+  expect(ici.map((x) => x.niveau - n0)).toEqual([0, 1, 2, 2, 1]);
+
+  // PV : même ordre, en retrait d'un cran par niveau.
+  await allerA(page, '/pv');
+  await expect(page.locator('.min-task[data-point="Réserver le traiteur"]')).toBeVisible();
+  const pv = await page.locator('.min-agenda .min-task').evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.point));
+  expect(pv.filter((x) => cascade.includes(x!))).toEqual(cascade);
+  await expect(page.locator('.min-task[data-point="AG du club"]')).not.toHaveClass(/child/);
+  await expect(page.locator('.min-task[data-point="Organiser le repas"]')).toHaveAttribute('style', /--niveau: 1/);
+  await expect(page.locator('.min-task[data-point="Réserver le traiteur"]')).toHaveAttribute('style', /--niveau: 2/);
+
+  // Liste : « Organiser le repas » est à la fois rattaché (↳) et a des points rattachés (🧩) ; filtre « Rattachés à » :
+  // le point et tous ceux qui lui sont rattachés, à tous les niveaux.
+  await page.goto('./?demo#/taches');
+  const ligne = page.locator('main tr').filter({ has: page.getByText('Organiser le repas', { exact: true }) });
+  await expect(ligne.locator('.linked-to')).toHaveText('↳ AG du club');
+  await expect(ligne.locator('.linked-count')).toContainText('0/2 points rattachés');
+  // (Le lien « Voir dans la liste » de la fiche : le même filtre.)
+  await allerA(page, '/taches?parent=c1');
+  await expect(page.locator('select', { has: page.locator('option', { hasText: 'Rattachés à : tous les points' }) })).toHaveValue('c1');
+  for (const titre of cascade) await expect(page.locator('main').getByText(titre, { exact: true }).filter({ visible: true }).first()).toBeVisible();
+  await expect(page.locator('main').getByText('Point à part', { exact: true }).filter({ visible: true })).toHaveCount(0);
+
+  // Fiche du petit-enfant : toute la chaîne ; pas de boucle (ni « Rattacher un point existant » vers ses points plus haut).
+  await page.locator('main').getByText('Réserver le traiteur', { exact: true }).filter({ visible: true }).first().click();
+  let fiche = page.locator('.modal').first();
+  await expect(fiche.locator('.parent-banner')).toContainText('Point rattaché à Organiser le repas, lui-même rattaché à « AG du club »');
+  let liens = await deplier(fiche, 'Rattachements');
+  await expect(liens.getByRole('combobox', { name: /^Rattaché à/ })).toHaveValue('c2');
+  await liens.getByRole('button', { name: 'Rattacher un point existant' }).click();
+  const existants = await liens.locator('select', { has: page.locator('option', { hasText: '— Choisir le point à rattacher —' }) }).locator('option').allTextContents();
+  expect(existants.some((x) => x.startsWith('AG du club') || x.startsWith('Organiser le repas'))).toBe(false);
+  expect(existants.some((x) => x.startsWith('Point à part'))).toBe(true);
+  // Un niveau de plus, depuis la fiche : « + Nouveau point rattaché ».
+  await liens.getByRole('button', { name: '+ Nouveau point rattaché' }).click();
+  const enfant = page.locator('.modal').last();
+  await enfant.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Choisir le menu');
+  await expect(enfant.locator('.parent-banner')).toContainText('Point rattaché à Réserver le traiteur, lui-même rattaché à « Organiser le repas » › « AG du club »');
+  await enfant.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(1);
+  await expect(liens.locator('.linked-row', { hasText: 'Choisir le menu' })).toBeVisible();
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Fiche du premier : « Rattaché à » ne propose aucun des points qui lui sont rattachés (à tout niveau).
+  await page.locator('main').getByText('AG du club', { exact: true }).filter({ visible: true }).first().click();
+  fiche = page.locator('.modal').first();
+  liens = await deplier(fiche, 'Rattachements');
+  const choix = await liens.getByRole('combobox', { name: /^Rattaché à/ }).locator('option').allTextContents();
+  expect(choix.filter((x) => [...cascade.slice(1), 'Choisir le menu'].some((c) => x.startsWith(c)))).toEqual([]);
+  expect(choix.some((x) => x.startsWith('Point à part'))).toBe(true);
+  await expect(liens.locator('.linked-row', { hasText: 'Organiser le repas' })).toContainText('2');
+  await expect(liens.locator('summary')).toContainText('2 points rattachés');
+});
+
 test('PV en cours : un sous-point créé depuis la fiche d’un point s’affiche sous lui, même avec un délai lointain', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const nouveau = await nouvelleTache(page, 'Point du PV');
@@ -2762,7 +2851,7 @@ test('fiche du PV : onglets Checklist, Rattachements, Étiquettes et Documents, 
       documents: ['devis.png'],
       enfant: true,
       auPv: true,
-      journal: ['sous-point ajouté : Relancer le fournisseur'],
+      journal: ['étape ajoutée : Relancer le fournisseur'],
       voisin: ['rattaché à « Point aux onglets »'],
     });
 

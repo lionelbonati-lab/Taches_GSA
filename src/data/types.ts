@@ -219,7 +219,7 @@ export interface Task {
   eventId?: string;
   meetingId?: string;
   checklist: ChecklistItem[];
-  /** Tâche principale à laquelle cette tâche est liée (un seul niveau). */
+  /** Point auquel ce point est rattaché (lui-même peut être rattaché à un autre : en cascade, sans boucle). */
   parentId?: string;
   documents?: TaskDoc[];
   delaiRef?: DelaiRef;

@@ -106,12 +106,83 @@ export const finLe = (t: Task) => t.termineeLe ?? t.updatedAt?.slice(0, 10) ?? '
 export const estArchivee = (data: AppData, t: Task, seance = derniereSeancePassee(data)) =>
   !!seance && isDone(data, t) && finLe(t) <= seance.date;
 
-// ---------- Tâches liées ----------
+// ---------- Points rattachés ----------
+// Un point peut être rattaché à un autre, lui-même rattaché à un autre, et ainsi de suite (en cascade). Une boucle
+// (A rattaché à B, rattaché à A) n'est jamais proposée ; venue d'anciennes données, elle est rompue à l'affichage.
 
-/** Tâches liées à une tâche principale. */
-export const childrenOf = (data: AppData, id: string) => data.tasks.filter((t) => t.parentId === id);
-/** Tâche principale d'une tâche liée. */
-export const parentOf = (data: AppData, t: Task) => (t.parentId ? data.tasks.find((x) => x.id === t.parentId) : undefined);
+/** Points rattachés directement à un point. */
+export const childrenOf = (data: AppData, id: string) => data.tasks.filter((t) => t.parentId === id && t.id !== id);
+/** Point auquel un point est rattaché. */
+export const parentOf = (data: AppData, t: Task) => (t.parentId && t.parentId !== t.id ? data.tasks.find((x) => x.id === t.parentId) : undefined);
+
+/** Points auxquels un point est rattaché, du plus proche au plus lointain (s'arrête sur une boucle). */
+export function ancetresOf(data: AppData, t: Task): Task[] {
+  const out: Task[] = [];
+  const vus = new Set([t.id]);
+  for (let p = parentOf(data, t); p && !vus.has(p.id); p = parentOf(data, p)) {
+    vus.add(p.id);
+    out.push(p);
+  }
+  return out;
+}
+
+/** Points rattachés à un point, à tous les niveaux : ceux qui lui sont rattachés, puis ceux rattachés à ceux-là… */
+export function descendantsOf(data: Pick<AppData, 'tasks'>, id: string): Task[] {
+  const out: Task[] = [];
+  const vus = new Set([id]);
+  for (let i = -1; i < out.length; i++) {
+    const de = i < 0 ? id : out[i].id;
+    for (const x of data.tasks) if (x.parentId === de && !vus.has(x.id)) {
+      vus.add(x.id);
+      out.push(x);
+    }
+  }
+  return out;
+}
+
+/** Le point `id` peut-il être rattaché à `cibleId` ? Ni à lui-même, ni à un point qui lui est rattaché (à tout niveau). */
+export const peutRattacherA = (data: Pick<AppData, 'tasks'>, id: string, cibleId: string) => id !== cibleId && !descendantsOf(data, id).some((x) => x.id === cibleId);
+
+/**
+ * Arbre d'une liste de points : pour chacun, le point de la liste sous lequel il se range (celui auquel il est rattaché,
+ * s'il est dans la liste) et sa profondeur (0 : premier niveau ; 1 : rattaché à un point du premier niveau…). Un point
+ * dont la chaîne de rattachements fait une boucle reste au premier niveau.
+ */
+export function arbreDe(tasks: Task[]) {
+  const parId = new Map(tasks.map((t) => [t.id, t]));
+  const parent = new Map<string, Task>();
+  const profondeur = new Map<string, number>();
+  for (const t of tasks) {
+    const chaine: Task[] = [];
+    const vus = new Set([t.id]);
+    let boucle = false;
+    for (let p = t.parentId ? parId.get(t.parentId) : undefined; p; p = p.parentId ? parId.get(p.parentId) : undefined) {
+      if (vus.has(p.id)) {
+        boucle = true;
+        break;
+      }
+      vus.add(p.id);
+      chaine.push(p);
+    }
+    if (boucle || !chaine.length) continue;
+    parent.set(t.id, chaine[0]);
+    profondeur.set(t.id, chaine.length);
+  }
+  const parentDe = (t: Task) => parent.get(t.id);
+  return {
+    parentDe,
+    profondeur: (t: Task) => profondeur.get(t.id) ?? 0,
+    /** Points du premier niveau. */
+    racines: tasks.filter((t) => !parent.has(t.id)),
+    /** Points rangés directement sous `t`. */
+    sous: (t: Task) => tasks.filter((x) => parent.get(x.id)?.id === t.id),
+    /** `x` est-il rangé sous `t`, à n'importe quel niveau ? */
+    dessous: (x: Task, t: Task) => {
+      for (let p = parentDe(x); p; p = parentDe(p)) if (p.id === t.id) return true;
+      return false;
+    },
+  };
+}
 
 /** Jours de `a` à `b` (dates AAAA-MM-JJ). */
 export function diffDays(a: string, b: string) {

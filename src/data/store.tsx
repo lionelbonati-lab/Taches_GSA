@@ -1,7 +1,7 @@
 import { useCallback, useContext, useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { makeSeed } from './seed';
 import { hasPermission, litDiscussion, userRoles, voitTache } from './permissions';
-import { applyDelaiRef, fmtDate, fullName, isDone, postesFor, today, uid } from './utils';
+import { applyDelaiRef, fmtDate, fullName, isDone, peutRattacherA, postesFor, today, uid } from './utils';
 import type { ActivityNotif, AppData, Permission, Poll, Prefs, ScheduledEmail, Task } from './types';
 import { clearFiles } from './files';
 import { avecVote, finSondage, sondageEnregistre } from './polls';
@@ -517,7 +517,8 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
     (taskId: string, parentId: string | undefined) => {
       const t = data.tasks.find((x) => x.id === taskId);
       const p = parentId ? data.tasks.find((x) => x.id === parentId) : data.tasks.find((x) => x.id === t?.parentId);
-      if (!t || (parentId && !p)) return;
+      // Pas de boucle : ni à lui-même, ni à un point qui lui est rattaché (à tout niveau).
+      if (!t || (parentId && (!p || !peutRattacherA({ tasks: data.tasks }, taskId, parentId)))) return;
       update((d) => {
         const x = d.tasks.find((y) => y.id === taskId);
         if (x) {

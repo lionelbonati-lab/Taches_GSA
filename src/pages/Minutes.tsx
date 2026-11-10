@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore, useSyncStatus } from '../data/store';
 import { blocsSection, reglagesCommunsOdj, echeanceSuivante, etatTerminee, meetingContext, optionsDuContenu, ordreSection, retiresDe, selectAgenda, sortedMeetings } from '../data/agenda';
@@ -6,7 +6,7 @@ import { cadreDe, cadreRetrouve, sectionsDuCadre } from '../data/cadrePv';
 import { committeeOf, isOpen, pollSection, pollSummary } from '../data/polls';
 import { EMPTY_MINUTES, bilanVote, diffTask, resumerChangements, shortDate, stateOf, texteVote } from '../data/minutes';
 import type { AppData, EtatPoint, Meeting, MeetingMinutes, Person, Poll, PvOptions, Task, TaskSnapshot, Voix } from '../data/types';
-import { finLe, fmtDate, fmtDateTime, fullName, initials, isDone, newTask, today, uid } from '../data/utils';
+import { arbreDe, descendantsOf, finLe, fmtDate, fmtDateTime, fullName, initials, isDone, newTask, today, uid } from '../data/utils';
 import { NoteField, TexteNote } from '../components/NoteField';
 import { texteDe } from '../data/noteRiche';
 import { TaskModal } from '../components/FicheTache';
@@ -105,7 +105,7 @@ const CHAMP_DU_CHANGEMENT: [string, keyof Task][] = [
   ['responsable', 'responsables'],
   ['intitulé', 'titre'],
   ['remarque', 'remarque'],
-  ['sous-point', 'checklist'],
+  ['étape', 'checklist'],
 ];
 
 /**
@@ -309,16 +309,18 @@ export function Minutes() {
           if (x) x.termineeLe = s1.date;
         }, { suite: true });
     }
-    // Points rattachés depuis la fiche (sous-points) : inscrits au PV, comme une tâche décidée en séance (créés), ou avec
-    // le rattachement dans le journal (points existants) ; figé : ajoutés aux points du PV.
+    // Points rattachés depuis la fiche (à ce point, ou en cascade à l'un de ses points rattachés) : inscrits au PV, comme
+    // une tâche décidée en séance (créés), ou avec le rattachement dans le journal (points existants) ; figé : ajoutés aux
+    // points du PV.
     if (t && pending.ids) {
       const existaient = new Set(pending.ids);
-      const enfants = data.tasks.filter((x) => x.parentId === t.id && !pending.enfants?.includes(x.id));
+      const enfants = descendantsOf(data, t.id).filter((x) => !pending.enfants?.includes(x.id));
       if (enfants.length)
         setMinutes((x, d) => {
           for (const c of enfants) {
             if (existaient.has(c.id)) {
-              x.journal = [...(x.journal ?? []), { taskId: c.id, titre: c.titre, changes: [`rattaché à « ${t.titre} »`], at: new Date().toISOString() }];
+              const a = data.tasks.find((y) => y.id === c.parentId)?.titre ?? t.titre;
+              x.journal = [...(x.journal ?? []), { taskId: c.id, titre: c.titre, changes: [`rattaché à « ${a} »`], at: new Date().toISOString() }];
               retenir(x, d, c.id, { ...structuredClone(c), parentId: undefined });
             } else {
               x.nouvelles = [...(x.nouvelles ?? []), c.id];
@@ -431,13 +433,19 @@ export function Minutes() {
   const retires = retiresDe(s1);
   const ids = new Set<string>([...bucket.keys(), ...(etats ? [] : (m.pointIds ?? [])), ...journal.map((j) => j.taskId), ...nouvelles]);
   const duPv = data.tasks.filter((t) => ids.has(t.id) && (!retires.has(t.id) || nouvelles.has(t.id)));
-  // Points rattachés à un point du PV (sous-points) : ils le suivent, même rattachés ailleurs ou après la séance ; terminés,
-  // seulement depuis la séance précédente.
-  const principaux = new Set(duPv.map((t) => t.id));
-  const sousPoints = data.tasks.filter(
-    (c) => !!c.parentId && principaux.has(c.parentId) && !principaux.has(c.id) && !retires.has(c.id) && (!isDone(data, c) || finLe(c) > sel.since),
-  );
-  const points = [...duPv, ...sousPoints].map(vue);
+  // Points rattachés à un point du PV, en cascade (rattachés à un point rattaché…) : ils le suivent, même rattachés
+  // ailleurs ou après la séance ; terminés, seulement depuis la séance précédente.
+  const auPv = new Set(duPv.map((t) => t.id));
+  const rattachesAuPv: Task[] = [];
+  for (let i = -1; i < rattachesAuPv.length; i++) {
+    const de = i < 0 ? duPv.map((t) => t.id) : [rattachesAuPv[i].id];
+    for (const c of data.tasks)
+      if (c.parentId && de.includes(c.parentId) && !auPv.has(c.id) && !retires.has(c.id) && (!isDone(data, c) || finLe(c) > sel.since)) {
+        auPv.add(c.id);
+        rattachesAuPv.push(c);
+      }
+  }
+  const points = [...duPv, ...rattachesAuPv].map(vue);
   // Sondages : si l'ordre du jour les montre, hors des sections qu'il laisse de côté.
   const polls = contenu.parts.sondages
     ? (data.polls ?? []).filter((p) => {
@@ -475,7 +483,8 @@ export function Minutes() {
     const subs = blocsSection(tasks, contenu.colonnes.sousSection);
     const ici = polls.filter((p) => pollSection(data, p) === sec.id);
     const lie = (p: Poll) => !!p.taskId && tasks.some((t) => t.id === p.taskId);
-    return { sec, subs, polls: ici.filter((p) => !lie(p)), lies: ici.filter(lie) };
+    // Niveau d'un point dans la prise de notes : 0, ou en retrait sous le point de la section auquel il est rattaché.
+    return { sec, subs, polls: ici.filter((p) => !lie(p)), lies: ici.filter(lie), niveau: arbreDe(tasks).profondeur };
   });
   // Sondages rattachés à une tâche : sous elle.
   const pollsDe = (t: Task) => polls.filter((p) => p.taskId === t.id && pollSection(data, p) === t.sectionId);
@@ -582,7 +591,7 @@ export function Minutes() {
     setEdit({ task: live, isNew: false });
     setPending({
       id: t.id, before: stateOf(live), tache: structuredClone(live), isNew: false,
-      ids: data.tasks.map((x) => x.id), enfants: data.tasks.filter((x) => x.parentId === live.id).map((x) => x.id),
+      ids: data.tasks.map((x) => x.id), enfants: descendantsOf(data, live.id).map((x) => x.id),
     });
   };
   const addTask = (sectionId: string) => {
@@ -1001,11 +1010,11 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
       : '';
 
   // Comme l'ordre du jour : sous chaque point, ses étapes de checklist (☑ / ☐, si l'ordre du jour les montre), puis ses
-  // points rattachés (ceux du même bloc), un niveau plus bas.
+  // points rattachés (ceux du même bloc), un niveau plus bas, et ainsi de suite en cascade.
   const etapesPv = contenu.colonnes.checklist;
   const etapeTexte = (c: Task['checklist'][number]) => `${c.done ? '☑' : '☐'} ${c.label}`;
-  const racinesDe = (tasks: Task[]) => tasks.filter((t) => !t.parentId || !tasks.some((x) => x.id === t.parentId));
-  const rattachesDe = (t: Task, tasks: Task[]) => tasks.filter((x) => x.parentId === t.id && x.id !== t.id);
+  const racinesDe = (tasks: Task[]) => arbreDe(tasks).racines;
+  const rattachesDe = (t: Task, tasks: Task[]) => arbreDe(tasks).sous(t);
   const nouvelleInfo = (t: Task) =>
     [sectionsPv.find((x) => x.id === t.sectionId)?.nom ?? data.sections.find((x) => x.id === t.sectionId)?.nom, ...(opts.details ? meta(t).filter((x) => x !== '🆕 nouvelle') : [])].filter(Boolean).join(' · ');
   // Remarque du point (telle qu'à la fin de la séance, PV repris après coup), si les options du PV la montrent.
@@ -1145,17 +1154,17 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
       <NoteField value={m.notes[key] ?? ''} onCommit={(v) => setNote(key, v)} placeholder={label} autoFocus={openNotes[key] && !noteOf(key)} readOnly={!editable} />
     ) : null;
 
-  // Tâche liée dont la tâche principale est aussi un point de la section : affichée en retrait sous elle.
-  const isChild = (t: Task) => !!t.parentId && points.some((x) => x.id === t.parentId && x.sectionId === t.sectionId);
-  const taskRow = (t: Task) => {
+  // Point rattaché à un point de la section : affiché en retrait sous lui (d'un cran de plus à chaque niveau).
+  const taskRow = (t: Task, niveau = 0) => {
+    const isChild = niveau > 0;
     const ch = changesOf(t);
     const b = bucket.get(t.id);
     const can2 = editable && canEditTask(t);
     return (
-      <div key={t.id} data-point={t.titre} data-tache={t.id} data-arret={`task:${t.id}`} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild(t) ? 'child' : ''}`}>
+      <div key={t.id} data-point={t.titre} data-tache={t.id} data-arret={`task:${t.id}`} className={`min-task ${ch.length ? 'changed' : ''} ${isNewTask(t) ? 'new' : ''} ${b === 'late' ? 'late' : ''} ${isDone(data, t) ? 'done' : ''} ${isChild ? 'child' : ''}`} style={isChild ? ({ '--niveau': niveau } as CSSProperties) : undefined}>
         <div className="min-task-head">
           <span className="min-title">
-            {isChild(t) && <span className="muted">↳ </span>}
+            {isChild && <span className="muted">↳ </span>}
             {/* Un appui sur le titre ouvre le point (le modifier, comme dans la liste des points). */}
             {editable ? (
               <button type="button" className="min-ouvrir" title="Ouvrir le point" onClick={() => openTask(t)}>{t.titre}</button>
@@ -1497,7 +1506,7 @@ Les excuses et retards annoncés restent. « Annuler » (en haut) permet de reve
                       {s.label ? <div className="min-sub-title">{letter(j)}. {s.label}</div> : null}
                       {s.tasks.map((t) => (
                         <Fragment key={t.id}>
-                          {taskRow(t)}
+                          {taskRow(t, g.niveau(t))}
                           {pollsDe(t).map((p) => pollRow(p, t.id))}
                         </Fragment>
                       ))}

@@ -1,5 +1,5 @@
 import type { AppData, ContenuOdj, Meeting, PvSettings, Section, Task } from './types';
-import { addDays, finLe, isDone, today } from './utils';
+import { addDays, arbreDe, finLe, isDone, today } from './utils';
 import { shortDate } from './minutes';
 
 // Sélection des points de l'ordre du jour d'une séance, partagée par les onglets Ordre du jour et PV.
@@ -104,16 +104,16 @@ export interface BlocPv {
  * Points d'une section (déjà dans l'ordre de `ordreSection`) groupés comme dans l'ordre du jour : un point sans
  * sous-section forme son propre bloc, ceux d'une sous-section se suivent sous elle (bloc placé au premier d'entre eux) ;
  * le point qui porte le nom de sa sous-section vient en tête du bloc (c'est la ligne de la sous-section dans l'ordre du
- * jour) ; un point rattaché dont le point principal est dans la section suit celui-ci, même s'il est rangé ailleurs.
+ * jour) ; un point rattaché à un point de la section suit celui-ci, même s'il est rangé ailleurs, et ainsi de suite en
+ * cascade (un point rattaché à un point rattaché suit ce dernier).
  * `sousSections` : faux si l'ordre du jour n'affiche pas les sous-sections (chaque point seul, dans l'ordre).
  */
 export function blocsSection(ordonnes: Task[], sousSections = true): BlocPv[] {
-  const ids = new Set(ordonnes.map((t) => t.id));
-  const sousParent = (t: Task) => !!t.parentId && t.parentId !== t.id && ids.has(t.parentId);
+  const { parentDe, profondeur, dessous } = arbreDe(ordonnes);
   const blocs: BlocPv[] = [];
   const tetes = new Set<string>();
   for (const t of ordonnes) {
-    if (sousParent(t)) continue;
+    if (parentDe(t)) continue;
     const sub = sousSections ? t.sousSection : '';
     if (!sub) {
       blocs.push({ key: `__${t.id}`, label: '', tasks: [t] });
@@ -126,17 +126,20 @@ export function blocsSection(ordonnes: Task[], sousSections = true): BlocPv[] {
       b.tasks.unshift(t);
     } else b.tasks.push(t);
   }
-  // Rattachés : après leur point principal et ceux déjà placés sous lui ; sous le point en tête d'une sous-section, à la
-  // fin du bloc (dans l'ordre du jour, ils suivent les autres points de la sous-section).
-  for (const t of ordonnes.filter(sousParent)) {
-    const b = blocs.find((x) => x.tasks.some((y) => y.id === t.parentId));
+  // Rattachés, niveau par niveau (dans l'ordre de la section) : après le point auquel ils sont rattachés et ceux déjà
+  // placés sous lui ; sous le point en tête d'une sous-section, à la fin du bloc (dans l'ordre du jour, ils suivent les
+  // autres points de la sous-section).
+  const rattaches = ordonnes.filter((t) => parentDe(t)).sort((a, b) => profondeur(a) - profondeur(b));
+  for (const t of rattaches) {
+    const p = parentDe(t)!;
+    const b = blocs.find((x) => x.tasks.some((y) => y.id === p.id));
     if (!b) continue;
-    if (b.label && b.tasks[0].id === t.parentId && tetes.has(b.label)) {
+    if (b.label && b.tasks[0].id === p.id && tetes.has(b.label)) {
       b.tasks.push(t);
       continue;
     }
-    let i = b.tasks.findIndex((y) => y.id === t.parentId) + 1;
-    while (i < b.tasks.length && b.tasks[i].parentId === t.parentId) i++;
+    let i = b.tasks.findIndex((y) => y.id === p.id) + 1;
+    while (i < b.tasks.length && dessous(b.tasks[i], p)) i++;
     b.tasks.splice(i, 0, t);
   }
   return blocs;

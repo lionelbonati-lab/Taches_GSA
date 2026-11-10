@@ -199,7 +199,7 @@ export function decrireChamp(cle: string, [a, b]: [unknown, unknown], ctx: Conte
     case 'meetingId':
       return `Séance : ${fleche((v) => (v ? (data.meetings.find((m) => m.id === v)?.titre ?? 'une séance') : 'aucune'))}`;
     case 'parentId':
-      return `Point principal : ${fleche((v) => (v ? guillemets(data.tasks.find((t) => t.id === v)?.titre ?? 'un point', 50) : 'aucun'))}`;
+      return `Rattaché à : ${fleche((v) => (v ? guillemets(data.tasks.find((t) => t.id === v)?.titre ?? 'un point', 50) : 'aucun'))}`;
     case 'partage':
       return `Partagée avec : ${plusMoins(a, b, (id) => ctx.entite(id) ?? 'une entité')}`;
     case 'paiement': {
