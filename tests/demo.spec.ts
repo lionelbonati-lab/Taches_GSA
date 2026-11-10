@@ -3400,7 +3400,7 @@ test('séries d’événements : une carte par série, son prochain événement 
   // « Événement » : un nouvel événement, déjà dans la série.
   await automne.getByRole('button', { name: 'Événement', exact: true }).click();
   const fiche = page.getByRole('dialog', { name: 'Nouvel événement' });
-  await expect(fiche.getByRole('combobox', { name: 'Série d’événements', exact: true }).locator('option:checked')).toHaveText('Sorties d’automne');
+  await expect(fiche.getByRole('combobox', { name: 'Fait partie d’une série', exact: true }).locator('option:checked')).toHaveText('Sorties d’automne');
   await fiche.getByPlaceholder('Ajouter un titre').fill('Marche aux flambeaux');
   await fiche.getByLabel('Premier jour').fill('2026-12-12');
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
@@ -3410,7 +3410,7 @@ test('séries d’événements : une carte par série, son prochain événement 
   // Un événement qui se répète quitte la série avec toutes ses dates, sans demander lesquelles.
   await hiver.getByRole('button', { name: 'Modifier « Sortie VTT »' }).click();
   const vtt = page.getByRole('dialog', { name: 'Événement' });
-  await vtt.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Événement' });
+  await vtt.getByRole('combobox', { name: 'Fait partie d’une série', exact: true }).selectOption({ label: 'Aucune' });
   await vtt.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(hiver.locator('.serie-ev')).toHaveCount(4);
@@ -3418,8 +3418,7 @@ test('séries d’événements : une carte par série, son prochain événement 
   expect((await evenement('e-hiver-vtt')).dansSerie).toBeUndefined();
   // … et entre dans une nouvelle série, nommée depuis sa fiche.
   await page.locator('article.agenda-item', { hasText: 'Sortie VTT' }).getByRole('button', { name: 'Modifier' }).click();
-  await vtt.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Série d’événements' });
-  await vtt.getByRole('combobox', { name: 'Série d’événements', exact: true }).selectOption({ label: 'Nouvelle série…' });
+  await vtt.getByRole('combobox', { name: 'Fait partie d’une série', exact: true }).selectOption({ label: 'Nouvelle série…' });
   await vtt.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(vtt.locator('.error')).toHaveText('Donne un nom à la nouvelle série.');
   await vtt.getByLabel('Nom de la nouvelle série').fill('VTT d’hiver');
@@ -3504,8 +3503,7 @@ test('étiquette d’une série : une étiquette déjà là reprise (ses membres
   await page.reload();
   await page.locator('article.agenda-item', { hasText: 'Soirée récréative' }).getByRole('button', { name: 'Modifier' }).click();
   const soiree = page.getByRole('dialog', { name: 'Événement' });
-  await soiree.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Série d’événements' });
-  await soiree.getByRole('combobox', { name: 'Série d’événements', exact: true }).selectOption({ label: 'Championnat interne 2027' });
+  await soiree.getByRole('combobox', { name: 'Fait partie d’une série', exact: true }).selectOption({ label: 'Championnat interne 2027' });
   await soiree.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(async () => (await donnees()).tasks.find((t: { id: string }) => t.id === 't-podium').etiquettes).toContain('et-champ');
@@ -4136,12 +4134,12 @@ test('newsletter : une série de newsletters, son étiquette dans « Newsletter 
   expect(d.etiquettes.find((e: { serieId?: string }) => e.serieId === serie.id).lieux).toEqual([{ sectionId: 'sec11', sousSection: 'Newsletter' }]);
   expect(d.sections.find((s: { id: string }) => s.id === 'sec8').sousSections).not.toContain('Lettres du club 2027');
 
-  // Un nouvel événement de la série : type « Série d'événements », la série choisie ; newsletter comme elle.
+  // Un nouvel événement de la série : il en fait partie (la série choisie) ; newsletter comme elle.
   await carte.getByRole('button', { name: 'Événement', exact: true }).click();
   const ev = page.getByRole('dialog', { name: 'Nouvel événement' });
-  await expect(ev.getByRole('combobox', { name: 'Type', exact: true })).toHaveValue('serie');
-  await expect(ev.getByRole('combobox', { name: 'Série d’événements', exact: true }).locator('option:checked')).toHaveText('Lettres du club 2027 (newsletters)');
-  await expect(ev).toContainText('Ses points se rangent dans « Communication › Newsletter »');
+  await expect(ev.getByRole('combobox', { name: 'Type', exact: true })).toHaveValue('evenement');
+  await expect(ev.getByRole('combobox', { name: 'Fait partie d’une série', exact: true }).locator('option:checked')).toHaveText('Lettres du club 2027 (newsletters)');
+  await expect(ev).toContainText('« Lettres du club 2027 » est une série de newsletters. Ses points se rangent dans « Communication › Newsletter »');
   await ev.getByPlaceholder('Ajouter un titre').fill('Lettre de janvier');
   await ev.getByLabel('Premier jour').fill('2027-01-05');
   await ev.getByRole('button', { name: 'Enregistrer' }).click();
@@ -4167,7 +4165,7 @@ test('fiche d’un événement : la liste « Type » adapte la fiche (titre prop
   await expect(type).toHaveValue('evenement');
   expect((await type.locator('option').allTextContents()).map((x) => x.trim())).toEqual(['Événement', 'Assemblée générale', 'Newsletter', 'Série d’événements']);
   await expect(f.getByLabel('Lieu')).toBeVisible();
-  await expect(f.getByRole('combobox', { name: 'Série d’événements', exact: true })).toHaveCount(0);
+  await expect(f.getByRole('combobox', { name: 'Fait partie d’une série', exact: true }).locator('option:checked')).toHaveText('Aucune');
 
   // Assemblée générale : son titre proposé, l'aide de la chronologie du club.
   await type.selectOption({ label: 'Assemblée générale' });
@@ -4185,15 +4183,18 @@ test('fiche d’un événement : la liste « Type » adapte la fiche (titre prop
   await expect(titre).toHaveValue('Newsletter d’avril 2027');
   await expect(f).toContainText('Ses points se rangent dans « Communication › Newsletter »');
 
-  // Série d'événements : pas de titre proposé (celui de la newsletter s'efface) ; la série à choisir (sinon, refusé).
+  // Série d'événements : la fiche d'une nouvelle série s'ouvre (sans le titre proposé à la newsletter) ; « Annuler »
+  // revient à l'événement, tel quel.
   await type.selectOption({ label: 'Série d’événements' });
-  await expect(f.getByPlaceholder('Ajouter un titre')).toHaveValue('');
-  await expect(f.getByRole('combobox', { name: 'Série d’événements', exact: true }).locator('option:checked')).toHaveText('— Choisir —');
-  await f.getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(f.locator('.error')).toHaveText('Choisis la série d’événements, ou « Nouvelle série… ».');
+  const serie = page.getByRole('dialog', { name: 'Nouvelle série d’événements' });
+  await expect(serie.getByLabel('Nom de la série')).toHaveValue('');
+  await expect(f).toHaveCount(0);
+  await serie.getByRole('button', { name: 'Annuler' }).click();
+  await expect(serie).toHaveCount(0);
+  await expect(type).toHaveValue('newsletter');
+  await expect(titre).toHaveValue('Newsletter d’avril 2027');
 
-  // Retour à « Newsletter », chaque mois : enregistrée sans heure ni lieu, sans AG ni série.
-  await type.selectOption({ label: 'Newsletter' });
+  // « Newsletter », chaque mois : enregistrée sans heure ni lieu, sans AG ni série.
   await f.getByLabel('Répétition').selectOption('mois');
   await f.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
@@ -4203,4 +4204,95 @@ test('fiche d’un événement : la liste « Type » adapte la fiche (titre prop
   expect(ev.dansSerie).toBeUndefined();
   expect(ev.heure).toBeUndefined();
   await expect(page.locator('article.agenda-item', { hasText: 'Newsletter d’avril 2027' })).toContainText('Newsletter · points dans « Communication › Newsletter »');
+});
+
+test('fiche d’un événement : le type « Série d’événements » ouvre la fiche d’une nouvelle série, l’événement déjà coché', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  await page.goto('./?demo#/evenements');
+  await page.locator('article.agenda-item', { hasText: 'Soirée récréative' }).getByRole('button', { name: 'Modifier' }).click();
+  await page.getByRole('dialog', { name: 'Événement' }).getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Série d’événements' });
+  const fiche = page.getByRole('dialog', { name: 'Nouvelle série d’événements' });
+  await expect(fiche.getByLabel('Nom de la série')).toHaveValue('Soirée récréative');
+  await expect(fiche.locator('.anciennes-liste li', { hasText: 'Soirée récréative' }).getByRole('checkbox')).toBeChecked();
+  await fiche.getByLabel('Nom de la série').fill('Fêtes de fin d’année');
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const d = await lireDonnees(page);
+  const s = d.seriesEvenements.find((x: { nom: string }) => x.nom === 'Fêtes de fin d’année');
+  expect(d.events.find((e: { id: string }) => e.id === 'e10').dansSerie).toBe(s.id);
+  await expect(page.locator('article.carte-serie', { hasText: 'Fêtes de fin d’année' }).locator('.serie-ev')).toHaveCount(1);
+});
+
+test('chronologies d’un événement et d’une série : les séances du club dans le temps ; glisser un point entre deux lignes, sur le jour J, sur une séance, sur une autre manche', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // La soirée récréative (28.11) : un point calé deux semaines avant, un sans délai, un bilan le 10.12 ; une manche du
+  // championnat avec un point calé 4 semaines avant.
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    const p = (id: string, titre: string, o: object) => ({
+      id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: d.statuses[0].id, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...o,
+    });
+    d.tasks.push(
+      p('t-salle', 'Réserver la salle', { eventId: 'e10', delai: '2026-11-14', delaiRef: { type: 'event', joursAvant: 14, unite: 'semaines' } }),
+      p('t-choucroute', 'Commander la choucroute', { eventId: 'e10', delai: '' }),
+      p('t-bilan', 'Faire le bilan', { eventId: 'e10', delai: '2026-12-10' }),
+      p('t-chrono', 'Réserver le chronométrage', { eventId: 'e-champ-1', delai: '2027-03-13', delaiRef: { type: 'event', joursAvant: 28, unite: 'semaines' } }),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  const tache = async (id: string) => (await lireDonnees(page)).tasks.find((t: { id: string }) => t.id === id);
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+
+  // La séance du comité de décembre, entre le jour J et le bilan ; on peut la masquer.
+  await page.locator('.agenda-item').getByRole('button', { name: 'Soirée récréative' }).click();
+  const chrono = page.getByRole('dialog', { name: 'Chronologie · Soirée récréative' });
+  const seance = chrono.locator('.chrono-seance', { hasText: 'Comité de décembre 2026' });
+  await expect(seance).toContainText('Séance · 19h30 · À définir');
+  await expect(seance).toContainText('J+5');
+  const ordre = await chrono.locator('.chrono-frise > li.chrono-ligne').allTextContents();
+  const rang = (x: string) => ordre.findIndex((l) => l.includes(x));
+  expect(rang('Jour J')).toBeLessThan(rang('Comité de décembre 2026'));
+  expect(rang('Comité de décembre 2026')).toBeLessThan(rang('Faire le bilan'));
+  await chrono.getByLabel('Afficher les séances (1)').uncheck();
+  await expect(seance).toHaveCount(0);
+  await chrono.getByLabel('Afficher les séances (1)').check();
+  await expect(seance).toHaveCount(1);
+
+  // Le point sans délai glissé sur le jour J : le jour même, calé sur la soirée.
+  await chrono.locator('.chrono-sans-delai .chrono-point', { hasText: 'Commander la choucroute' }).dragTo(chrono.locator('.chrono-jourj'));
+  await expect.poll(async () => (await tache('t-choucroute')).delai).toBe('2026-11-28');
+  expect(await tache('t-choucroute')).toMatchObject({ eventId: 'e10', delaiRef: { type: 'event', joursAvant: 0 } });
+
+  // Glissé sur la séance : rattaché à elle, son délai calé sur elle ; il reste dans la soirée.
+  await chrono.locator('.chrono-frise .chrono-point', { hasText: 'Réserver la salle' }).dragTo(seance);
+  await expect(page.locator('.toast')).toContainText('« Réserver la salle » → Comité de décembre 2026 (03.12.2026)');
+  expect(await tache('t-salle')).toMatchObject({ eventId: 'e10', meetingId: 'm6', delai: '2026-12-03', delaiRef: { type: 'meeting', joursAvant: 0 } });
+
+  // Glissé entre « Aujourd'hui » (09.11) et le jour J (28.11) : le 18.11, 10 jours avant, calé sur la soirée. La bande où
+  // déposer n'a pas de hauteur à elle (rien ne bouge quand on prend le point) : la souris va à sa place.
+  const zone = chrono.locator('li.chrono-jourj').locator('xpath=preceding-sibling::li[contains(@class, "chrono-depot")][1]');
+  await chrono.locator('.chrono-frise .chrono-point', { hasText: 'Faire le bilan' }).hover();
+  await page.mouse.down();
+  const ici = (await zone.boundingBox())!;
+  await page.mouse.move(ici.x + ici.width / 2, ici.y + 2, { steps: 6 });
+  // Un dernier petit mouvement, comme la main : le navigateur traite alors le survol de la bande.
+  await page.mouse.move(ici.x + ici.width / 2 + 10, ici.y + 3);
+  await expect(zone).toHaveClass(/survol/);
+  await expect(zone).toContainText('Déposer ici · le 18.11.2026');
+  await page.mouse.up();
+  await expect(page.locator('.toast')).toContainText('« Faire le bilan » : 10 jours avant (18.11.2026), calé sur « Soirée récréative »');
+  expect(await tache('t-bilan')).toMatchObject({ delai: '2026-11-18', delaiRef: { type: 'event', joursAvant: 10, unite: 'jours' } });
+  await chrono.getByRole('button', { name: 'Fermer' }).last().click();
+
+  // Chronologie du championnat : les séances de l'hiver ; un point glissé sur la manche 2 la suit, au même écart.
+  await page.locator('article.carte-serie', { hasText: 'Championnat interne 2027' }).getByRole('button', { name: 'Chronologie' }).click();
+  const serie = page.getByRole('dialog', { name: 'Chronologie · Championnat interne 2027' });
+  await expect(serie.locator('.chrono-seance', { hasText: 'Comité de janvier 2027' })).toContainText('Séance');
+  await serie.locator('.chrono-frise .chrono-point', { hasText: 'Réserver le chronométrage' }).dragTo(serie.locator('.chrono-jourj', { hasText: 'Manche 2' }));
+  await expect(page.locator('.toast')).toContainText('« Réserver le chronométrage » → Manche 2 – Montée de Montvoie : 4 semaines avant (10.04.2027)');
+  expect(await tache('t-chrono')).toMatchObject({ eventId: 'e-champ-2', delai: '2027-04-10', delaiRef: { type: 'event', joursAvant: 28, unite: 'semaines' } });
 });

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
-import type { AppData, ClubEvent, RepetitionEvenement, SerieEvenements } from '../data/types';
+import type { ClubEvent, RepetitionEvenement, SerieEvenements } from '../data/types';
 import { addDays, diffDays, fmtDate, today, uid } from '../data/utils';
 import { stable } from '../data/cloud';
 import {
@@ -14,34 +14,32 @@ import { CaseEtiquette } from './ReglageEtiquette';
 import {
   estLaNewsletter, etiquetteDeLEvenement, nomLieu, nomPlaceNewsletter, reglerEtiquetteEvenement, sectionEvenements, type ChoixEtiquette,
 } from '../data/etiquettes';
-import { enregistrerSerie, rangerDansSerie, seriesDuClub } from '../data/seriesEvenements';
+import { enregistrerSerie, nouvelleSerie, rangerDansSerie, seriesDuClub } from '../data/seriesEvenements';
+import { SerieModal } from './SerieModal';
 
 // Fiche d'un événement, comme dans un agenda : toute la journée ou de telle heure à telle heure, sur un ou plusieurs
 // jours, une seule fois ou répété (tous les jours, semaines, mois, ans, ou personnalisé). Une occurrence d'un événement
 // qui se répète se modifie ou se supprime seule, avec les suivantes, ou toute la série.
 // « Type » (liste en tête de la fiche) : un événement, une assemblée générale (la chronologie du club se lit d'une AG à
-// l'autre), une newsletter (sa place est la sous-section « Newsletter » : etiquettes.ts, estNewsletter) ou un événement
-// d'une série d'événements (programme hivernal, championnat ; seriesEvenements.ts : une existante ou une nouvelle, nommée
-// ici). La fiche s'adapte : titre proposé (« Assemblée générale 2027 », « Newsletter de décembre 2026 ») ; une newsletter
-// n'a qu'une date d'envoi, sans heure ni lieu ; une série se choisit.
+// l'autre), une newsletter (sa place est la sous-section « Newsletter » : etiquettes.ts, estNewsletter), ou une série
+// d'événements : la fiche d'une nouvelle série s'ouvre à sa place (SerieModal ; l'événement déjà là y est coché). La fiche
+// s'adapte : titre proposé (« Assemblée générale 2027 », « Newsletter de décembre 2026 ») ; une newsletter n'a qu'une
+// date d'envoi, sans heure ni lieu. « Fait partie d'une série » : la série dont il fait partie (programme hivernal,
+// championnat ; seriesEvenements.ts), une existante ou une nouvelle, nommée ici.
 
-/** Type d'un événement (liste « Type » de sa fiche) : il décide de `ag`, `newsletter` et `dansSerie`. */
+/** Type d'un événement (liste « Type » de sa fiche) : il décide de `ag` et `newsletter` ; « serie » ouvre la fiche d'une série. */
 export type TypeEvenement = 'evenement' | 'ag' | 'newsletter' | 'serie';
+type TypeSimple = Exclude<TypeEvenement, 'serie'>;
 export const TYPES_EVENEMENT: { id: TypeEvenement; label: string; aide: string }[] = [
   { id: 'evenement', label: 'Événement', aide: 'Une manifestation du club, avec sa sous-section dans « Événements » si elle a son étiquette.' },
   { id: 'ag', label: 'Assemblée générale', aide: 'La chronologie du club se lit aussi d’une assemblée générale à l’autre (Agenda › Chronologie).' },
   { id: 'newsletter', label: 'Newsletter', aide: 'Une date d’envoi, sans heure ni lieu.' },
-  { id: 'serie', label: 'Série d’événements', aide: 'Un événement d’une série : le programme hivernal (une activité par jour de la semaine), un championnat en plusieurs manches…' },
+  { id: 'serie', label: 'Série d’événements', aide: 'La fiche d’une nouvelle série s’ouvre.' },
 ];
 const libelleType = (t: TypeEvenement) => TYPES_EVENEMENT.find((x) => x.id === t)!.label;
 
-/** Type d'après ses champs : dans une série, sinon newsletter, sinon assemblée générale, sinon événement. */
-const typeDesChamps = (e: Pick<ClubEvent, 'ag' | 'newsletter' | 'dansSerie'>): TypeEvenement =>
-  e.dansSerie ? 'serie' : e.newsletter ? 'newsletter' : e.ag ? 'ag' : 'evenement';
-
-/** Type d'un événement (une série qui n'existe plus ne compte pas). */
-export const typeDe = (data: Pick<AppData, 'seriesEvenements'>, e: Pick<ClubEvent, 'ag' | 'newsletter' | 'dansSerie'>): TypeEvenement =>
-  typeDesChamps({ ...e, dansSerie: e.dansSerie && data.seriesEvenements?.some((s) => s.id === e.dansSerie) ? e.dansSerie : undefined });
+/** Type d'un événement : newsletter, sinon assemblée générale, sinon événement. */
+export const typeDe = (e: Pick<ClubEvent, 'ag' | 'newsletter'>): TypeSimple => (e.newsletter ? 'newsletter' : e.ag ? 'ag' : 'evenement');
 
 /** Titre proposé pour une assemblée générale (« Assemblée générale 2027 ») ou une newsletter (« Newsletter de décembre 2026 »). */
 function titreAuto(t: TypeEvenement, date: string): string | undefined {
@@ -55,7 +53,7 @@ function titreAuto(t: TypeEvenement, date: string): string | undefined {
 /** Texte du journal pour la case « Étiquette » d'un événement. */
 const quoiEtiquette = (c: ChoixEtiquette) => (c ? ` · étiquette (${c.membres.length} membre${c.membres.length > 1 ? 's' : ''})` : ' · sans étiquette');
 
-/** Choix « Nouvelle série… » de la liste « Série d'événements ». */
+/** Choix « Nouvelle série… » de la liste « Fait partie d'une série ». */
 const NOUVELLE_SERIE = '+';
 
 /** Enregistrement / suppression des événements (Agenda, Événements). */
@@ -75,10 +73,10 @@ export function useEventActions() {
       const avant = data.events.find((y) => y.id === e.id);
       const isNew = !avant;
       const serieChangee = (avant?.dansSerie ?? '') !== (e.dansSerie ?? '');
-      // Type changé (assemblée générale, newsletter ; la série : ci-dessus) : dit dans le journal. Une newsletter en plus
-      // ou en moins : son étiquette change de place (etiquettes.ts, synchroniserEtiquettes).
+      // Type changé (assemblée générale, newsletter) : dit dans le journal. Une newsletter en plus ou en moins : son
+      // étiquette change de place (etiquettes.ts, synchroniserEtiquettes).
       const typeChange = avant ? !!avant.ag !== !!e.ag || !!avant.newsletter !== !!e.newsletter : !!(e.ag || e.newsletter);
-      const quoiType = typeChange && !e.dansSerie ? ` · ${libelleType(typeDesChamps(e)).toLowerCase()}` : '';
+      const quoiType = typeChange ? ` · ${libelleType(typeDe(e)).toLowerCase()}` : '';
       update((d) => {
         if (nouvelle) enregistrerSerie(d, nouvelle);
         d.events = isNew ? [...d.events, e] : d.events.map((y) => (y.id === e.id ? e : y));
@@ -88,18 +86,19 @@ export function useEventActions() {
       }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »${serieChangee ? quoiSerie(e.dansSerie, nouvelle) : ''}${quoiType}${etiquette !== undefined ? quoiEtiquette(etiquette) : ''}`);
     },
     /**
-     * Type d'un événement qui se répète (assemblée générale, newsletter, série) : celui de toutes ses dates, celles
-     * modifiées seules comprises (réglé tout de suite, comme son étiquette). `nouvelle` : la série créée depuis la fiche.
+     * Type (assemblée générale, newsletter) et série d'un événement qui se répète : ceux de toutes ses dates, celles
+     * modifiées seules comprises (réglés tout de suite, comme son étiquette). `nouvelle` : la série créée depuis la fiche.
      */
     reglerType: (eventId: string, t: Pick<ClubEvent, 'ag' | 'newsletter' | 'dansSerie'>, nouvelle?: SerieEvenements) => {
       const avant = data.events.find((y) => y.id === eventId);
       const serieChangee = (avant?.dansSerie ?? '') !== (t.dansSerie ?? '');
+      const typeChange = !!avant?.ag !== !!t.ag || !!avant?.newsletter !== !!t.newsletter;
       update((d) => {
         if (nouvelle) enregistrerSerie(d, nouvelle);
         d.events = d.events.map((y) => (y.id === eventId || y.serie?.id === eventId ? { ...y, ag: t.ag || undefined, newsletter: t.newsletter || undefined } : y));
         // Ses dates modifiées seules suivent.
         if (serieChangee) rangerDansSerie(d, eventId, t.dansSerie);
-      }, `Événement « ${avant?.nom ?? ''} »${serieChangee ? quoiSerie(t.dansSerie, nouvelle) : ` · ${libelleType(typeDesChamps(t)).toLowerCase()}`}`);
+      }, `Événement « ${avant?.nom ?? ''} »${serieChangee ? quoiSerie(t.dansSerie, nouvelle) : ''}${typeChange ? ` · ${libelleType(typeDe(t)).toLowerCase()}` : ''}`);
     },
     /** Étiquette d'un événement qui se répète : celle de toute la série. */
     reglerEtiquette: (serieId: string, etiquette: ChoixEtiquette) =>
@@ -164,16 +163,17 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
   };
   const depart = serie ? aLaDate(serie, jour!) : event;
   const [v, setV] = useState<ClubEvent>(depart);
-  // « Type » : événement, assemblée générale, newsletter ou série d'événements ; une série : une existante, ou une nouvelle
-  // (son identifiant, prêt d'avance, et son nom).
+  // « Type » : événement, assemblée générale ou newsletter (« Série d'événements » ouvre la fiche d'une nouvelle série).
+  // « Fait partie d'une série » : aucune, une existante, ou une nouvelle (son identifiant, prêt d'avance, et son nom).
   const series = seriesDuClub(data);
-  const [type, setType] = useState<TypeEvenement>(() => typeDe(data, event));
+  const [type, setType] = useState<TypeSimple>(() => typeDe(event));
+  const [ficheSerie, setFicheSerie] = useState<SerieEvenements | null>(null);
   const [choixSerie, setChoixSerie] = useState(event.dansSerie && series.some((s) => s.id === event.dansSerie) ? event.dansSerie : '');
   const [idNouvelle] = useState(() => uid('se'));
   const [nomNouvelle, setNomNouvelle] = useState('');
-  const dansSerie = type !== 'serie' ? undefined : choixSerie === NOUVELLE_SERIE ? idNouvelle : choixSerie || undefined;
+  const dansSerie = choixSerie === NOUVELLE_SERIE ? idNouvelle : choixSerie || undefined;
   const serieNouvelle = (): SerieEvenements | undefined => (dansSerie === idNouvelle ? { id: idNouvelle, nom: nomNouvelle.trim() } : undefined);
-  const serieChoisie = type === 'serie' ? series.find((s) => s.id === choixSerie) : undefined;
+  const serieChoisie = series.find((s) => s.id === choixSerie);
   // Une newsletter, ou un événement d'une série de newsletters : sa place est « Newsletter ».
   const newsletter = type === 'newsletter' || !!serieChoisie?.newsletter;
   // Une newsletter : une date d'envoi, sans heure ni lieu.
@@ -191,17 +191,17 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
   // Titre proposé par la fiche (« Assemblée générale 2027 ») : il suit le type et la date tant qu'on ne l'a pas changé (un
   // type sans titre proposé l'efface). Un titre tapé, ou celui d'un événement déjà là, reste tel quel.
   const [propose, setPropose] = useState<string>();
-  const nomAuto = (t: TypeEvenement, date: string) => {
+  const nomAuto = (t: TypeSimple, date: string) => {
     if (v.nom.trim() && v.nom !== propose) return v.nom;
     const auto = titreAuto(t, date) ?? '';
     setPropose(auto || undefined);
     return auto;
   };
   const choisirType = (t: TypeEvenement) => {
+    // Série d'événements : la fiche d'une nouvelle série, à son nom (s'il en a un à lui) ; l'événement déjà là y est coché.
+    if (t === 'serie') return setFicheSerie(nouvelleSerie(v.nom.trim() && v.nom !== propose ? v.nom.trim() : ''));
     setType(t);
     set({ nom: nomAuto(t, v.date) });
-    // Pas encore de série : « Nouvelle série… ».
-    if (t === 'serie' && !choixSerie && !series.length) setChoixSerie(NOUVELLE_SERIE);
   };
 
   // Début déplacé : la fin suit (même durée), comme dans un agenda.
@@ -236,10 +236,8 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
   const finRep = r?.jusquau !== undefined ? 'date' : r?.nombre !== undefined ? 'nombre' : 'jamais';
 
   // Le champ du titre, selon le type.
-  const titreChamp = { evenement: 'Événement', ag: 'Assemblée générale', newsletter: 'Newsletter', serie: 'Événement' }[type];
+  const titreChamp = { evenement: 'Événement', ag: 'Assemblée générale', newsletter: 'Newsletter' }[type];
   const verifier = (): string | undefined => {
-    if (type === 'serie' && !choixSerie) return 'Choisis la série d’événements, ou « Nouvelle série… ».';
-    if (type === 'serie' && choixSerie === NOUVELLE_SERIE && !nomNouvelle.trim()) return 'Donne un nom à la nouvelle série.';
     if (!v.nom.trim()) return `« ${titreChamp} » est obligatoire.`;
     if (!v.date) return envoi ? '« Date d’envoi » est obligatoire.' : '« Début » est obligatoire.';
     if (!envoi && fin < v.date) return 'La fin ne peut pas précéder le début.';
@@ -247,6 +245,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
     if (!envoi && !journee && v.heure && v.heureFin && fin === v.date && v.heureFin < v.heure) return 'L’heure de fin doit suivre l’heure de début.';
     if (r?.jusquau !== undefined && (!r.jusquau || r.jusquau < v.date)) return 'La répétition doit se terminer après le premier jour.';
     if (r?.nombre !== undefined && !(r.nombre >= 1 && r.nombre <= 999)) return 'Nombre d’occurrences : de 1 à 999.';
+    if (choixSerie === NOUVELLE_SERIE && !nomNouvelle.trim()) return 'Donne un nom à la nouvelle série.';
     return undefined;
   };
   const pret = (): ClubEvent => ({
@@ -267,7 +266,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
       saveEvent(pret(), etiquetteTouchee ? etiquette : undefined, serieNouvelle());
       return onClose();
     }
-    // Type (assemblée générale, newsletter, série) et étiquette d'un événement qui se répète : ceux de toutes ses dates,
+    // Type (assemblée générale, newsletter), série et étiquette d'un événement qui se répète : ceux de toutes ses dates,
     // réglés tout de suite.
     const p = pret();
     const t = { ag: p.ag, newsletter: p.newsletter, dansSerie: p.dansSerie };
@@ -283,6 +282,10 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
     removeEvent(event);
     onClose();
   };
+
+  // « Série d'événements » : la fiche d'une nouvelle série ; « Annuler » revient à l'événement.
+  if (ficheSerie)
+    return <SerieModal serie={ficheSerie} avec={isNew ? [] : [event.serie?.id ?? event.id]} onClose={onClose} onAnnuler={() => setFicheSerie(null)} />;
 
   if (demande && serie) {
     // Règle de répétition changée : elle ne s'applique pas à une seule occurrence.
@@ -326,21 +329,20 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
             </label>
             <p className="muted full serie-note">
               {TYPES_EVENEMENT.find((t) => t.id === type)!.aide}
+              {serieChoisie?.newsletter && type !== 'newsletter' && ` « ${serieChoisie.nom} » est une série de newsletters.`}
               {newsletter && ` Ses points se rangent dans « ${nomPlaceNewsletter(data)} » (son étiquette aussi), pas dans une sous-section à son nom dans « Événements ».`}
             </p>
+            <label className="full">
+              Fait partie d’une série
+              <select value={choixSerie} onChange={(e) => setChoixSerie(e.target.value)}>
+                <option value="">Aucune</option>
+                {series.map((s) => <option key={s.id} value={s.id}>{s.nom}{s.newsletter ? ' (newsletters)' : ''}</option>)}
+                <option value={NOUVELLE_SERIE}>Nouvelle série…</option>
+              </select>
+            </label>
           </>
         )}
-        {!event.serie && type === 'serie' && (
-          <label className="full">
-            Série d’événements
-            <select value={choixSerie} onChange={(e) => setChoixSerie(e.target.value)}>
-              {!choixSerie && <option value="">— Choisir —</option>}
-              {series.map((s) => <option key={s.id} value={s.id}>{s.nom}{s.newsletter ? ' (newsletters)' : ''}</option>)}
-              <option value={NOUVELLE_SERIE}>Nouvelle série…</option>
-            </select>
-          </label>
-        )}
-        {!event.serie && type === 'serie' && choixSerie === NOUVELLE_SERIE && (
+        {!event.serie && choixSerie === NOUVELLE_SERIE && (
           <label className="full">
             Nom de la nouvelle série
             <input value={nomNouvelle} onChange={(e) => setNomNouvelle(e.target.value)} placeholder="Programme hivernal 2026-27, Championnat interne 2027…" />

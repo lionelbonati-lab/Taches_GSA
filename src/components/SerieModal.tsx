@@ -16,8 +16,10 @@ import { CaseEtiquetteSerie } from './ReglageEtiquette';
  * passés repliés à part). Un événement coché qui était dans une autre série passe dans celle-ci. Supprimer la série : ses
  * événements restent dans l'agenda, avec leurs points, sans série. « Type » : une série d'événements, ou une série de
  * newsletters (la série et ses événements ont leur place dans la sous-section « Newsletter », etiquettes.ts).
+ * Ouverte depuis la fiche d'un événement (type « Série d'événements ») : `avec`, cet événement déjà coché ; `onAnnuler`,
+ * le retour à sa fiche (sinon « Annuler » ferme, comme après l'enregistrement).
  */
-export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose: () => void }) {
+export function SerieModal({ serie, avec = [], onClose, onAnnuler }: { serie: SerieEvenements; avec?: string[]; onClose: () => void; onAnnuler?: () => void }) {
   const { data, update } = useStore();
   const isNew = !(data.seriesEvenements ?? []).some((s) => s.id === serie.id);
   const [nom, setNom] = useState(serie.nom);
@@ -47,7 +49,7 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
     .filter((e) => racine(data.events, e) === e.id)
     .map((e) => ({ e, date: dateAffichee(e, jour), passe: evenementPasse(e, jour) }))
     .sort((a, b) => a.date.localeCompare(b.date) || (a.e.heure ?? '').localeCompare(b.e.heure ?? ''));
-  const [ids, setIds] = useState(() => new Set(candidats.filter((x) => x.e.dansSerie === serie.id).map((x) => x.e.id)));
+  const [ids, setIds] = useState(() => new Set([...candidats.filter((x) => x.e.dansSerie === serie.id).map((x) => x.e.id), ...avec]));
   const aVenir = candidats.filter((x) => !x.passe);
   const passes = candidats.filter((x) => x.passe).reverse();
   const basculer = (id: string) =>
@@ -103,7 +105,7 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
   };
 
   return (
-    <Modal title={isNew ? 'Nouvelle série d’événements' : 'Série d’événements'} icone="serie" onClose={onClose}>
+    <Modal title={isNew ? 'Nouvelle série d’événements' : 'Série d’événements'} icone="serie" onClose={onAnnuler ?? onClose}>
       <p className="muted">
         Des événements de l’agenda réunis sous un nom : le programme hivernal (une activité par jour de la semaine), un
         championnat en plusieurs manches… Chacun garde ses dates, son lieu, son étiquette et ses points ; la page Événements
@@ -168,7 +170,7 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
       <div className="modal-foot">
         {!isNew && <button className="btn danger" onClick={supprimer} title="Supprimer la série (ses événements restent)" aria-label="Supprimer la série"><Icone n="supprimer" /></button>}
         <span className="grow" />
-        <button className="btn" onClick={onClose}>Annuler</button>
+        <button className="btn" onClick={onAnnuler ?? onClose}>Annuler</button>
         <button className="btn primary" onClick={submit}>Enregistrer</button>
       </div>
     </Modal>

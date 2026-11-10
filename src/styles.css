@@ -2481,3 +2481,21 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 .serie-periode > .btn { white-space: normal; text-align: left; max-width: 100%; }
 .serie-hors { font-size: 0.88rem; }
 .chrono-officiel .chrono-puce { background: var(--surface2); }
+/* Chronologie d'un événement ou d'une série : les séances du club, en repère ; glisser-déposer des points. */
+.chrono-filtres { display: flex; flex-wrap: wrap; gap: 4px 18px; }
+.chrono-seance .chrono-puce { width: 24px; height: 24px; margin-left: -2px; background: var(--surface2); border-color: var(--muted); color: var(--muted); }
+.chrono-seance .chrono-puce .icone-trait, .chrono-seance .chrono-puce svg { width: 14px; height: 14px; }
+.chrono-seance .chrono-quand b { color: var(--muted); }
+.chrono-seance .chrono-titre { text-decoration: none; }
+.chrono-point.glissable { cursor: grab; }
+.chrono-point.pris { opacity: 0.45; }
+.chrono-ligne.survol { outline: 2px dashed var(--primary); outline-offset: 1px; background: var(--primary-soft); border-radius: 10px; }
+/* Entre deux lignes : rien au repos ; pendant qu'on glisse un point, une bande où le déposer (sa date au survol), posée
+   par-dessus l'espace entre les lignes : rien ne bouge quand on prend un point. */
+.chrono-depot { height: 0; position: relative; z-index: 3; list-style: none; }
+.chrono-depot::before { content: ''; display: none; position: absolute; left: 0; right: 0; top: -7px; height: 14px; }
+.chrono-frise.glisse .chrono-depot::before { display: block; }
+.chrono-frise.glisse .chrono-depot::after { content: ''; position: absolute; left: calc(var(--chrono-quand) + 36px); right: 0; top: -1px; border-top: 2px dashed color-mix(in srgb, var(--primary) 25%, transparent); pointer-events: none; }
+.chrono-depot.survol::after { border-top-color: var(--primary) !important; border-top-width: 3px !important; }
+.chrono-depot span { display: none; position: absolute; top: 0; left: calc(var(--chrono-quand) + 44px); transform: translateY(-50%); font-size: 0.78rem; font-weight: 600; color: var(--primary); background: var(--surface); border: 1px solid var(--primary); padding: 1px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none; z-index: 1; }
+.chrono-depot.survol span { display: inline; }

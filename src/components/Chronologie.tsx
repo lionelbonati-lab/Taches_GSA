@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, DelaiUnite, Etiquette, SerieEvenements, Task } from '../data/types';
-import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu, occurrenceProche } from '../data/repetition';
+import type { ClubEvent, DelaiUnite, Etiquette, Meeting, SerieEvenements, Task } from '../data/types';
+import { aLaDate, derniereOccurrence, fmtHeure, horaire, libelleRepetition, occurrenceDu, occurrenceProche } from '../data/repetition';
 import {
-  DELAI_MAX, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
+  DELAI_MAX, addDays, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
 } from '../data/utils';
+import { dateEntre, versSeance } from '../data/chronologieClub';
 import { etiquetteDeLaSerie, etiquetteDeLEvenement, placesPour } from '../data/etiquettes';
 import { FILTRE_SERIE, evenementsDeLaSerie, periodeDeLaSerie, pointsDeLaSerie, prochainDeLaSerie, racine, seriePassee } from '../data/seriesEvenements';
 import { Empty, Modal, StatusBadge } from './ui';
@@ -20,6 +21,9 @@ import { Progress } from '../pages/Dashboard';
 // le délai suit ensuite la date de l'événement, et une reprise l'an prochain garde le même écart.
 // Les points de l'événement : rattachés à lui, ou qui portent son étiquette (ceux qu'on voit).
 // Chronologie d'une série d'événements (ChronologieSerie) : celles de tous ses événements sur une même frise.
+// Les deux montrent aussi les séances du club (qui les voit) dans le temps qu'elles couvrent, et se règlent à la souris :
+// un point glissé entre deux lignes y prend sa date (calé sur son événement), sur un événement il y est rattaché, sur une
+// séance aussi (son délai calé sur elle).
 
 /** L'événement ouvert : un événement de l'agenda (`serie`, à sa date `date` s'il se répète) ou une étiquette datée seule. */
 export type CibleChrono = { serie?: ClubEvent; date: string; etiquette?: Etiquette };
@@ -45,6 +49,87 @@ const jourCourt = (d: string, annee: string) =>
   new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'short', day: 'numeric', month: 'short', ...(d.slice(0, 4) !== annee ? { year: 'numeric' } : {}) });
 const nomMois = (d: string) => new Date(d.slice(0, 7) + '-15T12:00:00').toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' });
 
+/** Écart du jour `d` par rapport au jour J `j`, comme on le saisit : en semaines s'il tombe juste, sinon en jours. */
+function ecartVers(j: string, d: string): Ecart {
+  const n = diffDays(j, d);
+  const a = Math.abs(n);
+  return a && a % 7 === 0 ? { n: String(a / 7), unite: 'semaines', apres: n > 0 } : { n: String(a), unite: 'jours', apres: n > 0 };
+}
+
+/** Séances du club du `de` au `a` (compris), par date. */
+const seancesEntre = (meetings: Meeting[], de: string, a: string) =>
+  meetings.filter((m) => m.date && m.date >= de && m.date <= a).sort((x, y) => x.date.localeCompare(y.date) || (x.heure ?? '').localeCompare(y.heure ?? ''));
+
+type Glisser = ReturnType<typeof useGlisser>;
+
+/**
+ * Glisser-déposer des points sur une frise (à la souris) : le point pris, la ligne ou la zone survolée. `prendre` : de quoi
+ * glisser un point ; `recoit` : une ligne (`cle`) qui reçoit le point lâché (`deposer`), s'il `accepte`.
+ */
+function useGlisser() {
+  const [glisse, setGlisse] = useState<Task | null>(null);
+  const [survol, setSurvol] = useState<string | null>(null);
+  // Le point pris, aussi hors du rendu : les lignes le reçoivent dès le premier survol.
+  const pris = useRef<Task | null>(null);
+  const fin = () => {
+    pris.current = null;
+    setGlisse(null);
+    setSurvol(null);
+  };
+  const prendre = (t: Task) => ({
+    draggable: true,
+    onDragStart: (e: React.DragEvent) => {
+      e.stopPropagation();
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', t.titre);
+      pris.current = t;
+      setGlisse(t);
+    },
+    onDragEnd: fin,
+  });
+  const recoit = (cle: string, deposer: (t: Task) => void, accepte: (t: Task) => boolean = () => true) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!pris.current || !accepte(pris.current)) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      setSurvol(cle);
+    },
+    onDragLeave: () => setSurvol((x) => (x === cle ? null : x)),
+    onDrop: (e: React.DragEvent) => {
+      const t = pris.current;
+      if (!t || !accepte(t)) return;
+      e.preventDefault();
+      fin();
+      deposer(t);
+    },
+  });
+  return { glisse, survol, prendre, recoit };
+}
+
+/** Entre deux lignes de la frise : de quoi déposer un point, qui y prend la date `date` (visible pendant qu'on glisse). */
+function zoneDepot(g: Glisser, cle: string, date: string, dater: (t: Task, date: string) => void) {
+  return (
+    <li key={cle} className={`chrono-depot ${g.survol === cle ? 'survol' : ''}`} aria-hidden="true" {...g.recoit(cle, (t) => dater(t, date))}>
+      <span>Déposer ici · le {fmtDate(date)}</span>
+    </li>
+  );
+}
+
+/** Une séance sur la frise : `quand` (« J-12 », « Séance ») ; on y dépose un point pour l'y rattacher. */
+function ligneSeance(g: Glisser, m: Meeting, quand: string, annee: string, deposer: (t: Task, m: Meeting) => void) {
+  const cle = `s:${m.id}`;
+  return (
+    <li key={cle} className={`chrono-ligne chrono-seance ${g.survol === cle ? 'survol' : ''}`} {...g.recoit(cle, (t) => deposer(t, m), (t) => t.meetingId !== m.id)}>
+      <span className="chrono-quand"><b>{quand}</b><small>{jourCourt(m.date, annee)}</small></span>
+      <span className="chrono-puce" aria-hidden="true"><Icone n="seances" /></span>
+      <div className="chrono-corps">
+        <Link className="chrono-titre" to={`/comite?seance=${encodeURIComponent(m.id)}`} title="Ouvrir la séance">{m.titre}</Link>
+        <span className="muted">{['Séance', fmtHeure(m.heure), m.lieu].filter(Boolean).join(' · ')}</span>
+      </div>
+    </li>
+  );
+}
+
 /** Nombre, unité, avant / après l'événement. */
 function ChampEcart({ v, onChange }: { v: Ecart; onChange: (v: Ecart) => void }) {
   const n = nombre(v);
@@ -65,13 +150,15 @@ function ChampEcart({ v, onChange }: { v: Ecart; onChange: (v: Ecart) => void })
 }
 
 export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: () => void }) {
-  const { data, user, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
   const [fiche, setFiche] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [cacherFaits, setCacherFaits] = useState(false);
+  const [voirSeances, setVoirSeances] = useState(true);
   const [titre, setTitre] = useState('');
   const [ecart, setEcart] = useState<Ecart>({ n: '1', unite: 'semaines', apres: false });
   // Point en train d'être placé (son écart).
   const [place, setPlace] = useState<{ id: string; v: Ecart } | null>(null);
+  const g = useGlisser();
   if (!user) return null;
 
   const serie = cible.serie ? data.events.find((x) => x.id === cible.serie!.id) ?? cible.serie : undefined;
@@ -133,6 +220,18 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
     saveTask(x, false);
     setToast(`« ${t.titre} » : ${offsetLabel(decalage(e)).toLowerCase()} (${fmtDate(x.delai)}), calé sur « ${nom} »`);
   };
+  // Glissé entre deux lignes (ou sur le jour J) : à cette date, calé sur l'événement ; s'il ne peut pas l'être, à date fixe.
+  const dater = (t: Task, d: string) => {
+    if (caler(t, { n: '0', unite: 'jours', apres: false })) return valider(t, ecartVers(debut, d));
+    saveTask({ ...t, delai: d, delaiRef: undefined }, false);
+    setToast(`« ${t.titre} » : le ${fmtDate(d)}`);
+  };
+  // Glissé sur une séance : rattaché à elle, son délai calé sur elle (il reste dans l'événement).
+  const versLaSeance = (t: Task, m: Meeting) => {
+    const x = versSeance(data, t, m);
+    saveTask(x, false);
+    setToast(`« ${t.titre} » → ${m.titre} (${fmtDate(x.delai)})`);
+  };
 
   // Planifier un point : sa fiche, préremplie (titre, délai calé sur l'événement, rangé à la place de son étiquette, dans
   // « Newsletter » pour une newsletter, ou dans la sous-section de l'événement, quand on peut y ranger le point).
@@ -153,8 +252,13 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
   const ligne = (t: Task) => {
     const enCours = place?.id === t.id ? place : null;
     const d = t.delai;
+    const glissable = canEditTask(t) && !enCours;
     return (
-      <li key={t.id} className={`chrono-ligne chrono-point ${isDone(data, t) ? 'fait' : ''} ${isLate(data, t) ? 'retard' : ''} ${d && d >= debut && d <= fin ? 'pendant' : ''}`}>
+      <li
+        key={t.id}
+        className={`chrono-ligne chrono-point ${isDone(data, t) ? 'fait' : ''} ${isLate(data, t) ? 'retard' : ''} ${d && d >= debut && d <= fin ? 'pendant' : ''} ${glissable ? 'glissable' : ''} ${g.glisse?.id === t.id ? 'pris' : ''}`}
+        {...(glissable ? g.prendre(t) : {})}
+      >
         <span className="chrono-quand">
           {d ? <><b>{relatif(d)}</b><small>{jourCourt(d, annee)}</small></> : <b className="muted">—</b>}
         </span>
@@ -190,26 +294,41 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
     );
   };
 
-  // La frise : les points datés, « Aujourd'hui » et le jour J, par date (le même jour : aujourd'hui, le jour J, puis les
-  // points), avec le mois en intercalaire.
-  type Repere = { k: 'point'; date: string; t: Task } | { k: 'jour' | 'evenement'; date: string };
-  const rang = { jour: 0, evenement: 1, point: 2 };
-  const reperes = ([
+  // La frise : les points datés, « Aujourd'hui », le jour J et les séances du club dans ce temps-là, par date (le même
+  // jour : aujourd'hui, les séances, le jour J, puis les points), avec le mois en intercalaire ; entre deux lignes, de quoi
+  // y déposer un point.
+  type Repere = { k: 'point'; date: string; t: Task } | { k: 'jour' | 'evenement'; date: string } | { k: 'seance'; date: string; m: Meeting };
+  const rang = { jour: 0, seance: 1, evenement: 2, point: 3 };
+  const base: Repere[] = [
     ...montres.filter((t) => t.delai).map((t): Repere => ({ k: 'point', date: t.delai, t })),
     { k: 'evenement', date: debut },
     { k: 'jour', date: jour },
-  ] as Repere[]).sort((a, b) => a.date.localeCompare(b.date) || rang[a.k] - rang[b.k] || (a.k === 'point' && b.k === 'point' ? a.t.titre.localeCompare(b.t.titre, 'fr') : 0));
+  ];
+  const bornes = base.map((r) => r.date).sort();
+  const seances = can('tab.meetings') ? seancesEntre(data.meetings, bornes[0], bornes[bornes.length - 1]) : [];
+  const reperes = [...base, ...(voirSeances ? seances.map((m): Repere => ({ k: 'seance', date: m.date, m })) : [])].sort(
+    (a, b) => a.date.localeCompare(b.date) || rang[a.k] - rang[b.k] || (a.k === 'point' && b.k === 'point' ? a.t.titre.localeCompare(b.t.titre, 'fr') : 0),
+  );
   const frise: JSX.Element[] = [];
   let mois = '';
+  let prec: string | undefined;
   for (const r of reperes) {
+    frise.push(zoneDepot(g, `z:${frise.length}`, prec ? dateEntre(prec, r.date) : addDays(r.date, -7), dater));
+    prec = r.date;
     if (r.date.slice(0, 7) !== mois) {
       mois = r.date.slice(0, 7);
       frise.push(<li key={`m:${mois}`} className="chrono-mois">{nomMois(r.date)}</li>);
     }
     if (r.k === 'point') frise.push(ligne(r.t));
+    else if (r.k === 'seance') frise.push(ligneSeance(g, r.m, relatif(r.date), annee, versLaSeance));
     else if (r.k === 'evenement')
       frise.push(
-        <li key="jour-j" className="chrono-ligne chrono-jourj" style={et ? ({ '--c': et.couleur } as React.CSSProperties) : undefined}>
+        <li
+          key="jour-j"
+          className={`chrono-ligne chrono-jourj ${g.survol === 'jourj' ? 'survol' : ''}`}
+          style={et ? ({ '--c': et.couleur } as React.CSSProperties) : undefined}
+          {...g.recoit('jourj', (t) => dater(t, debut))}
+        >
           <span className="chrono-quand"><b>Jour J</b><small>{jourCourt(debut, annee)}</small></span>
           <span className="chrono-puce" aria-hidden="true"><Icone n="evenements" /></span>
           <div className="chrono-corps">
@@ -229,6 +348,7 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
         </li>,
       );
   }
+  if (prec) frise.push(zoneDepot(g, `z:${frise.length}`, addDays(prec, 7), dater));
 
   return (
     <Modal title={`Chronologie · ${nom}`} icone="horloge" onClose={onClose} wide className="chronologie">
@@ -264,11 +384,7 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
         </form>
       )}
 
-      {points.length > 0 && (
-        <label className="inline hide-toggle chrono-filtre">
-          <input type="checkbox" checked={cacherFaits} onChange={(e) => setCacherFaits(e.target.checked)} /> Masquer les terminés
-        </label>
-      )}
+      <Filtres points={points.length} seances={seances.length} cacherFaits={cacherFaits} setCacherFaits={setCacherFaits} voirSeances={voirSeances} setVoirSeances={setVoirSeances} />
 
       {sansDelai.length > 0 && (
         <section className="chrono-sans-delai">
@@ -277,11 +393,12 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
         </section>
       )}
 
-      <ol className="chrono-liste chrono-frise" aria-label={`Points de « ${nom} » dans le temps`}>{frise}</ol>
+      <ol className={`chrono-liste chrono-frise ${g.glisse ? 'glisse' : ''}`} aria-label={`Points de « ${nom} » dans le temps`}>{frise}</ol>
       {!points.length && <Empty>Aucun point pour l’instant.{peutCreer ? ' Planifie le premier ci-dessus : « 1 mois avant », « la veille »…' : ''}</Empty>}
 
       <p className="muted chrono-note">
         <Icone n="epingle" /> Calé sur l’événement : le délai suit sa date, et une reprise l’an prochain garde le même écart.
+        {' '}À la souris : glisse un point entre deux lignes pour lui donner cette date, sur une séance pour l’y rattacher.
       </p>
       <div className="modal-foot">
         {/* Avec une étiquette : tous ses points (rangés chez elle ou rattachés à l'événement) ; sinon, ceux rattachés. */}
@@ -291,6 +408,27 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
       </div>
       {fiche && <TaskModal task={fiche.task} isNew={fiche.isNew} onClose={() => setFiche(null)} />}
     </Modal>
+  );
+}
+
+/** « Masquer les terminés » (s'il y a des points) et « Afficher les séances » (s'il y en a dans ce temps-là). */
+function Filtres({ points, seances, cacherFaits, setCacherFaits, voirSeances, setVoirSeances }: {
+  points: number; seances: number; cacherFaits: boolean; setCacherFaits: (x: boolean) => void; voirSeances: boolean; setVoirSeances: (x: boolean) => void;
+}) {
+  if (!points && !seances) return null;
+  return (
+    <div className="chrono-filtres">
+      {points > 0 && (
+        <label className="inline hide-toggle chrono-filtre">
+          <input type="checkbox" checked={cacherFaits} onChange={(e) => setCacherFaits(e.target.checked)} /> Masquer les terminés
+        </label>
+      )}
+      {seances > 0 && (
+        <label className="inline hide-toggle chrono-filtre">
+          <input type="checkbox" checked={voirSeances} onChange={(e) => setVoirSeances(e.target.checked)} /> Afficher les séances ({seances})
+        </label>
+      )}
+    </div>
   );
 }
 
@@ -309,11 +447,13 @@ const ecartJ = (j: string, d: string) => {
  * son étiquette) ; « Placer » / « Déplacer » un point par rapport à son événement.
  */
 export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; onClose: () => void }) {
-  const { data, user, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
+  const { data, user, can, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
   const [fiche, setFiche] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [cacherFaits, setCacherFaits] = useState(false);
+  const [voirSeances, setVoirSeances] = useState(true);
   const [titre, setTitre] = useState('');
   const [ecart, setEcart] = useState<Ecart>({ n: '1', unite: 'semaines', apres: false });
+  const g = useGlisser();
   // Pour quel événement planifier (d'office le prochain) ; '' : toute la série.
   const [pour, setPour] = useState(() => {
     const p = prochainDeLaSerie(evenementsDeLaSerie(data.events, serie.id));
@@ -376,6 +516,37 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
     saveTask(x, false);
     setToast(`« ${t.titre} » : ${offsetLabel(decalage(v)).toLowerCase()} (${fmtDate(x.delai)}), calé sur « ${e!.nom} »`);
   };
+  /** « Manche 2 », « Natation du 27.11.2026 ». */
+  const nomJalon = (e: ClubEvent, j: string) => `${e.nom}${e.repetition ? ` du ${fmtDate(j)}` : ''}`;
+  // Glissé entre deux lignes : à cette date, calé sur son événement (s'il se répète : sur sa date la plus proche) ; un point
+  // de la série seule, ou rattaché ailleurs : à date fixe.
+  const dater = (t: Task, d: string) => {
+    const e = evDe(t);
+    const j = e && (e.repetition ? occurrenceProche(e, d) ?? jourJ(t, e) : e.date);
+    const v = j ? ecartVers(j, d) : undefined;
+    const x = e && j && v && caler(t, e, j, v);
+    if (x) {
+      saveTask(x, false);
+      return setToast(`« ${t.titre} » : ${offsetLabel(decalage(v!)).toLowerCase()} (${fmtDate(x.delai)}), calé sur « ${nomJalon(e!, j!)} »`);
+    }
+    saveTask({ ...t, delai: d, delaiRef: undefined }, false);
+    setToast(`« ${t.titre} » : le ${fmtDate(d)}`);
+  };
+  // Glissé sur un événement de la série (à une date) : rattaché à lui, au même écart s'il était calé sur le sien, sinon le
+  // jour même.
+  const versJalon = (t: Task, e: ClubEvent, j: string) => {
+    const avant = evDe(t);
+    const v: Ecart = avant && cale(t, avant) ? ecartDe(t, avant) : { n: '0', unite: 'jours', apres: false };
+    const x = caler({ ...t, eventId: undefined }, e, j, v)!;
+    saveTask(x, false);
+    setToast(`« ${t.titre} » → ${nomJalon(e, j)} : ${offsetLabel(decalage(v)).toLowerCase()} (${fmtDate(x.delai)})`);
+  };
+  // Glissé sur une séance : rattaché à elle, son délai calé sur elle (il reste dans la série).
+  const versLaSeance = (t: Task, m: Meeting) => {
+    const x = versSeance(data, t, m);
+    saveTask(x, false);
+    setToast(`« ${t.titre} » → ${m.titre} (${fmtDate(x.delai)})`);
+  };
 
   // Planifier un point : pour un événement (calé sur lui, rangé chez son étiquette, dans « Newsletter » pour une newsletter,
   // ou dans sa sous-section quand on peut), ou pour toute la série (à la date choisie, chez son étiquette).
@@ -405,8 +576,13 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
     const enCours = place?.id === t.id ? place : null;
     const d = t.delai;
     const pendant = !!d && !!e && !!j && d >= j && d <= endOf(aLaDate(e, j));
+    const glissable = canEditTask(t) && !enCours;
     return (
-      <li key={t.id} className={`chrono-ligne chrono-point ${isDone(data, t) ? 'fait' : ''} ${isLate(data, t) ? 'retard' : ''} ${pendant ? 'pendant' : ''}`}>
+      <li
+        key={t.id}
+        className={`chrono-ligne chrono-point ${isDone(data, t) ? 'fait' : ''} ${isLate(data, t) ? 'retard' : ''} ${pendant ? 'pendant' : ''} ${glissable ? 'glissable' : ''} ${g.glisse?.id === t.id ? 'pris' : ''}`}
+        {...(glissable ? g.prendre(t) : {})}
+      >
         <span className="chrono-quand">
           {d ? <><b>{j ? ecartJ(j, d) : jourCourt(d, annee)}</b><small>{j ? jourCourt(d, annee) : ''}</small></> : <b className="muted">—</b>}
         </span>
@@ -456,18 +632,28 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
     const dates = new Set([e.date, ...montres.filter((t) => t.delai && evDe(t)?.id === e.id).map((t) => jourJ(t, e))]);
     [...dates].forEach((d) => jalons.push({ date: d, e, debut: d === e.date }));
   }
-  // La frise : les points datés, les jours J et « Aujourd'hui », par date (le même jour : aujourd'hui, les jours J, les
-  // points), avec le mois en intercalaire.
-  type Repere = { k: 'point'; date: string; t: Task } | { k: 'evenement'; date: string; j: Jalon } | { k: 'jour'; date: string } | { k: 'officiel'; date: string; fin: boolean };
-  const rang = { jour: 0, officiel: 1, evenement: 2, point: 3 };
-  const reperes = ([
+  // La frise : les points datés, les jours J, « Aujourd'hui » et les séances du club dans ce temps-là, par date (le même
+  // jour : aujourd'hui, les séances, les jours J, les points), avec le mois en intercalaire ; entre deux lignes, de quoi y
+  // déposer un point.
+  type Repere =
+    | { k: 'point'; date: string; t: Task }
+    | { k: 'evenement'; date: string; j: Jalon }
+    | { k: 'jour'; date: string }
+    | { k: 'officiel'; date: string; fin: boolean }
+    | { k: 'seance'; date: string; m: Meeting };
+  const rang = { jour: 0, seance: 1, officiel: 2, evenement: 3, point: 4 };
+  const base = [
     ...montres.filter((t) => t.delai).map((t): Repere => ({ k: 'point', date: t.delai, t })),
     ...jalons.map((j): Repere => ({ k: 'evenement', date: j.date, j })),
     // Sa période officielle (programme hivernal : les changements d'heure).
     ...(s.debut ? [{ k: 'officiel', date: s.debut, fin: false } as Repere] : []),
     ...(s.fin ? [{ k: 'officiel', date: s.fin, fin: true } as Repere] : []),
-    { k: 'jour', date: jour },
-  ] as Repere[]).sort(
+    { k: 'jour', date: jour } as Repere,
+  ];
+  // Les séances : dans le temps de la frise et de toute la période de la série.
+  const bornes = [...base.map((r) => r.date), ...(periode ? [periode.debut, periode.fin ?? periode.debut] : [])].sort();
+  const seances = can('tab.meetings') ? seancesEntre(data.meetings, bornes[0], bornes[bornes.length - 1]) : [];
+  const reperes = [...base, ...(voirSeances ? seances.map((m): Repere => ({ k: 'seance', date: m.date, m })) : [])].sort(
     (a, b) =>
       a.date.localeCompare(b.date) || rang[a.k] - rang[b.k] ||
       (a.k === 'point' && b.k === 'point' ? a.t.titre.localeCompare(b.t.titre, 'fr') : a.k === 'evenement' && b.k === 'evenement' ? (a.j.e.heure ?? '').localeCompare(b.j.e.heure ?? '') : 0),
@@ -476,12 +662,16 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
   const passee = seriePassee(evs, jour);
   const frise: JSX.Element[] = [];
   let mois = '';
+  let prec: string | undefined;
   for (const r of reperes) {
+    frise.push(zoneDepot(g, `z:${frise.length}`, prec ? dateEntre(prec, r.date) : addDays(r.date, -7), dater));
+    prec = r.date;
     if (r.date.slice(0, 7) !== mois) {
       mois = r.date.slice(0, 7);
       frise.push(<li key={`m:${mois}`} className="chrono-mois">{nomMois(r.date)}</li>);
     }
     if (r.k === 'point') frise.push(ligne(r.t));
+    else if (r.k === 'seance') frise.push(ligneSeance(g, r.m, 'Séance', annee, versLaSeance));
     else if (r.k === 'officiel')
       frise.push(
         <li key={`o:${r.fin ? 'fin' : 'debut'}`} className="chrono-ligne chrono-officiel">
@@ -495,8 +685,14 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
     else if (r.k === 'evenement') {
       const { e, debut } = r.j;
       const x = aLaDate(e, r.date);
+      const cle = `j:${e.id}@${r.date}`;
       frise.push(
-        <li key={`j:${e.id}@${r.date}`} className="chrono-ligne chrono-jourj" style={couleur(e) ? ({ '--c': couleur(e) } as React.CSSProperties) : undefined}>
+        <li
+          key={cle}
+          className={`chrono-ligne chrono-jourj ${g.survol === cle ? 'survol' : ''}`}
+          style={couleur(e) ? ({ '--c': couleur(e) } as React.CSSProperties) : undefined}
+          {...g.recoit(cle, (t) => versJalon(t, e, r.date), (t) => !t.eventId || evs.some((y) => y.id === t.eventId))}
+        >
           <span className="chrono-quand"><b>{debut ? 'Début' : 'Jour J'}</b><small>{jourCourt(r.date, annee)}</small></span>
           <span className="chrono-puce" aria-hidden="true"><Icone n="evenements" /></span>
           <div className="chrono-corps">
@@ -518,6 +714,7 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
         </li>,
       );
   }
+  if (prec) frise.push(zoneDepot(g, `z:${frise.length}`, addDays(prec, 7), dater));
 
   return (
     <Modal title={`Chronologie · ${s.nom}`} icone="horloge" onClose={onClose} wide className="chronologie">
@@ -563,11 +760,7 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
         </form>
       )}
 
-      {points.length > 0 && (
-        <label className="inline hide-toggle chrono-filtre">
-          <input type="checkbox" checked={cacherFaits} onChange={(e) => setCacherFaits(e.target.checked)} /> Masquer les terminés
-        </label>
-      )}
+      <Filtres points={points.length} seances={seances.length} cacherFaits={cacherFaits} setCacherFaits={setCacherFaits} voirSeances={voirSeances} setVoirSeances={setVoirSeances} />
 
       {sansDelai.length > 0 && (
         <section className="chrono-sans-delai">
@@ -576,11 +769,12 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
         </section>
       )}
 
-      <ol className="chrono-liste chrono-frise" aria-label={`Points de la série « ${s.nom} » dans le temps`}>{frise}</ol>
+      <ol className={`chrono-liste chrono-frise ${g.glisse ? 'glisse' : ''}`} aria-label={`Points de la série « ${s.nom} » dans le temps`}>{frise}</ol>
       {!points.length && <Empty>Aucun point pour l’instant.{peutCreer ? ' Planifie le premier ci-dessus : « 1 mois avant » la première manche, « la veille »…' : ''}</Empty>}
 
       <p className="muted chrono-note">
         <Icone n="epingle" /> Calé sur son événement : le délai suit sa date, et une reprise de la série garde le même écart.
+        {' '}À la souris : glisse un point entre deux lignes pour lui donner cette date, sur un événement ou une séance pour l’y rattacher.
       </p>
       <div className="modal-foot">
         <Link to={`/taches?event=${encodeURIComponent(FILTRE_SERIE + s.id)}`}>Voir dans la liste des points →</Link>
