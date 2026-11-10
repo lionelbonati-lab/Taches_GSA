@@ -150,6 +150,8 @@ test('chronologie : du texte en une colonne ; « + » montre les points, sans bo
   await expect(page.locator('.cc-point.seul', { hasText: 'Commander les maillots' })).toBeVisible();
   await expect(page.getByRole('button', { name: /^Déplacer « / })).toHaveCount(0);
   await page.getByRole('button', { name: 'Afficher les points de « Soirée récréative »' }).click();
-  await ligne('Soirée récréative').getByRole('button', { name: 'Réserver la salle' }).click();
+  // Le point, deux semaines avant : à sa date, pas sous la soirée.
+  await expect(ligne('Soirée récréative')).not.toContainText('Réserver la salle');
+  await page.getByRole('button', { name: 'Réserver la salle' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 });

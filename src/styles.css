@@ -2357,14 +2357,21 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .cc-point-titre:hover, .cc-point-titre:focus-visible { color: var(--primary); text-decoration: underline; }
 .cc-point.fait .cc-point-titre { color: var(--muted); text-decoration: line-through; }
 .cc-point.seul .cc-point-titre::before { content: '• '; color: var(--muted); }
-.cc-outil { border: none; background: none; color: var(--muted); padding: 0 3px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; }
+/* Point d'une séance ou d'un événement montré à sa date : à qui il est. */
+.cc-de { color: var(--muted); font-size: 0.82rem; }
+.cc-seuls.de .cc-point-titre { font-size: 0.9rem; }
+.cc-outil { border: none; background: none; color: var(--muted); padding: 0 3px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; font-size: 0.85rem; }
 .cc-outil:hover, .cc-outil:focus-visible { background: var(--primary-soft); color: var(--primary); }
-/* Outils (ajouter un point, déplacer) : au survol, à la souris ; pas sur un écran tactile (on y passe par les fiches). */
+/* Poignée pour déplacer : six petits points, à peine visibles, au survol de la ligne ; glisser la ligne (ou cliquer dessus)
+   déplace. */
+.cc-poignee { border: none; background: none; padding: 0; margin: 0 -2px; width: 12px; color: var(--border); cursor: grab; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; align-self: center; }
+.cc-poignee:hover, .cc-poignee:focus-visible { color: var(--muted); }
+/* Outils (poignée, ajouter un point) : au survol, à la souris ; pas sur un écran tactile (on y passe par les fiches). */
 @media (hover: hover) and (pointer: fine) {
-  .cc-outil { opacity: 0; }
-  .cc-el-ligne:hover .cc-outil, .cc-point:hover .cc-outil, .cc-outil:focus-visible { opacity: 1; }
+  .cc-outil, .cc-poignee { opacity: 0; transition: opacity 0.12s; }
+  .cc-el-ligne:hover .cc-outil, .cc-el-ligne:hover .cc-poignee, .cc-point:hover .cc-poignee, .cc-outil:focus-visible, .cc-poignee:focus-visible { opacity: 1; }
 }
-@media (hover: none), (pointer: coarse) { .cc-outil { display: none; } }
+@media (hover: none), (pointer: coarse) { .cc-outil, .cc-poignee { display: none; } }
 .cc-depot { height: 10px; position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; }
 .cc-depot span { display: none; position: absolute; top: 50%; transform: translateY(-50%); font-size: 0.78rem; color: var(--primary); background: var(--surface); border: 1px solid var(--primary); padding: 1px 10px; border-radius: 999px; white-space: nowrap; font-weight: 600; pointer-events: none; }
 /* Pendant un glisser : un trait pointillé entre les jours (sans rien décaler), l'endroit survolé en évidence. */
@@ -2389,7 +2396,7 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 /* Impression : la chronologie affichée, sur A4, sans boutons ; les deux voies, en petit. */
 @media print {
   .cc-page { page: chronologie; font-size: 9pt; }
-  .cc-page .page-head, .cc-depot, .cc-plus, .cc-outil, .cc-jour.vide, .cc-ecran { display: none !important; }
+  .cc-page .page-head, .cc-depot, .cc-plus, .cc-outil, .cc-poignee, .cc-jour.vide, .cc-ecran { display: none !important; }
   .cc-papier { display: inline; }
   .cc-papier-tete { display: flex !important; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #999; padding-bottom: 4px; margin-bottom: 4px; }
   .cc-papier-tete strong { font-size: 14pt; }
@@ -2407,7 +2414,8 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
   .cc-date time { font-size: 8pt; }
   .cc-el.passee .cc-el-titre { opacity: 1; }
   .cc-el-titre, .cc-ag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .cc-points { font-size: 8pt; margin: 0 0 2px; }
+  .cc-points, .cc-seuls.de { font-size: 8pt; margin: 0 0 2px; }
+  .cc-seuls.de .cc-point-titre, .cc-de { font-size: inherit; }
   .cc-point-date, .cc-point.retard .cc-point-date { color: #555; }
 }
 @page chronologie { size: A4 portrait; margin: 10mm; }

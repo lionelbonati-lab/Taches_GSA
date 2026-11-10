@@ -3636,6 +3636,7 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
       point('t-salle', 'Réserver la salle', { eventId: 'e10', delaiRef: { type: 'event', joursAvant: 14, unite: 'semaines' }, delai: '2026-11-14' }),
       point('t-maillots', 'Commander les maillots', { delai: '2026-11-18' }),
       point('t-site', 'Nouveau site web', {}),
+      point('t-bru', 'Affiches de la Bruntrutaine', { eventId: 'e11', delai: '2026-12-20' }),
     );
     localStorage.setItem(k, JSON.stringify(d));
   }, cle);
@@ -3644,16 +3645,22 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   await page.reload();
 
   // Année 2026, seulement du texte : à gauche les séances et le point seul, à droite les événements ; leurs points cachés,
-  // « + » les montre (date et titre).
+  // « + » les montre : sous eux le même jour, sinon à leur date, avec leur nom.
   await expect(page.locator('.cc-periode')).toHaveText('2026');
   const carte = (nom: string) => page.locator('.cc-el').filter({ has: page.locator('.cc-el-titre', { hasText: nom }) });
   const plus = (nom: string) => page.getByRole('button', { name: `Afficher les points de « ${nom} »` });
   await expect(page.locator('.cc-gauche').locator(carte('Comité d’octobre 2026'))).toBeVisible();
   await expect(carte('Comité d’octobre 2026')).not.toContainText('Lire la correspondance');
   await plus('Comité d’octobre 2026').click();
-  await expect(carte('Comité d’octobre 2026').locator('.cc-point')).toHaveText('29.10Lire la correspondance');
+  await expect(carte('Comité d’octobre 2026').locator('.cc-point')).toHaveText('Lire la correspondance');
+  const leJour = (d: string) => page.locator('li.cc-jour', { has: page.locator(`.cc-date time[datetime="${d}"]`) });
+  await expect(page.locator('.cc-point', { hasText: 'Réserver la salle' })).toHaveCount(0);
   await plus('Soirée récréative').click();
-  await expect(page.locator('.cc-droite').locator(carte('Soirée récréative')).locator('.cc-point')).toHaveText('14.11Réserver la salle');
+  await expect(carte('Soirée récréative')).not.toContainText('Réserver la salle');
+  await expect(leJour('2026-11-14').locator('.cc-droite .cc-point', { hasText: 'Réserver la salle' })).toContainText('· Soirée récréative');
+  await page.getByRole('button', { name: 'Masquer les points de « Soirée récréative »' }).click();
+  await expect(page.locator('.cc-point', { hasText: 'Réserver la salle' })).toHaveCount(0);
+  await plus('Soirée récréative').click();
   await expect(page.locator('.cc-gauche .cc-point.seul', { hasText: 'Commander les maillots' })).toBeVisible();
   await expect(page.locator('.cc-sans-date summary')).toContainText('Sans date (1)');
   await expect(page.locator('.cc-jour.aujourdhui .cc-date .cc-ecran')).toHaveText('Aujourd’hui');
@@ -3663,7 +3670,6 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
 
   // Glisser le point seul sur le comité de décembre : rattaché, son délai suit la séance.
   await page.locator('.cc-point', { hasText: 'Commander les maillots' }).dragTo(carte('Comité de décembre 2026'));
-  await plus('Comité de décembre 2026').click();
   await expect(carte('Comité de décembre 2026')).toContainText('Commander les maillots');
   expect(await tache('t-maillots')).toMatchObject({ meetingId: 'm6', delaiRef: { type: 'meeting', joursAvant: 0 }, delai: '2026-12-03' });
 
@@ -3692,7 +3698,6 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   const deplacer = page.getByRole('dialog', { name: 'Déplacer « Nouveau site web »' });
   await deplacer.getByLabel('Vers').selectOption({ label: 'Sortie de la St-Martin · 14.11.2026' });
   await deplacer.getByRole('button', { name: 'Déplacer' }).click();
-  await plus('Sortie de la St-Martin').click();
   await expect(carte('Sortie de la St-Martin')).toContainText('Nouveau site web');
   expect(await tache('t-site')).toMatchObject({ eventId: 'e9', delai: '2026-11-14' });
   await expect(page.locator('.cc-sans-date')).toHaveCount(0);
@@ -3710,17 +3715,20 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   // Filtre « Mes points » / sections : les lignes restent, leurs points filtrés.
   await page.getByLabel('Section').selectOption({ index: 0 });
   await page.getByRole('button', { name: 'Mes points' }).click();
-  await expect(carte('Soirée récréative')).toContainText('Réserver la salle');
+  await expect(page.locator('.cc-point', { hasText: 'Réserver la salle' })).toBeVisible();
   await page.getByLabel('Masquer les terminés').check();
   await page.getByRole('button', { name: 'Effacer' }).click();
 
   // Tout masquer, tout afficher (retenu sur l'appareil).
+  // Un point de la Bruntrutaine (février 2027) tombe en décembre : avec « Afficher tous les points », à sa date, son
+  // événement et la date de celui-ci.
   await page.getByRole('button', { name: '− Masquer les points' }).click();
-  await expect(page.locator('.cc-points')).toHaveCount(0);
+  await expect(page.locator('.cc-points, .cc-seuls.de')).toHaveCount(0);
   await page.getByRole('button', { name: '+ Afficher tous les points' }).click();
   await expect(carte('Comité de décembre 2026')).toContainText('Commander les maillots');
+  await expect(leJour('2026-12-20').locator('.cc-point')).toContainText('Affiches de la Bruntrutaine· Bruntrutaine (27.02.27)');
   await page.reload();
-  await expect(carte('Soirée récréative')).toContainText('Réserver la salle');
+  await expect(page.locator('.cc-point', { hasText: 'Réserver la salle' })).toBeVisible();
 
   // Impression : un titre, la frise telle qu'affichée, sans filtres ni boutons ; les deux voies côte à côte.
   await page.emulateMedia({ media: 'print' });

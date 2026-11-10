@@ -8,13 +8,17 @@ import { etiquettesDatees, memeEvenement } from './agendaIcs';
 // séance). Deux voies : à gauche les séances, et les points rattachés ni à une séance ni à un événement (à leur délai) ;
 // à droite les événements (un événement qui se répète : une seule carte) et les étiquettes « événement » datées.
 //
-// Où va un point (une seule place) :
-//  1. son délai est calé sur une séance, un événement ou une étiquette datée (📌) : chez elle ;
-//  2. rattaché à un événement : chez lui ; 3. à une séance : chez elle ;
-//  4. il porte l'étiquette d'un événement (rangé dans sa sous-section) : chez lui ;
-//  5. sinon, seul dans la voie des séances, à son délai (sans délai : « Sans date »).
+// À qui est un point (un seul) :
+//  1. son délai est calé sur une séance, un événement ou une étiquette datée (📌) : à elle ;
+//  2. rattaché à un événement : à lui ; 3. à une séance : à elle ;
+//  4. il porte l'étiquette d'un événement (rangé dans sa sous-section) : à lui ;
+//  5. sinon à personne : seul dans la voie des séances, à son délai (sans délai : « Sans date »), toujours montré.
 // Une carte qu'on ne voit pas (pas le droit « Séances » ou « Événements ») ne retient pas ses points : ils passent à la
 // règle suivante.
+// Les points d'une séance ou d'un événement ne sont montrés que si on l'a demandé (« + », `Vue.ouvertes`), à leur date,
+// dans sa voie (« Réserver la salle · Soirée récréative », 2 mois avant) ; sous elle s'ils tombent le même jour (ou pendant
+// l'événement), s'ils n'ont pas de délai, ou si leur délai sort de la période. Ceux d'une séance ou d'un événement d'une
+// autre période, à leur date dans celle-ci, de même.
 
 /** Période affichée, du `de` au `a` (inclus). Vue AG : l'assemblée du début et celle de la fin (absente : pas encore prévue). */
 export interface Periode {
@@ -74,26 +78,39 @@ export function periodeDuJour(periodes: Periode[], jour = today()): number {
   return jour <= periodes[0].de ? 0 : periodes.length - 1;
 }
 
-/** Carte de la chronologie : une séance, un événement (qui se répète : toute la série), une étiquette « événement » datée. */
+/**
+ * Séance, événement (qui se répète : toute la série) ou étiquette « événement » datée de la chronologie. `points` : tous ses
+ * points de la vue (son « + ») ; `dessous` : ceux montrés sous elle (même jour, sans délai, ou délai hors de la période).
+ */
 export type Carte =
-  | { k: 'seance'; cle: string; date: string; m: Meeting; points: Task[] }
+  | { k: 'seance'; cle: string; date: string; m: Meeting; points: Task[]; dessous: Task[] }
   /** `occurrences` : premiers jours de ses dates dans la période (événement qui se répète, avec celles modifiées seules). */
-  | { k: 'evenement'; cle: string; date: string; fin: string; e: ClubEvent; occurrences: string[]; points: Task[] }
-  | { k: 'etiquette'; cle: string; date: string; fin: string; et: Etiquette; points: Task[] };
+  | { k: 'evenement'; cle: string; date: string; fin: string; e: ClubEvent; occurrences: string[]; points: Task[]; dessous: Task[] }
+  | { k: 'etiquette'; cle: string; date: string; fin: string; et: Etiquette; points: Task[]; dessous: Task[] };
 
-/** Ligne de la frise : un jour, ses cartes et points de gauche (séances, points seuls) et de droite (événements). */
+/** Un point à sa date : seul (rattaché à rien), ou d'une séance / d'un événement (`de` : son nom et sa date). */
+export interface PointFrise {
+  k: 'point';
+  cle: string;
+  t: Task;
+  de?: { cle: string; nom: string; date: string };
+}
+
+/** Ligne de la frise : un jour, à gauche les séances et leurs points (et les points seuls), à droite les événements et les leurs. */
 export interface Jour {
   date: string;
-  gauche: (Carte | { k: 'point'; cle: string; t: Task })[];
-  droite: Carte[];
+  gauche: (Carte | PointFrise)[];
+  droite: (Carte | PointFrise)[];
 }
 
 export interface Frise {
   jours: Jour[];
   /** Points sans délai rattachés à rien (« Sans date »). */
   sansDate: Task[];
-  /** Nombre de points montrés (cartes et points seuls). */
+  /** Nombre de points de la vue (montrés ou derrière un « + »). */
   nbPoints: number;
+  /** Séances et événements hors de la période dont des points tombent dans la période (« Afficher tous les points »). */
+  ailleurs: string[];
 }
 
 /** Ce que voit la personne et les points retenus (déjà filtrés). */
@@ -105,6 +122,8 @@ export interface Vue {
   points: Task[];
   /** Filtre « Étiquette » : les événements qui ne la portent pas, sans point retenu, ne sont pas montrés. */
   etiquette?: string;
+  /** Séances et événements dont les points sont montrés (« + »). */
+  ouvertes?: ReadonlySet<string>;
 }
 
 const cleSeance = (id: string) => `s:${id}`;
@@ -159,13 +178,29 @@ export function carteDuPoint(t: Task, x: ReturnType<typeof indexer>): string | u
 /** Délai, puis titre ; sans délai à la fin. */
 const parDelai = (a: Task, b: Task) => (a.delai || '9999').localeCompare(b.delai || '9999') || a.titre.localeCompare(b.titre, 'fr');
 
+/** Nom et date d'une séance ou d'un événement (sa clé), même hors de la période. */
+function infoCarte(data: AppData, cle: string): { nom: string; date: string } | undefined {
+  const id = cle.slice(cle.indexOf(':') + 1);
+  if (cle.startsWith('s:')) {
+    const m = data.meetings.find((y) => y.id === id);
+    return m && { nom: m.titre, date: m.date };
+  }
+  if (cle.startsWith('e:')) {
+    const e = data.events.find((y) => y.id === id);
+    return e && { nom: e.nom, date: e.date };
+  }
+  const et = data.etiquettes?.find((y) => y.id === id);
+  return et && { nom: et.nom, date: et.date ?? '' };
+}
+
 /** La frise de la période. */
 export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = today()): Frise {
   const x = indexer(data, vue);
   const dans = (d: string) => d >= p.de && d <= p.a;
+  const ouverte = (cle: string) => !!vue.ouvertes?.has(cle);
   const cartes = new Map<string, Carte>();
 
-  if (vue.seances) for (const m of data.meetings) if (m.date && dans(m.date)) cartes.set(cleSeance(m.id), { k: 'seance', cle: cleSeance(m.id), date: m.date, m, points: [] });
+  if (vue.seances) for (const m of data.meetings) if (m.date && dans(m.date)) cartes.set(cleSeance(m.id), { k: 'seance', cle: cleSeance(m.id), date: m.date, m, points: [], dessous: [] });
 
   if (vue.evenements) {
     // Un événement et ses dates modifiées seules : une carte.
@@ -184,27 +219,42 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
       if (!debuts.length) continue;
       const fins = [...(e.repetition ? debuts.map((d) => endOf(aLaDate(e, d))) : [endOf(e)]), ...evs.filter((y) => y.id !== id).map(endOf)];
       cartes.set(cleEvenement(id), {
-        k: 'evenement', cle: cleEvenement(id), date: debuts[0] < p.de ? p.de : debuts[0], fin: fins.sort().slice(-1)[0], e, occurrences: e.repetition ? debuts : [], points: [],
+        k: 'evenement', cle: cleEvenement(id), date: debuts[0] < p.de ? p.de : debuts[0], fin: fins.sort().slice(-1)[0], e, occurrences: e.repetition ? debuts : [], points: [], dessous: [],
       });
     }
   }
   for (const et of etiquettesCartes(data, vue)) {
     const fin = endOf({ date: et.date!, dateFin: et.dateFin });
-    if (fin >= p.de && et.date! <= p.a) cartes.set(cleEtiquette(et.id), { k: 'etiquette', cle: cleEtiquette(et.id), date: et.date! < p.de ? p.de : et.date!, fin, et, points: [] });
+    if (fin >= p.de && et.date! <= p.a) cartes.set(cleEtiquette(et.id), { k: 'etiquette', cle: cleEtiquette(et.id), date: et.date! < p.de ? p.de : et.date!, fin, et, points: [], dessous: [] });
   }
 
   const seuls: Task[] = [];
   const sansDate: Task[] = [];
+  /** Points d'une séance ou d'un événement, à leur date (dans sa voie). */
+  const aLeurDate: { t: Task; cle: string; gauche: boolean }[] = [];
+  const ailleurs = new Set<string>();
   for (const t of vue.points) {
     const cle = carteDuPoint(t, x);
-    if (cle) {
-      const c = cartes.get(cle);
-      if (!c) continue;
-      // Événement qui se répète (sa carte revient d'une période à l'autre) : ses points de la période, et ceux sans délai.
-      if (c.k === 'evenement' && c.e.repetition && t.delai && !dans(t.delai)) continue;
-      c.points.push(t);
-    } else if (!t.delai) sansDate.push(t);
-    else if (dans(t.delai)) seuls.push(t);
+    if (!cle) {
+      if (!t.delai) sansDate.push(t);
+      else if (dans(t.delai)) seuls.push(t);
+      continue;
+    }
+    const c = cartes.get(cle);
+    if (!c) {
+      // Séance ou événement d'une autre période : le point, s'il tombe dans celle-ci.
+      if (t.delai && dans(t.delai)) {
+        ailleurs.add(cle);
+        aLeurDate.push({ t, cle, gauche: cle.startsWith('s:') });
+      }
+      continue;
+    }
+    // Événement qui se répète (sa carte revient d'une période à l'autre) : ses points de la période, et ceux sans délai.
+    if (c.k === 'evenement' && c.e.repetition && t.delai && !dans(t.delai)) continue;
+    c.points.push(t);
+    const memeJour = c.k === 'seance' || (c.k === 'evenement' && c.e.repetition) ? t.delai === c.date : t.delai >= c.date && t.delai <= c.fin;
+    if (!t.delai || !dans(t.delai) || memeJour) c.dessous.push(t);
+    else aLeurDate.push({ t, cle, gauche: c.k === 'seance' });
   }
 
   // Filtre « Étiquette » : les événements qui ne la portent pas et n'ont aucun point retenu sont retirés.
@@ -224,19 +274,32 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
   let nbPoints = seuls.length;
   for (const c of cartes.values()) {
     c.points.sort(parDelai);
+    c.dessous.sort(parDelai);
     nbPoints += c.points.length;
     if (c.k === 'seance') jourDe(c.date).gauche.push(c);
     else jourDe(c.date).droite.push(c);
   }
   for (const t of seuls) jourDe(t.delai).gauche.push({ k: 'point', cle: `t:${t.id}`, t });
+  for (const { t, cle, gauche } of aLeurDate) {
+    if (ailleurs.has(cle)) nbPoints++;
+    if (!ouverte(cle)) continue;
+    const c = cartes.get(cle);
+    const info = c ? { nom: nomCarte(c), date: c.date } : infoCarte(data, cle);
+    const el: PointFrise = { k: 'point', cle: `t:${t.id}`, t, de: { cle, nom: info?.nom ?? '', date: info?.date ?? '' } };
+    (gauche ? jourDe(t.delai).gauche : jourDe(t.delai).droite).push(el);
+  }
   // « Aujourd'hui » : une ligne, même vide.
   if (dans(jour)) jourDe(jour);
-  const heure = (c: Jour['gauche'][number]) => (c.k === 'seance' ? c.m.heure ?? '' : c.k === 'point' ? '~' : '');
+  // Séances et événements d'abord (par heure, puis nom), puis les points (par titre).
+  const heure = (c: Carte | PointFrise) => (c.k === 'seance' ? c.m.heure ?? '' : c.k === 'evenement' ? c.e.heure ?? '' : '');
+  const nom = (c: Carte | PointFrise) => (c.k === 'point' ? c.t.titre : nomCarte(c));
+  const tri = (a: Carte | PointFrise, b: Carte | PointFrise) =>
+    (a.k === 'point' ? 1 : 0) - (b.k === 'point' ? 1 : 0) || heure(a).localeCompare(heure(b)) || nom(a).localeCompare(nom(b), 'fr');
   for (const j of jours.values()) {
-    j.gauche.sort((a, b) => (a.k === 'point' ? 1 : 0) - (b.k === 'point' ? 1 : 0) || heure(a).localeCompare(heure(b)) || (a.k === 'point' && b.k === 'point' ? parDelai(a.t, b.t) : 0));
-    j.droite.sort((a, b) => (a.k === 'evenement' ? a.e.heure ?? '' : '').localeCompare(b.k === 'evenement' ? b.e.heure ?? '' : '') || nomCarte(a).localeCompare(nomCarte(b), 'fr'));
+    j.gauche.sort(tri);
+    j.droite.sort(tri);
   }
-  return { jours: [...jours.values()].sort((a, b) => a.date.localeCompare(b.date)), sansDate: sansDate.sort(parDelai), nbPoints };
+  return { jours: [...jours.values()].sort((a, b) => a.date.localeCompare(b.date)), sansDate: sansDate.sort(parDelai), nbPoints, ailleurs: [...ailleurs] };
 }
 
 export const nomCarte = (c: Carte) => (c.k === 'seance' ? c.m.titre : c.k === 'evenement' ? c.e.nom : c.et.nom);

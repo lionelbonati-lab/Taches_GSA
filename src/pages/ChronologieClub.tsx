@@ -9,7 +9,7 @@ import { motSeance, titreSelonDate, versProchaineSeance } from '../data/seances'
 import { nomAvecSerie } from '../data/seriesEvenements';
 import {
   aDateFixe, assemblees, construireFrise, dateEntre, estAg, nomCarte, periodeAnnee, periodeDuJour, periodesAg, versEtiquette, versEvenement, versSeance,
-  type Carte, type Jour, type Periode,
+  type Carte, type Jour, type Periode, type PointFrise,
 } from '../data/chronologieClub';
 import { Modal } from '../components/ui';
 import { Icone, type IconeNom } from '../components/icones';
@@ -24,7 +24,7 @@ import { nomAppli } from '../data/nomAppli';
 // l'autre. À gauche les séances avec leurs points, et les points rattachés à rien, à leur délai ; à droite les événements
 // avec leurs points. Glisser-déposer : un point sur une séance ou un événement l'y rattache (son délai suit sa date) ;
 // un point, une séance ou un événement entre deux jours de la frise : sa nouvelle date (fenêtre « Déplacer », aussi par
-// le bouton « Déplacer » (✥) de chacun, sans souris). « + » partout pour ajouter une séance, un événement ou un point.
+// un clic sur la poignée de chacun, au survol, sans glisser). « + » partout pour ajouter une séance, un événement ou un point.
 // Seulement du texte, pour une vue d'ensemble à imprimer (« Imprimer » : A4, les deux voies) : une séance ou un événement =
 // son titre ; un petit « + » à côté montre ses points (date et titre ; le reste dans leur fiche), « − » les cache.
 
@@ -130,11 +130,14 @@ export function ChronologieClub() {
       (!fSection || t.sectionId === fSection),
   );
   const frise = p
-    ? construireFrise(data, p, { seances: voitSeances, evenements: voitEvenements, moi: user.id, points, etiquette: fEtiquette || undefined }, jour)
-    : { jours: [] as Jour[], sansDate: [] as Task[], nbPoints: 0 };
-  const cartes = frise.jours.flatMap((j) => [...j.gauche, ...j.droite]).filter((c): c is Carte => c.k !== 'point');
-  const montres = [...cartes.flatMap((c) => c.points), ...frise.jours.flatMap((j) => j.gauche.flatMap((c) => (c.k === 'point' ? [c.t] : [])))];
-  const enRetard = montres.filter((t) => isLate(data, t)).length;
+    ? construireFrise(data, p, { seances: voitSeances, evenements: voitEvenements, moi: user.id, points, etiquette: fEtiquette || undefined, ouvertes }, jour)
+    : { jours: [] as Jour[], sansDate: [] as Task[], nbPoints: 0, ailleurs: [] as string[] };
+  const elements = frise.jours.flatMap((j) => [...j.gauche, ...j.droite]);
+  const cartes = elements.filter((c): c is Carte => c.k !== 'point');
+  const montres = new Map([...cartes.flatMap((c) => c.points), ...elements.flatMap((c) => (c.k === 'point' ? [c.t] : []))].map((t) => [t.id, t]));
+  const enRetard = [...montres.values()].filter((t) => isLate(data, t)).length;
+  /** Ses points montrés (après un dépôt ou un ajout : on voit où il est allé). */
+  const ouvrir = (cle: string) => !ouvertes.has(cle) && setOuvertes(new Set([...ouvertes, cle]));
 
   // ---------- Déplacer ----------
 
@@ -146,6 +149,7 @@ export function ChronologieClub() {
     if (c.cle === g.depuis || !accepte(t, c)) return;
     const x = c.k === 'seance' ? versSeance(data, t, c.m, g.depuis) : c.k === 'evenement' ? versEvenement(data, t, c.e, c.occurrences, g.depuis) : versEtiquette(data, t, c.et, g.depuis);
     saveTask(x, false);
+    ouvrir(c.cle);
     setToast(`« ${t.titre} » → ${nomCarte(c)}${x.delai ? ` · délai ${x.delaiRef ? offsetLabel(x.delaiRef).toLowerCase() : ''} (${fmtDate(x.delai)})` : ''}`);
   };
   const dater = (g: Glisse, date: string) => {
@@ -216,6 +220,7 @@ export function ChronologieClub() {
   /** Nouveau point : dans la carte (rattaché, délai calé sur elle), ou à une date. */
   const nouveauPoint = (c?: Carte, date?: string) => {
     if (!c) return setFiche({ task: newTask(user.id, date ? { delai: date } : versProchaineSeance(data.meetings)), isNew: true });
+    ouvrir(c.cle);
     if (c.k === 'seance') return setFiche({ task: newTask(user.id, { meetingId: c.m.id, delaiRef: { type: 'meeting', joursAvant: 0 }, delai: c.m.date }), isNew: true });
     // Rangé à la place de son étiquette, ou dans la sous-section de l'événement, quand on peut y ranger le point.
     const et = c.k === 'etiquette' ? c.et : etiquetteDeLEvenement(data, c.e.id);
@@ -240,10 +245,17 @@ export function ChronologieClub() {
 
   // ---------- Affichage ----------
 
-  /** Un point : sa date et son titre (le reste dans sa fiche). `ref` : le jour de sa carte (l'année d'une autre date). */
-  const ligne = (t: Task, depuis?: string, seul?: boolean, ref = t.delai) => {
-    const g: Glisse = { k: 'point', t, depuis };
+  /**
+   * Un point : son titre (le reste dans sa fiche). Seul ou à sa date dans la frise : la date est sur l'axe, et `de` dit à
+   * quelle séance ou quel événement il est (sa date si elle est hors de la période). Sous sa séance / son événement (`sous` :
+   * leur jour) : sa date seulement si ce n'est pas la même.
+   */
+  const ligne = (t: Task, o: { depuis?: string; de?: { nom: string; date: string }; sous?: string } = {}) => {
+    const g: Glisse = { k: 'point', t, depuis: o.depuis };
     const bouge = canEditTask(t);
+    const seul = !o.sous;
+    const date = o.sous && t.delai && t.delai !== o.sous ? dateCourte(t.delai, o.sous) : '';
+    const deHors = !!o.de?.date && !!p && (o.de.date < p.de || o.de.date > p.a);
     return (
       <li
         key={t.id}
@@ -252,15 +264,16 @@ export function ChronologieClub() {
         onDragStart={bouge ? debut(g) : undefined}
         onDragEnd={finGlisse}
       >
-        {!seul && <time className="cc-point-date" dateTime={t.delai || undefined}>{t.delai ? dateCourte(t.delai, ref || t.delai) : '—'}</time>}
+        {bouge && (
+          <button type="button" className="cc-poignee" onClick={() => setDeplacer({ g })} title="Glisser pour déplacer, ou cliquer pour choisir où" aria-label={`Déplacer « ${t.titre} »`}>
+            <Icone n="poignee" />
+          </button>
+        )}
+        {date && <time className="cc-point-date" dateTime={t.delai}>{date}</time>}
         <button type="button" className="cc-point-titre" onClick={() => setFiche({ task: t, isNew: false })} title={t.delaiRef ? `Ouvrir le point · délai ${offsetLabel(t.delaiRef).toLowerCase()}` : 'Ouvrir le point'}>
           {t.titre || '(sans titre)'}
         </button>
-        {bouge && (
-          <button type="button" className="cc-bouger cc-outil" onClick={() => setDeplacer({ g })} title="Déplacer : vers une séance, un événement ou une date" aria-label={`Déplacer « ${t.titre} »`}>
-            <Icone n="deplacer" />
-          </button>
-        )}
+        {o.de && <span className="cc-de">· {o.de.nom}{deHors ? ` (${dateCourte(o.de.date, '')})` : ''}</span>}
       </li>
     );
   };
@@ -315,15 +328,19 @@ export function ChronologieClub() {
             </button>
           )}
           {bouge && g && (
-            <button type="button" className="cc-bouger cc-outil" onClick={() => setDeplacer({ g })} title="Changer la date" aria-label={`Déplacer « ${nomCarte(c)} »`}>
-              <Icone n="deplacer" />
+            <button type="button" className="cc-poignee" onClick={() => setDeplacer({ g })} title="Glisser pour changer la date, ou cliquer" aria-label={`Déplacer « ${nomCarte(c)} »`}>
+              <Icone n="poignee" />
             </button>
           )}
         </div>
-        {ouverte && <ul className="cc-points">{c.points.map((t) => ligne(t, c.cle, false, c.date))}</ul>}
+        {ouverte && c.dessous.length > 0 && <ul className="cc-points">{c.dessous.map((t) => ligne(t, { depuis: c.cle, sous: c.date }))}</ul>}
       </div>
     );
   };
+
+  /** Une séance, un événement, ou un point à sa date (seul, ou d'une séance / d'un événement dont on a demandé les points). */
+  const element = (x: Carte | PointFrise) =>
+    x.k === 'point' ? <ul key={x.cle} className={`cc-seuls ${x.de ? 'de' : ''}`}>{ligne(x.t, { depuis: x.de?.cle, de: x.de })}</ul> : carte(x);
 
   // La frise : chaque mois de la période (même vide), ses jours, et entre eux de quoi déposer.
   const lignes: JSX.Element[] = [];
@@ -346,12 +363,12 @@ export function ChronologieClub() {
         lignes.push(
           <li key={j.date} className={`cc-jour ${auj ? 'aujourdhui' : ''} ${j.date < jour ? 'passe' : ''} ${!j.gauche.length && !j.droite.length ? 'vide' : ''}`}>
             <div className="cc-gauche">
-              {j.gauche.map((x) => (x.k === 'point' ? <ul key={x.cle} className="cc-seuls">{ligne(x.t, undefined, true)}</ul> : carte(x)))}
+              {j.gauche.map(element)}
             </div>
             <div className="cc-date">
               <time dateTime={j.date}>{auj ? <><span className="cc-ecran">Aujourd’hui</span><span className="cc-papier">{jourCourt(j.date)}</span></> : jourCourt(j.date)}</time>
             </div>
-            <div className="cc-droite">{j.droite.map(carte)}</div>
+            <div className="cc-droite">{j.droite.map(element)}</div>
           </li>,
         );
       });
@@ -389,7 +406,8 @@ export function ChronologieClub() {
     ...(gereSeances ? data.meetings.filter((m) => AG_NOM.test(m.titre)).map((m) => ({ id: m.id, nom: m.titre, date: m.date, cocher: () => saveMeeting({ ...m, ag: true }) })) : []),
   ];
 
-  const cartesAvecPoints = cartes.filter((c) => c.points.length > 0);
+  /** Séances et événements dont des points sont dans la vue (« Afficher tous les points »). */
+  const avecPoints = [...cartes.filter((c) => c.points.length > 0).map((c) => c.cle), ...frise.ailleurs];
   const rangees = etiquettesRangees(data.etiquettes, data.events, jour);
   const sections = data.sections.filter((s) => data.tasks.some((t) => t.sectionId === s.id && canSeeTask(t)));
   const filtres = (fEtiquette ? 1 : 0) + (fSection ? 1 : 0) + (cacherFaits ? 1 : 0) + (scope === 'mes' ? 1 : 0);
@@ -460,13 +478,13 @@ export function ChronologieClub() {
         {filtres > 0 && (
           <button type="button" className="btn link" onClick={() => { setFEtiquette(''); setFSection(''); setCacherFaits(false); setScope('toutes'); }}>Effacer</button>
         )}
-        {cartesAvecPoints.length > 0 && (
+        {avecPoints.length > 0 && (
           <span className="cc-replier">
-            {cartesAvecPoints.some((c) => !ouvertes.has(c.cle)) && (
-              <button type="button" className="btn small" onClick={() => setOuvertes(new Set([...ouvertes, ...cartesAvecPoints.map((c) => c.cle)]))}>+ Afficher tous les points</button>
+            {avecPoints.some((k) => !ouvertes.has(k)) && (
+              <button type="button" className="btn small" onClick={() => setOuvertes(new Set([...ouvertes, ...avecPoints]))}>+ Afficher tous les points</button>
             )}
-            {cartesAvecPoints.some((c) => ouvertes.has(c.cle)) && (
-              <button type="button" className="btn small" onClick={() => setOuvertes(new Set([...ouvertes].filter((k) => !cartesAvecPoints.some((c) => c.cle === k))))}>− Masquer les points</button>
+            {avecPoints.some((k) => ouvertes.has(k)) && (
+              <button type="button" className="btn small" onClick={() => setOuvertes(new Set([...ouvertes].filter((k) => !avecPoints.includes(k))))}>− Masquer les points</button>
             )}
           </span>
         )}
@@ -495,7 +513,7 @@ export function ChronologieClub() {
       {p && frise.sansDate.length > 0 && (
         <details className="cc-sans-date no-print">
           <summary><Icone n="alerte" /> Sans date ({frise.sansDate.length}) <small className="muted">· ni séance, ni événement, ni délai : à glisser dans la frise</small></summary>
-          <ul className="cc-seuls">{frise.sansDate.map((t) => ligne(t, undefined, true))}</ul>
+          <ul className="cc-seuls">{frise.sansDate.map((t) => ligne(t))}</ul>
         </details>
       )}
 
@@ -509,7 +527,7 @@ export function ChronologieClub() {
           <ol className={`cc-frise ${glisse ? 'glisse' : ''}`} aria-label={`Chronologie du club · ${titrePeriode}`}>{lignes}</ol>
           <p className="muted cc-astuce hide-mobile no-print">
             Astuce : glisse un point sur une séance ou un événement pour l’y rattacher (son délai suit sa date), ou entre deux jours pour lui donner une date fixe ;
-            glisse une séance ou un événement entre deux jours pour changer sa date. Le bouton <Icone n="deplacer" /> fait la même chose sans souris.
+            glisse une séance ou un événement entre deux jours pour changer sa date. Au survol d’une ligne, un clic sur sa poignée <Icone n="poignee" /> fait la même chose sans glisser.
           </p>
         </>
       )}
