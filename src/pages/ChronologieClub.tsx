@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Meeting, Task } from '../data/types';
-import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, newTask, offsetLabel, shortName, today } from '../data/utils';
-import { aLaDate, horaire, libelleRepetition } from '../data/repetition';
+import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, newTask, offsetLabel, today } from '../data/utils';
+import { aLaDate, libelleRepetition } from '../data/repetition';
 import { etiquetteDeLEvenement, etiquettesRangees, lieuxDe, sectionEvenements } from '../data/etiquettes';
 import { motSeance, titreSelonDate, versProchaineSeance } from '../data/seances';
 import { nomAvecSerie } from '../data/seriesEvenements';
@@ -13,18 +13,20 @@ import {
 } from '../data/chronologieClub';
 import { Modal } from '../components/ui';
 import { Icone, type IconeNom } from '../components/icones';
-import { BadgeEtiquette } from '../components/IconesEtiquette';
 import { TaskModal } from '../components/FicheTache';
 import { Chronologie, type CibleChrono } from '../components/Chronologie';
 import { EventModal, newEvent, useEventActions } from '../components/EventModal';
 import { PageIntro } from '../components/Nav';
 import { MeetingModal, newMeeting, useAgendaActions } from './Agenda';
+import { nomAppli } from '../data/nomAppli';
 
 // Agenda › Chronologie : tout le club dans le temps (chronologieClub.ts), année par année ou d'une assemblée générale à
 // l'autre. À gauche les séances avec leurs points, et les points rattachés à rien, à leur délai ; à droite les événements
 // avec leurs points. Glisser-déposer : un point sur une séance ou un événement l'y rattache (son délai suit sa date) ;
 // un point, une séance ou un événement entre deux jours de la frise : sa nouvelle date (fenêtre « Déplacer », aussi par
 // le bouton « Déplacer » (✥) de chacun, sans souris). « + » partout pour ajouter une séance, un événement ou un point.
+// Seulement du texte, pour une vue d'ensemble à imprimer (« Imprimer » : A4, les deux voies) : une séance ou un événement =
+// son titre ; un petit « + » à côté montre ses points (date et titre ; le reste dans leur fiche), « − » les cache.
 
 /** Ce qu'on déplace ; `depuis` : la carte où était le point. */
 type Glisse = { k: 'point'; t: Task; depuis?: string } | { k: 'seance'; m: Meeting } | { k: 'evenement'; e: ClubEvent };
@@ -41,12 +43,22 @@ const lireMode = (): Mode => {
 
 /** « jeu. 8 » */
 const jourCourt = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'short', day: 'numeric' });
-/** « lun. 12 oct. » */
-const jourMois = (d: string) => new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'short', day: 'numeric', month: 'short' });
 const nomMois = (ym: string) => new Date(ym + '-15T12:00:00').toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' });
 const moisSuivant = (ym: string) => addDays(`${ym}-28`, 7).slice(0, 7);
 const finDuMois = (ym: string) => addDays(`${moisSuivant(ym)}-01`, -1);
-const ICONE_CARTE: Record<Carte['k'], IconeNom> = { seance: 'seances', evenement: 'evenements', etiquette: 'etiquette' };
+/** « 29.10 » (l'année aussi si elle n'est pas celle de `ref` : « 15.11.25 »). */
+const dateCourte = (d: string, ref: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}${d.slice(0, 4) !== ref.slice(0, 4) ? `.${d.slice(2, 4)}` : ''}`;
+
+/** Séances et événements dont les points sont affichés (leur clé), retenus sur l'appareil ; les autres : seulement leur titre. */
+const CLE_OUVERTES = 'taches-gsa-chronologie-ouvertes';
+const lireOuvertes = (): Set<string> => {
+  try {
+    const v = JSON.parse(localStorage.getItem(CLE_OUVERTES) ?? '[]');
+    return new Set(Array.isArray(v) ? v.filter((x) => typeof x === 'string') : []);
+  } catch {
+    return new Set();
+  }
+};
 
 export function ChronologieClub() {
   const { data, user, can, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
@@ -62,24 +74,15 @@ export function ChronologieClub() {
   const [fEtiquette, setFEtiquette] = useState('');
   const [fSection, setFSection] = useState('');
   const [cacherFaits, setCacherFaits] = useState(false);
+  const [ouvertes, setOuvertesEtat] = useState<Set<string>>(lireOuvertes);
 
   const [glisse, setGlisse] = useState<Glisse | null>(null);
   const [survol, setSurvol] = useState<string | null>(null);
   const [deplacer, setDeplacer] = useState<{ g: Glisse; date?: string } | null>(null);
-  const [menu, setMenu] = useState<string | null>(null);
   const [fiche, setFiche] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [seance, setSeance] = useState<Meeting | null>(null);
   const [evenement, setEvenement] = useState<ClubEvent | null>(null);
   const [chrono, setChrono] = useState<CibleChrono | null>(null);
-
-  // Ferme le petit menu « + » d'un mois au clic ailleurs.
-  const menuRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!menu) return;
-    const fermer = (e: MouseEvent) => menuRef.current && !menuRef.current.contains(e.target as Node) && setMenu(null);
-    document.addEventListener('mousedown', fermer);
-    return () => document.removeEventListener('mousedown', fermer);
-  }, [menu]);
 
   const ags = useMemo(() => assemblees(data), [data]);
   const periodes = useMemo(() => periodesAg(ags), [ags]);
@@ -99,6 +102,20 @@ export function ChronologieClub() {
     } catch {
       /* navigation privée : le choix n'est pas retenu */
     }
+  };
+  const setOuvertes = (r: Set<string>) => {
+    setOuvertesEtat(r);
+    try {
+      localStorage.setItem(CLE_OUVERTES, JSON.stringify([...r].slice(-500)));
+    } catch {
+      /* navigation privée : pas retenu */
+    }
+  };
+  const basculer = (cle: string) => {
+    const r = new Set(ouvertes);
+    if (r.has(cle)) r.delete(cle);
+    else r.add(cle);
+    setOuvertes(r);
   };
   const iChoisie = deAg ? periodes.findIndex((x) => x.de === deAg) : -1;
   const iCourant = iChoisie >= 0 ? iChoisie : periodeDuJour(periodes, jour);
@@ -214,7 +231,6 @@ export function ChronologieClub() {
     peutCreer && { k: 'point' as const, label: 'Point', icone: 'taches' as IconeNom },
   ].filter(Boolean) as { k: 'seance' | 'evenement' | 'point'; label: string; icone: IconeNom }[];
   const ajouter = (k: 'seance' | 'evenement' | 'point', date: string) => {
-    setMenu(null);
     if (k === 'seance') setSeance(newMeeting(data.meetings, date, motSeance()));
     else if (k === 'evenement') setEvenement(newEvent(date));
     else nouveauPoint(undefined, date);
@@ -224,17 +240,10 @@ export function ChronologieClub() {
 
   // ---------- Affichage ----------
 
-  const qui = (t: Task) => {
-    const noms = [...t.responsables.map((id) => shortName(data.people.find((x) => x.id === id))), ...(t.respHors ?? []).map((x) => shortName(x))];
-    return noms.length ? noms.join(', ') : t.aPrendre ? '🙋 à prendre' : '';
-  };
-  const statut = (t: Task) => data.statuses.find((s) => s.id === t.statusId);
-
-  const ligne = (t: Task, depuis?: string, seul?: boolean) => {
+  /** Un point : sa date et son titre (le reste dans sa fiche). `ref` : le jour de sa carte (l'année d'une autre date). */
+  const ligne = (t: Task, depuis?: string, seul?: boolean, ref = t.delai) => {
     const g: Glisse = { k: 'point', t, depuis };
     const bouge = canEditTask(t);
-    const s = statut(t);
-    const section = seul ? data.sections.find((x) => x.id === t.sectionId)?.nom : undefined;
     return (
       <li
         key={t.id}
@@ -243,82 +252,76 @@ export function ChronologieClub() {
         onDragStart={bouge ? debut(g) : undefined}
         onDragEnd={finGlisse}
       >
-        <span className="cc-puce" style={{ background: s?.couleur }} title={s?.label} aria-hidden="true">{isDone(data, t) ? '✓' : ''}</span>
-        <button type="button" className="cc-point-titre" onClick={() => setFiche({ task: t, isNew: false })} title="Ouvrir le point">
-          {t.parentId && <span className="muted" title="Rattaché à un autre point">↳ </span>}
+        {!seul && <time className="cc-point-date" dateTime={t.delai || undefined}>{t.delai ? dateCourte(t.delai, ref || t.delai) : '—'}</time>}
+        <button type="button" className="cc-point-titre" onClick={() => setFiche({ task: t, isNew: false })} title={t.delaiRef ? `Ouvrir le point · délai ${offsetLabel(t.delaiRef).toLowerCase()}` : 'Ouvrir le point'}>
           {t.titre || '(sans titre)'}
         </button>
         {bouge && (
-          <button type="button" className="cc-bouger" onClick={() => setDeplacer({ g })} title="Déplacer : vers une séance, un événement ou une date" aria-label={`Déplacer « ${t.titre} »`}>
+          <button type="button" className="cc-bouger cc-outil" onClick={() => setDeplacer({ g })} title="Déplacer : vers une séance, un événement ou une date" aria-label={`Déplacer « ${t.titre} »`}>
             <Icone n="deplacer" />
           </button>
         )}
-        <span className="cc-point-info">
-          {t.delai ? <span className={isLate(data, t) ? 'cc-retard' : ''}>{jourMois(t.delai)}</span> : <span className="muted">sans délai</span>}
-          {t.delaiRef && !seul && <span className="cc-cale" title="Le délai suit la date de la carte"><Icone n="epingle" /> {offsetLabel(t.delaiRef).toLowerCase()}</span>}
-          {qui(t) && <span className="muted">{qui(t)}</span>}
-          {section && <span className="muted">· {section}</span>}
-        </span>
       </li>
     );
   };
 
+  /** Une séance ou un événement : son titre ; « + » montre ses points, « − » les cache. */
   const carte = (c: Carte) => {
     const g: Glisse | undefined = c.k === 'seance' ? { k: 'seance', m: c.m } : c.k === 'evenement' && !c.e.repetition ? { k: 'evenement', e: c.e } : undefined;
     const bouge = !!g && (g.k === 'seance' ? gereSeances : gereEvenements);
-    const et = c.k === 'etiquette' ? c.et : c.k === 'evenement' ? etiquetteDeLEvenement(data, c.e.id) : undefined;
-    const faits = c.points.filter((t) => isDone(data, t)).length;
     const fin = c.k === 'seance' ? c.date : c.fin;
-    const quand =
-      c.k === 'seance'
-        ? [jourMois(c.m.date), c.m.heure?.replace(':', 'h'), c.m.lieu].filter(Boolean).join(' · ')
-        : c.k === 'evenement'
-          ? c.e.repetition
-            ? [libelleRepetition(c.e), `${c.occurrences.length} date${c.occurrences.length > 1 ? 's' : ''} sur la période`, c.e.lieu].filter(Boolean).join(' · ')
-            : [fmtRange(c.e.date, c.e.dateFin), horaire(c.e), c.e.lieu].filter(Boolean).join(' · ')
-          : fmtRange(c.et.date, c.et.dateFin);
+    const nom = c.k === 'evenement' ? nomAvecSerie(data, c.e) : nomCarte(c);
+    const n = c.points.length;
+    const ouverte = n > 0 && ouvertes.has(c.cle);
+    // Sur plusieurs jours (pas une série qui se répète) : jusqu'à quand.
+    const jusqua = c.k !== 'seance' && !(c.k === 'evenement' && c.e.repetition) && fin > c.date ? fin : undefined;
     const plus = c.k === 'seance' ? peutCreer : peutCreer && (c.k === 'evenement' || peutEtiqueter(c.et.id));
     return (
-      <article
+      <div
         key={c.cle}
-        className={`cc-carte k-${c.k} ${estAg(c) ? 'ag' : ''} ${fin < jour ? 'passee' : ''} ${survol === c.cle ? 'survol' : ''} ${glisse && g && glisse.k === g.k && (glisse.k === 'seance' ? glisse.m.id === c.cle.slice(2) : glisse.k === 'evenement' && glisse.e.id === c.cle.slice(2)) ? 'glisse' : ''}`}
-        style={et ? ({ '--c': et.couleur } as React.CSSProperties) : undefined}
+        className={`cc-el k-${c.k} ${estAg(c) ? 'ag' : ''} ${fin < jour ? 'passee' : ''} ${ouverte ? 'ouverte' : ''} ${survol === c.cle ? 'survol' : ''} ${glisse && g && glisse.k === g.k && (glisse.k === 'seance' ? glisse.m.id === c.cle.slice(2) : glisse.k === 'evenement' && glisse.e.id === c.cle.slice(2)) ? 'glisse' : ''}`}
         draggable={bouge}
         onDragStart={bouge && g ? debut(g) : undefined}
         onDragEnd={finGlisse}
         {...cible(c)}
       >
-        <header className="cc-carte-tete">
-          <Icone n={ICONE_CARTE[c.k]} />
-          <button type="button" className="cc-carte-titre" onClick={() => ouvrirCarte(c)} title={c.k === 'seance' ? 'Ouvrir la séance' : 'Ouvrir l’événement'}>
-            {c.k === 'evenement' ? nomAvecSerie(data, c.e) : nomCarte(c)}
+        <div className="cc-el-ligne">
+          <button
+            type="button"
+            className="cc-el-titre"
+            onClick={() => ouvrirCarte(c)}
+            title={`${c.k === 'seance' ? 'Ouvrir la séance' : 'Ouvrir l’événement'}${c.k === 'evenement' && c.e.repetition ? ` · ${libelleRepetition(c.e)}` : ''}`}
+          >
+            {nom}
           </button>
+          {jusqua && <span className="cc-jusqua">→ {dateCourte(jusqua, c.date)}</span>}
           {estAg(c) && <span className="cc-ag" title="Assemblée générale">AG</span>}
           {c.k === 'evenement' && c.e.repetition && <span className="cc-repete" title={libelleRepetition(c.e)}><Icone n="repetition" /></span>}
+          {n > 0 && (
+            <button
+              type="button"
+              className="cc-plus"
+              onClick={() => basculer(c.cle)}
+              aria-expanded={ouverte}
+              aria-label={`${ouverte ? 'Masquer' : 'Afficher'} les points de « ${nom} »`}
+              title={`${ouverte ? 'Masquer' : 'Afficher'} ${n > 1 ? `ses ${n} points` : 'son point'}`}
+            >
+              {ouverte ? '−' : '+'}
+            </button>
+          )}
+          {plus && (
+            <button type="button" className="cc-outil" onClick={() => nouveauPoint(c)} title="Ajouter un point" aria-label={`Ajouter un point à « ${nom} »`}>
+              <Icone n="ajoutTache" />
+            </button>
+          )}
           {bouge && g && (
-            <button type="button" className="cc-bouger" onClick={() => setDeplacer({ g })} title="Changer la date" aria-label={`Déplacer « ${nomCarte(c)} »`}>
+            <button type="button" className="cc-bouger cc-outil" onClick={() => setDeplacer({ g })} title="Changer la date" aria-label={`Déplacer « ${nomCarte(c)} »`}>
               <Icone n="deplacer" />
             </button>
           )}
-        </header>
-        <div className="cc-carte-quand">
-          {et && c.k === 'evenement' && <BadgeEtiquette e={et} sansNom />}
-          <span>{quand}</span>
         </div>
-        {c.points.length > 0 && <ul className="cc-points">{c.points.map((t) => ligne(t, c.cle))}</ul>}
-        <footer className="cc-carte-pied">
-          {c.points.length > 0 ? (
-            <span className="muted" title="Points terminés">{faits}/{c.points.length} terminé{faits > 1 ? 's' : ''}</span>
-          ) : (
-            <span className="muted">{glisse?.k === 'point' ? 'Déposer un point ici' : 'Aucun point'}</span>
-          )}
-          {plus && (
-            <button type="button" className="btn small link" onClick={() => nouveauPoint(c)}>
-              <Icone n="ajoutTache" /> Point
-            </button>
-          )}
-        </footer>
-      </article>
+        {ouverte && <ul className="cc-points">{c.points.map((t) => ligne(t, c.cle, false, c.date))}</ul>}
+      </div>
     );
   };
 
@@ -330,21 +333,9 @@ export function ChronologieClub() {
     for (let ym = p.de.slice(0, 7); ym <= p.a.slice(0, 7); ym = moisSuivant(ym)) {
       const debutMois = ym === p.de.slice(0, 7) ? p.de : `${ym}-01`;
       const finMois = ym === p.a.slice(0, 7) ? p.a : finDuMois(ym);
-      const dateMenu = jour >= debutMois && jour <= finMois ? jour : debutMois;
       lignes.push(
         <li key={`m:${ym}`} className="cc-mois">
           <span className="cc-mois-nom">{nomMois(ym)}</span>
-          {choixAjout.length > 0 && (
-            <span className="cc-mois-plus">
-              <button type="button" className="cc-ajout" onClick={() => setMenu(menu === ym ? null : ym)} aria-label={`Ajouter en ${nomMois(ym)}`} title="Ajouter ce mois-là">+</button>
-              {menu === ym && (
-                <div className="cal-menu" ref={menuRef}>
-                  <small>Ajouter le {fmtDate(dateMenu)}</small>
-                  {choixAjout.map((x) => <button key={x.k} type="button" onClick={() => ajouter(x.k, dateMenu)}><Icone n={x.icone} /> {x.label}</button>)}
-                </div>
-              )}
-            </span>
-          )}
         </li>,
       );
       const js = parMois.get(ym) ?? [];
@@ -353,12 +344,12 @@ export function ChronologieClub() {
         lignes.push(depot(`${ym}:${i}`, borne(dateEntre(i ? js[i - 1].date : addDays(debutMois, -1), j.date))));
         const auj = j.date === jour;
         lignes.push(
-          <li key={j.date} className={`cc-jour ${auj ? 'aujourdhui' : ''} ${j.date < jour ? 'passe' : ''}`}>
+          <li key={j.date} className={`cc-jour ${auj ? 'aujourdhui' : ''} ${j.date < jour ? 'passe' : ''} ${!j.gauche.length && !j.droite.length ? 'vide' : ''}`}>
             <div className="cc-gauche">
               {j.gauche.map((x) => (x.k === 'point' ? <ul key={x.cle} className="cc-seuls">{ligne(x.t, undefined, true)}</ul> : carte(x)))}
             </div>
             <div className="cc-date">
-              <time dateTime={j.date}>{auj ? 'Aujourd’hui' : jourCourt(j.date)}</time>
+              <time dateTime={j.date}>{auj ? <><span className="cc-ecran">Aujourd’hui</span><span className="cc-papier">{jourCourt(j.date)}</span></> : jourCourt(j.date)}</time>
             </div>
             <div className="cc-droite">{j.droite.map(carte)}</div>
           </li>,
@@ -398,6 +389,7 @@ export function ChronologieClub() {
     ...(gereSeances ? data.meetings.filter((m) => AG_NOM.test(m.titre)).map((m) => ({ id: m.id, nom: m.titre, date: m.date, cocher: () => saveMeeting({ ...m, ag: true }) })) : []),
   ];
 
+  const cartesAvecPoints = cartes.filter((c) => c.points.length > 0);
   const rangees = etiquettesRangees(data.etiquettes, data.events, jour);
   const sections = data.sections.filter((s) => data.tasks.some((t) => t.sectionId === s.id && canSeeTask(t)));
   const filtres = (fEtiquette ? 1 : 0) + (fSection ? 1 : 0) + (cacherFaits ? 1 : 0) + (scope === 'mes' ? 1 : 0);
@@ -407,6 +399,9 @@ export function ChronologieClub() {
       <div className="page-head">
         <h1>Chronologie</h1>
         <div className="actions">
+          <button type="button" className="btn" onClick={() => window.print()} title="Imprimer la chronologie affichée (A4), telle que repliée ou dépliée">
+            <Icone n="imprimer" /> Imprimer
+          </button>
           {choixAjout.map((x) => (
             <button key={x.k} type="button" className={`btn ${x.k === 'point' ? 'primary' : ''}`} onClick={() => ajouter(x.k, dateAjout)}>
               + {x.label}
@@ -416,7 +411,7 @@ export function ChronologieClub() {
       </div>
       <PageIntro />
 
-      <div className="cc-barre">
+      <div className="cc-barre no-print">
         <div className="seg" role="group" aria-label="Vue">
           <button type="button" className={mode === 'annee' ? 'on' : ''} aria-pressed={mode === 'annee'} onClick={() => setMode('annee')}>Année</button>
           <button type="button" className={mode === 'ag' ? 'on' : ''} aria-pressed={mode === 'ag'} onClick={() => setMode('ag')}>D’une AG à l’autre</button>
@@ -430,7 +425,13 @@ export function ChronologieClub() {
           </div>
         )}
       </div>
-      {sousTitre && <p className="muted cc-sous-titre">{sousTitre}</p>}
+      {sousTitre && <p className="muted cc-sous-titre no-print">{sousTitre}</p>}
+      {p && (
+        <div className="print-only cc-papier-tete">
+          <strong>Chronologie {titrePeriode}</strong>
+          <span>{[sousTitre, nomAppli(), `imprimée le ${fmtDate(jour)}`].filter(Boolean).join(' · ')}</span>
+        </div>
+      )}
 
       <div className="filters open cc-filtres">
         <div className="seg small" role="group" aria-label="Points">
@@ -459,6 +460,16 @@ export function ChronologieClub() {
         {filtres > 0 && (
           <button type="button" className="btn link" onClick={() => { setFEtiquette(''); setFSection(''); setCacherFaits(false); setScope('toutes'); }}>Effacer</button>
         )}
+        {cartesAvecPoints.length > 0 && (
+          <span className="cc-replier">
+            {cartesAvecPoints.some((c) => !ouvertes.has(c.cle)) && (
+              <button type="button" className="btn small" onClick={() => setOuvertes(new Set([...ouvertes, ...cartesAvecPoints.map((c) => c.cle)]))}>+ Afficher tous les points</button>
+            )}
+            {cartesAvecPoints.some((c) => ouvertes.has(c.cle)) && (
+              <button type="button" className="btn small" onClick={() => setOuvertes(new Set([...ouvertes].filter((k) => !cartesAvecPoints.some((c) => c.cle === k))))}>− Masquer les points</button>
+            )}
+          </span>
+        )}
         {p && (
           <span className="muted cc-compte">
             {frise.nbPoints} point{frise.nbPoints > 1 ? 's' : ''}{enRetard ? ` · ${enRetard} en retard` : ''}
@@ -467,7 +478,7 @@ export function ChronologieClub() {
       </div>
 
       {mode === 'ag' && !periodes.length && (
-        <div className="cc-sans-ag">
+        <div className="cc-sans-ag no-print">
           <p><Icone n="alerte" /> Aucune assemblée générale : coche « Assemblée générale » dans la fiche de l’événement (ou de la séance) de l’AG.</p>
           {pistes.length > 0 && (
             <p className="row wrap">
@@ -482,7 +493,7 @@ export function ChronologieClub() {
       )}
 
       {p && frise.sansDate.length > 0 && (
-        <details className="cc-sans-date">
+        <details className="cc-sans-date no-print">
           <summary><Icone n="alerte" /> Sans date ({frise.sansDate.length}) <small className="muted">· ni séance, ni événement, ni délai : à glisser dans la frise</small></summary>
           <ul className="cc-seuls">{frise.sansDate.map((t) => ligne(t, undefined, true))}</ul>
         </details>
@@ -496,7 +507,7 @@ export function ChronologieClub() {
             <span><Icone n="evenements" /> Événements</span>
           </div>
           <ol className={`cc-frise ${glisse ? 'glisse' : ''}`} aria-label={`Chronologie du club · ${titrePeriode}`}>{lignes}</ol>
-          <p className="muted cc-astuce hide-mobile">
+          <p className="muted cc-astuce hide-mobile no-print">
             Astuce : glisse un point sur une séance ou un événement pour l’y rattacher (son délai suit sa date), ou entre deux jours pour lui donner une date fixe ;
             glisse une séance ou un événement entre deux jours pour changer sa date. Le bouton <Icone n="deplacer" /> fait la même chose sans souris.
           </p>

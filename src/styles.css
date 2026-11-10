@@ -2298,69 +2298,74 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
   .chrono-planifier > button[type='submit'] { margin-left: 0; }
 }
 
-/* Agenda › Chronologie (ChronologieClub.tsx) : deux voies autour d'un axe, séances (et points seuls) à gauche, événements
-   à droite, alignés par jour ; sur téléphone, une seule colonne, la date à gauche. Pendant un glisser, de quoi déposer
-   entre les jours. */
+/* Agenda › Chronologie (ChronologieClub.tsx) : seulement du texte, deux voies autour d'un axe fin (séances et points seuls
+   à gauche, événements à droite), alignées par jour ; « + » à côté d'une séance ou d'un événement montre ses points. Sur
+   téléphone, une seule colonne, la date à gauche. Imprimée : A4, les deux voies, telle qu'affichée. */
 .cc-barre { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 6px; }
 .cc-nav { display: inline-flex; align-items: center; gap: 8px; }
 .cc-periode { min-width: 9em; text-align: center; font-variant-numeric: tabular-nums; }
 .cc-sous-titre { margin: 0 0 8px; font-size: 0.85rem; }
 .cc-filtres { align-items: center; margin-bottom: 10px; }
+.cc-replier { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .cc-compte { margin-left: auto; font-size: 0.85rem; }
 .cc-sans-ag { border: 1px dashed color-mix(in srgb, #d97706 55%, var(--border)); border-radius: 10px; padding: 8px 12px; margin: 0 0 12px; }
 .cc-sans-ag p { margin: 4px 0; }
-.cc-sans-date { border: 1px dashed color-mix(in srgb, #d97706 55%, var(--border)); border-radius: 10px; padding: 6px 12px; margin: 0 0 12px; }
+.cc-sans-date { margin: 0 0 12px; font-size: 0.9rem; }
 .cc-sans-date summary { cursor: pointer; font-weight: 600; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-.cc-sans-date .cc-seuls { margin-top: 6px; display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 6px; }
-.cc-voies { display: grid; grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr); font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 0 0 4px; }
+.cc-sans-date .cc-seuls { margin: 4px 0 0 22px; }
+.cc-voies { display: grid; grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); padding: 0 0 2px; }
 .cc-voies > span { display: flex; align-items: center; gap: 6px; }
 .cc-voies > span:first-child { justify-content: flex-end; }
 .cc-voies small { text-transform: none; letter-spacing: 0; font-weight: 400; }
 .cc-frise { list-style: none; margin: 0; padding: 0; position: relative; }
-.cc-frise::before { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 2px; margin-left: -1px; background: var(--border); }
-.cc-mois { position: relative; display: flex; justify-content: center; align-items: center; gap: 6px; padding: 12px 0 4px; }
-.cc-mois-nom { position: relative; z-index: 1; background: var(--bg); padding: 2px 10px; border-radius: 999px; border: 1px solid var(--border); font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
-.cc-mois-plus { position: relative; z-index: 2; }
-.cc-ajout { border: 1px solid var(--border); background: var(--surface); color: var(--primary); width: 26px; height: 26px; border-radius: 50%; font-size: 1.05rem; line-height: 1; cursor: pointer; }
-.cc-ajout:hover, .cc-ajout:focus-visible { background: var(--primary-soft); }
-.cc-mois-plus .cal-menu { top: 30px; left: 50%; right: auto; transform: translateX(-50%); }
-.cc-jour { display: grid; grid-template-columns: minmax(0, 1fr) 84px minmax(0, 1fr); align-items: start; position: relative; }
-.cc-gauche, .cc-droite { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
-.cc-date { display: flex; justify-content: center; padding-top: 8px; position: relative; z-index: 1; }
-.cc-date time { background: var(--surface); border: 1px solid var(--border); border-radius: 999px; padding: 1px 8px; font-size: 0.75rem; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.cc-jour.passe .cc-date time { color: var(--muted); }
-.cc-jour.aujourdhui .cc-date time { background: var(--primary); border-color: var(--primary); color: #fff; }
-.cc-jour.aujourdhui::after { content: ''; position: absolute; left: 0; right: 0; top: 18px; border-top: 2px dashed color-mix(in srgb, var(--primary) 45%, transparent); pointer-events: none; }
-.cc-carte { --c: var(--event-fg); background: var(--surface); border: 1px solid var(--border); border-left: 4px solid var(--c); border-radius: 10px; padding: 7px 10px 6px; box-shadow: var(--shadow); position: relative; z-index: 1; }
-.cc-carte.k-seance { --c: var(--primary); }
-.cc-carte[draggable='true'] { cursor: grab; }
-.cc-carte.passee .cc-carte-tete, .cc-carte.passee .cc-carte-quand { opacity: 0.75; }
-.cc-carte.survol { outline: 2px dashed var(--primary); outline-offset: 2px; background: color-mix(in srgb, var(--primary-soft) 55%, var(--surface)); }
-.cc-carte.glisse, .cc-point.glisse { opacity: 0.45; }
-.cc-carte-tete { display: flex; align-items: center; gap: 6px; color: var(--c); }
-.cc-carte-titre { border: none; background: none; padding: 0; font: inherit; font-weight: 700; color: var(--text); text-align: left; cursor: pointer; overflow-wrap: anywhere; flex: 1 1 auto; min-width: 0; }
-.cc-carte-titre:hover, .cc-carte-titre:focus-visible { color: var(--primary); text-decoration: underline; }
-.cc-ag { background: var(--c); color: #fff; font-size: 0.7rem; font-weight: 800; padding: 1px 6px; border-radius: 6px; letter-spacing: 0.04em; }
-.cc-repete { color: var(--muted); display: inline-flex; }
-.cc-carte-quand { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.82rem; color: var(--muted); margin: 2px 0 0; }
+.cc-frise::before { content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 1px; background: var(--border); }
+.cc-mois { position: relative; display: flex; justify-content: center; padding: 10px 0 2px; }
+.cc-mois-nom { position: relative; background: var(--bg); padding: 0 10px; font-size: 0.78rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); }
+.cc-jour { display: grid; grid-template-columns: minmax(0, 1fr) 76px minmax(0, 1fr); align-items: start; position: relative; padding: 1px 0; }
+.cc-gauche, .cc-droite { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cc-gauche { align-items: flex-end; text-align: right; }
+.cc-date { display: flex; justify-content: center; position: relative; }
+.cc-date time { background: var(--bg); padding: 0 4px; font-size: 0.78rem; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1.6; }
+.cc-jour.aujourdhui .cc-date time { color: var(--primary); font-weight: 700; }
+.cc-jour.aujourdhui::after { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed color-mix(in srgb, var(--primary) 50%, transparent); pointer-events: none; }
+.cc-papier { display: none; }
+/* Une séance, un événement : son titre, et ses points dessous quand ils sont affichés. */
+.cc-el { min-width: 0; max-width: 100%; border-radius: 6px; padding: 0 4px; }
+.cc-el[draggable='true'] { cursor: grab; }
+.cc-el-ligne { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; line-height: 1.6; }
+.cc-gauche .cc-el-ligne { justify-content: flex-end; }
+.cc-el-titre { border: none; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--primary); text-align: inherit; cursor: pointer; overflow-wrap: anywhere; }
+.cc-el.k-evenement .cc-el-titre, .cc-el.k-etiquette .cc-el-titre { color: var(--event-fg); }
+.cc-el-titre:hover, .cc-el-titre:focus-visible { text-decoration: underline; }
+.cc-el.passee .cc-el-titre { opacity: 0.75; }
+.cc-el.survol { outline: 2px dashed var(--primary); outline-offset: 1px; background: var(--primary-soft); }
+.cc-el.glisse, .cc-point.glisse { opacity: 0.45; }
+.cc-jusqua { font-size: 0.8rem; color: var(--muted); white-space: nowrap; }
+.cc-ag { font-size: 0.7rem; font-weight: 800; letter-spacing: 0.04em; color: var(--event-fg); border: 1px solid currentColor; padding: 0 4px; border-radius: 4px; line-height: 1.3; }
+.cc-el.k-seance .cc-ag { color: var(--primary); }
+.cc-repete { color: var(--muted); display: inline-flex; font-size: 0.85rem; }
+.cc-plus { border: 1px solid var(--border); background: var(--surface); color: var(--primary); width: 20px; height: 20px; padding: 0; border-radius: 50%; font-size: 0.95rem; line-height: 1; font-weight: 700; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
+.cc-plus:hover, .cc-plus:focus-visible { background: var(--primary-soft); border-color: var(--primary); }
 .cc-points, .cc-seuls { list-style: none; margin: 0; padding: 0; }
-.cc-points { margin-top: 6px; }
-.cc-carte-pied { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 0.8rem; margin-top: 4px; min-height: 26px; }
-.cc-carte-pied .btn.link { padding: 2px 0; display: inline-flex; align-items: center; gap: 4px; }
-.cc-point { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; gap: 0 8px; align-items: start; padding: 5px 0; border-top: 1px solid var(--border); }
+.cc-points { margin: 0 0 4px; font-size: 0.88rem; }
+.cc-gauche .cc-points { text-align: left; }
+.cc-point { display: flex; align-items: baseline; gap: 6px; padding: 1px 0; }
 .cc-point[draggable='true'] { cursor: grab; }
-.cc-point.seul { border: 1px dashed var(--border); border-radius: 8px; padding: 5px 8px; background: var(--surface); position: relative; z-index: 1; }
-.cc-puce { width: 14px; height: 14px; border-radius: 50%; margin-top: 3px; background: var(--muted); color: #fff; font-size: 0.6rem; font-weight: 700; display: flex; align-items: center; justify-content: center; }
-.cc-point-titre { border: none; background: none; padding: 0; font: inherit; font-size: 0.9rem; font-weight: 600; color: var(--text); text-align: left; cursor: pointer; overflow-wrap: anywhere; }
+.cc-point-date { flex: 0 0 auto; min-width: 2.8em; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cc-point.retard .cc-point-date { color: var(--late); }
+.cc-point-titre { border: none; background: none; padding: 0; font: inherit; color: var(--text); text-align: inherit; cursor: pointer; overflow-wrap: anywhere; }
 .cc-point-titre:hover, .cc-point-titre:focus-visible { color: var(--primary); text-decoration: underline; }
-.cc-point.fait .cc-point-titre { color: var(--muted); text-decoration: line-through; font-weight: 500; }
-.cc-point-info { grid-column: 2 / span 2; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-size: 0.78rem; }
-.cc-retard { color: var(--late); font-weight: 600; }
-.cc-cale { color: var(--primary); display: inline-flex; align-items: center; gap: 3px; }
-.cc-bouger { border: none; background: none; color: var(--muted); padding: 2px 4px; border-radius: 6px; cursor: pointer; display: inline-flex; grid-column: 3; grid-row: 1; }
-.cc-carte-tete .cc-bouger { flex: 0 0 auto; }
-.cc-bouger:hover, .cc-bouger:focus-visible { background: var(--primary-soft); color: var(--primary); }
-.cc-depot { height: 14px; position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; }
+.cc-point.fait .cc-point-titre { color: var(--muted); text-decoration: line-through; }
+.cc-point.seul .cc-point-titre::before { content: '• '; color: var(--muted); }
+.cc-outil { border: none; background: none; color: var(--muted); padding: 0 3px; border-radius: 6px; cursor: pointer; display: inline-flex; align-items: center; }
+.cc-outil:hover, .cc-outil:focus-visible { background: var(--primary-soft); color: var(--primary); }
+/* Outils (ajouter un point, déplacer) : au survol, à la souris ; pas sur un écran tactile (on y passe par les fiches). */
+@media (hover: hover) and (pointer: fine) {
+  .cc-outil { opacity: 0; }
+  .cc-el-ligne:hover .cc-outil, .cc-point:hover .cc-outil, .cc-outil:focus-visible { opacity: 1; }
+}
+@media (hover: none), (pointer: coarse) { .cc-outil { display: none; } }
+.cc-depot { height: 10px; position: relative; z-index: 2; display: flex; align-items: center; justify-content: center; }
 .cc-depot span { display: none; position: absolute; top: 50%; transform: translateY(-50%); font-size: 0.78rem; color: var(--primary); background: var(--surface); border: 1px solid var(--primary); padding: 1px 10px; border-radius: 999px; white-space: nowrap; font-weight: 600; pointer-events: none; }
 /* Pendant un glisser : un trait pointillé entre les jours (sans rien décaler), l'endroit survolé en évidence. */
 .cc-frise.glisse .cc-depot::before { content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 2px dashed color-mix(in srgb, var(--primary) 30%, transparent); }
@@ -2368,19 +2373,44 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .cc-depot.survol span { display: inline; }
 .cc-astuce { font-size: 0.8rem; margin: 12px 0 0; }
 .cc-deplacer .modal-foot { margin-top: 4px; }
-@media (max-width: 767px) {
+@media screen and (max-width: 767px) {
   .cc-voies { display: none; }
-  .cc-frise::before { left: 30px; }
-  .cc-mois { justify-content: flex-start; padding-left: 0; }
-  .cc-mois-plus .cal-menu { left: 0; transform: none; }
-  .cc-jour { grid-template-columns: 60px minmax(0, 1fr); row-gap: 6px; }
-  .cc-date { grid-column: 1; grid-row: 1 / span 2; justify-content: flex-start; padding-top: 6px; }
-  .cc-date time { font-size: 0.7rem; padding: 1px 6px; }
-  .cc-gauche { grid-column: 2; grid-row: 1; }
+  .cc-frise::before { left: 27px; }
+  .cc-mois { justify-content: flex-start; }
+  .cc-mois-nom { padding-left: 0; }
+  .cc-jour { grid-template-columns: 54px minmax(0, 1fr); column-gap: 6px; }
+  .cc-date { grid-column: 1; grid-row: 1 / span 2; justify-content: flex-start; }
+  .cc-gauche { grid-column: 2; grid-row: 1; align-items: flex-start; text-align: left; }
+  .cc-gauche .cc-el-ligne { justify-content: flex-start; }
   .cc-droite { grid-column: 2; grid-row: 2; }
   .cc-gauche:empty, .cc-droite:empty { display: none; }
   .cc-compte { margin-left: 0; }
 }
+/* Impression : la chronologie affichée, sur A4, sans boutons ; les deux voies, en petit. */
+@media print {
+  .cc-page { page: chronologie; font-size: 9pt; }
+  .cc-page .page-head, .cc-depot, .cc-plus, .cc-outil, .cc-jour.vide, .cc-ecran { display: none !important; }
+  .cc-papier { display: inline; }
+  .cc-papier-tete { display: flex !important; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; border-bottom: 1px solid #999; padding-bottom: 4px; margin-bottom: 4px; }
+  .cc-papier-tete strong { font-size: 14pt; }
+  .cc-papier-tete span { font-size: 8pt; color: #555; }
+  .cc-voies { font-size: 7pt; }
+  .cc-frise::before { background: #bbb; }
+  .cc-mois { padding: 5px 0 1px; break-after: avoid; }
+  .cc-mois-nom, .cc-date time { background: #fff; }
+  .cc-jour { break-inside: avoid; padding: 0; }
+  .cc-jour.aujourdhui::after { display: none; }
+  .cc-jour.aujourdhui .cc-date time { color: inherit; font-weight: 400; }
+  .cc-el-ligne, .cc-date time { line-height: 1.35; }
+  .cc-el-ligne { font-size: 9pt; }
+  .cc-mois-nom { font-size: 8pt; }
+  .cc-date time { font-size: 8pt; }
+  .cc-el.passee .cc-el-titre { opacity: 1; }
+  .cc-el-titre, .cc-ag { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .cc-points { font-size: 8pt; margin: 0 0 2px; }
+  .cc-point-date, .cc-point.retard .cc-point-date { color: #555; }
+}
+@page chronologie { size: A4 portrait; margin: 10mm; }
 
 /* Agenda › Événements : boutons de la carte (chronologie, points, modifier, reprendre) ; « Points » est un lien en bouton. */
 .agenda-actions .btn { display: inline-flex; align-items: center; justify-content: center; gap: 4px; position: relative; }

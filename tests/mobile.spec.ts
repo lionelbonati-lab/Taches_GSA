@@ -125,28 +125,31 @@ test('PV sur téléphone : pas de vue en fenêtres, même choisie sur un ordinat
   await expect(pilule.getByRole('button', { name: /^Vue en fenêtres/ })).toBeHidden();
 });
 
-test('chronologie : une colonne, et « Déplacer » sans glisser', async ({ page }) => {
+test('chronologie : du texte en une colonne ; « + » montre les points, sans boutons pour déplacer', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
   const cle = 'taches-gsa-demo-v7';
   await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
   await page.evaluate((k) => {
     const d = JSON.parse(localStorage.getItem(k)!);
     const moi = d.people[0].id;
-    d.tasks.push({
-      id: 't-maillots', sectionId: d.sections[0].id, sousSection: '', titre: 'Commander les maillots', responsables: [moi], statusId: d.statuses[0].id, delai: '2026-11-18',
-      remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(),
+    const point = (id: string, titre: string, x: object) => ({
+      id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: d.statuses[0].id, delai: '', remarque: '', checklist: [], createdBy: moi,
+      updatedAt: new Date().toISOString(), ...x,
     });
+    d.tasks.push(
+      point('t-maillots', 'Commander les maillots', { delai: '2026-11-18' }),
+      point('t-salle', 'Réserver la salle', { eventId: 'e10', delaiRef: { type: 'event', joursAvant: 14, unite: 'semaines' }, delai: '2026-11-14' }),
+    );
     localStorage.setItem(k, JSON.stringify(d));
   }, cle);
   await page.goto('./?demo#/chronologie');
   await page.reload();
-  // Une seule colonne : la séance et l'événement l'un sous l'autre, à la même largeur.
-  const seance = page.locator('article.cc-carte', { hasText: 'Comité de décembre 2026' });
-  const soiree = page.locator('article.cc-carte', { hasText: 'Soirée récréative' });
-  expect((await seance.boundingBox())!.x).toBeCloseTo((await soiree.boundingBox())!.x, 0);
-  await page.getByRole('button', { name: 'Déplacer « Commander les maillots »' }).click();
-  const fenetre = page.getByRole('dialog', { name: 'Déplacer « Commander les maillots »' });
-  await fenetre.getByLabel('Vers').selectOption({ label: 'Comité de décembre 2026 · 03.12.2026' });
-  await fenetre.getByRole('button', { name: 'Déplacer' }).click();
-  await expect(seance).toContainText('Commander les maillots');
+  // Une seule colonne : la séance et l'événement l'un sous l'autre, au même bord.
+  const ligne = (nom: string) => page.locator('.cc-el').filter({ has: page.locator('.cc-el-titre', { hasText: nom }) });
+  expect((await ligne('Comité de décembre 2026').boundingBox())!.x).toBeCloseTo((await ligne('Soirée récréative').boundingBox())!.x, 0);
+  await expect(page.locator('.cc-point.seul', { hasText: 'Commander les maillots' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Déplacer « / })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Afficher les points de « Soirée récréative »' }).click();
+  await ligne('Soirée récréative').getByRole('button', { name: 'Réserver la salle' }).click();
+  await expect(page.getByRole('dialog')).toBeVisible();
 });

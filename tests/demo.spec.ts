@@ -3643,20 +3643,27 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   await page.goto('./?demo#/chronologie');
   await page.reload();
 
-  // Année 2026 : à gauche les séances et le point seul, à droite les événements ; chacun avec ses points.
+  // Année 2026, seulement du texte : à gauche les séances et le point seul, à droite les événements ; leurs points cachés,
+  // « + » les montre (date et titre).
   await expect(page.locator('.cc-periode')).toHaveText('2026');
-  const carte = (nom: string) => page.locator('article.cc-carte').filter({ has: page.locator('.cc-carte-titre', { hasText: nom }) });
-  await expect(page.locator('.cc-gauche').locator(carte('Comité d’octobre 2026'))).toContainText('Lire la correspondance');
-  await expect(page.locator('.cc-droite').locator(carte('Soirée récréative'))).toContainText('Réserver la salle');
-  await expect(carte('Soirée récréative')).toContainText('2 semaines avant');
+  const carte = (nom: string) => page.locator('.cc-el').filter({ has: page.locator('.cc-el-titre', { hasText: nom }) });
+  const plus = (nom: string) => page.getByRole('button', { name: `Afficher les points de « ${nom} »` });
+  await expect(page.locator('.cc-gauche').locator(carte('Comité d’octobre 2026'))).toBeVisible();
+  await expect(carte('Comité d’octobre 2026')).not.toContainText('Lire la correspondance');
+  await plus('Comité d’octobre 2026').click();
+  await expect(carte('Comité d’octobre 2026').locator('.cc-point')).toHaveText('29.10Lire la correspondance');
+  await plus('Soirée récréative').click();
+  await expect(page.locator('.cc-droite').locator(carte('Soirée récréative')).locator('.cc-point')).toHaveText('14.11Réserver la salle');
   await expect(page.locator('.cc-gauche .cc-point.seul', { hasText: 'Commander les maillots' })).toBeVisible();
   await expect(page.locator('.cc-sans-date summary')).toContainText('Sans date (1)');
-  await expect(page.locator('.cc-jour.aujourdhui .cc-date')).toHaveText('Aujourd’hui');
-  // Un événement qui se répète : une seule carte.
+  await expect(page.locator('.cc-jour.aujourdhui .cc-date .cc-ecran')).toHaveText('Aujourd’hui');
+  // Un événement qui se répète : une seule ligne. Pas de « + » sans point.
   await expect(carte('Entraînement en salle')).toHaveCount(1);
+  await expect(carte('Comité de décembre 2026').locator('.cc-plus')).toHaveCount(0);
 
   // Glisser le point seul sur le comité de décembre : rattaché, son délai suit la séance.
   await page.locator('.cc-point', { hasText: 'Commander les maillots' }).dragTo(carte('Comité de décembre 2026'));
+  await plus('Comité de décembre 2026').click();
   await expect(carte('Comité de décembre 2026')).toContainText('Commander les maillots');
   expect(await tache('t-maillots')).toMatchObject({ meetingId: 'm6', delaiRef: { type: 'meeting', joursAvant: 0 }, delai: '2026-12-03' });
 
@@ -3670,21 +3677,22 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
 
   // Glisser le comité de décembre entre deux jours : sa date se choisit ; le point calé dessus suit.
   const zone = page.locator('li.cc-mois', { hasText: 'décembre 2026' }).locator('xpath=following-sibling::li[contains(@class, "cc-depot")][1]');
-  await carte('Comité de décembre 2026').locator('.cc-carte-quand').dragTo(zone);
+  await carte('Comité de décembre 2026').locator('.cc-el-titre').dragTo(zone);
   const dialogue = page.getByRole('dialog', { name: 'Déplacer « Comité de décembre 2026 »' });
   await dialogue.getByLabel('Date de la séance').fill('2026-12-10');
   await expect(dialogue).toContainText('Le délai de 1 point(s) calé(s) dessus suit.');
   await dialogue.getByRole('button', { name: 'Déplacer' }).click();
   await expect(dialogue).toHaveCount(0);
-  await expect(carte('Comité de décembre 2026')).toContainText('jeu. 10 déc.');
+  await expect(page.locator('li.cc-jour', { has: carte('Comité de décembre 2026') }).locator('.cc-date')).toHaveText('jeu. 10');
   expect((await tache('t-maillots')).delai).toBe('2026-12-10');
 
-  // Sans souris : le bouton « Déplacer » du point sans date le rattache à la Sortie de la St-Martin.
+  // Sans glisser : le bouton « Déplacer » du point sans date le rattache à la Sortie de la St-Martin.
   await page.locator('.cc-sans-date summary').click();
   await page.getByRole('button', { name: 'Déplacer « Nouveau site web »' }).click();
   const deplacer = page.getByRole('dialog', { name: 'Déplacer « Nouveau site web »' });
   await deplacer.getByLabel('Vers').selectOption({ label: 'Sortie de la St-Martin · 14.11.2026' });
   await deplacer.getByRole('button', { name: 'Déplacer' }).click();
+  await plus('Sortie de la St-Martin').click();
   await expect(carte('Sortie de la St-Martin')).toContainText('Nouveau site web');
   expect(await tache('t-site')).toMatchObject({ eventId: 'e9', delai: '2026-11-14' });
   await expect(page.locator('.cc-sans-date')).toHaveCount(0);
@@ -3699,12 +3707,28 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   expect(site.delai).toBe('2026-11-25');
   expect(site.eventId).toBeUndefined();
 
-  // Filtre « Mes points » / sections : les cartes restent, leurs points filtrés.
+  // Filtre « Mes points » / sections : les lignes restent, leurs points filtrés.
   await page.getByLabel('Section').selectOption({ index: 0 });
   await page.getByRole('button', { name: 'Mes points' }).click();
   await expect(carte('Soirée récréative')).toContainText('Réserver la salle');
   await page.getByLabel('Masquer les terminés').check();
   await page.getByRole('button', { name: 'Effacer' }).click();
+
+  // Tout masquer, tout afficher (retenu sur l'appareil).
+  await page.getByRole('button', { name: '− Masquer les points' }).click();
+  await expect(page.locator('.cc-points')).toHaveCount(0);
+  await page.getByRole('button', { name: '+ Afficher tous les points' }).click();
+  await expect(carte('Comité de décembre 2026')).toContainText('Commander les maillots');
+  await page.reload();
+  await expect(carte('Soirée récréative')).toContainText('Réserver la salle');
+
+  // Impression : un titre, la frise telle qu'affichée, sans filtres ni boutons ; les deux voies côte à côte.
+  await page.emulateMedia({ media: 'print' });
+  await expect(page.locator('.cc-papier-tete')).toContainText('Chronologie 2026');
+  await expect(page.locator('.cc-filtres')).toBeHidden();
+  await expect(page.locator('.cc-plus').first()).toBeHidden();
+  expect((await carte('Comité de décembre 2026').boundingBox())!.x).toBeLessThan((await carte('Soirée récréative').boundingBox())!.x);
+  await page.emulateMedia({ media: 'screen' });
 
   // D'une AG à l'autre : l'assemblée générale 2027 de la démo (case cochée) ferme la période.
   await page.getByRole('button', { name: 'D’une AG à l’autre' }).click();
@@ -3714,7 +3738,7 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   await expect(page.locator('.cc-periode')).toHaveText('Depuis l’AG du 13.03.2027');
 
   // Case décochée dans la fiche de l'événement : plus d'AG ; « Cocher » la remet.
-  await carte('Assemblée générale 2027').locator('.cc-carte-titre').click();
+  await carte('Assemblée générale 2027').locator('.cc-el-titre').click();
   const fiche = page.getByRole('dialog', { name: 'Événement' });
   await fiche.getByLabel('Assemblée générale').uncheck();
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
