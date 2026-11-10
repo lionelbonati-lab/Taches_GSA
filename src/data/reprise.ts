@@ -1,6 +1,6 @@
 import type { ActivityNotif, AppData, ClubEvent, Task } from './types';
 import { aPrendreOuverte, aPrendreSuivante, sansVolontaires } from './aPrendre';
-import { addDays, delaiDepuis, diffDays, today, uid } from './utils';
+import { addDays, delaiDepuis, diffDays, endOf, today, uid } from './utils';
 
 // Reprendre une édition : un événement passé (course, camp, soirée…) recopié à une nouvelle date, avec les tâches qui le
 // préparaient (rattachées à lui ou qui portent son étiquette ; l'étiquette suit : etiquettes.ts, suiteEtiquette). Chaque tâche repart « à faire », au même écart de l'événement (« 30 jours avant », « la veille » : le délai
@@ -8,6 +8,8 @@ import { addDays, delaiDepuis, diffDays, today, uid } from './utils';
 // séance ; les responsables restent (personnes encore actives) ou sont à attribuer ensuite. Les fichiers joints restent
 // communs avec l'original (comme « Dupliquer ») ; emails et sondages ne suivent pas. Une tâche récurrente se reconduit
 // déjà toute seule : proposée décochée, et sa copie ne se répète pas.
+// Recopier des points dans une édition déjà là (recopierDans) : sans la recréer ; chaque copie retient son point
+// d'origine (copieDe), et ceux déjà recopiés sont signalés (dejaRecopies), pour ne pas les recopier deux fois.
 
 /** Événement qui peut être repris : pas une série (elle suit déjà ses occurrences). */
 export const reprenable = (e: ClubEvent) => !e.repetition;
@@ -81,16 +83,47 @@ export function reprendre(data: AppData, e: ClubEvent, c: ChoixReprise, moi: str
     ...reste, id: uid('e'), nom: c.nom.trim(), date: c.date, dateFin: c.dateFin && c.dateFin > c.date ? c.dateFin : undefined, repriseDe: e.id,
     ...(c.serie && dansSerie ? { dansSerie } : {}),
   };
+  return { event, ...recopierDans(data, e, event, c, moi) };
+}
+
+/**
+ * Les points choisis de l'événement `e` recopiés dans l'événement `cible` (une nouvelle édition, ou une déjà là : sans la
+ * recréer) : ceux rattachés à `e` le sont à `cible`, au même écart (délai lié) ; les autres, leur délai décalé d'autant.
+ */
+export function recopierDans(data: AppData, e: ClubEvent, cible: Pick<ClubEvent, 'id' | 'date'>, c: Pick<ChoixReprise, 'taches' | 'responsables'>, moi: string) {
   const choisies = data.tasks.filter((t) => c.taches.includes(t.id) && !t.paiement);
-  const { tasks, notifs } = copierPoints(data, choisies, (t) => {
+  return copierPoints(data, choisies, (t) => {
     const liee = t.eventId === e.id;
     return {
-      eventId: liee ? event.id : undefined,
+      eventId: liee ? cible.id : undefined,
       delaiRef: liee && t.delaiRef?.type === 'event' ? (({ occurrence: _, ...r }) => r)(t.delaiRef) : undefined,
-      delai: delaiRepris(t, e, c.date),
+      delai: delaiRepris(t, e, cible.date),
     };
   }, c.responsables, moi);
-  return { event, tasks, notifs };
+}
+
+/**
+ * Événements où recopier les points de `e` sans les recréer : ses éditions (reprises, copies ; les plus récentes
+ * d'abord), puis les autres événements à venir (pas ceux qui se répètent, ni les dates modifiées seules).
+ */
+export function editionsCibles(data: Pick<AppData, 'events'>, e: ClubEvent, jour = today()) {
+  const simple = (x: ClubEvent) => x.id !== e.id && !x.repetition && !x.serie;
+  const siennes = data.events.filter((x) => simple(x) && x.repriseDe === e.id).sort((a, b) => b.date.localeCompare(a.date));
+  const autres = data.events.filter((x) => simple(x) && x.repriseDe !== e.id && endOf(x) >= jour).sort((a, b) => a.date.localeCompare(b.date));
+  return { siennes, autres };
+}
+
+/** Intitulé sans accents, majuscules ni espaces en trop. */
+const intitule = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/**
+ * Points déjà recopiés dans une édition (`cible` : ses points) : ceux dont une copie y est (`copieDe`) ; pour les copies
+ * d'avant ce repère, un point du même intitulé.
+ */
+export function dejaRecopies(cible: Task[], points: Task[]): Set<string> {
+  const copies = new Set(cible.map((t) => t.copieDe).filter(Boolean));
+  const titres = new Set(cible.map((t) => intitule(t.titre)));
+  return new Set(points.filter((t) => copies.has(t.id) || titres.has(intitule(t.titre))).map((t) => t.id));
 }
 
 /**
@@ -116,6 +149,7 @@ export function copierPoints(
       ...x,
       id: ids.get(t.id)!,
       statusId: ouvert.id,
+      copieDe: t.id,
       ...suite(t),
       responsables: memes ? sansVolontaires(t.responsables.filter((id) => actifs.has(id)), t.aPrendre) : [],
       aPrendre: aPrendreSuivante(t.aPrendre),

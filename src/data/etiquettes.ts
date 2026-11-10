@@ -457,6 +457,54 @@ export function suiteEtiquetteSerie(d: AppData, ancienne: Pick<SerieEvenements, 
   reglerEtiquetteSerie(d, suite, { membres: avant.membres ?? [] });
 }
 
+/**
+ * Copies de points recopiées dans une édition déjà là (Reprise.tsx, RepriseSerie.tsx), dans la modification qui les
+ * ajoute : celles rangées chez l'étiquette `avant` (l'édition d'origine) passent à `place` (la sous-section de l'édition
+ * cible) et ne portent plus `avant`.
+ */
+function recaserCopies(d: AppData, avant: Etiquette, place: LieuEtiquette, copies: string[]) {
+  const ici = lieuxDe(avant, d.sections).find((l) => l.sousSection);
+  const ids = new Set(copies);
+  d.tasks.forEach((t) => {
+    if (!ids.has(t.id)) return;
+    if (ici && t.sectionId === ici.sectionId && t.sousSection === ici.sousSection) {
+      t.sectionId = place.sectionId;
+      t.sousSection = place.sousSection ?? '';
+    }
+    const l = (t.etiquettes ?? []).filter((x) => x !== avant.id);
+    t.etiquettes = l.length ? l : undefined;
+  });
+}
+
+/** La sous-section de l'étiquette `e` ; sans elle, une sous-section `nom` dans « Événements », créée au besoin. */
+function placeOuNouvelle(d: AppData, e: Etiquette | undefined, nom: (sectionId: string) => string): LieuEtiquette {
+  const l = e && lieuxDe(e, d.sections).find((x) => x.sousSection);
+  if (l) return l;
+  const evts = sectionEvenements(d, true)!;
+  const sous = nom(evts.id);
+  if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
+  return { sectionId: evts.id, sousSection: sous };
+}
+
+/**
+ * Points de l'événement `ancien` recopiés dans `cible`, déjà là : rangés chez l'étiquette de `ancien`, ils passent chez
+ * celle de `cible` (sans étiquette : une sous-section à son nom) et ne portent plus celle de `ancien`.
+ */
+export function versEvenement(d: AppData, ancien: Pick<ClubEvent, 'id'>, cible: Pick<ClubEvent, 'id' | 'nom' | 'date'>, copies: string[]) {
+  const avant = etiquetteDeLEvenement(d, ancien.id);
+  const apres = etiquetteDeLEvenement(d, cible.id);
+  if (!avant || avant.id === apres?.id) return;
+  recaserCopies(d, avant, placeOuNouvelle(d, apres, (sectionId) => sousSectionLibre(d, sectionId, cible)), copies);
+}
+
+/** Points de la série `ancienne` recopiés dans la série `cible`, déjà là : de même, chez l'étiquette de `cible`. */
+export function versSerie(d: AppData, ancienne: Pick<SerieEvenements, 'id'>, cible: Pick<SerieEvenements, 'id' | 'nom'>, copies: string[]) {
+  const avant = etiquetteDeLaSerie(d, ancienne.id);
+  const apres = etiquetteDeLaSerie(d, cible.id);
+  if (!avant || avant.id === apres?.id) return;
+  recaserCopies(d, avant, placeOuNouvelle(d, apres, (sectionId) => sousSectionSerie(d, sectionId, cible.nom)), copies);
+}
+
 /** Coche « Groupe » d'une section (console admin) : l'étiquette de la section, à son nom ; ses points la reçoivent. */
 export function reglerGroupe(d: AppData, sectionId: string, choix: ChoixEtiquette) {
   const s = d.sections.find((x) => x.id === sectionId);

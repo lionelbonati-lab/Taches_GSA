@@ -257,6 +257,11 @@ export interface Task {
   aPrendre?: APrendre;
   /** Tâche de paiement : ticket à rembourser, validé (signé) puis payé par la caisse. */
   paiement?: Paiement;
+  /**
+   * Copie d'un point recopié dans une autre édition (« Reprendre », « Copier » un événement ou une série) : le point
+   * d'origine, pour ne pas le recopier deux fois dans la même édition.
+   */
+  copieDe?: string;
 }
 
 /** « Pour info » d'une tâche : des personnes la voient (accueil, « Mes tâches », 🔔) sans en être responsables. */

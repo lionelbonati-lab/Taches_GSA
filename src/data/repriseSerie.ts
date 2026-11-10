@@ -1,8 +1,9 @@
 import type { ActivityNotif, AppData, ClubEvent, SerieEvenements, Task } from './types';
-import { addDays, today, uid } from './utils';
+import { addDays, diffDays, today, uid } from './utils';
 import { candidats, copierPoints, nomReprise, type Candidat } from './reprise';
 import { evenementsDeLaSerie, racine } from './seriesEvenements';
 import { decalerJours } from './series';
+import { jourSemaine } from './repetition';
 import { etiquetteDeLaSerie } from './etiquettes';
 
 // Reprendre une série d'événements pour la saison suivante (« Reprendre » sur la carte de la série) : le programme
@@ -34,11 +35,13 @@ export const ansEntre = (debut: string, n: number) => Number(addDays(debut, n).s
 
 /** L'événement de la saison suivante : décalé de `n` jours (sa répétition aussi), dans la nouvelle série. */
 export function eventDecale(e: ClubEvent, n: number, ans: number, serieId: string): ClubEvent {
-  const { sauf: _s, serie: _x, repriseDe: _r, repetition, ...reste } = e;
+  const { sauf: _s, serie: _x, repetition, ...reste } = e;
   const r = repetition && { ...decalerJours(repetition, n), ...(repetition.jusquau ? { jusquau: addDays(repetition.jusquau, n) } : {}) };
   return {
     ...reste,
     id: uid('e'),
+    // Sa suite : retrouvée pour y recopier plus tard d'autres points (apparier).
+    repriseDe: e.id,
     nom: nomReprise(e.nom, ans),
     date: addDays(e.date, n),
     dateFin: e.dateFin && e.dateFin > e.date ? addDays(e.dateFin, n) : undefined,
@@ -77,6 +80,44 @@ export interface ChoixRepriseSerie {
   responsables: boolean;
 }
 
+/** Un événement de la série d'origine et celui où vont ses points (sa suite, ou son pendant dans une série déjà là). */
+export interface Paire {
+  ancien: ClubEvent;
+  nouveau: ClubEvent;
+}
+
+/**
+ * Copies des points choisis de la série `s` vers d'autres événements (`paires`) : rattachés à un événement apparié, ils le
+ * sont à son pendant, au même écart (l'occurrence suivie décalée d'autant) ; ceux qui portent son étiquette, leur délai
+ * décalé d'autant ; ceux de la série seule, de `general` jours. Les points d'un événement sans pendant ne sont pas recopiés.
+ */
+function copierVers(data: AppData, s: Pick<SerieEvenements, 'id'>, paires: Paire[], general: number, c: Pick<ChoixRepriseSerie, 'taches' | 'responsables'>, moi: string) {
+  const evs = evenementsARecopier(data, s);
+  const parAncien = new Map(paires.map((p) => [p.ancien.id, p]));
+  // L'événement de chaque point proposé (rattaché, ou qui porte son étiquette).
+  const groupe = new Map(candidatsSerie(data, s, evs, () => true).parEvenement.flatMap((x) => x.l.map((y) => [y.t.id, x.e.id] as const)));
+  const etSerie = etiquetteDeLaSerie(data, s.id);
+  const choisies = data.tasks.filter((t) => {
+    if (!c.taches.includes(t.id) || t.paiement) return false;
+    const g = groupe.get(t.id);
+    if (g) return parAncien.has(g);
+    // De la série seule : son étiquette, rattaché à aucun de ses événements.
+    return !!etSerie && !!t.etiquettes?.includes(etSerie.id) && !(t.eventId && evs.some((e) => e.id === t.eventId));
+  });
+  return copierPoints(data, choisies, (t) => {
+    const p = parAncien.get(groupe.get(t.id) ?? '');
+    const n = p ? diffDays(p.ancien.date, p.nouveau.date) : general;
+    const liee = !!p && t.eventId === p.ancien.id;
+    const ref = liee && t.delaiRef?.type === 'event' ? t.delaiRef : undefined;
+    return {
+      eventId: liee ? p!.nouveau.id : undefined,
+      // Délai calé sur l'événement : sur son pendant (l'occurrence suivie, décalée d'autant) ; sinon décalé d'autant.
+      delaiRef: ref && { ...ref, ...(ref.occurrence ? { occurrence: addDays(ref.occurrence, n) } : {}) },
+      delai: t.delai ? addDays(t.delai, n) : '',
+    };
+  }, c.responsables, moi);
+}
+
 /**
  * La nouvelle série, ses événements (décalés) et les copies des points choisis, avec les notifications des responsables ;
  * `paires` : chaque événement repris et sa suite (pour les étiquettes).
@@ -84,7 +125,7 @@ export interface ChoixRepriseSerie {
 export function reprendreSerie(data: AppData, s: SerieEvenements, c: ChoixRepriseSerie, moi: string): {
   serie: SerieEvenements;
   events: ClubEvent[];
-  paires: { ancien: ClubEvent; nouveau: ClubEvent }[];
+  paires: Paire[];
   tasks: Task[];
   notifs: ActivityNotif[];
 } {
@@ -93,22 +134,58 @@ export function reprendreSerie(data: AppData, s: SerieEvenements, c: ChoixRepris
   const ans = ansEntre(debutDe(evs) ?? today(), n);
   const serie: SerieEvenements = { id: uid('se'), nom: c.nom.trim(), ...(s.description ? { description: s.description } : {}), repriseDe: s.id };
   const paires = evs.filter((e) => c.evenements.includes(e.id)).map((ancien) => ({ ancien, nouveau: eventDecale(ancien, n, ans, serie.id) }));
-  const suite = new Map(paires.map((p) => [p.ancien.id, p.nouveau]));
-  // Points d'un événement qui n'est pas repris : pas recopiés.
-  const proposes = new Set(candidatsSerie(data, s, evs, () => true).parEvenement.filter((x) => suite.has(x.e.id)).flatMap((x) => x.l.map((y) => y.t.id)));
-  const etSerie = etiquetteDeLaSerie(data, s.id);
-  const choisies = data.tasks.filter(
-    (t) => c.taches.includes(t.id) && !t.paiement && (proposes.has(t.id) || (!!etSerie && !!t.etiquettes?.includes(etSerie.id) && !(t.eventId && evs.some((e) => e.id === t.eventId)))),
-  );
-  const { tasks, notifs } = copierPoints(data, choisies, (t) => {
-    const nouveau = t.eventId ? suite.get(t.eventId) : undefined;
-    const ref = nouveau && t.delaiRef?.type === 'event' ? t.delaiRef : undefined;
-    return {
-      eventId: nouveau?.id,
-      // Délai calé sur l'événement : sur sa suite (l'occurrence suivie, décalée d'autant) ; sinon décalé d'autant.
-      delaiRef: ref && { ...ref, ...(ref.occurrence ? { occurrence: addDays(ref.occurrence, n) } : {}) },
-      delai: t.delai ? addDays(t.delai, n) : '',
-    };
-  }, c.responsables, moi);
-  return { serie, events: paires.map((p) => p.nouveau), paires, tasks, notifs };
+  return { serie, events: paires.map((p) => p.nouveau), paires, ...copierVers(data, s, paires, n, c, moi) };
+}
+
+/** Saisons où recopier les points d'une série sans la recréer : ses reprises (saisons suivantes), puis les autres séries. */
+export function seriesCibles(data: Pick<AppData, 'seriesEvenements'>, s: SerieEvenements) {
+  const autres = (data.seriesEvenements ?? []).filter((x) => x.id !== s.id);
+  return {
+    siennes: autres.filter((x) => x.repriseDe === s.id),
+    autres: autres.filter((x) => x.repriseDe !== s.id).sort((a, b) => a.nom.localeCompare(b.nom, 'fr')),
+  };
+}
+
+/** Intitulé d'un événement sans accents, majuscules ni espaces en trop. */
+const simple = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+
+/**
+ * Le pendant de chaque événement de la série dans une autre (`cibles`) : sa suite (reprise), sinon celui du même nom
+ * (années décalées comprises : « Manche 1 – 2027 » → « 2028 »), sinon, s'ils se répètent, celui du même jour de la semaine
+ * à la même heure ; un seul chacun. Aucun : pas de pendant (ses points ne sont pas recopiés, sauf à en choisir un).
+ */
+export function apparier(evs: ClubEvent[], cibles: ClubEvent[]): Record<string, string> {
+  const ans = evs.length && cibles.length ? ansEntre(debutDe(evs)!, diffDays(debutDe(evs)!, debutDe(cibles)!)) : 0;
+  const essais: ((a: ClubEvent, b: ClubEvent) => boolean)[] = [
+    (a, b) => b.repriseDe === a.id,
+    (a, b) => simple(b.nom) === simple(a.nom) || simple(b.nom) === simple(nomReprise(a.nom, ans)),
+    (a, b) => !!a.repetition && !!b.repetition && jourSemaine(a.date) === jourSemaine(b.date) && (a.heure ?? '') === (b.heure ?? ''),
+  ];
+  const out: Record<string, string> = {};
+  const pris = new Set<string>();
+  for (const essai of essais)
+    for (const a of evs) {
+      if (out[a.id]) continue;
+      const l = cibles.filter((b) => !pris.has(b.id) && essai(a, b));
+      if (l.length !== 1) continue;
+      out[a.id] = l[0].id;
+      pris.add(l[0].id);
+    }
+  return out;
+}
+
+/**
+ * Les points choisis de la série `s` recopiés dans la série `cible`, déjà là (sans la recréer) : chaque événement vers
+ * son pendant (`pendants` : événement d'origine → événement de `cible`) ; ceux de la série seule, décalés comme le
+ * premier jour de la saison.
+ */
+export function recopierDansSerie(data: AppData, s: SerieEvenements, cible: SerieEvenements, pendants: Record<string, string>, c: Pick<ChoixRepriseSerie, 'taches' | 'responsables'>, moi: string) {
+  const evs = evenementsARecopier(data, s);
+  const evsCible = evenementsARecopier(data, cible);
+  const paires = evs.flatMap((ancien) => {
+    const nouveau = evsCible.find((x) => x.id === pendants[ancien.id]);
+    return nouveau ? [{ ancien, nouveau }] : [];
+  });
+  const general = evs.length && evsCible.length ? diffDays(debutDe(evs)!, debutDe(evsCible)!) : 0;
+  return { paires, ...copierVers(data, s, paires, general, c, moi) };
 }

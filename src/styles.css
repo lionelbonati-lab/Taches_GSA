@@ -2457,3 +2457,12 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 .serie-ev-choix > small { display: block; margin-top: 8px; }
 /* À l'accueil (« Prochains événements ») : la série au-dessus du nom de son prochain événement. */
 .prochain-evenement .serie-nom { display: flex; align-items: center; gap: 4px; font-size: 0.8rem; color: var(--muted); }
+/* « Recopier des points » dans une édition déjà là ; la fenêtre « Recopier vers » ; un point déjà recopié. */
+.reprise .btn.recopier { margin-left: 8px; padding: 0 2px; vertical-align: baseline; }
+.reprise-vers { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin: 0 0 10px; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; }
+.reprise-vers legend { padding: 0 4px; font-weight: 600; }
+.reprise-vers select { flex: 1 1 220px; min-width: 0; }
+.deja-recopie { color: var(--partiel-fg); font-weight: 600; }
+.serie-ev-pendant .pendant-de { flex: 1 1 220px; min-width: 0; }
+.serie-ev-pendant .pendant-vers { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 6px; }
+.serie-ev-pendant select { flex: 1; min-width: 0; }

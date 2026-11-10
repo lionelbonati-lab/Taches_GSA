@@ -499,10 +499,12 @@ export function Events() {
   const [nouveau, setNouveau] = useState<{ dansSerie?: string } | null>(null);
   // Série d'événements ouverte (nouvelle ou existante) ; reprise pour la saison suivante.
   const [serieOuverte, setSerieOuverte] = useState<SerieEvenements | null>(null);
-  const [serieReprise, setSerieReprise] = useState<SerieEvenements | null>(null);
+  // `vers` : recopier des points dans une série déjà là (sa saison suivante), sans la recréer.
+  const [serieReprise, setSerieReprise] = useState<{ s: SerieEvenements; vers?: string } | null>(null);
   // Événement passé repris pour une nouvelle édition, avec ses tâches (Reprise.tsx).
   // Reprendre un événement passé (nouvelle édition) ou en copier un à venir (`copie`).
-  const [reprise, setReprise] = useState<{ e: ClubEvent; copie: boolean } | null>(null);
+  // `vers` : recopier des points dans un événement déjà là (sa copie, sa reprise), sans le recréer.
+  const [reprise, setReprise] = useState<{ e: ClubEvent; copie: boolean; vers?: string } | null>(null);
   const [chrono, setChrono] = useState<CibleChrono | null>(null);
   const cible = useCible('id');
   // Événement qui se répète : une seule fois, à sa prochaine occurrence (série terminée : la dernière).
@@ -545,9 +547,9 @@ export function Events() {
           etiquetteDe={etiquetteDe}
           onEdit={() => setSerieOuverte(x.serie!.s)}
           onAjout={() => setNouveau({ dansSerie: x.serie!.s.id })}
-          onRepriseSerie={() => setSerieReprise(x.serie!.s)}
+          onRepriseSerie={(vers) => setSerieReprise({ s: x.serie!.s, vers })}
           onEditEvent={(e) => setEdit({ e, jour: e.repetition ? affiche(e) : undefined })}
-          onReprise={(e, copie) => setReprise({ e, copie })}
+          onReprise={(e, copie, vers) => setReprise({ e, copie, vers })}
           onChrono={(e) => setChrono({ serie: e, date: affiche(e), etiquette: etiquetteDe(e) })}
         />
       );
@@ -559,7 +561,7 @@ export function Events() {
         etiquette={et}
         cible={estCible(cible, serie.id)}
         onEdit={() => setEdit({ e: serie, jour: serie.repetition ? date : undefined })}
-        onReprise={(copie) => setReprise({ e: serie, copie })}
+        onReprise={(copie, vers) => setReprise({ e: serie, copie, vers })}
         onChrono={() => setChrono({ serie, date, etiquette: et })}
       />
     ) : (
@@ -594,8 +596,8 @@ export function Events() {
       {edit && <EventModal event={edit.e} jour={edit.jour} onClose={() => setEdit(null)} />}
       {nouveau && <EventModal event={newEvent(undefined, nouveau.dansSerie)} onClose={() => setNouveau(null)} />}
       {serieOuverte && <SerieModal serie={serieOuverte} onClose={() => setSerieOuverte(null)} />}
-      {serieReprise && <RepriseSerieModal serie={serieReprise} onClose={() => setSerieReprise(null)} />}
-      {reprise && <RepriseModal event={reprise.e} copie={reprise.copie} onClose={() => setReprise(null)} />}
+      {serieReprise && <RepriseSerieModal serie={serieReprise.s} vers={serieReprise.vers} onClose={() => setSerieReprise(null)} />}
+      {reprise && <RepriseModal event={reprise.e} copie={reprise.copie} vers={reprise.vers} onClose={() => setReprise(null)} />}
       {chrono && <Chronologie cible={chrono} onClose={() => setChrono(null)} />}
     </div>
   );
@@ -659,7 +661,7 @@ function CarteEtiquette({ et, onChrono }: { et: Etiquette; onChrono: () => void 
  * chronologie, points, modifier, reprendre.
  */
 function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onChrono }: {
-  serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: (copie: boolean) => void; onChrono: () => void;
+  serie: ClubEvent; date: string; etiquette?: Etiquette; cible: boolean; onEdit: () => void; onReprise: (copie: boolean, vers?: string) => void; onChrono: () => void;
 }) {
   const { data, can } = useStore();
   const jour = today();
@@ -686,7 +688,12 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
         {e.description && <p>{e.description}</p>}
         {etiquette && <EtiquetteCarte et={etiquette} />}
         <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
-        {suite && <p className="muted reprise"><Icone n="dupliquer" /> {past ? 'Reprise' : 'Copie'} : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})</p>}
+        {suite && (
+          <p className="muted reprise">
+            <Icone n="dupliquer" /> {past ? 'Reprise' : 'Copie'} : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link> ({fmtRange(suite.date, suite.dateFin)})
+            {can('events.manage') && reprenable(serie) && <BoutonRecopier vers={suite.nom} onClick={() => onReprise(!past, suite.id)} />}
+          </p>
+        )}
       </div>
       <div className="agenda-actions">
         <BoutonChrono onClick={onChrono} />
@@ -731,9 +738,9 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
   etiquetteDe: (e: ClubEvent) => Etiquette | undefined;
   onEdit: () => void;
   onAjout: () => void;
-  onRepriseSerie: () => void;
+  onRepriseSerie: (vers?: string) => void;
   onEditEvent: (e: ClubEvent) => void;
-  onReprise: (e: ClubEvent, copie: boolean) => void;
+  onReprise: (e: ClubEvent, copie: boolean, vers?: string) => void;
   onChrono: (e: ClubEvent) => void;
 }) {
   const { data, can } = useStore();
@@ -766,7 +773,7 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
                 prochain={!past && prochain?.id === e.id}
                 onChrono={() => onChrono(e)}
                 onEdit={() => onEditEvent(e)}
-                onReprise={(copie) => onReprise(e, copie)}
+                onReprise={(copie, vers) => onReprise(e, copie, vers)}
               />
             ))}
           </Liste>
@@ -774,7 +781,12 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
           <p className="muted">Aucun événement dans la série pour l’instant{can('events.manage') ? ' : « Événement » en ajoute un, « Modifier » y range ceux de l’agenda.' : '.'}</p>
         )}
         <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
-        {suite && <p className="muted reprise"><Icone n="dupliquer" /> Saison suivante : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link></p>}
+        {suite && (
+          <p className="muted reprise">
+            <Icone n="dupliquer" /> Saison suivante : <Link to={`/evenements?id=${encodeURIComponent(suite.id)}`}>{suite.nom}</Link>
+            {can('events.manage') && <BoutonRecopier vers={suite.nom} onClick={() => onRepriseSerie(suite.id)} />}
+          </p>
+        )}
       </div>
       <div className="agenda-actions">
         <BoutonPoints to={`/taches?event=${encodeURIComponent(FILTRE_SERIE + serie.id)}`} />
@@ -787,7 +799,7 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
               <Icone n="modifier" /> <span className="libelle">Modifier</span>
             </button>
             {evs.length > 0 && (
-              <button className="btn small" onClick={onRepriseSerie} title="La saison suivante : ses événements décalés (52 semaines), avec leurs points, en une fois">
+              <button className="btn small" onClick={() => onRepriseSerie()} title="La saison suivante : ses événements décalés (52 semaines), avec leurs points, en une fois ; ou des points de plus dans une saison déjà là">
                 <Icone n="dupliquer" /> <span className="libelle">Reprendre</span>
               </button>
             )}
@@ -803,7 +815,7 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
  * lieu, son étiquette et ses points ; « Modifier », « Copier » (une autre manche) ou « Reprendre », leur icône seule.
  */
 function LigneSerie({ e, etiquette, prochain, onChrono, onEdit, onReprise }: {
-  e: ClubEvent; etiquette?: Etiquette; prochain: boolean; onChrono: () => void; onEdit: () => void; onReprise: (copie: boolean) => void;
+  e: ClubEvent; etiquette?: Etiquette; prochain: boolean; onChrono: () => void; onEdit: () => void; onReprise: (copie: boolean, vers?: string) => void;
 }) {
   const { data, can } = useStore();
   const jour = today();
@@ -811,7 +823,8 @@ function LigneSerie({ e, etiquette, prochain, onChrono, onEdit, onReprise }: {
   const x = aLaDate(e, dateAffichee(e, jour));
   const tasks = data.tasks.filter((t) => t.eventId === e.id || (!!etiquette && !!t.etiquettes?.includes(etiquette.id)));
   const faits = tasks.filter((t) => isDone(data, t)).length;
-  const suite = data.events.find((y) => y.repriseDe === e.id);
+  // Sa copie ou sa reprise ; pas son pendant de la saison suivante (une autre série : « Saison suivante » sur la carte).
+  const suite = data.events.find((y) => y.repriseDe === e.id && !(y.dansSerie && y.dansSerie !== e.dansSerie));
   return (
     <li className={`serie-ev ${past ? 'past' : ''} ${prochain ? 'prochain' : ''}`}>
       <div className="grow">
@@ -822,7 +835,12 @@ function LigneSerie({ e, etiquette, prochain, onChrono, onEdit, onReprise }: {
           {e.repetition && <> {(horaire(x) || e.lieu) && '· '}<Icone n="repetition" /> {libelleRepetition(e)}</>}
         </div>
         {etiquette && <EtiquetteCarte et={etiquette} />}
-        {suite && <small className="muted reprise"><Icone n="dupliquer" /> {past ? 'Reprise' : 'Copie'} : {suite.nom} ({fmtRange(suite.date, suite.dateFin)})</small>}
+        {suite && (
+          <small className="muted reprise">
+            <Icone n="dupliquer" /> {past ? 'Reprise' : 'Copie'} : {suite.nom} ({fmtRange(suite.date, suite.dateFin)})
+            {can('events.manage') && reprenable(e) && <BoutonRecopier vers={suite.nom} onClick={() => onReprise(!past, suite.id)} />}
+          </small>
+        )}
       </div>
       {can('events.manage') && (
         <span className="serie-ev-actions">
@@ -880,6 +898,15 @@ function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; k
 
 const linkedNote = (n: number) =>
   n ? <><Icone n="epingle" /> {n} point(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.</> : undefined;
+
+/** « Recopier des points » dans l'édition déjà là (copie, reprise, saison suivante), sans la recréer. */
+function BoutonRecopier({ vers, onClick }: { vers: string; onClick: () => void }) {
+  return (
+    <button type="button" className="btn link small recopier" onClick={onClick} title={`Recopier d’autres points dans « ${vers} », sans le recréer`}>
+      Recopier des points
+    </button>
+  );
+}
 
 /** Nom d'un événement : un clic ouvre sa chronologie. */
 function TitreEvenement({ nom, onClick }: { nom: string; onClick: () => void }) {

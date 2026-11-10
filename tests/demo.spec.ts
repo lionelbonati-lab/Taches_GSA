@@ -3767,3 +3767,132 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   await page.getByRole('button', { name: 'Cocher « Assemblée générale 2027 » (13.03.2027)' }).click();
   await expect(page.locator('.cc-periode')).toHaveText('Avant l’AG du 13.03.2027');
 });
+
+test('recopier des points dans la saison suivante déjà là : sans recréer la série, les points déjà recopiés décochés', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  const lire = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle);
+  const ajouter = (points: object[]) =>
+    page.evaluate(({ k, l }) => {
+      const d = JSON.parse(localStorage.getItem(k)!);
+      const moi = d.people[0].id;
+      for (const p of l) d.tasks.push({ sectionId: d.sections[0].id, sousSection: '', responsables: [moi], statusId: d.statuses[0].id, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...p });
+      localStorage.setItem(k, JSON.stringify(d));
+    }, { k: cle, l: points });
+  // Le programme hivernal a son étiquette ; un point de la natation, un de la série. La saison 2027-28 est reprise.
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    d.etiquettes.push({ id: 'et-hiver', nom: 'Programme hivernal 2026-27', couleur: '#0284c7', type: 'evenement', serieId: 'se-hiver', lieux: [{ sectionId: 'sec8', sousSection: 'Programme hivernal 26-27' }], membres: ['p19'] });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await ajouter([
+    { id: 't-piscine', titre: 'Réserver les lignes d’eau', eventId: 'e-hiver-natation', delai: '2026-11-20' },
+    { id: 't-salles', titre: 'Demander les salles à la commune', sectionId: 'sec8', sousSection: 'Programme hivernal 26-27', etiquettes: ['et-hiver'], delai: '2026-10-15' },
+  ]);
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+  const hiver = page.locator('article.carte-serie', { hasText: 'Programme hivernal 2026-27' });
+  await hiver.getByRole('button', { name: 'Reprendre', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Reprendre 5 événements et 2 points' }).click();
+  await expect(page).toHaveURL(/#\/taches\?event=serie%3A/);
+  let d = await lire();
+  const suite = d.seriesEvenements.find((s: { repriseDe?: string }) => s.repriseDe === 'se-hiver');
+  const natation = d.events.find((e: { dansSerie?: string; nom: string }) => e.dansSerie === suite.id && e.nom === 'Natation');
+  expect(natation.repriseDe).toBe('e-hiver-natation');
+  // Une copie d'avant le repère « copieDe » : reconnue à son intitulé.
+  await page.evaluate((k) => {
+    const x = JSON.parse(localStorage.getItem(k)!);
+    x.tasks.filter((t: { titre: string; id: string }) => t.titre === 'Réserver les lignes d’eau' && t.id !== 't-piscine').forEach((t: { copieDe?: string }) => delete t.copieDe);
+    localStorage.setItem(k, JSON.stringify(x));
+  }, cle);
+  // Des points ajoutés ensuite à la saison 2026-27.
+  await ajouter([
+    { id: 't-bonnets', titre: 'Commander les bonnets', eventId: 'e-hiver-natation', delai: '2026-12-04' },
+    { id: 't-affiche', titre: 'Imprimer l’affiche', sectionId: 'sec8', sousSection: 'Programme hivernal 26-27', etiquettes: ['et-hiver'], delai: '2026-10-20' },
+  ]);
+  const nbSeries = d.seriesEvenements.length;
+  const nbEvents = d.events.length;
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+
+  // « Recopier des points » à côté de « Saison suivante » : la série déjà là, chaque événement vers son pendant.
+  await hiver.locator('.reprise').getByRole('button', { name: 'Recopier des points' }).click();
+  const fiche = page.getByRole('dialog', { name: 'Reprendre la série « Programme hivernal 2026-27 »' });
+  await expect(fiche.getByRole('radio', { name: 'Une série déjà là, sans la recréer :' })).toBeChecked();
+  await expect(fiche.getByRole('combobox', { name: 'Série déjà là' })).toHaveValue(suite.id);
+  await expect(fiche.getByLabel('Nom de la nouvelle série')).toHaveCount(0);
+  await expect(fiche.getByRole('combobox', { name: 'Événement de « Programme hivernal 2027-28 » pour « Natation »' })).toHaveValue(natation.id);
+  const ligne = (titre: string) => fiche.locator('.anciennes-liste li', { hasText: titre });
+  await expect(ligne('Réserver les lignes d’eau')).toContainText('déjà dans « Programme hivernal 2027-28 »');
+  await expect(ligne('Réserver les lignes d’eau').getByRole('checkbox')).not.toBeChecked();
+  await expect(ligne('Demander les salles à la commune').getByRole('checkbox')).not.toBeChecked();
+  await expect(ligne('Commander les bonnets').getByRole('checkbox')).toBeChecked();
+  await expect(ligne('Commander les bonnets')).toContainText('délai 03.12.2027');
+  await expect(ligne('Imprimer l’affiche').getByRole('checkbox')).toBeChecked();
+  await fiche.getByRole('button', { name: 'Recopier 2 points dans « Programme hivernal 2027-28 »' }).click();
+
+  // Les deux nouveaux points, dans la saison 2027-28 : ni série ni événement recréés, pas de doublon.
+  await expect(page).toHaveURL(new RegExp(`#/taches\\?event=serie%3A${suite.id}`));
+  await expect(page.locator('main tbody tr')).toHaveCount(4);
+  d = await lire();
+  expect(d.seriesEvenements).toHaveLength(nbSeries);
+  expect(d.events).toHaveLength(nbEvents);
+  expect(d.tasks.filter((t: { titre: string }) => t.titre === 'Réserver les lignes d’eau')).toHaveLength(2);
+  expect(d.tasks.find((t: { copieDe?: string }) => t.copieDe === 't-bonnets')).toMatchObject({ eventId: natation.id, delai: '2027-12-03' });
+  const et = d.etiquettes.find((x: { serieId?: string }) => x.serieId === suite.id);
+  expect(d.tasks.find((t: { copieDe?: string }) => t.copieDe === 't-affiche')).toMatchObject({ sectionId: 'sec8', sousSection: 'Programme hivernal 2027-28', delai: '2027-10-19', etiquettes: [et.id] });
+});
+
+test('recopier des points dans la copie d’un événement : sans la recréer, le point déjà recopié décoché', async ({ page }) => {
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    d.events.push({ id: 'e-cote', nom: 'Course de côte', date: j.date, lieu: 'Fontenais', description: '' });
+    d.tasks.push({
+      id: 't-cote', sectionId: d.sections[0].id, sousSection: '', titre: 'Réserver la route', responsables: [moi], statusId: d.statuses[0].id, delai: j.avant, eventId: 'e-cote',
+      delaiRef: { type: 'event', joursAvant: 7, unite: 'jours' }, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(),
+    });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, { k: cle, j: { date: dansJours(30), avant: dansJours(23) } });
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+  const carte = page.locator('main .agenda').first().locator('article.agenda-item', { hasText: 'Course de côte' }).first();
+  await carte.getByRole('button', { name: 'Copier' }).click();
+  const copie = page.getByRole('dialog', { name: 'Copier « Course de côte »' });
+  await expect(copie.getByRole('radio', { name: 'Un nouvel événement' })).toBeChecked();
+  await copie.getByLabel('Premier jour').fill(dansJours(60));
+  await copie.getByLabel('Nom', { exact: true }).fill('Course de côte (manche 2)');
+  await copie.getByRole('button', { name: 'Copier avec 1 point' }).click();
+  await expect(page).toHaveURL(/#\/taches\?event=/);
+
+  // Un point ajouté ensuite à la course ; « Recopier des points » dans sa copie.
+  await page.evaluate(({ k, j }) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    d.tasks.push({
+      id: 't-cote2', sectionId: d.sections[0].id, sousSection: '', titre: 'Prévoir les signaleurs', responsables: [moi], statusId: d.statuses[0].id, delai: j.avant, eventId: 'e-cote',
+      delaiRef: { type: 'event', joursAvant: 3, unite: 'jours' }, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(),
+    });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, { k: cle, j: { avant: dansJours(27) } });
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+  const nbEvents = (await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!).events.length, cle));
+  await page.locator('#cible-e-cote').locator('.reprise').getByRole('button', { name: 'Recopier des points' }).click();
+  const fiche = page.getByRole('dialog', { name: 'Copier « Course de côte »' });
+  await expect(fiche.getByRole('radio', { name: 'Un événement déjà là, sans le recréer :' })).toBeChecked();
+  await expect(fiche.getByRole('combobox', { name: 'Événement déjà là' }).locator('option:checked')).toContainText('Course de côte (manche 2)');
+  await expect(fiche.locator('.anciennes-liste li', { hasText: 'Réserver la route' }).getByRole('checkbox')).not.toBeChecked();
+  await expect(fiche.locator('.anciennes-liste li', { hasText: 'Réserver la route' })).toContainText('déjà dans « Course de côte (manche 2) »');
+  await expect(fiche.locator('.anciennes-liste li', { hasText: 'Prévoir les signaleurs' })).toContainText(`délai ${dansJours(57).split('-').reverse().join('.')} (3 jours avant)`);
+  await fiche.getByRole('button', { name: 'Recopier 1 point dans « Course de côte (manche 2) »' }).click();
+  await expect(page).toHaveURL(/#\/taches\?event=/);
+  const d = await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle);
+  expect(d.events).toHaveLength(nbEvents);
+  const manche2 = d.events.find((e: { nom: string }) => e.nom === 'Course de côte (manche 2)');
+  expect(d.tasks.find((t: { copieDe?: string }) => t.copieDe === 't-cote2')).toMatchObject({ eventId: manche2.id, delai: dansJours(57) });
+  expect(d.tasks.filter((t: { titre: string }) => t.titre === 'Réserver la route')).toHaveLength(2);
+});
