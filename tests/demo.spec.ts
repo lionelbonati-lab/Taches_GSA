@@ -3984,3 +3984,25 @@ test('chronologie d’une série : les points de toutes ses manches sur une fris
   await expect(piscine).toContainText('J-7');
   await expect(piscine.locator('.chrono-de')).toContainText('Natation du 27.11.2026');
 });
+
+test('carte d’une série : sa période dans la case de date ; « aujourd’hui à 18h30 » avant l’entraînement, « en cours » pendant', async ({ page }) => {
+  // Mardi 10 novembre 2026, 9 h : l'entraînement en salle est ce soir à 18h30.
+  await page.clock.setFixedTime(new Date('2026-11-10T08:00:00Z'));
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+  const hiver = page.locator('article.carte-serie', { hasText: 'Programme hivernal 2026-27' });
+  await expect(hiver.locator('.dateblock')).toHaveText('27 oct.→ 27 mars2026–27');
+  await expect(hiver).toContainText('aujourd’hui à 18h30 : Entraînement en salle');
+  await expect(hiver.locator('.serie-ev.prochain .badge')).toHaveText('aujourd’hui à 18h30');
+  const championnat = page.locator('article.carte-serie', { hasText: 'Championnat interne 2027' });
+  await expect(championnat.locator('.dateblock')).toHaveText('10 avr.→ 18 sept.2027');
+  // La série en cours (commencée en octobre) avant les événements à venir.
+  const cartes = await page.locator('main .agenda').first().locator('article.agenda-item h3, article.agenda-item strong').allTextContents();
+  expect(cartes.findIndex((x) => x.includes('Programme hivernal 2026-27'))).toBeLessThan(cartes.findIndex((x) => x.includes('Sortie de la St-Martin')));
+
+  // 19 h : il a commencé.
+  await page.clock.setFixedTime(new Date('2026-11-10T18:00:00Z'));
+  await page.reload();
+  await expect(hiver).toContainText('en cours : Entraînement en salle');
+  await expect(hiver.locator('.serie-ev.prochain .badge')).toHaveText('en cours');
+});

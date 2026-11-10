@@ -2470,3 +2470,6 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 .chrono-de { display: inline-flex; align-items: center; gap: 3px; font-size: 0.8rem; font-weight: 600; color: var(--c, var(--event-fg)); }
 .chrono-pour { gap: 6px; }
 .chrono-pour select { max-width: 100%; min-width: 0; }
+/* Période d'une série sur plusieurs mois (« 27 oct. → 27 mars, 2026–27 »). */
+.dateblock.periode b { font-size: 1.05rem; white-space: nowrap; }
+.dateblock.periode span { white-space: nowrap; font-size: 0.85rem; }

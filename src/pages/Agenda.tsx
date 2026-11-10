@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Etiquette, Meeting, PvArchive, SerieEvenements, Task } from '../data/types';
 import { daysUntil, diffDays, endOf, fmtDate, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
-import { aLaDate, horaire, libelleRepetition } from '../data/repetition';
+import { aLaDate, fmtHeure, horaire, libelleRepetition } from '../data/repetition';
 import { EventModal, newEvent } from '../components/EventModal';
 import { RepriseModal } from '../components/Reprise';
 import { SerieModal } from '../components/SerieModal';
@@ -515,11 +515,11 @@ export function Events() {
   const etiquettes = etiquettesDatees(data.etiquettes);
   const etiquetteDe = (e: ClubEvent) => (data.etiquettes ?? []).find((et) => et.eventId === e.id) ?? etiquettes.find((et) => !et.eventId && memeEvenement(et, e));
   const seules = etiquettes.filter((et) => !et.eventId && !data.events.some((e) => memeEvenement(et, e)));
-  // Séries d'événements (seriesEvenements.ts) : une carte chacune, avec ses événements ; à la date de son prochain
-  // événement (sans événement : aujourd'hui, en tête).
+  // Séries d'événements (seriesEvenements.ts) : une carte chacune, avec ses événements ; à son premier jour, comme un
+  // événement sur plusieurs jours (en cours : parmi les premiers) ; sans événement : aujourd'hui, en tête.
   const series = (data.seriesEvenements ?? []).map((s) => {
     const evs = evenementsDeLaSerie(data.events, s.id);
-    return { s, evs, date: prochainDeLaSerie(evs, jour)?.date ?? jour };
+    return { s, evs, date: periodeDeLaSerie(evs)?.debut ?? jour };
   });
   const enSerie = new Set(series.flatMap((x) => x.evs.map((e) => e.id)));
   type Element = { date: string; e?: ClubEvent; et?: Etiquette; serie?: (typeof series)[number] };
@@ -724,6 +724,16 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
   );
 }
 
+/**
+ * Un événement d'une série qui a lieu aujourd'hui : « aujourd’hui à 18h30 » avant son heure, sinon « en cours » (sur la
+ * journée, ou commencé un jour d'avant).
+ */
+function etatDuJour(e: ClubEvent) {
+  const t = new Date();
+  const maintenant = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+  return e.date === today() && e.heure && e.heure > maintenant ? `aujourd’hui à ${fmtHeure(e.heure)}` : 'en cours';
+}
+
 /** « mar. 17.11.2026 » (sur plusieurs jours : « sam. 27–28.02.2027 »). */
 const jourEtDates = (e: Pick<ClubEvent, 'date' | 'dateFin'>) =>
   `${new Date(e.date + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'short' })} ${fmtRange(e.date, e.dateFin)}`;
@@ -755,7 +765,7 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
   const periode = periodeDeLaSerie(evs);
   const past = seriePassee(evs, jour);
   const tasks = pointsDeLaSerie(data, serie.id, evs);
-  const quand = !prochain || past ? '' : prochain.date <= jour ? `en cours : ${prochain.nom}` : `prochain : ${prochain.nom}, dans ${daysUntil(prochain.date)} j`;
+  const quand = !prochain || past ? '' : prochain.date <= jour ? `${etatDuJour(prochain)} : ${prochain.nom}` : `prochain : ${prochain.nom}, dans ${daysUntil(prochain.date)} j`;
   const duree = periode && (periode.fin ? (periode.fin > periode.debut ? `du ${fmtDate(periode.debut)} au ${fmtDate(periode.fin)}` : fmtDate(periode.debut)) : `dès le ${fmtDate(periode.debut)}`);
   // Aucun ne se répète (les manches d'un championnat) : numérotés.
   const Liste = evs.length && evs.every((e) => !e.repetition) ? 'ol' : 'ul';
@@ -763,7 +773,8 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
   const suite = data.seriesEvenements?.find((x) => x.repriseDe === serie.id);
   return (
     <article id={`cible-${serie.id}`} className={`panel agenda-item carte-evenement carte-serie ${past ? 'past' : ''} ${cible ? 'cible' : ''}`}>
-      {prochain ? <DateBlock date={prochain.date} fin={prochain.dateFin} onClick={onChronoSerie} /> : <div className="dateblock vide" aria-hidden="true"><b><Icone n="serie" /></b></div>}
+      {/* Sa période (du premier jour de son premier événement au dernier jour du dernier) ; son prochain événement : dessous. */}
+      {periode ? <PeriodeBlock debut={periode.debut} fin={periode.fin} onClick={onChronoSerie} /> : <div className="dateblock vide" aria-hidden="true"><b><Icone n="serie" /></b></div>}
       <div className="grow">
         <h3 className="titre-serie">
           <Icone n="serie" />{' '}
@@ -841,7 +852,7 @@ function LigneSerie({ e, etiquette, prochain, onChrono, onEdit, onReprise }: {
     <li className={`serie-ev ${past ? 'past' : ''} ${prochain ? 'prochain' : ''}`}>
       <div className="grow">
         <TitreEvenement nom={e.nom} onClick={onChrono} />
-        {prochain && <span className="badge serie-ev-prochain">{x.date <= jour ? 'en cours' : 'prochain'}</span>}
+        {prochain && <span className="badge serie-ev-prochain">{x.date <= jour ? etatDuJour(x) : 'prochain'}</span>}
         <div className="muted">
           {[e.repetition ? null : jourEtDates(x), horaire(x), e.lieu, tasks.length ? `${faits}/${tasks.length} point${tasks.length > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')}
           {e.repetition && <> {(horaire(x) || e.lieu) && '· '}<Icone n="repetition" /> {libelleRepetition(e)}</>}
@@ -935,6 +946,25 @@ function BoutonChrono({ onClick }: { onClick: () => void }) {
     <button type="button" className="btn small" onClick={onClick} title="Les points de l’événement dans le temps, pour les planifier">
       <Icone n="horloge" /> <span className="libelle">Chronologie</span>
     </button>
+  );
+}
+
+/**
+ * Période d'une série sur plusieurs mois : « 27 oct. → 27 mars, 2026–27 » ; sans fin (un événement se répète sans fin) :
+ * « dès le 27 oct. » ; dans un même mois : comme un événement sur plusieurs jours (« 4–27 sept. »).
+ */
+function PeriodeBlock({ debut, fin, onClick }: { debut: string; fin?: string; onClick: () => void }) {
+  if (fin && fin.slice(0, 7) === debut.slice(0, 7)) return <DateBlock date={debut} fin={fin} onClick={onClick} />;
+  const d = (x: string) => new Date(x + 'T12:00:00');
+  const court = (x: string) => `${d(x).getDate()} ${d(x).toLocaleDateString('fr-CH', { month: 'short' })}`;
+  const [a, b] = [d(debut).getFullYear(), d(fin ?? debut).getFullYear()];
+  return (
+    <div className="dateblock periode cliquable" onClick={onClick} aria-hidden="true">
+      {!fin && <small>dès le</small>}
+      <b>{court(debut)}</b>
+      {fin && <span>→ {court(fin)}</span>}
+      <small>{a === b ? a : `${a}–${String(b).slice(2)}`}</small>
+    </div>
   );
 }
 
