@@ -3676,7 +3676,11 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   await expect(carte('Comité de décembre 2026').locator('.cc-plus')).toHaveCount(0);
 
   // Glisser le point seul sur le comité de décembre : rattaché, son délai suit la séance.
+  // La séance reste fermée : son « + » apparaît, et montre le point.
   await page.locator('.cc-point', { hasText: 'Commander les maillots' }).dragTo(carte('Comité de décembre 2026'));
+  await expect(page.locator('.toast')).toContainText('« Commander les maillots » → Comité de décembre 2026');
+  await expect(carte('Comité de décembre 2026')).not.toContainText('Commander les maillots');
+  await plus('Comité de décembre 2026').click();
   await expect(carte('Comité de décembre 2026')).toContainText('Commander les maillots');
   expect(await tache('t-maillots')).toMatchObject({ meetingId: 'm6', delaiRef: { type: 'meeting', joursAvant: 0 }, delai: '2026-12-03' });
 
@@ -3705,6 +3709,8 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   const deplacer = page.getByRole('dialog', { name: 'Déplacer « Nouveau site web »' });
   await deplacer.getByLabel('Vers').selectOption({ label: 'Sortie de la St-Martin · 14.11.2026' });
   await deplacer.getByRole('button', { name: 'Déplacer' }).click();
+  await expect(carte('Sortie de la St-Martin')).not.toContainText('Nouveau site web');
+  await plus('Sortie de la St-Martin').click();
   await expect(carte('Sortie de la St-Martin')).toContainText('Nouveau site web');
   expect(await tache('t-site')).toMatchObject({ eventId: 'e9', delai: '2026-11-14' });
   await expect(page.locator('.cc-sans-date')).toHaveCount(0);

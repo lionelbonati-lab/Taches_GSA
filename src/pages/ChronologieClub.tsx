@@ -141,8 +141,6 @@ export function ChronologieClub() {
     [...cartes.flatMap((c) => c.points), ...series.flatMap((c) => c.points), ...elements.flatMap((c) => (c.k === 'point' ? [c.t] : []))].map((t) => [t.id, t]),
   );
   const enRetard = [...montres.values()].filter((t) => isLate(data, t)).length;
-  /** Ses points montrés (après un dépôt ou un ajout : on voit où il est allé). */
-  const ouvrir = (cle: string) => !ouvertes.has(cle) && setOuvertes(new Set([...ouvertes, cle]));
 
   // ---------- Déplacer ----------
 
@@ -153,8 +151,8 @@ export function ChronologieClub() {
     const t = tache(g.t);
     if (c.cle === g.depuis || !accepte(t, c)) return;
     const x = c.k === 'seance' ? versSeance(data, t, c.m, g.depuis) : c.k === 'evenement' ? versEvenement(data, t, c.e, c.occurrences, g.depuis) : versEtiquette(data, t, c.et, g.depuis);
+    // La séance ou l'événement reste comme il était (fermé : seul le message dit où le point est allé).
     saveTask(x, false);
-    ouvrir(c.cle);
     setToast(`« ${t.titre} » → ${nomCarte(c)}${x.delai ? ` · délai ${x.delaiRef ? offsetLabel(x.delaiRef).toLowerCase() : ''} (${fmtDate(x.delai)})` : ''}`);
   };
   const dater = (g: Glisse, date: string) => {
@@ -225,7 +223,6 @@ export function ChronologieClub() {
   /** Nouveau point : dans la carte (rattaché, délai calé sur elle), ou à une date. */
   const nouveauPoint = (c?: Carte, date?: string) => {
     if (!c) return setFiche({ task: newTask(user.id, date ? { delai: date } : versProchaineSeance(data.meetings)), isNew: true });
-    ouvrir(c.cle);
     if (c.k === 'seance') return setFiche({ task: newTask(user.id, { meetingId: c.m.id, delaiRef: { type: 'meeting', joursAvant: 0 }, delai: c.m.date }), isNew: true });
     // Rangé à la place de son étiquette, ou dans la sous-section de l'événement, quand on peut y ranger le point.
     const et = c.k === 'etiquette' ? c.et : etiquetteDeLEvenement(data, c.e.id);
