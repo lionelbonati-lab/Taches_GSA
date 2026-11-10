@@ -75,6 +75,10 @@ function Depliable({ icone, titre, resume, ouverte, plier, children }: {
   plier: (ouverte: boolean) => void;
   children: ReactNode;
 }) {
+  // Contenu créé à la première ouverture (son champ prend alors le curseur), puis gardé : replier la partie le masque
+  // seulement, sans effacer ce qu'on y a tapé sans l'avoir encore ajouté (étape de checklist, lien en cours…).
+  const [creee, setCreee] = useState(ouverte);
+  if (ouverte && !creee) setCreee(true);
   return (
     <details className="tache-partie" open={ouverte} onToggle={(e) => plier(e.currentTarget.open)}>
       <summary>
@@ -83,8 +87,7 @@ function Depliable({ icone, titre, resume, ouverte, plier, children }: {
         {resume && <> <span className="tache-partie-resume">· {resume}</span></>}
         <ChevronDown className="tache-partie-fleche" size="1.1em" aria-hidden="true" />
       </summary>
-      {/* Repliée : son contenu n'est pas affiché (ni son champ qui prend le curseur à l'ouverture). */}
-      {ouverte && <div className="tache-partie-corps">{children}</div>}
+      {(ouverte || creee) && <div className="tache-partie-corps">{children}</div>}
     </details>
   );
 }

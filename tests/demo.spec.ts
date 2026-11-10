@@ -124,10 +124,22 @@ test('tâche créée avec checklist, répétition et statut, retrouvée à la r�
   await repetition.getByRole('combobox', { name: 'Répétition' }).selectOption({ index: 1 });
   await expect(fiche.locator('.recur-note').first()).toBeVisible();
   await expect(repetition.locator('summary')).toContainText('Répétition · Chaque semaine');
-  // Repliée : son contenu disparaît, le titre dit toujours ce qu'elle contient.
+  // Repliée : son contenu est masqué, le titre dit toujours ce qu'elle contient ; dépliée à nouveau, ce qui était tapé
+  // sans être ajouté est toujours là (étape de checklist, lien en cours).
+  await liste.getByPlaceholder('Ajouter une étape…').fill('Gonfler les ballons');
+  const docs = await deplier(fiche, 'Documents');
+  await docs.getByRole('button', { name: 'Lien', exact: true }).click();
+  await docs.getByPlaceholder(/^Adresse/).fill('drive.google.com/plan');
   await liste.locator('summary').click();
-  await expect(liste.locator('.check-row')).toHaveCount(0);
+  await docs.locator('summary').click();
+  await expect(liste.locator('.check-row')).toBeHidden();
+  await expect(docs.getByPlaceholder(/^Adresse/)).toBeHidden();
   await expect(liste.locator('summary')).toContainText('Checklist · 0/1');
+  await deplier(fiche, 'Checklist');
+  await deplier(fiche, 'Documents');
+  await expect(liste.locator('.check-row')).toBeVisible();
+  await expect(liste.getByPlaceholder('Ajouter une étape…')).toHaveValue('Gonfler les ballons');
+  await expect(docs.getByPlaceholder(/^Adresse/)).toHaveValue('drive.google.com/plan');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
@@ -617,7 +629,7 @@ test('nouvelle tâche : À prendre et Pour info se déplient', async ({ page }) 
   await expect(info.locator('.pour-info')).toBeVisible();
   // Repliée, puis dépliée : ce qui a été choisi reste.
   await prendre.locator('summary').click();
-  await expect(fiche.locator('.a-prendre')).toHaveCount(0);
+  await expect(fiche.locator('.a-prendre')).toBeHidden();
   await deplier(fiche, 'À prendre');
   await expect(fiche.locator('.a-prendre .chip.on').first()).toBeVisible();
 });
