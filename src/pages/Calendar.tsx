@@ -43,7 +43,6 @@ const KINDS: { id: Kind; label: string }[] = [
   { id: 'poll', label: 'Sondages' },
 ];
 const WEEKDAYS = ['Lu', 'Ma', 'Me', 'Je', 'Ve', 'Sa', 'Di'];
-const MAX_CHIPS = 4;
 
 const monthOf = (date: string) => date.slice(0, 7);
 function shiftMonth(ym: string, n: number) {
@@ -329,8 +328,9 @@ export function Calendar() {
                     </div>
                   )}
                 </div>
+                {/* Tout ce qui est ce jour-là : la case garde sa hauteur, la liste défile dedans (pas la page). */}
                 <div className="cal-chips">
-                  {items.slice(0, MAX_CHIPS).map((it) => (
+                  {items.map((it) => (
                     <button
                       key={it.key}
                       className={chipClass(it)}
@@ -344,7 +344,6 @@ export function Calendar() {
                       {chipText(it)}
                     </button>
                   ))}
-                  {items.length > MAX_CHIPS && <span className="cal-more">+{items.length - MAX_CHIPS} autre{items.length - MAX_CHIPS > 1 ? 's' : ''}</span>}
                 </div>
               </div>
             );

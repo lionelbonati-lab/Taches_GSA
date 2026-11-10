@@ -4331,3 +4331,47 @@ test('chronologie du club : le nom d’un événement à la couleur de son étiq
   // La sortie de la St-Martin n'a pas d'étiquette : la couleur des événements, comme avant.
   await expect(page.locator('.cc-el.k-evenement', { hasText: 'Sortie de la St-Martin' }).first()).not.toHaveClass(/couleur/);
 });
+
+test('défilement : la chronologie défile dans son cadre, pas la page ; une case chargée du calendrier garde sa hauteur, sa liste défile', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Neuf points le 12.11.
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    for (let i = 1; i <= 9; i++)
+      d.tasks.push({ id: `t-plein-${i}`, sectionId: d.sections[0].id, sousSection: '', titre: `Point numéro ${i}`, responsables: [moi], statusId: d.statuses[0].id, delai: '2026-11-12', remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString() });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await page.goto('./?demo#/chronologie');
+  await page.reload();
+
+  // La chronologie : la page tient dans l'écran, la frise défile dans son cadre (la page ne bouge pas).
+  const cadre = page.locator('.cc-defile');
+  await expect(cadre).toBeVisible();
+  await expect.poll(() => page.evaluate(() => document.scrollingElement!.scrollHeight - innerHeight)).toBeLessThanOrEqual(1);
+  expect(await cadre.evaluate((el) => el.scrollHeight > el.clientHeight + 100)).toBe(true);
+  await cadre.hover();
+  await page.mouse.wheel(0, 600);
+  await expect.poll(() => cadre.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  expect(await page.evaluate(() => scrollY)).toBe(0);
+  // Les deux voies restent nommées en haut du cadre.
+  const voies = await page.locator('.cc-voies').boundingBox();
+  const haut = (await cadre.boundingBox())!.y;
+  expect(Math.abs(voies!.y - haut)).toBeLessThan(4);
+
+  // Le calendrier : la case du 12.11 garde la hauteur des autres, avec tous ses points ; sa liste défile.
+  await allerA(page, '/agenda');
+  const jour = page.getByRole('gridcell', { name: /12 novembre/ });
+  const autre = page.getByRole('gridcell', { name: /13 novembre/ });
+  await expect(jour.locator('.cal-chip', { hasText: 'Point numéro 9' })).toHaveCount(1);
+  expect((await jour.boundingBox())!.height).toBe((await autre.boundingBox())!.height);
+  const liste = jour.locator('.cal-chips');
+  expect(await liste.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await liste.hover();
+  await page.mouse.wheel(0, 200);
+  await expect.poll(() => liste.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await expect(jour.locator('.cal-more')).toHaveCount(0);
+});

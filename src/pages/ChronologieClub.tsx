@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Meeting, Task } from '../data/types';
@@ -61,6 +61,47 @@ const lireOuvertes = (): Set<string> => {
   }
 };
 
+/**
+ * La frise défile seule, dans un cadre qui va jusqu'en bas de l'écran (`marge` en dessous) : la page ne bouge pas.
+ * Ordinateur et tablette ; pas sur téléphone (l'en-tête y prendrait la moitié de l'écran : la page défile). Recalculé
+ * quand ce qui est au-dessus change (filtres, « Sans date » déplié…) et quand la fenêtre change de taille.
+ */
+function useJusquEnBas(marge = 16) {
+  const fin = useRef<() => void>();
+  return useCallback(
+    (el: HTMLElement | null) => {
+      fin.current?.();
+      fin.current = undefined;
+      if (!el) return;
+      const regler = () => {
+        if (!window.matchMedia('(min-width: 768px)').matches) {
+          el.style.maxHeight = '';
+          return;
+        }
+        const haut = el.getBoundingClientRect().top + window.scrollY;
+        const h = `${Math.max(260, Math.floor(window.innerHeight - haut - marge))}px`;
+        if (el.style.maxHeight !== h) el.style.maxHeight = h;
+      };
+      regler();
+      // Après l'affichage (sinon le navigateur signale une boucle de redimensionnement).
+      let attente = 0;
+      const plusTard = () => {
+        cancelAnimationFrame(attente);
+        attente = requestAnimationFrame(regler);
+      };
+      const ro = new ResizeObserver(plusTard);
+      if (el.parentElement) ro.observe(el.parentElement);
+      window.addEventListener('resize', plusTard);
+      fin.current = () => {
+        cancelAnimationFrame(attente);
+        ro.disconnect();
+        window.removeEventListener('resize', plusTard);
+      };
+    },
+    [marge],
+  );
+}
+
 /** Teintes d'une couleur d'étiquette, lisibles sur fond clair et sur fond sombre (calculées une fois par couleur). */
 const teintesVues = new Map<string, ReturnType<typeof teintes>>();
 function styleCouleur(couleur?: string): React.CSSProperties | undefined {
@@ -73,6 +114,7 @@ function styleCouleur(couleur?: string): React.CSSProperties | undefined {
 export function ChronologieClub() {
   const { data, user, can, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
   const { saveMeeting } = useAgendaActions();
+  const defile = useJusquEnBas();
   const { saveEvent } = useEventActions();
   const navigate = useNavigate();
 
@@ -576,8 +618,9 @@ export function ChronologieClub() {
         </details>
       )}
 
+      {/* La frise défile seule (ordinateur, tablette), ses deux voies nommées en haut. */}
       {p && (
-        <>
+        <div className="cc-defile" ref={defile}>
           <div className="cc-voies" aria-hidden="true">
             <span><Icone n="seances" /> {voitSeances ? 'Séances' : 'Points'}{voitSeances && <small className="muted"> et points sans séance</small>}</span>
             <span />
@@ -588,7 +631,7 @@ export function ChronologieClub() {
             Astuce : glisse un point sur une séance ou un événement pour l’y rattacher (son délai suit sa date), ou entre deux jours pour lui donner une date fixe ;
             glisse une séance ou un événement entre deux jours pour changer sa date. Au survol d’une ligne, un clic sur sa poignée <Icone n="poignee" /> fait la même chose sans glisser.
           </p>
-        </>
+        </div>
       )}
 
       {deplacer && <Deplacer g={deplacer.g} date={deplacer.date} cartes={cartes} periode={p} accepte={accepte} onRattacher={rattacher} onDater={dater} onClose={() => setDeplacer(null)} />}
