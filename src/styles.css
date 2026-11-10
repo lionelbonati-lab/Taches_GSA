@@ -2473,3 +2473,11 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 /* Période d'une série sur plusieurs mois (« 27 oct. → 27 mars, 2026–27 »). */
 .dateblock.periode b { font-size: 1.05rem; white-space: nowrap; }
 .dateblock.periode span { white-space: nowrap; font-size: 0.85rem; }
+/* Série : sa période officielle (fiche) ; ses événements hors de cette période (carte) ; ses bouts dans sa chronologie. */
+.serie-periode { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 12px; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; }
+.serie-periode legend { padding: 0 4px; font-weight: 600; }
+.serie-periode > label { flex: 1 1 140px; }
+.serie-periode > small { flex-basis: 100%; }
+.serie-periode > .btn { white-space: normal; text-align: left; max-width: 100%; }
+.serie-hors { font-size: 0.88rem; }
+.chrono-officiel .chrono-puce { background: var(--surface2); }

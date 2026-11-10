@@ -335,7 +335,7 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
   const jour = today();
   const annee = jour.slice(0, 4);
   const etSerie = etiquetteDeLaSerie(data, s.id);
-  const periode = periodeDeLaSerie(evs);
+  const periode = periodeDeLaSerie(evs, s);
   // L'étiquette d'un événement (une date modifiée seule : celle de son événement d'origine).
   const etiquetteEv = new Map(evs.map((e) => [e.id, etiquetteDeLEvenement(data, racine(data.events, e))]));
   const couleur = (e?: ClubEvent) => (e && etiquetteEv.get(e.id)?.couleur) || etSerie?.couleur;
@@ -470,11 +470,14 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
   }
   // La frise : les points datés, les jours J et « Aujourd'hui », par date (le même jour : aujourd'hui, les jours J, les
   // points), avec le mois en intercalaire.
-  type Repere = { k: 'point'; date: string; t: Task } | { k: 'evenement'; date: string; j: Jalon } | { k: 'jour'; date: string };
-  const rang = { jour: 0, evenement: 1, point: 2 };
+  type Repere = { k: 'point'; date: string; t: Task } | { k: 'evenement'; date: string; j: Jalon } | { k: 'jour'; date: string } | { k: 'officiel'; date: string; fin: boolean };
+  const rang = { jour: 0, officiel: 1, evenement: 2, point: 3 };
   const reperes = ([
     ...montres.filter((t) => t.delai).map((t): Repere => ({ k: 'point', date: t.delai, t })),
     ...jalons.map((j): Repere => ({ k: 'evenement', date: j.date, j })),
+    // Sa période officielle (programme hivernal : les changements d'heure).
+    ...(s.debut ? [{ k: 'officiel', date: s.debut, fin: false } as Repere] : []),
+    ...(s.fin ? [{ k: 'officiel', date: s.fin, fin: true } as Repere] : []),
     { k: 'jour', date: jour },
   ] as Repere[]).sort(
     (a, b) =>
@@ -491,6 +494,16 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
       frise.push(<li key={`m:${mois}`} className="chrono-mois">{nomMois(r.date)}</li>);
     }
     if (r.k === 'point') frise.push(ligne(r.t));
+    else if (r.k === 'officiel')
+      frise.push(
+        <li key={`o:${r.fin ? 'fin' : 'debut'}`} className="chrono-ligne chrono-officiel">
+          <span className="chrono-quand"><b>{r.fin ? 'Fin' : 'Début'}</b><small>{jourCourt(r.date, annee)}</small></span>
+          <span className="chrono-puce" aria-hidden="true"><Icone n="serie" /></span>
+          <div className="chrono-corps">
+            <strong>{r.fin ? 'Fin officielle' : 'Début officiel'} de « {s.nom} »</strong>
+          </div>
+        </li>,
+      );
     else if (r.k === 'evenement') {
       const { e, debut } = r.j;
       const x = aLaDate(e, r.date);

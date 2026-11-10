@@ -4006,3 +4006,49 @@ test('carte d’une série : sa période dans la case de date ; « aujourd’hui
   await expect(hiver).toContainText('en cours : Entraînement en salle');
   await expect(hiver.locator('.serie-ev.prochain .badge')).toHaveText('en cours');
 });
+
+test('période officielle d’une série : du changement d’heure d’automne à celui du printemps, même si la natation commence avant', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-10T08:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // La natation commence dès le vendredi 4 septembre.
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    d.events.find((e: { id: string }) => e.id === 'e-hiver-natation').date = '2026-09-04';
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  const lire = () => page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle);
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+  const hiver = page.locator('article.carte-serie', { hasText: 'Programme hivernal 2026-27' });
+  await expect(hiver.locator('.dateblock')).toHaveText('4 sept.→ 27 mars2026–27');
+
+  // Sa période officielle : les changements d'heure, en un clic.
+  await hiver.getByRole('button', { name: 'Modifier', exact: true }).click();
+  const fiche = page.getByRole('dialog', { name: 'Série d’événements' });
+  const periode = fiche.getByRole('group', { name: /Période officielle/ });
+  await periode.getByRole('button', { name: 'Du changement d’heure d’automne à celui du printemps' }).click();
+  await expect(periode.getByLabel('Début')).toHaveValue('2026-10-25');
+  await expect(periode.getByLabel('Fin')).toHaveValue('2027-03-28');
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  expect((await lire()).seriesEvenements.find((s: { id: string }) => s.id === 'se-hiver')).toMatchObject({ debut: '2026-10-25', fin: '2027-03-28' });
+
+  // La carte : sa période officielle ; la natation, qui commence avant, le dit.
+  await expect(hiver.locator('.dateblock')).toHaveText('25 oct.→ 28 mars2026–27');
+  await expect(hiver).toContainText('du 25.10.2026 au 28.03.2027');
+  await expect(hiver.locator('.serie-hors')).toHaveText('Natation dès le 04.09.2026');
+  await expect(hiver.locator('.serie-ev', { hasText: 'Natation' })).toHaveCount(1);
+
+  // Sa chronologie : son début et sa fin officiels.
+  await hiver.getByRole('button', { name: 'Chronologie' }).click();
+  const chrono = page.getByRole('dialog', { name: 'Chronologie · Programme hivernal 2026-27' });
+  await expect(chrono.locator('.chrono-officiel')).toHaveCount(2);
+  await expect(chrono.locator('.chrono-officiel').first()).toContainText('Début officiel');
+  await chrono.getByRole('button', { name: 'Fermer' }).last().click();
+
+  // La saison suivante : aux changements d'heure de 2027-28 (le 31 octobre, pas 52 semaines plus tard).
+  await hiver.getByRole('button', { name: 'Reprendre', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Reprendre la série « Programme hivernal 2026-27 »' }).getByRole('button', { name: /^Reprendre 5 événements/ }).click();
+  await expect.poll(async () => (await lire()).seriesEvenements.find((s: { repriseDe?: string }) => s.repriseDe === 'se-hiver')).toMatchObject({ debut: '2027-10-31', fin: '2028-03-26' });
+});

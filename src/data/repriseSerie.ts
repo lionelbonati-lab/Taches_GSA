@@ -1,7 +1,7 @@
 import type { ActivityNotif, AppData, ClubEvent, SerieEvenements, Task } from './types';
 import { addDays, diffDays, today, uid } from './utils';
 import { candidats, copierPoints, nomReprise, type Candidat } from './reprise';
-import { evenementsDeLaSerie, racine } from './seriesEvenements';
+import { changementsDHeure, evenementsDeLaSerie, racine } from './seriesEvenements';
 import { decalerJours } from './series';
 import { jourSemaine } from './repetition';
 import { etiquetteDeLaSerie } from './etiquettes';
@@ -28,6 +28,22 @@ export function decalageReprise(evs: ClubEvent[], jour = today()) {
   let n = 364;
   while (debut && addDays(debut, n) < jour) n += 364;
   return n;
+}
+
+/**
+ * Période officielle de la saison suivante : aux changements d'heure de son année si c'étaient ceux de la saison (le
+ * dernier dimanche d'octobre et de mars ne tombent pas le même jour d'une année à l'autre), sinon décalée de `n` jours.
+ */
+export function periodeSuivante(s: Pick<SerieEvenements, 'debut' | 'fin'>, n: number, ans: number): Pick<SerieEvenements, 'debut' | 'fin'> {
+  if (!s.debut && !s.fin) return {};
+  const an = Number((s.debut ?? s.fin!).slice(0, 4)) - (!s.debut ? 1 : 0);
+  const ch = changementsDHeure(an);
+  const auChangement = (!s.debut || s.debut === ch.debut) && (!s.fin || s.fin === ch.fin);
+  const suite = auChangement ? changementsDHeure(an + ans) : undefined;
+  return {
+    ...(s.debut ? { debut: suite?.debut ?? addDays(s.debut, n) } : {}),
+    ...(s.fin ? { fin: suite?.fin ?? addDays(s.fin, n) } : {}),
+  };
 }
 
 /** Années entre la saison et la suivante (pour les noms : « 2026-27 » → « 2027-28 »). */
@@ -132,7 +148,9 @@ export function reprendreSerie(data: AppData, s: SerieEvenements, c: ChoixRepris
   const evs = evenementsARecopier(data, s);
   const n = c.decalage;
   const ans = ansEntre(debutDe(evs) ?? today(), n);
-  const serie: SerieEvenements = { id: uid('se'), nom: c.nom.trim(), ...(s.description ? { description: s.description } : {}), repriseDe: s.id };
+  const serie: SerieEvenements = {
+    id: uid('se'), nom: c.nom.trim(), ...(s.description ? { description: s.description } : {}), repriseDe: s.id, ...periodeSuivante(s, n, ans),
+  };
   const paires = evs.filter((e) => c.evenements.includes(e.id)).map((ancien) => ({ ancien, nouveau: eventDecale(ancien, n, ans, serie.id) }));
   return { serie, events: paires.map((p) => p.nouveau), paires, ...copierVers(data, s, paires, n, c, moi) };
 }

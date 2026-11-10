@@ -10,7 +10,7 @@ import { RepriseModal } from '../components/Reprise';
 import { SerieModal } from '../components/SerieModal';
 import { RepriseSerieModal } from '../components/RepriseSerie';
 import {
-  FILTRE_SERIE, dateAffichee, evenementsDeLaSerie, nouvelleSerie, periodeDeLaSerie, pointsDeLaSerie, prochainDeLaSerie, seriePassee,
+  FILTRE_SERIE, dateAffichee, evenementsDeLaSerie, horsPeriode, nouvelleSerie, periodeDeLaSerie, pointsDeLaSerie, prochainDeLaSerie, seriePassee,
 } from '../data/seriesEvenements';
 import { etiquetteDeLaSerie, evenementPasse } from '../data/etiquettes';
 import { reprenable } from '../data/reprise';
@@ -519,7 +519,7 @@ export function Events() {
   // événement sur plusieurs jours (en cours : parmi les premiers) ; sans événement : aujourd'hui, en tête.
   const series = (data.seriesEvenements ?? []).map((s) => {
     const evs = evenementsDeLaSerie(data.events, s.id);
-    return { s, evs, date: periodeDeLaSerie(evs)?.debut ?? jour };
+    return { s, evs, date: periodeDeLaSerie(evs, s)?.debut ?? jour };
   });
   const enSerie = new Set(series.flatMap((x) => x.evs.map((e) => e.id)));
   type Element = { date: string; e?: ClubEvent; et?: Etiquette; serie?: (typeof series)[number] };
@@ -762,7 +762,9 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
   const { data, can } = useStore();
   const jour = today();
   const prochain = prochainDeLaSerie(evs, jour);
-  const periode = periodeDeLaSerie(evs);
+  // Sa période officielle (sinon celle de ses événements) ; ses événements qui commencent avant ou finissent après.
+  const periode = periodeDeLaSerie(evs, serie);
+  const hors = horsPeriode(evs, serie);
   const past = seriePassee(evs, jour);
   const tasks = pointsDeLaSerie(data, serie.id, evs);
   const quand = !prochain || past ? '' : prochain.date <= jour ? `${etatDuJour(prochain)} : ${prochain.nom}` : `prochain : ${prochain.nom}, dans ${daysUntil(prochain.date)} j`;
@@ -783,6 +785,11 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
           </button>
         </h3>
         <div className="muted">{['Série', `${evs.length} événement${evs.length > 1 ? 's' : ''}`, duree, quand].filter(Boolean).join(' · ')}</div>
+        {(hors.avant || hors.apres) && (
+          <div className="muted serie-hors">
+            {[hors.avant && `${hors.avant.e.nom} dès le ${fmtDate(hors.avant.date)}`, hors.apres && `${hors.apres.e.nom} jusqu’au ${fmtDate(hors.apres.date)}`].filter(Boolean).join(' · ')}
+          </div>
+        )}
         {serie.description && <p>{serie.description}</p>}
         {etiquetteDeLaSerie(data, serie.id) && <EtiquetteCarte et={etiquetteDeLaSerie(data, serie.id)!} />}
         {evs.length > 0 ? (

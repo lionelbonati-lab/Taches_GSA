@@ -591,6 +591,12 @@ export interface SerieEvenements {
   description?: string;
   /** Saison suivante d'une série reprise (« Reprendre la série », repriseSerie.ts) : celle-ci. */
   repriseDe?: string;
+  /**
+   * Période officielle (facultative), AAAA-MM-JJ : le programme hivernal du changement d'heure d'automne à celui du
+   * printemps, même si la natation commence avant. Sans : du premier au dernier jour de ses événements.
+   */
+  debut?: string;
+  fin?: string;
 }
 
 /** Répétition d'un événement, comme dans un agenda : tous les N jours, semaines, mois ou ans. */

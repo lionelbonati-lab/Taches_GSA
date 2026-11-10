@@ -1,10 +1,10 @@
 import { useState } from 'react';
 import { useStore } from '../data/store';
 import type { ClubEvent, SerieEvenements } from '../data/types';
-import { fmtRange, today } from '../data/utils';
+import { fmtDate, fmtRange, today } from '../data/utils';
 import { aLaDate, horaire, libelleRepetition } from '../data/repetition';
 import { etiquetteDeLaSerie, evenementPasse, reglerEtiquetteSerie, type ChoixEtiquette } from '../data/etiquettes';
-import { dateAffichee, enregistrerSerieEtEvenements, evenementsDeLaSerie, racine, serieDe, supprimerSerie } from '../data/seriesEvenements';
+import { changementsDHeure, dateAffichee, enregistrerSerieEtEvenements, evenementsDeLaSerie, racine, serieDe, supprimerSerie } from '../data/seriesEvenements';
 import { Modal } from './ui';
 import { Icone } from './icones';
 import { ZoneTexte } from './ZoneTexte';
@@ -21,6 +21,9 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
   const isNew = !(data.seriesEvenements ?? []).some((s) => s.id === serie.id);
   const [nom, setNom] = useState(serie.nom);
   const [description, setDescription] = useState(serie.description ?? '');
+  // Période officielle (facultative) : sinon, celle de ses événements.
+  const [debut, setDebut] = useState(serie.debut ?? '');
+  const [fin, setFin] = useState(serie.fin ?? '');
   const [err, setErr] = useState('');
   // Case « Étiquette de la série » : enregistrée avec la série, si on l'a touchée.
   const deja = etiquetteDeLaSerie(data, serie.id);
@@ -35,6 +38,8 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
     setEtiquetteTouchee(true);
   };
   const jour = today();
+  // Premier jour de ses événements (pour la période officielle proposée).
+  const premierJour = data.events.filter((e) => e.dansSerie === serie.id).map((e) => e.date).sort()[0];
   // Événements proposés : ceux d'origine (une date modifiée seule d'un événement qui se répète suit le sien).
   const candidats = data.events
     .filter((e) => racine(data.events, e) === e.id)
@@ -53,11 +58,12 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
 
   const submit = () => {
     if (!nom.trim()) return setErr('« Nom de la série » est obligatoire.');
+    if (debut && fin && fin < debut) return setErr('La fin officielle ne peut pas précéder le début.');
     const n = ids.size;
     const quoiEtiquette = !etiquetteTouchee ? '' : etiquette ? `, étiquette (${etiquette.membres.length} membre${etiquette.membres.length > 1 ? 's' : ''})` : ', sans étiquette';
     update(
       (d) => {
-        enregistrerSerieEtEvenements(d, { ...serie, nom, description }, [...ids]);
+        enregistrerSerieEtEvenements(d, { ...serie, nom, description, debut, fin }, [...ids]);
         // Après ses événements : leurs points reçoivent l'étiquette de la série.
         if (etiquetteTouchee) reglerEtiquetteSerie(d, { id: serie.id, nom: nom.trim() }, etiquette);
       },
@@ -107,6 +113,27 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
           Description
           <ZoneTexte rows={3} value={description} onChange={(e) => setDescription(e.target.value)} />
         </label>
+        <fieldset className="full serie-periode">
+          <legend>Période officielle <small className="muted">(facultative)</small></legend>
+          <label>
+            Début
+            <input type="date" value={debut} onChange={(e) => setDebut(e.target.value)} />
+          </label>
+          <label>
+            Fin
+            <input type="date" value={fin} min={debut || undefined} onChange={(e) => setFin(e.target.value)} />
+          </label>
+          <button type="button" className="btn small" onClick={() => {
+            const c = changementsDHeure(Number((debut || premierJour || today()).slice(0, 4)) - (!debut && (premierJour || today()).slice(5, 7) < '07' ? 1 : 0));
+            setDebut(c.debut);
+            setFin(c.fin);
+          }} title="Le dernier dimanche d’octobre et le dernier dimanche de mars suivant">
+            <Icone n="horloge" /> Du changement d’heure d’automne à celui du printemps
+          </button>
+          <small className="muted">
+            Sans : du premier au dernier jour de ses événements{premierJour ? ` (dès le ${fmtDate(premierJour)})` : ''}. Un événement peut commencer avant ou finir après (la natation dès septembre) : la carte le dit.
+          </small>
+        </fieldset>
         <CaseEtiquetteSerie serie={{ id: serie.id, nom }} valeur={etiquette} onChange={choixEtiquette} />
       </div>
       <section className="serie-ev-choix" aria-label="Événements de la série">

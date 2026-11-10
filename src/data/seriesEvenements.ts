@@ -59,10 +59,46 @@ export function prochainDeLaSerie(evs: ClubEvent[], jour = today()): ClubEvent |
 }
 
 /**
- * Période de la série : du premier jour de son premier événement au dernier jour du dernier ; `fin` absente : un de ses
- * événements se répète sans fin.
+ * Période de la série : sa période officielle (`s`, chaque bout à part), sinon du premier jour de son premier événement
+ * au dernier jour du dernier ; `fin` absente : un de ses événements se répète sans fin.
  */
-export function periodeDeLaSerie(evs: ClubEvent[]): { debut: string; fin?: string } | undefined {
+export function periodeDeLaSerie(evs: ClubEvent[], s?: Pick<SerieEvenements, 'debut' | 'fin'>): { debut: string; fin?: string } | undefined {
+  const p = periodeDesEvenements(evs);
+  const debut = s?.debut || p?.debut;
+  if (!debut) return undefined;
+  const fin = s?.fin || p?.fin;
+  return { debut, ...(fin ? { fin } : {}) };
+}
+
+/**
+ * Ce que ses événements font hors de la période officielle de la série : « Natation dès le 04.09.2026 », « VTT jusqu'au
+ * 10.04.2027 » (le premier qui commence avant, le dernier qui finit après).
+ */
+export function horsPeriode(evs: ClubEvent[], s: Pick<SerieEvenements, 'debut' | 'fin'>): { avant?: { e: ClubEvent; date: string }; apres?: { e: ClubEvent; date: string } } {
+  const avant = s.debut ? [...evs].filter((e) => e.date < s.debut!).sort((a, b) => a.date.localeCompare(b.date))[0] : undefined;
+  const fins = evs.map((e) => {
+    const der = e.repetition ? derniereOccurrence(e) : e.date;
+    return { e, date: der ? endOf(aLaDate(e, der)) : '9999-12-31' };
+  });
+  const apres = s.fin ? fins.filter((x) => x.date > s.fin!).sort((a, b) => b.date.localeCompare(a.date))[0] : undefined;
+  return { ...(avant ? { avant: { e: avant, date: avant.date } } : {}), ...(apres ? { apres } : {}) };
+}
+
+/**
+ * Le changement d'heure d'automne (dernier dimanche d'octobre) de l'année `an`, et celui du printemps suivant (dernier
+ * dimanche de mars) : la période officielle du programme hivernal.
+ */
+export function changementsDHeure(an: number): { debut: string; fin: string } {
+  const dernierDimanche = (a: number, mois: number) => {
+    const d = new Date(Date.UTC(a, mois + 1, 0));
+    d.setUTCDate(d.getUTCDate() - d.getUTCDay());
+    return d.toISOString().slice(0, 10);
+  };
+  return { debut: dernierDimanche(an, 9), fin: dernierDimanche(an + 1, 2) };
+}
+
+/** Du premier jour du premier événement au dernier jour du dernier ; `fin` absente : l'un se répète sans fin. */
+function periodeDesEvenements(evs: ClubEvent[]): { debut: string; fin?: string } | undefined {
   if (!evs.length) return undefined;
   const debut = evs.map((e) => e.date).sort()[0];
   let fin = '';
@@ -103,7 +139,7 @@ export function rangerDansSerie(d: AppData, id: string, serieId?: string) {
 
 /** Ajoute la série, ou l'enregistre telle quelle si elle existe déjà. */
 export function enregistrerSerie(d: AppData, s: SerieEvenements) {
-  const x: SerieEvenements = { ...s, nom: s.nom.trim(), description: s.description?.trim() || undefined };
+  const x: SerieEvenements = { ...s, nom: s.nom.trim(), description: s.description?.trim() || undefined, debut: s.debut || undefined, fin: s.fin || undefined };
   const liste = d.seriesEvenements ?? [];
   d.seriesEvenements = liste.some((y) => y.id === x.id) ? liste.map((y) => (y.id === x.id ? x : y)) : [...liste, x];
 }
