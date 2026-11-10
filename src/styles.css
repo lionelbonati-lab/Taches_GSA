@@ -2335,7 +2335,9 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .cc-el-ligne { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 6px; line-height: 1.6; }
 .cc-gauche .cc-el-ligne { justify-content: flex-end; }
 .cc-el-titre { border: none; background: none; padding: 0; font: inherit; font-weight: 600; color: var(--primary); text-align: inherit; cursor: pointer; overflow-wrap: anywhere; }
-.cc-el.k-evenement .cc-el-titre, .cc-el.k-etiquette .cc-el-titre { color: var(--event-fg); }
+.cc-el.k-evenement .cc-el-titre, .cc-el.k-etiquette .cc-el-titre, .cc-el.k-serie .cc-el-titre { color: var(--event-fg); }
+/* Série d'événements : une ligne, en capitales légères, pour la distinguer de ses événements. */
+.cc-el.k-serie .cc-el-titre { font-variant: small-caps; letter-spacing: 0.02em; }
 .cc-el-titre:hover, .cc-el-titre:focus-visible { text-decoration: underline; }
 .cc-el.passee .cc-el-titre { opacity: 0.75; }
 .cc-el.survol { outline: 2px dashed var(--primary); outline-offset: 1px; background: var(--primary-soft); }

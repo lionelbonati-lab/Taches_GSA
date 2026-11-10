@@ -3649,11 +3649,11 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   await expect(page.locator('.cc-periode')).toHaveText('2026');
   const carte = (nom: string) => page.locator('.cc-el').filter({ has: page.locator('.cc-el-titre', { hasText: nom }) });
   const plus = (nom: string) => page.getByRole('button', { name: `Afficher les points de « ${nom} »` });
+  const leJour = (d: string) => page.locator('li.cc-jour', { has: page.locator(`.cc-date time[datetime="${d}"]`) });
   await expect(page.locator('.cc-gauche').locator(carte('Comité d’octobre 2026'))).toBeVisible();
   await expect(carte('Comité d’octobre 2026')).not.toContainText('Lire la correspondance');
   await plus('Comité d’octobre 2026').click();
   await expect(carte('Comité d’octobre 2026').locator('.cc-point')).toHaveText('Lire la correspondance');
-  const leJour = (d: string) => page.locator('li.cc-jour', { has: page.locator(`.cc-date time[datetime="${d}"]`) });
   await expect(page.locator('.cc-point', { hasText: 'Réserver la salle' })).toHaveCount(0);
   await plus('Soirée récréative').click();
   await expect(carte('Soirée récréative')).not.toContainText('Réserver la salle');
@@ -3664,8 +3664,15 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   await expect(page.locator('.cc-gauche .cc-point.seul', { hasText: 'Commander les maillots' })).toBeVisible();
   await expect(page.locator('.cc-sans-date summary')).toContainText('Sans date (1)');
   await expect(page.locator('.cc-jour.aujourdhui .cc-date .cc-ecran')).toHaveText('Aujourd’hui');
-  // Un événement qui se répète : une seule ligne. Pas de « + » sans point.
+  // Une série d'événements (le programme hivernal) : une ligne, fermée ; « + » montre ses événements à leur date (un
+  // événement qui se répète : une seule ligne). Pas de « + » sans point.
+  await expect(page.locator('.cc-el.k-serie .cc-el-titre')).toHaveText(['Programme hivernal 2026-27']);
+  await expect(carte('Entraînement en salle')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Afficher les événements de la série « Programme hivernal 2026-27 »' }).click();
   await expect(carte('Entraînement en salle')).toHaveCount(1);
+  await expect(leJour('2026-10-30').locator(carte('Natation'))).toBeVisible();
+  await page.getByRole('button', { name: 'Masquer les événements de la série « Programme hivernal 2026-27 »' }).click();
+  await expect(carte('Natation')).toHaveCount(0);
   await expect(carte('Comité de décembre 2026').locator('.cc-plus')).toHaveCount(0);
 
   // Glisser le point seul sur le comité de décembre : rattaché, son délai suit la séance.

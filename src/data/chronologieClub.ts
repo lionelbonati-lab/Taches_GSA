@@ -1,4 +1,4 @@
-import type { AppData, ClubEvent, DelaiRef, Etiquette, Meeting, Task } from './types';
+import type { AppData, ClubEvent, DelaiRef, Etiquette, Meeting, SerieEvenements, Task } from './types';
 import { addDays, applyDelaiRef, diffDays, endOf, today } from './utils';
 import { aLaDate, duree, occurrencesEntre } from './repetition';
 import { etiquettesDatees, memeEvenement } from './agendaIcs';
@@ -19,6 +19,8 @@ import { etiquettesDatees, memeEvenement } from './agendaIcs';
 // dans sa voie (« Réserver la salle · Soirée récréative », 2 mois avant) ; sous elle s'ils tombent le même jour (ou pendant
 // l'événement), s'ils n'ont pas de délai, ou si leur délai sort de la période. Ceux d'une séance ou d'un événement d'une
 // autre période, à leur date dans celle-ci, de même.
+// Une série d'événements (programme hivernal, championnat) : une seule ligne, à la date de son premier événement de la
+// période ; son « + » montre ses événements, chacun à sa date, et les points de son étiquette (4 bis), comme ci-dessus.
 
 /** Période affichée, du `de` au `a` (inclus). Vue AG : l'assemblée du début et celle de la fin (absente : pas encore prévue). */
 export interface Periode {
@@ -88,6 +90,20 @@ export type Carte =
   | { k: 'evenement'; cle: string; date: string; fin: string; e: ClubEvent; occurrences: string[]; points: Task[]; dessous: Task[] }
   | { k: 'etiquette'; cle: string; date: string; fin: string; et: Etiquette; points: Task[]; dessous: Task[] };
 
+/**
+ * Série d'événements : une ligne ; `cartes` : ses événements de la période (montrés quand elle est ouverte) ; `points` /
+ * `dessous` : ceux de son étiquette, comme pour une carte.
+ */
+export interface SerieFrise {
+  k: 'serie';
+  cle: string;
+  date: string;
+  s: SerieEvenements;
+  cartes: Carte[];
+  points: Task[];
+  dessous: Task[];
+}
+
 /** Un point à sa date : seul (rattaché à rien), ou d'une séance / d'un événement (`de` : son nom et sa date). */
 export interface PointFrise {
   k: 'point';
@@ -100,7 +116,7 @@ export interface PointFrise {
 export interface Jour {
   date: string;
   gauche: (Carte | PointFrise)[];
-  droite: (Carte | PointFrise)[];
+  droite: (Carte | PointFrise | SerieFrise)[];
 }
 
 export interface Frise {
@@ -111,6 +127,8 @@ export interface Frise {
   nbPoints: number;
   /** Séances et événements hors de la période dont des points tombent dans la période (« Afficher tous les points »). */
   ailleurs: string[];
+  /** Toutes les séances et tous les événements de la période, montrés ou dans une série fermée (« Déplacer » : vers où). */
+  cartes: Carte[];
 }
 
 /** Ce que voit la personne et les points retenus (déjà filtrés). */
@@ -122,13 +140,14 @@ export interface Vue {
   points: Task[];
   /** Filtre « Étiquette » : les événements qui ne la portent pas, sans point retenu, ne sont pas montrés. */
   etiquette?: string;
-  /** Séances et événements dont les points sont montrés (« + »). */
+  /** Séances et événements dont les points sont montrés, séries dont les événements le sont (« + »). */
   ouvertes?: ReadonlySet<string>;
 }
 
 const cleSeance = (id: string) => `s:${id}`;
 const cleEvenement = (id: string) => `e:${id}`;
 const cleEtiquette = (id: string) => `et:${id}`;
+const cleSerie = (id: string) => `se:${id}`;
 
 /** Événement d'origine d'une date modifiée seule (sinon lui-même). */
 export const origineDe = (events: ClubEvent[], e: ClubEvent) => (e.serie && events.some((x) => x.id === e.serie!.id) ? e.serie.id : e.id);
@@ -146,13 +165,18 @@ export function etiquettesCartes(data: Pick<AppData, 'etiquettes' | 'events'>, v
 function indexer(data: AppData, vue: Vue) {
   const evenements = new Map<string, string>();
   const parEtiquette = new Map<string, string>();
+  /** Étiquette d'une série → la série. */
+  const parSerie = new Map<string, string>();
   if (vue.evenements) {
     for (const e of data.events) evenements.set(e.id, origineDe(data.events, e));
-    for (const et of data.etiquettes ?? []) if (et.eventId && evenements.has(et.eventId)) parEtiquette.set(et.id, evenements.get(et.eventId)!);
+    for (const et of data.etiquettes ?? []) {
+      if (et.eventId && evenements.has(et.eventId)) parEtiquette.set(et.id, evenements.get(et.eventId)!);
+      else if (et.serieId && data.seriesEvenements?.some((x) => x.id === et.serieId)) parSerie.set(et.id, et.serieId);
+    }
   }
   const etiquettes = new Set(etiquettesCartes(data, vue).map((x) => x.id));
   const seances = new Set(vue.seances ? data.meetings.map((m) => m.id) : []);
-  return { evenements, parEtiquette, etiquettes, seances };
+  return { evenements, parEtiquette, parSerie, etiquettes, seances };
 }
 
 /** Clé de la carte où va le point (règles en tête du fichier) ; aucune : seul, à son délai. */
@@ -172,6 +196,8 @@ export function carteDuPoint(t: Task, x: ReturnType<typeof indexer>): string | u
     if (x.parEtiquette.has(id)) return cleEvenement(x.parEtiquette.get(id)!);
     if (x.etiquettes.has(id)) return cleEtiquette(id);
   }
+  // 4 bis. L'étiquette d'une série d'événements (ce qui vaut pour toute la série) : à la série.
+  for (const id of t.etiquettes ?? []) if (x.parSerie.has(id)) return cleSerie(x.parSerie.get(id)!);
   return undefined;
 }
 
@@ -188,6 +214,11 @@ function infoCarte(data: AppData, cle: string): { nom: string; date: string } | 
   if (cle.startsWith('e:')) {
     const e = data.events.find((y) => y.id === id);
     return e && { nom: e.nom, date: e.date };
+  }
+  if (cle.startsWith('se:')) {
+    const se = data.seriesEvenements?.find((y) => y.id === id);
+    const debut = data.events.filter((y) => y.dansSerie === id).map((y) => y.date).sort()[0];
+    return se && { nom: se.nom, date: debut ?? '' };
   }
   const et = data.etiquettes?.find((y) => y.id === id);
   return et && { nom: et.nom, date: et.date ?? '' };
@@ -228,6 +259,17 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
     if (fin >= p.de && et.date! <= p.a) cartes.set(cleEtiquette(et.id), { k: 'etiquette', cle: cleEtiquette(et.id), date: et.date! < p.de ? p.de : et.date!, fin, et, points: [], dessous: [] });
   }
 
+  // Séries d'événements : une ligne pour leurs événements de la période.
+  const series = new Map<string, SerieFrise>();
+  for (const c of cartes.values()) {
+    if (c.k !== 'evenement' || !c.e.dansSerie) continue;
+    const se = data.seriesEvenements?.find((y) => y.id === c.e.dansSerie);
+    if (!se) continue;
+    const cle = cleSerie(se.id);
+    if (!series.has(cle)) series.set(cle, { k: 'serie', cle, date: c.date, s: se, cartes: [], points: [], dessous: [] });
+    series.get(cle)!.cartes.push(c);
+  }
+
   const seuls: Task[] = [];
   const sansDate: Task[] = [];
   /** Points d'une séance ou d'un événement, à leur date (dans sa voie). */
@@ -238,6 +280,13 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
     if (!cle) {
       if (!t.delai) sansDate.push(t);
       else if (dans(t.delai)) seuls.push(t);
+      continue;
+    }
+    const serie = series.get(cle);
+    if (serie) {
+      serie.points.push(t);
+      if (!t.delai || !dans(t.delai) || t.delai === serie.date) serie.dessous.push(t);
+      else aLeurDate.push({ t, cle, gauche: false });
       continue;
     }
     const c = cartes.get(cle);
@@ -261,10 +310,19 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
   if (vue.etiquette) {
     for (const [cle, c] of cartes) {
       if (c.points.length || c.k === 'seance') continue;
-      const porte = c.k === 'etiquette' ? c.et.id === vue.etiquette : (data.etiquettes ?? []).some((et) => et.id === vue.etiquette && et.eventId === c.e.id);
+      const porte = c.k === 'etiquette'
+        ? c.et.id === vue.etiquette
+        : (data.etiquettes ?? []).some((et) => et.id === vue.etiquette && (et.eventId === c.e.id || (!!et.serieId && et.serieId === c.e.dansSerie)));
       if (!porte) cartes.delete(cle);
     }
   }
+  for (const [cle, se] of series) {
+    se.cartes = se.cartes.filter((c) => cartes.has(c.cle));
+    if (!se.cartes.length && !se.points.length) series.delete(cle);
+    else if (se.cartes.length) se.date = se.cartes.map((c) => c.date).sort()[0];
+  }
+  /** Événements d'une série fermée : ni eux, ni leurs points ne sont montrés. */
+  const caches = new Set([...series.values()].filter((se) => !ouverte(se.cle)).flatMap((se) => se.cartes.map((c) => c.cle)));
 
   const jours = new Map<string, Jour>();
   const jourDe = (d: string) => {
@@ -276,30 +334,39 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
     c.points.sort(parDelai);
     c.dessous.sort(parDelai);
     nbPoints += c.points.length;
+    if (caches.has(c.cle)) continue;
     if (c.k === 'seance') jourDe(c.date).gauche.push(c);
     else jourDe(c.date).droite.push(c);
+  }
+  for (const se of series.values()) {
+    se.dessous.sort(parDelai);
+    nbPoints += se.points.length;
+    if (se.date && dans(se.date)) jourDe(se.date).droite.push(se);
   }
   for (const t of seuls) jourDe(t.delai).gauche.push({ k: 'point', cle: `t:${t.id}`, t });
   for (const { t, cle, gauche } of aLeurDate) {
     if (ailleurs.has(cle)) nbPoints++;
-    if (!ouverte(cle)) continue;
-    const c = cartes.get(cle);
-    const info = c ? { nom: nomCarte(c), date: c.date } : infoCarte(data, cle);
+    if (!ouverte(cle) || caches.has(cle)) continue;
+    const c = cartes.get(cle) ?? series.get(cle);
+    const info = c ? { nom: c.k === 'serie' ? c.s.nom : nomCarte(c), date: c.date } : infoCarte(data, cle);
     const el: PointFrise = { k: 'point', cle: `t:${t.id}`, t, de: { cle, nom: info?.nom ?? '', date: info?.date ?? '' } };
     (gauche ? jourDe(t.delai).gauche : jourDe(t.delai).droite).push(el);
   }
   // « Aujourd'hui » : une ligne, même vide.
   if (dans(jour)) jourDe(jour);
   // Séances et événements d'abord (par heure, puis nom), puis les points (par titre).
-  const heure = (c: Carte | PointFrise) => (c.k === 'seance' ? c.m.heure ?? '' : c.k === 'evenement' ? c.e.heure ?? '' : '');
-  const nom = (c: Carte | PointFrise) => (c.k === 'point' ? c.t.titre : nomCarte(c));
-  const tri = (a: Carte | PointFrise, b: Carte | PointFrise) =>
+  type El = Carte | PointFrise | SerieFrise;
+  const heure = (c: El) => (c.k === 'seance' ? c.m.heure ?? '' : c.k === 'evenement' ? c.e.heure ?? '' : '');
+  const nom = (c: El) => (c.k === 'point' ? c.t.titre : c.k === 'serie' ? c.s.nom : nomCarte(c));
+  const tri = (a: El, b: El) =>
     (a.k === 'point' ? 1 : 0) - (b.k === 'point' ? 1 : 0) || heure(a).localeCompare(heure(b)) || nom(a).localeCompare(nom(b), 'fr');
   for (const j of jours.values()) {
     j.gauche.sort(tri);
     j.droite.sort(tri);
   }
-  return { jours: [...jours.values()].sort((a, b) => a.date.localeCompare(b.date)), sansDate: sansDate.sort(parDelai), nbPoints, ailleurs: [...ailleurs] };
+  return {
+    jours: [...jours.values()].sort((a, b) => a.date.localeCompare(b.date)), sansDate: sansDate.sort(parDelai), nbPoints, ailleurs: [...ailleurs], cartes: [...cartes.values()],
+  };
 }
 
 export const nomCarte = (c: Carte) => (c.k === 'seance' ? c.m.titre : c.k === 'evenement' ? c.e.nom : c.et.nom);

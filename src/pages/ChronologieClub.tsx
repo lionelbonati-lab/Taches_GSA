@@ -9,7 +9,7 @@ import { motSeance, titreSelonDate, versProchaineSeance } from '../data/seances'
 import { nomAvecSerie } from '../data/seriesEvenements';
 import {
   aDateFixe, assemblees, construireFrise, dateEntre, estAg, nomCarte, periodeAnnee, periodeDuJour, periodesAg, versEtiquette, versEvenement, versSeance,
-  type Carte, type Jour, type Periode, type PointFrise,
+  type Carte, type Jour, type Periode, type PointFrise, type SerieFrise,
 } from '../data/chronologieClub';
 import { Modal } from '../components/ui';
 import { Icone, type IconeNom } from '../components/icones';
@@ -131,10 +131,15 @@ export function ChronologieClub() {
   );
   const frise = p
     ? construireFrise(data, p, { seances: voitSeances, evenements: voitEvenements, moi: user.id, points, etiquette: fEtiquette || undefined, ouvertes }, jour)
-    : { jours: [] as Jour[], sansDate: [] as Task[], nbPoints: 0, ailleurs: [] as string[] };
+    : { jours: [] as Jour[], sansDate: [] as Task[], nbPoints: 0, ailleurs: [] as string[], cartes: [] as Carte[] };
   const elements = frise.jours.flatMap((j) => [...j.gauche, ...j.droite]);
-  const cartes = elements.filter((c): c is Carte => c.k !== 'point');
-  const montres = new Map([...cartes.flatMap((c) => c.points), ...elements.flatMap((c) => (c.k === 'point' ? [c.t] : []))].map((t) => [t.id, t]));
+  /** Séances et événements de la période (aussi ceux d'une série fermée) ; séries ; ceux montrés. */
+  const cartes = frise.cartes;
+  const series = elements.filter((c): c is SerieFrise => c.k === 'serie');
+  const montrees = elements.filter((c): c is Carte => c.k !== 'point' && c.k !== 'serie');
+  const montres = new Map(
+    [...cartes.flatMap((c) => c.points), ...series.flatMap((c) => c.points), ...elements.flatMap((c) => (c.k === 'point' ? [c.t] : []))].map((t) => [t.id, t]),
+  );
   const enRetard = [...montres.values()].filter((t) => isLate(data, t)).length;
   /** Ses points montrés (après un dépôt ou un ajout : on voit où il est allé). */
   const ouvrir = (cle: string) => !ouvertes.has(cle) && setOuvertes(new Set([...ouvertes, cle]));
@@ -339,8 +344,36 @@ export function ChronologieClub() {
   };
 
   /** Une séance, un événement, ou un point à sa date (seul, ou d'une séance / d'un événement dont on a demandé les points). */
-  const element = (x: Carte | PointFrise) =>
-    x.k === 'point' ? <ul key={x.cle} className={`cc-seuls ${x.de ? 'de' : ''}`}>{ligne(x.t, { depuis: x.de?.cle, de: x.de })}</ul> : carte(x);
+  const element = (x: Carte | PointFrise | SerieFrise) =>
+    x.k === 'point' ? <ul key={x.cle} className={`cc-seuls ${x.de ? 'de' : ''}`}>{ligne(x.t, { depuis: x.de?.cle, de: x.de })}</ul> : x.k === 'serie' ? serie(x) : carte(x);
+
+  /** Une série d'événements : son nom ; « + » montre ses événements, chacun à sa date (et les points de son étiquette). */
+  const serie = (x: SerieFrise) => {
+    const ouverte = ouvertes.has(x.cle);
+    const n = x.cartes.length;
+    const quoi = [n && `${n > 1 ? `ses ${n} événements` : 'son événement'}`, x.points.length && `${x.points.length > 1 ? `ses ${x.points.length} points` : 'son point'}`].filter(Boolean).join(' et ');
+    const passee = x.cartes.length > 0 && x.cartes.every((c) => c.k !== 'seance' && c.fin < jour);
+    return (
+      <div key={x.cle} className={`cc-el k-serie ${passee ? 'passee' : ''} ${ouverte ? 'ouverte' : ''}`}>
+        <div className="cc-el-ligne">
+          <button type="button" className="cc-el-titre" onClick={() => navigate(`/evenements?id=${encodeURIComponent(x.s.id)}`)} title="Série d’événements : l’ouvrir dans Agenda › Événements">
+            {x.s.nom}
+          </button>
+          <button
+            type="button"
+            className="cc-plus"
+            onClick={() => basculer(x.cle)}
+            aria-expanded={ouverte}
+            aria-label={`${ouverte ? 'Masquer' : 'Afficher'} les événements de la série « ${x.s.nom} »`}
+            title={`${ouverte ? 'Masquer' : 'Afficher'} ${quoi}`}
+          >
+            {ouverte ? '−' : '+'}
+          </button>
+        </div>
+        {ouverte && x.dessous.length > 0 && <ul className="cc-points">{x.dessous.map((t) => ligne(t, { sous: x.date }))}</ul>}
+      </div>
+    );
+  };
 
   // La frise : chaque mois de la période (même vide), ses jours, et entre eux de quoi déposer.
   const lignes: JSX.Element[] = [];
@@ -407,7 +440,7 @@ export function ChronologieClub() {
   ];
 
   /** Séances et événements dont des points sont dans la vue (« Afficher tous les points »). */
-  const avecPoints = [...cartes.filter((c) => c.points.length > 0).map((c) => c.cle), ...frise.ailleurs];
+  const avecPoints = [...montrees.filter((c) => c.points.length > 0).map((c) => c.cle), ...frise.ailleurs];
   const rangees = etiquettesRangees(data.etiquettes, data.events, jour);
   const sections = data.sections.filter((s) => data.tasks.some((t) => t.sectionId === s.id && canSeeTask(t)));
   const filtres = (fEtiquette ? 1 : 0) + (fSection ? 1 : 0) + (cacherFaits ? 1 : 0) + (scope === 'mes' ? 1 : 0);
