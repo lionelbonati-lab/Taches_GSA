@@ -20,6 +20,13 @@ import { occurrenceDu } from './repetition';
 // factures) ; elle n'est plus proposée pour de nouveaux points, et elle est rangée à part (« Événements passés »).
 // L'édition suivante (« Reprendre », Reprise.tsx) a sa propre étiquette, avec les mêmes membres : les points recopiés
 // passent dans sa sous-section et ne portent plus celle de l'édition passée.
+//
+// Newsletter (case « Newsletter » d'un événement ou d'une série ; estNewsletter) : sa place n'est pas une sous-section à
+// son nom dans « Événements », mais la sous-section « Newsletter » (Communication › Newsletter, créée au besoin) : celle
+// de son étiquette, et celle où l'on range ses nouveaux points (placesPour). Cochée après coup : sa sous-section dans
+// « Événements » y passe, avec ses points, et disparaît ; décochée : il retrouve une sous-section à son nom, où
+// reviennent ses points rattachés. Les newsletters avec étiquette partagent la sous-section : leurs membres en voient
+// tous les points.
 
 type Donnees = Pick<AppData, 'etiquettes' | 'sections'> & Partial<Pick<AppData, 'events'>>;
 
@@ -216,6 +223,110 @@ export function sectionEvenements(d: Pick<AppData, 'sections'>, creer = false): 
   return n;
 }
 
+/** Le nom est celui de la sous-section « Newsletter » (sans accents, majuscules ni espaces : pas « Newsletter 2027 »). */
+const nomNewsletter = (x: string) => x.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[\s-]+/g, '') === 'newsletter';
+
+/**
+ * Sous-section « Newsletter » : celle de « Communication », sinon la première de ce nom ; `creer` : créée au besoin, dans
+ * « Communication » (elle aussi créée s'il le faut).
+ */
+export function placeNewsletter(d: Pick<AppData, 'sections'>, creer = false): LieuEtiquette | undefined {
+  const sienne = (s: Section) => s.sousSections.find(nomNewsletter);
+  const com = d.sections.find((x) => memeNom(x.nom, 'Communication'));
+  const s = com && sienne(com) ? com : d.sections.find((x) => sienne(x));
+  if (s) return { sectionId: s.id, sousSection: sienne(s) };
+  if (!creer) return undefined;
+  const c = com ?? { id: uid('sec'), nom: 'Communication', sousSections: [] };
+  if (!com) d.sections.push(c);
+  c.sousSections.push('Newsletter');
+  return { sectionId: c.id, sousSection: 'Newsletter' };
+}
+
+/** Nom de la sous-section « Newsletter » : « Communication › Newsletter » (aussi avant qu'elle soit créée). */
+export function nomPlaceNewsletter(d: Pick<AppData, 'sections'>) {
+  const l = placeNewsletter(d);
+  return l ? nomLieu(l, d.sections) : 'Communication › Newsletter';
+}
+
+/** La place est la sous-section « Newsletter ». */
+export const estLaNewsletter = (d: Pick<AppData, 'sections'>, l?: LieuEtiquette) => {
+  const nl = placeNewsletter(d);
+  return !!nl && !!l && l.sectionId === nl.sectionId && l.sousSection === nl.sousSection;
+};
+
+/**
+ * L'événement est une newsletter : sa case « Newsletter » (une date modifiée seule : celle de son événement) ou celle de
+ * sa série.
+ */
+export function estNewsletter(d: Partial<Pick<AppData, 'events' | 'seriesEvenements'>>, ev: Pick<ClubEvent, 'newsletter' | 'dansSerie' | 'serie'>): boolean {
+  const x = (ev.serie && d.events?.find((y) => y.id === ev.serie!.id)) || ev;
+  return !!x.newsletter || (!!x.dansSerie && !!d.seriesEvenements?.find((s) => s.id === x.dansSerie)?.newsletter);
+}
+
+/**
+ * Où ranger un nouveau point d'un événement ou d'une série (la première de ces places où l'on peut) : celle de son
+ * étiquette ; une newsletter : la sous-section « Newsletter » ; sinon, pour un événement, sa sous-section dans
+ * « Événements » (à son nom), si elle existe.
+ */
+export function placesPour(
+  d: Pick<AppData, 'sections' | 'events'> & Partial<Pick<AppData, 'seriesEvenements'>>,
+  o: { et?: Etiquette; ev?: ClubEvent; serie?: Pick<SerieEvenements, 'newsletter'> },
+): LieuEtiquette[] {
+  const nl = (o.ev ? estNewsletter(d, o.ev) : !!o.serie?.newsletter) ? placeNewsletter(d) : undefined;
+  const evts = sectionEvenements(d);
+  return [
+    ...(o.et ? lieuxDe(o.et, d.sections) : []),
+    ...(nl ? [nl] : o.ev && evts?.sousSections.includes(o.ev.nom) ? [{ sectionId: evts.id, sousSection: o.ev.nom }] : []),
+  ];
+}
+
+/** Les points rangés dans `de` passent dans `vers`. */
+function deplacerPoints(d: AppData, de: LieuEtiquette, vers: LieuEtiquette, garder: (t: Task) => boolean = () => true) {
+  d.tasks.forEach((t) => {
+    if (t.sectionId === de.sectionId && t.sousSection === (de.sousSection ?? '') && garder(t)) {
+      t.sectionId = vers.sectionId;
+      t.sousSection = vers.sousSection ?? '';
+    }
+  });
+}
+
+/**
+ * Place de l'étiquette `e` d'une newsletter : la sous-section « Newsletter » (créée au besoin). Sa sous-section dans
+ * « Événements », si elle en avait une à elle, y passe : ses points avec, et elle quitte la liste.
+ */
+function versLaNewsletter(d: AppData, e: Etiquette): LieuEtiquette {
+  const nl = placeNewsletter(d, true)!;
+  const evts = sectionEvenements(d);
+  const lieux = e.lieux ?? (sorteDe(e) === 'libre' ? lieuxDevines(e, d.sections) : []);
+  for (const l of lieux) {
+    if (!evts || l.sectionId !== evts.id || !l.sousSection || placePrise(d, l.sectionId, l.sousSection, e.id)) continue;
+    deplacerPoints(d, l, nl);
+    evts.sousSections = evts.sousSections.filter((x) => x !== l.sousSection);
+  }
+  return nl;
+}
+
+/**
+ * Une newsletter qui ne l'est plus (son étiquette était dans « Newsletter ») : ses points rattachés (à l'un des
+ * événements `ids`) rangés dans « Newsletter » passent dans `vers`, sa nouvelle sous-section. Les autres y restent.
+ */
+function horsDeLaNewsletter(d: AppData, lieux: LieuEtiquette[], vers: LieuEtiquette, ids: Set<string>) {
+  const nl = lieux.find((l) => estLaNewsletter(d, l));
+  if (nl) deplacerPoints(d, nl, vers, (t) => !!t.eventId && ids.has(t.eventId));
+}
+
+/**
+ * Place d'une nouvelle édition (reprise, copie) : une newsletter, la sous-section « Newsletter » ; sinon, une
+ * sous-section `nom` dans « Événements », créée au besoin.
+ */
+function placeNeuve(d: AppData, newsletter: boolean, nom: (sectionId: string) => string): LieuEtiquette {
+  if (newsletter) return placeNewsletter(d, true)!;
+  const evts = sectionEvenements(d, true)!;
+  const sous = nom(evts.id);
+  if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
+  return { sectionId: evts.id, sousSection: sous };
+}
+
 export const etiquetteDeLEvenement = (data: Pick<AppData, 'etiquettes'>, eventId: string) => data.etiquettes?.find((e) => e.eventId === eventId);
 export const etiquetteDeLaSection = (data: Pick<AppData, 'etiquettes'>, sectionId: string) => data.etiquettes?.find((e) => e.sectionId === sectionId);
 export const etiquetteDuComite = (data: Pick<AppData, 'etiquettes'>) => data.etiquettes?.find((e) => e.parDefaut);
@@ -266,6 +377,7 @@ export function renommerSousSection(d: AppData, sectionId: string, ancien: strin
  * Case « Étiquette » d'un événement (formulaire de l'événement), dans la modification qui l'enregistre : l'étiquette
  * prend le nom et les dates de l'événement, et sa sous-section dans « Événements » (créée au besoin ; celle d'une ancienne
  * étiquette reprise est gardée) ; ses points la reçoivent. `null` : l'événement n'a plus d'étiquette (retirée des points).
+ * Une newsletter : sa place est la sous-section « Newsletter » (versLaNewsletter).
  */
 export function reglerEtiquetteEvenement(d: AppData, ev: ClubEvent, choix: ChoixEtiquette) {
   const deja = etiquetteDeLEvenement(d, ev.id);
@@ -274,6 +386,23 @@ export function reglerEtiquetteEvenement(d: AppData, ev: ClubEvent, choix: Choix
     return;
   }
   const e = cible(d, deja, choix.reprise);
+  placer(d, {
+    ...e,
+    nom: ev.nom,
+    type: 'evenement',
+    date: ev.date,
+    dateFin: ev.dateFin && ev.dateFin > ev.date ? ev.dateFin : undefined,
+    eventId: ev.id,
+    sectionId: undefined,
+    parDefaut: undefined,
+    lieux: [estNewsletter(d, ev) ? versLaNewsletter(d, e) : placeDansEvenements(d, ev, e, deja)],
+    membres: [...new Set(choix.membres)],
+  });
+  completer(d, e.id);
+}
+
+/** Sous-section dans « Événements » de l'étiquette `e` de l'événement `ev` (`deja` : celle qu'il avait). */
+function placeDansEvenements(d: AppData, ev: ClubEvent, e: Etiquette, deja?: Etiquette): LieuEtiquette {
   const evts = sectionEvenements(d, true)!;
   // Sa sous-section : celle qu'elle a déjà (ou, ancienne étiquette, devinée d'après son nom), sinon le nom de l'événement.
   const lieux = e.lieux ?? (sorteDe(e) === 'libre' ? lieuxDevines(e, d.sections) : []);
@@ -286,19 +415,10 @@ export function reglerEtiquetteEvenement(d: AppData, ev: ClubEvent, choix: Choix
   }
   sous ??= sousSectionLibre(d, evts.id, ev, e.id);
   if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
-  placer(d, {
-    ...e,
-    nom: ev.nom,
-    type: 'evenement',
-    date: ev.date,
-    dateFin: ev.dateFin && ev.dateFin > ev.date ? ev.dateFin : undefined,
-    eventId: ev.id,
-    sectionId: undefined,
-    parDefaut: undefined,
-    lieux: [{ sectionId: evts.id, sousSection: sous }],
-    membres: [...new Set(choix.membres)],
-  });
-  completer(d, e.id);
+  const place = { sectionId: evts.id, sousSection: sous };
+  // N'est plus une newsletter : ses points rattachés (à lui, à ses dates modifiées seules) reviennent ici.
+  horsDeLaNewsletter(d, lieux, place, new Set([ev.id, ...d.events.filter((x) => x.serie?.id === ev.id).map((x) => x.id)]));
+  return place;
 }
 
 /** La sous-section est déjà la place d'une autre étiquette que `sauf`. */
@@ -318,23 +438,23 @@ function sousSectionLibre(d: AppData, sectionId: string, ev: Pick<ClubEvent, 'no
 /**
  * Nouvelle édition d'un événement repris (« Reprendre », Reprise.tsx), dans la modification qui l'ajoute avec les copies
  * de ses points (`copies` : leurs identifiants). Si l'édition passée avait son étiquette : les copies quittent sa
- * sous-section pour celle de la nouvelle édition (à son nom, dans « Événements ») et ne portent plus son étiquette ;
+ * sous-section pour celle de la nouvelle édition (à son nom, dans « Événements » ; une newsletter : « Newsletter ») et ne
+ * portent plus son étiquette ;
  * `garder` : la nouvelle édition a la sienne, avec les mêmes membres, la même couleur et la même icône (ses points la
  * reçoivent). Les points de l'édition passée gardent la leur.
  */
 export function suiteEtiquette(d: AppData, ancien: ClubEvent, nouveau: ClubEvent, copies: string[], garder: boolean) {
   const avant = etiquetteDeLEvenement(d, ancien.id);
   if (!avant) return;
-  const evts = sectionEvenements(d, true)!;
   const place = lieuxDe(avant, d.sections).find((l) => l.sousSection);
-  const sous = sousSectionLibre(d, evts.id, nouveau);
-  if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
+  // Une newsletter : « Newsletter » ; sinon, une sous-section à son nom dans « Événements ».
+  const vers = placeNeuve(d, estNewsletter(d, nouveau), (sectionId) => sousSectionLibre(d, sectionId, nouveau));
   const ids = new Set(copies);
   d.tasks.forEach((t) => {
     if (!ids.has(t.id)) return;
     if (place && t.sectionId === place.sectionId && t.sousSection === place.sousSection) {
-      t.sectionId = evts.id;
-      t.sousSection = sous;
+      t.sectionId = vers.sectionId;
+      t.sousSection = vers.sousSection ?? '';
     }
     const l = (t.etiquettes ?? []).filter((x) => x !== avant.id);
     t.etiquettes = l.length ? l : undefined;
@@ -348,7 +468,7 @@ export function suiteEtiquette(d: AppData, ancien: ClubEvent, nouveau: ClubEvent
     eventId: nouveau.id,
     couleur: avant.couleur,
     ...(avant.icone ? { icone: avant.icone } : {}),
-    lieux: [{ sectionId: evts.id, sousSection: sous }],
+    lieux: [vers],
   });
   reglerEtiquetteEvenement(d, nouveau, { membres: avant.membres ?? [] });
 }
@@ -386,6 +506,7 @@ function sousSectionSerie(d: AppData, sectionId: string, nom: string, sauf?: str
  * l'étiquette prend le nom de la série, sans date, et sa sous-section dans « Événements » (créée au besoin ; celle d'une
  * étiquette reprise est gardée, renommée comme la série si elle portait son nom) ; ses points la reçoivent : ceux de sa
  * sous-section et ceux rattachés aux événements de la série. `null` : la série n'a plus d'étiquette (retirée des points).
+ * Une série newsletter : sa place est la sous-section « Newsletter » (versLaNewsletter).
  */
 export function reglerEtiquetteSerie(d: AppData, s: Pick<SerieEvenements, 'id' | 'nom'>, choix: ChoixEtiquette) {
   const deja = etiquetteDeLaSerie(d, s.id);
@@ -395,6 +516,25 @@ export function reglerEtiquetteSerie(d: AppData, s: Pick<SerieEvenements, 'id' |
   }
   const reprise = !deja && choix.reprise ? d.etiquettes?.find((x) => x.id === choix.reprise && reprenablePourSerie(x, s.id)) : undefined;
   const e = deja ?? reprise ?? nouvelle(d);
+  const newsletter = !!d.seriesEvenements?.find((x) => x.id === s.id)?.newsletter;
+  placer(d, {
+    ...e,
+    nom: s.nom,
+    type: 'evenement',
+    date: undefined,
+    dateFin: undefined,
+    eventId: undefined,
+    sectionId: undefined,
+    parDefaut: undefined,
+    serieId: s.id,
+    lieux: [newsletter ? versLaNewsletter(d, e) : placeSerieDansEvenements(d, s, e)],
+    membres: [...new Set(choix.membres)],
+  });
+  completer(d, e.id);
+}
+
+/** Sous-section dans « Événements » de l'étiquette `e` de la série `s`. */
+function placeSerieDansEvenements(d: AppData, s: Pick<SerieEvenements, 'id' | 'nom'>, e: Etiquette): LieuEtiquette {
   const evts = sectionEvenements(d, true)!;
   const lieux = e.lieux ?? (sorteDe(e) === 'libre' ? lieuxDevines(e, d.sections) : []);
   let sous = lieux.find((l) => l.sectionId === evts.id && l.sousSection)?.sousSection;
@@ -406,41 +546,32 @@ export function reglerEtiquetteSerie(d: AppData, s: Pick<SerieEvenements, 'id' |
   }
   sous ??= sousSectionSerie(d, evts.id, s.nom, e.id);
   if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
-  placer(d, {
-    ...e,
-    nom: s.nom,
-    type: 'evenement',
-    date: undefined,
-    dateFin: undefined,
-    eventId: undefined,
-    sectionId: undefined,
-    parDefaut: undefined,
-    serieId: s.id,
-    lieux: [{ sectionId: evts.id, sousSection: sous }],
-    membres: [...new Set(choix.membres)],
-  });
-  completer(d, e.id);
+  const place = { sectionId: evts.id, sousSection: sous };
+  // N'est plus une newsletter : les points rattachés à ses événements (ceux qui ne sont pas newsletter eux-mêmes et n'ont
+  // pas leur étiquette, qui a sa place) reviennent ici.
+  const siens = d.events.filter((x) => x.dansSerie === s.id && !estNewsletter(d, x) && !etiquetteDeLEvenement(d, x.serie?.id ?? x.id));
+  horsDeLaNewsletter(d, lieux, place, new Set(siens.map((x) => x.id)));
+  return place;
 }
 
 /**
  * Saison suivante d'une série reprise (« Reprendre la série », repriseSerie.ts), dans la modification qui l'ajoute avec
  * les copies des points (`copies`). Si la série avait son étiquette : les copies quittent sa sous-section pour celle de
- * la nouvelle série et ne la portent plus ; `garder` : la nouvelle série a la sienne, avec les mêmes membres, la même
+ * la nouvelle série (une série newsletter : « Newsletter ») et ne la portent plus ; `garder` : la nouvelle série a la sienne, avec les mêmes membres, la même
  * couleur et la même icône. Les points de la saison passée gardent la leur.
  */
 export function suiteEtiquetteSerie(d: AppData, ancienne: Pick<SerieEvenements, 'id'>, suite: Pick<SerieEvenements, 'id' | 'nom'>, copies: string[], garder: boolean) {
   const avant = etiquetteDeLaSerie(d, ancienne.id);
   if (!avant) return;
-  const evts = sectionEvenements(d, true)!;
   const place = lieuxDe(avant, d.sections).find((l) => l.sousSection);
-  const sous = sousSectionSerie(d, evts.id, suite.nom);
-  if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
+  const newsletter = !!d.seriesEvenements?.find((x) => x.id === suite.id)?.newsletter;
+  const vers = placeNeuve(d, newsletter, (sectionId) => sousSectionSerie(d, sectionId, suite.nom));
   const ids = new Set(copies);
   d.tasks.forEach((t) => {
     if (!ids.has(t.id)) return;
     if (place && t.sectionId === place.sectionId && t.sousSection === place.sousSection) {
-      t.sectionId = evts.id;
-      t.sousSection = sous;
+      t.sectionId = vers.sectionId;
+      t.sousSection = vers.sousSection ?? '';
     }
     const l = (t.etiquettes ?? []).filter((x) => x !== avant.id);
     t.etiquettes = l.length ? l : undefined;
@@ -452,7 +583,7 @@ export function suiteEtiquetteSerie(d: AppData, ancienne: Pick<SerieEvenements, 
     serieId: suite.id,
     couleur: avant.couleur,
     ...(avant.icone ? { icone: avant.icone } : {}),
-    lieux: [{ sectionId: evts.id, sousSection: sous }],
+    lieux: [vers],
   });
   reglerEtiquetteSerie(d, suite, { membres: avant.membres ?? [] });
 }
@@ -476,14 +607,12 @@ function recaserCopies(d: AppData, avant: Etiquette, place: LieuEtiquette, copie
   });
 }
 
-/** La sous-section de l'étiquette `e` ; sans elle, une sous-section `nom` dans « Événements », créée au besoin. */
-function placeOuNouvelle(d: AppData, e: Etiquette | undefined, nom: (sectionId: string) => string): LieuEtiquette {
-  const l = e && lieuxDe(e, d.sections).find((x) => x.sousSection);
-  if (l) return l;
-  const evts = sectionEvenements(d, true)!;
-  const sous = nom(evts.id);
-  if (!evts.sousSections.includes(sous)) evts.sousSections.push(sous);
-  return { sectionId: evts.id, sousSection: sous };
+/**
+ * La sous-section de l'étiquette `e` ; sans elle, une newsletter : « Newsletter » ; sinon une sous-section `nom` dans
+ * « Événements », créée au besoin.
+ */
+function placeOuNouvelle(d: AppData, e: Etiquette | undefined, newsletter: boolean, nom: (sectionId: string) => string): LieuEtiquette {
+  return (e && lieuxDe(e, d.sections).find((x) => x.sousSection)) || placeNeuve(d, newsletter, nom);
 }
 
 /**
@@ -494,7 +623,8 @@ export function versEvenement(d: AppData, ancien: Pick<ClubEvent, 'id'>, cible: 
   const avant = etiquetteDeLEvenement(d, ancien.id);
   const apres = etiquetteDeLEvenement(d, cible.id);
   if (!avant || avant.id === apres?.id) return;
-  recaserCopies(d, avant, placeOuNouvelle(d, apres, (sectionId) => sousSectionLibre(d, sectionId, cible)), copies);
+  const ev = d.events.find((x) => x.id === cible.id);
+  recaserCopies(d, avant, placeOuNouvelle(d, apres, !!ev && estNewsletter(d, ev), (sectionId) => sousSectionLibre(d, sectionId, cible)), copies);
 }
 
 /** Points de la série `ancienne` recopiés dans la série `cible`, déjà là : de même, chez l'étiquette de `cible`. */
@@ -502,7 +632,8 @@ export function versSerie(d: AppData, ancienne: Pick<SerieEvenements, 'id'>, cib
   const avant = etiquetteDeLaSerie(d, ancienne.id);
   const apres = etiquetteDeLaSerie(d, cible.id);
   if (!avant || avant.id === apres?.id) return;
-  recaserCopies(d, avant, placeOuNouvelle(d, apres, (sectionId) => sousSectionSerie(d, sectionId, cible.nom)), copies);
+  const newsletter = !!d.seriesEvenements?.find((x) => x.id === cible.id)?.newsletter;
+  recaserCopies(d, avant, placeOuNouvelle(d, apres, newsletter, (sectionId) => sousSectionSerie(d, sectionId, cible.nom)), copies);
 }
 
 /** Coche « Groupe » d'une section (console admin) : l'étiquette de la section, à son nom ; ses points la reçoivent. */
@@ -533,11 +664,14 @@ export function reglerComite(d: AppData, membres: string[] | null) {
 
 /**
  * Les étiquettes suivent leur événement, leur section ou leur série (à chaque modification, store.tsx) : nom et dates ;
- * événement ou série renommés, leur sous-section aussi. Événement, section ou série disparus : l'étiquette reste, à relier
- * (ses points la gardent).
+ * événement ou série renommés, leur sous-section aussi ; newsletter ou plus (case de l'événement ou de sa série), leur
+ * place aussi. Événement, section ou série disparus : l'étiquette reste, à relier (ses points la gardent). Une newsletter
+ * a sa sous-section « Newsletter », créée au besoin.
  * Ne change rien quand tout est déjà d'accord.
  */
 export function synchroniserEtiquettes(d: AppData) {
+  if (d.events.some((x) => x.newsletter) || d.seriesEvenements?.some((x) => x.newsletter)) placeNewsletter(d, true);
+  const dansNewsletter = (e: Etiquette) => (e.lieux ?? []).some((l) => estLaNewsletter(d, l));
   for (const e of [...(d.etiquettes ?? [])]) {
     if (e.eventId) {
       const ev = d.events.find((x) => x.id === e.eventId);
@@ -546,7 +680,8 @@ export function synchroniserEtiquettes(d: AppData) {
         continue;
       }
       const fin = ev.dateFin && ev.dateFin > ev.date ? ev.dateFin : undefined;
-      if (e.nom !== ev.nom || e.date !== ev.date || e.dateFin !== fin) reglerEtiquetteEvenement(d, ev, { membres: e.membres ?? [] });
+      if (e.nom !== ev.nom || e.date !== ev.date || e.dateFin !== fin || estNewsletter(d, ev) !== dansNewsletter(e))
+        reglerEtiquetteEvenement(d, ev, { membres: e.membres ?? [] });
     } else if (e.sectionId) {
       const s = d.sections.find((x) => x.id === e.sectionId);
       if (!s) placer(d, { ...e, sectionId: undefined, lieux: [] });
@@ -555,7 +690,7 @@ export function synchroniserEtiquettes(d: AppData) {
       // Série supprimée : l'étiquette reste, à relier (ses points la gardent) ; renommée : son nom et sa sous-section suivent.
       const s = d.seriesEvenements?.find((x) => x.id === e.serieId);
       if (!s) placer(d, { ...e, serieId: undefined });
-      else if (e.nom !== s.nom) reglerEtiquetteSerie(d, s, { membres: e.membres ?? [] });
+      else if (e.nom !== s.nom || !!s.newsletter !== dansNewsletter(e)) reglerEtiquetteSerie(d, s, { membres: e.membres ?? [] });
     }
   }
 }

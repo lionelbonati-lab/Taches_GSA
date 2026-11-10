@@ -362,6 +362,12 @@ export interface Meeting {
   unique?: boolean;
   /** Assemblée générale : la chronologie du club se lit aussi d'une assemblée générale à l'autre (chronologieClub.ts). */
   ag?: boolean;
+  /**
+   * Newsletter (case « Newsletter » ; etiquettes.ts, estNewsletter) : sa place est la sous-section « Newsletter »
+   * (Communication › Newsletter), pas une sous-section à son nom dans « Événements » : celle de son étiquette, et celle
+   * de ses nouveaux points. Un événement d'une série newsletter l'est aussi ; une date modifiée seule suit le sien.
+   */
+  newsletter?: boolean;
 }
 
 export interface Excuse {
@@ -578,6 +584,12 @@ export interface ClubEvent {
   dansSerie?: string;
   /** Assemblée générale : la chronologie du club se lit aussi d'une assemblée générale à l'autre (chronologieClub.ts). */
   ag?: boolean;
+  /**
+   * Newsletter (case « Newsletter » ; etiquettes.ts, estNewsletter) : sa place est la sous-section « Newsletter »
+   * (Communication › Newsletter), pas une sous-section à son nom dans « Événements » : celle de son étiquette, et celle
+   * de ses nouveaux points. Un événement d'une série newsletter l'est aussi ; une date modifiée seule suit le sien.
+   */
+  newsletter?: boolean;
 }
 
 /**
@@ -597,6 +609,8 @@ export interface SerieEvenements {
    */
   debut?: string;
   fin?: string;
+  /** Newsletter (case « Newsletter ») : la série et ses événements ont leur place dans la sous-section « Newsletter ». */
+  newsletter?: boolean;
 }
 
 /** Répétition d'un événement, comme dans un agenda : tous les N jours, semaines, mois ou ans. */

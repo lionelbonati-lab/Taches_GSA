@@ -8,8 +8,8 @@ import { COULEURS, fmtRange, fullName } from '../data/utils';
 import { COULEURS_APPLI, deTsl, isCouleur, versTsl } from '../data/couleur';
 import { hasPermission, userRoles } from '../data/permissions';
 import {
-  aReprendre, aReprendrePourSerie, etiquetteDeLaSection, etiquetteDeLaSerie, etiquetteDeLEvenement, etiquetteDuComite, etiquettesAReprendre,
-  etiquettesAReprendrePourSerie, lieuxDe, nomLieu, reglerComite, reglerEtiquetteEvenement, reglerEtiquetteSerie, reglerGroupe, sectionEvenements, sorteDe,
+  aReprendre, aReprendrePourSerie, estLaNewsletter, etiquetteDeLaSection, etiquetteDeLaSerie, etiquetteDeLEvenement, etiquetteDuComite, etiquettesAReprendre,
+  etiquettesAReprendrePourSerie, lieuxDe, nomLieu, nomPlaceNewsletter, reglerComite, reglerEtiquetteEvenement, reglerEtiquetteSerie, reglerGroupe, sectionEvenements, sorteDe,
   type ChoixEtiquette,
 } from '../data/etiquettes';
 import { BadgeEtiquette, ChoixIconeEtiquette } from './IconesEtiquette';
@@ -215,10 +215,11 @@ const libelleReprise = (data: AppData, e: Etiquette) => `Reprendre « ${e.nom} �
 /**
  * Case « Étiquette » d'une série d'événements (fiche de la série) : cochée, on choisit ses membres. Sans étiquette
  * reliée, on peut reprendre une étiquette déjà là (proposée d'office si elle a le même nom que la série) : une ancienne à
- * relier, celle d'un événement ou d'une autre série ; elle garde ses membres, sa couleur, son icône et ses points.
+ * relier, celle d'un événement ou d'une autre série ; elle garde ses membres, sa couleur, son icône et ses points. Une
+ * série newsletter : sa place est la sous-section « Newsletter ».
  */
 export function CaseEtiquetteSerie({ serie, valeur, onChange, disabled }: {
-  serie: Pick<SerieEvenements, 'id' | 'nom'>;
+  serie: Pick<SerieEvenements, 'id' | 'nom' | 'newsletter'>;
   valeur: ChoixEtiquette;
   onChange: (c: ChoixEtiquette) => void;
   disabled?: boolean;
@@ -236,8 +237,12 @@ export function CaseEtiquetteSerie({ serie, valeur, onChange, disabled }: {
     onChange({ membres: e?.membres ?? valeur?.membres ?? [], reprise: e?.id });
   };
   const choisie = valeur?.reprise ? candidates.find((x) => x.id === valeur.reprise) : undefined;
-  const lieu = (deja ?? choisie) && lieuxDe((deja ?? choisie)!, data.sections).find((l) => l.sousSection);
-  const place = lieu && (deja || sorteDe(choisie!) !== 'libre') ? nomLieu(lieu, data.sections) : `${sectionEvenements(data)?.nom ?? 'Événements'} › ${serie.nom.trim() || '…'}`;
+  // Sa place : « Newsletter » pour une série newsletter ; sinon la sienne dans « Événements » (pas « Newsletter », qu'elle
+  // quitte si on décoche).
+  const lieu = (deja ?? choisie) && lieuxDe((deja ?? choisie)!, data.sections).find((l) => l.sousSection && !estLaNewsletter(data, l));
+  const place = serie.newsletter
+    ? nomPlaceNewsletter(data)
+    : lieu && (deja || sorteDe(choisie!) !== 'libre') ? nomLieu(lieu, data.sections) : `${sectionEvenements(data)?.nom ?? 'Événements'} › ${serie.nom.trim() || '…'}`;
   return (
     <fieldset className="full case-etiquette">
       <label className="inline">
@@ -245,7 +250,7 @@ export function CaseEtiquetteSerie({ serie, valeur, onChange, disabled }: {
       </label>
       <small className="muted">
         Ses membres, du comité ou non, voient les points de toute la série : ceux rattachés à ses événements, et ceux de la sous-section « {place} »
-        {deja || choisie ? '' : ' (créée d’office)'}, pour ce qui vaut pour toute la série.
+        {serie.newsletter || ((deja || choisie) && lieu) || (choisie && !deja) ? '' : ' (créée d’office)'}, pour ce qui vaut pour toute la série.
       </small>
       {valeur && candidates.length > 0 && (
         <label>

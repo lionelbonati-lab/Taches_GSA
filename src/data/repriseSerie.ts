@@ -150,6 +150,7 @@ export function reprendreSerie(data: AppData, s: SerieEvenements, c: ChoixRepris
   const ans = ansEntre(debutDe(evs) ?? today(), n);
   const serie: SerieEvenements = {
     id: uid('se'), nom: c.nom.trim(), ...(s.description ? { description: s.description } : {}), repriseDe: s.id, ...periodeSuivante(s, n, ans),
+    ...(s.newsletter ? { newsletter: true } : {}),
   };
   const paires = evs.filter((e) => c.evenements.includes(e.id)).map((ancien) => ({ ancien, nouveau: eventDecale(ancien, n, ans, serie.id) }));
   return { serie, events: paires.map((p) => p.nouveau), paires, ...copierVers(data, s, paires, n, c, moi) };

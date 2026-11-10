@@ -11,16 +11,23 @@ import { Modal } from './ui';
 import { Icone } from './icones';
 import { ZoneTexte } from './ZoneTexte';
 import { CaseEtiquette } from './ReglageEtiquette';
-import { etiquetteDeLEvenement, nomLieu, reglerEtiquetteEvenement, sectionEvenements, type ChoixEtiquette } from '../data/etiquettes';
+import {
+  estLaNewsletter, etiquetteDeLEvenement, nomLieu, nomPlaceNewsletter, reglerEtiquetteEvenement, sectionEvenements, type ChoixEtiquette,
+} from '../data/etiquettes';
 import { enregistrerSerie, rangerDansSerie, seriesDuClub } from '../data/seriesEvenements';
 
 // Fiche d'un événement, comme dans un agenda : toute la journée ou de telle heure à telle heure, sur un ou plusieurs
 // jours, une seule fois ou répété (tous les jours, semaines, mois, ans, ou personnalisé). Une occurrence d'un événement
 // qui se répète se modifie ou se supprime seule, avec les suivantes, ou toute la série. « Série d'événements » : la série
 // dont il fait partie (programme hivernal, championnat ; seriesEvenements.ts), une existante ou une nouvelle, nommée ici.
+// « Newsletter » : sa place est la sous-section « Newsletter » (etiquettes.ts, estNewsletter), pas une à son nom dans
+// « Événements ».
 
 /** Texte du journal pour la case « Étiquette » d'un événement. */
 const quoiEtiquette = (c: ChoixEtiquette) => (c ? ` · étiquette (${c.membres.length} membre${c.membres.length > 1 ? 's' : ''})` : ' · sans étiquette');
+
+/** Texte du journal pour la case « Newsletter » d'un événement. */
+const quoiNewsletter = (oui?: boolean) => (oui ? ' · newsletter' : ' · plus une newsletter');
 
 /** Choix « Nouvelle série… » de la liste « Série d'événements ». */
 const NOUVELLE_SERIE = '+';
@@ -42,13 +49,15 @@ export function useEventActions() {
       const avant = data.events.find((y) => y.id === e.id);
       const isNew = !avant;
       const serieChangee = (avant?.dansSerie ?? '') !== (e.dansSerie ?? '');
+      // Newsletter cochée ou décochée : son étiquette change de place (etiquettes.ts, synchroniserEtiquettes).
+      const newsletterChangee = !!avant?.newsletter !== !!e.newsletter;
       update((d) => {
         if (nouvelle) enregistrerSerie(d, nouvelle);
         d.events = isNew ? [...d.events, e] : d.events.map((y) => (y.id === e.id ? e : y));
         // Ses dates modifiées seules (s'il s'est répété) suivent.
         if (serieChangee) rangerDansSerie(d, e.id, e.dansSerie);
         if (etiquette !== undefined) reglerEtiquetteEvenement(d, e, etiquette);
-      }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »${serieChangee ? quoiSerie(e.dansSerie, nouvelle) : ''}${etiquette !== undefined ? quoiEtiquette(etiquette) : ''}`);
+      }, `${isNew ? 'Ajout' : 'Modification'} de l'événement « ${e.nom} »${serieChangee ? quoiSerie(e.dansSerie, nouvelle) : ''}${newsletterChangee ? quoiNewsletter(e.newsletter) : ''}${etiquette !== undefined ? quoiEtiquette(etiquette) : ''}`);
     },
     /** Série d'un événement qui se répète : celle de toutes ses dates (réglée tout de suite, comme son étiquette). */
     rangerSerie: (eventId: string, serieId?: string, nouvelle?: SerieEvenements) =>
@@ -56,6 +65,11 @@ export function useEventActions() {
         if (nouvelle) enregistrerSerie(d, nouvelle);
         rangerDansSerie(d, eventId, serieId);
       }, `Événement « ${data.events.find((y) => y.id === eventId)?.nom ?? ''} »${quoiSerie(serieId, nouvelle)}`),
+    /** Newsletter d'un événement qui se répète : toutes ses dates (réglée tout de suite, comme son étiquette). */
+    reglerNewsletter: (eventId: string, oui: boolean) =>
+      update((d) => {
+        d.events = d.events.map((y) => (y.id === eventId ? { ...y, newsletter: oui || undefined } : y));
+      }, `Événement « ${data.events.find((y) => y.id === eventId)?.nom ?? ''} »${quoiNewsletter(oui)}`),
     /** Étiquette d'un événement qui se répète : celle de toute la série. */
     reglerEtiquette: (serieId: string, etiquette: ChoixEtiquette) =>
       update((d) => {
@@ -103,7 +117,7 @@ const estSimple = (r: RepetitionEvenement, date: string) =>
  */
 export function EventModal({ event, jour, onClose, onChronologie }: { event: ClubEvent; jour?: string; onClose: () => void; onChronologie?: () => void }) {
   const { data, can } = useStore();
-  const { saveEvent, saveOccurrence, removeEvent, removeOccurrence, reglerEtiquette, rangerSerie } = useEventActions();
+  const { saveEvent, saveOccurrence, removeEvent, removeOccurrence, reglerEtiquette, reglerNewsletter, rangerSerie } = useEventActions();
   const serie = jour && event.repetition ? event : undefined;
   // Case « Étiquette » : celle de l'événement (d'une série : de toute la série).
   const deja = etiquetteDeLEvenement(data, event.serie?.id ?? event.id);
@@ -126,6 +140,8 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
   const [nomNouvelle, setNomNouvelle] = useState('');
   const dansSerie = choixSerie === NOUVELLE_SERIE ? idNouvelle : choixSerie || undefined;
   const serieNouvelle = (): SerieEvenements | undefined => (choixSerie === NOUVELLE_SERIE ? { id: idNouvelle, nom: nomNouvelle.trim() } : undefined);
+  // Série newsletter : l'événement l'est aussi (sa case, cochée et grisée).
+  const serieNewsletter = series.find((s) => s.id === choixSerie && s.newsletter);
   const [perso, setPerso] = useState(false);
   const [err, setErr] = useState('');
   const [demande, setDemande] = useState<'modifier' | 'supprimer' | null>(null);
@@ -183,6 +199,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
     heure: journee ? undefined : v.heure,
     heureFin: journee || !v.heureFin ? undefined : v.heureFin,
     dansSerie,
+    newsletter: v.newsletter || undefined,
   });
   const submit = () => {
     const bad = verifier();
@@ -192,11 +209,14 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
       saveEvent(pret(), etiquetteTouchee ? etiquette : undefined, serieNouvelle());
       return onClose();
     }
-    // Étiquette et série d'événements d'un événement qui se répète : celles de toutes ses dates, réglées tout de suite.
+    // Étiquette, série d'événements et newsletter d'un événement qui se répète : celles de toutes ses dates, réglées tout
+    // de suite.
+    const newsletter = pret().newsletter;
+    if (!!newsletter !== !!serie.newsletter) reglerNewsletter(serie.id, !!newsletter);
     if (etiquetteTouchee) reglerEtiquette(serie.id, etiquette);
     if ((dansSerie ?? '') !== (serie.dansSerie ?? '')) rangerSerie(serie.id, dansSerie, serieNouvelle());
     // Rien d'autre de changé : rien à demander.
-    if (stable(normaliser(sansFinVide(pret()))) === stable(normaliser(sansFinVide({ ...depart, dansSerie })))) return onClose();
+    if (stable(normaliser(sansFinVide(pret()))) === stable(normaliser(sansFinVide({ ...depart, dansSerie, newsletter })))) return onClose();
     setDemande('modifier');
   };
   const supprimer = () => {
@@ -214,7 +234,7 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
         action={demande}
         sans={regleChangee ? ['une'] : []}
         onChoisir={(p) => {
-          if (demande === 'modifier') saveOccurrence({ ...serie, dansSerie }, jour!, pret(), p);
+          if (demande === 'modifier') saveOccurrence({ ...serie, dansSerie, newsletter: pret().newsletter }, jour!, pret(), p);
           else removeOccurrence(serie, jour!, p);
           onClose();
         }}
@@ -230,6 +250,10 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
       ? `${liees.length} point(s) ont un délai calé sur une occurrence de cette série : si sa date change, leurs délais suivent automatiquement.`
       : `${liees.length} point(s) ont un délai calé sur cette date : si tu la changes, leurs délais suivront automatiquement.`;
   const origine = event.serie && data.events.find((x) => x.id === event.serie!.id);
+  // Place de son étiquette (aide de la case « Étiquette ») : « Newsletter » pour une newsletter ; sinon la sienne dans
+  // « Événements » (pas « Newsletter », qu'elle quitte si on décoche).
+  const newsletter = !!v.newsletter || !!serieNewsletter;
+  const placeEtiquette = deja?.lieux?.find((l) => !estLaNewsletter(data, l));
 
   return (
     <Modal title={isNew ? 'Nouvel événement' : 'Événement'} onClose={onClose}>
@@ -374,6 +398,24 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
           <input type="checkbox" checked={!!v.ag} onChange={(e) => set({ ag: e.target.checked || undefined })} /> Assemblée générale
         </label>
         <p className="muted full serie-note">La chronologie du club se lit aussi d’une assemblée générale à l’autre.</p>
+        {/* Une date modifiée seule suit l'événement qui se répète : newsletter comme lui. */}
+        {!event.serie && (
+          <>
+            <label className="inline full">
+              <input
+                type="checkbox"
+                checked={!!v.newsletter || !!serieNewsletter}
+                disabled={!!serieNewsletter}
+                onChange={(e) => set({ newsletter: e.target.checked || undefined })}
+              />{' '}
+              <Icone n="newsletter" /> Newsletter
+            </label>
+            <p className="muted full serie-note">
+              {serieNewsletter ? `Comme toute la série « ${serieNewsletter.nom} ». ` : ''}
+              Ses points se rangent dans « {nomPlaceNewsletter(data)} » (son étiquette aussi), pas dans une sous-section à son nom dans « Événements ».
+            </p>
+          </>
+        )}
         {/* Une date modifiée seule suit l'événement qui se répète : sa série est la sienne. */}
         {!event.serie && (
           <label className="full">
@@ -398,8 +440,8 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
           <CaseEtiquette
             titre="Étiquette"
             aide={`Ses membres, du comité ou non, voient les points de l’événement : ceux de la sous-section « ${
-              deja?.lieux?.[0] ? nomLieu(deja.lieux[0], data.sections) : `${sectionEvenements(data)?.nom ?? 'Événements'} › ${v.nom.trim() || '…'}`
-            } »${deja ? '' : ' (créée d’office)'}, et ceux rattachés à l’événement.`}
+              newsletter ? nomPlaceNewsletter(data) : placeEtiquette ? nomLieu(placeEtiquette, data.sections) : `${sectionEvenements(data)?.nom ?? 'Événements'} › ${v.nom.trim() || '…'}`
+            } »${newsletter || placeEtiquette ? '' : ' (créée d’office)'}, et ceux rattachés à l’événement.`}
             deja={deja}
             nom={v.nom.trim()}
             date={v.date}

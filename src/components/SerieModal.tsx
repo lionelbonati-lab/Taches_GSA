@@ -3,7 +3,7 @@ import { useStore } from '../data/store';
 import type { ClubEvent, SerieEvenements } from '../data/types';
 import { fmtDate, fmtRange, today } from '../data/utils';
 import { aLaDate, horaire, libelleRepetition } from '../data/repetition';
-import { etiquetteDeLaSerie, evenementPasse, reglerEtiquetteSerie, type ChoixEtiquette } from '../data/etiquettes';
+import { etiquetteDeLaSerie, evenementPasse, nomPlaceNewsletter, reglerEtiquetteSerie, type ChoixEtiquette } from '../data/etiquettes';
 import { changementsDHeure, dateAffichee, enregistrerSerieEtEvenements, evenementsDeLaSerie, racine, serieDe, supprimerSerie } from '../data/seriesEvenements';
 import { Modal } from './ui';
 import { Icone } from './icones';
@@ -14,7 +14,8 @@ import { CaseEtiquetteSerie } from './ReglageEtiquette';
  * Fiche d'une série d'événements (seriesEvenements.ts) : son nom, sa description, son étiquette (nouvelle, ou une déjà
  * là : ses membres voient les points de toute la série) et ses événements, cochés parmi ceux de l'agenda (à venir ; les
  * passés repliés à part). Un événement coché qui était dans une autre série passe dans celle-ci. Supprimer la série : ses
- * événements restent dans l'agenda, avec leurs points, sans série.
+ * événements restent dans l'agenda, avec leurs points, sans série. « Newsletter » : la série et ses événements ont leur
+ * place dans la sous-section « Newsletter » (etiquettes.ts).
  */
 export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose: () => void }) {
   const { data, update } = useStore();
@@ -24,6 +25,7 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
   // Période officielle (facultative) : sinon, celle de ses événements.
   const [debut, setDebut] = useState(serie.debut ?? '');
   const [fin, setFin] = useState(serie.fin ?? '');
+  const [newsletter, setNewsletter] = useState(!!serie.newsletter);
   const [err, setErr] = useState('');
   // Case « Étiquette de la série » : enregistrée avec la série, si on l'a touchée.
   const deja = etiquetteDeLaSerie(data, serie.id);
@@ -61,13 +63,16 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
     if (debut && fin && fin < debut) return setErr('La fin officielle ne peut pas précéder le début.');
     const n = ids.size;
     const quoiEtiquette = !etiquetteTouchee ? '' : etiquette ? `, étiquette (${etiquette.membres.length} membre${etiquette.membres.length > 1 ? 's' : ''})` : ', sans étiquette';
+    const quoiNewsletter = newsletter === !!serie.newsletter ? '' : newsletter ? ', newsletter' : ', plus une newsletter';
     update(
       (d) => {
-        enregistrerSerieEtEvenements(d, { ...serie, nom, description, debut, fin }, [...ids]);
+        // Newsletter cochée ou décochée : les étiquettes de la série et de ses événements changent de place
+        // (etiquettes.ts, synchroniserEtiquettes).
+        enregistrerSerieEtEvenements(d, { ...serie, nom, description, debut, fin, newsletter: newsletter || undefined }, [...ids]);
         // Après ses événements : leurs points reçoivent l'étiquette de la série.
         if (etiquetteTouchee) reglerEtiquetteSerie(d, { id: serie.id, nom: nom.trim() }, etiquette);
       },
-      `${isNew ? 'Création' : 'Modification'} de la série d’événements « ${nom.trim()} » (${n} événement${n > 1 ? 's' : ''}${quoiEtiquette})`,
+      `${isNew ? 'Création' : 'Modification'} de la série d’événements « ${nom.trim()} » (${n} événement${n > 1 ? 's' : ''}${quoiNewsletter}${quoiEtiquette})`,
     );
     onClose();
   };
@@ -134,7 +139,13 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
             Sans : du premier au dernier jour de ses événements{premierJour ? ` (dès le ${fmtDate(premierJour)})` : ''}. Un événement peut commencer avant ou finir après (la natation dès septembre) : la carte le dit.
           </small>
         </fieldset>
-        <CaseEtiquetteSerie serie={{ id: serie.id, nom }} valeur={etiquette} onChange={choixEtiquette} />
+        <label className="inline full">
+          <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} /> <Icone n="newsletter" /> Newsletter
+        </label>
+        <p className="muted full serie-note">
+          Ses événements sont des newsletters : leurs points se rangent dans « {nomPlaceNewsletter(data)} » (leurs étiquettes et celle de la série aussi), pas dans des sous-sections à leur nom dans « Événements ».
+        </p>
+        <CaseEtiquetteSerie serie={{ id: serie.id, nom, newsletter }} valeur={etiquette} onChange={choixEtiquette} />
       </div>
       <section className="serie-ev-choix" aria-label="Événements de la série">
         <h3>Événements de la série <small className="muted">({ids.size})</small></h3>

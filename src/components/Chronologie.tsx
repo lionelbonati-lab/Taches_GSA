@@ -6,7 +6,7 @@ import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu, 
 import {
   DELAI_MAX, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
 } from '../data/utils';
-import { etiquetteDeLaSerie, etiquetteDeLEvenement, lieuxDe, sectionEvenements } from '../data/etiquettes';
+import { etiquetteDeLaSerie, etiquetteDeLEvenement, placesPour } from '../data/etiquettes';
 import { FILTRE_SERIE, evenementsDeLaSerie, periodeDeLaSerie, pointsDeLaSerie, prochainDeLaSerie, racine, seriePassee } from '../data/seriesEvenements';
 import { Empty, Modal, StatusBadge } from './ui';
 import { Icone } from './icones';
@@ -134,19 +134,12 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
     setToast(`« ${t.titre} » : ${offsetLabel(decalage(e)).toLowerCase()} (${fmtDate(x.delai)}), calé sur « ${nom} »`);
   };
 
-  // Planifier un point : sa fiche, préremplie (titre, délai calé sur l'événement, rangé à la place de son étiquette ou
-  // dans la sous-section de l'événement, quand on peut y ranger le point).
+  // Planifier un point : sa fiche, préremplie (titre, délai calé sur l'événement, rangé à la place de son étiquette, dans
+  // « Newsletter » pour une newsletter, ou dans la sous-section de l'événement, quand on peut y ranger le point).
   const peutCreer = creatableSections().length > 0;
   const dateEcart = delaiDepuis(decalage(ecart), debut);
   const planifier = () => {
-    const places = [
-      ...(et ? lieuxDe(et, data.sections) : []),
-      ...(() => {
-        const s = sectionEvenements(data);
-        return s && ev && s.sousSections.includes(ev.nom) ? [{ sectionId: s.id, sousSection: ev.nom }] : [];
-      })(),
-    ];
-    const ici = places.find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
+    const ici = placesPour(data, { et, ev }).find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
     const base = newTask(user.id, { titre: titre.trim(), ...(ici ? { sectionId: ici.sectionId, sousSection: ici.sousSection ?? '' } : {}) });
     setFiche({ task: caler(base, ecart) ?? { ...base, delai: dateEcart }, isNew: true });
     setTitre('');
@@ -384,20 +377,15 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
     setToast(`« ${t.titre} » : ${offsetLabel(decalage(v)).toLowerCase()} (${fmtDate(x.delai)}), calé sur « ${e!.nom} »`);
   };
 
-  // Planifier un point : pour un événement (calé sur lui, rangé chez son étiquette ou dans sa sous-section quand on peut),
-  // ou pour toute la série (à la date choisie, chez son étiquette).
+  // Planifier un point : pour un événement (calé sur lui, rangé chez son étiquette, dans « Newsletter » pour une newsletter,
+  // ou dans sa sous-section quand on peut), ou pour toute la série (à la date choisie, chez son étiquette).
   const peutCreer = creatableSections().length > 0;
   const evPour = racines.find((e) => e.id === pour);
   const refPour = evPour ? (evPour.repetition ? occurrenceDu(evPour, jour) ?? derniereOccurrence(evPour) ?? evPour.date : evPour.date) : (periode?.debut ?? jour);
   const dateEcart = delaiDepuis(decalage(ecart), refPour);
   const planifier = () => {
     const et = evPour ? etiquetteEv.get(evPour.id) : etSerie;
-    const evts = sectionEvenements(data);
-    const places = [
-      ...(et ? lieuxDe(et, data.sections) : []),
-      ...(evPour && evts?.sousSections.includes(evPour.nom) ? [{ sectionId: evts.id, sousSection: evPour.nom }] : []),
-    ];
-    const ici = places.find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
+    const ici = placesPour(data, evPour ? { et, ev: evPour } : { et, serie: s }).find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
     const base = newTask(user.id, { titre: titre.trim(), ...(ici ? { sectionId: ici.sectionId, sousSection: ici.sousSection ?? '' } : {}) });
     const task = evPour
       ? caler(base, evPour, refPour, ecart)!

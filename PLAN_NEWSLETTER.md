@@ -1,4 +1,9 @@
-# Newsletter du mois : essayée puis retirée (04.11.2026)
+# Newsletter du mois : essayée puis retirée (04.11.2026), case « Newsletter » (10.11.2026)
+
+> **10.11.2026** : une **case « Newsletter »** dans la fiche d'un événement et dans celle d'une série d'événements dit
+> qu'il s'agit d'une newsletter. Rien d'autre ne change dans l'agenda : sa place est simplement la sous-section
+> « Communication › Newsletter » au lieu d'une sous-section à son nom dans « Événements » (son étiquette, ses nouveaux
+> points ; README, Agenda › Événements › Newsletter).
 
 > **Décision du président (04.11.2026)** : la newsletter est retirée de l'appli. Les points sur la newsletter se
 > rangent, comme avant, dans la sous-section « Communication › Newsletter ».

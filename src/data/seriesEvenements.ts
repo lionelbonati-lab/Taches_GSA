@@ -139,7 +139,9 @@ export function rangerDansSerie(d: AppData, id: string, serieId?: string) {
 
 /** Ajoute la série, ou l'enregistre telle quelle si elle existe déjà. */
 export function enregistrerSerie(d: AppData, s: SerieEvenements) {
-  const x: SerieEvenements = { ...s, nom: s.nom.trim(), description: s.description?.trim() || undefined, debut: s.debut || undefined, fin: s.fin || undefined };
+  const x: SerieEvenements = {
+    ...s, nom: s.nom.trim(), description: s.description?.trim() || undefined, debut: s.debut || undefined, fin: s.fin || undefined, newsletter: s.newsletter || undefined,
+  };
   const liste = d.seriesEvenements ?? [];
   d.seriesEvenements = liste.some((y) => y.id === x.id) ? liste.map((y) => (y.id === x.id ? x : y)) : [...liste, x];
 }

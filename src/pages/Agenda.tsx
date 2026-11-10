@@ -12,7 +12,7 @@ import { RepriseSerieModal } from '../components/RepriseSerie';
 import {
   FILTRE_SERIE, dateAffichee, evenementsDeLaSerie, horsPeriode, nouvelleSerie, periodeDeLaSerie, pointsDeLaSerie, prochainDeLaSerie, seriePassee,
 } from '../data/seriesEvenements';
-import { etiquetteDeLaSerie, evenementPasse } from '../data/etiquettes';
+import { estNewsletter, etiquetteDeLaSerie, evenementPasse, nomPlaceNewsletter } from '../data/etiquettes';
 import { reprenable } from '../data/reprise';
 import { Empty, Modal } from '../components/ui';
 import { Icone } from '../components/icones';
@@ -689,6 +689,7 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
         <TitreEvenement nom={e.nom} onClick={onChrono} />
         <div className="muted">{[horaire(e), e.lieu, jours > 1 && `${jours} jours`, quand].filter(Boolean).join(' · ')}</div>
         {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
+        {estNewsletter(data, serie) && <ReperNewsletter />}
         {e.description && <p>{e.description}</p>}
         {etiquette && <EtiquetteCarte et={etiquette} />}
         <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
@@ -790,6 +791,7 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
             {[hors.avant && `${hors.avant.e.nom} dès le ${fmtDate(hors.avant.date)}`, hors.apres && `${hors.apres.e.nom} jusqu’au ${fmtDate(hors.apres.date)}`].filter(Boolean).join(' · ')}
           </div>
         )}
+        {serie.newsletter && <ReperNewsletter />}
         {serie.description && <p>{serie.description}</p>}
         {etiquetteDeLaSerie(data, serie.id) && <EtiquetteCarte et={etiquetteDeLaSerie(data, serie.id)!} />}
         {evs.length > 0 ? (
@@ -935,6 +937,17 @@ function BoutonRecopier({ vers, onClick }: { vers: string; onClick: () => void }
     <button type="button" className="btn link small recopier" onClick={onClick} title={`Recopier d’autres points dans « ${vers} », sans le recréer`}>
       Recopier des points
     </button>
+  );
+}
+
+/** Une newsletter (case « Newsletter ») : ses points sont rangés dans « Communication › Newsletter ». */
+function ReperNewsletter() {
+  const { data } = useStore();
+  const place = nomPlaceNewsletter(data);
+  return (
+    <div className="muted" title={`Ses points sont rangés dans « ${place} »`}>
+      <Icone n="newsletter" /> Newsletter · points dans « {place} »
+    </div>
   );
 }
 

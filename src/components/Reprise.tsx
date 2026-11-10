@@ -6,7 +6,7 @@ import { addDays, diffDays, fmtDate, fmtRange, offsetLabel, shortName } from '..
 import {
   candidats, dateReprise, dejaRecopies, delaiRepris, editionsCibles, nomReprise, pointsDeLEvenement, recopierDans, reprendre, type Candidat,
 } from '../data/reprise';
-import { etiquetteDeLEvenement, lieuxDe, nomLieu, sectionEvenements, suiteEtiquette, versEvenement } from '../data/etiquettes';
+import { estLaNewsletter, etiquetteDeLEvenement, lieuxDe, nomLieu, nomPlaceNewsletter, sectionEvenements, suiteEtiquette, versEvenement } from '../data/etiquettes';
 import { Modal } from './ui';
 import { Icone } from './icones';
 import { BadgeEtiquette } from './IconesEtiquette';
@@ -62,6 +62,9 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, c
   const serie = serieDe(data, e);
   const [garderSerie, setGarderSerie] = useState(!!copie);
   const placeAvant = etiquette ? lieuxDe(etiquette, data.sections).find((l) => l.sousSection) : undefined;
+  // La nouvelle édition est une newsletter (la sienne, ou celle de la série où elle reste) : ses points dans « Newsletter ».
+  const newsletter = !!e.newsletter || (garderSerie && !!serie?.newsletter);
+  const placeApres = newsletter ? nomPlaceNewsletter(data) : `${sectionEvenements(data)?.nom ?? 'Événements'} › ${nom.trim() || '…'}`;
   const [err, setErr] = useState('');
   if (!user) return null;
   const deja = data.events.find((x) => x.repriseDe === e.id);
@@ -229,7 +232,9 @@ export function RepriseModal({ event: e, date: dateDonnee, dateFin: finDonnee, c
             </label>
             <small className="muted">
               {placeAvant
-                ? `Les points recopiés de « ${nomLieu(placeAvant, data.sections)} » passent dans « ${sectionEvenements(data)?.nom ?? 'Événements'} › ${nom.trim() || '…'} »`
+                ? newsletter && estLaNewsletter(data, placeAvant)
+                  ? `Les points recopiés restent dans « ${nomLieu(placeAvant, data.sections)} »`
+                  : `Les points recopiés de « ${nomLieu(placeAvant, data.sections)} » passent dans « ${placeApres} »`
                 : 'Les points recopiés ne portent plus l’étiquette de l’édition passée'}
               {garderEtiquette ? ' et portent la nouvelle étiquette' : ''} ; ceux de l’édition passée gardent <BadgeEtiquette e={etiquette} />.
             </small>

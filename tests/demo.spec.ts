@@ -4052,3 +4052,104 @@ test('période officielle d’une série : du changement d’heure d’automne �
   await page.getByRole('dialog', { name: 'Reprendre la série « Programme hivernal 2026-27 »' }).getByRole('button', { name: /^Reprendre 5 événements/ }).click();
   await expect.poll(async () => (await lire()).seriesEvenements.find((s: { repriseDe?: string }) => s.repriseDe === 'se-hiver')).toMatchObject({ debut: '2027-10-31', fin: '2028-03-26' });
 });
+
+test('newsletter : un événement coché se range dans « Communication › Newsletter », avec son étiquette et ses points ; décoché, il en revient', async ({ page }) => {
+  await evenementEtiquete(page, 'Lettre de décembre', dansJours(20), ['Émilie Rossi']);
+  // Un point rangé dans sa sous-section (il porte son étiquette, sans être rattaché à l'événement).
+  const fiche = await nouvelleTache(page, 'Écrire l’édito');
+  await champSection(fiche).selectOption({ label: 'Événements' });
+  await champSousSection(fiche).selectOption('Lettre de décembre');
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // « Newsletter » cochée : l'étiquette, sa sous-section et son point passent dans « Communication › Newsletter ».
+  await allerA(page, '/evenements');
+  const carte = page.locator('article.agenda-item', { hasText: 'Lettre de décembre' });
+  await expect(carte).not.toContainText('Newsletter');
+  await carte.getByRole('button', { name: 'Modifier' }).click();
+  let ev = page.getByRole('dialog', { name: 'Événement' });
+  await expect(ev.locator('.case-etiquette')).toContainText('« Événements › Lettre de décembre »');
+  await ev.getByRole('checkbox', { name: 'Newsletter', exact: true }).check();
+  await expect(ev).toContainText('Ses points se rangent dans « Communication › Newsletter »');
+  await expect(ev.locator('.case-etiquette')).toContainText('« Communication › Newsletter »');
+  await ev.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(carte).toContainText('Newsletter · points dans « Communication › Newsletter »');
+  let d = await lireDonnees(page);
+  const et = d.etiquettes.find((e: { nom: string }) => e.nom === 'Lettre de décembre');
+  expect(d.events.find((e: { nom: string }) => e.nom === 'Lettre de décembre').newsletter).toBe(true);
+  expect(et.lieux).toEqual([{ sectionId: 'sec11', sousSection: 'Newsletter' }]);
+  expect(d.sections.find((s: { id: string }) => s.id === 'sec8').sousSections).not.toContain('Lettre de décembre');
+  const edito = () => d.tasks.find((t: { titre: string }) => t.titre === 'Écrire l’édito');
+  expect(edito()).toMatchObject({ sectionId: 'sec11', sousSection: 'Newsletter' });
+  expect(edito().etiquettes).toContain(et.id);
+
+  // Planifié depuis sa chronologie : rangé dans « Newsletter », rattaché à l'événement.
+  await carte.getByRole('button', { name: 'Chronologie' }).click();
+  const chrono = page.getByRole('dialog', { name: 'Chronologie · Lettre de décembre' });
+  await chrono.getByLabel('Point à planifier').fill('Choisir les photos');
+  await chrono.getByRole('button', { name: 'Ajouter…', exact: true }).click();
+  const nouveau = page.getByRole('dialog', { name: 'Nouveau point' });
+  await expect(champSection(nouveau)).toHaveValue('sec11');
+  await expect(champSousSection(nouveau)).toHaveValue('Newsletter');
+  await nouveau.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(nouveau).toHaveCount(0);
+  await chrono.getByRole('button', { name: 'Fermer' }).last().click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect.poll(async () => (await lireDonnees(page)).tasks.some((t: { titre: string }) => t.titre === 'Choisir les photos')).toBe(true);
+
+  // Décochée : une sous-section à son nom dans « Événements », où revient son point rattaché ; l'autre reste.
+  await carte.getByRole('button', { name: 'Modifier' }).click();
+  ev = page.getByRole('dialog', { name: 'Événement' });
+  await ev.getByRole('checkbox', { name: 'Newsletter', exact: true }).uncheck();
+  await expect(ev.locator('.case-etiquette')).toContainText('« Événements › Lettre de décembre » (créée d’office)');
+  await ev.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(carte).not.toContainText('Newsletter');
+  d = await lireDonnees(page);
+  expect(d.etiquettes.find((e: { id: string }) => e.id === et.id).lieux).toEqual([{ sectionId: 'sec8', sousSection: 'Lettre de décembre' }]);
+  expect(d.tasks.find((t: { titre: string }) => t.titre === 'Choisir les photos')).toMatchObject({ sectionId: 'sec8', sousSection: 'Lettre de décembre' });
+  expect(edito()).toMatchObject({ sectionId: 'sec11', sousSection: 'Newsletter' });
+});
+
+test('newsletter : une série cochée, son étiquette dans « Newsletter » ; ses événements le sont aussi, leurs points y sont rangés', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  await page.goto('./?demo#/evenements');
+  await page.getByRole('button', { name: 'Nouvelle série' }).click();
+  const fiche = page.getByRole('dialog', { name: 'Nouvelle série d’événements' });
+  await fiche.getByLabel('Nom de la série').fill('Lettres du club 2027');
+  await fiche.getByRole('checkbox', { name: 'Newsletter', exact: true }).check();
+  await fiche.getByRole('checkbox', { name: 'Étiquette de la série' }).check();
+  await expect(fiche.locator('.case-etiquette')).toContainText('« Communication › Newsletter »');
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const carte = page.locator('article.carte-serie', { hasText: 'Lettres du club 2027' });
+  await expect(carte).toContainText('Newsletter · points dans « Communication › Newsletter »');
+  const d = await lireDonnees(page);
+  const serie = d.seriesEvenements.find((s: { nom: string }) => s.nom === 'Lettres du club 2027');
+  expect(serie.newsletter).toBe(true);
+  expect(d.etiquettes.find((e: { serieId?: string }) => e.serieId === serie.id).lieux).toEqual([{ sectionId: 'sec11', sousSection: 'Newsletter' }]);
+  expect(d.sections.find((s: { id: string }) => s.id === 'sec8').sousSections).not.toContain('Lettres du club 2027');
+
+  // Un nouvel événement de la série : newsletter comme elle (case cochée, grisée).
+  await carte.getByRole('button', { name: 'Événement', exact: true }).click();
+  const ev = page.getByRole('dialog', { name: 'Nouvel événement' });
+  await ev.getByPlaceholder('Ajouter un titre').fill('Lettre de janvier');
+  await ev.getByLabel('Premier jour').fill('2027-01-05');
+  const caseNewsletter = ev.getByRole('checkbox', { name: 'Newsletter', exact: true });
+  await expect(caseNewsletter).toBeChecked();
+  await expect(caseNewsletter).toBeDisabled();
+  await expect(ev).toContainText('Comme toute la série « Lettres du club 2027 »');
+  await ev.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+
+  // Planifié depuis la chronologie de la série, pour cet événement : rangé dans « Newsletter ».
+  await carte.getByRole('button', { name: 'Chronologie' }).click();
+  const chrono = page.getByRole('dialog', { name: 'Chronologie · Lettres du club 2027' });
+  await chrono.getByLabel('Point à planifier').fill('Relire la lettre');
+  await expect(chrono.getByRole('combobox', { name: 'Pour quel événement' }).locator('option:checked')).toContainText('Lettre de janvier');
+  await chrono.getByRole('button', { name: 'Ajouter…', exact: true }).click();
+  const nouveau = page.getByRole('dialog', { name: 'Nouveau point' });
+  await expect(champSection(nouveau)).toHaveValue('sec11');
+  await expect(champSousSection(nouveau)).toHaveValue('Newsletter');
+});

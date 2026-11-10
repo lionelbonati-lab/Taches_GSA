@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import type { ClubEvent, Meeting, Task } from '../data/types';
 import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, newTask, offsetLabel, today } from '../data/utils';
 import { aLaDate, libelleRepetition } from '../data/repetition';
-import { etiquetteDeLEvenement, etiquettesRangees, lieuxDe, sectionEvenements } from '../data/etiquettes';
+import { etiquetteDeLEvenement, etiquettesRangees, placesPour } from '../data/etiquettes';
 import { motSeance, titreSelonDate, versProchaineSeance } from '../data/seances';
 import { nomAvecSerie } from '../data/seriesEvenements';
 import {
@@ -224,11 +224,10 @@ export function ChronologieClub() {
   const nouveauPoint = (c?: Carte, date?: string) => {
     if (!c) return setFiche({ task: newTask(user.id, date ? { delai: date } : versProchaineSeance(data.meetings)), isNew: true });
     if (c.k === 'seance') return setFiche({ task: newTask(user.id, { meetingId: c.m.id, delaiRef: { type: 'meeting', joursAvant: 0 }, delai: c.m.date }), isNew: true });
-    // Rangé à la place de son étiquette, ou dans la sous-section de l'événement, quand on peut y ranger le point.
+    // Rangé à la place de son étiquette, dans « Newsletter » pour une newsletter, ou dans la sous-section de l'événement,
+    // quand on peut y ranger le point.
     const et = c.k === 'etiquette' ? c.et : etiquetteDeLEvenement(data, c.e.id);
-    const s = sectionEvenements(data);
-    const places = [...(et ? lieuxDe(et, data.sections) : []), ...(c.k === 'evenement' && s?.sousSections.includes(c.e.nom) ? [{ sectionId: s.id, sousSection: c.e.nom }] : [])];
-    const ici = places.find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
+    const ici = placesPour(data, { et, ev: c.k === 'evenement' ? c.e : undefined }).find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
     const base = newTask(user.id, ici ? { sectionId: ici.sectionId, sousSection: ici.sousSection ?? '' } : {});
     setFiche({ task: c.k === 'evenement' ? versEvenement(data, base, c.e, c.occurrences) : versEtiquette(data, base, c.et), isNew: true });
   };
