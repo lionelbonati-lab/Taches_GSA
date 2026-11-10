@@ -3400,7 +3400,7 @@ test('séries d’événements : une carte par série, son prochain événement 
   // « Événement » : un nouvel événement, déjà dans la série.
   await automne.getByRole('button', { name: 'Événement', exact: true }).click();
   const fiche = page.getByRole('dialog', { name: 'Nouvel événement' });
-  await expect(fiche.getByLabel('Série d’événements').locator('option:checked')).toHaveText('Sorties d’automne');
+  await expect(fiche.getByRole('combobox', { name: 'Série d’événements', exact: true }).locator('option:checked')).toHaveText('Sorties d’automne');
   await fiche.getByPlaceholder('Ajouter un titre').fill('Marche aux flambeaux');
   await fiche.getByLabel('Premier jour').fill('2026-12-12');
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
@@ -3410,7 +3410,7 @@ test('séries d’événements : une carte par série, son prochain événement 
   // Un événement qui se répète quitte la série avec toutes ses dates, sans demander lesquelles.
   await hiver.getByRole('button', { name: 'Modifier « Sortie VTT »' }).click();
   const vtt = page.getByRole('dialog', { name: 'Événement' });
-  await vtt.getByLabel('Série d’événements').selectOption({ label: 'Aucune' });
+  await vtt.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Événement' });
   await vtt.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(hiver.locator('.serie-ev')).toHaveCount(4);
@@ -3418,7 +3418,8 @@ test('séries d’événements : une carte par série, son prochain événement 
   expect((await evenement('e-hiver-vtt')).dansSerie).toBeUndefined();
   // … et entre dans une nouvelle série, nommée depuis sa fiche.
   await page.locator('article.agenda-item', { hasText: 'Sortie VTT' }).getByRole('button', { name: 'Modifier' }).click();
-  await vtt.getByLabel('Série d’événements').selectOption({ label: 'Nouvelle série…' });
+  await vtt.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Série d’événements' });
+  await vtt.getByRole('combobox', { name: 'Série d’événements', exact: true }).selectOption({ label: 'Nouvelle série…' });
   await vtt.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(vtt.locator('.error')).toHaveText('Donne un nom à la nouvelle série.');
   await vtt.getByLabel('Nom de la nouvelle série').fill('VTT d’hiver');
@@ -3503,7 +3504,8 @@ test('étiquette d’une série : une étiquette déjà là reprise (ses membres
   await page.reload();
   await page.locator('article.agenda-item', { hasText: 'Soirée récréative' }).getByRole('button', { name: 'Modifier' }).click();
   const soiree = page.getByRole('dialog', { name: 'Événement' });
-  await soiree.getByLabel('Série d’événements').selectOption({ label: 'Championnat interne 2027' });
+  await soiree.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Série d’événements' });
+  await soiree.getByRole('combobox', { name: 'Série d’événements', exact: true }).selectOption({ label: 'Championnat interne 2027' });
   await soiree.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(async () => (await donnees()).tasks.find((t: { id: string }) => t.id === 't-podium').etiquettes).toContain('et-champ');
@@ -3758,10 +3760,12 @@ test('chronologie du club : séances et événements avec leurs points, glisser-
   await page.getByRole('button', { name: 'Période suivante' }).click();
   await expect(page.locator('.cc-periode')).toHaveText('Depuis l’AG du 13.03.2027');
 
-  // Case décochée dans la fiche de l'événement : plus d'AG ; « Cocher » la remet.
+  // Type « Événement » dans la fiche de l'événement : plus d'AG (le titre reste) ; « Cocher » la remet.
   await carte('Assemblée générale 2027').locator('.cc-el-titre').click();
   const fiche = page.getByRole('dialog', { name: 'Événement' });
-  await fiche.getByLabel('Assemblée générale').uncheck();
+  await expect(fiche.getByRole('combobox', { name: 'Type', exact: true })).toHaveValue('ag');
+  await fiche.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Événement' });
+  await expect(fiche.getByPlaceholder('Ajouter un titre')).toHaveValue('Assemblée générale 2027');
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.cc-sans-ag')).toContainText('Aucune assemblée générale');
   await page.getByRole('button', { name: 'Cocher « Assemblée générale 2027 » (13.03.2027)' }).click();
@@ -4053,7 +4057,7 @@ test('période officielle d’une série : du changement d’heure d’automne �
   await expect.poll(async () => (await lire()).seriesEvenements.find((s: { repriseDe?: string }) => s.repriseDe === 'se-hiver')).toMatchObject({ debut: '2027-10-31', fin: '2028-03-26' });
 });
 
-test('newsletter : un événement coché se range dans « Communication › Newsletter », avec son étiquette et ses points ; décoché, il en revient', async ({ page }) => {
+test('newsletter : un événement de type « Newsletter » se range dans « Communication › Newsletter », avec son étiquette et ses points ; redevenu « Événement », il en revient', async ({ page }) => {
   await evenementEtiquete(page, 'Lettre de décembre', dansJours(20), ['Émilie Rossi']);
   // Un point rangé dans sa sous-section (il porte son étiquette, sans être rattaché à l'événement).
   const fiche = await nouvelleTache(page, 'Écrire l’édito');
@@ -4062,14 +4066,15 @@ test('newsletter : un événement coché se range dans « Communication › News
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
-  // « Newsletter » cochée : l'étiquette, sa sous-section et son point passent dans « Communication › Newsletter ».
+  // Type « Newsletter » : l'étiquette, sa sous-section et son point passent dans « Communication › Newsletter ».
   await allerA(page, '/evenements');
   const carte = page.locator('article.agenda-item', { hasText: 'Lettre de décembre' });
   await expect(carte).not.toContainText('Newsletter');
   await carte.getByRole('button', { name: 'Modifier' }).click();
   let ev = page.getByRole('dialog', { name: 'Événement' });
   await expect(ev.locator('.case-etiquette')).toContainText('« Événements › Lettre de décembre »');
-  await ev.getByRole('checkbox', { name: 'Newsletter', exact: true }).check();
+  await ev.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Newsletter' });
+  await expect(ev.getByRole('textbox', { name: 'Newsletter', exact: true })).toHaveValue('Lettre de décembre');
   await expect(ev).toContainText('Ses points se rangent dans « Communication › Newsletter »');
   await expect(ev.locator('.case-etiquette')).toContainText('« Communication › Newsletter »');
   await ev.getByRole('button', { name: 'Enregistrer' }).click();
@@ -4098,10 +4103,10 @@ test('newsletter : un événement coché se range dans « Communication › News
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(async () => (await lireDonnees(page)).tasks.some((t: { titre: string }) => t.titre === 'Choisir les photos')).toBe(true);
 
-  // Décochée : une sous-section à son nom dans « Événements », où revient son point rattaché ; l'autre reste.
+  // De nouveau « Événement » : une sous-section à son nom dans « Événements », où revient son point rattaché ; l'autre reste.
   await carte.getByRole('button', { name: 'Modifier' }).click();
   ev = page.getByRole('dialog', { name: 'Événement' });
-  await ev.getByRole('checkbox', { name: 'Newsletter', exact: true }).uncheck();
+  await ev.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Événement' });
   await expect(ev.locator('.case-etiquette')).toContainText('« Événements › Lettre de décembre » (créée d’office)');
   await ev.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
@@ -4112,13 +4117,13 @@ test('newsletter : un événement coché se range dans « Communication › News
   expect(edito()).toMatchObject({ sectionId: 'sec11', sousSection: 'Newsletter' });
 });
 
-test('newsletter : une série cochée, son étiquette dans « Newsletter » ; ses événements le sont aussi, leurs points y sont rangés', async ({ page }) => {
+test('newsletter : une série de newsletters, son étiquette dans « Newsletter » ; ses événements le sont aussi, leurs points y sont rangés', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
   await page.goto('./?demo#/evenements');
   await page.getByRole('button', { name: 'Nouvelle série' }).click();
   const fiche = page.getByRole('dialog', { name: 'Nouvelle série d’événements' });
   await fiche.getByLabel('Nom de la série').fill('Lettres du club 2027');
-  await fiche.getByRole('checkbox', { name: 'Newsletter', exact: true }).check();
+  await fiche.getByRole('combobox', { name: 'Type', exact: true }).selectOption({ label: 'Série de newsletters' });
   await fiche.getByRole('checkbox', { name: 'Étiquette de la série' }).check();
   await expect(fiche.locator('.case-etiquette')).toContainText('« Communication › Newsletter »');
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
@@ -4131,15 +4136,14 @@ test('newsletter : une série cochée, son étiquette dans « Newsletter » ; se
   expect(d.etiquettes.find((e: { serieId?: string }) => e.serieId === serie.id).lieux).toEqual([{ sectionId: 'sec11', sousSection: 'Newsletter' }]);
   expect(d.sections.find((s: { id: string }) => s.id === 'sec8').sousSections).not.toContain('Lettres du club 2027');
 
-  // Un nouvel événement de la série : newsletter comme elle (case cochée, grisée).
+  // Un nouvel événement de la série : type « Série d'événements », la série choisie ; newsletter comme elle.
   await carte.getByRole('button', { name: 'Événement', exact: true }).click();
   const ev = page.getByRole('dialog', { name: 'Nouvel événement' });
+  await expect(ev.getByRole('combobox', { name: 'Type', exact: true })).toHaveValue('serie');
+  await expect(ev.getByRole('combobox', { name: 'Série d’événements', exact: true }).locator('option:checked')).toHaveText('Lettres du club 2027 (newsletters)');
+  await expect(ev).toContainText('Ses points se rangent dans « Communication › Newsletter »');
   await ev.getByPlaceholder('Ajouter un titre').fill('Lettre de janvier');
   await ev.getByLabel('Premier jour').fill('2027-01-05');
-  const caseNewsletter = ev.getByRole('checkbox', { name: 'Newsletter', exact: true });
-  await expect(caseNewsletter).toBeChecked();
-  await expect(caseNewsletter).toBeDisabled();
-  await expect(ev).toContainText('Comme toute la série « Lettres du club 2027 »');
   await ev.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
@@ -4152,4 +4156,51 @@ test('newsletter : une série cochée, son étiquette dans « Newsletter » ; se
   const nouveau = page.getByRole('dialog', { name: 'Nouveau point' });
   await expect(champSection(nouveau)).toHaveValue('sec11');
   await expect(champSousSection(nouveau)).toHaveValue('Newsletter');
+});
+
+test('fiche d’un événement : la liste « Type » adapte la fiche (titre proposé, date d’envoi d’une newsletter, choix de la série)', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  await page.goto('./?demo#/evenements');
+  await page.getByRole('button', { name: '+ Nouvel événement' }).click();
+  const f = page.getByRole('dialog', { name: 'Nouvel événement' });
+  const type = f.getByRole('combobox', { name: 'Type', exact: true });
+  await expect(type).toHaveValue('evenement');
+  expect((await type.locator('option').allTextContents()).map((x) => x.trim())).toEqual(['Événement', 'Assemblée générale', 'Newsletter', 'Série d’événements']);
+  await expect(f.getByLabel('Lieu')).toBeVisible();
+  await expect(f.getByRole('combobox', { name: 'Série d’événements', exact: true })).toHaveCount(0);
+
+  // Assemblée générale : son titre proposé, l'aide de la chronologie du club.
+  await type.selectOption({ label: 'Assemblée générale' });
+  await expect(f.getByRole('textbox', { name: 'Assemblée générale', exact: true })).toHaveValue('Assemblée générale 2026');
+  await expect(f).toContainText('d’une assemblée générale à l’autre');
+
+  // Newsletter : titre proposé d'après la date d'envoi (il la suit), ni heure, ni lieu, ni dernier jour.
+  await type.selectOption({ label: 'Newsletter' });
+  const titre = f.getByRole('textbox', { name: 'Newsletter', exact: true });
+  await expect(titre).toHaveValue('Newsletter de novembre 2026');
+  await expect(f.getByLabel('Lieu')).toHaveCount(0);
+  await expect(f.getByLabel('Toute la journée')).toHaveCount(0);
+  await expect(f.getByLabel('Dernier jour')).toHaveCount(0);
+  await f.getByLabel('Date d’envoi').fill('2027-04-01');
+  await expect(titre).toHaveValue('Newsletter d’avril 2027');
+  await expect(f).toContainText('Ses points se rangent dans « Communication › Newsletter »');
+
+  // Série d'événements : pas de titre proposé (celui de la newsletter s'efface) ; la série à choisir (sinon, refusé).
+  await type.selectOption({ label: 'Série d’événements' });
+  await expect(f.getByPlaceholder('Ajouter un titre')).toHaveValue('');
+  await expect(f.getByRole('combobox', { name: 'Série d’événements', exact: true }).locator('option:checked')).toHaveText('— Choisir —');
+  await f.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(f.locator('.error')).toHaveText('Choisis la série d’événements, ou « Nouvelle série… ».');
+
+  // Retour à « Newsletter », chaque mois : enregistrée sans heure ni lieu, sans AG ni série.
+  await type.selectOption({ label: 'Newsletter' });
+  await f.getByLabel('Répétition').selectOption('mois');
+  await f.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  const ev = (await lireDonnees(page)).events.find((e: { nom: string }) => e.nom === 'Newsletter d’avril 2027');
+  expect(ev).toMatchObject({ date: '2027-04-01', lieu: '', newsletter: true, repetition: { freq: 'mois' } });
+  expect(ev.ag).toBeUndefined();
+  expect(ev.dansSerie).toBeUndefined();
+  expect(ev.heure).toBeUndefined();
+  await expect(page.locator('article.agenda-item', { hasText: 'Newsletter d’avril 2027' })).toContainText('Newsletter · points dans « Communication › Newsletter »');
 });

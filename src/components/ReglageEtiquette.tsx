@@ -216,7 +216,7 @@ const libelleReprise = (data: AppData, e: Etiquette) => `Reprendre « ${e.nom} �
  * Case « Étiquette » d'une série d'événements (fiche de la série) : cochée, on choisit ses membres. Sans étiquette
  * reliée, on peut reprendre une étiquette déjà là (proposée d'office si elle a le même nom que la série) : une ancienne à
  * relier, celle d'un événement ou d'une autre série ; elle garde ses membres, sa couleur, son icône et ses points. Une
- * série newsletter : sa place est la sous-section « Newsletter ».
+ * série de newsletters : sa place est la sous-section « Newsletter ».
  */
 export function CaseEtiquetteSerie({ serie, valeur, onChange, disabled }: {
   serie: Pick<SerieEvenements, 'id' | 'nom' | 'newsletter'>;
@@ -237,7 +237,7 @@ export function CaseEtiquetteSerie({ serie, valeur, onChange, disabled }: {
     onChange({ membres: e?.membres ?? valeur?.membres ?? [], reprise: e?.id });
   };
   const choisie = valeur?.reprise ? candidates.find((x) => x.id === valeur.reprise) : undefined;
-  // Sa place : « Newsletter » pour une série newsletter ; sinon la sienne dans « Événements » (pas « Newsletter », qu'elle
+  // Sa place : « Newsletter » pour une série de newsletters ; sinon la sienne dans « Événements » (pas « Newsletter », qu'elle
   // quitte si on décoche).
   const lieu = (deja ?? choisie) && lieuxDe((deja ?? choisie)!, data.sections).find((l) => l.sousSection && !estLaNewsletter(data, l));
   const place = serie.newsletter

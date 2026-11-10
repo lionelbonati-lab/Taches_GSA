@@ -431,7 +431,7 @@ export function ChronologieClub() {
   // Vue AG sans assemblée cochée : celles qui en ont l'air, à cocher en un clic.
   const AG_NOM = /assembl[ée]e\s+g[ée]n[ée]rale|\bAG\b/i;
   const pistes = [
-    ...(gereEvenements ? data.events.filter((e) => !e.serie && AG_NOM.test(e.nom)).map((e) => ({ id: e.id, nom: e.nom, date: e.date, cocher: () => saveEvent({ ...e, ag: true }) })) : []),
+    ...(gereEvenements ? data.events.filter((e) => !e.serie && !e.dansSerie && !e.newsletter && AG_NOM.test(e.nom)).map((e) => ({ id: e.id, nom: e.nom, date: e.date, cocher: () => saveEvent({ ...e, ag: true }) })) : []),
     ...(gereSeances ? data.meetings.filter((m) => AG_NOM.test(m.titre)).map((m) => ({ id: m.id, nom: m.titre, date: m.date, cocher: () => saveMeeting({ ...m, ag: true }) })) : []),
   ];
 

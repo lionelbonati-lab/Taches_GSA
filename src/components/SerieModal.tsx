@@ -14,8 +14,8 @@ import { CaseEtiquetteSerie } from './ReglageEtiquette';
  * Fiche d'une série d'événements (seriesEvenements.ts) : son nom, sa description, son étiquette (nouvelle, ou une déjà
  * là : ses membres voient les points de toute la série) et ses événements, cochés parmi ceux de l'agenda (à venir ; les
  * passés repliés à part). Un événement coché qui était dans une autre série passe dans celle-ci. Supprimer la série : ses
- * événements restent dans l'agenda, avec leurs points, sans série. « Newsletter » : la série et ses événements ont leur
- * place dans la sous-section « Newsletter » (etiquettes.ts).
+ * événements restent dans l'agenda, avec leurs points, sans série. « Type » : une série d'événements, ou une série de
+ * newsletters (la série et ses événements ont leur place dans la sous-section « Newsletter », etiquettes.ts).
  */
 export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose: () => void }) {
   const { data, update } = useStore();
@@ -111,6 +111,18 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
       </p>
       <div className="form">
         <label className="full">
+          Type
+          <select value={newsletter ? 'newsletter' : 'evenements'} onChange={(e) => setNewsletter(e.target.value === 'newsletter')}>
+            <option value="evenements">Série d’événements</option>
+            <option value="newsletter">Série de newsletters</option>
+          </select>
+        </label>
+        {newsletter && (
+          <p className="muted full serie-note">
+            Ses événements sont des newsletters : leurs points se rangent dans « {nomPlaceNewsletter(data)} » (leurs étiquettes et celle de la série aussi), pas dans des sous-sections à leur nom dans « Événements ».
+          </p>
+        )}
+        <label className="full">
           Nom de la série
           <input value={nom} maxLength={120} autoFocus={isNew} onChange={(e) => setNom(e.target.value)} placeholder="Programme hivernal 2026-27, Championnat interne 2027…" />
         </label>
@@ -139,12 +151,6 @@ export function SerieModal({ serie, onClose }: { serie: SerieEvenements; onClose
             Sans : du premier au dernier jour de ses événements{premierJour ? ` (dès le ${fmtDate(premierJour)})` : ''}. Un événement peut commencer avant ou finir après (la natation dès septembre) : la carte le dit.
           </small>
         </fieldset>
-        <label className="inline full">
-          <input type="checkbox" checked={newsletter} onChange={(e) => setNewsletter(e.target.checked)} /> <Icone n="newsletter" /> Newsletter
-        </label>
-        <p className="muted full serie-note">
-          Ses événements sont des newsletters : leurs points se rangent dans « {nomPlaceNewsletter(data)} » (leurs étiquettes et celle de la série aussi), pas dans des sous-sections à leur nom dans « Événements ».
-        </p>
         <CaseEtiquetteSerie serie={{ id: serie.id, nom, newsletter }} valeur={etiquette} onChange={choixEtiquette} />
       </div>
       <section className="serie-ev-choix" aria-label="Événements de la série">

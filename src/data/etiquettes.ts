@@ -21,12 +21,12 @@ import { occurrenceDu } from './repetition';
 // L'édition suivante (« Reprendre », Reprise.tsx) a sa propre étiquette, avec les mêmes membres : les points recopiés
 // passent dans sa sous-section et ne portent plus celle de l'édition passée.
 //
-// Newsletter (case « Newsletter » d'un événement ou d'une série ; estNewsletter) : sa place n'est pas une sous-section à
-// son nom dans « Événements », mais la sous-section « Newsletter » (Communication › Newsletter, créée au besoin) : celle
-// de son étiquette, et celle où l'on range ses nouveaux points (placesPour). Cochée après coup : sa sous-section dans
-// « Événements » y passe, avec ses points, et disparaît ; décochée : il retrouve une sous-section à son nom, où
-// reviennent ses points rattachés. Les newsletters avec étiquette partagent la sous-section : leurs membres en voient
-// tous les points.
+// Newsletter (type « Newsletter » d'un événement, « Série de newsletters » d'une série ; estNewsletter) : sa place n'est
+// pas une sous-section à son nom dans « Événements », mais la sous-section « Newsletter » (Communication › Newsletter,
+// créée au besoin) : celle de son étiquette, et celle où l'on range ses nouveaux points (placesPour). Devenu newsletter
+// après coup : sa sous-section dans « Événements » y passe, avec ses points, et disparaît ; redevenu événement : il
+// retrouve une sous-section à son nom, où reviennent ses points rattachés. Les newsletters avec étiquette partagent la
+// sous-section : leurs membres en voient tous les points.
 
 type Donnees = Pick<AppData, 'etiquettes' | 'sections'> & Partial<Pick<AppData, 'events'>>;
 
@@ -255,8 +255,8 @@ export const estLaNewsletter = (d: Pick<AppData, 'sections'>, l?: LieuEtiquette)
 };
 
 /**
- * L'événement est une newsletter : sa case « Newsletter » (une date modifiée seule : celle de son événement) ou celle de
- * sa série.
+ * L'événement est une newsletter : son type « Newsletter » (une date modifiée seule : celui de son événement), ou sa
+ * série est une série de newsletters.
  */
 export function estNewsletter(d: Partial<Pick<AppData, 'events' | 'seriesEvenements'>>, ev: Pick<ClubEvent, 'newsletter' | 'dansSerie' | 'serie'>): boolean {
   const x = (ev.serie && d.events?.find((y) => y.id === ev.serie!.id)) || ev;
@@ -506,7 +506,7 @@ function sousSectionSerie(d: AppData, sectionId: string, nom: string, sauf?: str
  * l'étiquette prend le nom de la série, sans date, et sa sous-section dans « Événements » (créée au besoin ; celle d'une
  * étiquette reprise est gardée, renommée comme la série si elle portait son nom) ; ses points la reçoivent : ceux de sa
  * sous-section et ceux rattachés aux événements de la série. `null` : la série n'a plus d'étiquette (retirée des points).
- * Une série newsletter : sa place est la sous-section « Newsletter » (versLaNewsletter).
+ * Une série de newsletters : sa place est la sous-section « Newsletter » (versLaNewsletter).
  */
 export function reglerEtiquetteSerie(d: AppData, s: Pick<SerieEvenements, 'id' | 'nom'>, choix: ChoixEtiquette) {
   const deja = etiquetteDeLaSerie(d, s.id);
@@ -557,8 +557,8 @@ function placeSerieDansEvenements(d: AppData, s: Pick<SerieEvenements, 'id' | 'n
 /**
  * Saison suivante d'une série reprise (« Reprendre la série », repriseSerie.ts), dans la modification qui l'ajoute avec
  * les copies des points (`copies`). Si la série avait son étiquette : les copies quittent sa sous-section pour celle de
- * la nouvelle série (une série newsletter : « Newsletter ») et ne la portent plus ; `garder` : la nouvelle série a la sienne, avec les mêmes membres, la même
- * couleur et la même icône. Les points de la saison passée gardent la leur.
+ * la nouvelle série (une série de newsletters : « Newsletter ») et ne la portent plus ; `garder` : la nouvelle série a la
+ * sienne, avec les mêmes membres, la même couleur et la même icône. Les points de la saison passée gardent la leur.
  */
 export function suiteEtiquetteSerie(d: AppData, ancienne: Pick<SerieEvenements, 'id'>, suite: Pick<SerieEvenements, 'id' | 'nom'>, copies: string[], garder: boolean) {
   const avant = etiquetteDeLaSerie(d, ancienne.id);

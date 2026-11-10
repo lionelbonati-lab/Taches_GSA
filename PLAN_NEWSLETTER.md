@@ -1,7 +1,7 @@
-# Newsletter du mois : essayée puis retirée (04.11.2026), case « Newsletter » (10.11.2026)
+# Newsletter du mois : essayée puis retirée (04.11.2026), type « Newsletter » (10.11.2026)
 
-> **10.11.2026** : une **case « Newsletter »** dans la fiche d'un événement et dans celle d'une série d'événements dit
-> qu'il s'agit d'une newsletter. Rien d'autre ne change dans l'agenda : sa place est simplement la sous-section
+> **10.11.2026** : le **type « Newsletter »** (liste « Type » de la fiche d'un événement ; « Série de newsletters » pour
+> une série d'événements) dit qu'il s'agit d'une newsletter. Rien d'autre ne change dans l'agenda : sa place est simplement la sous-section
 > « Communication › Newsletter » au lieu d'une sous-section à son nom dans « Événements » (son étiquette, ses nouveaux
 > points ; README, Agenda › Événements › Newsletter).
 

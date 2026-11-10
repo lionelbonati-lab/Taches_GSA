@@ -940,7 +940,7 @@ function BoutonRecopier({ vers, onClick }: { vers: string; onClick: () => void }
   );
 }
 
-/** Une newsletter (case « Newsletter ») : ses points sont rangés dans « Communication › Newsletter ». */
+/** Une newsletter (type « Newsletter », ou d'une série de newsletters) : ses points sont rangés dans « Communication › Newsletter ». */
 function ReperNewsletter() {
   const { data } = useStore();
   const place = nomPlaceNewsletter(data);
