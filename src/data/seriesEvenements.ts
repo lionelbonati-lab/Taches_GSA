@@ -165,6 +165,8 @@ export function supprimerSerie(d: AppData, id: string) {
   d.events.forEach((e) => {
     if (e.dansSerie === id) delete e.dansSerie;
   });
+  // Son étiquette n'est plus celle d'une série : à relier (la synchronisation ne délie pas une série seulement absente).
+  d.etiquettes = d.etiquettes?.map((e) => (e.serieId === id ? { ...e, serieId: undefined } : e));
 }
 
 /** Filtre « Événement » de la liste des points : une série (« serie:<id> »), sinon un événement. */

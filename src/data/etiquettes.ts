@@ -687,10 +687,11 @@ export function synchroniserEtiquettes(d: AppData) {
       if (!s) placer(d, { ...e, sectionId: undefined, lieux: [] });
       else if (e.nom !== s.nom) placer(d, { ...e, nom: s.nom });
     } else if (e.serieId) {
-      // Série supprimée : l'étiquette reste, à relier (ses points la gardent) ; renommée : son nom et sa sous-section suivent.
+      // Renommée : son nom et sa sous-section suivent. Absente : rien (supprimée exprès, « Supprimer la série » a déjà délié
+      // l'étiquette, supprimerSerie ; sinon, pas encore reçue : on ne délie pas sur une absence passagère).
       const s = d.seriesEvenements?.find((x) => x.id === e.serieId);
-      if (!s) placer(d, { ...e, serieId: undefined });
-      else if (e.nom !== s.nom || !!s.newsletter !== dansNewsletter(e)) reglerEtiquetteSerie(d, s, { membres: e.membres ?? [] });
+      if (!s) continue;
+      if (e.nom !== s.nom || !!s.newsletter !== dansNewsletter(e)) reglerEtiquetteSerie(d, s, { membres: e.membres ?? [] });
     }
   }
 }

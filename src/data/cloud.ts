@@ -6,7 +6,7 @@ import { isImage } from './logo';
 import { isCouleur } from './couleur';
 import type { OptionsAbonnement } from './agendaIcs';
 import type { HistoriqueTache } from './historique';
-import type { ErreurAppli, RapportErreur } from './rapportErreurs';
+import { noterErreur, type ErreurAppli, type RapportErreur } from './rapportErreurs';
 import { fichiersDe, type EntiteSauvegardee, type SauvegardeClub } from './backup';
 import { lireFichierDe } from './files';
 
@@ -58,6 +58,12 @@ const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetin
 const MAP_KINDS = ['prefs', 'notifLues', 'discussionsLues', 'discussions'] as const;
 /** Écrites par le serveur seulement (062) : jamais envoyées par l'appli (ni effacées, ni réécrites). */
 const SERVEUR_SEUL = new Set<string>(['discussions']);
+/**
+ * Listes qui ne disparaissent jamais d'un coup : si toutes leurs fiches (deux ou plus) manquent à la fois dans les données
+ * d'un appareil, rien n'est effacé sur le serveur et l'incident est signalé (10.11.2026 : les trois séries d'événements
+ * effacées par un appareil à l'ouverture de l'appli).
+ */
+const PROTEGEES = new Set<string>(['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'etiquettes', 'seriesEvenements']);
 /** Listes dont l'ordre est choisi par l'utilisateur (sinon l'ordre d'ajout est conservé). */
 const ORDERED = new Set<string>(['people', 'statuses', 'sections', 'roles', 'etiquettes']);
 
@@ -275,10 +281,24 @@ export class CloudSync {
         if (!prev || prev.json !== e.json || prev.pos !== pos) out.push({ kind: e.kind, id: e.id, pos, data: e.data });
       });
     }
+    // Garde-fou : une liste protégée vidée d'un coup n'est pas effacée sur le serveur (ses fiches restent « connues » et
+    // ne sont pas renvoyées) ; l'incident est signalé aux admins (rapport d'erreurs).
+    const compter = (keys: Iterable<string>) => {
+      const n = new Map<string, number>();
+      for (const key of keys) {
+        const kind = key.slice(0, key.indexOf('|'));
+        n.set(kind, (n.get(kind) ?? 0) + 1);
+      }
+      return n;
+    };
+    const connus = compter(this.known.keys());
+    const presents = compter(present);
+    const retenues = new Set([...PROTEGEES].filter((k) => (connus.get(k) ?? 0) >= 2 && !presents.get(k)));
+    if (retenues.size) noterErreur(new Error(`Liste vidée d'un coup, effacement retenu : ${[...retenues].join(', ')}`), 'script');
     for (const [key, k] of this.known)
       if (!present.has(key)) {
         const [kind, ...id] = key.split('|');
-        if (SERVEUR_SEUL.has(kind)) continue;
+        if (SERVEUR_SEUL.has(kind) || retenues.has(kind)) continue;
         // Sorte de ligne que cette version ne connaît pas (ajoutée par une version plus récente) : jamais effacée, elle
         // n'a simplement pas de place dans ses données (03.11.2026 : une appli d'avant les étiquettes les a toutes effacées).
         if (kind !== 'meta' && !(ARRAY_KINDS as readonly string[]).includes(kind) && !(MAP_KINDS as readonly string[]).includes(kind)) continue;
