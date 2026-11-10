@@ -4,7 +4,8 @@ import { useStore } from '../data/store';
 import type { ClubEvent, Meeting, Task } from '../data/types';
 import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, newTask, offsetLabel, today } from '../data/utils';
 import { aLaDate, libelleRepetition } from '../data/repetition';
-import { etiquetteDeLEvenement, etiquettesRangees, placesPour } from '../data/etiquettes';
+import { etiquetteDeLaSerie, etiquetteDeLEvenement, etiquettesRangees, placesPour } from '../data/etiquettes';
+import { isCouleur, teintes } from '../data/couleur';
 import { motSeance, titreSelonDate, versProchaineSeance } from '../data/seances';
 import { nomAvecSerie } from '../data/seriesEvenements';
 import {
@@ -59,6 +60,15 @@ const lireOuvertes = (): Set<string> => {
     return new Set();
   }
 };
+
+/** Teintes d'une couleur d'étiquette, lisibles sur fond clair et sur fond sombre (calculées une fois par couleur). */
+const teintesVues = new Map<string, ReturnType<typeof teintes>>();
+function styleCouleur(couleur?: string): React.CSSProperties | undefined {
+  if (!isCouleur(couleur)) return undefined;
+  const t = teintesVues.get(couleur) ?? teintes(couleur);
+  teintesVues.set(couleur, t);
+  return { '--c-clair': t.clair, '--c-sombre': t.sombre } as React.CSSProperties;
+}
 
 export function ChronologieClub() {
   const { data, user, can, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
@@ -251,7 +261,7 @@ export function ChronologieClub() {
    * quelle séance ou quel événement il est (sa date si elle est hors de la période). Sous sa séance / son événement (`sous` :
    * leur jour) : sa date seulement si ce n'est pas la même.
    */
-  const ligne = (t: Task, o: { depuis?: string; de?: { nom: string; date: string }; sous?: string } = {}) => {
+  const ligne = (t: Task, o: { depuis?: string; de?: { cle: string; nom: string; date: string }; sous?: string } = {}) => {
     const g: Glisse = { k: 'point', t, depuis: o.depuis };
     const bouge = canEditTask(t);
     const seul = !o.sous;
@@ -274,13 +284,31 @@ export function ChronologieClub() {
         <button type="button" className="cc-point-titre" onClick={() => setFiche({ task: t, isNew: false })} title={t.delaiRef ? `Ouvrir le point · délai ${offsetLabel(t.delaiRef).toLowerCase()}` : 'Ouvrir le point'}>
           {t.titre || '(sans titre)'}
         </button>
-        {o.de && <span className="cc-de">· {o.de.nom}{deHors ? ` (${dateCourte(o.de.date, '')})` : ''}</span>}
+        {o.de && (
+          <span className={`cc-de ${couleurDe(o.de.cle) ? 'couleur' : ''}`} style={styleCouleur(couleurDe(o.de.cle))}>
+            · {o.de.nom}{deHors ? ` (${dateCourte(o.de.date, '')})` : ''}
+          </span>
+        )}
       </li>
     );
   };
 
+  /**
+   * Couleur d'un événement (clé de sa carte « e:… »), d'une étiquette datée (« et:… ») ou d'une série (« se:… ») : celle de
+   * son étiquette ; un événement sans la sienne : celle de sa série. Une séance : aucune.
+   */
+  const couleurDe = (cle: string): string | undefined => {
+    const id = cle.slice(cle.indexOf(':') + 1);
+    if (cle.startsWith('et:')) return data.etiquettes?.find((x) => x.id === id)?.couleur;
+    if (cle.startsWith('se:')) return etiquetteDeLaSerie(data, id)?.couleur;
+    if (!cle.startsWith('e:')) return undefined;
+    const e = data.events.find((x) => x.id === id);
+    return etiquetteDeLEvenement(data, e?.serie?.id ?? id)?.couleur ?? (e?.dansSerie ? etiquetteDeLaSerie(data, e.dansSerie)?.couleur : undefined);
+  };
+
   /** Une séance ou un événement : son titre ; « + » montre ses points, « − » les cache. */
   const carte = (c: Carte) => {
+    const couleur = couleurDe(c.cle);
     const g: Glisse | undefined = c.k === 'seance' ? { k: 'seance', m: c.m } : c.k === 'evenement' && !c.e.repetition ? { k: 'evenement', e: c.e } : undefined;
     const bouge = !!g && (g.k === 'seance' ? gereSeances : gereEvenements);
     const fin = c.k === 'seance' ? c.date : c.fin;
@@ -293,7 +321,8 @@ export function ChronologieClub() {
     return (
       <div
         key={c.cle}
-        className={`cc-el k-${c.k} ${estAg(c) ? 'ag' : ''} ${fin < jour ? 'passee' : ''} ${ouverte ? 'ouverte' : ''} ${survol === c.cle ? 'survol' : ''} ${glisse && g && glisse.k === g.k && (glisse.k === 'seance' ? glisse.m.id === c.cle.slice(2) : glisse.k === 'evenement' && glisse.e.id === c.cle.slice(2)) ? 'glisse' : ''}`}
+        style={styleCouleur(couleur)}
+        className={`cc-el k-${c.k} ${couleur ? 'couleur' : ''} ${estAg(c) ? 'ag' : ''} ${fin < jour ? 'passee' : ''} ${ouverte ? 'ouverte' : ''} ${survol === c.cle ? 'survol' : ''} ${glisse && g && glisse.k === g.k && (glisse.k === 'seance' ? glisse.m.id === c.cle.slice(2) : glisse.k === 'evenement' && glisse.e.id === c.cle.slice(2)) ? 'glisse' : ''}`}
         draggable={bouge}
         onDragStart={bouge && g ? debut(g) : undefined}
         onDragEnd={finGlisse}
@@ -349,8 +378,9 @@ export function ChronologieClub() {
     const n = x.cartes.length;
     const quoi = [n && `${n > 1 ? `ses ${n} événements` : 'son événement'}`, x.points.length && `${x.points.length > 1 ? `ses ${x.points.length} points` : 'son point'}`].filter(Boolean).join(' et ');
     const passee = x.cartes.length > 0 && x.cartes.every((c) => c.k !== 'seance' && c.fin < jour);
+    const couleur = couleurDe(x.cle);
     return (
-      <div key={x.cle} className={`cc-el k-serie ${passee ? 'passee' : ''} ${ouverte ? 'ouverte' : ''}`}>
+      <div key={x.cle} className={`cc-el k-serie ${couleur ? 'couleur' : ''} ${passee ? 'passee' : ''} ${ouverte ? 'ouverte' : ''}`} style={styleCouleur(couleur)}>
         <div className="cc-el-ligne">
           <button type="button" className="cc-el-titre" onClick={() => navigate(`/evenements?id=${encodeURIComponent(x.s.id)}`)} title="Série d’événements : l’ouvrir dans Agenda › Événements">
             {x.s.nom}

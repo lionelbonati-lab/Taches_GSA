@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
-import type { Page } from '@playwright/test';
+import type { Locator, Page } from '@playwright/test';
 import { allerA, compter, deplier, evenementEtiquete, expect, groupe, nouvelleTache, ouvrirDemo, test, verifierUnSeulEspace } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
@@ -4223,6 +4223,21 @@ test('fiche d’un événement : le type « Série d’événements » ouvre la 
   await expect(page.locator('article.carte-serie', { hasText: 'Fêtes de fin d’année' }).locator('.serie-ev')).toHaveCount(1);
 });
 
+/**
+ * Glisse `source` sur `cible` (ou au point `ici` : une bande sans hauteur) comme une main : par petits pas, puis un dernier
+ * petit mouvement avant de lâcher (le navigateur traite alors le survol de la cible ; d'un seul geste, il peut l'ignorer).
+ */
+async function glisser(page: Page, source: Locator, cible: Locator | { x: number; y: number }) {
+  await source.hover();
+  await page.mouse.down();
+  const ici = 'x' in cible ? cible : await (async () => {
+    const b = (await cible.boundingBox())!;
+    return { x: b.x + b.width / 2, y: b.y + Math.min(b.height / 2, 12) };
+  })();
+  await page.mouse.move(ici.x, ici.y, { steps: 8 });
+  await page.mouse.move(ici.x + 6, ici.y + 1, { steps: 2 });
+}
+
 test('chronologies d’un événement et d’une série : les séances du club dans le temps ; glisser un point entre deux lignes, sur le jour J, sur une séance, sur une autre manche', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
   const cle = 'taches-gsa-demo-v7';
@@ -4263,24 +4278,26 @@ test('chronologies d’un événement et d’une série : les séances du club d
   await expect(seance).toHaveCount(1);
 
   // Le point sans délai glissé sur le jour J : le jour même, calé sur la soirée.
-  await chrono.locator('.chrono-sans-delai .chrono-point', { hasText: 'Commander la choucroute' }).dragTo(chrono.locator('.chrono-jourj'));
+  await glisser(page, chrono.locator('.chrono-sans-delai .chrono-point', { hasText: 'Commander la choucroute' }), chrono.locator('.chrono-jourj'));
+  await expect(chrono.locator('.chrono-jourj')).toHaveClass(/survol/);
+  await page.mouse.up();
   await expect.poll(async () => (await tache('t-choucroute')).delai).toBe('2026-11-28');
   expect(await tache('t-choucroute')).toMatchObject({ eventId: 'e10', delaiRef: { type: 'event', joursAvant: 0 } });
 
   // Glissé sur la séance : rattaché à elle, son délai calé sur elle ; il reste dans la soirée.
-  await chrono.locator('.chrono-frise .chrono-point', { hasText: 'Réserver la salle' }).dragTo(seance);
+  await glisser(page, chrono.locator('.chrono-frise .chrono-point', { hasText: 'Réserver la salle' }), seance);
+  await expect(seance).toHaveClass(/survol/);
+  await page.mouse.up();
   await expect(page.locator('.toast')).toContainText('« Réserver la salle » → Comité de décembre 2026 (03.12.2026)');
   expect(await tache('t-salle')).toMatchObject({ eventId: 'e10', meetingId: 'm6', delai: '2026-12-03', delaiRef: { type: 'meeting', joursAvant: 0 } });
 
   // Glissé entre « Aujourd'hui » (09.11) et le jour J (28.11) : le 18.11, 10 jours avant, calé sur la soirée. La bande où
   // déposer n'a pas de hauteur à elle (rien ne bouge quand on prend le point) : la souris va à sa place.
   const zone = chrono.locator('li.chrono-jourj').locator('xpath=preceding-sibling::li[contains(@class, "chrono-depot")][1]');
-  await chrono.locator('.chrono-frise .chrono-point', { hasText: 'Faire le bilan' }).hover();
-  await page.mouse.down();
-  const ici = (await zone.boundingBox())!;
-  await page.mouse.move(ici.x + ici.width / 2, ici.y + 2, { steps: 6 });
-  // Un dernier petit mouvement, comme la main : le navigateur traite alors le survol de la bande.
-  await page.mouse.move(ici.x + ici.width / 2 + 10, ici.y + 3);
+  const bilan = chrono.locator('.chrono-frise .chrono-point', { hasText: 'Faire le bilan' });
+  await bilan.hover();
+  const b = (await zone.boundingBox())!;
+  await glisser(page, bilan, { x: b.x + b.width / 2, y: b.y + 2 });
   await expect(zone).toHaveClass(/survol/);
   await expect(zone).toContainText('Déposer ici · le 18.11.2026');
   await page.mouse.up();
@@ -4292,7 +4309,25 @@ test('chronologies d’un événement et d’une série : les séances du club d
   await page.locator('article.carte-serie', { hasText: 'Championnat interne 2027' }).getByRole('button', { name: 'Chronologie' }).click();
   const serie = page.getByRole('dialog', { name: 'Chronologie · Championnat interne 2027' });
   await expect(serie.locator('.chrono-seance', { hasText: 'Comité de janvier 2027' })).toContainText('Séance');
-  await serie.locator('.chrono-frise .chrono-point', { hasText: 'Réserver le chronométrage' }).dragTo(serie.locator('.chrono-jourj', { hasText: 'Manche 2' }));
+  const manche2 = serie.locator('.chrono-jourj', { hasText: 'Manche 2' });
+  await glisser(page, serie.locator('.chrono-frise .chrono-point', { hasText: 'Réserver le chronométrage' }), manche2);
+  await expect(manche2).toHaveClass(/survol/);
+  await page.mouse.up();
   await expect(page.locator('.toast')).toContainText('« Réserver le chronométrage » → Manche 2 – Montée de Montvoie : 4 semaines avant (10.04.2027)');
   expect(await tache('t-chrono')).toMatchObject({ eventId: 'e-champ-2', delai: '2027-04-10', delaiRef: { type: 'event', joursAvant: 28, unite: 'semaines' } });
+});
+
+test('chronologie du club : le nom d’un événement à la couleur de son étiquette, lisible, aussi à côté de ses points', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  await page.goto('./?demo#/chronologie');
+  // La soirée récréative a son étiquette : son nom en prend la couleur (une teinte lisible sur fond clair).
+  const soiree = page.locator('.cc-el.k-evenement', { hasText: 'Soirée récréative' }).first();
+  await expect(soiree).toHaveClass(/couleur/);
+  expect(await soiree.getAttribute('style')).toMatch(/--c-clair: ?#[0-9a-f]{6}/);
+  const clair = await soiree.evaluate((el) => getComputedStyle(el).getPropertyValue('--c-clair').trim());
+  const titre = await soiree.locator('.cc-el-titre').evaluate((el) => getComputedStyle(el).color);
+  const rgb = (h: string) => `rgb(${[1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).join(', ')})`;
+  expect(titre).toBe(rgb(clair));
+  // La sortie de la St-Martin n'a pas d'étiquette : la couleur des événements, comme avant.
+  await expect(page.locator('.cc-el.k-evenement', { hasText: 'Sortie de la St-Martin' }).first()).not.toHaveClass(/couleur/);
 });
