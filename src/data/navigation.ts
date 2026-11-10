@@ -53,6 +53,12 @@ const RUBRIQUES: NavRubrique[] = [
     mobile: true,
     pages: [
       { to: '/agenda', label: 'Calendrier', icon: 'calendrier', aide: 'Le mois en un coup d’œil : séances, événements, échéances des points et fins de sondage. Clique sur un jour pour le détail.' },
+      {
+        to: '/chronologie',
+        label: 'Chronologie',
+        icon: 'horloge',
+        aide: 'Tout le club dans le temps, année par année ou d’une assemblée générale à l’autre : à gauche les séances et leurs points, à droite les événements et leurs points. Glisse un point sur une séance ou un événement pour l’y rattacher, ou entre deux jours pour lui donner une date ; glisse une séance ou un événement pour changer sa date. « + » ajoute une séance, un événement ou un point.',
+      },
       { to: '/evenements', label: 'Événements', icon: 'evenements', perm: 'tab.events', aide: 'Les manifestations du club, avec l’avancement des points qui les préparent. Touche un événement pour sa chronologie : ses points dans le temps, pour les planifier. Une série (programme hivernal, championnat en manches) réunit ses événements sur une seule carte. Les événements passés sont repliés en bas.' },
     ],
   },

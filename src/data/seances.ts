@@ -73,7 +73,7 @@ export function seanceAnSuivant(meetings: Meeting[], m: Meeting): { meeting: Mee
   const deja = meetings.filter((x) => annuelle(x) && moisDe(x.date) === moisDe(date)).sort(parDate)[0];
   if (deja) return { meeting: deja, nouvelle: false };
   if (!annuelle(m)) return undefined;
-  return { meeting: { id: uid('m'), titre: titreAnSuivant(m, date), date, heure: m.heure, lieu: m.lieu, ...(m.lieuGeo ? { lieuGeo: m.lieuGeo } : {}) }, nouvelle: true };
+  return { meeting: { id: uid('m'), titre: titreAnSuivant(m, date), date, heure: m.heure, lieu: m.lieu, ...(m.lieuGeo ? { lieuGeo: m.lieuGeo } : {}), ...(m.ag ? { ag: true } : {}) }, nouvelle: true };
 }
 
 /**

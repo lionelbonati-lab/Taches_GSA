@@ -551,7 +551,8 @@ export const events: AppData['events'] = [
     "nom": "Assemblée générale 2027",
     "date": "2027-03-13",
     "lieu": "À définir",
-    "description": "AG ordinaire."
+    "description": "AG ordinaire.",
+    "ag": true
   },
   {
     "id": "e13",

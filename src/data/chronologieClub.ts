@@ -1,0 +1,298 @@
+import type { AppData, ClubEvent, DelaiRef, Etiquette, Meeting, Task } from './types';
+import { addDays, applyDelaiRef, diffDays, endOf, today } from './utils';
+import { aLaDate, duree, occurrencesEntre } from './repetition';
+import { etiquettesDatees, memeEvenement } from './agendaIcs';
+
+// Chronologie du club (Agenda › Chronologie, ChronologieClub.tsx) : séances et événements dans le temps, chacun avec ses
+// points, année par année ou d'une assemblée générale à l'autre (case « Assemblée générale » d'un événement ou d'une
+// séance). Deux voies : à gauche les séances, et les points rattachés ni à une séance ni à un événement (à leur délai) ;
+// à droite les événements (un événement qui se répète : une seule carte) et les étiquettes « événement » datées.
+//
+// Où va un point (une seule place) :
+//  1. son délai est calé sur une séance, un événement ou une étiquette datée (📌) : chez elle ;
+//  2. rattaché à un événement : chez lui ; 3. à une séance : chez elle ;
+//  4. il porte l'étiquette d'un événement (rangé dans sa sous-section) : chez lui ;
+//  5. sinon, seul dans la voie des séances, à son délai (sans délai : « Sans date »).
+// Une carte qu'on ne voit pas (pas le droit « Séances » ou « Événements ») ne retient pas ses points : ils passent à la
+// règle suivante.
+
+/** Période affichée, du `de` au `a` (inclus). Vue AG : l'assemblée du début et celle de la fin (absente : pas encore prévue). */
+export interface Periode {
+  de: string;
+  a: string;
+  agDebut?: RepereAg;
+  agFin?: RepereAg;
+}
+
+/** Une assemblée générale : sa date et son nom. */
+export interface RepereAg {
+  date: string;
+  nom: string;
+}
+
+/** Même jour, `n` ans plus tard (29 février → 28). */
+export function decalerAns(date: string, n: number) {
+  const y = Number(date.slice(0, 4)) + n;
+  const md = date.slice(5);
+  const bissextile = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+  return `${y}-${md === '02-29' && !bissextile ? '02-28' : md}`;
+}
+
+/** Année civile. */
+export const periodeAnnee = (an: number): Periode => ({ de: `${an}-01-01`, a: `${an}-12-31` });
+
+/** Assemblées générales (séances et événements cochés ; un événement qui se répète : chacune de ses dates), par date. */
+export function assemblees(data: Pick<AppData, 'meetings' | 'events'>, jour = today()): RepereAg[] {
+  const out = new Map<string, RepereAg>();
+  for (const m of data.meetings) if (m.ag && m.date) out.set(m.date, { date: m.date, nom: m.titre });
+  for (const e of data.events) {
+    if (!e.ag || !e.date) continue;
+    const dates = e.repetition ? occurrencesEntre(e, decalerAns(jour, -20), decalerAns(jour, 20), 100) : [e.date];
+    for (const d of dates) if (!out.has(d)) out.set(d, { date: d, nom: e.nom });
+  }
+  return [...out.values()].sort((a, b) => a.date.localeCompare(b.date));
+}
+
+/**
+ * Périodes d'une assemblée générale à la suivante (les deux comprises) ; avant la première et après la dernière : une
+ * année. Aucune assemblée : aucune période.
+ */
+export function periodesAg(ags: RepereAg[]): Periode[] {
+  if (!ags.length) return [];
+  const out: Periode[] = [{ de: decalerAns(ags[0].date, -1), a: ags[0].date, agFin: ags[0] }];
+  for (let i = 0; i + 1 < ags.length; i++) out.push({ de: ags[i].date, a: ags[i + 1].date, agDebut: ags[i], agFin: ags[i + 1] });
+  const der = ags[ags.length - 1];
+  out.push({ de: der.date, a: decalerAns(der.date, 1), agDebut: der });
+  return out;
+}
+
+/** Période qui contient le `jour` (le jour d'une assemblée : celle qui se termine par elle). */
+export function periodeDuJour(periodes: Periode[], jour = today()): number {
+  if (!periodes.length) return -1;
+  const i = periodes.findIndex((p) => p.de < jour && jour <= p.a);
+  if (i >= 0) return i;
+  return jour <= periodes[0].de ? 0 : periodes.length - 1;
+}
+
+/** Carte de la chronologie : une séance, un événement (qui se répète : toute la série), une étiquette « événement » datée. */
+export type Carte =
+  | { k: 'seance'; cle: string; date: string; m: Meeting; points: Task[] }
+  /** `occurrences` : premiers jours de ses dates dans la période (événement qui se répète, avec celles modifiées seules). */
+  | { k: 'evenement'; cle: string; date: string; fin: string; e: ClubEvent; occurrences: string[]; points: Task[] }
+  | { k: 'etiquette'; cle: string; date: string; fin: string; et: Etiquette; points: Task[] };
+
+/** Ligne de la frise : un jour, ses cartes et points de gauche (séances, points seuls) et de droite (événements). */
+export interface Jour {
+  date: string;
+  gauche: (Carte | { k: 'point'; cle: string; t: Task })[];
+  droite: Carte[];
+}
+
+export interface Frise {
+  jours: Jour[];
+  /** Points sans délai rattachés à rien (« Sans date »). */
+  sansDate: Task[];
+  /** Nombre de points montrés (cartes et points seuls). */
+  nbPoints: number;
+}
+
+/** Ce que voit la personne et les points retenus (déjà filtrés). */
+export interface Vue {
+  seances: boolean;
+  evenements: boolean;
+  /** Fiche de la personne (étiquettes datées dont elle est membre, sans le droit « Événements »). */
+  moi?: string;
+  points: Task[];
+  /** Filtre « Étiquette » : les événements qui ne la portent pas, sans point retenu, ne sont pas montrés. */
+  etiquette?: string;
+}
+
+const cleSeance = (id: string) => `s:${id}`;
+const cleEvenement = (id: string) => `e:${id}`;
+const cleEtiquette = (id: string) => `et:${id}`;
+
+/** Événement d'origine d'une date modifiée seule (sinon lui-même). */
+export const origineDe = (events: ClubEvent[], e: ClubEvent) => (e.serie && events.some((x) => x.id === e.serie!.id) ? e.serie.id : e.id);
+
+/** Étiquettes « événement » datées montrées comme des cartes (comme dans le Calendrier). */
+export function etiquettesCartes(data: Pick<AppData, 'etiquettes' | 'events'>, vue: Pick<Vue, 'evenements' | 'moi'>): Etiquette[] {
+  return etiquettesDatees(data.etiquettes).filter((et) =>
+    vue.evenements
+      ? !et.eventId && !data.events.some((e) => memeEvenement(et, e))
+      : !!vue.moi && !!et.membres?.includes(vue.moi),
+  );
+}
+
+/** Index pour placer les points : d'un événement à sa carte, d'une étiquette à la carte de son événement… */
+function indexer(data: AppData, vue: Vue) {
+  const evenements = new Map<string, string>();
+  const parEtiquette = new Map<string, string>();
+  if (vue.evenements) {
+    for (const e of data.events) evenements.set(e.id, origineDe(data.events, e));
+    for (const et of data.etiquettes ?? []) if (et.eventId && evenements.has(et.eventId)) parEtiquette.set(et.id, evenements.get(et.eventId)!);
+  }
+  const etiquettes = new Set(etiquettesCartes(data, vue).map((x) => x.id));
+  const seances = new Set(vue.seances ? data.meetings.map((m) => m.id) : []);
+  return { evenements, parEtiquette, etiquettes, seances };
+}
+
+/** Clé de la carte où va le point (règles en tête du fichier) ; aucune : seul, à son délai. */
+export function carteDuPoint(t: Task, x: ReturnType<typeof indexer>): string | undefined {
+  const ev = t.eventId ? x.evenements.get(t.eventId) : undefined;
+  const se = t.meetingId && x.seances.has(t.meetingId) ? t.meetingId : undefined;
+  const r = t.delaiRef;
+  if (r?.type === 'meeting' && se) return cleSeance(se);
+  if (r?.type === 'event' && ev) return cleEvenement(ev);
+  if (r?.type === 'etiquette' && r.etiquetteId) {
+    if (x.etiquettes.has(r.etiquetteId)) return cleEtiquette(r.etiquetteId);
+    if (x.parEtiquette.has(r.etiquetteId)) return cleEvenement(x.parEtiquette.get(r.etiquetteId)!);
+  }
+  if (ev) return cleEvenement(ev);
+  if (se) return cleSeance(se);
+  for (const id of t.etiquettes ?? []) {
+    if (x.parEtiquette.has(id)) return cleEvenement(x.parEtiquette.get(id)!);
+    if (x.etiquettes.has(id)) return cleEtiquette(id);
+  }
+  return undefined;
+}
+
+/** Délai, puis titre ; sans délai à la fin. */
+const parDelai = (a: Task, b: Task) => (a.delai || '9999').localeCompare(b.delai || '9999') || a.titre.localeCompare(b.titre, 'fr');
+
+/** La frise de la période. */
+export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = today()): Frise {
+  const x = indexer(data, vue);
+  const dans = (d: string) => d >= p.de && d <= p.a;
+  const cartes = new Map<string, Carte>();
+
+  if (vue.seances) for (const m of data.meetings) if (m.date && dans(m.date)) cartes.set(cleSeance(m.id), { k: 'seance', cle: cleSeance(m.id), date: m.date, m, points: [] });
+
+  if (vue.evenements) {
+    // Un événement et ses dates modifiées seules : une carte.
+    const groupes = new Map<string, ClubEvent[]>();
+    for (const e of data.events) {
+      const o = origineDe(data.events, e);
+      groupes.set(o, [...(groupes.get(o) ?? []), e]);
+    }
+    for (const [id, evs] of groupes) {
+      const e = evs.find((y) => y.id === id)!;
+      if (!e.date) continue;
+      const debuts = [
+        ...(e.repetition ? occurrencesEntre(e, p.de, p.a) : endOf(e) >= p.de && e.date <= p.a ? [e.date] : []),
+        ...evs.filter((y) => y.id !== id && y.date && endOf(y) >= p.de && y.date <= p.a).map((y) => y.date),
+      ].sort();
+      if (!debuts.length) continue;
+      const fins = [...(e.repetition ? debuts.map((d) => endOf(aLaDate(e, d))) : [endOf(e)]), ...evs.filter((y) => y.id !== id).map(endOf)];
+      cartes.set(cleEvenement(id), {
+        k: 'evenement', cle: cleEvenement(id), date: debuts[0] < p.de ? p.de : debuts[0], fin: fins.sort().slice(-1)[0], e, occurrences: e.repetition ? debuts : [], points: [],
+      });
+    }
+  }
+  for (const et of etiquettesCartes(data, vue)) {
+    const fin = endOf({ date: et.date!, dateFin: et.dateFin });
+    if (fin >= p.de && et.date! <= p.a) cartes.set(cleEtiquette(et.id), { k: 'etiquette', cle: cleEtiquette(et.id), date: et.date! < p.de ? p.de : et.date!, fin, et, points: [] });
+  }
+
+  const seuls: Task[] = [];
+  const sansDate: Task[] = [];
+  for (const t of vue.points) {
+    const cle = carteDuPoint(t, x);
+    if (cle) {
+      const c = cartes.get(cle);
+      if (!c) continue;
+      // Événement qui se répète (sa carte revient d'une période à l'autre) : ses points de la période, et ceux sans délai.
+      if (c.k === 'evenement' && c.e.repetition && t.delai && !dans(t.delai)) continue;
+      c.points.push(t);
+    } else if (!t.delai) sansDate.push(t);
+    else if (dans(t.delai)) seuls.push(t);
+  }
+
+  // Filtre « Étiquette » : les événements qui ne la portent pas et n'ont aucun point retenu sont retirés.
+  if (vue.etiquette) {
+    for (const [cle, c] of cartes) {
+      if (c.points.length || c.k === 'seance') continue;
+      const porte = c.k === 'etiquette' ? c.et.id === vue.etiquette : (data.etiquettes ?? []).some((et) => et.id === vue.etiquette && et.eventId === c.e.id);
+      if (!porte) cartes.delete(cle);
+    }
+  }
+
+  const jours = new Map<string, Jour>();
+  const jourDe = (d: string) => {
+    if (!jours.has(d)) jours.set(d, { date: d, gauche: [], droite: [] });
+    return jours.get(d)!;
+  };
+  let nbPoints = seuls.length;
+  for (const c of cartes.values()) {
+    c.points.sort(parDelai);
+    nbPoints += c.points.length;
+    if (c.k === 'seance') jourDe(c.date).gauche.push(c);
+    else jourDe(c.date).droite.push(c);
+  }
+  for (const t of seuls) jourDe(t.delai).gauche.push({ k: 'point', cle: `t:${t.id}`, t });
+  // « Aujourd'hui » : une ligne, même vide.
+  if (dans(jour)) jourDe(jour);
+  const heure = (c: Jour['gauche'][number]) => (c.k === 'seance' ? c.m.heure ?? '' : c.k === 'point' ? '~' : '');
+  for (const j of jours.values()) {
+    j.gauche.sort((a, b) => (a.k === 'point' ? 1 : 0) - (b.k === 'point' ? 1 : 0) || heure(a).localeCompare(heure(b)) || (a.k === 'point' && b.k === 'point' ? parDelai(a.t, b.t) : 0));
+    j.droite.sort((a, b) => (a.k === 'evenement' ? a.e.heure ?? '' : '').localeCompare(b.k === 'evenement' ? b.e.heure ?? '' : '') || nomCarte(a).localeCompare(nomCarte(b), 'fr'));
+  }
+  return { jours: [...jours.values()].sort((a, b) => a.date.localeCompare(b.date)), sansDate: sansDate.sort(parDelai), nbPoints };
+}
+
+export const nomCarte = (c: Carte) => (c.k === 'seance' ? c.m.titre : c.k === 'evenement' ? c.e.nom : c.et.nom);
+
+/** La carte est une assemblée générale. */
+export const estAg = (c: Carte) => (c.k === 'seance' ? !!c.m.ag : c.k === 'evenement' ? !!c.e.ag : false);
+
+// ---------- Déplacer un point ----------
+
+/** Décalage d'un point déjà calé sur ce genre de référence (« 1 semaine avant ») ; sinon le jour même. */
+function decalage(t: Task, type: DelaiRef['type']): Pick<DelaiRef, 'joursAvant' | 'unite' | 'moisAvant'> {
+  const r = t.delaiRef;
+  if (r?.type !== type) return { joursAvant: 0 };
+  return { joursAvant: r.joursAvant, ...(r.unite ? { unite: r.unite } : {}), ...(r.moisAvant !== undefined ? { moisAvant: r.moisAvant } : {}) };
+}
+
+/** Le lien vers la carte d'où vient le point est retiré (« déplacé de… vers… »). */
+function sansOrigine(t: Task, depuis?: string): Task {
+  if (depuis?.startsWith('s:')) return { ...t, meetingId: undefined };
+  if (depuis?.startsWith('e:')) return { ...t, eventId: undefined };
+  return t;
+}
+
+/** Point rattaché à la séance, son délai calé sur elle (même écart s'il l'était déjà sur une séance). */
+export function versSeance(data: AppData, t: Task, m: Meeting, depuis?: string): Task {
+  return applyDelaiRef(data, { ...sansOrigine(t, depuis), meetingId: m.id, delaiRef: { type: 'meeting', ...decalage(t, 'meeting') } });
+}
+
+/**
+ * Point rattaché à l'événement, son délai calé sur lui (même écart s'il l'était déjà sur un événement). Qui se répète :
+ * sur la date de la carte la plus proche de son délai.
+ */
+export function versEvenement(data: AppData, t: Task, e: ClubEvent, occurrences: string[], depuis?: string): Task {
+  const ref = t.delai || today();
+  const occurrence = e.repetition && occurrences.length
+    ? [...occurrences].sort((a, b) => Math.abs(diffDays(a, ref)) - Math.abs(diffDays(b, ref)))[0]
+    : undefined;
+  return applyDelaiRef(data, {
+    ...sansOrigine(t, depuis), eventId: e.id, delaiRef: { type: 'event', ...decalage(t, 'event'), ...(occurrence ? { occurrence } : {}) },
+  });
+}
+
+/** Point qui porte l'étiquette « événement » datée, son délai calé sur elle. */
+export function versEtiquette(data: AppData, t: Task, et: Etiquette, depuis?: string): Task {
+  const etiquettes = t.etiquettes?.includes(et.id) ? t.etiquettes : [...(t.etiquettes ?? []), et.id];
+  return applyDelaiRef(data, { ...sansOrigine(t, depuis), etiquettes, delaiRef: { type: 'etiquette', etiquetteId: et.id, ...decalage(t, 'etiquette') } });
+}
+
+/** Point détaché de sa séance et de son événement, à une date fixe. */
+export const aDateFixe = (t: Task, date: string): Task => ({ ...t, delai: date, delaiRef: undefined, meetingId: undefined, eventId: undefined });
+
+/** Date proposée pour un dépôt entre deux jours de la frise (`lo` et `hi`, exclus) : au milieu ; s'ils se suivent, `hi`. */
+export function dateEntre(lo: string, hi: string): string {
+  const n = diffDays(lo, hi);
+  return n <= 1 ? hi : addDays(lo, Math.floor(n / 2));
+}
+
+/** Événement sur plusieurs jours : nombre de jours (pour l'affichage « 3 jours »). */
+export const nbJours = (e: Pick<ClubEvent, 'date' | 'dateFin'>) => duree(e) + 1;

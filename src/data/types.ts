@@ -355,6 +355,8 @@ export interface Meeting {
   odjAnnexesPages?: Record<string, string>;
   /** Séance ponctuelle : ne revient pas l'année suivante (par défaut, une séance revient chaque année le même mois). */
   unique?: boolean;
+  /** Assemblée générale : la chronologie du club se lit aussi d'une assemblée générale à l'autre (chronologieClub.ts). */
+  ag?: boolean;
 }
 
 export interface Excuse {
@@ -569,6 +571,8 @@ export interface ClubEvent {
    * Un événement qui se répète y est avec toutes ses dates, celles modifiées seules comprises.
    */
   dansSerie?: string;
+  /** Assemblée générale : la chronologie du club se lit aussi d'une assemblée générale à l'autre (chronologieClub.ts). */
+  ag?: boolean;
 }
 
 /**

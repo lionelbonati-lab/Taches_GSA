@@ -18,6 +18,7 @@ const charger = {
   messages: () => import('./pages/Messages'),
   agenda: () => import('./pages/Agenda'),
   calendrier: () => import('./pages/Calendar'),
+  chronologie: () => import('./pages/ChronologieClub'),
   reglages: () => import('./pages/Settings'),
   admin: () => import('./pages/Admin'),
   odj: () => import('./pages/Pv'),
@@ -33,6 +34,7 @@ const Messages = lazy(() => charger.messages().then((m) => ({ default: m.Message
 const Meetings = lazy(() => charger.agenda().then((m) => ({ default: m.Meetings })));
 const Events = lazy(() => charger.agenda().then((m) => ({ default: m.Events })));
 const Calendar = lazy(() => charger.calendrier().then((m) => ({ default: m.Calendar })));
+const ChronologieClub = lazy(() => charger.chronologie().then((m) => ({ default: m.ChronologieClub })));
 const Settings = lazy(() => charger.reglages().then((m) => ({ default: m.Settings })));
 const Admin = lazy(() => charger.admin().then((m) => ({ default: m.Admin })));
 const Pv = lazy(() => charger.odj().then((m) => ({ default: m.Pv })));
@@ -84,6 +86,7 @@ export function App() {
           <Route path="taches" element={<TasksRoute />} />
           <Route path="messages" element={<Messages />} />
           <Route path="agenda" element={<Calendar />} />
+          <Route path="chronologie" element={<ChronologieClub />} />
           {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
           {can('tab.events') && <Route path="evenements" element={<Events />} />}
           {/* Anciennes pages des responsables et de l'organigramme : les personnes du club. */}

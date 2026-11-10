@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('toutes les pages s’ouvrent sans erreur', async ({ page }) => {
-  const pages = ['/', '/taches', '/messages', '/agenda', '/comite', '/evenements', '/ordre-du-jour', '/pv', '/sondages', '/membres-club', '/reglages', '/admin', '/admin/droits', '/propositions', '/mots-de-passe', '/aide'];
+  const pages = ['/', '/taches', '/messages', '/agenda', '/chronologie', '/comite', '/evenements', '/ordre-du-jour', '/pv', '/sondages', '/membres-club', '/reglages', '/admin', '/admin/droits', '/propositions', '/mots-de-passe', '/aide'];
   for (const h of pages) {
     await test.step(h, async () => {
       await page.goto('./?demo#' + h);
@@ -731,8 +731,12 @@ test('Annuler puis Refaire une création de tâche', async ({ page }) => {
   await expect.poll(() => compter(page, 'Réserver la salle')).toBe(0);
   await expect(page.locator('.toast')).toContainText('Annulé');
 
+  // L'action annulée arrive dans « Refaire » juste après.
+  await expect(page.getByRole('button', { name: 'Refaire : Création du point « Réserver la salle »' })).toBeVisible();
   await page.keyboard.press('Control+y');
   await expect.poll(() => compter(page, 'Réserver la salle')).toBeGreaterThan(0);
+  // L'action refaite revient dans « Annuler » juste après l'affichage du point.
+  await expect(page.getByRole('button', { name: 'Annuler : Création du point « Réserver la salle »' })).toBeVisible();
   await page.keyboard.press('Control+z');
   await expect.poll(() => compter(page, 'Réserver la salle')).toBe(0);
 });
@@ -3611,4 +3615,110 @@ test('reprendre une série : la saison suivante en une fois, événements décal
   await expect(nouvelle.locator('.serie-ev')).toHaveCount(4);
   await expect(nouvelle.locator('.etiquette-taches')).toContainText('Programme hivernal 2027-28');
   await expect(hiver.locator('.reprise')).toContainText('Saison suivante : Programme hivernal 2027-28');
+});
+
+test('chronologie du club : séances et événements avec leurs points, glisser-déposer, d’une AG à l’autre', async ({ page }) => {
+  // Lundi 9 novembre 2026. Toute l'année à l'écran : on glisse d'une carte à l'autre sans faire défiler la page.
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  await page.setViewportSize({ width: 1280, height: 4200 });
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Un point du comité d'octobre, un calé sur la soirée récréative, un seul à sa date, un sans date.
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    const ouvert = d.statuses.find((s: { done: boolean }) => !s.done).id;
+    const point = (id: string, titre: string, x: object) => ({
+      id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: ouvert, delai: '', remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...x,
+    });
+    d.tasks.push(
+      point('t-courrier', 'Lire la correspondance', { meetingId: 'm5', delaiRef: { type: 'meeting', joursAvant: 0 }, delai: '2026-10-29' }),
+      point('t-salle', 'Réserver la salle', { eventId: 'e10', delaiRef: { type: 'event', joursAvant: 14, unite: 'semaines' }, delai: '2026-11-14' }),
+      point('t-maillots', 'Commander les maillots', { delai: '2026-11-18' }),
+      point('t-site', 'Nouveau site web', {}),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  const tache = async (id: string) => (await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle)).tasks.find((t: { id: string }) => t.id === id);
+  await page.goto('./?demo#/chronologie');
+  await page.reload();
+
+  // Année 2026 : à gauche les séances et le point seul, à droite les événements ; chacun avec ses points.
+  await expect(page.locator('.cc-periode')).toHaveText('2026');
+  const carte = (nom: string) => page.locator('article.cc-carte').filter({ has: page.locator('.cc-carte-titre', { hasText: nom }) });
+  await expect(page.locator('.cc-gauche').locator(carte('Comité d’octobre 2026'))).toContainText('Lire la correspondance');
+  await expect(page.locator('.cc-droite').locator(carte('Soirée récréative'))).toContainText('Réserver la salle');
+  await expect(carte('Soirée récréative')).toContainText('2 semaines avant');
+  await expect(page.locator('.cc-gauche .cc-point.seul', { hasText: 'Commander les maillots' })).toBeVisible();
+  await expect(page.locator('.cc-sans-date summary')).toContainText('Sans date (1)');
+  await expect(page.locator('.cc-jour.aujourdhui .cc-date')).toHaveText('Aujourd’hui');
+  // Un événement qui se répète : une seule carte.
+  await expect(carte('Entraînement en salle')).toHaveCount(1);
+
+  // Glisser le point seul sur le comité de décembre : rattaché, son délai suit la séance.
+  await page.locator('.cc-point', { hasText: 'Commander les maillots' }).dragTo(carte('Comité de décembre 2026'));
+  await expect(carte('Comité de décembre 2026')).toContainText('Commander les maillots');
+  expect(await tache('t-maillots')).toMatchObject({ meetingId: 'm6', delaiRef: { type: 'meeting', joursAvant: 0 }, delai: '2026-12-03' });
+
+  // Glisser le point du comité d'octobre sur la soirée : il quitte la séance, son délai suit la soirée (le jour même).
+  await carte('Comité d’octobre 2026').locator('.cc-point', { hasText: 'Lire la correspondance' }).dragTo(carte('Soirée récréative'));
+  await expect(carte('Soirée récréative')).toContainText('Lire la correspondance');
+  await expect(carte('Comité d’octobre 2026')).not.toContainText('Lire la correspondance');
+  const courrier = await tache('t-courrier');
+  expect(courrier).toMatchObject({ eventId: 'e10', delaiRef: { type: 'event', joursAvant: 0 }, delai: '2026-11-28' });
+  expect(courrier.meetingId).toBeUndefined();
+
+  // Glisser le comité de décembre entre deux jours : sa date se choisit ; le point calé dessus suit.
+  const zone = page.locator('li.cc-mois', { hasText: 'décembre 2026' }).locator('xpath=following-sibling::li[contains(@class, "cc-depot")][1]');
+  await carte('Comité de décembre 2026').locator('.cc-carte-quand').dragTo(zone);
+  const dialogue = page.getByRole('dialog', { name: 'Déplacer « Comité de décembre 2026 »' });
+  await dialogue.getByLabel('Date de la séance').fill('2026-12-10');
+  await expect(dialogue).toContainText('Le délai de 1 point(s) calé(s) dessus suit.');
+  await dialogue.getByRole('button', { name: 'Déplacer' }).click();
+  await expect(dialogue).toHaveCount(0);
+  await expect(carte('Comité de décembre 2026')).toContainText('jeu. 10 déc.');
+  expect((await tache('t-maillots')).delai).toBe('2026-12-10');
+
+  // Sans souris : le bouton « Déplacer » du point sans date le rattache à la Sortie de la St-Martin.
+  await page.locator('.cc-sans-date summary').click();
+  await page.getByRole('button', { name: 'Déplacer « Nouveau site web »' }).click();
+  const deplacer = page.getByRole('dialog', { name: 'Déplacer « Nouveau site web »' });
+  await deplacer.getByLabel('Vers').selectOption({ label: 'Sortie de la St-Martin · 14.11.2026' });
+  await deplacer.getByRole('button', { name: 'Déplacer' }).click();
+  await expect(carte('Sortie de la St-Martin')).toContainText('Nouveau site web');
+  expect(await tache('t-site')).toMatchObject({ eventId: 'e9', delai: '2026-11-14' });
+  await expect(page.locator('.cc-sans-date')).toHaveCount(0);
+
+  // Puis à une date fixe : détaché, seul dans la voie des séances.
+  await page.getByRole('button', { name: 'Déplacer « Nouveau site web »' }).click();
+  await deplacer.getByLabel('Vers').selectOption('date');
+  await deplacer.getByLabel('Délai').fill('2026-11-25');
+  await deplacer.getByRole('button', { name: 'Déplacer' }).click();
+  await expect(page.locator('.cc-gauche .cc-point.seul', { hasText: 'Nouveau site web' })).toBeVisible();
+  const site = await tache('t-site');
+  expect(site.delai).toBe('2026-11-25');
+  expect(site.eventId).toBeUndefined();
+
+  // Filtre « Mes points » / sections : les cartes restent, leurs points filtrés.
+  await page.getByLabel('Section').selectOption({ index: 0 });
+  await page.getByRole('button', { name: 'Mes points' }).click();
+  await expect(carte('Soirée récréative')).toContainText('Réserver la salle');
+  await page.getByLabel('Masquer les terminés').check();
+  await page.getByRole('button', { name: 'Effacer' }).click();
+
+  // D'une AG à l'autre : l'assemblée générale 2027 de la démo (case cochée) ferme la période.
+  await page.getByRole('button', { name: 'D’une AG à l’autre' }).click();
+  await expect(page.locator('.cc-periode')).toHaveText('Avant l’AG du 13.03.2027');
+  await expect(carte('Assemblée générale 2027').locator('.cc-ag')).toHaveText('AG');
+  await page.getByRole('button', { name: 'Période suivante' }).click();
+  await expect(page.locator('.cc-periode')).toHaveText('Depuis l’AG du 13.03.2027');
+
+  // Case décochée dans la fiche de l'événement : plus d'AG ; « Cocher » la remet.
+  await carte('Assemblée générale 2027').locator('.cc-carte-titre').click();
+  const fiche = page.getByRole('dialog', { name: 'Événement' });
+  await fiche.getByLabel('Assemblée générale').uncheck();
+  await fiche.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.cc-sans-ag')).toContainText('Aucune assemblée générale');
+  await page.getByRole('button', { name: 'Cocher « Assemblée générale 2027 » (13.03.2027)' }).click();
+  await expect(page.locator('.cc-periode')).toHaveText('Avant l’AG du 13.03.2027');
 });

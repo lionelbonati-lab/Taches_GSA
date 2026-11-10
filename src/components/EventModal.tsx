@@ -370,6 +370,10 @@ export function EventModal({ event, jour, onClose, onChronologie }: { event: Clu
           Description
           <ZoneTexte rows={4} value={v.description} onChange={(e) => set({ description: e.target.value })} />
         </label>
+        <label className="inline full">
+          <input type="checkbox" checked={!!v.ag} onChange={(e) => set({ ag: e.target.checked || undefined })} /> Assemblée générale
+        </label>
+        <p className="muted full serie-note">La chronologie du club se lit aussi d’une assemblée générale à l’autre.</p>
         {/* Une date modifiée seule suit l'événement qui se répète : sa série est la sienne. */}
         {!event.serie && (
           <label className="full">

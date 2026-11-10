@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('pages principales à la largeur de l’écran', async ({ page }) => {
-  for (const h of ['/', '/taches', '/messages', '/agenda', '/comite', '/sondages', '/reglages', '/etiquettes', '/evenements', '/admin/taches']) {
+  for (const h of ['/', '/taches', '/messages', '/agenda', '/chronologie', '/comite', '/sondages', '/reglages', '/etiquettes', '/evenements', '/admin/taches']) {
     await test.step(h, async () => {
       await page.goto('./?demo#' + h);
       await expect(page.locator('main h1, main h2').first()).toBeVisible();
@@ -123,4 +123,30 @@ test('PV sur téléphone : pas de vue en fenêtres, même choisie sur un ordinat
   const pilule = page.getByRole('toolbar', { name: 'Outils de la prise de notes' });
   await expect(pilule).toBeVisible();
   await expect(pilule.getByRole('button', { name: /^Vue en fenêtres/ })).toBeHidden();
+});
+
+test('chronologie : une colonne, et « Déplacer » sans glisser', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    d.tasks.push({
+      id: 't-maillots', sectionId: d.sections[0].id, sousSection: '', titre: 'Commander les maillots', responsables: [moi], statusId: d.statuses[0].id, delai: '2026-11-18',
+      remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(),
+    });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  await page.goto('./?demo#/chronologie');
+  await page.reload();
+  // Une seule colonne : la séance et l'événement l'un sous l'autre, à la même largeur.
+  const seance = page.locator('article.cc-carte', { hasText: 'Comité de décembre 2026' });
+  const soiree = page.locator('article.cc-carte', { hasText: 'Soirée récréative' });
+  expect((await seance.boundingBox())!.x).toBeCloseTo((await soiree.boundingBox())!.x, 0);
+  await page.getByRole('button', { name: 'Déplacer « Commander les maillots »' }).click();
+  const fenetre = page.getByRole('dialog', { name: 'Déplacer « Commander les maillots »' });
+  await fenetre.getByLabel('Vers').selectOption({ label: 'Comité de décembre 2026 · 03.12.2026' });
+  await fenetre.getByRole('button', { name: 'Déplacer' }).click();
+  await expect(seance).toContainText('Commander les maillots');
 });

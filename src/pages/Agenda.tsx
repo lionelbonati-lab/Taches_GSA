@@ -470,6 +470,10 @@ export function MeetingModal({ meeting, onClose }: { meeting: Meeting; onClose: 
             : 'Proposée de nouveau l’année prochaine, le même mois. Les points annuels rattachés à cette séance passeront à celle de l’année suivante.'}
           {autre && <> <Icone n="alerte" /> « {autre.titre} » revient déjà ce mois-là : décoche si celle-ci est exceptionnelle.</>}
         </p>
+        <label className="inline full">
+          <input type="checkbox" checked={!!v.ag} onChange={(e) => set({ ag: e.target.checked || undefined })} /> Assemblée générale
+        </label>
+        <p className="muted full serie-note">La chronologie du club se lit aussi d’une assemblée générale à l’autre.</p>
       </div>
       {note && <p className="muted">{note}</p>}
       {err && <p className="error">{err}</p>}
