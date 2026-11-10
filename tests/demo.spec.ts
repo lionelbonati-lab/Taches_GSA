@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import type { Page } from '@playwright/test';
-import { allerA, compter, evenementEtiquete, expect, groupe, nouvelleTache, ouvrirDemo, test, verifierUnSeulEspace } from './outils';
+import { allerA, compter, deplier, evenementEtiquete, expect, groupe, nouvelleTache, ouvrirDemo, test, verifierUnSeulEspace } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
 
@@ -108,23 +108,35 @@ test('page lourde ouverte directement par son adresse', async ({ page, context }
 test('tâche créée avec checklist, répétition et statut, retrouvée à la réouverture', async ({ page }) => {
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Préparer le matériel');
-  await fiche.locator('.chip', { hasText: 'Checklist' }).click();
-  const liste = fiche.locator('fieldset.full', { hasText: 'Checklist' }).first();
+  // Parties vides : repliées, leur contenu pas affiché.
+  await expect(fiche.locator('details.tache-partie[open]', { hasText: 'Checklist' })).toHaveCount(0);
+  await expect(fiche.getByPlaceholder('Ajouter une étape…')).toHaveCount(0);
+  const liste = await deplier(fiche, 'Checklist');
+  // Dépliée : le curseur dans « Ajouter une étape… ».
+  await expect(liste.getByPlaceholder('Ajouter une étape…')).toBeFocused();
   await liste.getByPlaceholder('Ajouter une étape…').fill('Compter les cordes');
   await liste.getByRole('button', { name: 'Ajouter' }).click();
   await expect(liste.locator('.check-row')).toHaveCount(1);
   await fiche.getByRole('combobox', { name: 'Statut' }).click();
   await page.getByRole('option', { name: 'En cours' }).click();
-  await fiche.locator('.chip', { hasText: 'Répétition' }).click();
-  await fiche.locator('label.full', { hasText: 'Répétition' }).locator('select').selectOption({ index: 1 });
+  await expect(liste.locator('summary')).toContainText('Checklist · 0/1');
+  const repetition = await deplier(fiche, 'Répétition');
+  await repetition.getByRole('combobox', { name: 'Répétition' }).selectOption({ index: 1 });
   await expect(fiche.locator('.recur-note').first()).toBeVisible();
+  await expect(repetition.locator('summary')).toContainText('Répétition · Chaque semaine');
+  // Repliée : son contenu disparaît, le titre dit toujours ce qu'elle contient.
+  await liste.locator('summary').click();
+  await expect(liste.locator('.check-row')).toHaveCount(0);
+  await expect(liste.locator('summary')).toContainText('Checklist · 0/1');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
   await page.locator('main').getByText('Préparer le matériel').filter({ visible: true }).first().click();
   const rouverte = page.locator('.modal').first();
+  // Rouverte : les parties remplies dépliées d'office, les autres repliées.
   await expect(rouverte.locator('.check-row')).toHaveCount(1);
   await expect(rouverte.locator('.check-row')).toContainText('Compter les cordes');
+  await expect(rouverte.locator('details.tache-partie', { hasText: 'Documents' })).not.toHaveAttribute('open', '');
   await expect(rouverte.locator('.recur-note').first()).toBeVisible();
   await expect(rouverte.getByRole('combobox', { name: 'Statut' })).toHaveText('En cours');
 });
@@ -550,7 +562,7 @@ test('fichiers joints à l’ordre du jour : regroupés par mise en page, pages 
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche avec annexes');
-  await fiche.getByRole('button', { name: /Document/ }).first().click();
+  await deplier(fiche, 'Documents');
   await fiche.locator('fieldset.docs input[type=file]').first().setInputFiles([
     { name: 'ticket1.png', mimeType: 'image/png', buffer: png },
     { name: 'rapport.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) },
@@ -590,13 +602,24 @@ test('fichiers joints à l’ordre du jour : regroupés par mise en page, pages 
   await expect(pages.nth(2)).toContainText('ticket2.png');
 });
 
-test('nouvelle tâche : À prendre et Pour info s’ajoutent', async ({ page }) => {
+test('nouvelle tâche : À prendre et Pour info se déplient', async ({ page }) => {
   const fiche = await nouvelleTache(page, 'Tenir le stand');
-  await fiche.locator('.chip', { hasText: 'À prendre' }).click();
-  await expect(fiche.locator('.a-prendre')).toBeVisible();
-  await fiche.locator('.chip', { hasText: 'Pour info' }).click();
-  await expect(fiche.getByText('Pour info', { exact: false }).first()).toBeVisible();
-  await expect(fiche.locator('.chip', { hasText: 'Pour info' })).toHaveCount(0);
+  await expect(fiche.locator('.a-prendre')).toHaveCount(0);
+  await expect(fiche.locator('.pour-info')).toHaveCount(0);
+  const prendre = await deplier(fiche, 'À prendre');
+  await expect(prendre.locator('.a-prendre')).toBeVisible();
+  // Déplier ne change rien ; proposé à d'autres, le nouveau point n'a plus de responsable (la personne qui le prend).
+  await expect(fiche.locator('.qui .chip.on')).toHaveCount(1);
+  await prendre.getByRole('combobox', { name: 'Proposer à' }).selectOption('tous');
+  await expect(fiche.locator('.qui')).toContainText('Personne pour l’instant : 🙋 à prendre.');
+  await expect(prendre.locator('summary')).toContainText(/À prendre · \d+ personnes/);
+  const info = await deplier(fiche, 'Pour info');
+  await expect(info.locator('.pour-info')).toBeVisible();
+  // Repliée, puis dépliée : ce qui a été choisi reste.
+  await prendre.locator('summary').click();
+  await expect(fiche.locator('.a-prendre')).toHaveCount(0);
+  await deplier(fiche, 'À prendre');
+  await expect(fiche.locator('.a-prendre .chip.on').first()).toBeVisible();
 });
 
 test('Pour info : sans compte, relance, « ✓ Vu », tout le monde a vu, à revoir', async ({ page }) => {
@@ -625,7 +648,7 @@ test('Pour info : sans compte, relance, « ✓ Vu », tout le monde a vu, à rev
   };
 
   const fiche = await nouvelleTache(page, 'Prévenir les moniteurs');
-  await fiche.locator('.chip', { hasText: 'Pour info' }).click();
+  await deplier(fiche, 'Pour info');
   const ajouter = fiche.getByRole('combobox', { name: 'Mettre au courant' });
   for (const nom of [/^Marc Lambert/, /^Sophie Girard/]) {
     await ajouter.click();
@@ -1734,7 +1757,7 @@ test('fichiers joints : ouverts dans la visionneuse de l’appli (fiche, ordre d
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
   await page.goto('./?demo#/taches');
   const fiche = await nouvelleTache(page, 'Tâche avec fichiers à ouvrir');
-  await fiche.getByRole('button', { name: /Document/ }).first().click();
+  await deplier(fiche, 'Documents');
   await fiche.locator('fieldset.docs input[type=file]').first().setInputFiles([
     { name: 'photo.png', mimeType: 'image/png', buffer: png },
     { name: 'devis.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) },
@@ -1783,7 +1806,7 @@ test('PV en projection : les pièces jointes du point en cours à côté des not
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
   await page.goto('./?demo#/taches');
   let fiche = await nouvelleTache(page, 'Point avec pièces jointes');
-  await fiche.getByRole('button', { name: /Document/ }).first().click();
+  await deplier(fiche, 'Documents');
   await fiche.locator('fieldset.docs input[type=file]').first().setInputFiles([
     { name: 'plan.png', mimeType: 'image/png', buffer: png },
     { name: 'devis.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) },
@@ -2419,8 +2442,7 @@ test('PV en cours : un sous-point créé depuis la fiche d’un point s’affich
   const fiche = page.locator('.modal').first();
   // La fiche ouverte, puis ses rattachements (déjà affichés si le point est lié à une séance).
   await expect(fiche.getByPlaceholder('Que faut-il faire ou savoir ?')).toHaveValue('Point du PV');
-  const rattacher = fiche.getByRole('button', { name: 'Rattacher à…' });
-  if (await rattacher.isVisible()) await rattacher.click();
+  await deplier(fiche, 'Rattachements');
   await expect(fiche.getByRole('button', { name: '+ Nouveau point rattaché' })).toBeVisible();
   await fiche.getByRole('button', { name: '+ Nouveau point rattaché' }).click();
   const enfant = page.locator('.modal').last();
@@ -2913,7 +2935,7 @@ test('vue en fenêtres : un onglet se glisse dans une autre fenêtre (retenu) ; 
   const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
   await page.goto('./?demo#/taches');
   const f = await nouvelleTache(page, 'Point aux pièces');
-  await f.getByRole('button', { name: /Document/ }).first().click();
+  await deplier(f, 'Documents');
   await f.locator('fieldset.docs input[type=file]').first().setInputFiles([{ name: 'plan.png', mimeType: 'image/png', buffer: png }]);
   await expect(f.locator('.doc-list li')).toHaveCount(1);
   await f.getByRole('button', { name: /^Créer$/ }).click();

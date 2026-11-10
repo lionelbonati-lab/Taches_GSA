@@ -1,4 +1,5 @@
-import { useRef, useState, type CSSProperties } from 'react';
+import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
 import { PollEditor } from './PollEditor';
@@ -10,8 +11,8 @@ import { useStore } from '../data/store';
 import { cleVu, nbPourInfo, pourMoi, vuAvantModif } from '../data/pourInfo';
 import { useSuiviPourInfo } from '../data/suiviPourInfo';
 import { aPrendreOuverte, auteurAPrendre, pasDispo as aDecline, peutPrendre } from '../data/aPrendre';
-import type { PersonneHors, Task, VuPourInfo } from '../data/types';
-import { childrenOf, fmtDateTime, fullName, isDone, nomPoste, parentOf, uid } from '../data/utils';
+import type { AppData, PersonneHors, Task, VuPourInfo } from '../data/types';
+import { childrenOf, fmtDateTime, fullName, isDone, nomPoste, parentOf, recurrenceLabel, uid } from '../data/utils';
 import { finAnticipee, motSeance } from '../data/seances';
 import { Modal } from './ui';
 import { Icone, type IconeNom } from './icones';
@@ -47,8 +48,46 @@ export function TaskModal(props: TaskModalProps) {
   return <TaskEditor {...props} />;
 }
 
-/** Parties facultatives : affichées si elles sont remplies, sinon ajoutées à la demande (« Ajouter : »). */
-type Extra = 'checklist' | 'docs' | 'repetition' | 'liens' | 'emails' | 'info' | 'prendre';
+/** Parties facultatives de la fiche : à la suite, chacune à déplier ; celles qui sont remplies s'ouvrent d'office. */
+const PARTIES = ['checklist', 'docs', 'repetition', 'liens', 'prendre', 'info', 'sondages', 'emails'] as const;
+type Partie = (typeof PARTIES)[number];
+
+/** Parties remplies d'un point. */
+function remplies(data: AppData, t: Task, isNew: boolean): Record<Partie, boolean> {
+  return {
+    checklist: t.checklist.length > 0,
+    docs: (t.documents ?? []).length > 0,
+    repetition: !!t.recurrence,
+    liens: !!(t.eventId || t.meetingId || t.parentId) || (!isNew && childrenOf(data, t.id).length > 0),
+    prendre: !!t.aPrendre?.personnes.length,
+    info: nbPourInfo(t.pourInfo) > 0,
+    sondages: !isNew && (data.polls ?? []).some((p) => p.taskId === t.id),
+    emails: !isNew && emailsOf(data, t.id).length > 0,
+  };
+}
+
+/** Une partie facultative : son titre (et en bref ce qu'elle contient), à cliquer pour la déplier ou la replier. */
+function Depliable({ icone, titre, resume, ouverte, plier, children }: {
+  icone: IconeNom;
+  titre: string;
+  resume?: string;
+  ouverte: boolean;
+  plier: (ouverte: boolean) => void;
+  children: ReactNode;
+}) {
+  return (
+    <details className="tache-partie" open={ouverte} onToggle={(e) => plier(e.currentTarget.open)}>
+      <summary>
+        <Icone n={icone} />
+        <span className="tache-partie-titre">{titre}</span>
+        {resume && <> <span className="tache-partie-resume">· {resume}</span></>}
+        <ChevronDown className="tache-partie-fleche" size="1.1em" aria-hidden="true" />
+      </summary>
+      {/* Repliée : son contenu n'est pas affiché (ni son champ qui prend le curseur à l'ouverture). */}
+      {ouverte && <div className="tache-partie-corps">{children}</div>}
+    </details>
+  );
+}
 
 function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: TaskModalProps) {
   const { data, user, can, canEditTask, canDeleteTask, canAssignOthers: canAssign, creatableSections, peutRanger, peutEtiqueter, saveTask, prendreTache, pasDispo, vuPourInfo, update, setToast, discussionLueLe, canReadDiscussion } = useStore();
@@ -80,13 +119,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const [externe, setExterne] = useState(false);
   const [chat, setChat] = useState(!!ouvrirDiscussion && !isNew);
   const [newPoll, setNewPoll] = useState(false);
-  // Liens déjà remplis : ils restent affichés si on les vide.
-  const [ouverts, setOuverts] = useState<Extra[]>(() => [
-    ...(task.eventId || task.meetingId || task.parentId ? ['liens' as const] : []),
-    ...(task.pourInfo ? ['info' as const] : []),
-    ...(task.aPrendre ? ['prendre' as const] : []),
-  ]);
-  const [nouvelEmail, setNouvelEmail] = useState(false);
+  // Parties dépliées : à l'ouverture de la fiche, celles qui sont remplies ; ensuite, comme on les laisse.
+  const [ouvertes, setOuvertes] = useState<Partie[]>(() => {
+    const r = remplies(data, task, isNew);
+    return PARTIES.filter((x) => r[x]);
+  });
   // Pour info : « ✓ Vu » de la personne connectée (la tâche quitte son accueil ; l'auteur voit qu'elle l'a vue).
   const [vuIci, setVuIci] = useState<VuPourInfo | null>(null);
   // Suivi (052) : les personnes attendues (avec un compte).
@@ -248,46 +285,36 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   // Répétition : « à chaque comité ».
   const mot = motSeance().toLowerCase();
   const polls = (data.polls ?? []).filter((p) => p.taskId === task.id);
-  const rempli: Record<Extra, boolean> = {
-    checklist: t.checklist.length > 0,
-    docs: (t.documents ?? []).length > 0,
-    repetition: !!t.recurrence,
-    liens: !!(t.eventId || t.meetingId || t.parentId || kids.length),
-    emails: !isNew && emailsOf(data, task.id).length > 0,
-    info: nbPourInfo(t.pourInfo) > 0,
-    prendre: !!t.aPrendre?.personnes.length,
+  const rempli = remplies(data, t, isNew);
+  const partie = (x: Partie) => ({
+    ouverte: ouvertes.includes(x),
+    plier: (oui: boolean) => setOuvertes((o) => (oui ? (o.includes(x) ? o : [...o, x]) : o.filter((y) => y !== x))),
+  });
+  // Parties proposées : en lecture, seulement celles qui sont remplies (rien à y ajouter).
+  const montre: Record<Partie, boolean> = {
+    checklist: rempli.checklist || !dis,
+    docs: rempli.docs || !dis,
+    repetition: rempli.repetition || !dis,
+    liens: rempli.liens || !dis,
+    // À prendre : le proposer à d'autres demande de pouvoir leur assigner le point.
+    prendre: !t.paiement && (rempli.prendre || (!dis && canAssignOthers)),
+    info: !t.paiement && (rempli.info || !dis),
+    // Sondages et emails : une fois le point enregistré.
+    sondages: rempli.sondages || (!isNew && editable && can('polls.create')),
+    emails: rempli.emails || (!isNew && editable),
   };
-  const voit = (x: Extra) => rempli[x] || ouverts.includes(x);
-  const ouvrir = (x: Extra) => setOuverts((o) => [...o, x]);
-  const ajouts: { label: string; icone: IconeNom; aide: string; run: () => void; si: boolean }[] = [
-    { label: 'Checklist', icone: 'checklist' as const, aide: 'Une liste de petites étapes à cocher', run: () => ouvrir('checklist'), si: !voit('checklist') },
-    { label: 'Document', icone: 'fichier' as const, aide: 'Un fichier, une photo ou un lien', run: () => ouvrir('docs'), si: !voit('docs') },
-    { label: 'Répétition', icone: 'repetition' as const, aide: `Le point revient chaque semaine, chaque mois, à chaque ${mot}…`, run: () => ouvrir('repetition'), si: !voit('repetition') },
-    { label: 'Rattacher à…', icone: 'rattacher' as const, aide: 'Un événement, une séance de comité ou un autre point', run: () => ouvrir('liens'), si: !voit('liens') },
-    {
-      label: 'À prendre',
-      icone: 'main' as const,
-      aide: 'Proposer le point à quelques personnes : l’une d’elles s’en charge elle-même',
-      run: () => {
-        ouvrir('prendre');
-        // Nouvelle tâche : on n'en reste pas responsable par défaut (la personne qui se propose s'en chargera).
-        if (isNew && t.responsables.length === 1 && t.responsables[0] === user.id) set('responsables', []);
-      },
-      si: !voit('prendre') && !t.paiement && canAssignOthers,
-    },
-    { label: 'Pour info', icone: 'voir' as const, aide: 'Des personnes qui le voient, sans s’en occuper', run: () => ouvrir('info'), si: !voit('info') && !t.paiement },
-    { label: 'Sondage', icone: 'sondage' as const, aide: 'Demander l’avis des membres', run: () => setNewPoll(true), si: !isNew && can('polls.create') },
-    {
-      label: 'Email',
-      icone: 'email' as const,
-      aide: 'Un email envoyé à une date choisie',
-      run: () => {
-        setNouvelEmail(true);
-        ouvrir('emails');
-      },
-      si: !isNew && !voit('emails'),
-    },
-  ].filter((a) => a.si);
+  const pluriel = (n: number, nom: string) => `${n} ${nom}${n > 1 ? 's' : ''}`;
+  // Ce qu'une partie contient, en bref, à côté de son titre (repliée ou non).
+  const nbFaites = t.checklist.filter((c) => c.done).length;
+  const rattache = [
+    data.events.find((e) => e.id === t.eventId)?.nom,
+    data.meetings.find((m) => m.id === t.meetingId)?.titre,
+    parent && `↳ ${parent.titre}`,
+    kids.length > 0 && pluriel(kids.length, 'point rattaché'),
+  ].filter(Boolean).join(', ');
+  const nbInfo = nbPourInfo(t.pourInfo);
+  const nbProposes = t.aPrendre?.personnes.length ?? 0;
+  const nbEmails = isNew ? 0 : emailsOf(data, task.id).length;
   // Personnes à ajouter : soi-même d'abord.
   const aAjouter = assignable.filter((p) => !t.responsables.includes(p.id)).sort((a, b) => Number(b.id === user.id) - Number(a.id === user.id));
   // Pour info : « ✓ Vu » enregistrés sur la tâche (046), avec celui que la personne vient de donner ici.
@@ -474,40 +501,68 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
           </div>
           {!canAssignOthers && <small className="muted">Ton rôle ne permet d’assigner des points qu’à toi-même{t.sectionId ? ' dans cette section' : ''}.</small>}
         </div>
-        {!t.paiement && voit('prendre') && <APrendreChamp t={t} setT={setT} dis={dis} canAssignOthers={canAssignOthers} />}
         {(!dis || !!t.remarque) && (
           <label className="full">
             Remarque
             <ZoneTexte rows={2} value={t.remarque} disabled={dis} onChange={(e) => set('remarque', e.target.value)} placeholder="Détails utiles (facultatif)" />
           </label>
         )}
-        {!t.paiement && voit('info') && <PourInfoChamp t={t} setT={setT} isNew={isNew} dis={dis} vus={vus} attendus={attendus} enregistree={isNew ? null : task} />}
         {!isNew && <NotesSeances task={task} />}
 
-        {voit('checklist') && <Checklist t={t} setT={setT} dis={dis} />}
-        {voit('docs') && (
-          <DocsField
-            docs={t.documents ?? []}
-            setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))}
-            disabled={dis}
-            track={track.current}
-            liens
-          />
-        )}
-        <Repetition t={t} setT={setT} task={task} isNew={isNew} dis={dis} ouverte={voit('repetition')} />
-        {voit('liens') && <Rattachements t={t} setT={setT} task={task} isNew={isNew} dis={dis} editable={editable} kids={kids} ouvrir={(x, nouvelle) => setOther({ task: x, isNew: nouvelle })} />}
-        {polls.length > 0 && (
-          <fieldset className="full">
-            <legend>📊 Sondages</legend>
-            {polls.map((p) => <PollCard key={p.id} poll={p} compact />)}
-            <a className="small-link" href="#/sondages">Voir tous les sondages →</a>
-          </fieldset>
-        )}
-        {voit('emails') && <EmailsField task={task} isNew={isNew} openEmailId={openEmailId} nouveau={nouvelEmail} />}
-        {editable && ajouts.length > 0 && (
-          <div className="full task-plus">
-            <span>Ajouter :</span>
-            {ajouts.map((a) => <button key={a.label} type="button" className="chip" title={a.aide} onClick={a.run}><Icone n={a.icone} /> {a.label}</button>)}
+        {/* Le reste, à la suite : chaque partie se déplie quand on en a besoin. */}
+        {PARTIES.some((x) => montre[x]) && (
+          <div className="full tache-parties">
+            {montre.checklist && (
+              <Depliable icone="checklist" titre="Checklist" resume={t.checklist.length ? `${nbFaites}/${t.checklist.length}` : ''} {...partie('checklist')}>
+                <Checklist t={t} setT={setT} dis={dis} />
+              </Depliable>
+            )}
+            {montre.docs && (
+              <Depliable icone="fichier" titre="Documents" resume={t.documents?.length ? String(t.documents.length) : ''} {...partie('docs')}>
+                <DocsField
+                  docs={t.documents ?? []}
+                  setDocs={(fn) => setT((x) => ({ ...x, documents: fn(x.documents ?? []) }))}
+                  disabled={dis}
+                  track={track.current}
+                  liens
+                />
+              </Depliable>
+            )}
+            {montre.repetition && (
+              <Depliable icone="repetition" titre="Répétition" resume={t.recurrence === 'seance' ? `À chaque ${mot}` : recurrenceLabel(t.recurrence)} {...partie('repetition')}>
+                <Repetition t={t} setT={setT} task={task} isNew={isNew} dis={dis} />
+              </Depliable>
+            )}
+            {montre.liens && (
+              <Depliable icone="rattacher" titre="Rattachements" resume={rattache} {...partie('liens')}>
+                <Rattachements t={t} setT={setT} task={task} isNew={isNew} dis={dis} editable={editable} kids={kids} ouvrir={(x, nouvelle) => setOther({ task: x, isNew: nouvelle })} />
+              </Depliable>
+            )}
+            {montre.prendre && (
+              <Depliable icone="main" titre="À prendre" resume={nbProposes ? pluriel(nbProposes, 'personne') : ''} {...partie('prendre')}>
+                <APrendreChamp t={t} setT={setT} dis={dis} canAssignOthers={canAssignOthers} isNew={isNew} />
+              </Depliable>
+            )}
+            {montre.info && (
+              <Depliable icone="voir" titre="Pour info" resume={nbInfo ? pluriel(nbInfo, 'personne') : ''} {...partie('info')}>
+                <PourInfoChamp t={t} setT={setT} isNew={isNew} dis={dis} vus={vus} attendus={attendus} enregistree={isNew ? null : task} />
+              </Depliable>
+            )}
+            {montre.sondages && (
+              <Depliable icone="sondage" titre="Sondages" resume={polls.length ? String(polls.length) : ''} {...partie('sondages')}>
+                {polls.map((p) => <PollCard key={p.id} poll={p} compact />)}
+                {!polls.length && <small className="muted">Aucun sondage pour ce point.</small>}
+                <div className="row wrap">
+                  {editable && can('polls.create') && <button type="button" className="btn small" onClick={() => setNewPoll(true)}><Icone n="sondage" /> Nouveau sondage</button>}
+                  {polls.length > 0 && <a className="small-link" href="#/sondages">Voir tous les sondages →</a>}
+                </div>
+              </Depliable>
+            )}
+            {montre.emails && (
+              <Depliable icone="email" titre="Emails programmés" resume={nbEmails ? String(nbEmails) : ''} {...partie('emails')}>
+                <EmailsField task={task} isNew={isNew} openEmailId={openEmailId} />
+              </Depliable>
+            )}
           </div>
         )}
         {!isNew && (

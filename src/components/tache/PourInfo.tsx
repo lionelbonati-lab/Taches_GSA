@@ -77,7 +77,6 @@ export function PourInfoChamp({ t, setT, isNew, dis, vus, attendus, enregistree 
   if (dis && !cibles.length) return null;
   return (
     <div className="full pour-info">
-      <span className="field-label">👁 Pour info</span>
       <div className="chips">
         {cibles.map((c) => {
           const v = vus[c.cle];

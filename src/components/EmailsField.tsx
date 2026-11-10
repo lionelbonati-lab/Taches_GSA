@@ -13,12 +13,9 @@ import { Icone } from './icones';
 const STATE_ICON: Record<EmailState, string> = { programme: '🕓', aEnvoyer: '📨', envoye: '✅', annule: '⛔', sansObjet: '✔️', sansDate: '⏸️' };
 
 /** Emails programmés d'une tâche (dans la fenêtre de la tâche). */
-/** « nouveau » : la fenêtre d'un nouvel email s'ouvre tout de suite (bouton « Ajouter : 📧 Email » de la tâche). */
-export function EmailsField({ task, isNew, openEmailId, nouveau }: { task: Task; isNew: boolean; openEmailId?: string; nouveau?: boolean }) {
+export function EmailsField({ task, isNew, openEmailId }: { task: Task; isNew: boolean; openEmailId?: string }) {
   const { data, user, canEditTask, setEmailStatus, deleteEmail } = useStore();
-  const [edit, setEdit] = useState<{ e: ScheduledEmail; isNew: boolean } | null>(() =>
-    nouveau && user && !isNew ? { e: newEmail(data.tasks.find((t) => t.id === task.id) ?? task, user.id), isNew: true } : null,
-  );
+  const [edit, setEdit] = useState<{ e: ScheduledEmail; isNew: boolean } | null>(null);
   const [send, setSend] = useState<string | null>(openEmailId ?? null);
   if (!user) return null;
   const list = emailsOf(data, task.id);

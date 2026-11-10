@@ -15,7 +15,7 @@ export function placesAPrendre(data: AppData, t: Task) {
   return { nPrendre: nombreAPrendre(t.aPrendre), nPris: vol.length, quiPrend: nomsDe(data, vol) };
 }
 
-export function APrendreChamp({ t, setT, dis, canAssignOthers }: { t: Task; setT: SetT; dis: boolean; canAssignOthers: boolean }) {
+export function APrendreChamp({ t, setT, dis, canAssignOthers, isNew }: { t: Task; setT: SetT; dis: boolean; canAssignOthers: boolean; isNew: boolean }) {
   const { data, user } = useStore();
   if (!user) return null;
   const { nPrendre, nPris, quiPrend } = placesAPrendre(data, t);
@@ -30,7 +30,9 @@ export function APrendreChamp({ t, setT, dis, canAssignOthers }: { t: Task; setT
   const proposer = (v: string) =>
     setT((x) => {
       const ids = v === 'tous' ? prendreIci.map((p) => p.id) : v.startsWith('r:') ? (prendreRoles.find((g) => g.r.id === v.slice(2))?.l ?? []).map((p) => p.id) : [v.slice(2)];
-      return { ...x, aPrendre: { ...x.aPrendre, personnes: [...(x.aPrendre?.personnes ?? []), ...ids] } };
+      // Nouveau point proposé : on n'en reste pas responsable par défaut (la personne qui se propose s'en chargera).
+      const seulMoi = isNew && !x.aPrendre?.personnes.length && x.responsables.length === 1 && x.responsables[0] === user.id;
+      return { ...x, ...(seulMoi ? { responsables: [] } : {}), aPrendre: { ...x.aPrendre, personnes: [...(x.aPrendre?.personnes ?? []), ...ids] } };
     });
   const retirerPropose = (id: string) => setT((x) => ({ ...x, aPrendre: x.aPrendre && { ...x.aPrendre, personnes: x.aPrendre.personnes.filter((y) => y !== id) } }));
   const setNombre = (n: number) => setT((x) => ({ ...x, aPrendre: { ...x.aPrendre, personnes: x.aPrendre?.personnes ?? [], nombre: n > 1 ? n : undefined } }));
@@ -39,7 +41,6 @@ export function APrendreChamp({ t, setT, dis, canAssignOthers }: { t: Task; setT
   if (!proposable && !candidats.length) return null;
   return (
     <div className="full a-prendre">
-      <span className="field-label">🙋 À prendre</span>
       <div className="chips">
         {candidats.map((id) => {
           const p = data.people.find((x) => x.id === id);

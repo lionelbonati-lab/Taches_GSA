@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test';
+import { test as base, expect, type Locator, type Page } from '@playwright/test';
 
 // Chaque test échoue si la page lève une erreur JavaScript non rattrapée.
 export const test = base.extend<{ erreurs: string[] }>({
@@ -34,6 +34,14 @@ export async function verifierUnSeulEspace(page: Page) {
   await expect(page.locator('.topbar .brand')).toBeVisible();
   await expect(page.locator('[data-entite]')).toHaveCount(0);
   expect(await page.evaluate(() => localStorage.getItem('taches-gsa-demo-unite'))).toBeNull();
+}
+
+/** Fiche d'un point : une partie (« Checklist », « Documents », « Pour info »…), dépliée si elle ne l'est pas déjà. */
+export async function deplier(fiche: Locator, titre: string) {
+  const partie = fiche.locator('details.tache-partie').filter({ has: fiche.page().locator('.tache-partie-titre', { hasText: new RegExp(`^${titre}$`) }) });
+  if ((await partie.getAttribute('open')) === null) await partie.locator('summary').click();
+  await expect(partie).toHaveAttribute('open', '');
+  return partie;
 }
 
 /** Nouveau point ouvert depuis le bouton « + », titre et section remplis (pas encore enregistrée). */

@@ -4,10 +4,10 @@ import { RECURRENCES, addDays, applyDelaiRef, fmtDate, fullName, nextOccurrence,
 import { motSeance, seanceApres, seancePourSuivante } from '../../data/seances';
 import type { SetT } from './Quand';
 
-type Props = { t: Task; setT: SetT; task: Task; isNew: boolean; dis: boolean; ouverte: boolean };
+type Props = { t: Task; setT: SetT; task: Task; isNew: boolean; dis: boolean };
 
 /** Fiche d'une tâche : « 🔁 Répétition » et ce que sera l'occurrence suivante (séance, délai, responsables). */
-export function Repetition({ t, setT, task, isNew, dis, ouverte }: Props) {
+export function Repetition({ t, setT, task, isNew, dis }: Props) {
   const { data } = useStore();
   const postes = postesFor(data, t, isNew ? undefined : task) ?? [];
   // Répétition : « à chaque comité » ; séance et délai de l'occurrence suivante.
@@ -24,17 +24,13 @@ export function Repetition({ t, setT, task, isNew, dis, ouverte }: Props) {
     });
   return (
     <>
-      {ouverte && (
-        <label className="full">
-          🔁 Répétition
-          <select value={t.recurrence ?? ''} disabled={dis} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
-            <option value="">Aucune (point unique)</option>
-            {RECURRENCES.map((r) => (
-              <option key={r.id} value={r.id}>🔁 {r.id !== 'seance' ? r.label : `À chaque ${mot}`}</option>
-            ))}
-          </select>
-        </label>
-      )}
+      {/* Sous le titre « Répétition » de la partie dépliable. */}
+      <select aria-label="Répétition" value={t.recurrence ?? ''} disabled={dis} onChange={(e) => repeter((e.target.value || undefined) as Recurrence | undefined)}>
+        <option value="">Aucune (point unique)</option>
+        {RECURRENCES.map((r) => (
+          <option key={r.id} value={r.id}>🔁 {r.id !== 'seance' ? r.label : `À chaque ${mot}`}</option>
+        ))}
+      </select>
       {t.recurrence && (
         <p className="full recur-note">
           🔁 Quand ce point sera terminé, le suivant sera créé automatiquement
