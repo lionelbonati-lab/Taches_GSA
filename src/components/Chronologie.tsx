@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { ClubEvent, DelaiUnite, Etiquette, Task } from '../data/types';
-import { aLaDate, horaire } from '../data/repetition';
+import type { ClubEvent, DelaiUnite, Etiquette, SerieEvenements, Task } from '../data/types';
+import { aLaDate, derniereOccurrence, horaire, libelleRepetition, occurrenceDu, occurrenceProche } from '../data/repetition';
 import {
   DELAI_MAX, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
 } from '../data/utils';
-import { etiquetteDeLEvenement, lieuxDe, sectionEvenements } from '../data/etiquettes';
+import { etiquetteDeLaSerie, etiquetteDeLEvenement, lieuxDe, sectionEvenements } from '../data/etiquettes';
+import { FILTRE_SERIE, evenementsDeLaSerie, periodeDeLaSerie, pointsDeLaSerie, prochainDeLaSerie, racine, seriePassee } from '../data/seriesEvenements';
 import { Empty, Modal, StatusBadge } from './ui';
 import { Icone } from './icones';
 import { BadgeEtiquette } from './IconesEtiquette';
@@ -18,6 +19,7 @@ import { Progress } from '../pages/Dashboard';
 // point » (fiche préremplie, délai calé sur l'événement) et « Placer » / « Déplacer » un point (« 2 semaines avant ») ;
 // le délai suit ensuite la date de l'événement, et une reprise l'an prochain garde le même écart.
 // Les points de l'événement : rattachés à lui, ou qui portent son étiquette (ceux qu'on voit).
+// Chronologie d'une série d'événements (ChronologieSerie) : celles de tous ses événements sur une même frise.
 
 /** L'événement ouvert : un événement de l'agenda (`serie`, à sa date `date` s'il se répète) ou une étiquette datée seule. */
 export type CibleChrono = { serie?: ClubEvent; date: string; etiquette?: Etiquette };
@@ -291,6 +293,296 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
       <div className="modal-foot">
         {/* Avec une étiquette : tous ses points (rangés chez elle ou rattachés à l'événement) ; sinon, ceux rattachés. */}
         <Link to={et ? `/taches?etiquette=${encodeURIComponent(et.id)}` : `/taches?event=${encodeURIComponent(serie?.id ?? '')}`}>Voir dans la liste des points →</Link>
+        <span className="grow" />
+        <button type="button" className="btn" onClick={onClose}>Fermer</button>
+      </div>
+      {fiche && <TaskModal task={fiche.task} isNew={fiche.isNew} onClose={() => setFiche(null)} />}
+    </Modal>
+  );
+}
+
+/** « J-30 », « Jour J », « J+2 » : le jour `d` par rapport au jour J `j`. */
+const ecartJ = (j: string, d: string) => {
+  const n = diffDays(j, d);
+  return n < 0 ? `J-${-n}` : n === 0 ? 'Jour J' : `J+${n}`;
+};
+
+/**
+ * Chronologie d'une série d'événements (programme hivernal, championnat ; seriesEvenements.ts) : celles de tous ses
+ * événements sur une même frise. Le jour J de chacun (un événement qui se répète : sa première date et celles que suivent
+ * des points, pas chaque semaine), chaque point avec son événement et son écart (« J-7 · Natation »), ceux de la série
+ * seule (son étiquette) à leur date ; « Aujourd'hui » ; les points sans délai, à placer. « Planifier un point » : pour
+ * l'un de ses événements (calé sur lui ; s'il se répète, sur sa prochaine date) ou pour toute la série (à une date, chez
+ * son étiquette) ; « Placer » / « Déplacer » un point par rapport à son événement.
+ */
+export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; onClose: () => void }) {
+  const { data, user, canSeeTask, canEditTask, creatableSections, peutRanger, peutEtiqueter, saveTask, setToast } = useStore();
+  const [fiche, setFiche] = useState<{ task: Task; isNew: boolean } | null>(null);
+  const [cacherFaits, setCacherFaits] = useState(false);
+  const [titre, setTitre] = useState('');
+  const [ecart, setEcart] = useState<Ecart>({ n: '1', unite: 'semaines', apres: false });
+  // Pour quel événement planifier (d'office le prochain) ; '' : toute la série.
+  const [pour, setPour] = useState(() => {
+    const p = prochainDeLaSerie(evenementsDeLaSerie(data.events, serie.id));
+    return p ? racine(data.events, p) : '';
+  });
+  const [place, setPlace] = useState<{ id: string; v: Ecart } | null>(null);
+  if (!user) return null;
+
+  const s = data.seriesEvenements?.find((x) => x.id === serie.id) ?? serie;
+  const evs = evenementsDeLaSerie(data.events, s.id);
+  const racines = evs.filter((e) => racine(data.events, e) === e.id);
+  const jour = today();
+  const annee = jour.slice(0, 4);
+  const etSerie = etiquetteDeLaSerie(data, s.id);
+  const periode = periodeDeLaSerie(evs);
+  // L'étiquette d'un événement (une date modifiée seule : celle de son événement d'origine).
+  const etiquetteEv = new Map(evs.map((e) => [e.id, etiquetteDeLEvenement(data, racine(data.events, e))]));
+  const couleur = (e?: ClubEvent) => (e && etiquetteEv.get(e.id)?.couleur) || etSerie?.couleur;
+
+  const points = pointsDeLaSerie(data, s.id, evs).filter((t) => !t.paiement && canSeeTask(t));
+  const faits = points.filter((t) => isDone(data, t)).length;
+  const montres = points.filter((t) => !cacherFaits || !isDone(data, t));
+  const sansDelai = montres.filter((t) => !t.delai).sort((a, b) => a.titre.localeCompare(b.titre, 'fr'));
+  const enRetard = points.filter((t) => isLate(data, t)).length;
+
+  /** L'événement du point : celui auquel il est rattaché, sinon celui dont il porte l'étiquette ; aucun : la série seule. */
+  const evDe = (t: Task) =>
+    evs.find((e) => e.id === t.eventId) ??
+    evs.find((e) => {
+      const et = etiquetteEv.get(e.id);
+      return !!et && !!t.etiquettes?.includes(et.id);
+    });
+  /** Son jour J : la date de son événement ; s'il se répète, l'occurrence suivie (sinon la plus proche de son délai). */
+  const jourJ = (t: Task, e: ClubEvent) =>
+    !e.repetition
+      ? e.date
+      : (t.eventId === e.id && t.delaiRef?.type === 'event' && t.delaiRef.occurrence) || (t.delai && occurrenceProche(e, t.delai)) || occurrenceDu(e, jour) || e.date;
+  /** Le délai du point suit la date de son événement (📌). */
+  const cale = (t: Task, e?: ClubEvent) => !!e && t.eventId === e.id && t.delaiRef?.type === 'event';
+
+  /** Le point, son délai calé sur son événement `e` (au jour J `j`) ; `null` s'il est rattaché à un autre événement. */
+  const caler = (t: Task, e: ClubEvent, j: string, v: Ecart): Task | null => {
+    if (t.eventId && t.eventId !== e.id) return null;
+    return applyDelaiRef(data, { ...t, eventId: e.id, delaiRef: { type: 'event', ...decalage(v), ...(e.repetition ? { occurrence: j } : {}) } });
+  };
+  const ecartDe = (t: Task, e: ClubEvent): Ecart => {
+    if (cale(t, e)) {
+      const x = splitDelai(t.delaiRef!);
+      return { n: String(x.n), unite: x.unite, apres: x.apres };
+    }
+    if (!t.delai) return { n: '1', unite: 'semaines', apres: false };
+    const n = diffDays(t.delai, jourJ(t, e));
+    return { n: String(Math.abs(n)), unite: 'jours', apres: n < 0 };
+  };
+  const valider = (t: Task, v: Ecart) => {
+    const e = evDe(t);
+    setPlace(null);
+    const x = e && caler(t, e, jourJ(t, e), v);
+    if (!x) return;
+    saveTask(x, false);
+    setToast(`« ${t.titre} » : ${offsetLabel(decalage(v)).toLowerCase()} (${fmtDate(x.delai)}), calé sur « ${e!.nom} »`);
+  };
+
+  // Planifier un point : pour un événement (calé sur lui, rangé chez son étiquette ou dans sa sous-section quand on peut),
+  // ou pour toute la série (à la date choisie, chez son étiquette).
+  const peutCreer = creatableSections().length > 0;
+  const evPour = racines.find((e) => e.id === pour);
+  const refPour = evPour ? (evPour.repetition ? occurrenceDu(evPour, jour) ?? derniereOccurrence(evPour) ?? evPour.date : evPour.date) : (periode?.debut ?? jour);
+  const dateEcart = delaiDepuis(decalage(ecart), refPour);
+  const planifier = () => {
+    const et = evPour ? etiquetteEv.get(evPour.id) : etSerie;
+    const evts = sectionEvenements(data);
+    const places = [
+      ...(et ? lieuxDe(et, data.sections) : []),
+      ...(evPour && evts?.sousSections.includes(evPour.nom) ? [{ sectionId: evts.id, sousSection: evPour.nom }] : []),
+    ];
+    const ici = places.find((l) => peutRanger(l.sectionId, l.sousSection ?? ''));
+    const base = newTask(user.id, { titre: titre.trim(), ...(ici ? { sectionId: ici.sectionId, sousSection: ici.sousSection ?? '' } : {}) });
+    const task = evPour
+      ? caler(base, evPour, refPour, ecart)!
+      : { ...base, delai: dateEcart, ...(etSerie && peutEtiqueter(etSerie.id) ? { etiquettes: [...new Set([...(base.etiquettes ?? []), etSerie.id])] } : {}) };
+    setFiche({ task, isNew: true });
+    setTitre('');
+  };
+
+  const qui = (t: Task) => {
+    const noms = [...t.responsables.map((id) => shortName(data.people.find((p) => p.id === id))), ...(t.respHors ?? []).map((p) => shortName(p))];
+    return noms.length ? noms.join(', ') : t.aPrendre ? '🙋 à prendre' : 'personne pour l’instant';
+  };
+
+  const ligne = (t: Task) => {
+    const e = evDe(t);
+    const j = e ? jourJ(t, e) : undefined;
+    const enCours = place?.id === t.id ? place : null;
+    const d = t.delai;
+    const pendant = !!d && !!e && !!j && d >= j && d <= endOf(aLaDate(e, j));
+    return (
+      <li key={t.id} className={`chrono-ligne chrono-point ${isDone(data, t) ? 'fait' : ''} ${isLate(data, t) ? 'retard' : ''} ${pendant ? 'pendant' : ''}`}>
+        <span className="chrono-quand">
+          {d ? <><b>{j ? ecartJ(j, d) : jourCourt(d, annee)}</b><small>{j ? jourCourt(d, annee) : ''}</small></> : <b className="muted">—</b>}
+        </span>
+        <span className="chrono-puce" aria-hidden="true">{isDone(data, t) ? '✓' : ''}</span>
+        <div className="chrono-corps">
+          <button type="button" className="chrono-titre" onClick={() => setFiche({ task: t, isNew: false })} title="Ouvrir le point">
+            {t.titre || '(sans titre)'}
+          </button>
+          <span className="chrono-info">
+            <span className="chrono-de" style={{ '--c': couleur(e) } as React.CSSProperties}>
+              <Icone n={e ? 'evenements' : 'serie'} /> {e ? `${e.nom}${e.repetition && j ? ` du ${fmtDate(j)}` : ''}` : 'Toute la série'}
+            </span>
+            <StatusBadge task={t} />
+            <span className="muted">{qui(t)}</span>
+            {cale(t, e) && (
+              <span className="chrono-cale" title={`Le délai suit la date de « ${e!.nom} »`}>
+                <Icone n="epingle" /> {offsetLabel(t.delaiRef!).toLowerCase()}
+              </span>
+            )}
+          </span>
+          {enCours && e && j && (
+            <div className="chrono-placer" role="group" aria-label={`Placer « ${t.titre} »`}>
+              <ChampEcart v={enCours.v} onChange={(v) => setPlace({ id: t.id, v })} />
+              <small className="delai-calc">→ {fmtDate(delaiDepuis(decalage(enCours.v), j))}</small>
+              <button type="button" className="btn small primary" onClick={() => valider(t, enCours.v)}>OK</button>
+              <button type="button" className="btn small" onClick={() => setPlace(null)}>Annuler</button>
+            </div>
+          )}
+        </div>
+        {!enCours && e && canEditTask(t) && (!t.eventId || t.eventId === e.id) && (
+          <button type="button" className="btn small chrono-bouger" onClick={() => setPlace({ id: t.id, v: ecartDe(t, e) })} title={`Choisir combien de temps avant ou après « ${e.nom} »`}>
+            <Icone n="date" /> {d ? 'Déplacer' : 'Placer'}
+          </button>
+        )}
+      </li>
+    );
+  };
+
+  // Les jours J : chaque événement à sa date ; celui qui se répète, à sa première date et à celles que suivent des points.
+  type Jalon = { date: string; e: ClubEvent; debut: boolean };
+  const jalons: Jalon[] = [];
+  for (const e of evs) {
+    if (!e.repetition) {
+      jalons.push({ date: e.date, e, debut: false });
+      continue;
+    }
+    const dates = new Set([e.date, ...montres.filter((t) => t.delai && evDe(t)?.id === e.id).map((t) => jourJ(t, e))]);
+    [...dates].forEach((d) => jalons.push({ date: d, e, debut: d === e.date }));
+  }
+  // La frise : les points datés, les jours J et « Aujourd'hui », par date (le même jour : aujourd'hui, les jours J, les
+  // points), avec le mois en intercalaire.
+  type Repere = { k: 'point'; date: string; t: Task } | { k: 'evenement'; date: string; j: Jalon } | { k: 'jour'; date: string };
+  const rang = { jour: 0, evenement: 1, point: 2 };
+  const reperes = ([
+    ...montres.filter((t) => t.delai).map((t): Repere => ({ k: 'point', date: t.delai, t })),
+    ...jalons.map((j): Repere => ({ k: 'evenement', date: j.date, j })),
+    { k: 'jour', date: jour },
+  ] as Repere[]).sort(
+    (a, b) =>
+      a.date.localeCompare(b.date) || rang[a.k] - rang[b.k] ||
+      (a.k === 'point' && b.k === 'point' ? a.t.titre.localeCompare(b.t.titre, 'fr') : a.k === 'evenement' && b.k === 'evenement' ? (a.j.e.heure ?? '').localeCompare(b.j.e.heure ?? '') : 0),
+  );
+  const prochain = prochainDeLaSerie(evs, jour);
+  const passee = seriePassee(evs, jour);
+  const frise: JSX.Element[] = [];
+  let mois = '';
+  for (const r of reperes) {
+    if (r.date.slice(0, 7) !== mois) {
+      mois = r.date.slice(0, 7);
+      frise.push(<li key={`m:${mois}`} className="chrono-mois">{nomMois(r.date)}</li>);
+    }
+    if (r.k === 'point') frise.push(ligne(r.t));
+    else if (r.k === 'evenement') {
+      const { e, debut } = r.j;
+      const x = aLaDate(e, r.date);
+      frise.push(
+        <li key={`j:${e.id}@${r.date}`} className="chrono-ligne chrono-jourj" style={couleur(e) ? ({ '--c': couleur(e) } as React.CSSProperties) : undefined}>
+          <span className="chrono-quand"><b>{debut ? 'Début' : 'Jour J'}</b><small>{jourCourt(r.date, annee)}</small></span>
+          <span className="chrono-puce" aria-hidden="true"><Icone n="evenements" /></span>
+          <div className="chrono-corps">
+            <strong>{e.nom}</strong>
+            <span className="muted">
+              {[debut ? libelleRepetition(e) : fmtRange(x.date, x.dateFin), horaire(x), e.lieu].filter(Boolean).join(' · ')}
+            </span>
+          </div>
+        </li>,
+      );
+    } else
+      frise.push(
+        <li key="aujourdhui" className="chrono-ligne chrono-aujourdhui">
+          <span className="chrono-quand"><b>Aujourd’hui</b><small>{jourCourt(jour, annee)}</small></span>
+          <span className="chrono-puce" aria-hidden="true" />
+          <div className="chrono-corps muted">
+            {!prochain ? 'Aucun événement dans la série' : passee ? 'La série est passée' : prochain.date <= jour ? `En cours : ${prochain.nom}` : `Prochain : ${prochain.nom}, dans ${diffDays(jour, prochain.date)} j`}
+          </div>
+        </li>,
+      );
+  }
+
+  return (
+    <Modal title={`Chronologie · ${s.nom}`} icone="horloge" onClose={onClose} wide className="chronologie">
+      <div className="chrono-tete">
+        <span className="chrono-quoi">
+          {etSerie && <BadgeEtiquette e={etSerie} />}{' '}
+          <span>
+            {[`Série · ${evs.length} événement${evs.length > 1 ? 's' : ''}`, periode && (periode.fin ? fmtRange(periode.debut, periode.fin) : `dès le ${fmtDate(periode.debut)}`)].filter(Boolean).join(' · ')}
+          </span>
+        </span>
+        <Progress done={faits} total={points.length} />
+        <span className="muted chrono-compte">
+          {[enRetard && `${enRetard} en retard`, points.filter((t) => !t.delai).length && `${points.filter((t) => !t.delai).length} sans délai`].filter(Boolean).join(' · ')}
+        </span>
+      </div>
+
+      {peutCreer && (racines.length > 0 || etSerie) && (
+        <form className="chrono-planifier" onSubmit={(e) => { e.preventDefault(); planifier(); }}>
+          <strong><Icone n="ajoutTache" /> Planifier un point</strong>
+          <input value={titre} onChange={(e) => setTitre(e.target.value)} placeholder="Que faut-il faire ?" aria-label="Point à planifier" maxLength={200} />
+          <label className="inline chrono-pour">
+            Pour
+            <select value={evPour ? pour : ''} aria-label="Pour quel événement" onChange={(e) => setPour(e.target.value)}>
+              {racines.map((e) => <option key={e.id} value={e.id}>{e.nom}{e.repetition ? ' (sa prochaine date)' : ` (${fmtDate(e.date)})`}</option>)}
+              {etSerie && <option value="">Toute la série (dès son premier jour)</option>}
+            </select>
+          </label>
+          <span className="chrono-ecart-ligne">
+            <ChampEcart v={ecart} onChange={setEcart} />
+            <small className="delai-calc">→ {fmtDate(dateEcart)}</small>
+          </span>
+          <span className="chips chrono-raccourcis">
+            {RACCOURCIS.map((r) => {
+              const on = nombre(ecart) === r.n && ecart.unite === r.unite && (ecart.apres === r.apres || r.n === 0);
+              return (
+                <button key={r.label} type="button" className={`chip ${on ? 'on' : ''}`} aria-pressed={on} onClick={() => setEcart({ n: String(r.n), unite: r.unite, apres: r.apres })}>
+                  {r.label}
+                </button>
+              );
+            })}
+          </span>
+          <button type="submit" className="btn primary">Ajouter…</button>
+        </form>
+      )}
+
+      {points.length > 0 && (
+        <label className="inline hide-toggle chrono-filtre">
+          <input type="checkbox" checked={cacherFaits} onChange={(e) => setCacherFaits(e.target.checked)} /> Masquer les terminés
+        </label>
+      )}
+
+      {sansDelai.length > 0 && (
+        <section className="chrono-sans-delai">
+          <h3><Icone n="alerte" /> À placer dans le temps ({sansDelai.length}) <small className="muted">· sans délai</small></h3>
+          <ul className="chrono-liste">{sansDelai.map(ligne)}</ul>
+        </section>
+      )}
+
+      <ol className="chrono-liste chrono-frise" aria-label={`Points de la série « ${s.nom} » dans le temps`}>{frise}</ol>
+      {!points.length && <Empty>Aucun point pour l’instant.{peutCreer ? ' Planifie le premier ci-dessus : « 1 mois avant » la première manche, « la veille »…' : ''}</Empty>}
+
+      <p className="muted chrono-note">
+        <Icone n="epingle" /> Calé sur son événement : le délai suit sa date, et une reprise de la série garde le même écart.
+      </p>
+      <div className="modal-foot">
+        <Link to={`/taches?event=${encodeURIComponent(FILTRE_SERIE + s.id)}`}>Voir dans la liste des points →</Link>
         <span className="grow" />
         <button type="button" className="btn" onClick={onClose}>Fermer</button>
       </div>

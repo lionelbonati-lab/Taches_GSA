@@ -2466,3 +2466,7 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 .serie-ev-pendant .pendant-de { flex: 1 1 220px; min-width: 0; }
 .serie-ev-pendant .pendant-vers { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 6px; }
 .serie-ev-pendant select { flex: 1; min-width: 0; }
+/* Chronologie d'une série : l'événement de chaque point, à sa couleur ; « Pour » quel événement planifier. */
+.chrono-de { display: inline-flex; align-items: center; gap: 3px; font-size: 0.8rem; font-weight: 600; color: var(--c, var(--event-fg)); }
+.chrono-pour { gap: 6px; }
+.chrono-pour select { max-width: 100%; min-width: 0; }

@@ -3896,3 +3896,91 @@ test('recopier des points dans la copie d’un événement : sans la recréer, l
   expect(d.tasks.find((t: { copieDe?: string }) => t.copieDe === 't-cote2')).toMatchObject({ eventId: manche2.id, delai: dansJours(57) });
   expect(d.tasks.filter((t: { titre: string }) => t.titre === 'Réserver la route')).toHaveLength(2);
 });
+
+test('chronologie d’une série : les points de toutes ses manches sur une frise ; en planifier pour une manche ou pour la série, en déplacer un', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-09T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Le championnat a son étiquette ; un point calé sur la manche 1, un sur la manche 3, un de la série sans délai ; un
+  // point de la natation (programme hivernal), calé sur sa date du 27.11.
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    const moi = d.people[0].id;
+    d.etiquettes.push({ id: 'et-champ', nom: 'Championnat interne 2027', couleur: '#0891b2', type: 'evenement', serieId: 'se-championnat', lieux: [{ sectionId: 'sec8', sousSection: 'Championnat interne 2027' }], membres: ['p9'] });
+    const p = (id: string, titre: string, o: object) => ({
+      id, sectionId: d.sections[0].id, sousSection: '', titre, responsables: [moi], statusId: d.statuses[0].id, remarque: '', checklist: [], createdBy: moi, updatedAt: new Date().toISOString(), ...o,
+    });
+    d.tasks.push(
+      p('t-chrono', 'Réserver le chronométrage', { eventId: 'e-champ-1', delai: '2027-03-13', delaiRef: { type: 'event', joursAvant: 28, unite: 'semaines' } }),
+      p('t-balisage', 'Baliser le parcours', { eventId: 'e-champ-3', delai: '2027-06-11', delaiRef: { type: 'event', joursAvant: 1, unite: 'jours' } }),
+      p('t-classement', 'Classement final', { sectionId: 'sec8', sousSection: 'Championnat interne 2027', etiquettes: ['et-champ'], delai: '' }),
+      p('t-piscine', 'Réserver les lignes d’eau', { eventId: 'e-hiver-natation', delai: '2026-11-20', delaiRef: { type: 'event', joursAvant: 7, unite: 'jours', occurrence: '2026-11-27' } }),
+    );
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  const tache = async (titre: string) => (await lireDonnees(page)).tasks.find((t: { titre: string }) => t.titre === titre);
+  await page.goto('./?demo#/evenements');
+  await page.reload();
+
+  // Ses 5 manches, chacune à son jour J ; chaque point avec sa manche et son écart ; celui de la série à placer.
+  await page.locator('article.carte-serie', { hasText: 'Championnat interne 2027' }).getByRole('button', { name: 'Chronologie' }).click();
+  const chrono = page.getByRole('dialog', { name: 'Chronologie · Championnat interne 2027' });
+  await expect(chrono.locator('.chrono-jourj')).toHaveCount(5);
+  const chronometrage = chrono.locator('.chrono-frise .chrono-point', { hasText: 'Réserver le chronométrage' });
+  await expect(chronometrage).toContainText('J-28');
+  await expect(chronometrage.locator('.chrono-de')).toContainText('Manche 1 – Contre-la-montre');
+  await expect(chrono.locator('.chrono-sans-delai .chrono-point', { hasText: 'Classement final' }).locator('.chrono-de')).toContainText('Toute la série');
+  const ordre = await chrono.locator('.chrono-frise > li.chrono-ligne').allTextContents();
+  const rang = (x: string) => ordre.findIndex((l) => l.includes(x));
+  expect(rang('Aujourd’hui')).toBeLessThan(rang('Réserver le chronométrage'));
+  expect(rang('Réserver le chronométrage')).toBeLessThan(rang('Fahy'));
+  expect(rang('Fahy')).toBeLessThan(rang('Baliser le parcours'));
+  expect(rang('Baliser le parcours')).toBeLessThan(rang('Les Rangiers'));
+
+  // Planifier pour la manche 2, deux semaines avant : calé sur elle, avec l'étiquette de la série.
+  await chrono.getByLabel('Point à planifier').fill('Réserver la salle');
+  await chrono.getByRole('combobox', { name: 'Pour quel événement' }).selectOption('e-champ-2');
+  await chrono.getByRole('button', { name: '2 semaines avant' }).click();
+  await expect(chrono.locator('.chrono-planifier .delai-calc')).toContainText('24.04.2027');
+  await chrono.getByRole('button', { name: 'Ajouter…', exact: true }).click();
+  let nouveau = page.getByRole('dialog', { name: 'Nouveau point' });
+  await champSection(nouveau).selectOption({ label: 'Événements' });
+  await nouveau.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(nouveau).toHaveCount(0);
+  const salle = chrono.locator('.chrono-frise .chrono-point', { hasText: 'Réserver la salle' });
+  await expect(salle).toContainText('J-14');
+  await expect(salle.locator('.chrono-de')).toContainText('Manche 2 – Montée de Montvoie');
+  await expect.poll(async () => (await tache('Réserver la salle'))?.delai).toBe('2027-04-24');
+  expect(await tache('Réserver la salle')).toMatchObject({ eventId: 'e-champ-2', delaiRef: { type: 'event', joursAvant: 14, unite: 'semaines' } });
+  expect((await tache('Réserver la salle')).etiquettes).toContain('et-champ');
+
+  // Pour toute la série, un mois avant son premier jour : rangé chez son étiquette.
+  await chrono.getByLabel('Point à planifier').fill('Imprimer les dossards');
+  await chrono.getByRole('combobox', { name: 'Pour quel événement' }).selectOption({ label: 'Toute la série (dès son premier jour)' });
+  await chrono.getByRole('button', { name: '1 mois avant' }).click();
+  await chrono.getByRole('button', { name: 'Ajouter…', exact: true }).click();
+  nouveau = page.getByRole('dialog', { name: 'Nouveau point' });
+  await expect(champSousSection(nouveau)).toHaveValue('Championnat interne 2027');
+  await nouveau.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(nouveau).toHaveCount(0);
+  await expect(chrono.locator('.chrono-frise .chrono-point', { hasText: 'Imprimer les dossards' }).locator('.chrono-de')).toContainText('Toute la série');
+  await expect.poll(async () => (await tache('Imprimer les dossards'))?.delai).toBe('2027-03-10');
+  expect((await tache('Imprimer les dossards')).eventId).toBeUndefined();
+
+  // Déplacer : le balisage deux jours avant la manche 3.
+  await chrono.locator('.chrono-frise .chrono-point', { hasText: 'Baliser le parcours' }).getByRole('button', { name: /Déplacer/ }).click();
+  const placer = chrono.getByRole('group', { name: 'Placer « Baliser le parcours »' });
+  await placer.getByLabel('Combien').fill('2');
+  await placer.getByRole('button', { name: 'OK' }).click();
+  await expect.poll(async () => (await tache('Baliser le parcours'))?.delai).toBe('2027-06-10');
+  await chrono.getByRole('button', { name: 'Fermer' }).last().click();
+
+  // Programme hivernal : chaque activité à sa première date (« Début »), la natation aussi au jour que suit son point.
+  await page.locator('article.carte-serie', { hasText: 'Programme hivernal 2026-27' }).getByRole('button', { name: 'Chronologie' }).click();
+  const hiver = page.getByRole('dialog', { name: 'Chronologie · Programme hivernal 2026-27' });
+  await expect(hiver.locator('.chrono-jourj', { hasText: 'Début' })).toHaveCount(5);
+  await expect(hiver.locator('.chrono-jourj')).toHaveCount(6);
+  const piscine = hiver.locator('.chrono-frise .chrono-point', { hasText: 'Réserver les lignes d’eau' });
+  await expect(piscine).toContainText('J-7');
+  await expect(piscine.locator('.chrono-de')).toContainText('Natation du 27.11.2026');
+});
