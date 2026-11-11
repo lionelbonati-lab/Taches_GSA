@@ -7,7 +7,7 @@ import {
   Play, Printer, Puzzle, RefreshCw, Repeat, RotateCcw, Save, ScrollText, Send, Settings, Share2, ShieldCheck, ShieldHalf, Signature,
   Smartphone, Sparkles, SquareCheckBig, Stamp, Undo2, Upload, UserLock, UserX, Users, Calendar, Camera, CreditCard, Receipt, FolderTree, PanelTop, History,
   MapPin, Search, LocateFixed, Redo2, GripVertical, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ListPlus, TriangleAlert, Clock, Hash,
-  Monitor, Bold, Italic, Underline, Strikethrough, Baseline, Tag, Presentation, Layers, Newspaper, Landmark, Vote,
+  Monitor, Bold, Italic, Underline, Strikethrough, Baseline, Tag, Presentation, Layers, Newspaper, Landmark, Vote, GripHorizontal,
 } from 'lucide-react';
 
 // Icônes dessinées au trait (bibliothèque Lucide, licence ISC), de la couleur du texte et à sa taille : boutons, titres,
@@ -95,6 +95,8 @@ export const ICONES = {
   annuler: Undo2,
   refaire: Redo2,
   poignee: GripVertical,
+  // Poignée d'une colonne (ordre des rôles) : on la tire de côté.
+  poigneeH: GripHorizontal,
   // Pilule du PV : double chevron, d'une section à l'autre ; simple, d'un point à l'autre.
   sectionPrec: ChevronsUp,
   sectionSuiv: ChevronsDown,
