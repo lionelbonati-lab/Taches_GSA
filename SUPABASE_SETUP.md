@@ -354,8 +354,9 @@ déclencheur `gsa_items_etiquettes_garde` est en place) : **étiquettes protég�
 - Sans elle, l'appli dit « mise à jour 066 à appliquer » quand on écrit dans la discussion d'une étiquette.
 - **Retour en arrière** : voir l'en-tête du fichier.
 
-`supabase/migrations/067_gsa_temps.sql` (**à appliquer**, éditeur SQL) : **compteur de temps personnel**
-(`PLAN_COMPTEUR_TEMPS.md`, README « Mon compteur de temps »).
+`supabase/migrations/067_gsa_temps.sql` (**appliquée par le président le 11.11.2026**, vérifiée sur le serveur : table,
+règles, déclencheur, contraintes et droits identiques au dépôt, pas de diffusion en direct) : **compteur de temps
+personnel** (`PLAN_COMPTEUR_TEMPS.md`, README « Mon compteur de temps »).
 
 - **Table `gsa_temps`** : une ligne par entrée du compteur (compteur lancé puis arrêté, ajout, temps automatique) et une
   ligne `reglages`, au compte connecté (`compte`, `id`, `data`, `supprime`, `modifie`). `modifie` est posé par le serveur

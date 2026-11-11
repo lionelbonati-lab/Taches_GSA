@@ -9,8 +9,8 @@ petits boutons pour ajouter du temps. On peut même envisager un mode automatiqu
 > le libellé « Sur quoi ? » est gardé, facultatif ; les boutons +5, +15, +30 min, +1 h et −5 min ; chacun active le
 > compteur s'il le veut. Pas de raccourci sur l'icône de l'appli installée (la liste des raccourcis est déjà pleine).
 >
-> **Fait le 11.11.2026 : étapes C1 à C4** (README, « Mon compteur de temps » ; migration 067 **à appliquer**,
-> SUPABASE_SETUP.md). C5 n'est pas fait : pas de raccourci (décision ci-dessus), et le bloc d'accueil reste à décider.
+> **Fait le 11.11.2026 : étapes C1 à C4** (README, « Mon compteur de temps » ; migration 067 appliquée par le président
+> le même jour, SUPABASE_SETUP.md). C5 n'est pas fait : pas de raccourci (décision ci-dessus), et le bloc d'accueil reste à décider.
 >
 > La première version de ce plan (temps mesuré par le serveur, heures validées et payées) est écartée : voir « Ce qui a
 > été écarté », à la fin.
