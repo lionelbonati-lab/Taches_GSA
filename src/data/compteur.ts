@@ -25,15 +25,18 @@ export interface EntreeTemps {
 }
 
 export interface ReglagesCompteur {
-  /** Le bouton ⏱ est dans la barre du haut. */
-  actif: boolean;
+  /**
+   * Le bouton ⏱ est retiré de la barre du haut (choix de la personne). Il y est d'office (décision du 11.11.2026) ;
+   * l'ancien réglage « actif » (affiché seulement si on l'avait coché) est ignoré.
+   */
+  masque: boolean;
   /** Mode automatique : le temps passé dans l'appli compte tout seul. */
   auto: boolean;
   /** Compteur oublié : rappel après tant d'heures. */
   oubliHeures: number;
 }
 
-export const REGLAGES_DEFAUT: ReglagesCompteur = { actif: false, auto: false, oubliHeures: 4 };
+export const REGLAGES_DEFAUT: ReglagesCompteur = { masque: false, auto: false, oubliHeures: 4 };
 export const OUBLI_CHOIX = [2, 4, 6, 8, 12];
 /** Petits boutons du panneau (minutes). */
 export const AJOUTS = [5, 15, 30, 60];
@@ -263,7 +266,7 @@ export function entreeValide(x: unknown): EntreeTemps | null {
 export function reglagesValides(x: unknown): ReglagesCompteur {
   const r = (x && typeof x === 'object' ? x : {}) as Partial<ReglagesCompteur>;
   return {
-    actif: r.actif === true,
+    masque: r.masque === true,
     auto: r.auto === true,
     oubliHeures: typeof r.oubliHeures === 'number' && r.oubliHeures > 0 ? r.oubliHeures : REGLAGES_DEFAUT.oubliHeures,
   };

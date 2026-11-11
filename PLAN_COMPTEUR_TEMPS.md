@@ -9,6 +9,10 @@ petits boutons pour ajouter du temps. On peut même envisager un mode automatiqu
 > le libellé « Sur quoi ? » est gardé, facultatif ; les boutons +5, +15, +30 min, +1 h et −5 min ; chacun active le
 > compteur s'il le veut. Pas de raccourci sur l'icône de l'appli installée (la liste des raccourcis est déjà pleine).
 >
+> **Décision du président (11.11.2026, après la mise en ligne)** : *rends-le visible de base.* Le bouton ⏱ est dans
+> la barre du haut **d'office**, pour tout le monde ; chacun peut le retirer (Réglages › « Mon compteur de temps »). Le
+> mode automatique reste éteint tant qu'on ne l'allume pas.
+>
 > **Fait le 11.11.2026 : étapes C1 à C4** (README, « Mon compteur de temps » ; migration 067 appliquée par le président
 > le même jour, SUPABASE_SETUP.md). C5 n'est pas fait : pas de raccourci (décision ci-dessus), et le bloc d'accueil reste à décider.
 >
@@ -21,8 +25,9 @@ petits boutons pour ajouter du temps. On peut même envisager un mode automatiqu
   préparer une course, monter les tentes) : on le lance, on fait son travail, on l'arrête.
 - **Indicatif** : pour soi, sans validation ni paiement. **Personne d'autre ne le voit, admins compris.** Ce n'est ni
   un pointage, ni une feuille d'heures.
-- **Facultatif** : il n'apparaît que pour ceux qui l'activent (Réglages › « Mon compteur de temps »). Sinon, rien
-  n'est compté.
+- **Visible d'office** (d'abord : seulement pour ceux qui l'activent ; changé le 11.11.2026) : le bouton ⏱ est là pour
+  tout le monde, rien n'est compté tant qu'on ne le lance pas ; chacun peut le retirer (Réglages › « Mon compteur de
+  temps »).
 - **Mode automatique** en option, éteint par défaut : il compte le temps pendant lequel on utilise l'appli.
 
 ## 1. Le compteur
@@ -140,7 +145,7 @@ C1 et C2 se font d'abord dans la démo, pour essayer. C3 suit pour la version r�
    d'accueil reste à décider.**
 5. **Les boutons d'ajout** : +5, +15, +30 min, +1 h et −5 min (proposé), ou d'autres valeurs ? **Oui.**
 6. **Pour tout le monde** : chacun l'active s'il le veut (proposé), ou un admin peut aussi le cacher pour tout le club ?
-   **Chacun l'active s'il le veut.**
+   **Chacun l'active s'il le veut** ; puis, après la mise en ligne : **visible d'office, chacun peut le retirer.**
 
 ## Ce qui a été écarté (11.11.2026)
 

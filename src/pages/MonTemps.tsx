@@ -82,7 +82,7 @@ export function MonTemps() {
         <ReglagesCompteur />
       </section>
 
-      {(!vide || reglages.actif) && (
+      {(!vide || !reglages.masque) && (
         <>
           <section className="mon-temps-tuiles" aria-label="Totaux">
             {([['Aujourd’hui', t.jour], ['Cette semaine', t.semaine], ['Ce mois', t.mois], ['Cette année', t.annee]] as const).map(([n, v]) => (
