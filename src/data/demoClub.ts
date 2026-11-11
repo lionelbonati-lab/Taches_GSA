@@ -164,6 +164,12 @@ export function saveMoi(id: string | null) {
 /** Remet toute la démo à zéro. */
 export function resetDemo() {
   [ESPACE_KEY, INFO_KEY, MOI_KEY, MEMBRES_KEY, HISTO_KEY, ERREURS_KEY, 'taches-gsa-logo-demo', 'taches-gsa-couleur-demo'].forEach(retirer);
+  // Compteurs de temps de chacun (compteurEtat.ts).
+  try {
+    Object.keys(localStorage).filter((k) => k.startsWith('taches-gsa-demo-compteur-')).forEach(retirer);
+  } catch {
+    /* stockage indisponible */
+  }
 }
 
 // ---------- Historique des tâches (version réelle : 050) ----------

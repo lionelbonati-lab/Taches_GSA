@@ -354,6 +354,23 @@ déclencheur `gsa_items_etiquettes_garde` est en place) : **étiquettes protég�
 - Sans elle, l'appli dit « mise à jour 066 à appliquer » quand on écrit dans la discussion d'une étiquette.
 - **Retour en arrière** : voir l'en-tête du fichier.
 
+`supabase/migrations/067_gsa_temps.sql` (**à appliquer**, éditeur SQL) : **compteur de temps personnel**
+(`PLAN_COMPTEUR_TEMPS.md`, README « Mon compteur de temps »).
+
+- **Table `gsa_temps`** : une ligne par entrée du compteur (compteur lancé puis arrêté, ajout, temps automatique) et une
+  ligne `reglages`, au compte connecté (`compte`, `id`, `data`, `supprime`, `modifie`). `modifie` est posé par le serveur
+  (déclencheur `gsa_temps_modifie`) : les appareils relisent ce qui a changé depuis. Une entrée retirée garde sa ligne,
+  vidée (`supprime`), le temps que les autres appareils l'apprennent ; l'appli l'efface au bout de 60 jours.
+- **Qui la lit** : chacun ses lignes, et rien d'autre (règles sur `compte = auth.uid()`), **ni les admins, ni les
+  super-admins** ; mot de passe provisoire pas encore changé : rien (`gsa_compte_ok`). 4 Ko au plus par ligne. Compte
+  supprimé (ou fusionné dans un autre) : ses lignes partent avec lui. Ni diffusion en direct, ni copie de nuit, ni
+  sauvegarde du club.
+- **Vérifiée** sur la base de test (`outils/base-test/temps_verif.sh`, 23 cas : écrire, modifier, relire les siennes ;
+  ne rien lire ni écrire chez un autre, admin compris ; ni sans connexion, ni avec un mot de passe provisoire ; taille ;
+  compte supprimé). Ajout pur : aucune table ni fonction existante modifiée.
+- Sans elle, le compteur reste sur l'appareil (Réglages le dit) et il est envoyé une fois la mise à jour faite.
+- **Retour en arrière** : `drop table public.gsa_temps; drop function public.gsa_temps_modifie();`
+
 Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.

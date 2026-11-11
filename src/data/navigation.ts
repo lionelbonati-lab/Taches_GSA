@@ -133,6 +133,13 @@ export const PAGES_COMPTE: NavPage[] = [
     aide: 'Ton compte, ton IBAN, la confidentialité de tes données, l’affichage et les notifications.',
   },
   {
+    // Compteur de temps personnel (PLAN_COMPTEUR_TEMPS.md) : pour soi seul.
+    to: '/mon-temps',
+    label: 'Mon temps',
+    icon: 'chrono',
+    aide: 'Ton compteur de temps pour le club, pour toi seul (personne d’autre ne le voit, admins compris) : lance-le avec le bouton ⏱ en haut, ajoute du temps avec les petits boutons. Ici : tes totaux, le détail jour par jour à corriger, et l’export.',
+  },
+  {
     to: '/admin',
     label: 'Console admin',
     icon: 'admin',

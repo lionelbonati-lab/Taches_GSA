@@ -9,6 +9,7 @@ import { Comptes } from './pages/Comptes';
 import { PageIntro } from './components/Nav';
 import { chargerFicheTache } from './components/FicheTache';
 import { useClubOptional } from './data/club';
+import { CompteurProvider } from './data/compteurEtat';
 
 // Pages chargées à la demande : l'ouverture ne charge que l'accueil et la liste des tâches. Les autres pages et la fiche
 // d'une tâche suivent en arrière-plan une fois l'appli affichée (prêtes au premier clic, et gardées par le service worker
@@ -30,6 +31,7 @@ const charger = {
   aide: () => import('./pages/Aide'),
   propositions: () => import('./pages/Propositions'),
   motsDePasse: () => import('./pages/MotsDePasse'),
+  monTemps: () => import('./pages/MonTemps'),
 };
 const Messages = lazy(() => charger.messages().then((m) => ({ default: m.Messages })));
 const Meetings = lazy(() => charger.agenda().then((m) => ({ default: m.Meetings })));
@@ -47,6 +49,7 @@ const EtiquettesPage = lazy(() => charger.etiquettes().then((m) => ({ default: m
 const Aide = lazy(() => charger.aide().then((m) => ({ default: m.Aide })));
 const Propositions = lazy(() => charger.propositions().then((m) => ({ default: m.Propositions })));
 const MotsDePasse = lazy(() => charger.motsDePasse().then((m) => ({ default: m.MotsDePasse })));
+const MonTemps = lazy(() => charger.monTemps().then((m) => ({ default: m.MonTemps })));
 
 /** Les autres pages, une à une, quand le navigateur a le temps (hors connexion : à la prochaine ouverture). */
 function usePrechargement() {
@@ -80,38 +83,42 @@ export function App() {
     );
   }
   return (
-    <HashRouter>
-      <Routes>
-        <Route element={<Layout />}>
-          <Route index element={<Dashboard />} />
-          {/* La clé force la remise à zéro des filtres quand on arrive via un lien ?event=… */}
-          <Route path="taches" element={<TasksRoute />} />
-          <Route path="messages" element={<Messages />} />
-          <Route path="agenda" element={<Calendar />} />
-          <Route path="chronologie" element={<ChronologieClub />} />
-          {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
-          {can('tab.events') && <Route path="evenements" element={<Events />} />}
-          {/* Anciennes pages des responsables et de l'organigramme : les personnes du club. */}
-          <Route path="responsables" element={<Navigate to="/membres-club" replace />} />
-          <Route path="organigramme" element={<Navigate to="/membres-club" replace />} />
-          {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
-          {can('tab.minutes') && <Route path="pv" element={<Minutes />} />}
-          {can('tab.ag') && <Route path="ag" element={<OrdreDuJourAg />} />}
-          <Route path="sondages" element={<Polls />} />
-          <Route path="paiements" element={<PaiementsRedirect />} />
-          {club?.personnes.voir && <Route path="membres-club" element={<MembresClub />} />}
-          <Route path="etiquettes" element={<EtiquettesPage />} />
-          <Route path="reglages" element={<Settings />} />
-          {can('admin.access') && <Route path="admin" element={<Admin />} />}
-          {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}
-          {club && <Route path="propositions" element={<Propositions />} />}
-          {club && can('admin.access') && <Route path="mots-de-passe" element={<MotsDePasse />} />}
-          {club?.superAdmin && <Route path="comptes" element={<Comptes intro={<PageIntro />} />} />}
-          <Route path="aide" element={<Aide />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
-    </HashRouter>
+    // Compteur de temps personnel (PLAN_COMPTEUR_TEMPS.md) : celui de la personne connectée, sur toutes les pages.
+    <CompteurProvider personId={user.id} reel={!!cloud}>
+      <HashRouter>
+        <Routes>
+          <Route element={<Layout />}>
+            <Route index element={<Dashboard />} />
+            {/* La clé force la remise à zéro des filtres quand on arrive via un lien ?event=… */}
+            <Route path="taches" element={<TasksRoute />} />
+            <Route path="messages" element={<Messages />} />
+            <Route path="agenda" element={<Calendar />} />
+            <Route path="chronologie" element={<ChronologieClub />} />
+            {can('tab.meetings') && <Route path="comite" element={<Meetings />} />}
+            {can('tab.events') && <Route path="evenements" element={<Events />} />}
+            {/* Anciennes pages des responsables et de l'organigramme : les personnes du club. */}
+            <Route path="responsables" element={<Navigate to="/membres-club" replace />} />
+            <Route path="organigramme" element={<Navigate to="/membres-club" replace />} />
+            {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
+            {can('tab.minutes') && <Route path="pv" element={<Minutes />} />}
+            {can('tab.ag') && <Route path="ag" element={<OrdreDuJourAg />} />}
+            <Route path="sondages" element={<Polls />} />
+            <Route path="paiements" element={<PaiementsRedirect />} />
+            {club?.personnes.voir && <Route path="membres-club" element={<MembresClub />} />}
+            <Route path="etiquettes" element={<EtiquettesPage />} />
+            <Route path="reglages" element={<Settings />} />
+            <Route path="mon-temps" element={<MonTemps />} />
+            {can('admin.access') && <Route path="admin" element={<Admin />} />}
+            {can('admin.access') && <Route path="admin/:partie" element={<Admin />} />}
+            {club && <Route path="propositions" element={<Propositions />} />}
+            {club && can('admin.access') && <Route path="mots-de-passe" element={<MotsDePasse />} />}
+            {club?.superAdmin && <Route path="comptes" element={<Comptes intro={<PageIntro />} />} />}
+            <Route path="aide" element={<Aide />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </HashRouter>
+    </CompteurProvider>
   );
 }
 

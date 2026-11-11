@@ -14,6 +14,8 @@ import { MesDonnees } from '../components/MesDonnees';
 import { MonProfil } from '../components/MonProfil';
 import { Icone } from '../components/icones';
 import { NotifsPush } from '../components/NotifsPush';
+import { ReglagesCompteur } from '../components/Compteur';
+import { Link } from 'react-router-dom';
 
 export function Settings() {
   const { prefs, setPrefs, can, reset, login, cloud } = useStore();
@@ -158,6 +160,11 @@ export function Settings() {
             <small className="muted">Démo : les notifications de l’appareil s’affichent à l’ouverture de l’application. Dans la version réelle, elles arrivent même l’appli fermée.</small>
           </div>
         )}
+      </section>
+      <section className="panel">
+        <h2><Icone n="chrono" /> Mon compteur de temps</h2>
+        <ReglagesCompteur />
+        <p className="row"><Link to="/mon-temps">Voir mon temps →</Link></p>
       </section>
       <section className="panel">
         <h2>Application</h2>

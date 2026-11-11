@@ -73,3 +73,12 @@ outils/base-test/discussion_verif.sh
 outils/base-test/appliquer.sh supabase/migrations/064_gsa_instantane.sql
 outils/base-test/instantane_verif.sh
 ```
+
+Essai du compteur de temps personnel (migration 067 : chacun ses lignes, admins compris) : `refaire.sh` l'applique avec
+les autres ; sur une base neuve avec `donnees.sql` (« Tout est bon » attendu) :
+
+```bash
+outils/base-test/refaire.sh
+psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/donnees.sql
+outils/base-test/temps_verif.sh
+```

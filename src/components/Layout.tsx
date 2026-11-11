@@ -9,6 +9,7 @@ import { AppLogo, Avatar, Toast } from './ui';
 import { Visionneuse } from './Visionneuse';
 import { InstallButton } from './InstallButton';
 import { Bell } from './Bell';
+import { BoutonCompteur } from './Compteur';
 import { Recherche } from './Recherche';
 import { showSystemNotification, useNotifications } from '../notifications';
 import { rafraichirPush } from '../data/push';
@@ -164,6 +165,7 @@ export function Layout() {
         </nav>
         <BoutonAnnuler />
         <Recherche />
+        <BoutonCompteur />
         <Bell />
         <div className="who">
           <InstallButton variant="compact" hideWhenUnavailable />

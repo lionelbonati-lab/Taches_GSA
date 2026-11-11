@@ -5,8 +5,15 @@ rémunération.* Puis le même jour : *je n'ai pas pensé à la surveillance du 
 un compteur propre à chacun, qui reste indicatif, sans rémunération. On l'enclenche et on l'éteint à la main, avec de
 petits boutons pour ajouter du temps. On peut même envisager un mode automatique optionnel.*
 
-> Rien n'est construit. La première version de ce plan (temps mesuré par le serveur, heures validées et payées) est
-> écartée : voir « Ce qui a été écarté », à la fin.
+> **Décisions du président (11.11.2026)** : le bouton ⏱ dans la barre du haut ; le mode automatique compte tout seul ;
+> le libellé « Sur quoi ? » est gardé, facultatif ; les boutons +5, +15, +30 min, +1 h et −5 min ; chacun active le
+> compteur s'il le veut. Pas de raccourci sur l'icône de l'appli installée (la liste des raccourcis est déjà pleine).
+>
+> **Fait le 11.11.2026 : étapes C1 à C4** (README, « Mon compteur de temps » ; migration 067 **à appliquer**,
+> SUPABASE_SETUP.md). C5 n'est pas fait : pas de raccourci (décision ci-dessus), et le bloc d'accueil reste à décider.
+>
+> La première version de ce plan (temps mesuré par le serveur, heures validées et payées) est écartée : voir « Ce qui a
+> été écarté », à la fin.
 
 ## Le principe
 
@@ -28,7 +35,7 @@ avance.
 
 ```
 ⏱ 0:42 · depuis 14h05                         [ ■ Arrêter ]
-Ajouter :  [+5 min] [+15 min] [+30 min] [+1 h]   [−5 min]
+Ajouter à aujourd'hui :  [+5 min] [+15 min] [+30 min] [+1 h] [−5 min]
 Sur quoi ?  [ Préparation course de côte ▾ ]   (facultatif)
 Aujourd'hui 1 h 25 · Cette semaine 6 h 10 · Ce mois 18 h 40
 Voir le détail →
@@ -66,17 +73,18 @@ dans l'appli aujourd'hui sans compteur : les ajouter ? »). C'est plus discret, 
 
 Une page à soi (panneau ⏱ › « Voir le détail », ou Réglages) :
 
-- **Totaux** : aujourd'hui, cette semaine, ce mois, cette saison, avec une petite barre par jour de la semaine ou par
-  mois.
-- **Liste par jour** : chaque séance, chaque ajout et le temps automatique, avec leur libellé. On peut corriger l'heure
-  de début ou de fin, changer le libellé ou retirer une entrée.
+- **Totaux** : aujourd'hui, cette semaine, ce mois, cette année, avec une petite barre par jour (semaine), par
+  semaine (mois) ou par mois (année).
+- **Liste par jour** : chaque séance du compteur et chaque ajout, avec leur libellé. On peut corriger l'heure de début
+  ou de fin (le jour et les minutes d'un ajout), changer le libellé ou retirer une entrée. Le temps automatique du jour
+  tient en une ligne (hors compteur), qu'on peut retirer.
 - **Par libellé**, si on en met (« Préparation course de côte : 6 h 30 »).
 - **Exporter (CSV)**, pour soi : tableur, ou bilan de son bénévolat si on veut le transmettre soi-même.
 - **Tout effacer** : tout son historique d'un coup, après confirmation.
 
 En option (question 4) : un bloc **« ⏱ Mon temps »** sur l'accueil (aujourd'hui, la semaine, un bouton Démarrer), à
-placer ou masquer comme les autres blocs, et un raccourci « Compteur » sur l'icône de l'appli installée (comme « Mes
-points » ou « Remboursement »).
+placer ou masquer comme les autres blocs. Pas de raccourci sur l'icône de l'appli installée : la liste est déjà pleine
+(décision du 11.11.2026).
 
 ## 4. Qui voit quoi
 
@@ -96,8 +104,8 @@ points » ou « Remboursement »).
 - **Version réelle** : **une table à part sur le serveur** (`gsa_temps`), où chacun ne lit et n'écrit que ses propres
   lignes. C'est la règle du serveur, admins compris. On ne passe pas par les données partagées du club (`gsa_items`) :
   le serveur y laisse les réglages de chacun (`prefs`) lisibles par les autres membres, même si l'appli ne les montre
-  pas. La migration prend le numéro suivant et n'ajoute que la table et sa règle d'accès, sans toucher aux données
-  existantes. Quand un compte est supprimé, ses lignes partent avec lui.
+  pas. La migration 067 n'ajoute que la table et sa règle d'accès, sans toucher aux données existantes. Quand un compte
+  est supprimé, ses lignes partent avec lui.
 - **Hors ligne** : Démarrer, Arrêter et les ajouts marchent sans réseau. Ils sont gardés sur l'appareil et envoyés au
   retour du réseau, comme le reste de l'appli.
 - **Hors du reste de l'appli** : rien dans le journal d'activité, ni dans l'historique, ni dans « Annuler » (le
@@ -113,23 +121,26 @@ points » ou « Remboursement »).
 
 | Étape | Contenu | Taille |
 | --- | --- | --- |
-| **C1** | Compteur manuel : ⏱ dans la barre du haut, Démarrer / Arrêter, petits boutons, compteur oublié, totaux du jour et de la semaine ; activation dans Réglages. Démo. | Petite |
-| **C2** | Page « Mon temps » : liste par jour, corrections, libellés, totaux, export CSV, tout effacer. Démo. | Petite |
-| **C3** | Version réelle : table `gsa_temps` (chacun ses lignes), même compteur sur tous ses appareils, hors ligne. | Petite à moyenne |
-| **C4** | Mode automatique, optionnel et éteint par défaut, sans double compte. | Petite |
-| **C5** (option) | Bloc d'accueil « ⏱ Mon temps », raccourci de l'appli installée. | Petite |
+| **C1** ✅ | Compteur manuel : ⏱ dans la barre du haut, Démarrer / Arrêter, petits boutons, compteur oublié, totaux du jour et de la semaine ; activation dans Réglages. Démo. | Petite |
+| **C2** ✅ | Page « Mon temps » : liste par jour, corrections, libellés, totaux, export CSV, tout effacer. Démo. | Petite |
+| **C3** ✅ | Version réelle : table `gsa_temps` (chacun ses lignes), même compteur sur tous ses appareils, hors ligne. | Petite à moyenne |
+| **C4** ✅ | Mode automatique, optionnel et éteint par défaut, sans double compte. | Petite |
+| **C5** (option) | Bloc d'accueil « ⏱ Mon temps » (à décider) ; pas de raccourci (liste pleine). | Petite |
 
 C1 et C2 se font d'abord dans la démo, pour essayer. C3 suit pour la version réelle.
 
-## Questions (avec une proposition)
+## Questions (réponses du 11.11.2026)
 
-1. **Le bouton ⏱** : dans la barre du haut, à côté de la cloche (proposé), ou seulement sur l'accueil ?
+1. **Le bouton ⏱** : dans la barre du haut, à côté de la cloche (proposé), ou seulement sur l'accueil ? **Barre du haut.**
 2. **Le mode automatique** : il compte tout seul (proposé, puisqu'il est optionnel), ou il propose seulement d'ajouter
-   le temps passé dans l'appli ?
+   le temps passé dans l'appli ? **Il compte tout seul.**
 3. **Le libellé « Sur quoi ? »** : le garder facultatif (proposé), ou s'en passer pour rester le plus simple possible ?
-4. **Le bloc d'accueil et le raccourci** (C5) : à faire, ou pas ?
-5. **Les boutons d'ajout** : +5, +15, +30 min, +1 h et −5 min (proposé), ou d'autres valeurs ?
+   **Gardé, facultatif.**
+4. **Le bloc d'accueil et le raccourci** (C5) : à faire, ou pas ? **Pas de raccourci (liste déjà pleine) ; le bloc
+   d'accueil reste à décider.**
+5. **Les boutons d'ajout** : +5, +15, +30 min, +1 h et −5 min (proposé), ou d'autres valeurs ? **Oui.**
 6. **Pour tout le monde** : chacun l'active s'il le veut (proposé), ou un admin peut aussi le cacher pour tout le club ?
+   **Chacun l'active s'il le veut.**
 
 ## Ce qui a été écarté (11.11.2026)
 

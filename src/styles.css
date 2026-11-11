@@ -956,6 +956,82 @@ body:has(.pv-fiche-ecran) { overflow: hidden; }
   .bell-panel { position: fixed; left: 8px; right: 8px; width: auto; top: calc(56px + env(safe-area-inset-top)); max-height: calc(100vh - 150px); }
 }
 
+/* ---------- Compteur de temps personnel (bouton ⏱ de l'en-tête, page « Mon temps ») ---------- */
+.compteur-wrap { position: relative; }
+.recherche-btn ~ .compteur-wrap { margin-left: 0; }
+.compteur-btn { display: inline-flex; align-items: center; gap: 4px; border: 1px solid transparent; background: none; font-size: 1.3rem; cursor: pointer; padding: 6px 8px; border-radius: 999px; line-height: 1; }
+.compteur-btn:hover { background: var(--surface2); }
+.compteur-btn.on { background: var(--primary-soft); border-color: var(--primary); color: var(--primary); padding: 4px 10px 4px 7px; }
+.compteur-btn.on .icone-trait { animation: compteur-pouls 2s ease-in-out infinite; }
+.compteur-temps { font-size: 0.9rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+@keyframes compteur-pouls { 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .compteur-btn.on .icone-trait { animation: none; } }
+.compteur-panel { position: absolute; right: 0; top: calc(100% + 8px); width: 380px; max-height: 80vh; overflow-y: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; box-shadow: 0 12px 32px rgba(15, 23, 42, 0.2); z-index: 40; }
+.compteur-corps { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.compteur-ligne { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.compteur-etat { display: flex; flex-direction: column; }
+.compteur-grand { font-size: 1.6rem; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--primary); line-height: 1.1; }
+.compteur-grand.arrete { color: var(--muted); font-size: 1.2rem; font-weight: 600; }
+.compteur-ligne .btn { display: inline-flex; align-items: center; gap: 6px; }
+.compteur-libelle { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+.compteur-ajouts { display: flex; flex-direction: column; gap: 4px; }
+.compteur-ajouts-titre { font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+.compteur-ajouts-btns { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; }
+.compteur-ajouts .btn { font-variant-numeric: tabular-nums; padding: 5px 2px; white-space: nowrap; }
+.btn.compteur-autre { align-self: flex-start; padding: 0; }
+.compteur-totaux { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; font-size: 0.8rem; color: var(--muted); border-top: 1px solid var(--border); padding-top: 10px; }
+.compteur-totaux span { display: flex; flex-direction: column; gap: 2px; }
+.compteur-totaux b { color: var(--text); font-size: 1rem; font-variant-numeric: tabular-nums; }
+.compteur-auto { display: inline-flex; align-items: center; gap: 4px; }
+.compteur-alerte { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; color: var(--partiel-fg); background: var(--partiel-bg); border-radius: 8px; padding: 6px 10px; font-size: 0.88rem; }
+.compteur-oubli { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; }
+.compteur-oubli-a { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; }
+.compteur-oubli-a label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); }
+.compteur-autre-jour { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 10px; padding: 10px; background: var(--surface2); border-radius: 8px; }
+.compteur-autre-jour label { display: flex; flex-direction: column; gap: 4px; font-size: 0.85rem; color: var(--muted); font-weight: 500; }
+.compteur-autre-jour .row { margin-top: 0; }
+.compteur-duree { display: inline-flex; align-items: center; gap: 4px; color: var(--text); }
+.compteur-duree input { width: 4.2em; }
+.compteur-reglages { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+.compteur-reglage-oubli { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mon-temps h1 { display: flex; align-items: center; gap: 8px; }
+.mon-temps h2 { display: flex; align-items: center; gap: 6px; }
+.mon-temps-tuiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+.mon-temps-tuile { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; display: flex; flex-direction: column; gap: 2px; box-shadow: var(--shadow); }
+.mon-temps-tuile small { color: var(--muted); }
+.mon-temps-tuile strong { font-size: 1.25rem; font-variant-numeric: tabular-nums; }
+.mon-temps-periode { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.mon-temps-onglets { display: inline-flex; gap: 4px; }
+.mon-temps-nav { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mon-temps-total { margin: 10px 0 6px; }
+.mon-temps-barres { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.mon-temps-barres li { display: grid; grid-template-columns: 7.5em 1fr 5em; align-items: center; gap: 8px; font-size: 0.88rem; }
+.mon-temps-barres li.auj .mon-temps-barre-nom { font-weight: 700; }
+.mon-temps-barre { height: 12px; background: var(--surface2); border-radius: 999px; overflow: hidden; }
+.mon-temps-barre > span { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
+.mon-temps-barre-val { text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+.mon-temps-libelles { list-style: none; margin: 0 0 6px; padding: 0; }
+.mon-temps-libelles li { display: flex; justify-content: space-between; gap: 10px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.mon-temps-actions { margin-top: 0; }
+.mon-temps-actions h2 { margin: 0; }
+.mon-temps-detail h3 { margin: 14px 0 4px; font-size: 0.95rem; }
+.mon-temps-detail h3::first-letter { text-transform: uppercase; }
+.mon-temps-detail ul { list-style: none; margin: 0; padding: 0; }
+.mon-temps-entree { display: flex; align-items: center; gap: 6px; padding: 4px 0; border-bottom: 1px solid var(--border); }
+.mon-temps-quoi { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.mon-temps-quoi > span { display: inline-flex; align-items: center; gap: 4px; }
+.mon-temps-libelle { color: var(--muted); overflow-wrap: anywhere; }
+.mon-temps-entree.auto .mon-temps-quoi > span { color: var(--muted); }
+.mon-temps-duree { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mon-temps-edition { margin: 6px 0; }
+@media (max-width: 767px) {
+  .compteur-panel { position: fixed; left: 8px; right: 8px; width: auto; top: calc(56px + env(safe-area-inset-top)); max-height: calc(100vh - 150px); }
+  .compteur-btn { padding: 6px; }
+  .compteur-btn.on { padding: 4px 8px 4px 6px; }
+  .mon-temps-tuiles { grid-template-columns: repeat(2, 1fr); }
+  .mon-temps-barres li { grid-template-columns: 6em 1fr 4.5em; }
+}
+
 /* ---------- Ordre du jour (document imprimable) ---------- */
 .pv-layout { display: grid; grid-template-columns: 290px 1fr; gap: 20px; align-items: start; }
 .pv-settings { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 12px; position: sticky; top: 76px; max-height: calc(100vh - 96px); overflow-y: auto; box-shadow: var(--shadow); }
