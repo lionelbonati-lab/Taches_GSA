@@ -212,7 +212,7 @@ serveur contrôle les signatures :
 - la signature porte la date du serveur ;
 - un PV signé ne peut plus changer sans que ses signatures soient retirées.
 
-Cela demande une migration, `067`, que le président applique après un essai sur la base de test.
+Cela demande une migration, `068` (la 067 est celle du compteur de temps), que le président applique après un essai sur la base de test.
 
 ## Les votes : quelle majorité ?
 
@@ -262,7 +262,7 @@ sont mis à jour à chaque étape.
    une étiquette, annexe du PV. **1 à 2 M.**
 5. **AG5 — Signatures** (démo) : valider et faire signer, signer, demander une correction, versions, archive signée,
    notifications. **1,5 à 2,5 M.**
-6. **AG6 — Serveur** : migration `067` (signatures protégées, mot de passe redemandé), essais sur la base de test (la
+6. **AG6 — Serveur** : migration `068` (signatures protégées, mot de passe redemandé), essais sur la base de test (la
    liste `assemblees` passe déjà par le serveur depuis AG1). **1 à 2,5 M.**
 
 **Total : 13 à 21 M tokens** (ordre de grandeur, contexte relu compris). Les étapes 1 et 2 suffisent pour tenir une
@@ -272,7 +272,7 @@ Fichiers principaux : `src/data/types.ts` ; `src/data/assemblee.ts` (nouveau : r
 textes) ; `src/pages/OrdreDuJourAg.tsx` et `src/pages/PvAg.tsx` (nouveaux) ; `src/components/FicheAg.tsx`,
 `src/components/Fenetres.tsx` (cadre commun aux deux PV), `src/components/PresencesAg.tsx`,
 `src/components/SignaturesPv.tsx` ; `src/data/navigation.ts`, `src/App.tsx`, `src/data/cloud.ts` ;
-`src/pages/Aide.tsx`, `README.md`, `tests/demo.spec.ts` ; `supabase/migrations/067_gsa_ag_signatures.sql`.
+`src/pages/Aide.tsx`, `README.md`, `tests/demo.spec.ts` ; `supabase/migrations/068_gsa_ag_signatures.sql`.
 
 ## À confirmer
 
