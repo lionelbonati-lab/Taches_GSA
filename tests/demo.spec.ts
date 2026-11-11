@@ -4389,6 +4389,13 @@ test('chronologie du club : la série à son début officiel, un crochet jusqu�
     d.events.find((e: { id: string }) => e.id === 'e-hiver-natation').date = '2026-09-04';
     d.events.find((e: { id: string }) => e.id === 'e10').dateFin = '2026-11-29';
     d.events.push({ id: 'e-ski', nom: 'Camp de ski', date: '2026-12-28', dateFin: '2027-01-03', lieu: '', description: '' });
+    // Une newsletter sur tout le mois, et une série de newsletters : pas de crochet.
+    d.events.push({ id: 'e-nl-dec', nom: 'Newsletter de décembre', date: '2026-12-01', dateFin: '2026-12-31', lieu: '', description: '', newsletter: true });
+    d.seriesEvenements.push({ id: 'se-nl', nom: 'Newsletters 2027', newsletter: true });
+    d.events.push(
+      { id: 'e-nl-1', nom: 'Newsletter de janvier', date: '2027-01-05', lieu: '', description: '', dansSerie: 'se-nl' },
+      { id: 'e-nl-2', nom: 'Newsletter de février', date: '2027-02-02', lieu: '', description: '', dansSerie: 'se-nl' },
+    );
     localStorage.setItem(k, JSON.stringify(d));
   }, cle);
   const seance = async () => (await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle)).meetings.find((m: { titre: string }) => m.titre.includes('décembre 2026'));
@@ -4405,6 +4412,10 @@ test('chronologie du club : la série à son début officiel, un crochet jusqu�
   await expect(page.locator('svg.cc-crochet[data-crochet="e:e10"]')).toBeVisible();
   await expect(carte('Camp de ski').locator('.cc-jusqua')).toHaveText('→ 03.01.27');
   await expect(page.locator('svg.cc-crochet[data-crochet="e:e-ski"]')).toBeVisible();
+  // Une newsletter sur plusieurs jours : sa fin écrite à côté, pas de crochet ni de ligne « fin ».
+  await expect(carte('Newsletter de décembre').locator('.cc-jusqua')).toHaveText('→ 31.12');
+  await expect(page.locator('svg.cc-crochet[data-crochet="e:e-nl-dec"]')).toHaveCount(0);
+  await expect(page.locator('.cc-fin', { hasText: 'Newsletter de décembre' })).toHaveCount(0);
   // La série aussi : son crochet dès le 25 octobre ; elle finit en 2027 : sa date de fin, crochet ouvert.
   await expect(leJour('2026-10-25').locator('.cc-el.k-serie .cc-jusqua')).toHaveText('→ 28.03.27');
   await expect(page.locator('svg.cc-crochet[data-crochet="se:se-hiver"]')).toBeVisible();
@@ -4453,6 +4464,10 @@ test('chronologie du club : la série à son début officiel, un crochet jusqu�
   await expect(page.locator('svg.cc-crochet[data-crochet="se:se-hiver"]')).toBeVisible();
   await expect(leJour('2027-09-18').locator('.cc-fin')).toHaveText('fin · Championnat interne 2027');
   await expect(page.locator('svg.cc-crochet[data-crochet="se:se-championnat"]')).toBeVisible();
+  // La série de newsletters : sa ligne, sans crochet ni « fin ».
+  await expect(page.locator('.cc-el.k-serie', { hasText: 'Newsletters 2027' })).toHaveCount(1);
+  await expect(page.locator('svg.cc-crochet[data-crochet="se:se-nl"]')).toHaveCount(0);
+  await expect(page.locator('.cc-fin', { hasText: 'Newsletters 2027' })).toHaveCount(0);
 });
 
 test('un événement de ce soir : « ce soir à 19h00 » à l’accueil et dans les événements, « en cours » pendant, « terminé » après', async ({ page }) => {

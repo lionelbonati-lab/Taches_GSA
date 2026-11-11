@@ -4,7 +4,7 @@ import { useStore } from '../data/store';
 import type { ClubEvent, Meeting, Task } from '../data/types';
 import { addDays, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, newTask, offsetLabel, today } from '../data/utils';
 import { aLaDate, libelleRepetition } from '../data/repetition';
-import { etiquetteDeLaSerie, etiquetteDeLEvenement, etiquettesRangees, placesPour } from '../data/etiquettes';
+import { estNewsletter, etiquetteDeLaSerie, etiquetteDeLEvenement, etiquettesRangees, placesPour } from '../data/etiquettes';
 import { isCouleur, teintes } from '../data/couleur';
 import { motSeance, titreSelonDate, versProchaineSeance } from '../data/seances';
 import { nomAvecSerie } from '../data/seriesEvenements';
@@ -540,8 +540,10 @@ export function ChronologieClub() {
     const nom = c.k === 'evenement' ? nomAvecSerie(data, c.e) : nomCarte(c);
     const n = c.points.length;
     const ouverte = n > 0 && ouvertes.has(c.cle);
-    // Sur plusieurs jours (pas une série qui se répète) : jusqu'à quand.
+    // Sur plusieurs jours (pas une série qui se répète) : jusqu'à quand ; son crochet, sauf pour une newsletter (sa fin
+    // écrite à côté, « → 30.11 »).
     const jusqua = c.k !== 'seance' && !(c.k === 'evenement' && c.e.repetition) && fin > c.date ? fin : undefined;
+    const newsletter = c.k === 'evenement' && estNewsletter(data, c.e);
     const plus = c.k === 'seance' ? peutCreer : peutCreer && (c.k === 'evenement' || peutEtiqueter(c.et.id));
     return (
       <div
@@ -551,7 +553,7 @@ export function ChronologieClub() {
         draggable={bouge}
         onDragStart={bouge && g ? debut(g) : undefined}
         onDragEnd={finGlisse}
-        data-crochet-debut={jusqua ? c.cle : undefined}
+        data-crochet-debut={jusqua && !newsletter ? c.cle : undefined}
         {...cible(c)}
       >
         <div className="cc-el-ligne">
@@ -564,7 +566,7 @@ export function ChronologieClub() {
             {nom}
           </button>
           {/* Sa fin dans la période : le crochet va jusqu'à sa ligne « fin » ; après : sa date. */}
-          {jusqua && p && jusqua > p.a && <span className="cc-jusqua">→ {dateCourte(jusqua, c.date)}</span>}
+          {jusqua && p && (newsletter || jusqua > p.a) && <span className="cc-jusqua">→ {dateCourte(jusqua, c.date)}</span>}
           {estAg(c) && <span className="cc-ag" title="Assemblée générale">AG</span>}
           {c.k === 'evenement' && c.e.repetition && <span className="cc-repete" title={libelleRepetition(c.e)}><Icone n="repetition" /></span>}
           {n > 0 && (
@@ -616,13 +618,13 @@ export function ChronologieClub() {
     const couleur = couleurDe(x.cle);
     return (
       <div key={x.cle} className={`cc-el k-serie ${couleur ? 'couleur' : ''} ${passee ? 'passee' : ''} ${ouverte ? 'ouverte' : ''}`} style={styleCouleur(couleur)}
-        data-crochet-debut={!x.fin || x.fin > x.date ? x.cle : undefined}>
+        data-crochet-debut={!x.s.newsletter && (!x.fin || x.fin > x.date) ? x.cle : undefined}>
         <div className="cc-el-ligne">
           <button type="button" className="cc-el-titre" onClick={() => navigate(`/evenements?id=${encodeURIComponent(x.s.id)}`)} title="Série d’événements : l’ouvrir dans Agenda › Événements">
             {x.s.nom}
           </button>
           {/* Sa fin après la période : sa date (le crochet reste ouvert) ; dans la période : sa ligne « fin ». */}
-          {x.fin && p && x.fin > p.a && <span className="cc-jusqua">→ {dateCourte(x.fin, x.date)}</span>}
+          {!x.s.newsletter && x.fin && p && x.fin > p.a && <span className="cc-jusqua">→ {dateCourte(x.fin, x.date)}</span>}
           <button
             type="button"
             className="cc-plus"

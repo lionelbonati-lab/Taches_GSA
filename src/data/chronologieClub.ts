@@ -3,6 +3,7 @@ import { addDays, applyDelaiRef, diffDays, endOf, today } from './utils';
 import { aLaDate, duree, occurrencesEntre } from './repetition';
 import { etiquettesDatees, memeEvenement } from './agendaIcs';
 import { periodeDeLaSerie } from './seriesEvenements';
+import { estNewsletter } from './etiquettes';
 
 // Chronologie du club (Agenda › Chronologie, ChronologieClub.tsx) : séances et événements dans le temps, chacun avec ses
 // points, année par année ou d'une assemblée générale à l'autre (case « Assemblée générale » d'un événement ou d'une
@@ -24,7 +25,8 @@ import { periodeDeLaSerie } from './seriesEvenements';
 // seriesEvenements.ts ; commencée avant la période : son premier jour), sinon à la date de son premier événement de la
 // période ; son « + » montre ses événements, chacun à sa date, et les points de son étiquette (4 bis), comme ci-dessus.
 // Un événement sur plusieurs jours (ou une étiquette datée), une série : une ligne « fin » à son dernier jour (FinFrise ;
-// une série : sa fin officielle, sinon le dernier jour de son dernier événement), que relie un crochet « [ » dans la page.
+// une série : sa fin officielle, sinon le dernier jour de son dernier événement), que relie un crochet « [ » dans la page ;
+// pas pour une newsletter (ni une série de newsletters).
 
 /** Période affichée, du `de` au `a` (inclus). Vue AG : l'assemblée du début et celle de la fin (absente : pas encore prévue). */
 export interface Periode {
@@ -369,12 +371,12 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
   for (const t of seuls) jourDe(t.delai).gauche.push({ k: 'point', cle: `t:${t.id}`, t });
   // Fin d'un événement sur plusieurs jours (pas une série qui se répète), montré : à son dernier jour, dans la période.
   for (const c of cartes.values()) {
-    if (caches.has(c.cle) || (c.k !== 'evenement' && c.k !== 'etiquette') || (c.k === 'evenement' && c.e.repetition)) continue;
+    if (caches.has(c.cle) || (c.k !== 'evenement' && c.k !== 'etiquette') || (c.k === 'evenement' && (c.e.repetition || estNewsletter(data, c.e)))) continue;
     if (c.fin > c.date && dans(c.fin)) jourDe(c.fin).droite.push({ k: 'fin', cle: `fin:${c.cle}`, de: c });
   }
-  // Fin d'une série montrée (sa ligne dans la période).
+  // Fin d'une série montrée (sa ligne dans la période) ; pas d'une série de newsletters.
   for (const se of series.values())
-    if (se.date && dans(se.date) && se.fin && se.fin > se.date && dans(se.fin)) jourDe(se.fin).droite.push({ k: 'fin', cle: `fin:${se.cle}`, de: se });
+    if (!se.s.newsletter && se.date && dans(se.date) && se.fin && se.fin > se.date && dans(se.fin)) jourDe(se.fin).droite.push({ k: 'fin', cle: `fin:${se.cle}`, de: se });
   for (const { t, cle, gauche } of aLeurDate) {
     if (ailleurs.has(cle)) nbPoints++;
     if (!ouverte(cle) || caches.has(cle)) continue;
