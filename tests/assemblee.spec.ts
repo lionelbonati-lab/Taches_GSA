@@ -42,8 +42,8 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
   // L'AG de l'agenda (démo : Assemblée générale 2027, le 13.03.2027) est proposée.
   await expect(page.getByLabel('Assemblée générale à préparer')).toHaveValue('e12');
   await page.getByRole('button', { name: /Partir du modèle/ }).click();
-  await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(11);
-  await expect(page.getByRole('tab', { name: 'Points (11)' })).toBeVisible();
+  await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(12);
+  await expect(page.getByRole('tab', { name: 'Points (12)' })).toBeVisible();
 
   // Un nouveau point, avec son texte et un vote à la majorité des deux tiers.
   await page.getByRole('button', { name: 'Ajouter un point' }).click();
@@ -55,7 +55,7 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
   await fiche.getByLabel('Majorité du vote 1').selectOption('deuxTiers');
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
-  await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(12);
+  await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(13);
 
   // Un sous-point au nouveau point, puis le point remonte d'un cran (avant « Divers »).
   await page.getByRole('button', { name: 'Ajouter un sous-point à « Modification des statuts »' }).click();
@@ -63,26 +63,27 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
   await sous.getByLabel('Intitulé', { exact: true }).fill('Article 12 : cotisations');
   await sous.getByRole('button', { name: 'Enregistrer' }).click();
   await page.getByRole('button', { name: 'Monter « Modification des statuts »' }).click();
-  await expect(page.locator('.ag-points > .ag-liste > li').nth(10).locator('.ag-titre').first()).toContainText('Modification des statuts');
-  await expect(page.locator('.ag-points > .ag-liste > li').nth(11).locator('.ag-titre').first()).toContainText('Divers');
+  await expect(page.locator('.ag-points > .ag-liste > li').nth(11).locator('.ag-titre').first()).toContainText('Modification des statuts');
+  await expect(page.locator('.ag-points > .ag-liste > li').nth(12).locator('.ag-titre').first()).toContainText('Divers');
 
   // Convocation : titre de l'AG, points numérotés, sous-points, textes et votes ; aucun statut ni délai.
   await page.getByRole('tab', { name: 'Convocation' }).click();
   const feuille = page.locator('.pv-sheet');
   await expect(feuille.locator('h1')).toHaveText('Assemblée générale 2027');
   await expect(feuille.locator('.pv-meta')).toHaveText('samedi 13 mars 2027');
-  await expect(feuille.locator('ol.odj > li')).toHaveCount(12);
-  const statuts = feuille.locator('ol.odj > li').nth(10);
+  await expect(feuille.locator('ol.odj > li')).toHaveCount(13);
+  const statuts = feuille.locator('ol.odj > li').nth(11);
   await expect(statuts.locator('.odj-sec')).toHaveText('Modification des statuts (vote, deux tiers)');
   await expect(statuts.locator('.ag-texte-point')).toHaveText('Le comité propose de modifier l’article 12.');
   await expect(statuts.locator('ol.odj-l1 > li')).toHaveText('Article 12 : cotisations');
-  await expect(feuille.locator('ol.odj > li').nth(3).locator('.odj-sec')).toHaveText('Approbation du procès-verbal de l’assemblée générale 2026 (vote)');
+  await expect(feuille.locator('ol.odj > li').nth(2).locator('.odj-sec')).toHaveText('Approbation du PV 2026 (vote)');
+  await expect(feuille.locator('ol.odj > li').nth(0).locator('.odj-sec')).toHaveText('Ouverture de l’assemblée (vote : Approbation de l’ordre du jour)');
   await expect(feuille).not.toContainText('À faire');
 
   // Un clic sur un point de la convocation ouvre sa fiche.
   await feuille.locator('.odj-task', { hasText: 'Divers' }).click();
-  await expect(page.getByRole('dialog', { name: 'Point 12' })).toBeVisible();
-  await page.getByRole('dialog', { name: 'Point 12' }).getByRole('button', { name: 'Annuler' }).click();
+  await expect(page.getByRole('dialog', { name: 'Point 13' })).toBeVisible();
+  await page.getByRole('dialog', { name: 'Point 13' }).getByRole('button', { name: 'Annuler' }).click();
 
   // Texte d'introduction ; archive dans l'AG ; tout reste après rechargement.
   await page.locator('summary', { hasText: 'Textes de la convocation' }).click();
@@ -92,8 +93,8 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
   await page.getByRole('button', { name: 'Archiver dans l’AG' }).click();
   await expect(page.locator('summary', { hasText: 'Archives (1)' })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('tab', { name: 'Points (12)' })).toBeVisible();
-  await expect(page.locator('.pv-sheet ol.odj > li')).toHaveCount(12);
+  await expect(page.getByRole('tab', { name: 'Points (13)' })).toBeVisible();
+  await expect(page.locator('.pv-sheet ol.odj > li')).toHaveCount(13);
 
   // Les points de l'AG ne sont pas des points de la liste.
   const donnees = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));
@@ -105,7 +106,7 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
 test('AG suivante : ses points repris de l’AG précédente, années avancées d’un an', async ({ page }) => {
   await allerA(page, '/ag');
   await page.getByRole('button', { name: /Partir du modèle/ }).click();
-  await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(11);
+  await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(12);
 
   // Nouvelle AG (événement de type « Assemblée générale »), le 11.03.2028 : choisie d'office.
   await page.getByRole('button', { name: 'Nouvelle AG' }).click();
@@ -116,15 +117,15 @@ test('AG suivante : ses points repris de l’AG précédente, années avancées 
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect(page.getByLabel('Assemblée générale à préparer').locator('option:checked')).toHaveText(/Assemblée générale 2028/);
 
-  await page.getByRole('button', { name: 'Reprendre « Assemblée générale 2027 » (11 points)' }).click();
-  await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(11);
-  await expect(page.locator('.ag-points > .ag-liste > li').nth(3).locator('.ag-titre').first()).toContainText('Approbation du procès-verbal de l’assemblée générale 2027');
-  await expect(page.locator('.ag-points > .ag-liste > li').nth(5).locator('.ag-titre').first()).toContainText('Comptes 2027');
-  await expect(page.locator('.ag-points > .ag-liste > li').nth(6).locator('.ag-titre').first()).toContainText('Budget 2028 et cotisations');
+  await page.getByRole('button', { name: 'Reprendre « Assemblée générale 2027 » (12 points)' }).click();
+  await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(12);
+  await expect(page.locator('.ag-points > .ag-liste > li').nth(2).locator('.ag-titre').first()).toContainText('Approbation du PV 2027');
+  await expect(page.locator('.ag-points > .ag-liste > li').nth(5).locator('.ag-titre').first()).toContainText('Comptes exercices 2027');
+  await expect(page.locator('.ag-points > .ag-liste > li').nth(9).locator('.ag-titre').first()).toContainText('Budget 2028');
   // L'ordre du jour de l'AG 2027 n'a pas changé.
   await page.getByLabel('Assemblée générale à préparer').selectOption('e12');
   await page.getByRole('tab', { name: /Points/ }).click();
-  await expect(page.locator('.ag-points > .ag-liste > li').nth(5).locator('.ag-titre').first()).toContainText('Comptes 2026');
+  await expect(page.locator('.ag-points > .ag-liste > li').nth(5).locator('.ag-titre').first()).toContainText('Comptes exercices 2026');
 });
 
 test('carte de l’AG dans les événements : lien vers son ordre du jour', async ({ page }) => {
@@ -140,13 +141,13 @@ test('convocation de l’AG : documents en annexe, PDF, modifiée à la main, em
   await allerA(page, '/ag');
   await page.getByRole('button', { name: /Partir du modèle/ }).click();
 
-  // Les comptes (PDF) joints au point « Comptes 2026 ».
-  await page.locator('.ag-titre', { hasText: 'Comptes 2026' }).click();
+  // Les comptes (PDF) joints au point « Comptes exercices 2026 ».
+  await page.locator('.ag-titre', { hasText: 'Comptes exercices 2026' }).click();
   const fiche = page.getByRole('dialog', { name: 'Point 6' });
   await fiche.locator('input[type=file]').first().setInputFiles([{ name: 'comptes.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await pdf.save()) }]);
   await expect(fiche.locator('.doc-list li')).toHaveCount(1);
   await fiche.getByRole('button', { name: 'Enregistrer' }).click();
-  await expect(page.locator('.ag-titre', { hasText: 'Comptes 2026' })).toContainText('📎 1');
+  await expect(page.locator('.ag-titre', { hasText: 'Comptes exercices 2026' })).toContainText('📎 1');
 
   // Convocation : le document nommé sous son point ; en annexe, ses pages reproduites à la fin.
   await page.getByRole('tab', { name: 'Convocation' }).click();
@@ -183,5 +184,5 @@ test('convocation de l’AG : documents en annexe, PDF, modifiée à la main, em
   await envoi.getByRole('radio', { name: 'Comité' }).click();
   await expect(envoi).toContainText(/À : \d+ adresses?/);
   await envoi.getByText('Aperçu du texte').click();
-  await expect(envoi.locator('pre')).toContainText('1. Ouverture et bienvenue');
+  await expect(envoi.locator('pre')).toContainText('1. Ouverture de l’assemblée');
 });

@@ -274,6 +274,27 @@ textes) ; `src/pages/OrdreDuJourAg.tsx` et `src/pages/PvAg.tsx` (nouveaux) ; `sr
 `src/components/SignaturesPv.tsx` ; `src/data/navigation.ts`, `src/App.tsx`, `src/data/cloud.ts` ;
 `src/pages/Aide.tsx`, `README.md`, `tests/demo.spec.ts` ; `supabase/migrations/068_gsa_ag_signatures.sql`.
 
+## Ce que disent les PV des AG 2024, 2025 et 2026 (lus le 11.11.2026)
+
+Les PV ne sont pas dans le dépôt (noms des membres). Ce qu'ils apprennent pour le module :
+
+- **L'ordre du jour** est presque le même chaque année : il est devenu le **modèle** de la page (README, « Partir du
+  modèle »). S'y ajoutent les points propres à une année (défraiement d'un moniteur, modification des statuts…).
+- **Les votes** : presque toujours « approuvé à l'unanimité » ou « accepté par acclamation » ; parfois des abstentions
+  et des voix contre **nommées** (« X et Y s'abstiennent, Z est contre »), puis un second vote. Le PV de l'AG devra donc
+  proposer d'abord **« À l'unanimité »** et **« Par acclamation »**, puis les nombres, avec **les noms** des abstentions et
+  des voix contre si on veut.
+- **Les présences** : une feuille signée à l'entrée (nom, prénom, localité, signature), jointe au PV ; les **excusés**
+  sont lus à l'ouverture et nommés dans le PV ; le **nombre de membres** du club est donné au point « Admissions /
+  démissions ». La liste de présence marquée après coup (partie 3) correspond à cet usage.
+- **Les rapports des responsables** et les événements (école de cyclisme, groupe compétition, Bruntrutaine, course de
+  préparation, critérium, Montvoie) ont chacun leur paragraphe : ce sont des sous-points, chacun avec ses notes.
+- **Les signatures** : le PV 2026 se termine par celles du président, du vice-président et de la caissière, pour les
+  changements bancaires décidés. La partie 4 devra permettre d'ajouter un signataire (pas seulement président et
+  secrétaire).
+- **Données sensibles** : le PV 2026 contient des numéros de comptes bancaires. Dans l'appli, le PV de l'AG est lisible
+  de tous ceux qui ont l'onglet AG : il faudra ne pas y recopier les IBAN (ou les masquer), comme ailleurs dans l'appli.
+
 ## À confirmer
 
 1. ~~Une rubrique à part, ou deux pages de plus dans « Comité » ?~~ **Décidé le 11.11.2026** : un onglet à part, « AG »,

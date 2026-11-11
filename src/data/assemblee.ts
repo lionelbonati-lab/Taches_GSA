@@ -97,30 +97,34 @@ export function reprendrePoints(points: PointAg[], deLa: string, versLa: string)
 
 export const nouveauVote = (objet: string, majorite: MajoriteAg = 'exprimees'): VoteAg => ({ id: uid('va'), objet, majorite });
 
-/** Ordre du jour classique d'une AG, pour la toute première (à adapter) ; `an` : l'année de l'AG. */
+/**
+ * Modèle d'ordre du jour, celui des AG du club (PV 2024 à 2026 : mêmes points, dans le même ordre, avec leurs votes ; les
+ * points propres à une année, comme une modification des statuts, s'ajoutent à la main) ; `an` : l'année de l'AG.
+ */
 export function modeleAg(an: number): PointAg[] {
-  const p = (titre: string, o: Partial<Pick<PointAg, 'texte' | 'sous'>> & { vote?: string | true } = {}): PointAg => ({
+  const p = (titre: string, o: Partial<Pick<PointAg, 'texte' | 'sous'>> & { vote?: string | true | string[] } = {}): PointAg => ({
     id: uid('pa'),
     titre,
     ...(o.texte ? { texte: o.texte } : {}),
     ...(o.sous ? { sous: o.sous } : {}),
-    ...(o.vote ? { votes: [nouveauVote(o.vote === true ? titre : o.vote)] } : {}),
+    ...(o.vote ? { votes: (Array.isArray(o.vote) ? o.vote : [o.vote === true ? titre : o.vote]).map((v) => nouveauVote(v)) } : {}),
   });
   const passe = an - 1;
   return [
-    p('Ouverture et bienvenue'),
+    p('Ouverture de l’assemblée', { vote: 'Approbation de l’ordre du jour' }),
     p('Nomination des scrutateurs'),
-    p('Approbation de l’ordre du jour', { vote: true }),
-    p(`Approbation du procès-verbal de l’assemblée générale ${passe}`, { vote: true }),
-    p('Rapports', { sous: [p('du président'), p('du chef technique')] }),
-    p(`Comptes ${passe}`, {
-      sous: [p('Présentation des comptes'), p('Rapport des vérificateurs des comptes'), p('Approbation des comptes et décharge au comité', { vote: true })],
+    p(`Approbation du PV ${passe}`, { vote: true }),
+    p('Rapport du président'),
+    p('Rapport des différents responsables', {
+      sous: [p('École de cyclisme'), p('Groupe compétition'), p('Bruntrutaine'), p('Course de préparation'), p('Critérium de Porrentruy'), p('Col de Montvoie')],
     }),
-    p(`Budget ${an} et cotisations`, { vote: true }),
-    p('Élections', { sous: [p('du comité'), p('des vérificateurs des comptes')] }),
-    p('Propositions du comité et des membres'),
-    p('Admissions, démissions et honneurs'),
-    p('Divers'),
+    p(`Comptes exercices ${passe}`),
+    p('Rapport des vérificateurs', { vote: `Approbation des comptes ${passe}` }),
+    p('Renouvellement du comité'),
+    p('Élection du/de la président/e et du comité', { vote: ['Élection du/de la président/e', 'Élection du comité', `Vérificateurs des comptes ${an}`] }),
+    p(`Budget ${an}`, { vote: true }),
+    p('Admissions / démissions', { vote: 'Admission des nouveaux membres' }),
+    p('Divers', { sous: [p(`Programme ${an}`), p('Remerciements'), p('Remise des prix du championnat d’hiver VTT'), p('Naissances / mariages / décès')] }),
   ];
 }
 

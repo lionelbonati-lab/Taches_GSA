@@ -436,7 +436,7 @@ export function OrdreDuJourAg() {
                     <p className="muted small">
                       {precedente
                         ? 'Les points de l’AG précédente sont repris avec leurs textes, sous-points et votes, sans les documents ; les années avancent d’un an (« Comptes 2026 » → « Comptes 2027 »).'
-                        : 'Le modèle : un ordre du jour classique d’AG (ouverture, scrutateurs, PV, rapports, comptes, budget, élections, propositions, divers), à adapter.'}
+                        : 'Le modèle : l’ordre du jour habituel des AG du club (d’après les PV 2024 à 2026 : ouverture, scrutateurs, PV, rapports du président et des responsables, comptes, vérificateurs, comité, élections, budget, admissions et démissions, divers), avec ses votes ; à adapter.'}
                     </p>
                   </div>
                 }
