@@ -996,7 +996,8 @@ test('étiquette d’un événement : sa sous-section dans « Événements », �
   await allerA(page, '/');
   const carte = page.locator('.bloc-evenements .link-panel', { hasText: 'Marché de Noël' });
   await expect(carte).toHaveCount(1);
-  await expect(carte).toContainText('en cours');
+  // Toute la journée, aujourd'hui : « aujourd'hui » (pas « en cours »).
+  await expect(carte).toContainText('aujourd’hui');
   await carte.click();
   const chrono = page.getByRole('dialog', { name: 'Chronologie · Marché de Noël' });
   await expect(chrono.locator('.chrono-point', { hasText: 'Monter le stand' })).toHaveCount(1);
@@ -3987,15 +3988,15 @@ test('chronologie d’une série : les points de toutes ses manches sur une fris
   await expect(piscine.locator('.chrono-de')).toContainText('Natation du 27.11.2026');
 });
 
-test('carte d’une série : sa période dans la case de date ; « aujourd’hui à 18h30 » avant l’entraînement, « en cours » pendant', async ({ page }) => {
+test('carte d’une série : sa période dans la case de date ; « ce soir à 18h30 » avant l’entraînement, « en cours » pendant', async ({ page }) => {
   // Mardi 10 novembre 2026, 9 h : l'entraînement en salle est ce soir à 18h30.
   await page.clock.setFixedTime(new Date('2026-11-10T08:00:00Z'));
   await page.goto('./?demo#/evenements');
   await page.reload();
   const hiver = page.locator('article.carte-serie', { hasText: 'Programme hivernal 2026-27' });
   await expect(hiver.locator('.dateblock')).toHaveText('27 oct.→ 27 mars2026–27');
-  await expect(hiver).toContainText('aujourd’hui à 18h30 : Entraînement en salle');
-  await expect(hiver.locator('.serie-ev.prochain .badge')).toHaveText('aujourd’hui à 18h30');
+  await expect(hiver).toContainText('ce soir à 18h30 : Entraînement en salle');
+  await expect(hiver.locator('.serie-ev.prochain .badge')).toHaveText('ce soir à 18h30');
   const championnat = page.locator('article.carte-serie', { hasText: 'Championnat interne 2027' });
   await expect(championnat.locator('.dateblock')).toHaveText('10 avr.→ 18 sept.2027');
   // La série en cours (commencée en octobre) avant les événements à venir.
@@ -4442,4 +4443,32 @@ test('chronologie du club : la série à son début officiel, un crochet jusqu�
   await expect(page.locator('.toast')).toContainText('Comité de décembre 2026 déplacée au 17.12.2026');
   await expect(page.locator('.cc-zoom')).toHaveCount(0);
   expect((await seance()).date).toBe('2026-12-17');
+});
+
+test('un événement de ce soir : « ce soir à 19h00 » à l’accueil et dans les événements, « en cours » pendant, « terminé » après', async ({ page }) => {
+  // Mercredi 11 novembre 2026, 9 h : le souper est ce soir de 19 h à 23 h.
+  await page.clock.setFixedTime(new Date('2026-11-11T08:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    d.events.push({ id: 'e-souper', nom: 'Souper de la St-Martin', date: '2026-11-11', heure: '19:00', heureFin: '23:00', lieu: 'Auberge', description: '' });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  const accueil = () => page.locator('.bloc-evenements .link-panel', { hasText: 'Souper de la St-Martin' });
+  const carte = () => page.locator('article.agenda-item', { hasText: 'Souper de la St-Martin' });
+  const verifier = async (texte: string) => {
+    await page.goto('./?demo#/');
+    await page.reload();
+    await expect(accueil()).toContainText(`(${texte})`);
+    await page.goto('./?demo#/evenements');
+    await expect(carte().locator('.muted').first()).toContainText(texte);
+  };
+  await verifier('ce soir à 19h00');
+  // 20 h : il a commencé.
+  await page.clock.setFixedTime(new Date('2026-11-11T19:00:00Z'));
+  await verifier('en cours');
+  // 23 h 30 : il est fini (encore là jusqu'à demain).
+  await page.clock.setFixedTime(new Date('2026-11-11T22:30:00Z'));
+  await verifier('terminé');
 });

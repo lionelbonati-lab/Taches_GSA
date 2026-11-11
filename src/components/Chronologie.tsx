@@ -2,7 +2,7 @@ import { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, DelaiUnite, Etiquette, Meeting, SerieEvenements, Task } from '../data/types';
-import { aLaDate, derniereOccurrence, fmtHeure, horaire, libelleRepetition, occurrenceDu, occurrenceProche } from '../data/repetition';
+import { aLaDate, derniereOccurrence, etatEvenement, fmtHeure, horaire, libelleRepetition, occurrenceDu, occurrenceProche } from '../data/repetition';
 import {
   DELAI_MAX, addDays, applyDelaiRef, delaiDepuis, diffDays, endOf, fmtDate, fmtRange, isDone, isLate, makeDelai, newTask, offsetLabel, shortName, splitDelai, today,
 } from '../data/utils';
@@ -343,7 +343,7 @@ export function Chronologie({ cible, onClose }: { cible: CibleChrono; onClose: (
           <span className="chrono-quand"><b>Aujourd’hui</b><small>{relatif(jour)}</small></span>
           <span className="chrono-puce" aria-hidden="true" />
           <div className="chrono-corps muted">
-            {debut > jour ? `L’événement est dans ${diffDays(jour, debut)} j` : fin >= jour ? 'L’événement est en cours' : `L’événement est passé depuis ${diffDays(fin, jour)} j`}
+            {debut > jour ? `L’événement est dans ${diffDays(jour, debut)} j` : fin >= jour ? `L’événement est ${etatEvenement(ev ?? { date: debut, dateFin: fin })}` : `L’événement est passé depuis ${diffDays(fin, jour)} j`}
           </div>
         </li>,
       );
@@ -709,7 +709,9 @@ export function ChronologieSerie({ serie, onClose }: { serie: SerieEvenements; o
           <span className="chrono-quand"><b>Aujourd’hui</b><small>{jourCourt(jour, annee)}</small></span>
           <span className="chrono-puce" aria-hidden="true" />
           <div className="chrono-corps muted">
-            {!prochain ? 'Aucun événement dans la série' : passee ? 'La série est passée' : prochain.date <= jour ? `En cours : ${prochain.nom}` : `Prochain : ${prochain.nom}, dans ${diffDays(jour, prochain.date)} j`}
+            {!prochain ? 'Aucun événement dans la série' : passee ? 'La série est passée' : prochain.date <= jour
+              ? `${etatEvenement(prochain).replace(/^./, (c) => c.toUpperCase())} : ${prochain.nom}`
+              : `Prochain : ${prochain.nom}, dans ${diffDays(jour, prochain.date)} j`}
           </div>
         </li>,
       );

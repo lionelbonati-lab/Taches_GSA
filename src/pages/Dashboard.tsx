@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Etiquette, ScheduledEmail, Task } from '../data/types';
 import { daysUntil, derniereSeancePassee, endOf, estArchivee, fmtDate, fmtRange, isDone, isLate, today } from '../data/utils';
-import { aLaDate, horaire, occurrenceDu } from '../data/repetition';
+import { aLaDate, etatEvenement, horaire, occurrenceDu } from '../data/repetition';
 import { TaskCard } from './Tasks';
 import { TaskModal } from '../components/FicheTache';
 import { Empty } from '../components/ui';
@@ -257,7 +257,8 @@ export function Dashboard() {
               const tasks = data.tasks.filter((t) => (!!e && t.eventId === e.id) || (!!et && !!t.etiquettes?.includes(et.id)));
               const done = tasks.filter((t) => isDone(data, t)).length;
               const x = et ? { date: et.date!, dateFin: et.dateFin } : e!;
-              const quand = x.date <= jour ? 'en cours' : `dans ${daysUntil(x.date)} j`;
+              // « ce soir à 18h30 », « aujourd’hui », « en cours », « dans 3 j » (l'heure : celle de l'événement de l'agenda).
+              const quand = etatEvenement(e ?? { date: x.date, dateFin: x.dateFin });
               // Un clic : la chronologie de ses points (de là, la liste des points).
               const serie = e ? data.events.find((y) => y.id === e.id) ?? e : undefined;
               const ouvrir = () => setChrono(serie ? { serie, date: e!.date, etiquette: et } : { date: et!.date!, etiquette: et });

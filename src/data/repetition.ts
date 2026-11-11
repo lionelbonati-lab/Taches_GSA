@@ -262,6 +262,24 @@ export function libelleRepetition(e: Pick<ClubEvent, 'date' | 'repetition'>): st
 /** « 12h30 ». */
 export const fmtHeure = (h?: string) => (h ? h.replace(':', 'h') : '');
 
+/**
+ * Où en est l'événement (à sa date), pour l'affichage : « dans 3 j » ; le jour même, avant son heure, « ce soir à 18h30 »
+ * (dès 17 h) ou « aujourd’hui à 14h00 », pendant « en cours », après son heure de fin « terminé » ; toute la journée :
+ * « aujourd’hui » ; sur plusieurs jours, commencé : « en cours » (son dernier jour, après son heure de fin : « terminé »).
+ * Passé (son dernier jour derrière nous) : rien.
+ */
+export function etatEvenement(e: Pick<ClubEvent, 'date' | 'dateFin' | 'heure' | 'heureFin'>, maintenant = new Date()): string {
+  const jour = `${maintenant.getFullYear()}-${pad(maintenant.getMonth() + 1)}-${pad(maintenant.getDate())}`;
+  const heure = `${pad(maintenant.getHours())}:${pad(maintenant.getMinutes())}`;
+  const fin = e.dateFin && e.dateFin > e.date ? e.dateFin : e.date;
+  if (fin < jour) return '';
+  if (e.date > jour) return `dans ${ecart(jour, e.date)} j`;
+  if (fin === jour && e.heureFin && heure >= e.heureFin && (fin > e.date || !e.heure || e.heureFin > e.heure)) return 'terminé';
+  if (e.date === jour && e.heure && heure < e.heure) return `${e.heure >= '17:00' ? 'ce soir' : 'aujourd’hui'} à ${fmtHeure(e.heure)}`;
+  if (e.date === jour && !e.heure && fin === jour) return 'aujourd’hui';
+  return 'en cours';
+}
+
 /** « 12h30–13h30 », « 19h30 » ; toute la journée : rien. Sur plusieurs jours, l'heure de fin est celle du dernier jour. */
 export const horaire = (e: Pick<ClubEvent, 'heure' | 'heureFin'>) =>
   !e.heure ? '' : e.heureFin ? `${fmtHeure(e.heure)}–${fmtHeure(e.heureFin)}` : fmtHeure(e.heure);

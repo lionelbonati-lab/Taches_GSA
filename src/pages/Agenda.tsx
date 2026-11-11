@@ -4,7 +4,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Etiquette, Meeting, PvArchive, SerieEvenements, Task } from '../data/types';
 import { daysUntil, diffDays, endOf, fmtDate, fmtDateTime, fmtRange, fullName, isDone, today, uid } from '../data/utils';
-import { aLaDate, fmtHeure, horaire, libelleRepetition } from '../data/repetition';
+import { aLaDate, etatEvenement, horaire, libelleRepetition } from '../data/repetition';
 import { EventModal, newEvent } from '../components/EventModal';
 import { RepriseModal } from '../components/Reprise';
 import { SerieModal } from '../components/SerieModal';
@@ -639,7 +639,7 @@ function CarteEtiquette({ et, onChrono }: { et: Etiquette; onChrono: () => void 
   const fin = endOf({ date: et.date!, dateFin: et.dateFin });
   const past = fin < jour;
   const jours = diffDays(et.date!, fin) + 1;
-  const quand = past ? '' : et.date! <= jour ? 'en cours' : `dans ${daysUntil(et.date!)} j`;
+  const quand = past ? '' : etatEvenement({ date: et.date!, dateFin: et.dateFin });
   const taches = data.tasks.filter((t) => t.etiquettes?.includes(et.id));
   return (
     <article className={`panel agenda-item carte-evenement etiquette-evenement ${past ? 'past' : ''}`} style={{ '--c': et.couleur } as React.CSSProperties}>
@@ -675,7 +675,8 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
   const fin = endOf(e);
   const past = fin < jour;
   const jours = diffDays(e.date, fin) + 1;
-  const quand = past ? '' : e.date <= jour ? 'en cours' : `dans ${daysUntil(e.date)} j`;
+  // « ce soir à 18h30 » avant son heure, « en cours » pendant, « dans 3 j »…
+  const quand = past ? '' : etatEvenement(e);
   const suite = data.events.find((x) => x.repriseDe === serie.id);
   // Liste de ses points : ceux de son étiquette (ses points rattachés la reçoivent d'office) ; une étiquette du même jour
   // pas encore reliée ne les a pas : ceux rattachés à l'événement, s'il en a.
@@ -725,16 +726,6 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
   );
 }
 
-/**
- * Un événement d'une série qui a lieu aujourd'hui : « aujourd’hui à 18h30 » avant son heure, sinon « en cours » (sur la
- * journée, ou commencé un jour d'avant).
- */
-function etatDuJour(e: ClubEvent) {
-  const t = new Date();
-  const maintenant = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
-  return e.date === today() && e.heure && e.heure > maintenant ? `aujourd’hui à ${fmtHeure(e.heure)}` : 'en cours';
-}
-
 /** « mar. 17.11.2026 » (sur plusieurs jours : « sam. 27–28.02.2027 »). */
 const jourEtDates = (e: Pick<ClubEvent, 'date' | 'dateFin'>) =>
   `${new Date(e.date + 'T12:00:00').toLocaleDateString('fr-CH', { weekday: 'short' })} ${fmtRange(e.date, e.dateFin)}`;
@@ -768,7 +759,7 @@ function CarteSerie({ serie, evs, cible, etiquetteDe, onEdit, onAjout, onReprise
   const hors = horsPeriode(evs, serie);
   const past = seriePassee(evs, jour);
   const tasks = pointsDeLaSerie(data, serie.id, evs);
-  const quand = !prochain || past ? '' : prochain.date <= jour ? `${etatDuJour(prochain)} : ${prochain.nom}` : `prochain : ${prochain.nom}, dans ${daysUntil(prochain.date)} j`;
+  const quand = !prochain || past ? '' : prochain.date <= jour ? `${etatEvenement(prochain)} : ${prochain.nom}` : `prochain : ${prochain.nom}, dans ${daysUntil(prochain.date)} j`;
   const duree = periode && (periode.fin ? (periode.fin > periode.debut ? `du ${fmtDate(periode.debut)} au ${fmtDate(periode.fin)}` : fmtDate(periode.debut)) : `dès le ${fmtDate(periode.debut)}`);
   // Aucun ne se répète (les manches d'un championnat) : numérotés.
   const Liste = evs.length && evs.every((e) => !e.repetition) ? 'ol' : 'ul';
@@ -861,7 +852,7 @@ function LigneSerie({ e, etiquette, prochain, onChrono, onEdit, onReprise }: {
     <li className={`serie-ev ${past ? 'past' : ''} ${prochain ? 'prochain' : ''}`}>
       <div className="grow">
         <TitreEvenement nom={e.nom} onClick={onChrono} />
-        {prochain && <span className="badge serie-ev-prochain">{x.date <= jour ? etatDuJour(x) : 'prochain'}</span>}
+        {prochain && <span className="badge serie-ev-prochain">{x.date <= jour ? etatEvenement(x) : 'prochain'}</span>}
         <div className="muted">
           {[e.repetition ? null : jourEtDates(x), horaire(x), e.lieu, tasks.length ? `${faits}/${tasks.length} point${tasks.length > 1 ? 's' : ''}` : null].filter(Boolean).join(' · ')}
           {e.repetition && <> {(horaire(x) || e.lieu) && '· '}<Icone n="repetition" /> {libelleRepetition(e)}</>}
