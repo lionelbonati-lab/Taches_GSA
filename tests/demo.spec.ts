@@ -4497,3 +4497,35 @@ test('un événement de ce soir : « ce soir à 19h00 » à l’accueil et dans 
   await page.clock.setFixedTime(new Date('2026-11-11T22:30:00Z'));
   await verifier('terminé');
 });
+
+test('console admin : ordre des rôles par glisser-déposer, au clavier ou depuis la fiche du rôle', async ({ page }) => {
+  await allerA(page, '/admin/droits');
+  const colonnes = page.locator('.matrix thead .role-head');
+  // Les trois premiers rôles, relus jusqu'à ce que la page soit à jour.
+  const debut = async () => (await colonnes.allInnerTexts()).map((t) => t.trim()).slice(0, 3);
+  await expect.poll(debut).toEqual(['Admin (Président)', 'Secrétaire', 'Comité']);
+
+  // « Comité » glissé sur « Admin (Président) » : il passe en premier.
+  await page.getByRole('button', { name: 'Déplacer le rôle « Comité » (← →)' }).dragTo(page.locator('.matrix thead th', { hasText: 'Admin (Président)' }));
+  await expect.poll(debut).toEqual(['Comité', 'Admin (Président)', 'Secrétaire']);
+
+  // Au clavier : → sur la poignée de « Comité » le repasse en deuxième.
+  await page.getByRole('button', { name: 'Déplacer le rôle « Comité » (← →)' }).press('ArrowRight');
+  await expect.poll(debut).toEqual(['Admin (Président)', 'Comité', 'Secrétaire']);
+
+  // Depuis la fiche du rôle (au doigt) : « Après ».
+  await colonnes.filter({ hasText: 'Comité' }).click();
+  const fiche = page.getByRole('dialog', { name: 'Rôle : Comité' });
+  await expect(fiche).toContainText('Place dans la liste des rôles : 2 sur 7');
+  await fiche.getByRole('button', { name: 'Après' }).click();
+  await expect(fiche).toContainText('Place dans la liste des rôles : 3 sur 7');
+  await fiche.getByRole('button', { name: 'Annuler' }).click();
+  await expect.poll(debut).toEqual(['Admin (Président)', 'Secrétaire', 'Comité']);
+
+  // L'ordre est gardé, et repris ailleurs (rôles d'une personne).
+  await page.getByRole('button', { name: 'Déplacer le rôle « Membre » (← →)' }).dragTo(page.locator('.matrix thead th', { hasText: 'Admin (Président)' }));
+  await page.reload();
+  await expect(colonnes.first()).toHaveText('Membre');
+  const roles = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).roles.map((r: { label: string }) => r.label));
+  expect(roles[0]).toBe('Membre');
+});

@@ -236,6 +236,14 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .matrix .group-row td { background: var(--surface2); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); font-weight: 700; padding: 6px 12px; }
 .role-head { border: none; background: none; cursor: pointer; font-weight: 700; color: var(--text); display: inline-flex; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; font-size: 0.85rem; }
 .role-head:hover { background: var(--surface); }
+/* Ordre des rôles : poignée à faire glisser au-dessus du nom (Admin.tsx, Roles). */
+.role-poignee { display: flex; justify-content: center; color: var(--muted); cursor: grab; padding: 2px; border-radius: 4px; }
+.role-poignee:hover, .role-poignee:focus-visible { color: var(--text); background: var(--surface); }
+.role-poignee:active { cursor: grabbing; }
+.matrix th.role-glisse { opacity: 0.45; }
+.matrix th.role-cible-avant { box-shadow: inset 3px 0 0 var(--primary); }
+.matrix th.role-cible-apres { box-shadow: inset -3px 0 0 var(--primary); }
+.role-place .row { gap: 6px; margin-top: 4px; }
 .dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
 .scope { display: block; font-weight: 400; font-size: 0.72rem; color: var(--muted); }
 .chip.role-chip.on { color: #fff; }

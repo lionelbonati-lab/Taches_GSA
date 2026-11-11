@@ -170,6 +170,14 @@ function Roles() {
   const { data, update } = useStore();
   const [edit, setEdit] = useState<{ role: Role; isNew: boolean } | null>(null);
   const [creating, setCreating] = useState(false);
+  // Ordre des rôles (colonnes) : on fait glisser une colonne par sa poignée ⠿ (ou ← → sur la poignée).
+  const [glisse, setGlisse] = useState<number | null>(null);
+  const [cible, setCible] = useState<number | null>(null);
+  const deplacer = useDeplacerRole();
+  const finGlisse = () => {
+    setGlisse(null);
+    setCible(null);
+  };
 
   const togglePerm = (r: Role, perm: Permission, label: string) => {
     const on = r.permissions.includes(perm);
@@ -185,7 +193,7 @@ function Roles() {
   return (
     <>
       <div className="page-head">
-        <p className="muted" style={{ margin: 0 }}>Clique sur le nom d’un rôle pour le renommer, limiter ses sections, le dupliquer ou le supprimer.</p>
+        <p className="muted" style={{ margin: 0 }}>Clique sur le nom d’un rôle pour le renommer, limiter ses sections, le dupliquer ou le supprimer ; fais glisser sa poignée ⠿ pour changer l’ordre des rôles (le même partout dans l’appli).</p>
         <button className="btn primary" onClick={() => setCreating(true)}>+ Nouveau rôle</button>
       </div>
       <div className="table-scroll">
@@ -193,8 +201,46 @@ function Roles() {
           <thead>
             <tr>
               <th>Droit</th>
-              {data.roles.map((r) => (
-                <th key={r.id} className="center">
+              {data.roles.map((r, i) => (
+                <th
+                  key={r.id}
+                  className={`center ${glisse === i ? 'role-glisse' : ''} ${cible === i && glisse !== null && glisse !== i ? (glisse < i ? 'role-cible-apres' : 'role-cible-avant') : ''}`}
+                  onDragOver={(e) => {
+                    if (glisse === null) return;
+                    e.preventDefault();
+                    setCible(i);
+                  }}
+                  onDrop={(e) => {
+                    if (glisse === null) return;
+                    e.preventDefault();
+                    deplacer(glisse, i);
+                    finGlisse();
+                  }}
+                >
+                  <span
+                    className="role-poignee"
+                    draggable
+                    tabIndex={0}
+                    role="button"
+                    title="Faire glisser pour changer l’ordre des rôles (au clavier : ← →)"
+                    aria-label={`Déplacer le rôle « ${r.label} » (← →)`}
+                    onDragStart={(e) => {
+                      e.dataTransfer.effectAllowed = 'move';
+                      e.dataTransfer.setData('text/plain', r.id);
+                      setGlisse(i);
+                    }}
+                    onDragEnd={finGlisse}
+                    onKeyDown={(e) => {
+                      const v = e.key === 'ArrowLeft' ? i - 1 : e.key === 'ArrowRight' ? i + 1 : null;
+                      if (v === null || v < 0 || v >= data.roles.length) return;
+                      e.preventDefault();
+                      deplacer(i, v);
+                      // La poignée suit son rôle, pour enchaîner les flèches.
+                      requestAnimationFrame(() => document.querySelectorAll<HTMLElement>('.matrix .role-poignee')[v]?.focus());
+                    }}
+                  >
+                    <Icone n="poignee" />
+                  </span>
                   <button className="role-head" onClick={() => setEdit({ role: r, isNew: false })}>
                     <span className="dot" style={{ background: r.couleur }} />
                     {r.label} <Icone n={r.locked ? 'verrou' : 'modifier'} />
@@ -245,6 +291,22 @@ function Roles() {
   );
 }
 
+/**
+ * Change l'ordre des rôles : celui de la liste des rôles, gardé sur le serveur, et repris partout (colonnes des droits,
+ * rôles d'une personne, filtres, « À prendre » et « Pour info » par rôle).
+ */
+function useDeplacerRole() {
+  const { data, update } = useStore();
+  return (de: number, vers: number) => {
+    const r = data.roles[de];
+    if (!r || de === vers || vers < 0 || vers >= data.roles.length) return;
+    update((d) => {
+      const [x] = d.roles.splice(de, 1);
+      d.roles.splice(vers, 0, x);
+    }, `Ordre des rôles : « ${r.label} » déplacé (${vers + 1}${vers === 0 ? 'er' : 'e'} sur ${data.roles.length})`);
+  };
+}
+
 /** « Droits de départ » d'un nouveau rôle : le modèle Externe (voir EXTERNE_PERMS). */
 const MODELE_EXTERNE = '@externe';
 
@@ -292,6 +354,9 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
   const [sections, setSections] = useState<string[]>(role.sections);
   const members = data.people.filter((p) => p.roles.includes(role.id));
   const lock = !!role.locked;
+  // Sa place dans la liste (au doigt, sans glisser-déposer) : un cran avant ou après.
+  const deplacer = useDeplacerRole();
+  const place = data.roles.findIndex((r) => r.id === role.id);
 
   const save = () => {
     if (!label.trim()) return;
@@ -349,6 +414,13 @@ function RoleModal({ role, onClose }: { role: Role; onClose: () => void }) {
         </fieldset>
         <div className="full">
           <small className="muted">Attribué à : {members.length ? members.map((p) => fullName(p)).join(', ') : 'personne'}</small>
+        </div>
+        <div className="full role-place">
+          <span className="field-label">Place dans la liste des rôles : {place + 1} sur {data.roles.length}</span>
+          <span className="row">
+            <button type="button" className="btn small" disabled={place <= 0} onClick={() => deplacer(place, place - 1)}><Icone n="monter" /> Avant</button>
+            <button type="button" className="btn small" disabled={place < 0 || place >= data.roles.length - 1} onClick={() => deplacer(place, place + 1)}><Icone n="descendre" /> Après</button>
+          </span>
         </div>
       </div>
       <div className="modal-foot">
