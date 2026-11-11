@@ -10,22 +10,18 @@ const tuile = (page: Page, nom: string) => page.locator('.mon-temps-tuile', { ha
 /** Heure suisse le 11.11.2026 (fuseau des tests : Europe/Zurich, +01:00 en novembre). */
 const le11 = (heure: string) => new Date(`2026-11-11T${heure}+01:00`);
 
-/** Démo ouverte le 11.11.2026 à `heure`, l'horloge arrêtée ; compteur activé dans les Réglages. */
+/** Démo ouverte le 11.11.2026 à `heure`, l'horloge arrêtée, sur les Réglages ; le bouton ⏱ y est d'office. */
 async function demarrerA(page: Page, heure: string, auto = false) {
   await page.clock.install({ time: le11(`${heure}:00`) });
   await ouvrirDemo(page);
   await page.clock.pauseAt(le11(`${heure}:30`));
   await allerA(page, '/reglages');
-  await page.getByLabel('Afficher mon compteur ⏱ dans la barre du haut').check();
+  await expect(page.getByLabel('Afficher mon compteur ⏱ dans la barre du haut')).toBeChecked();
   if (auto) await page.getByLabel(/Mode automatique/).check();
   await expect(page.locator('.compteur-btn')).toBeVisible();
 }
 
 test('compteur manuel : démarrer, arrêter, petits boutons, détail, correction et export', async ({ page }) => {
-  // Sans réglage, pas de bouton ⏱.
-  await ouvrirDemo(page);
-  await expect(page.locator('.compteur-btn')).toHaveCount(0);
-
   await demarrerA(page, '14:00');
   await page.locator('.compteur-btn').click();
   const p = panneau(page);
@@ -163,10 +159,32 @@ test('le compteur est à chacun : une autre personne a le sien', async ({ page }
   await page.locator('.topbar').getByRole('button', { name: 'Changer', exact: true }).click();
   await page.locator('.login-user').nth(1).click();
   await expect(page.locator('.topbar .brand')).toBeVisible();
-  await expect(page.locator('.compteur-btn')).toHaveCount(0);
+  // Son bouton ⏱ (d'office), avec son compteur à elle : rien d'aujourd'hui.
+  await expect(page.locator('.compteur-btn')).toBeVisible();
   await allerA(page, '/mon-temps');
-  await expect(page.getByLabel('Afficher mon compteur ⏱ dans la barre du haut')).not.toBeChecked();
-  await expect(page.locator('.mon-temps-tuiles')).toHaveCount(0);
+  await expect(page.getByLabel('Afficher mon compteur ⏱ dans la barre du haut')).toBeChecked();
+  await expect(tuile(page, 'Aujourd’hui')).toHaveText('0 min');
+  await expect(page.locator('.mon-temps-detail')).toHaveCount(0);
+});
+
+test('bouton ⏱ d’office, même avec l’ancien réglage « pas affiché » ; chacun peut le retirer', async ({ page }) => {
+  await ouvrirDemo(page);
+  // Ancienne version (11.11.2026, avant « visible de base ») : réglage « actif » à non, la valeur par défaut d'alors.
+  await page.evaluate(() =>
+    localStorage.setItem('taches-gsa-demo-compteur-p1', JSON.stringify({ v: 1, entrees: {}, reglages: { actif: false, auto: false, oubliHeures: 4 }, attente: [] })),
+  );
+  await page.reload();
+  await expect(page.locator('.compteur-btn')).toBeVisible();
+  // Retiré : plus de bouton, même après rechargement ; remis : il revient.
+  await allerA(page, '/reglages');
+  const caseAfficher = page.getByLabel('Afficher mon compteur ⏱ dans la barre du haut');
+  await caseAfficher.uncheck();
+  await expect(page.locator('.compteur-btn')).toHaveCount(0);
+  await expect(page.getByLabel(/Mode automatique/)).toBeDisabled();
+  await page.reload();
+  await expect(page.locator('.compteur-btn')).toHaveCount(0);
+  await caseAfficher.check();
+  await expect(page.locator('.compteur-btn')).toBeVisible();
 });
 
 test('compteur retiré de la barre du haut pendant qu’il tourne : il s’arrête', async ({ page }) => {

@@ -24,7 +24,7 @@ export function useMaintenant(ms: number) {
 
 export const libelleAjout = (m: number) => (m < 0 ? `−${-m} min` : m % 60 === 0 ? `+${m / 60} h` : `+${m} min`);
 
-/** Bouton ⏱ de la barre du haut (compteur activé dans les réglages) : le temps en cours, et le panneau. */
+/** Bouton ⏱ de la barre du haut (d'office ; chacun peut le retirer dans les réglages) : le temps en cours, et le panneau. */
 export function BoutonCompteur() {
   const { reglages, enCours } = useCompteur();
   const [ouvert, setOuvert] = useState(false);
@@ -43,7 +43,7 @@ export function BoutonCompteur() {
     };
   }, [ouvert]);
 
-  if (!reglages.actif) return null;
+  if (reglages.masque) return null;
   const duree = enCours ? now - Date.parse(enCours.debut!) : 0;
   return (
     <div className="compteur-wrap" ref={ref}>
@@ -259,23 +259,23 @@ export function ReglagesCompteur() {
   const { cloud } = useStore();
   const { reglages, serveur, enCours, magasin } = useCompteur();
   // Compteur retiré de la barre du haut pendant qu'il tourne : arrêté (il ne compte pas en cachette).
-  const activer = (actif: boolean) => {
-    if (!actif && enCours) magasin.arreter();
-    magasin.regler({ actif });
+  const afficher = (oui: boolean) => {
+    if (!oui && enCours) magasin.arreter();
+    magasin.regler({ masque: !oui });
   };
   return (
     <div className="compteur-reglages">
       <label className="inline">
-        <input type="checkbox" checked={reglages.actif} onChange={(e) => activer(e.target.checked)} />
+        <input type="checkbox" checked={!reglages.masque} onChange={(e) => afficher(e.target.checked)} />
         Afficher mon compteur ⏱ dans la barre du haut
       </label>
       <label className="inline">
-        <input type="checkbox" checked={reglages.auto} disabled={!reglages.actif} onChange={(e) => magasin.regler({ auto: e.target.checked })} />
+        <input type="checkbox" checked={reglages.auto} disabled={reglages.masque} onChange={(e) => magasin.regler({ auto: e.target.checked })} />
         Mode automatique : compter aussi mon temps dans l’appli (quand je l’utilise)
       </label>
       <label className="compteur-reglage-oubli">
         Me demander si le compteur est oublié après
-        <select value={reglages.oubliHeures} disabled={!reglages.actif} onChange={(e) => magasin.regler({ oubliHeures: Number(e.target.value) })}>
+        <select value={reglages.oubliHeures} disabled={reglages.masque} onChange={(e) => magasin.regler({ oubliHeures: Number(e.target.value) })}>
           {OUBLI_CHOIX.map((h) => <option key={h} value={h}>{h} h</option>)}
         </select>
       </label>

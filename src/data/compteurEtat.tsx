@@ -355,7 +355,7 @@ export function CompteurProvider({ personId, reel, children }: { personId: strin
   const magasin = useMemo(() => new MagasinCompteur(cleCompteur(reel, personId), reel), [personId, reel]);
   useEffect(() => magasin.brancher(), [magasin]);
   const { reglages, entrees } = useSyncExternalStore(magasin.subscribe, magasin.get);
-  const auto = reglages.actif && reglages.auto;
+  const auto = !reglages.masque && reglages.auto;
   const compteurEnMarche = !!enMarche(entrees);
   useModeAuto(magasin, auto && !compteurEnMarche);
   return <Ctx.Provider value={magasin}>{children}</Ctx.Provider>;
