@@ -28,7 +28,7 @@ import { nomAppli } from '../data/nomAppli';
 // un clic sur la poignée de chacun, au survol, sans glisser). « + » partout pour ajouter une séance, un événement ou un point.
 // Seulement du texte, pour une vue d'ensemble à imprimer (« Imprimer » : A4, les deux voies) : une séance ou un événement =
 // son titre ; un petit « + » à côté montre ses points (date et titre ; le reste dans leur fiche), « − » les cache.
-// Un événement sur plusieurs jours : une accolade de son premier jour à sa ligne « fin » (son dernier jour).
+// Un événement sur plusieurs jours : un crochet « [ » de son premier jour à sa ligne « fin » (son dernier jour).
 // Déposer à une date précise : en glissant, s'attarder sur un mois ou entre deux jours l'agrandit (ses semaines, puis les
 // jours de la semaine survolée) ; lâcher sur un jour, ou sur la date d'une ligne, donne cette date, sans fenêtre.
 
@@ -81,16 +81,11 @@ const PAR_JOURS = 10;
 /** Temps d'arrêt (ms) avant d'agrandir ce qu'on survole en glissant. */
 const ATTENTE_ZOOM = 350;
 
-/** Accolade « { » de `h` px de haut, pointe vers la gauche (vers la date) ; `ouverte` : la fin est après la période. */
-function cheminAccolade(h: number, w: number, ouverte: boolean) {
-  const r = Math.min(6, h / 4);
-  const m = h / 2;
-  const c = w / 2;
-  return ouverte
-    ? `M ${w} 0 Q ${c} 0 ${c} ${r} L ${c} ${h}`
-    : `M ${w} 0 Q ${c} 0 ${c} ${r} L ${c} ${m - r} Q ${c} ${m} 0 ${m} Q ${c} ${m} ${c} ${m + r} L ${c} ${h - r} Q ${c} ${h} ${w} ${h}`;
+/** Crochet « [ » de `h` px de haut, ouvert vers les titres ; `ouverte` : la fin est après la période (pas de trait du bas). */
+function cheminCrochet(h: number, w: number, ouverte: boolean) {
+  return ouverte ? `M ${w} 0 L 0 0 L 0 ${h}` : `M ${w} 0 L 0 0 L 0 ${h} L ${w} ${h}`;
 }
-type Accolade = { cle: string; x: number; haut: number; bas: number; ouverte: boolean; col: number };
+type Crochet = { cle: string; x: number; haut: number; bas: number; ouverte: boolean; col: number };
 
 /** Séances et événements dont les points sont affichés (leur clé), retenus sur l'appareil ; les autres : seulement leur titre. */
 const CLE_OUVERTES = 'taches-gsa-chronologie-ouvertes';
@@ -203,10 +198,10 @@ export function ChronologieClub() {
     if (zoom) document.querySelector('.cc-zoom')?.scrollIntoView({ block: 'nearest' });
   }, [zoom]);
 
-  // Accolades des événements sur plusieurs jours : mesurées après chaque affichage (de leur ligne à leur « fin » ; l'état ne
-  // change que si elles ont bougé), et de nouveau quand la frise change de taille.
+  // Crochets des événements sur plusieurs jours : mesurés après chaque affichage (de leur ligne à leur « fin » ; l'état ne
+  // change que s'ils ont bougé), et de nouveau quand la frise change de taille.
   const cadre = useRef<HTMLDivElement | null>(null);
-  const [accolades, setAccolades] = useState<Accolade[]>([]);
+  const [crochets, setCrochets] = useState<Crochet[]>([]);
   const [, setMesure] = useState(0);
   const observe = useRef<ResizeObserver>();
   const refCadre = useCallback((el: HTMLDivElement | null) => {
@@ -220,26 +215,26 @@ export function ChronologieClub() {
   useLayoutEffect(() => {
     const el = cadre.current;
     if (!el) {
-      if (accolades.length) setAccolades([]);
+      if (crochets.length) setCrochets([]);
       return;
     }
     const box = el.getBoundingClientRect();
-    const out: Accolade[] = [];
-    el.querySelectorAll<HTMLElement>('[data-accolade-debut]').forEach((d) => {
-      const cle = d.dataset.accoladeDebut!;
-      const f = el.querySelector<HTMLElement>(`[data-accolade-fin="${CSS.escape(cle)}"]`);
+    const out: Crochet[] = [];
+    el.querySelectorAll<HTMLElement>('[data-crochet-debut]').forEach((d) => {
+      const cle = d.dataset.crochetDebut!;
+      const f = el.querySelector<HTMLElement>(`[data-crochet-fin="${CSS.escape(cle)}"]`);
       const voie = (d.closest('.cc-droite') as HTMLElement | null) ?? d;
       const haut = Math.round(d.getBoundingClientRect().top - box.top + 3);
       const bas = Math.round((f ? f.getBoundingClientRect().bottom : box.bottom) - box.top - 3);
       if (bas > haut) out.push({ cle, x: Math.round(voie.getBoundingClientRect().left - box.left), haut, bas, ouverte: !f, col: 0 });
     });
-    // Accolades qui se chevauchent : l'une à côté de l'autre.
+    // Crochets qui se chevauchent : l'un à côté de l'autre.
     out.sort((a, b) => a.haut - b.haut);
     out.forEach((a, i) => {
       const prises = new Set(out.slice(0, i).filter((b) => b.bas > a.haut && b.x === a.x).map((b) => b.col));
       while (prises.has(a.col)) a.col++;
     });
-    if (JSON.stringify(out) !== JSON.stringify(accolades)) setAccolades(out);
+    if (JSON.stringify(out) !== JSON.stringify(crochets)) setCrochets(out);
   });
 
   if (!user) return null;
@@ -556,7 +551,7 @@ export function ChronologieClub() {
         draggable={bouge}
         onDragStart={bouge && g ? debut(g) : undefined}
         onDragEnd={finGlisse}
-        data-accolade-debut={jusqua ? c.cle : undefined}
+        data-crochet-debut={jusqua ? c.cle : undefined}
         {...cible(c)}
       >
         <div className="cc-el-ligne">
@@ -568,7 +563,7 @@ export function ChronologieClub() {
           >
             {nom}
           </button>
-          {/* Sa fin dans la période : l'accolade va jusqu'à sa ligne « fin » ; après : sa date. */}
+          {/* Sa fin dans la période : le crochet va jusqu'à sa ligne « fin » ; après : sa date. */}
           {jusqua && p && jusqua > p.a && <span className="cc-jusqua">→ {dateCourte(jusqua, c.date)}</span>}
           {estAg(c) && <span className="cc-ag" title="Assemblée générale">AG</span>}
           {c.k === 'evenement' && c.e.repetition && <span className="cc-repete" title={libelleRepetition(c.e)}><Icone n="repetition" /></span>}
@@ -600,9 +595,9 @@ export function ChronologieClub() {
     );
   };
 
-  /** La fin d'un événement sur plusieurs jours : où s'arrête son accolade. */
+  /** La fin d'un événement sur plusieurs jours : où s'arrête son crochet. */
   const finDe = (x: FinFrise) => (
-    <div key={x.cle} className={`cc-fin ${couleurDe(x.de.cle) ? 'couleur' : ''}`} style={styleCouleur(couleurDe(x.de.cle))} data-accolade-fin={x.de.cle}>
+    <div key={x.cle} className={`cc-fin ${couleurDe(x.de.cle) ? 'couleur' : ''}`} style={styleCouleur(couleurDe(x.de.cle))} data-crochet-fin={x.de.cle}>
       fin · {nomCarte(x.de)}
     </div>
   );
@@ -842,14 +837,14 @@ export function ChronologieClub() {
           </div>
           <div className="cc-frise-cadre" ref={refCadre}>
             <ol className={`cc-frise ${glisse ? 'glisse' : ''}`} aria-label={`Chronologie du club · ${titrePeriode}`}>{lignes}</ol>
-            {accolades.map((a) => {
+            {crochets.map((a) => {
               const h = a.bas - a.haut;
-              const w = 7;
+              const w = 5;
               const couleur = couleurDe(a.cle);
               return (
-                <svg key={a.cle} className={`cc-accolade ${couleur ? 'couleur' : ''}`} style={{ ...styleCouleur(couleur), left: a.x - w - 1 - a.col * (w + 2), top: a.haut }}
-                  width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" data-accolade={a.cle}>
-                  <path d={cheminAccolade(h, w, a.ouverte)} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                <svg key={a.cle} className={`cc-crochet ${couleur ? 'couleur' : ''}`} style={{ ...styleCouleur(couleur), left: a.x - w - 1 - a.col * (w + 2), top: a.haut }}
+                  width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" data-crochet={a.cle}>
+                  <path d={cheminCrochet(h, w, a.ouverte)} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
                 </svg>
               );
             })}

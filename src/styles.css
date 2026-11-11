@@ -2516,13 +2516,13 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 .chrono-depot.survol::after { border-top-color: var(--primary) !important; border-top-width: 3px !important; }
 .chrono-depot span { display: none; position: absolute; top: 0; left: calc(var(--chrono-quand) + 44px); transform: translateY(-50%); font-size: 0.78rem; font-weight: 600; color: var(--primary); background: var(--surface); border: 1px solid var(--primary); padding: 1px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none; z-index: 1; }
 .chrono-depot.survol span { display: inline; }
-/* Chronologie du club : accolade d'un événement sur plusieurs jours (de sa ligne à sa « fin »), dans la marge de la voie
+/* Chronologie du club : crochet « [ » d'un événement sur plusieurs jours (de sa ligne à sa « fin »), dans la marge de la voie
    des événements ; sa fin. */
 .cc-frise-cadre { position: relative; }
 .cc-droite { padding-left: 12px; }
-.cc-accolade { position: absolute; color: var(--event-fg); pointer-events: none; overflow: visible; }
-.cc-accolade.couleur { color: var(--c-clair); }
-:root[data-theme='dark'] .cc-accolade.couleur { color: var(--c-sombre); }
+.cc-crochet { position: absolute; color: var(--event-fg); pointer-events: none; overflow: visible; }
+.cc-crochet.couleur { color: var(--c-clair); }
+:root[data-theme='dark'] .cc-crochet.couleur { color: var(--c-sombre); }
 .cc-fin { font-size: 0.8rem; color: var(--event-fg); line-height: 1.6; padding: 0 4px; }
 .cc-fin.couleur { color: var(--c-clair); }
 :root[data-theme='dark'] .cc-fin.couleur { color: var(--c-sombre); }
@@ -2544,5 +2544,5 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 @media print { .cc-zoom { display: none !important; } }
 /* En glissant (chronologie du club) : le message du bas laisse passer le lâcher. */
 body.glisse-en-cours .toast { pointer-events: none; opacity: 0.35; }
-/* Téléphone, une colonne : séances et événements au même bord (la marge de l'accolade pour les deux). */
+/* Téléphone, une colonne : séances et événements au même bord (la marge du crochet pour les deux). */
 @media (max-width: 767px) { .cc-gauche { padding-left: 12px; } }

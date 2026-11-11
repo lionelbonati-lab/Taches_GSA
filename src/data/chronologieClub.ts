@@ -23,7 +23,7 @@ import { etiquettesDatees, memeEvenement } from './agendaIcs';
 // seriesEvenements.ts ; commencée avant la période : son premier jour), sinon à la date de son premier événement de la
 // période ; son « + » montre ses événements, chacun à sa date, et les points de son étiquette (4 bis), comme ci-dessus.
 // Un événement sur plusieurs jours (ou une étiquette datée) : une ligne « fin » à son dernier jour (FinFrise), que relie
-// une accolade dans la page.
+// un crochet « [ » dans la page.
 
 /** Période affichée, du `de` au `a` (inclus). Vue AG : l'assemblée du début et celle de la fin (absente : pas encore prévue). */
 export interface Periode {
@@ -107,7 +107,7 @@ export interface SerieFrise {
   dessous: Task[];
 }
 
-/** Dernier jour d'un événement sur plusieurs jours (ou d'une étiquette datée) : « fin », relié à lui par une accolade. */
+/** Dernier jour d'un événement sur plusieurs jours (ou d'une étiquette datée) : « fin », relié à lui par un crochet « [ ». */
 export interface FinFrise {
   k: 'fin';
   cle: string;

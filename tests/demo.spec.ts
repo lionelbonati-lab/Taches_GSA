@@ -4376,7 +4376,7 @@ test('défilement : la chronologie défile dans son cadre, pas la page ; une cas
   await expect(jour.locator('.cal-more')).toHaveCount(0);
 });
 
-test('chronologie du club : la série à son début officiel, une accolade jusqu’à la fin d’un événement, glisser à un jour précis (mois agrandi)', async ({ page }) => {
+test('chronologie du club : la série à son début officiel, un crochet jusqu’à la fin d’un événement, glisser à un jour précis (mois agrandi)', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-11T09:00:00Z'));
   const cle = 'taches-gsa-demo-v7';
   await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
@@ -4398,12 +4398,12 @@ test('chronologie du club : la série à son début officiel, une accolade jusqu
 
   // La série : à son début officiel, le 25 octobre.
   await expect(leJour('2026-10-25').locator('.cc-el.k-serie')).toHaveText(/Programme hivernal 2026-27/);
-  // La soirée : une accolade jusqu'à sa fin, le 29 ; le camp de ski, qui finit en 2027 : sa date de fin, accolade ouverte.
+  // La soirée : un crochet jusqu'à sa fin, le 29 ; le camp de ski, qui finit en 2027 : sa date de fin, crochet ouvert.
   await expect(leJour('2026-11-29').locator('.cc-fin')).toHaveText('fin · Soirée récréative');
   await expect(carte('Soirée récréative').locator('.cc-jusqua')).toHaveCount(0);
-  await expect(page.locator('svg.cc-accolade[data-accolade="e:e10"]')).toBeVisible();
+  await expect(page.locator('svg.cc-crochet[data-crochet="e:e10"]')).toBeVisible();
   await expect(carte('Camp de ski').locator('.cc-jusqua')).toHaveText('→ 03.01.27');
-  await expect(page.locator('svg.cc-accolade[data-accolade="e:e-ski"]')).toBeVisible();
+  await expect(page.locator('svg.cc-crochet[data-crochet="e:e-ski"]')).toBeVisible();
 
   // Glisser le comité de décembre sur la date d'une ligne (le camp de ski, le 28) : ce jour-là, sans fenêtre.
   // La frise défile dans son cadre : chaque élément amené à l'écran avant d'y aller.
