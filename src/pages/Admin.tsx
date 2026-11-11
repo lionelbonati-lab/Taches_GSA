@@ -1,4 +1,4 @@
-import { Fragment, useState, type ReactNode } from 'react';
+import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Link, Navigate, useParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import { PERMISSIONS, PERMISSION_GROUPS } from '../data/permissions';
@@ -170,14 +170,32 @@ function Roles() {
   const { data, update } = useStore();
   const [edit, setEdit] = useState<{ role: Role; isNew: boolean } | null>(null);
   const [creating, setCreating] = useState(false);
-  // Ordre des rôles (colonnes) : on fait glisser une colonne par sa poignée ⠿ (ou ← → sur la poignée).
-  const [glisse, setGlisse] = useState<number | null>(null);
-  const [cible, setCible] = useState<number | null>(null);
+  // Ordre des rôles (colonnes) : on fait glisser la poignée en haut d'une colonne, à la souris ou au doigt (événements
+  // « pointer » : le glisser-déposer du navigateur ne marche pas au doigt), et on la lâche n'importe où dans la colonne
+  // visée ; au clavier, ← → sur la poignée. `de` : la colonne prise, `vers` : celle sous le pointeur.
+  const [glisse, setGlisse] = useState<{ de: number; vers: number } | null>(null);
+  const zone = useRef<HTMLDivElement>(null);
   const deplacer = useDeplacerRole();
-  const finGlisse = () => {
-    setGlisse(null);
-    setCible(null);
+  /** Colonne de rôle sous le pointeur (avant la première : la première ; après la dernière : la dernière). */
+  const colonneA = (x: number) => {
+    let v = 0;
+    zone.current?.querySelectorAll<HTMLElement>('thead th[data-role]').forEach((th, i) => {
+      if (x >= th.getBoundingClientRect().left) v = i;
+    });
+    return v;
   };
+  /** Près d'un bord du tableau (téléphone : il défile de côté), il défile pour atteindre les colonnes cachées. */
+  const defiler = (x: number) => {
+    const z = zone.current;
+    if (!z) return;
+    const droite = z.getBoundingClientRect().right;
+    const gauche = z.querySelector('thead th:first-child')?.getBoundingClientRect().right ?? z.getBoundingClientRect().left;
+    if (x > droite - 40) z.scrollLeft += 16;
+    else if (x < gauche + 30) z.scrollLeft -= 16;
+  };
+  /** Classe d'une colonne pendant qu'on glisse : celle prise (pâlie), celle visée (trait du côté où le rôle arrivera). */
+  const colonne = (i: number) =>
+    !glisse ? '' : i === glisse.de ? 'role-glisse' : i === glisse.vers ? (glisse.de < i ? 'role-cible-apres' : 'role-cible-avant') : '';
 
   const togglePerm = (r: Role, perm: Permission, label: string) => {
     const on = r.permissions.includes(perm);
@@ -193,43 +211,43 @@ function Roles() {
   return (
     <>
       <div className="page-head">
-        <p className="muted" style={{ margin: 0 }}>Clique sur le nom d’un rôle pour le renommer, limiter ses sections, le dupliquer ou le supprimer ; fais glisser sa poignée ⠿ pour changer l’ordre des rôles (le même partout dans l’appli).</p>
+        <p className="muted" style={{ margin: 0 }}>Clique sur le nom d’un rôle pour le renommer, limiter ses sections, le dupliquer ou le supprimer ; fais glisser la poignée en haut de sa colonne (souris ou doigt) pour changer l’ordre des rôles, le même partout dans l’appli.</p>
         <button className="btn primary" onClick={() => setCreating(true)}>+ Nouveau rôle</button>
       </div>
-      <div className="table-scroll">
-        <table className="table matrix">
+      <div className="table-scroll" ref={zone}>
+        <table className={`table matrix ${glisse ? 'en-glisse' : ''}`}>
           <thead>
             <tr>
               <th>Droit</th>
               {data.roles.map((r, i) => (
-                <th
-                  key={r.id}
-                  className={`center ${glisse === i ? 'role-glisse' : ''} ${cible === i && glisse !== null && glisse !== i ? (glisse < i ? 'role-cible-apres' : 'role-cible-avant') : ''}`}
-                  onDragOver={(e) => {
-                    if (glisse === null) return;
-                    e.preventDefault();
-                    setCible(i);
-                  }}
-                  onDrop={(e) => {
-                    if (glisse === null) return;
-                    e.preventDefault();
-                    deplacer(glisse, i);
-                    finGlisse();
-                  }}
-                >
+                <th key={r.id} data-role={r.id} className={`center ${colonne(i)}`}>
                   <span
                     className="role-poignee"
-                    draggable
                     tabIndex={0}
                     role="button"
-                    title="Faire glisser pour changer l’ordre des rôles (au clavier : ← →)"
+                    title="Faire glisser (souris ou doigt) pour changer l’ordre des rôles ; au clavier : ← →"
                     aria-label={`Déplacer le rôle « ${r.label} » (← →)`}
-                    onDragStart={(e) => {
-                      e.dataTransfer.effectAllowed = 'move';
-                      e.dataTransfer.setData('text/plain', r.id);
-                      setGlisse(i);
+                    onPointerDown={(e) => {
+                      if (e.button !== 0) return;
+                      e.preventDefault();
+                      try {
+                        e.currentTarget.setPointerCapture(e.pointerId);
+                      } catch {
+                        // Pointeur déjà relâché : le glisser s'arrêtera au prochain « pointerup ».
+                      }
+                      setGlisse({ de: i, vers: i });
                     }}
-                    onDragEnd={finGlisse}
+                    onPointerMove={(e) => {
+                      if (!glisse || glisse.de !== i) return;
+                      defiler(e.clientX);
+                      const v = colonneA(e.clientX);
+                      if (v !== glisse.vers) setGlisse({ de: i, vers: v });
+                    }}
+                    onPointerUp={() => {
+                      if (glisse && glisse.de === i) deplacer(glisse.de, glisse.vers);
+                      setGlisse(null);
+                    }}
+                    onPointerCancel={() => setGlisse(null)}
                     onKeyDown={(e) => {
                       const v = e.key === 'ArrowLeft' ? i - 1 : e.key === 'ArrowRight' ? i + 1 : null;
                       if (v === null || v < 0 || v >= data.roles.length) return;
@@ -239,7 +257,7 @@ function Roles() {
                       requestAnimationFrame(() => document.querySelectorAll<HTMLElement>('.matrix .role-poignee')[v]?.focus());
                     }}
                   >
-                    <Icone n="poignee" />
+                    <Icone n="poigneeH" />
                   </span>
                   <button className="role-head" onClick={() => setEdit({ role: r, isNew: false })}>
                     <span className="dot" style={{ background: r.couleur }} />
@@ -258,8 +276,8 @@ function Roles() {
                 {PERMISSIONS.filter((p) => p.group === g).map((p) => (
                   <tr key={p.id}>
                     <td>{p.label}{p.sectionScoped && <small className="muted"> ¹</small>}</td>
-                    {data.roles.map((r) => (
-                      <td key={r.id} className="center">
+                    {data.roles.map((r, i) => (
+                      <td key={r.id} className={`center ${colonne(i)}`}>
                         <input type="checkbox" aria-label={`${p.label} – ${r.label}`} checked={r.locked || r.permissions.includes(p.id)} disabled={r.locked} onChange={() => togglePerm(r, p.id, p.label)} />
                       </td>
                     ))}

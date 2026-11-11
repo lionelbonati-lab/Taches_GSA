@@ -4505,8 +4505,8 @@ test('console admin : ordre des rôles par glisser-déposer, au clavier ou depui
   const debut = async () => (await colonnes.allInnerTexts()).map((t) => t.trim()).slice(0, 3);
   await expect.poll(debut).toEqual(['Admin (Président)', 'Secrétaire', 'Comité']);
 
-  // « Comité » glissé sur « Admin (Président) » : il passe en premier.
-  await page.getByRole('button', { name: 'Déplacer le rôle « Comité » (← →)' }).dragTo(page.locator('.matrix thead th', { hasText: 'Admin (Président)' }));
+  // « Comité » glissé dans la colonne « Admin (Président) », lâché au milieu de ses cases : il passe en premier.
+  await page.getByRole('button', { name: 'Déplacer le rôle « Comité » (← →)' }).dragTo(page.getByLabel('Supprimer des points – Admin (Président)'));
   await expect.poll(debut).toEqual(['Comité', 'Admin (Président)', 'Secrétaire']);
 
   // Au clavier : → sur la poignée de « Comité » le repasse en deuxième.

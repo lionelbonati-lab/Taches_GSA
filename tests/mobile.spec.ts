@@ -155,3 +155,25 @@ test('chronologie : du texte en une colonne ; « + » montre les points, sans bo
   await page.getByRole('button', { name: 'Réserver la salle' }).click();
   await expect(page.getByRole('dialog')).toBeVisible();
 });
+
+test('ordre des rôles au doigt : la poignée glissée jusqu’à une autre colonne', async ({ page }) => {
+  await page.goto('./?demo#/admin/droits');
+  const colonnes = page.locator('.matrix thead .role-head');
+  await expect(colonnes.nth(1)).toHaveText('Secrétaire');
+  // Vrai glisser au doigt (événements tactiles du navigateur) : la poignée de « Secrétaire » jusqu'à la colonne « Comité ».
+  const de = (await page.getByRole('button', { name: 'Déplacer le rôle « Secrétaire » (← →)' }).boundingBox())!;
+  const vers = (await page.locator('.matrix thead th', { hasText: 'Comité' }).boundingBox())!;
+  const cdp = await page.context().newCDPSession(page);
+  const toucher = (type: string, x: number, y: number) =>
+    cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
+  // Lâchée au début de la colonne visée : près du bord droit de l'écran, le tableau défilerait de côté.
+  const y = de.y + de.height / 2;
+  const x0 = de.x + de.width / 2;
+  const x1 = vers.x + 12;
+  await toucher('touchStart', x0, y);
+  for (let k = 1; k <= 5; k++) await toucher('touchMove', x0 + ((x1 - x0) * k) / 5, y);
+  await toucher('touchEnd', 0, 0);
+  await expect.poll(async () => (await colonnes.allInnerTexts()).map((t) => t.trim()).slice(0, 3)).toEqual(['Admin (Président)', 'Comité', 'Secrétaire']);
+  // La page n'a pas défilé de côté pendant le glisser.
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});
