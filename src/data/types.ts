@@ -829,8 +829,52 @@ export interface Assemblee {
   odjEdite?: { html: string; le: string; par: string };
   /** Convocations archivées (copie figée du document). */
   odjArchives?: PvArchive[];
+  /** PV de l'AG (onglet AG › PV) : séance, notes par point, résultats des votes, validation. */
+  pv?: PvAg;
   creeLe: string;
   creePar: string;
+}
+
+/**
+ * PV de l'AG (PLAN_ASSEMBLEE_GENERALE.md, étape AG2). Les présents et les excusés sont, pour l'instant, du texte (« 38
+ * membres, liste en annexe ») : la liste de présence marquée après coup viendra ensuite (étape AG4).
+ */
+export interface PvAg {
+  heureDebut?: string;
+  heureFin?: string;
+  /** Président(e) de l'assemblée et secrétaire du PV : leurs fiches dans l'appli. */
+  president?: string;
+  secretaire?: string;
+  scrutateurs?: string;
+  /** Membres présents ayant droit de vote, comptés en salle (sert à la majorité absolue). */
+  votants?: number;
+  presents?: string;
+  excuses?: string;
+  invites?: string;
+  /** Notes par point ou sous-point (son identifiant). */
+  notes: Record<string, string>;
+  /** Résultat de chaque vote (identifiant du vote prévu → résultat). */
+  resultats?: Record<string, ResultatVote>;
+  /** Textes des points sous leur intitulé, dans le PV. Par défaut : non. */
+  textes?: boolean;
+  valideLe?: string;
+  validePar?: string;
+  /** Numéro de la dernière version validée (1, 2… : corrigée après coup). */
+  version?: number;
+  /** PV validés (copie figée), le plus récent d'abord. */
+  archives?: PvArchive[];
+}
+
+/**
+ * Résultat d'un vote de l'AG, comme dans les PV du club : « à l'unanimité », « par acclamation », ou compté (pour,
+ * contre, abstentions), avec, si on veut, les noms des voix contre et des abstentions.
+ */
+export interface ResultatVote {
+  mode: 'unanimite' | 'acclamation' | 'nombres';
+  pour?: number;
+  contre?: number;
+  abstention?: number;
+  noms?: string;
 }
 
 /** Point de l'ordre du jour d'une AG : ni statut, ni délai, ni responsable. */

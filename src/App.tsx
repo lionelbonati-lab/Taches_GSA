@@ -26,6 +26,7 @@ const charger = {
   sondages: () => import('./pages/Polls'),
   pv: () => import('./pages/Minutes'),
   ag: () => import('./pages/OrdreDuJourAg'),
+  agPv: () => import('./pages/PvAg'),
   membres: () => import('./pages/MembresClub'),
   etiquettes: () => import('./pages/Etiquettes'),
   aide: () => import('./pages/Aide'),
@@ -44,6 +45,7 @@ const Pv = lazy(() => charger.odj().then((m) => ({ default: m.Pv })));
 const Polls = lazy(() => charger.sondages().then((m) => ({ default: m.Polls })));
 const Minutes = lazy(() => charger.pv().then((m) => ({ default: m.Minutes })));
 const OrdreDuJourAg = lazy(() => charger.ag().then((m) => ({ default: m.OrdreDuJourAg })));
+const PvAg = lazy(() => charger.agPv().then((m) => ({ default: m.PvAg })));
 const MembresClub = lazy(() => charger.membres().then((m) => ({ default: m.MembresClub })));
 const EtiquettesPage = lazy(() => charger.etiquettes().then((m) => ({ default: m.EtiquettesPage })));
 const Aide = lazy(() => charger.aide().then((m) => ({ default: m.Aide })));
@@ -102,6 +104,7 @@ export function App() {
             {can('tab.pv') && <Route path="ordre-du-jour" element={<Pv />} />}
             {can('tab.minutes') && <Route path="pv" element={<Minutes />} />}
             {can('tab.ag') && <Route path="ag" element={<OrdreDuJourAg />} />}
+          {can('tab.ag') && <Route path="ag-pv" element={<PvAg />} />}
             <Route path="sondages" element={<Polls />} />
             <Route path="paiements" element={<PaiementsRedirect />} />
             {club?.personnes.voir && <Route path="membres-club" element={<MembresClub />} />}

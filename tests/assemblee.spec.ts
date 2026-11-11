@@ -209,3 +209,74 @@ test('convocation de l’AG : documents en annexe, PDF, modifiée à la main, em
   await expect(envoi.locator('.envoi-etat')).toContainText('.pdf');
   await expect(page.locator('.pv-preview > div > .pv-sheet ol.odj-l1').first()).toBeVisible();
 });
+
+test('PV de l’AG : séance, présences, notes, votes (unanimité, comptés), document, validation et correction', async ({ page }) => {
+  await allerA(page, '/ag');
+  await page.getByRole('button', { name: /Partir du modèle/ }).click();
+  await page.getByRole('link', { name: /PV de cette AG/ }).click();
+  await expect(page.locator('main .page-head h1')).toHaveText('PV de l’AG');
+  await expect(page.getByLabel('Assemblée générale du PV')).toHaveValue('e12');
+
+  // Séance : ouverture, présidence et secrétariat proposés d'après les postes du club.
+  await page.getByRole('button', { name: 'Ouvrir l’assemblée' }).click();
+  await expect(page.getByRole('button', { name: 'Lever la séance' })).toBeVisible();
+  await expect(page.getByLabel('Président(e) de l’assemblée').locator('option:checked')).toHaveText(/Julien Moreau/);
+  await expect(page.getByLabel('Secrétaire du PV').locator('option:checked')).toHaveText(/Sophie Girard/);
+  await page.getByLabel('Scrutateurs', { exact: true }).fill('A. Exemple et B. Exemple');
+  await page.getByLabel('Membres présents ayant droit de vote').fill('38');
+  await expect(page.locator('.ag-pv-seance small', { hasText: 'Majorité absolue : 20' })).toBeVisible();
+  await page.getByLabel('Excusés', { exact: true }).fill('C. Exemple, D. Exemple');
+  await page.getByLabel('Présents', { exact: true }).fill('38 membres (liste de présence en annexe)');
+  await page.getByLabel('Invités').focus();
+
+  // Votes : l'ordre du jour à l'unanimité ; le PV 2026 compté.
+  const v1 = page.locator('.ag-vote-res', { hasText: 'Approbation de l’ordre du jour' });
+  await v1.getByRole('button', { name: 'À l’unanimité' }).click();
+  await expect(v1.locator('.ag-vote-issue')).toHaveText('accepté à l’unanimité');
+  const v2 = page.locator('.ag-vote-res', { hasText: 'Approbation du PV 2026' });
+  await v2.getByRole('button', { name: 'Compter' }).click();
+  await v2.getByLabel('Approbation du PV 2026 : pour').fill('30');
+  await v2.getByLabel('Approbation du PV 2026 : contre').fill('3');
+  await v2.getByLabel('Approbation du PV 2026 : abstentions').fill('5');
+  await v2.getByLabel('Approbation du PV 2026 : noms des voix contre et des abstentions').fill('contre : X');
+  await expect(v2.locator('.ag-vote-issue')).toHaveText('accepté par 30 voix contre 3, 5 abstentions – contre : X');
+  const budget = page.locator('.ag-vote-res', { hasText: 'Budget 2027' });
+  await budget.getByRole('button', { name: 'Par acclamation' }).click();
+
+  // Notes sous un point.
+  const note = page.getByRole('textbox', { name: 'Notes pour « Ouverture de l’assemblée »…' });
+  await note.click();
+  await page.keyboard.type('La présidence salue l’assemblée.');
+  await page.getByRole('button', { name: 'Lever la séance' }).click();
+
+  // Le PV : séance, présences, notes et résultats ; signatures en bas.
+  await page.getByRole('tab', { name: 'PV' }).click();
+  const feuille = page.locator('.pv-preview .pv-sheet');
+  await expect(feuille.locator('.pv-kicker')).toHaveText('Procès-verbal');
+  await expect(feuille.locator('.odj-head')).toContainText('Présidence : Julien Moreau');
+  await expect(feuille.locator('.odj-head')).toContainText('Scrutateurs : A. Exemple et B. Exemple');
+  await expect(feuille.locator('.odj-head')).toContainText('Membres présents ayant droit de vote : 38 (majorité absolue : 20)');
+  await expect(feuille.locator('.odj-head')).toContainText('Excusés : C. Exemple, D. Exemple');
+  const traites = feuille.locator('.pv-part', { hasText: 'Points traités' });
+  await expect(traites.locator('ol.ag-odj > li').nth(0)).toContainText('La présidence salue l’assemblée.');
+  await expect(traites.locator('ol.ag-odj > li').nth(0)).toContainText('Vote : Approbation de l’ordre du jour – accepté à l’unanimité');
+  await expect(traites.locator('ol.ag-odj > li').nth(2)).toContainText('Vote : Approbation du PV 2026 – accepté par 30 voix contre 3, 5 abstentions');
+  await expect(traites.locator('ol.ag-odj > li').nth(9)).toContainText('Vote : Budget 2027 – accepté par acclamation');
+  await expect(feuille.locator('.ag-signature')).toHaveCount(2);
+  await expect(feuille.locator('.ag-signature').nth(1)).toContainText('Sophie Girard');
+
+  // Validé : archivé, en lecture seule ; « Corriger le PV » le rouvre (la version suivante sera la 2).
+  await page.getByRole('button', { name: 'Valider et archiver' }).click();
+  await expect(page.locator('.pv-msg')).toContainText('PV validé et archivé');
+  await expect(page.locator('.ag-pv-archives .chip')).toHaveCount(1);
+  await page.getByRole('tab', { name: 'Prise de notes' }).click();
+  await expect(page.getByLabel('Scrutateurs', { exact: true })).toHaveAttribute('readonly', '');
+  await expect(page.getByRole('button', { name: 'À l’unanimité' })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Corriger le PV' })).toBeVisible();
+  await page.getByRole('button', { name: 'Corriger le PV' }).click();
+  await expect(page.getByRole('button', { name: 'Valider et archiver' })).toBeVisible();
+  await page.getByRole('button', { name: 'Valider et archiver' }).click();
+  await expect(page.locator('.ag-pv-archives .chip')).toHaveCount(2);
+  await expect(page.locator('.ag-pv-archives .chip').first()).toContainText('version 2');
+});

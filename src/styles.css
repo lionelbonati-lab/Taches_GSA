@@ -1291,6 +1291,29 @@ body:has(.pv-fiche-ecran) { overflow: hidden; }
 .pv-sheet .ag-docs-point { font-size: 0.92em; color: #475569; margin: 1px 0 3px; font-weight: 400; }
 .pv-sheet ol.ag-odj > li { margin-top: 10px; }
 
+/* ---------- Assemblée générale : PV (PvAg.tsx) ---------- */
+.ag-pv-choix { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 16px; margin: 0 0 14px; }
+.ag-pv-choix > label { display: flex; flex-direction: column; gap: 4px; min-width: 260px; }
+.ag-pv-archives { display: flex; flex-wrap: wrap; gap: 6px; }
+.ag-pv-notes { max-width: 900px; }
+.ag-pv-seance .form { margin-top: 6px; }
+.ag-pv-point.sous { margin-top: 10px; }
+.ag-pv-texte { white-space: pre-line; margin: 2px 0 6px; }
+.ag-vote-res { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 6px 0; background: var(--surface2); }
+.ag-vote-res.fait { border-color: var(--poll-fg); }
+.ag-vote-res-ligne { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }
+.ag-vote-objet { display: inline-flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.ag-vote-nb { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 8px; }
+.ag-vote-nb input[type=number] { width: 72px; margin-left: 4px; }
+.ag-vote-nb input.grow { min-width: 200px; flex: 1; }
+.ag-vote-issue { margin: 6px 0 0; font-weight: 600; color: var(--poll-fg); display: flex; align-items: center; gap: 5px; }
+.pv-sheet .ag-pv-vote { margin: 2px 0 4px; }
+.pv-sheet .ag-signatures { margin-top: 18mm; break-inside: avoid; }
+.pv-sheet .ag-signatures-lieu { margin: 0 0 8mm; }
+.pv-sheet .ag-signatures-cases { display: flex; gap: 12mm; }
+.pv-sheet .ag-signature { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.pv-sheet .ag-signature-ligne { display: block; border-bottom: 1px solid #94a3b8; height: 14mm; }
+
 /* ---------- Installation (PWA) ---------- */
 .install-help { background: var(--primary-soft); color: var(--text); border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; font-size: 0.9rem; }
 .btn.install { border-color: var(--primary); color: var(--primary); }

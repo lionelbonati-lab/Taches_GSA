@@ -1,4 +1,4 @@
-import type { AppData, Assemblee, ClubEvent, DetailAg, MajoriteAg, Meeting, OptionsOdjAg, PointAg, Task, TaskDoc, VoteAg } from './types';
+import type { AppData, Assemblee, ClubEvent, DetailAg, MajoriteAg, Meeting, OptionsOdjAg, PointAg, ResultatVote, Task, TaskDoc, VoteAg } from './types';
 import { newTask, today, uid } from './utils';
 import { occurrencesEntre } from './repetition';
 import { decalerAns } from './chronologieClub';
@@ -228,3 +228,33 @@ export function texteConvocation(ag: AgAgenda, fiche: Assemblee | undefined, o: 
   if (fiche?.fin?.trim()) lignes.push('', fiche.fin.trim());
   return lignes.join('\n');
 }
+
+// ---------- PV de l'AG ----------
+
+/** Issue d'un vote selon sa majorité : voix exprimées (pour > contre), absolue (pour > moitié des votants), deux tiers. */
+export function issueVote(v: Pick<VoteAg, 'majorite'>, r: ResultatVote, votants?: number): 'accepte' | 'refuse' | 'egalite' {
+  if (r.mode !== 'nombres') return 'accepte';
+  const [pour, contre, abst] = [r.pour ?? 0, r.contre ?? 0, r.abstention ?? 0];
+  if (v.majorite === 'absolue') return pour > (votants && votants > 0 ? votants : pour + contre + abst) / 2 ? 'accepte' : 'refuse';
+  if (v.majorite === 'deuxTiers') return pour > 0 && pour * 3 >= (pour + contre) * 2 ? 'accepte' : 'refuse';
+  return pour > contre ? 'accepte' : contre > pour ? 'refuse' : 'egalite';
+}
+
+/**
+ * Résultat d'un vote en clair, comme dans les PV du club : « accepté à l'unanimité », « accepté par acclamation »,
+ * « accepté par 40 voix contre 3, 4 abstentions (majorité absolue : 24) – contre : X ; abstentions : Y ».
+ */
+export function texteResultat(v: Pick<VoteAg, 'majorite'>, r: ResultatVote, votants?: number): string {
+  if (r.mode === 'unanimite') return 'accepté à l’unanimité';
+  if (r.mode === 'acclamation') return 'accepté par acclamation';
+  const [pour, contre, abst] = [r.pour ?? 0, r.contre ?? 0, r.abstention ?? 0];
+  const issue = issueVote(v, r, votants);
+  const mot = issue === 'accepte' ? 'accepté' : issue === 'refuse' ? 'refusé' : 'égalité :';
+  const base = `${mot} par ${pour} voix contre ${contre}${abst ? `, ${abst} abstention${abst > 1 ? 's' : ''}` : ''}`;
+  const seuil =
+    v.majorite === 'absolue' ? ` (majorité absolue : ${Math.floor((votants && votants > 0 ? votants : pour + contre + abst) / 2) + 1})` : v.majorite === 'deuxTiers' ? ' (deux tiers des voix exprimées)' : '';
+  return `${base}${seuil}${r.noms?.trim() ? ` – ${r.noms.trim()}` : ''}`;
+}
+
+/** « 17h04 ». */
+export const heureTexte = (h?: string) => (h ? h.replace(':', 'h') : '');

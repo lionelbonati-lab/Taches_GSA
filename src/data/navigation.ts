@@ -94,10 +94,17 @@ const RUBRIQUES: NavRubrique[] = [
     pages: [
       {
         to: '/ag',
-        label: 'Ordre du jour de l’AG',
-        icon: 'assemblee',
+        label: 'Ordre du jour',
+        icon: 'odj',
         perm: 'tab.ag',
         aide: 'L’ordre du jour de l’assemblée générale : ses propres points (sans statut ni délai), avec leur texte, leurs documents et leurs votes. Puis la convocation : imprime-la, envoie-la ou archive-la.',
+      },
+      {
+        to: '/ag-pv',
+        label: 'PV',
+        icon: 'pv',
+        perm: 'tab.ag',
+        aide: 'Pendant l’AG : heures, présidence, scrutateurs, présents et excusés, notes sous chaque point et résultat des votes (à l’unanimité, par acclamation ou compté). Ensuite : le PV, à valider et archiver.',
       },
     ],
   },

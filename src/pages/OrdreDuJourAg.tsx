@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode, type RefObject } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Assemblee, ClubEvent, DetailAg, MajoriteAg, OptionsOdjAg, PointAg, PvArchive, StyleDocs } from '../data/types';
 import {
@@ -325,6 +325,7 @@ export function OrdreDuJourAg() {
             <p className="muted small">
               {longDate(ag.date)}{ag.heure && `, ${ag.heure.replace(':', 'h')}`}{ag.lieu && ` · ${ag.lieu}`}
             </p>
+            <p className="small"><Link to={`/ag-pv?ag=${encodeURIComponent(ag.cle)}`}><Icone n="pv" /> PV de cette AG →</Link></p>
             <div className="row wrap">
               {peutModifierAg && <button type="button" className="btn small" onClick={() => setModifAg(true)}><Icone n="modifier" /> Date, heure, lieu</button>}
               {can('events.manage') && <button type="button" className="btn small" onClick={() => setNouvelleAg({ ...newEvent(), ag: true })}><Icone n="ajouterSeance" /> Nouvelle AG</button>}

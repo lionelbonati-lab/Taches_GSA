@@ -255,7 +255,11 @@ sont mis à jour à chaque étape.
    déjà par le serveur comme les autres listes : rien à y faire pour l'ordre du jour.
 2. **AG2 — PV : prise de notes et votes** : séance (heures, président, secrétaire, scrutateurs, votants, invités), notes
    par point et Divers, votes et résultats, barre d'outils, document du PV, options, PDF, impression, copie, email,
-   dépôt. **4 à 6 M.**
+   dépôt. **4 à 6 M.** **Fait en partie le 11.11.2026** (`src/pages/PvAg.tsx`) : séance, présidence et secrétaire,
+   scrutateurs, votants, présents et excusés (en texte), invités, notes par point, votes (unanimité, acclamation,
+   comptés avec les noms), document du PV avec les lignes de signature, PDF, impression, copie, validation et
+   correction (versions). Reste : la barre d'outils flottante, l'email et le dépôt du PV, les points ajoutés en
+   séance.
 3. **AG3 — Vue en 3 fenêtres** : le cadre des fenêtres est sorti de `FichePv.tsx` pour servir aux deux PV (sans rien
    changer pour le comité) ; onglets de l'AG ; vote en grand au beamer. **2 à 3 M.**
 4. **AG4 — Liste de présence après coup** : liste du club, recherche, présent ou excusé, personnes hors liste, limite à
