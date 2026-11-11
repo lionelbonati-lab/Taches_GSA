@@ -4375,3 +4375,71 @@ test('défilement : la chronologie défile dans son cadre, pas la page ; une cas
   await expect.poll(() => liste.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
   await expect(jour.locator('.cal-more')).toHaveCount(0);
 });
+
+test('chronologie du club : la série à son début officiel, une accolade jusqu’à la fin d’un événement, glisser à un jour précis (mois agrandi)', async ({ page }) => {
+  await page.clock.setFixedTime(new Date('2026-11-11T09:00:00Z'));
+  const cle = 'taches-gsa-demo-v7';
+  await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
+  // Le programme hivernal commence officiellement au changement d'heure (la natation dès septembre) ; la soirée dure deux
+  // jours, le camp de ski passe d'une année à l'autre.
+  await page.evaluate((k) => {
+    const d = JSON.parse(localStorage.getItem(k)!);
+    Object.assign(d.seriesEvenements.find((s: { id: string }) => s.id === 'se-hiver'), { debut: '2026-10-25', fin: '2027-03-28' });
+    d.events.find((e: { id: string }) => e.id === 'e-hiver-natation').date = '2026-09-04';
+    d.events.find((e: { id: string }) => e.id === 'e10').dateFin = '2026-11-29';
+    d.events.push({ id: 'e-ski', nom: 'Camp de ski', date: '2026-12-28', dateFin: '2027-01-03', lieu: '', description: '' });
+    localStorage.setItem(k, JSON.stringify(d));
+  }, cle);
+  const seance = async () => (await page.evaluate((k) => JSON.parse(localStorage.getItem(k)!), cle)).meetings.find((m: { titre: string }) => m.titre.includes('décembre 2026'));
+  await page.goto('./?demo#/chronologie');
+  await page.reload();
+  const leJour = (d: string) => page.locator('li.cc-jour', { has: page.locator(`.cc-date time[datetime="${d}"]`) });
+  const carte = (nom: string) => page.locator('.cc-el').filter({ has: page.locator('.cc-el-titre', { hasText: nom }) });
+
+  // La série : à son début officiel, le 25 octobre.
+  await expect(leJour('2026-10-25').locator('.cc-el.k-serie')).toHaveText(/Programme hivernal 2026-27/);
+  // La soirée : une accolade jusqu'à sa fin, le 29 ; le camp de ski, qui finit en 2027 : sa date de fin, accolade ouverte.
+  await expect(leJour('2026-11-29').locator('.cc-fin')).toHaveText('fin · Soirée récréative');
+  await expect(carte('Soirée récréative').locator('.cc-jusqua')).toHaveCount(0);
+  await expect(page.locator('svg.cc-accolade[data-accolade="e:e10"]')).toBeVisible();
+  await expect(carte('Camp de ski').locator('.cc-jusqua')).toHaveText('→ 03.01.27');
+  await expect(page.locator('svg.cc-accolade[data-accolade="e:e-ski"]')).toBeVisible();
+
+  // Glisser le comité de décembre sur la date d'une ligne (le camp de ski, le 28) : ce jour-là, sans fenêtre.
+  // La frise défile dans son cadre : chaque élément amené à l'écran avant d'y aller.
+  const glisser = async (de: ReturnType<Page['locator']>) => {
+    await de.scrollIntoViewIfNeeded();
+    const b = (await de.boundingBox())!;
+    await page.mouse.move(b.x + 5, b.y + 5);
+    await page.mouse.down();
+  };
+  const vers = async (l: ReturnType<Page['locator']>, attendre = 0) => {
+    await l.scrollIntoViewIfNeeded();
+    const b = (await l.boundingBox())!;
+    await page.mouse.move(b.x + b.width / 2, b.y + b.height / 2, { steps: 5 });
+    if (attendre) {
+      await page.waitForTimeout(attendre);
+      await page.mouse.move(b.x + b.width / 2 + 1, b.y + b.height / 2 + 1);
+    }
+  };
+  await glisser(carte('Comité de décembre 2026').locator('.cc-el-titre'));
+  await vers(leJour('2026-12-28').locator('.cc-date'));
+  await page.mouse.up();
+  await expect(page.locator('.toast')).toContainText('Comité de décembre 2026 déplacée au 28.12.2026');
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  expect((await seance()).date).toBe('2026-12-28');
+
+  // Puis sur « décembre 2026 » : le mois s'agrandit (ses semaines), la semaine survolée (ses jours) ; lâché sur le jeudi 17,
+  // même sous le message du déplacement précédent (il laisse passer le lâcher).
+  await glisser(carte('Comité de décembre 2026').locator('.cc-el-titre'));
+  await vers(page.locator('li.cc-mois', { hasText: 'décembre 2026' }).locator('.cc-mois-nom'), 500);
+  const zoom = page.locator('.cc-zoom');
+  await expect(zoom.locator('.cc-zoom-semaine')).toHaveCount(5);
+  await vers(zoom.locator('.cc-zoom-semaine', { hasText: 'Semaine du 14 – 20 déc.' }), 500);
+  await expect(zoom.locator('.cc-zoom-semaine.ouverte .cc-zoom-jour')).toHaveCount(7);
+  await vers(zoom.locator('.cc-zoom-jour', { hasText: 'jeu. 17' }));
+  await page.mouse.up();
+  await expect(page.locator('.toast')).toContainText('Comité de décembre 2026 déplacée au 17.12.2026');
+  await expect(page.locator('.cc-zoom')).toHaveCount(0);
+  expect((await seance()).date).toBe('2026-12-17');
+});

@@ -19,8 +19,11 @@ import { etiquettesDatees, memeEvenement } from './agendaIcs';
 // dans sa voie (« Réserver la salle · Soirée récréative », 2 mois avant) ; sous elle s'ils tombent le même jour (ou pendant
 // l'événement), s'ils n'ont pas de délai, ou si leur délai sort de la période. Ceux d'une séance ou d'un événement d'une
 // autre période, à leur date dans celle-ci, de même.
-// Une série d'événements (programme hivernal, championnat) : une seule ligne, à la date de son premier événement de la
+// Une série d'événements (programme hivernal, championnat) : une seule ligne, à son début officiel (sa période officielle,
+// seriesEvenements.ts ; commencée avant la période : son premier jour), sinon à la date de son premier événement de la
 // période ; son « + » montre ses événements, chacun à sa date, et les points de son étiquette (4 bis), comme ci-dessus.
+// Un événement sur plusieurs jours (ou une étiquette datée) : une ligne « fin » à son dernier jour (FinFrise), que relie
+// une accolade dans la page.
 
 /** Période affichée, du `de` au `a` (inclus). Vue AG : l'assemblée du début et celle de la fin (absente : pas encore prévue). */
 export interface Periode {
@@ -104,6 +107,13 @@ export interface SerieFrise {
   dessous: Task[];
 }
 
+/** Dernier jour d'un événement sur plusieurs jours (ou d'une étiquette datée) : « fin », relié à lui par une accolade. */
+export interface FinFrise {
+  k: 'fin';
+  cle: string;
+  de: Extract<Carte, { k: 'evenement' | 'etiquette' }>;
+}
+
 /** Un point à sa date : seul (rattaché à rien), ou d'une séance / d'un événement (`de` : son nom et sa date). */
 export interface PointFrise {
   k: 'point';
@@ -116,7 +126,7 @@ export interface PointFrise {
 export interface Jour {
   date: string;
   gauche: (Carte | PointFrise)[];
-  droite: (Carte | PointFrise | SerieFrise)[];
+  droite: (Carte | PointFrise | SerieFrise | FinFrise)[];
 }
 
 export interface Frise {
@@ -217,7 +227,7 @@ function infoCarte(data: AppData, cle: string): { nom: string; date: string } | 
   }
   if (cle.startsWith('se:')) {
     const se = data.seriesEvenements?.find((y) => y.id === id);
-    const debut = data.events.filter((y) => y.dansSerie === id).map((y) => y.date).sort()[0];
+    const debut = se?.debut ?? data.events.filter((y) => y.dansSerie === id).map((y) => y.date).sort()[0];
     return se && { nom: se.nom, date: debut ?? '' };
   }
   const et = data.etiquettes?.find((y) => y.id === id);
@@ -259,7 +269,8 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
     if (fin >= p.de && et.date! <= p.a) cartes.set(cleEtiquette(et.id), { k: 'etiquette', cle: cleEtiquette(et.id), date: et.date! < p.de ? p.de : et.date!, fin, et, points: [], dessous: [] });
   }
 
-  // Séries d'événements : une ligne pour leurs événements de la période.
+  // Séries d'événements : une ligne pour leurs événements de la période, à son début officiel s'il en a un (commencée avant
+  // la période : son premier jour ; qui commence après : à son premier événement), sinon à son premier événement.
   const series = new Map<string, SerieFrise>();
   for (const c of cartes.values()) {
     if (c.k !== 'evenement' || !c.e.dansSerie) continue;
@@ -269,6 +280,12 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
     if (!series.has(cle)) series.set(cle, { k: 'serie', cle, date: c.date, s: se, cartes: [], points: [], dessous: [] });
     series.get(cle)!.cartes.push(c);
   }
+  const dateSerie = (se: SerieFrise) => {
+    const o = se.s.debut;
+    if (o && o <= p.a && (!se.s.fin || se.s.fin >= p.de)) return o < p.de ? p.de : o;
+    return se.cartes.map((c) => c.date).sort()[0] ?? se.date;
+  };
+  for (const se of series.values()) se.date = dateSerie(se);
 
   const seuls: Task[] = [];
   const sansDate: Task[] = [];
@@ -319,7 +336,7 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
   for (const [cle, se] of series) {
     se.cartes = se.cartes.filter((c) => cartes.has(c.cle));
     if (!se.cartes.length && !se.points.length) series.delete(cle);
-    else if (se.cartes.length) se.date = se.cartes.map((c) => c.date).sort()[0];
+    else if (se.cartes.length) se.date = dateSerie(se);
   }
   /** Événements d'une série fermée : ni eux, ni leurs points ne sont montrés. */
   const caches = new Set([...series.values()].filter((se) => !ouverte(se.cle)).flatMap((se) => se.cartes.map((c) => c.cle)));
@@ -344,6 +361,11 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
     if (se.date && dans(se.date)) jourDe(se.date).droite.push(se);
   }
   for (const t of seuls) jourDe(t.delai).gauche.push({ k: 'point', cle: `t:${t.id}`, t });
+  // Fin d'un événement sur plusieurs jours (pas une série qui se répète), montré : à son dernier jour, dans la période.
+  for (const c of cartes.values()) {
+    if (caches.has(c.cle) || (c.k !== 'evenement' && c.k !== 'etiquette') || (c.k === 'evenement' && c.e.repetition)) continue;
+    if (c.fin > c.date && dans(c.fin)) jourDe(c.fin).droite.push({ k: 'fin', cle: `fin:${c.cle}`, de: c });
+  }
   for (const { t, cle, gauche } of aLeurDate) {
     if (ailleurs.has(cle)) nbPoints++;
     if (!ouverte(cle) || caches.has(cle)) continue;
@@ -354,12 +376,12 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
   }
   // « Aujourd'hui » : une ligne, même vide.
   if (dans(jour)) jourDe(jour);
-  // Séances et événements d'abord (par heure, puis nom), puis les points (par titre).
-  type El = Carte | PointFrise | SerieFrise;
+  // Séances et événements d'abord (par heure, puis nom), puis les points (par titre), puis les fins.
+  type El = Carte | PointFrise | SerieFrise | FinFrise;
   const heure = (c: El) => (c.k === 'seance' ? c.m.heure ?? '' : c.k === 'evenement' ? c.e.heure ?? '' : '');
-  const nom = (c: El) => (c.k === 'point' ? c.t.titre : c.k === 'serie' ? c.s.nom : nomCarte(c));
-  const tri = (a: El, b: El) =>
-    (a.k === 'point' ? 1 : 0) - (b.k === 'point' ? 1 : 0) || heure(a).localeCompare(heure(b)) || nom(a).localeCompare(nom(b), 'fr');
+  const nom = (c: El) => (c.k === 'point' ? c.t.titre : c.k === 'serie' ? c.s.nom : c.k === 'fin' ? nomCarte(c.de) : nomCarte(c));
+  const rang = (c: El) => (c.k === 'fin' ? 2 : c.k === 'point' ? 1 : 0);
+  const tri = (a: El, b: El) => rang(a) - rang(b) || heure(a).localeCompare(heure(b)) || nom(a).localeCompare(nom(b), 'fr');
   for (const j of jours.values()) {
     j.gauche.sort(tri);
     j.droite.sort(tri);

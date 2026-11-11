@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { ClubEvent, Meeting, Task } from '../data/types';
@@ -10,7 +10,7 @@ import { motSeance, titreSelonDate, versProchaineSeance } from '../data/seances'
 import { nomAvecSerie } from '../data/seriesEvenements';
 import {
   aDateFixe, assemblees, construireFrise, dateEntre, estAg, nomCarte, periodeAnnee, periodeDuJour, periodesAg, versEtiquette, versEvenement, versSeance,
-  type Carte, type Jour, type Periode, type PointFrise, type SerieFrise,
+  type Carte, type FinFrise, type Jour, type Periode, type PointFrise, type SerieFrise,
 } from '../data/chronologieClub';
 import { Modal } from '../components/ui';
 import { Icone, type IconeNom } from '../components/icones';
@@ -28,6 +28,9 @@ import { nomAppli } from '../data/nomAppli';
 // un clic sur la poignée de chacun, au survol, sans glisser). « + » partout pour ajouter une séance, un événement ou un point.
 // Seulement du texte, pour une vue d'ensemble à imprimer (« Imprimer » : A4, les deux voies) : une séance ou un événement =
 // son titre ; un petit « + » à côté montre ses points (date et titre ; le reste dans leur fiche), « − » les cache.
+// Un événement sur plusieurs jours : une accolade de son premier jour à sa ligne « fin » (son dernier jour).
+// Déposer à une date précise : en glissant, s'attarder sur un mois ou entre deux jours l'agrandit (ses semaines, puis les
+// jours de la semaine survolée) ; lâcher sur un jour, ou sur la date d'une ligne, donne cette date, sans fenêtre.
 
 /** Ce qu'on déplace ; `depuis` : la carte où était le point. */
 type Glisse = { k: 'point'; t: Task; depuis?: string } | { k: 'seance'; m: Meeting } | { k: 'evenement'; e: ClubEvent };
@@ -49,6 +52,45 @@ const moisSuivant = (ym: string) => addDays(`${ym}-28`, 7).slice(0, 7);
 const finDuMois = (ym: string) => addDays(`${moisSuivant(ym)}-01`, -1);
 /** « 29.10 » (l'année aussi si elle n'est pas celle de `ref` : « 15.11.25 »). */
 const dateCourte = (d: string, ref: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}${d.slice(0, 4) !== ref.slice(0, 4) ? `.${d.slice(2, 4)}` : ''}`;
+
+/** Jour de la semaine (1 = lundi … 7 = dimanche). */
+const joursem = (d: string) => ((new Date(d + 'T12:00:00').getDay() + 6) % 7) + 1;
+/** Les jours du `de` au `a` (inclus). */
+const joursEntre = (de: string, a: string) => {
+  const out: string[] = [];
+  for (let d = de; d <= a && out.length < 62; d = addDays(d, 1)) out.push(d);
+  return out;
+};
+/** Les semaines (lundi → dimanche) qui touchent la période, coupées à elle. */
+const semainesEntre = (de: string, a: string) => {
+  const out: { de: string; a: string }[] = [];
+  for (let d = de; d <= a; ) {
+    const fin = addDays(d, 7 - joursem(d));
+    out.push({ de: d, a: fin < a ? fin : a });
+    d = addDays(fin, 1);
+  }
+  return out;
+};
+/** « 2 – 8 nov. » */
+const libelleSemaine = (w: { de: string; a: string }) => {
+  const f = (d: string, mois: boolean) => new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { day: 'numeric', ...(mois ? { month: 'short' } : {}) });
+  return w.de === w.a ? f(w.de, true) : `${f(w.de, w.de.slice(5, 7) !== w.a.slice(5, 7))} – ${f(w.a, true)}`;
+};
+/** Plus de 10 jours : d'abord les semaines ; sinon les jours tout de suite. */
+const PAR_JOURS = 10;
+/** Temps d'arrêt (ms) avant d'agrandir ce qu'on survole en glissant. */
+const ATTENTE_ZOOM = 350;
+
+/** Accolade « { » de `h` px de haut, pointe vers la gauche (vers la date) ; `ouverte` : la fin est après la période. */
+function cheminAccolade(h: number, w: number, ouverte: boolean) {
+  const r = Math.min(6, h / 4);
+  const m = h / 2;
+  const c = w / 2;
+  return ouverte
+    ? `M ${w} 0 Q ${c} 0 ${c} ${r} L ${c} ${h}`
+    : `M ${w} 0 Q ${c} 0 ${c} ${r} L ${c} ${m - r} Q ${c} ${m} 0 ${m} Q ${c} ${m} ${c} ${m + r} L ${c} ${h - r} Q ${c} ${h} ${w} ${h}`;
+}
+type Accolade = { cle: string; x: number; haut: number; bas: number; ouverte: boolean; col: number };
 
 /** Séances et événements dont les points sont affichés (leur clé), retenus sur l'appareil ; les autres : seulement leur titre. */
 const CLE_OUVERTES = 'taches-gsa-chronologie-ouvertes';
@@ -139,6 +181,67 @@ export function ChronologieClub() {
   const ags = useMemo(() => assemblees(data), [data]);
   const periodes = useMemo(() => periodesAg(ags), [ags]);
 
+  // En glissant : la partie agrandie (un mois, ou les jours entre deux lignes : ses semaines, puis les jours de l'une).
+  const [zoom, setZoom] = useState<{ cle: string; de: string; a: string; semaine?: string } | null>(null);
+  const attente = useRef<{ cle: string; t: number } | null>(null);
+  const programmer = (cle: string, faire: () => void) => {
+    if (attente.current?.cle === cle) return;
+    if (attente.current) clearTimeout(attente.current.t);
+    attente.current = { cle, t: window.setTimeout(() => { attente.current = null; faire(); }, ATTENTE_ZOOM) };
+  };
+  const renoncer = (cle: string) => {
+    if (attente.current?.cle !== cle) return;
+    clearTimeout(attente.current.t);
+    attente.current = null;
+  };
+  useEffect(() => () => {
+    if (attente.current) clearTimeout(attente.current.t);
+    document.body.classList.remove('glisse-en-cours');
+  }, []);
+  // La partie agrandie, entière à l'écran (elle s'ouvre souvent en bas du cadre).
+  useEffect(() => {
+    if (zoom) document.querySelector('.cc-zoom')?.scrollIntoView({ block: 'nearest' });
+  }, [zoom]);
+
+  // Accolades des événements sur plusieurs jours : mesurées après chaque affichage (de leur ligne à leur « fin » ; l'état ne
+  // change que si elles ont bougé), et de nouveau quand la frise change de taille.
+  const cadre = useRef<HTMLDivElement | null>(null);
+  const [accolades, setAccolades] = useState<Accolade[]>([]);
+  const [, setMesure] = useState(0);
+  const observe = useRef<ResizeObserver>();
+  const refCadre = useCallback((el: HTMLDivElement | null) => {
+    observe.current?.disconnect();
+    cadre.current = el;
+    if (!el) return;
+    observe.current = new ResizeObserver(() => setMesure((n) => n + 1));
+    observe.current.observe(el);
+  }, []);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useLayoutEffect(() => {
+    const el = cadre.current;
+    if (!el) {
+      if (accolades.length) setAccolades([]);
+      return;
+    }
+    const box = el.getBoundingClientRect();
+    const out: Accolade[] = [];
+    el.querySelectorAll<HTMLElement>('[data-accolade-debut]').forEach((d) => {
+      const cle = d.dataset.accoladeDebut!;
+      const f = el.querySelector<HTMLElement>(`[data-accolade-fin="${CSS.escape(cle)}"]`);
+      const voie = (d.closest('.cc-droite') as HTMLElement | null) ?? d;
+      const haut = Math.round(d.getBoundingClientRect().top - box.top + 3);
+      const bas = Math.round((f ? f.getBoundingClientRect().bottom : box.bottom) - box.top - 3);
+      if (bas > haut) out.push({ cle, x: Math.round(voie.getBoundingClientRect().left - box.left), haut, bas, ouverte: !f, col: 0 });
+    });
+    // Accolades qui se chevauchent : l'une à côté de l'autre.
+    out.sort((a, b) => a.haut - b.haut);
+    out.forEach((a, i) => {
+      const prises = new Set(out.slice(0, i).filter((b) => b.bas > a.haut && b.x === a.x).map((b) => b.col));
+      while (prises.has(a.col)) a.col++;
+    });
+    if (JSON.stringify(out) !== JSON.stringify(accolades)) setAccolades(out);
+  });
+
   if (!user) return null;
   const jour = today();
   const voitSeances = can('tab.meetings');
@@ -188,7 +291,7 @@ export function ChronologieClub() {
   /** Séances et événements de la période (aussi ceux d'une série fermée) ; séries ; ceux montrés. */
   const cartes = frise.cartes;
   const series = elements.filter((c): c is SerieFrise => c.k === 'serie');
-  const montrees = elements.filter((c): c is Carte => c.k !== 'point' && c.k !== 'serie');
+  const montrees = elements.filter((c): c is Carte => c.k !== 'point' && c.k !== 'serie' && c.k !== 'fin');
   const montres = new Map(
     [...cartes.flatMap((c) => c.points), ...series.flatMap((c) => c.points), ...elements.flatMap((c) => (c.k === 'point' ? [c.t] : []))].map((t) => [t.id, t]),
   );
@@ -229,13 +332,36 @@ export function ChronologieClub() {
   };
 
   const finGlisse = () => {
+    document.body.classList.remove('glisse-en-cours');
     setGlisse(null);
     setSurvol(null);
+    setZoom(null);
+    if (attente.current) clearTimeout(attente.current.t);
+    attente.current = null;
   };
+  /** Lâché sur un jour précis (agrandi, ou la date d'une ligne) : cette date, sans fenêtre. */
+  const lacherSur = (date: string) => ({
+    onDragOver: (e: React.DragEvent) => {
+      if (!glisse) return;
+      e.preventDefault();
+      e.stopPropagation();
+      e.dataTransfer.dropEffect = 'move';
+      setSurvol(`j:${date}`);
+    },
+    onDragLeave: () => setSurvol((s) => (s === `j:${date}` ? null : s)),
+    onDrop: (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (glisse) dater(glisse, date);
+      finGlisse();
+    },
+  });
   const debut = (g: Glisse) => (e: React.DragEvent) => {
     e.stopPropagation();
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/plain', g.k === 'point' ? g.t.titre : g.k === 'seance' ? g.m.titre : g.e.nom);
+    // Pendant qu'on glisse, le message du bas (« … déplacée au … ») ne retient pas le lâcher.
+    document.body.classList.add('glisse-en-cours');
     setGlisse(g);
   };
   /** Une carte reçoit un point. */
@@ -247,19 +373,81 @@ export function ChronologieClub() {
         onDrop: (e: React.DragEvent) => { e.preventDefault(); e.stopPropagation(); if (glisse?.k === 'point') rattacher(glisse, c); finGlisse(); },
       }
       : {};
-  /** Entre deux jours de la frise : la date se choisit ensuite (proposée : `date`). */
-  const depot = (cle: string, date: string) => (
-    <li
-      key={`depot:${cle}`}
-      className={`cc-depot ${survol === `z:${cle}` ? 'survol' : ''}`}
-      aria-hidden="true"
-      onDragOver={(e) => { if (!glisse) return; e.preventDefault(); e.dataTransfer.dropEffect = 'move'; setSurvol(`z:${cle}`); }}
-      onDragLeave={() => setSurvol((s) => (s === `z:${cle}` ? null : s))}
-      onDrop={(e) => { e.preventDefault(); if (glisse) setDeplacer({ g: glisse, date }); finGlisse(); }}
-    >
-      <span>Déposer ici · vers le {fmtDate(date)}</span>
-    </li>
+  /**
+   * Entre deux jours de la frise : la date se choisit ensuite (proposée : `date`). S'y attarder en glissant agrandit les
+   * jours entre ces deux lignes (`de` → `a`) : on lâche alors sur le jour voulu.
+   */
+  const depot = (cle: string, date: string, de?: string, a?: string) => {
+    const z = de && a && de <= a ? { cle: `z:${cle}`, de, a } : undefined;
+    return [
+      <li
+        key={`depot:${cle}`}
+        className={`cc-depot ${survol === `z:${cle}` ? 'survol' : ''}`}
+        aria-hidden="true"
+        onDragOver={(e) => {
+          if (!glisse) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setSurvol(`z:${cle}`);
+          if (z && zoom?.cle !== z.cle) programmer(z.cle, () => setZoom(z));
+        }}
+        onDragLeave={() => { setSurvol((s) => (s === `z:${cle}` ? null : s)); if (z) renoncer(z.cle); }}
+        onDrop={(e) => { e.preventDefault(); if (glisse) setDeplacer({ g: glisse, date }); finGlisse(); }}
+      >
+        <span>Déposer ici · vers le {fmtDate(date)}</span>
+      </li>,
+      ...(z && zoom?.cle === z.cle ? [agrandi(zoom)] : []),
+    ];
+  };
+
+  /** Un jour où lâcher : son nom court (« lun. 2 »), à sa place dans la semaine. */
+  const jourOu = (d: string, mois: boolean) => (
+    <div key={d} className={`cc-zoom-jour ${survol === `j:${d}` ? 'survol' : ''} ${joursem(d) > 5 ? 'weekend' : ''} ${d === jour ? 'aujourdhui' : ''}`}
+      style={{ gridColumnStart: joursem(d) }} {...lacherSur(d)}>
+      {jourCourt(d)}{mois && d.slice(8) === '01' ? ` ${new Date(d + 'T12:00:00').toLocaleDateString('fr-CH', { month: 'short' })}` : ''}
+    </div>
   );
+  /**
+   * La partie agrandie : 10 jours au plus, ses jours tout de suite ; sinon ses semaines (s'attarder sur l'une : ses jours ;
+   * lâcher sur la semaine : la fenêtre « Déplacer », à son premier jour).
+   */
+  const agrandi = (z: NonNullable<typeof zoom>) => {
+    const jours = joursEntre(z.de, z.a);
+    const deuxMois = z.de.slice(0, 7) !== z.a.slice(0, 7);
+    return (
+      <li key={`zoom:${z.cle}`} className="cc-zoom" aria-hidden="true">
+        <small className="cc-zoom-titre">Lâche sur le jour voulu</small>
+        {jours.length <= PAR_JOURS ? (
+          <div className="cc-zoom-jours">{jours.map((d) => jourOu(d, deuxMois))}</div>
+        ) : (
+          <div className="cc-zoom-semaines">
+            {semainesEntre(z.de, z.a).map((w) => {
+              const cle = `w:${w.de}`;
+              const ouverte = z.semaine === w.de;
+              return (
+                <div
+                  key={w.de}
+                  className={`cc-zoom-semaine ${ouverte ? 'ouverte' : ''} ${survol === cle ? 'survol' : ''}`}
+                  onDragOver={(e) => {
+                    if (!glisse) return;
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setSurvol(cle);
+                    if (!ouverte) programmer(cle, () => setZoom((x) => (x && x.cle === z.cle ? { ...x, semaine: w.de } : x)));
+                  }}
+                  onDragLeave={() => { setSurvol((s) => (s === cle ? null : s)); renoncer(cle); }}
+                  onDrop={(e) => { e.preventDefault(); e.stopPropagation(); if (glisse) setDeplacer({ g: glisse, date: w.de }); finGlisse(); }}
+                >
+                  <span className="cc-zoom-libelle">Semaine du {libelleSemaine(w)}</span>
+                  {ouverte && <div className="cc-zoom-jours">{joursEntre(w.de, w.a).map((d) => jourOu(d, false))}</div>}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </li>
+    );
+  };
 
   // ---------- Ouvrir, ajouter ----------
 
@@ -368,6 +556,7 @@ export function ChronologieClub() {
         draggable={bouge}
         onDragStart={bouge && g ? debut(g) : undefined}
         onDragEnd={finGlisse}
+        data-accolade-debut={jusqua ? c.cle : undefined}
         {...cible(c)}
       >
         <div className="cc-el-ligne">
@@ -379,7 +568,8 @@ export function ChronologieClub() {
           >
             {nom}
           </button>
-          {jusqua && <span className="cc-jusqua">→ {dateCourte(jusqua, c.date)}</span>}
+          {/* Sa fin dans la période : l'accolade va jusqu'à sa ligne « fin » ; après : sa date. */}
+          {jusqua && p && jusqua > p.a && <span className="cc-jusqua">→ {dateCourte(jusqua, c.date)}</span>}
           {estAg(c) && <span className="cc-ag" title="Assemblée générale">AG</span>}
           {c.k === 'evenement' && c.e.repetition && <span className="cc-repete" title={libelleRepetition(c.e)}><Icone n="repetition" /></span>}
           {n > 0 && (
@@ -410,9 +600,17 @@ export function ChronologieClub() {
     );
   };
 
+  /** La fin d'un événement sur plusieurs jours : où s'arrête son accolade. */
+  const finDe = (x: FinFrise) => (
+    <div key={x.cle} className={`cc-fin ${couleurDe(x.de.cle) ? 'couleur' : ''}`} style={styleCouleur(couleurDe(x.de.cle))} data-accolade-fin={x.de.cle}>
+      fin · {nomCarte(x.de)}
+    </div>
+  );
+
   /** Une séance, un événement, ou un point à sa date (seul, ou d'une séance / d'un événement dont on a demandé les points). */
-  const element = (x: Carte | PointFrise | SerieFrise) =>
-    x.k === 'point' ? <ul key={x.cle} className={`cc-seuls ${x.de ? 'de' : ''}`}>{ligne(x.t, { depuis: x.de?.cle, de: x.de })}</ul> : x.k === 'serie' ? serie(x) : carte(x);
+  const element = (x: Carte | PointFrise | SerieFrise | FinFrise) =>
+    x.k === 'point' ? <ul key={x.cle} className={`cc-seuls ${x.de ? 'de' : ''}`}>{ligne(x.t, { depuis: x.de?.cle, de: x.de })}</ul>
+      : x.k === 'serie' ? serie(x) : x.k === 'fin' ? finDe(x) : carte(x);
 
   /** Une série d'événements : son nom ; « + » montre ses événements, chacun à sa date (et les points de son étiquette). */
   const serie = (x: SerieFrise) => {
@@ -451,29 +649,45 @@ export function ChronologieClub() {
     for (let ym = p.de.slice(0, 7); ym <= p.a.slice(0, 7); ym = moisSuivant(ym)) {
       const debutMois = ym === p.de.slice(0, 7) ? p.de : `${ym}-01`;
       const finMois = ym === p.a.slice(0, 7) ? p.a : finDuMois(ym);
+      // En glissant, s'attarder sur le nom du mois l'agrandit : ses semaines, puis ses jours.
+      const zMois = { cle: `m:${ym}`, de: debutMois, a: finMois };
       lignes.push(
-        <li key={`m:${ym}`} className="cc-mois">
+        <li
+          key={`m:${ym}`}
+          className={`cc-mois ${zoom?.cle === zMois.cle ? 'agrandi' : ''}`}
+          onDragOver={(e) => {
+            if (!glisse) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            if (zoom?.cle !== zMois.cle) programmer(zMois.cle, () => setZoom(zMois));
+          }}
+          onDragLeave={() => renoncer(zMois.cle)}
+          onDrop={(e) => { e.preventDefault(); if (glisse) setDeplacer({ g: glisse, date: debutMois }); finGlisse(); }}
+        >
           <span className="cc-mois-nom">{nomMois(ym)}</span>
         </li>,
       );
+      if (zoom?.cle === zMois.cle) lignes.push(agrandi(zoom));
       const js = parMois.get(ym) ?? [];
       const borne = (d: string) => (d < debutMois ? debutMois : d > finMois ? finMois : d);
       js.forEach((j, i) => {
-        lignes.push(depot(`${ym}:${i}`, borne(dateEntre(i ? js[i - 1].date : addDays(debutMois, -1), j.date))));
+        const avant = i ? js[i - 1].date : addDays(debutMois, -1);
+        lignes.push(...depot(`${ym}:${i}`, borne(dateEntre(avant, j.date)), borne(addDays(avant, 1)), addDays(j.date, -1)));
         const auj = j.date === jour;
         lignes.push(
           <li key={j.date} className={`cc-jour ${auj ? 'aujourdhui' : ''} ${j.date < jour ? 'passe' : ''} ${!j.gauche.length && !j.droite.length ? 'vide' : ''}`}>
             <div className="cc-gauche">
               {j.gauche.map(element)}
             </div>
-            <div className="cc-date">
+            <div className={`cc-date ${survol === `j:${j.date}` ? 'survol' : ''}`} {...lacherSur(j.date)}>
               <time dateTime={j.date}>{auj ? <><span className="cc-ecran">Aujourd’hui</span><span className="cc-papier">{jourCourt(j.date)}</span></> : jourCourt(j.date)}</time>
             </div>
             <div className="cc-droite">{j.droite.map(element)}</div>
           </li>,
         );
       });
-      lignes.push(depot(`${ym}:fin`, borne(dateEntre(js.length ? js[js.length - 1].date : addDays(debutMois, -1), addDays(finMois, 1)))));
+      const dernier = js.length ? js[js.length - 1].date : addDays(debutMois, -1);
+      lignes.push(...depot(`${ym}:fin`, borne(dateEntre(dernier, addDays(finMois, 1))), borne(addDays(dernier, 1)), finMois));
     }
   }
 
@@ -626,7 +840,20 @@ export function ChronologieClub() {
             <span />
             <span><Icone n="evenements" /> Événements</span>
           </div>
-          <ol className={`cc-frise ${glisse ? 'glisse' : ''}`} aria-label={`Chronologie du club · ${titrePeriode}`}>{lignes}</ol>
+          <div className="cc-frise-cadre" ref={refCadre}>
+            <ol className={`cc-frise ${glisse ? 'glisse' : ''}`} aria-label={`Chronologie du club · ${titrePeriode}`}>{lignes}</ol>
+            {accolades.map((a) => {
+              const h = a.bas - a.haut;
+              const w = 7;
+              const couleur = couleurDe(a.cle);
+              return (
+                <svg key={a.cle} className={`cc-accolade ${couleur ? 'couleur' : ''}`} style={{ ...styleCouleur(couleur), left: a.x - w - 1 - a.col * (w + 2), top: a.haut }}
+                  width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true" data-accolade={a.cle}>
+                  <path d={cheminAccolade(h, w, a.ouverte)} fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                </svg>
+              );
+            })}
+          </div>
           <p className="muted cc-astuce hide-mobile no-print">
             Astuce : glisse un point sur une séance ou un événement pour l’y rattacher (son délai suit sa date), ou entre deux jours pour lui donner une date fixe ;
             glisse une séance ou un événement entre deux jours pour changer sa date. Au survol d’une ligne, un clic sur sa poignée <Icone n="poignee" /> fait la même chose sans glisser.

@@ -2516,3 +2516,33 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 .chrono-depot.survol::after { border-top-color: var(--primary) !important; border-top-width: 3px !important; }
 .chrono-depot span { display: none; position: absolute; top: 0; left: calc(var(--chrono-quand) + 44px); transform: translateY(-50%); font-size: 0.78rem; font-weight: 600; color: var(--primary); background: var(--surface); border: 1px solid var(--primary); padding: 1px 10px; border-radius: 999px; white-space: nowrap; pointer-events: none; z-index: 1; }
 .chrono-depot.survol span { display: inline; }
+/* Chronologie du club : accolade d'un événement sur plusieurs jours (de sa ligne à sa « fin »), dans la marge de la voie
+   des événements ; sa fin. */
+.cc-frise-cadre { position: relative; }
+.cc-droite { padding-left: 12px; }
+.cc-accolade { position: absolute; color: var(--event-fg); pointer-events: none; overflow: visible; }
+.cc-accolade.couleur { color: var(--c-clair); }
+:root[data-theme='dark'] .cc-accolade.couleur { color: var(--c-sombre); }
+.cc-fin { font-size: 0.8rem; color: var(--event-fg); line-height: 1.6; padding: 0 4px; }
+.cc-fin.couleur { color: var(--c-clair); }
+:root[data-theme='dark'] .cc-fin.couleur { color: var(--c-sombre); }
+/* En glissant : le mois ou l'intervalle survolé s'agrandit (ses semaines, puis ses jours) ; lâcher sur un jour. */
+.cc-mois.agrandi .cc-mois-nom { color: var(--primary); }
+.cc-frise.glisse .cc-mois-nom { outline: 1px dashed color-mix(in srgb, var(--primary) 40%, transparent); border-radius: 6px; }
+.cc-zoom { margin: 2px 0 4px; padding: 6px 8px; background: var(--surface); border: 1px solid var(--primary); border-radius: 10px; box-shadow: var(--shadow); position: relative; z-index: 3; }
+.cc-zoom-titre { display: block; font-size: 0.75rem; color: var(--muted); margin: 0 0 4px; pointer-events: none; }
+.cc-zoom-semaines { display: flex; flex-direction: column; gap: 3px; }
+.cc-zoom-semaine { border: 1px dashed var(--border); border-radius: 8px; padding: 3px 8px; font-size: 0.82rem; }
+.cc-zoom-semaine.survol, .cc-zoom-semaine.ouverte { border-color: var(--primary); background: var(--primary-soft); }
+.cc-zoom-libelle { pointer-events: none; }
+.cc-zoom-jours { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 3px; margin-top: 3px; }
+.cc-zoom-jour { text-align: center; border: 1px solid var(--border); border-radius: 6px; padding: 5px 0; font-size: 0.8rem; background: var(--bg); font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; }
+.cc-zoom-jour.weekend { color: var(--muted); }
+.cc-zoom-jour.aujourdhui { border-color: var(--primary); }
+.cc-zoom-jour.survol { background: var(--primary); color: #fff; border-color: var(--primary); }
+.cc-date.survol time { outline: 2px solid var(--primary); border-radius: 4px; color: var(--primary); }
+@media print { .cc-zoom { display: none !important; } }
+/* En glissant (chronologie du club) : le message du bas laisse passer le lâcher. */
+body.glisse-en-cours .toast { pointer-events: none; opacity: 0.35; }
+/* Téléphone, une colonne : séances et événements au même bord (la marge de l'accolade pour les deux). */
+@media (max-width: 767px) { .cc-gauche { padding-left: 12px; } }
