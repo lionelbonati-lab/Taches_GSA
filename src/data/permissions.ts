@@ -15,6 +15,7 @@ export const PERMISSIONS: { id: Permission; label: string; group: (typeof PERMIS
   { id: 'tab.people', label: 'Coordonnées (email, téléphone) des personnes du club', group: 'Pages visibles' },
   { id: 'tab.pv', label: 'Comité › Ordre du jour', group: 'Pages visibles' },
   { id: 'tab.minutes', label: 'Comité › PV (prise de notes, PV)', group: 'Pages visibles' },
+  { id: 'tab.ag', label: 'Assemblée générale (onglet : ordre du jour et PV de l’AG)', group: 'Pages visibles' },
   { id: 'club.membres', label: 'Personnes du club : coordonnées, groupes, ajout et modification des personnes', group: 'Pages visibles' },
   { id: 'meetings.manage', label: 'Gérer les séances de comité', group: 'Gestion' },
   { id: 'events.manage', label: 'Gérer les événements', group: 'Gestion' },

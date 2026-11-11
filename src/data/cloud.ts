@@ -53,7 +53,7 @@ export interface UnitInfo {
 }
 
 /** Collections de l'appli enregistrées élément par élément. */
-const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions', 'etiquettes', 'seriesEvenements'] as const;
+const ARRAY_KINDS = ['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'polls', 'emails', 'notifications', 'log', 'propositions', 'etiquettes', 'seriesEvenements', 'assemblees'] as const;
 /** Tables clé → valeur (réglages, notifications vues, discussions lues ; discussions des tâches, par tâche). */
 const MAP_KINDS = ['prefs', 'notifLues', 'discussionsLues', 'discussions'] as const;
 /** Écrites par le serveur seulement (062) : jamais envoyées par l'appli (ni effacées, ni réécrites). */
@@ -63,7 +63,7 @@ const SERVEUR_SEUL = new Set<string>(['discussions']);
  * d'un appareil, rien n'est effacé sur le serveur et l'incident est signalé (10.11.2026 : les trois séries d'événements
  * effacées par un appareil à l'ouverture de l'appli).
  */
-const PROTEGEES = new Set<string>(['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'etiquettes', 'seriesEvenements']);
+const PROTEGEES = new Set<string>(['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'etiquettes', 'seriesEvenements', 'assemblees']);
 /** Listes dont l'ordre est choisi par l'utilisateur (sinon l'ordre d'ajout est conservé). */
 const ORDERED = new Set<string>(['people', 'statuses', 'sections', 'roles', 'etiquettes']);
 

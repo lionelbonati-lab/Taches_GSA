@@ -6,7 +6,12 @@ sur le même style que les PV de séance, avec la diffusion à 3 fenêtres. La l
 marquée après coup. Le président et le secrétaire doivent signer le PV à la fin. Proposer des sondages par point
 (pour / contre / abstention).*
 
-Ce document est un plan : rien n'est encore construit.
+> **Décision du président (11.11.2026)** : *un nouvel onglet pour l'AG, visible des seules personnes qui en auront le
+> droit dans la console admin.* L'onglet **AG** a son propre droit, « Assemblée générale » (console admin › Rôles et
+> droits) : les admins l'ont toujours, aucun autre rôle ne l'a d'office.
+>
+> **Fait le 11.11.2026 : étape AG1** (l'onglet et l'ordre du jour de l'AG ; README, « Assemblée générale (onglet AG) »).
+> Le reste de ce plan (PV, liste de présence, signatures) est à faire.
 
 ## Le principe
 
@@ -14,8 +19,8 @@ Ce document est un plan : rien n'est encore construit.
   « Assemblée générale 2027 », le 13.03.2027). Sa date, son heure et son lieu viennent de là. Il reste dans le
   calendrier, dans la chronologie (« D'une AG à l'autre ») et dans l'export. Ses **points de préparation** (réserver la
   salle, préparer les comptes…) restent des points ordinaires, dans sa sous-section (Événements › AG 13.03.2027).
-- **Le module ajoute à cette AG son ordre du jour et son PV.** Ils sont dans une nouvelle rubrique **« Assemblée
-  générale »** (nom court : « AG »), avec deux pages, **Ordre du jour** et **PV**, comme pour le comité.
+- **Le module ajoute à cette AG son ordre du jour et son PV.** Ils sont dans un nouvel onglet **« AG »** (Assemblée
+  générale), avec deux pages, **Ordre du jour** (fait) et **PV** (à faire), visible des seuls rôles qui en ont le droit.
 - **Les points de l'AG ne sont pas des points de la liste.** Ils n'ont ni statut, ni délai, ni responsable. Ils ne
   figurent ni dans « Points », ni dans l'ordre du jour ou le PV du comité, ni dans le calendrier. Ce sont les rubriques
   de l'ordre du jour de l'AG (« Approbation des comptes 2026 »), avec un texte, des documents et, au besoin, un vote.
@@ -99,7 +104,8 @@ adresses de « Personnes du club », en copie cachée pour que personne ne voie 
 **Archives** : dans la page (« Reprendre une ancienne AG… ») et sur la carte de l'AG (Agenda › Événements : « Ordre du
 jour », « PV signé »).
 
-**Droit** : le même que pour l'ordre du jour du comité (« Comité › Ordre du jour », donné au président).
+**Droit** : celui de l'onglet, « Assemblée générale » (console admin › Rôles et droits ; les admins l'ont toujours).
+Qui l'a prépare l'ordre du jour ; la mise en forme des documents reste réglée avec le droit « Comité › Ordre du jour ».
 
 ## 2. Page « PV » de l'AG
 
@@ -242,9 +248,11 @@ Règles habituelles : publier à la fin de chaque étape, tests Playwright, donn
 migration est appliquée par le président, et rien n'est déployé sans son accord. Le README et « Comment ça marche ? »
 sont mis à jour à chaque étape.
 
-1. **AG1 — Ordre du jour** (démo) : liste `assemblees`, rubrique « Assemblée générale », page Ordre du jour (points,
+1. **AG1 — Ordre du jour** (démo) : liste `assemblees`, onglet « AG » et son droit, page Ordre du jour (points,
    sous-points, textes, documents, votes prévus, glisser pour changer l'ordre), reprise de l'AG précédente, modèle,
-   document, PDF, impression, copie, email, archive, texte modifié à la main. **3 à 5 M.**
+   document, PDF, impression, copie, email, archive, texte modifié à la main. **3 à 5 M.** **Fait le 11.11.2026**
+   (`src/pages/OrdreDuJourAg.tsx`, `src/data/assemblee.ts`, `tests/assemblee.spec.ts`). La liste `assemblees` passe
+   déjà par le serveur comme les autres listes : rien à y faire pour l'ordre du jour.
 2. **AG2 — PV : prise de notes et votes** : séance (heures, président, secrétaire, scrutateurs, votants, invités), notes
    par point et Divers, votes et résultats, barre d'outils, document du PV, options, PDF, impression, copie, email,
    dépôt. **4 à 6 M.**
@@ -254,8 +262,8 @@ sont mis à jour à chaque étape.
    une étiquette, annexe du PV. **1 à 2 M.**
 5. **AG5 — Signatures** (démo) : valider et faire signer, signer, demander une correction, versions, archive signée,
    notifications. **1,5 à 2,5 M.**
-6. **AG6 — Serveur** : la liste `assemblees` dans l'appli réelle, migration `067` (signatures protégées, mot de passe
-   redemandé), essais sur la base de test. **1,5 à 3 M.**
+6. **AG6 — Serveur** : migration `067` (signatures protégées, mot de passe redemandé), essais sur la base de test (la
+   liste `assemblees` passe déjà par le serveur depuis AG1). **1 à 2,5 M.**
 
 **Total : 13 à 21 M tokens** (ordre de grandeur, contexte relu compris). Les étapes 1 et 2 suffisent pour tenir une
 première AG ; les étapes 3 à 6 peuvent suivre.
@@ -268,8 +276,8 @@ textes) ; `src/pages/OrdreDuJourAg.tsx` et `src/pages/PvAg.tsx` (nouveaux) ; `sr
 
 ## À confirmer
 
-1. **Une rubrique à part « Assemblée générale »** avec ses deux pages, ou deux pages de plus dans « Comité »
-   (Ordre du jour AG, PV AG) ?
+1. ~~Une rubrique à part, ou deux pages de plus dans « Comité » ?~~ **Décidé le 11.11.2026** : un onglet à part, « AG »,
+   avec son propre droit dans la console admin.
 2. **L'AG est l'événement de l'agenda** (type « Assemblée générale »), comme dans la démo. Je propose de retirer la
    case « Assemblée générale » de la fiche d'une **séance**, pour qu'une séance reste une séance du comité. Les séances
    déjà cochées resteraient lues par la chronologie. D'accord ?

@@ -86,6 +86,22 @@ const RUBRIQUES: NavRubrique[] = [
     ],
   },
   {
+    // Assemblée générale (PLAN_ASSEMBLEE_GENERALE.md) : seulement pour les rôles qui en ont le droit (console admin).
+    id: 'ag',
+    label: 'Assemblée générale',
+    court: 'AG',
+    icon: 'assemblee',
+    pages: [
+      {
+        to: '/ag',
+        label: 'Ordre du jour de l’AG',
+        icon: 'assemblee',
+        perm: 'tab.ag',
+        aide: 'L’ordre du jour de l’assemblée générale : ses propres points (sans statut ni délai), avec leur texte, leurs documents et leurs votes. Puis la convocation : imprime-la, envoie-la ou archive-la.',
+      },
+    ],
+  },
+  {
     id: 'sondages',
     label: 'Sondages',
     icon: 'sondage',

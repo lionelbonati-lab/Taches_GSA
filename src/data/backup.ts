@@ -1,6 +1,7 @@
 import type { AppData, ClubMembre } from './types';
 import { clearFiles, getFile, saveFile } from './files';
 import { nomAppli } from './nomAppli';
+import { documentsDesAg } from './assemblee';
 
 // Sauvegarde complète des données (un fichier .json) : tâches, séances, PV, sondages, emails, personnes, rôles, réglages…
 // et le contenu des fichiers joints. Celle de tout le club (console admin) réunit l'espace du club (version réelle : aussi
@@ -29,7 +30,8 @@ const toBase64 = (blob: Blob) =>
   });
 
 /** Fichiers joints aux tâches de l'entité (visas signés compris). */
-export const fileIds = (data: AppData) => data.tasks.flatMap((t) => (t.documents ?? []).filter((d) => d.kind === 'fichier').map((d) => d.id));
+export const fileIds = (data: AppData) =>
+  [...data.tasks.flatMap((t) => t.documents ?? []), ...documentsDesAg(data)].filter((d) => d.kind === 'fichier').map((d) => d.id);
 
 export async function makeBackup(data: AppData, by?: string): Promise<Backup> {
   const files: Backup['files'] = {};

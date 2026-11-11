@@ -11,6 +11,7 @@ export type Permission =
   | 'tab.people'
   | 'tab.pv'
   | 'tab.minutes'
+  | 'tab.ag'
   | 'polls.create'
   | 'polls.manage'
   | 'meetings.manage'
@@ -792,6 +793,83 @@ export interface AppData {
    * selon la règle de lecture (permissions.ts, litDiscussion) ; démo : par l'appli.
    */
   discussions?: Record<string, DiscussionTache>;
+  /**
+   * Assemblées générales (PLAN_ASSEMBLEE_GENERALE.md, onglet « Assemblée générale », droit tab.ag) : une fiche par AG de
+   * l'agenda, avec son ordre du jour (et bientôt son PV).
+   */
+  assemblees?: Assemblee[];
+}
+
+/**
+ * Assemblée générale : l'AG de l'agenda (un événement de type « Assemblée générale », ou une séance cochée « Assemblée
+ * générale ») et son ordre du jour. La date, l'heure et le lieu restent ceux de l'agenda.
+ */
+export interface Assemblee {
+  id: string;
+  /** L'événement de l'AG ; s'il se répète chaque année, `date` dit laquelle. */
+  eventId?: string;
+  /** Ou la séance cochée « Assemblée générale ». */
+  meetingId?: string;
+  /** Date de l'AG quand sa fiche a été créée (celle d'un événement qui se répète : la fiche de cette date-là). */
+  date: string;
+  /** Points de l'ordre du jour, dans l'ordre (1., 2.…) ; chacun peut avoir des sous-points (a., b.…). */
+  points: PointAg[];
+  /** Texte avant les points (« Le comité a le plaisir de vous convier… ») et après (« Le comité »). */
+  intro?: string;
+  fin?: string;
+  /** Présentation de la convocation, commune au club (les absents : par défaut). */
+  odjOptions?: OptionsOdjAg;
+  /** Convocation modifiée à la main : remplace le document généré tant qu'on n'y revient pas. */
+  odjEdite?: { html: string; le: string; par: string };
+  /** Convocations archivées (copie figée du document). */
+  odjArchives?: PvArchive[];
+  creeLe: string;
+  creePar: string;
+}
+
+/** Point de l'ordre du jour d'une AG : ni statut, ni délai, ni responsable. */
+export interface PointAg {
+  id: string;
+  titre: string;
+  /** Texte imprimé sous l'intitulé (proposition du comité, explication…). */
+  texte?: string;
+  /** Sous-points a., b., c. (un seul niveau : les sous-points n'en ont pas). */
+  sous?: PointAg[];
+  /** Fichiers, photos et liens (rapport, comptes, budget). */
+  documents?: TaskDoc[];
+  /** Votes prévus sur ce point (une élection : un vote par personne à élire). */
+  votes?: VoteAg[];
+  /** Repris de l'AG précédente : le point d'origine. */
+  repriseDe?: string;
+}
+
+/**
+ * Majorité d'un vote de l'AG : des voix exprimées (plus de pour que de contre, abstentions non comptées), absolue (plus de
+ * la moitié des votants présents) ou des deux tiers des voix exprimées.
+ */
+export type MajoriteAg = 'exprimees' | 'absolue' | 'deuxTiers';
+
+/** Vote prévu sur un point de l'AG : sa question (« Approbation des comptes 2026 ») et la majorité demandée. */
+export interface VoteAg {
+  id: string;
+  objet: string;
+  majorite: MajoriteAg;
+}
+
+/** Présentation de la convocation de l'AG. */
+export interface OptionsOdjAg {
+  /** En-tête du club (logo, nom…). Par défaut : oui. */
+  entete?: boolean;
+  /** Textes des points sous leur intitulé. Par défaut : oui. */
+  textes?: boolean;
+  /** « (vote) » à côté des points votés. Par défaut : oui. */
+  votes?: boolean;
+  /** Noms des documents sous leur point. Par défaut : oui. */
+  documents?: boolean;
+  /** Fichiers joints en fin de convocation (photos, pages des PDF). Par défaut : non. */
+  annexes?: boolean;
+  orientation?: 'portrait' | 'paysage';
+  taille?: 'petite' | 'normale' | 'grande';
 }
 
 /** Discussion d'une tâche (ligne « discussions » du serveur, 062). */

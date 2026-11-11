@@ -10,7 +10,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 test('toutes les pages s’ouvrent sans erreur', async ({ page }) => {
-  const pages = ['/', '/taches', '/messages', '/agenda', '/chronologie', '/comite', '/evenements', '/ordre-du-jour', '/pv', '/sondages', '/membres-club', '/reglages', '/admin', '/admin/droits', '/propositions', '/mots-de-passe', '/aide'];
+  const pages = ['/', '/taches', '/messages', '/agenda', '/chronologie', '/comite', '/evenements', '/ordre-du-jour', '/pv', '/ag', '/sondages', '/membres-club', '/reglages', '/admin', '/admin/droits', '/propositions', '/mots-de-passe', '/aide'];
   for (const h of pages) {
     await test.step(h, async () => {
       await page.goto('./?demo#' + h);

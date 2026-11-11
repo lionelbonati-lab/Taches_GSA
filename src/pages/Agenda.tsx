@@ -692,6 +692,12 @@ function CarteEvenement({ serie, date, etiquette, cible, onEdit, onReprise, onCh
         {e.repetition && <div className="muted"><Icone n="repetition" /> {libelleRepetition(serie)}</div>}
         {estNewsletter(data, serie) && <ReperNewsletter />}
         {e.description && <p>{e.description}</p>}
+        {/* Assemblée générale : son ordre du jour, pour les rôles qui ont l'onglet « Assemblée générale ». */}
+        {e.ag && can('tab.ag') && (
+          <p className="carte-ag">
+            <Link to={`/ag?ag=${encodeURIComponent(serie.repetition ? `${serie.id}@${date}` : serie.id)}`}><Icone n="assemblee" /> Ordre du jour de l’AG →</Link>
+          </p>
+        )}
         {etiquette && <EtiquetteCarte et={etiquette} />}
         <Progress done={tasks.filter((t) => isDone(data, t)).length} total={tasks.length} />
         {suite && (
@@ -881,7 +887,7 @@ function LigneSerie({ e, etiquette, prochain, onChrono, onEdit, onReprise }: {
 }
 
 /** Consultation d'un ordre du jour archivé (copie figée), imprimable tel quel. */
-function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; kind: 'pv' | 'odj'; canDelete: boolean; onDelete: () => void; onClose: () => void }) {
+export function PvViewer({ pv, kind, canDelete, onDelete, onClose }: { pv: PvArchive; kind: 'pv' | 'odj'; canDelete: boolean; onDelete: () => void; onClose: () => void }) {
   const { data } = useStore();
   const logo = useUnitLogo();
   // PV avec fichiers joints en annexe : photos et pages de PDF relues (non copiées dans l'archive).

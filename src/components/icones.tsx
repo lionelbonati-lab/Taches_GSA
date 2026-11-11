@@ -7,7 +7,7 @@ import {
   Play, Printer, Puzzle, RefreshCw, Repeat, RotateCcw, Save, ScrollText, Send, Settings, Share2, ShieldCheck, ShieldHalf, Signature,
   Smartphone, Sparkles, SquareCheckBig, Stamp, Undo2, Upload, UserLock, UserX, Users, Calendar, Camera, CreditCard, Receipt, FolderTree, PanelTop, History,
   MapPin, Search, LocateFixed, Redo2, GripVertical, ChevronUp, ChevronDown, ChevronsUp, ChevronsDown, ListPlus, TriangleAlert, Clock, Hash,
-  Monitor, Bold, Italic, Underline, Strikethrough, Baseline, Tag, Presentation, Layers, Newspaper,
+  Monitor, Bold, Italic, Underline, Strikethrough, Baseline, Tag, Presentation, Layers, Newspaper, Landmark, Vote,
 } from 'lucide-react';
 
 // Icônes dessinées au trait (bibliothèque Lucide, licence ISC), de la couleur du texte et à sa taille : boutons, titres,
@@ -143,6 +143,9 @@ export const ICONES = {
   telephone: Smartphone,
   ordinateur: Monitor,
   projection: Presentation,
+  // Assemblée générale : l'onglet, et un point soumis au vote.
+  assemblee: Landmark,
+  vote: Vote,
 } satisfies Record<string, Svg>;
 
 export type IconeNom = keyof typeof ICONES;

@@ -1157,6 +1157,51 @@ body:has(.pv-fiche-ecran) { overflow: hidden; }
   .pv-sheet { padding: 8mm; }
 }
 
+/* ---------- Assemblée générale : ordre du jour (OrdreDuJourAg.tsx) ---------- */
+.ag-vues { margin: 0 0 12px; }
+.ag-vide, .ag-debut { max-width: 720px; }
+.ag-debut .row { margin: 8px 0; }
+.ag-repartir { display: flex; flex-direction: column; align-items: flex-start; margin-top: 8px; }
+.ag-points { max-width: 820px; }
+.ag-liste { list-style: none; margin: 0 0 10px; padding: 0; }
+.ag-liste > li { margin: 0 0 8px; }
+.ag-liste.sous { margin: 4px 0 0 34px; }
+.ag-liste.sous > li { margin: 0 0 4px; }
+.ag-point {
+  display: flex; align-items: center; gap: 6px; background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 6px 6px 6px 4px; box-shadow: var(--shadow);
+}
+.ag-point.sous { box-shadow: none; padding: 3px 6px 3px 4px; }
+.ag-point.glisse { opacity: 0.45; }
+.ag-point.cible-avant { box-shadow: inset 0 3px 0 var(--primary); }
+.ag-point.cible-apres { box-shadow: inset 0 -3px 0 var(--primary); }
+.ag-poignee { cursor: grab; color: var(--muted); padding: 4px 2px; display: inline-flex; touch-action: none; }
+.ag-poignee:active { cursor: grabbing; }
+@media (pointer: coarse) { .ag-poignee { display: none; } }
+.ag-numero { font-weight: 700; min-width: 1.8em; text-align: right; }
+.ag-point.sous .ag-numero { font-weight: 400; color: var(--muted); }
+.ag-titre {
+  flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; text-align: left; border: 0;
+  background: none; color: var(--text); cursor: pointer; padding: 6px 4px; border-radius: 6px; font: inherit;
+}
+.ag-titre:hover { background: var(--surface2); }
+.ag-titre > span:first-child { font-weight: 600; overflow-wrap: anywhere; }
+.ag-point.sous .ag-titre > span:first-child { font-weight: 400; }
+.ag-vote { display: inline-flex; align-items: center; gap: 3px; font-size: 0.78rem; color: var(--poll-fg); background: var(--poll-bg); border-radius: 999px; padding: 1px 8px; }
+.ag-actions { display: flex; flex-shrink: 0; }
+.ag-fiche .ag-votes { display: flex; flex-direction: column; gap: 8px; align-items: flex-start; min-width: 0; }
+.ag-vote-ligne > label { min-width: 0; }
+.ag-vote-ligne input, .ag-vote-ligne select { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.ag-fiche .ag-votes legend { font-weight: 600; }
+.ag-vote-ligne { display: grid; grid-template-columns: 1fr minmax(0, 260px) auto; gap: 8px; align-items: end; width: 100%; }
+@media (max-width: 600px) { .ag-vote-ligne { grid-template-columns: 1fr auto; } .ag-vote-ligne label:nth-child(2) { grid-column: 1; grid-row: 2; } }
+.ag-archives { list-style: none; margin: 4px 0; padding: 0; }
+/* Convocation : textes d'introduction et de fin, texte et documents d'un point. */
+.pv-sheet .ag-texte { margin: 10px 0; white-space: pre-line; font-size: calc(var(--doc-base, 10.5pt) * var(--e-infos-t, 1)); color: var(--e-infos-c, #111); }
+.pv-sheet .ag-texte-point { display: block; margin: 1px 0 3px; }
+.pv-sheet .ag-docs-point { font-size: 0.92em; color: #475569; margin: 1px 0 3px; font-weight: 400; }
+.pv-sheet ol.ag-odj > li { margin-top: 10px; }
+
 /* ---------- Installation (PWA) ---------- */
 .install-help { background: var(--primary-soft); color: var(--text); border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; font-size: 0.9rem; }
 .btn.install { border-color: var(--primary); color: var(--primary); }
