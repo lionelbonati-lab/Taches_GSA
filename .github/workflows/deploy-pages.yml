@@ -35,7 +35,13 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install chromium
+      # Paquets système du navigateur (surtout des polices) : l'image du serveur a déjà l'essentiel. Si le miroir Ubuntu
+      # ne répond pas (11.11.2026 : deux publications bloquées), on continue : il reste les tests, qui échouent (et
+      # rien n'est publié) s'il manque vraiment quelque chose.
+      - run: npx playwright install-deps chromium
+        continue-on-error: true
+        timeout-minutes: 5
       - run: npm test
       - if: failure()
         uses: actions/upload-artifact@v4
