@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode, type RefObject } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { Assemblee, ClubEvent, MajoriteAg, OptionsOdjAg, PointAg, PvArchive, StyleDocs } from '../data/types';
+import type { Assemblee, ClubEvent, DetailAg, MajoriteAg, OptionsOdjAg, PointAg, PvArchive, StyleDocs } from '../data/types';
 import {
-  MAJORITES, agDuClub, agParDefaut, agPrecedente, ficheDe, fichierUtilise, lettre, modeleAg, nouveauVote, nouvelleFiche, optionsOdjAg,
+  DETAILS_AG, MAJORITES, agDuClub, agParDefaut, agPrecedente, ficheDe, fichierUtilise, lettre, majoriteTexte, modeleAg, nouveauVote, nouvelleFiche, optionsOdjAg,
   reprendrePoints, tacheDuPoint, texteConvocation, texteVotes, tousLesPoints, type AgAgenda,
 } from '../data/assemblee';
 import { fmtDate, fmtDateTime, fullName, today, uid } from '../data/utils';
@@ -68,7 +68,9 @@ function htmlFeuille(el: HTMLElement, outer = false) {
 }
 
 export function OrdreDuJourAg() {
-  const { data, user, can, update } = useStore();
+  const { data, user, can, update, prefs, setPrefs } = useStore();
+  // Niveau de détail de sa feuille, à soi (le président suit tous les détails sur la sienne) ; l'email a le sien.
+  const detail: DetailAg = prefs.agDetail ?? 'complet';
   const ags = useMemo(() => agDuClub(data), [data]);
   // « ?ag=… » (lien « Ordre du jour de l'AG » de la carte de l'événement) : cette AG ; sinon la prochaine.
   const [params] = useSearchParams();
@@ -246,7 +248,7 @@ export function OrdreDuJourAg() {
     setMsg('📁 Convocation archivée dans l’AG (« Archives », dans les réglages).');
   };
   const texteEdite = () => (sheetRef.current?.innerText ?? '').replace(/\n{3,}/g, '\n\n').trim();
-  const docTexte = () => ((edite || draft !== null) && sheetRef.current ? texteEdite() : ag ? texteConvocation(ag, fiche, o, longDate) : '');
+  const docTexte = () => ((edite || draft !== null) && sheetRef.current ? texteEdite() : ag ? texteConvocation(ag, fiche, o, longDate, detail) : '');
   const copier = async () => {
     try {
       await navigator.clipboard.writeText(docTexte());
@@ -283,7 +285,7 @@ export function OrdreDuJourAg() {
   const passees = ags.filter((a) => a.date < today() && a.cle !== ag.cle).reverse();
   const peutModifierAg = ag.meeting ? can('meetings.manage') : can('events.manage');
   const feuille = (
-    <FeuilleAg ag={ag} fiche={fiche} o={o} style={style} feuilleRef={sheetRef} onOuvrir={(p, parentId) => setOuvert({ point: p, parentId, nouveau: false })} />
+    <FeuilleAg ag={ag} fiche={fiche} o={o} detail={detail} style={style} feuilleRef={sheetRef} onOuvrir={(p, parentId) => setOuvert({ point: p, parentId, nouveau: false })} />
   );
 
   return (
@@ -347,6 +349,13 @@ export function OrdreDuJourAg() {
           </details>
           <details>
             <summary>Contenu</summary>
+            <label>
+              Niveau de détail
+              <select value={detail} onChange={(e) => setPrefs({ agDetail: e.target.value as DetailAg })} aria-label="Niveau de détail de l’ordre du jour de l’AG">
+                {DETAILS_AG.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+              </select>
+            </label>
+            <small className="muted pv-petit-titre">Ton réglage, pour ta feuille : « Complet » pour suivre tous les détails pendant l’AG. La convocation envoyée par email a son propre choix.</small>
             {([
               ['textes', 'Textes des points'],
               ['votes', '« (vote) » à côté des points votés'],
@@ -488,7 +497,18 @@ export function OrdreDuJourAg() {
           onSupprimer={ouvert.nouveau ? undefined : () => supprimerPoint(ouvert.point, ouvert.parentId)}
         />
       )}
-      {envoi && <EnvoiAg ag={ag} feuille={sheetRef} nomDoc={nomDoc} texte={docTexte()} paysage={o.orientation === 'paysage'} style={style} onClose={() => setEnvoi(false)} />}
+      {envoi && (
+        <EnvoiAg
+          ag={ag}
+          fiche={fiche}
+          o={o}
+          detailAffiche={detail}
+          edite={edite ? { texte: texteEdite(), feuille: sheetRef } : undefined}
+          nomDoc={nomDoc}
+          style={style}
+          onClose={() => setEnvoi(false)}
+        />
+      )}
       {archive && (
         <PvViewer
           pv={archive}
@@ -508,11 +528,16 @@ export function OrdreDuJourAg() {
   );
 }
 
-/** La convocation de l'AG : en-tête, date, heure, lieu, textes, points numérotés (1., a.), annexes. */
-function FeuilleAg({ ag, fiche, o, style, feuilleRef, onOuvrir }: {
+/**
+ * La convocation de l'AG : en-tête, date, heure, lieu, textes, points numérotés (1., a.), annexes. `detail` : complet
+ * (sous-points, textes, chaque vote avec sa majorité, documents : la feuille du président), points et sous-points, ou
+ * points seulement (« (vote) » à côté des points votés).
+ */
+function FeuilleAg({ ag, fiche, o, detail, style, feuilleRef, onOuvrir }: {
   ag: AgAgenda;
   fiche?: Assemblee;
   o: Required<OptionsOdjAg>;
+  detail: DetailAg;
   style?: StyleDocs;
   feuilleRef: RefObject<HTMLDivElement>;
   /** Clic sur un point (convocation affichée) : sa fiche. */
@@ -522,14 +547,23 @@ function FeuilleAg({ ag, fiche, o, style, feuilleRef, onOuvrir }: {
   const logo = useUnitLogo();
   const entete = useEntete();
   const points = fiche?.points ?? [];
+  const complet = detail === 'complet';
   const annexes = o.annexes ? annexesDe(tousLesPoints(points).map(tacheDuPoint)) : [];
   const titre = (p: PointAg, parentId?: string) => (
     <span className="odj-task" onClick={onOuvrir && (() => onOuvrir(p, parentId))}>{p.titre}</span>
   );
-  const votes = (p: PointAg) => (o.votes && p.votes?.length ? <span className="odj-meta"> {texteVotes(p)}</span> : null);
-  const texte = (p: PointAg) => (o.textes && p.texte?.trim() ? <div className="odj-rem ag-texte-point"><AvecLiens texte={p.texte.trim()} /></div> : null);
+  const votes = (p: PointAg) => (o.votes && !complet && p.votes?.length ? <span className="odj-meta"> {texteVotes(p)}</span> : null);
+  const texte = (p: PointAg) => (complet && o.textes && p.texte?.trim() ? <div className="odj-rem ag-texte-point"><AvecLiens texte={p.texte.trim()} /></div> : null);
+  const lignesVotes = (p: PointAg) =>
+    complet && o.votes && p.votes?.length ? (
+      <ul className="odj-l3 ag-votes-point">
+        {p.votes.map((v) => (
+          <li key={v.id}>Vote : {v.objet.trim()} <span className="odj-meta">– {majoriteTexte(v.majorite)}</span></li>
+        ))}
+      </ul>
+    ) : null;
   const docs = (p: PointAg) =>
-    (o.documents || o.annexes) && p.documents?.length ? (
+    complet && (o.documents || o.annexes) && p.documents?.length ? (
       <div className="ag-docs-point">
         {o.documents ? <DocsTache t={tacheDuPoint(p)} annexes={annexes} /> : <span className="odj-meta">📎 annexe {annexes.filter((a) => a.t.id === p.id).map((a) => a.n).join(', ')}</span>}
       </div>
@@ -557,13 +591,15 @@ function FeuilleAg({ ag, fiche, o, style, feuilleRef, onOuvrir }: {
               <li key={p.id}>
                 <span className="odj-sec">{titre(p)}{votes(p)}</span>
                 {texte(p)}
+                {lignesVotes(p)}
                 {docs(p)}
-                {(p.sous?.length ?? 0) > 0 && (
+                {detail !== 'points' && (p.sous?.length ?? 0) > 0 && (
                   <ol className="odj-l1">
                     {p.sous!.map((s) => (
                       <li key={s.id}>
                         {titre(s, p.id)}{votes(s)}
                         {texte(s)}
+                        {lignesVotes(s)}
                         {docs(s)}
                       </li>
                     ))}
@@ -775,19 +811,30 @@ function FichePointAg({ ouvert, titre: titreModal, onClose, onEnregistrer, onSup
  * « Envoyer par email » la convocation : au comité, ou aux membres du club (en copie cachée, pour que personne ne voie les
  * adresses des autres). Le PDF est préparé tout de suite : partagé avec le mail (téléphone), ou téléchargé, à joindre.
  */
-function EnvoiAg({ ag, feuille, nomDoc, texte, paysage, style, onClose }: {
+function EnvoiAg({ ag, fiche, o, detailAffiche, edite, nomDoc, style, onClose }: {
   ag: AgAgenda;
-  feuille: RefObject<HTMLDivElement>;
+  fiche?: Assemblee;
+  o: Required<OptionsOdjAg>;
+  /** Niveau de détail de la feuille affichée (choix par défaut de la version envoyée). */
+  detailAffiche: DetailAg;
+  /** Convocation modifiée à la main : son texte et sa feuille, envoyés tels quels. */
+  edite?: { texte: string; feuille: RefObject<HTMLDivElement> };
   nomDoc: string;
-  texte: string;
-  paysage: boolean;
   style?: StyleDocs;
   onClose: () => void;
 }) {
-  const { data, user, setToast } = useStore();
+  const { data, user, setToast, prefs, setPrefs } = useStore();
   const club = useClubOptional();
   const voitAdresses = !club || club.personnes.coordonnees;
   const [qui, setQui] = useState<'membres' | 'comite'>(club && voitAdresses ? 'membres' : 'comite');
+  // Version envoyée : son niveau de détail (mémorisé pour soi), sans rapport avec la feuille affichée.
+  const [detail, setDetail] = useState<DetailAg>(prefs.agEnvoiDetail ?? detailAffiche);
+  const choisirDetail = (d: DetailAg) => {
+    setDetail(d);
+    setPrefs({ agEnvoiDetail: d });
+  };
+  const texte = edite ? edite.texte : texteConvocation(ag, fiche, o, longDate, detail);
+  const feuillePdf = useRef<HTMLDivElement>(null);
   const [membres, setMembres] = useState<{ nom: string; email: string }[] | null>(null);
   useEffect(() => {
     if (!club || !voitAdresses) return setMembres([]);
@@ -805,29 +852,31 @@ function EnvoiAg({ ag, feuille, nomDoc, texte, paysage, style, onClose }: {
   const adresses = [...new Set(liste.map((x) => x.email.toLowerCase()).filter(Boolean))];
   const sansAdresse = liste.filter((x) => !x.email).length;
 
+  // PDF préparé dès l'ouverture, et de nouveau quand la version envoyée change : « Partager » doit suivre le clic de près.
   const titrePdf = `Convocation ${nomDoc}`;
-  const [pdf, setPdf] = useState<{ fichier?: File; erreur?: string } | null>(null);
+  const [pdf, setPdf] = useState<{ pour: DetailAg; fichier?: File; erreur?: string } | null>(null);
   const telecharger = useRef<(b: Blob, titre: string) => void>();
   useEffect(() => {
     let actif = true;
+    setPdf(null);
     (async () => {
       try {
-        const el = feuille.current;
+        const el = edite ? edite.feuille.current : feuillePdf.current;
         if (!el) throw new Error('document introuvable');
         const mod = await import('../data/pdfDoc');
         telecharger.current = mod.telechargerPdf;
-        const blob = await mod.creerPdf(el, { titre: titrePdf, paysage, margesMm: margesMm(style), police: style?.police, auteur: user ? fullName(user) : undefined, createur: nomAppli() });
-        if (actif) setPdf({ fichier: new File([blob], mod.nomFichierPdf(titrePdf), { type: 'application/pdf' }) });
+        const blob = await mod.creerPdf(el, { titre: titrePdf, paysage: o.orientation === 'paysage', margesMm: margesMm(style), police: style?.police, auteur: user ? fullName(user) : undefined, createur: nomAppli() });
+        if (actif) setPdf({ pour: detail, fichier: new File([blob], mod.nomFichierPdf(titrePdf), { type: 'application/pdf' }) });
       } catch (e) {
         console.error(e);
-        if (actif) setPdf({ erreur: e instanceof Error ? e.message : String(e) });
+        if (actif) setPdf({ pour: detail, erreur: e instanceof Error ? e.message : String(e) });
       }
     })();
     return () => {
       actif = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [detail]);
   const fichier = pdf?.fichier;
   const partageable = !!fichier && !!navigator.canShare?.({ files: [fichier] });
   const sujet = `${ag.nom} – convocation`;
@@ -879,6 +928,13 @@ function EnvoiAg({ ag, feuille, nomDoc, texte, paysage, style, onClose }: {
         </p>
         {sansAdresse > 0 && <p className="muted small">{sansAdresse} personne{sansAdresse > 1 ? 's' : ''} sans adresse email (ou qui la masque) : à convoquer autrement.</p>}
         <p><b>Objet :</b> {sujet}</p>
+        <label>
+          Version envoyée (texte et PDF)
+          <select value={edite ? '' : detail} disabled={!!edite} onChange={(e) => choisirDetail(e.target.value as DetailAg)}>
+            {edite && <option value="">Version modifiée à la main</option>}
+            {DETAILS_AG.map((x) => <option key={x.id} value={x.id}>{x.label}</option>)}
+          </select>
+        </label>
         <p className="small envoi-etat" aria-live="polite">
           {fichier ? (
             <span><Icone n="pdf" /> {fichier.name} ({Math.max(1, Math.round(fichier.size / 1024))} Ko)</span>
@@ -905,6 +961,11 @@ function EnvoiAg({ ag, feuille, nomDoc, texte, paysage, style, onClose }: {
           {qui === 'membres' && 'Beaucoup d’adresses : certaines messageries refusent un lien aussi long ; « Copier les adresses » et colle-les dans « Cci ». '}
           {fichier ? '« Ouvrir dans ma messagerie » : le PDF est téléchargé, à joindre au mail (un lien vers la messagerie ne peut pas le joindre lui-même).' : ''}
         </p>
+        {!edite && (
+          <div className="odj-cache" hidden aria-hidden="true">
+            <FeuilleAg ag={ag} fiche={fiche} o={o} detail={detail} style={style} feuilleRef={feuillePdf} />
+          </div>
+        )}
       </div>
     </Modal>
   );

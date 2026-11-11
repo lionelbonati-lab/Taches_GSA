@@ -1,4 +1,4 @@
-import type { AppData, Assemblee, ClubEvent, MajoriteAg, Meeting, OptionsOdjAg, PointAg, Task, TaskDoc, VoteAg } from './types';
+import type { AppData, Assemblee, ClubEvent, DetailAg, MajoriteAg, Meeting, OptionsOdjAg, PointAg, Task, TaskDoc, VoteAg } from './types';
 import { newTask, today, uid } from './utils';
 import { occurrencesEntre } from './repetition';
 import { decalerAns } from './chronologieClub';
@@ -134,6 +134,18 @@ export const MAJORITES: { id: MajoriteAg; label: string; court: string }[] = [
   { id: 'deuxTiers', label: 'Deux tiers des voix exprimées (statuts…)', court: 'deux tiers' },
 ];
 
+export const DETAILS_AG: { id: DetailAg; label: string }[] = [
+  { id: 'complet', label: 'Complet (sous-points, textes, votes et leur majorité, documents)' },
+  { id: 'sousPoints', label: 'Points et sous-points' },
+  { id: 'points', label: 'Points seulement' },
+];
+
+/** Majorité d'un vote, en clair (« majorité absolue »). */
+export const majoriteTexte = (m: MajoriteAg) => MAJORITES.find((x) => x.id === m)?.court ?? '';
+
+/** « Vote : Approbation des comptes 2025 – majorité absolue » (détail d'un point, ordre du jour complet). */
+export const ligneVote = (v: VoteAg) => `Vote : ${v.objet.trim()} – ${majoriteTexte(v.majorite)}`;
+
 /** « (vote) », « (vote : Élection de X) », « (2 votes : … ; …) » à côté d'un point de la convocation. */
 export function texteVotes(p: Pick<PointAg, 'titre' | 'votes'>): string {
   const v = p.votes ?? [];
@@ -184,25 +196,33 @@ export const fichierUtilise = (data: Pick<AppData, 'tasks' | 'assemblees'>, id: 
   (data.assemblees ?? []).some((f) => tousLesPoints(f.points).some((p) => !sauf.includes(p.id) && p.documents?.some((d) => d.id === id)));
 
 /** Version texte de la convocation (copier, email). */
-export function texteConvocation(ag: AgAgenda, fiche: Assemblee | undefined, o: Required<OptionsOdjAg>, longDate: (d: string) => string): string {
+export function texteConvocation(ag: AgAgenda, fiche: Assemblee | undefined, o: Required<OptionsOdjAg>, longDate: (d: string) => string, detail: DetailAg = 'complet'): string {
   const lignes: string[] = [ag.nom, [longDate(ag.date), ag.heure && ag.heure.replace(':', 'h')].filter(Boolean).join(', ')];
   if (ag.lieu) lignes.push(`Lieu : ${ag.lieu}`);
   if (fiche?.intro?.trim()) lignes.push('', fiche.intro.trim());
   lignes.push('', 'ORDRE DU JOUR');
   const pts = fiche?.points ?? [];
   if (!pts.length) lignes.push('(aucun point pour l’instant)');
-  const docs = (p: PointAg, retrait: string) =>
-    o.documents && p.documents?.length ? [`${retrait}📎 ${p.documents.map((d) => d.nom).join(', ')}`] : [];
+  const complet = detail === 'complet';
+  // Complet : chaque vote sur sa ligne, avec sa majorité ; sinon « (vote) » à côté de l'intitulé.
+  const marque = (p: PointAg) => (o.votes && !complet ? texteVotes(p) : '');
+  const details = (p: PointAg, retrait: string) =>
+    !complet
+      ? []
+      : [
+          ...(o.textes && p.texte?.trim() ? p.texte.trim().split('\n').map((l) => `${retrait}${l}`) : []),
+          ...(o.votes ? (p.votes ?? []).map((v) => `${retrait}◦ ${ligneVote(v)}`) : []),
+          ...(o.documents && p.documents?.length ? [`${retrait}📎 ${p.documents.map((d) => d.nom).join(', ')}`] : []),
+        ];
   pts.forEach((p, i) => {
-    const v = o.votes ? texteVotes(p) : '';
+    const v = marque(p);
     lignes.push(`${i + 1}. ${p.titre}${v ? ` ${v}` : ''}`);
-    if (o.textes && p.texte?.trim()) lignes.push(...p.texte.trim().split('\n').map((l) => `   ${l}`));
-    lignes.push(...docs(p, '   '));
+    lignes.push(...details(p, '   '));
+    if (detail === 'points') return;
     (p.sous ?? []).forEach((s, j) => {
-      const vs = o.votes ? texteVotes(s) : '';
+      const vs = marque(s);
       lignes.push(`   ${lettre(j)}. ${s.titre}${vs ? ` ${vs}` : ''}`);
-      if (o.textes && s.texte?.trim()) lignes.push(...s.texte.trim().split('\n').map((l) => `      ${l}`));
-      lignes.push(...docs(s, '      '));
+      lignes.push(...details(s, '      '));
     });
   });
   if (fiche?.fin?.trim()) lignes.push('', fiche.fin.trim());

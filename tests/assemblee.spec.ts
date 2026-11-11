@@ -72,13 +72,29 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
   await expect(feuille.locator('h1')).toHaveText('Assemblée générale 2027');
   await expect(feuille.locator('.pv-meta')).toHaveText('samedi 13 mars 2027');
   await expect(feuille.locator('ol.odj > li')).toHaveCount(13);
+  // Feuille complète (par défaut, ce qu'on suit pendant l'AG) : texte, sous-points, chaque vote avec sa majorité.
   const statuts = feuille.locator('ol.odj > li').nth(11);
-  await expect(statuts.locator('.odj-sec')).toHaveText('Modification des statuts (vote, deux tiers)');
+  await expect(statuts.locator('.odj-sec')).toHaveText('Modification des statuts');
   await expect(statuts.locator('.ag-texte-point')).toHaveText('Le comité propose de modifier l’article 12.');
+  await expect(statuts.locator('.ag-votes-point li')).toHaveText('Vote : Modification des statuts – deux tiers');
   await expect(statuts.locator('ol.odj-l1 > li')).toHaveText('Article 12 : cotisations');
-  await expect(feuille.locator('ol.odj > li').nth(2).locator('.odj-sec')).toHaveText('Approbation du PV 2026 (vote)');
-  await expect(feuille.locator('ol.odj > li').nth(0).locator('.odj-sec')).toHaveText('Ouverture de l’assemblée (vote : Approbation de l’ordre du jour)');
+  await expect(feuille.locator('ol.odj > li').nth(2).locator('.ag-votes-point li')).toHaveText('Vote : Approbation du PV 2026 – majorité des voix exprimées');
   await expect(feuille).not.toContainText('À faire');
+
+  // Plus simple (réglage à soi) : points et sous-points, « (vote) » à côté ; puis les points seulement.
+  await page.locator('summary', { hasText: 'Contenu' }).click();
+  const niveau = page.getByLabel('Niveau de détail de l’ordre du jour de l’AG');
+  await expect(niveau).toHaveValue('complet');
+  await niveau.selectOption('sousPoints');
+  await expect(statuts.locator('.odj-sec')).toHaveText('Modification des statuts (vote, deux tiers)');
+  await expect(statuts.locator('.ag-texte-point')).toHaveCount(0);
+  await expect(statuts.locator('ol.odj-l1 > li')).toHaveText('Article 12 : cotisations');
+  await expect(feuille.locator('ol.odj > li').nth(0).locator('.odj-sec')).toHaveText('Ouverture de l’assemblée (vote : Approbation de l’ordre du jour)');
+  await niveau.selectOption('points');
+  await expect(feuille.locator('ol.odj-l1')).toHaveCount(0);
+  await expect(feuille.locator('ol.odj > li')).toHaveCount(13);
+  await niveau.selectOption('complet');
+  await page.locator('summary', { hasText: 'Contenu' }).click();
 
   // Un clic sur un point de la convocation ouvre sa fiche.
   await feuille.locator('.odj-task', { hasText: 'Divers' }).click();
@@ -185,4 +201,11 @@ test('convocation de l’AG : documents en annexe, PDF, modifiée à la main, em
   await expect(envoi).toContainText(/À : \d+ adresses?/);
   await envoi.getByText('Aperçu du texte').click();
   await expect(envoi.locator('pre')).toContainText('1. Ouverture de l’assemblée');
+  await expect(envoi.locator('pre')).toContainText('◦ Vote : Approbation de l’ordre du jour – majorité des voix exprimées');
+  // Version envoyée plus simple que la feuille affichée : les points seulement, le PDF refait.
+  await envoi.getByLabel('Version envoyée (texte et PDF)').selectOption('points');
+  await expect(envoi.locator('pre')).toContainText('1. Ouverture de l’assemblée (vote : Approbation de l’ordre du jour)');
+  await expect(envoi.locator('pre')).not.toContainText('a. École de cyclisme');
+  await expect(envoi.locator('.envoi-etat')).toContainText('.pdf');
+  await expect(page.locator('.pv-preview > div > .pv-sheet ol.odj-l1').first()).toBeVisible();
 });

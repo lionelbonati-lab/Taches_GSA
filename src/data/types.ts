@@ -703,6 +703,12 @@ export interface Prefs {
   profilsOdj?: ProfilOdj[];
   /** « Envoyer par email » : profil du texte du mail et profil du PDF joint (`aucun` : sans PDF), parmi ses profils. */
   envoiOdj?: { texte?: string; pdf?: string };
+  /**
+   * Ordre du jour de l'AG : niveau de détail de sa feuille, à soi (le président suit tous les détails sur la sienne), et
+   * celui de la convocation envoyée par email.
+   */
+  agDetail?: DetailAg;
+  agEnvoiDetail?: DetailAg;
   notif?: Partial<NotifPrefs>;
   /** Phrase d'explication en haut des pages (false : masquée). */
   explications?: boolean;
@@ -855,6 +861,12 @@ export interface VoteAg {
   objet: string;
   majorite: MajoriteAg;
 }
+
+/**
+ * Niveau de détail de l'ordre du jour de l'AG (comme celui du comité) : complet (sous-points, textes, votes avec leur
+ * majorité, documents), points et sous-points (leurs intitulés), ou points seulement.
+ */
+export type DetailAg = 'complet' | 'sousPoints' | 'points';
 
 /** Présentation de la convocation de l'AG. */
 export interface OptionsOdjAg {
