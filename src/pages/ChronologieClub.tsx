@@ -9,7 +9,7 @@ import { isCouleur, teintes } from '../data/couleur';
 import { motSeance, titreSelonDate, versProchaineSeance } from '../data/seances';
 import { nomAvecSerie } from '../data/seriesEvenements';
 import {
-  aDateFixe, assemblees, construireFrise, dateEntre, estAg, nomCarte, periodeAnnee, periodeDuJour, periodesAg, versEtiquette, versEvenement, versSeance,
+  aDateFixe, assemblees, construireFrise, dateEntre, estAg, nomCarte, nomFin, periodeAnnee, periodeDuJour, periodesAg, versEtiquette, versEvenement, versSeance,
   type Carte, type FinFrise, type Jour, type Periode, type PointFrise, type SerieFrise,
 } from '../data/chronologieClub';
 import { Modal } from '../components/ui';
@@ -598,7 +598,7 @@ export function ChronologieClub() {
   /** La fin d'un événement sur plusieurs jours : où s'arrête son crochet. */
   const finDe = (x: FinFrise) => (
     <div key={x.cle} className={`cc-fin ${couleurDe(x.de.cle) ? 'couleur' : ''}`} style={styleCouleur(couleurDe(x.de.cle))} data-crochet-fin={x.de.cle}>
-      fin · {nomCarte(x.de)}
+      fin · {nomFin(x)}
     </div>
   );
 
@@ -615,11 +615,14 @@ export function ChronologieClub() {
     const passee = x.cartes.length > 0 && x.cartes.every((c) => c.k !== 'seance' && c.fin < jour);
     const couleur = couleurDe(x.cle);
     return (
-      <div key={x.cle} className={`cc-el k-serie ${couleur ? 'couleur' : ''} ${passee ? 'passee' : ''} ${ouverte ? 'ouverte' : ''}`} style={styleCouleur(couleur)}>
+      <div key={x.cle} className={`cc-el k-serie ${couleur ? 'couleur' : ''} ${passee ? 'passee' : ''} ${ouverte ? 'ouverte' : ''}`} style={styleCouleur(couleur)}
+        data-crochet-debut={!x.fin || x.fin > x.date ? x.cle : undefined}>
         <div className="cc-el-ligne">
           <button type="button" className="cc-el-titre" onClick={() => navigate(`/evenements?id=${encodeURIComponent(x.s.id)}`)} title="Série d’événements : l’ouvrir dans Agenda › Événements">
             {x.s.nom}
           </button>
+          {/* Sa fin après la période : sa date (le crochet reste ouvert) ; dans la période : sa ligne « fin ». */}
+          {x.fin && p && x.fin > p.a && <span className="cc-jusqua">→ {dateCourte(x.fin, x.date)}</span>}
           <button
             type="button"
             className="cc-plus"

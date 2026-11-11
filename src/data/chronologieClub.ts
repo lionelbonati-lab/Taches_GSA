@@ -2,6 +2,7 @@ import type { AppData, ClubEvent, DelaiRef, Etiquette, Meeting, SerieEvenements,
 import { addDays, applyDelaiRef, diffDays, endOf, today } from './utils';
 import { aLaDate, duree, occurrencesEntre } from './repetition';
 import { etiquettesDatees, memeEvenement } from './agendaIcs';
+import { periodeDeLaSerie } from './seriesEvenements';
 
 // Chronologie du club (Agenda › Chronologie, ChronologieClub.tsx) : séances et événements dans le temps, chacun avec ses
 // points, année par année ou d'une assemblée générale à l'autre (case « Assemblée générale » d'un événement ou d'une
@@ -22,8 +23,8 @@ import { etiquettesDatees, memeEvenement } from './agendaIcs';
 // Une série d'événements (programme hivernal, championnat) : une seule ligne, à son début officiel (sa période officielle,
 // seriesEvenements.ts ; commencée avant la période : son premier jour), sinon à la date de son premier événement de la
 // période ; son « + » montre ses événements, chacun à sa date, et les points de son étiquette (4 bis), comme ci-dessus.
-// Un événement sur plusieurs jours (ou une étiquette datée) : une ligne « fin » à son dernier jour (FinFrise), que relie
-// un crochet « [ » dans la page.
+// Un événement sur plusieurs jours (ou une étiquette datée), une série : une ligne « fin » à son dernier jour (FinFrise ;
+// une série : sa fin officielle, sinon le dernier jour de son dernier événement), que relie un crochet « [ » dans la page.
 
 /** Période affichée, du `de` au `a` (inclus). Vue AG : l'assemblée du début et celle de la fin (absente : pas encore prévue). */
 export interface Periode {
@@ -101,6 +102,8 @@ export interface SerieFrise {
   k: 'serie';
   cle: string;
   date: string;
+  /** Son dernier jour : sa fin officielle, sinon celui de son dernier événement ; aucun : un événement se répète sans fin. */
+  fin?: string;
   s: SerieEvenements;
   cartes: Carte[];
   points: Task[];
@@ -111,7 +114,7 @@ export interface SerieFrise {
 export interface FinFrise {
   k: 'fin';
   cle: string;
-  de: Extract<Carte, { k: 'evenement' | 'etiquette' }>;
+  de: Extract<Carte, { k: 'evenement' | 'etiquette' }> | SerieFrise;
 }
 
 /** Un point à sa date : seul (rattaché à rien), ou d'une séance / d'un événement (`de` : son nom et sa date). */
@@ -285,7 +288,10 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
     if (o && o <= p.a && (!se.s.fin || se.s.fin >= p.de)) return o < p.de ? p.de : o;
     return se.cartes.map((c) => c.date).sort()[0] ?? se.date;
   };
-  for (const se of series.values()) se.date = dateSerie(se);
+  for (const se of series.values()) {
+    se.date = dateSerie(se);
+    se.fin = periodeDeLaSerie(data.events.filter((e) => e.dansSerie === se.s.id), se.s)?.fin;
+  }
 
   const seuls: Task[] = [];
   const sansDate: Task[] = [];
@@ -366,6 +372,9 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
     if (caches.has(c.cle) || (c.k !== 'evenement' && c.k !== 'etiquette') || (c.k === 'evenement' && c.e.repetition)) continue;
     if (c.fin > c.date && dans(c.fin)) jourDe(c.fin).droite.push({ k: 'fin', cle: `fin:${c.cle}`, de: c });
   }
+  // Fin d'une série montrée (sa ligne dans la période).
+  for (const se of series.values())
+    if (se.date && dans(se.date) && se.fin && se.fin > se.date && dans(se.fin)) jourDe(se.fin).droite.push({ k: 'fin', cle: `fin:${se.cle}`, de: se });
   for (const { t, cle, gauche } of aLeurDate) {
     if (ailleurs.has(cle)) nbPoints++;
     if (!ouverte(cle) || caches.has(cle)) continue;
@@ -379,7 +388,7 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
   // Séances et événements d'abord (par heure, puis nom), puis les points (par titre), puis les fins.
   type El = Carte | PointFrise | SerieFrise | FinFrise;
   const heure = (c: El) => (c.k === 'seance' ? c.m.heure ?? '' : c.k === 'evenement' ? c.e.heure ?? '' : '');
-  const nom = (c: El) => (c.k === 'point' ? c.t.titre : c.k === 'serie' ? c.s.nom : c.k === 'fin' ? nomCarte(c.de) : nomCarte(c));
+  const nom = (c: El) => (c.k === 'point' ? c.t.titre : c.k === 'serie' ? c.s.nom : c.k === 'fin' ? nomFin(c) : nomCarte(c));
   const rang = (c: El) => (c.k === 'fin' ? 2 : c.k === 'point' ? 1 : 0);
   const tri = (a: El, b: El) => rang(a) - rang(b) || heure(a).localeCompare(heure(b)) || nom(a).localeCompare(nom(b), 'fr');
   for (const j of jours.values()) {
@@ -392,6 +401,8 @@ export function construireFrise(data: AppData, p: Periode, vue: Vue, jour = toda
 }
 
 export const nomCarte = (c: Carte) => (c.k === 'seance' ? c.m.titre : c.k === 'evenement' ? c.e.nom : c.et.nom);
+/** Nom de ce qui finit (événement, étiquette datée, série). */
+export const nomFin = (f: FinFrise) => (f.de.k === 'serie' ? f.de.s.nom : nomCarte(f.de));
 
 /** La carte est une assemblée générale. */
 export const estAg = (c: Carte) => (c.k === 'seance' ? !!c.m.ag : c.k === 'evenement' ? !!c.e.ag : false);

@@ -4377,7 +4377,7 @@ test('défilement : la chronologie défile dans son cadre, pas la page ; une cas
   await expect(jour.locator('.cal-more')).toHaveCount(0);
 });
 
-test('chronologie du club : la série à son début officiel, un crochet jusqu’à la fin d’un événement, glisser à un jour précis (mois agrandi)', async ({ page }) => {
+test('chronologie du club : la série à son début officiel, un crochet jusqu’à la fin d’un événement ou d’une série, glisser à un jour précis (mois agrandi)', async ({ page }) => {
   await page.clock.setFixedTime(new Date('2026-11-11T09:00:00Z'));
   const cle = 'taches-gsa-demo-v7';
   await expect.poll(() => page.evaluate((k) => !!localStorage.getItem(k), cle)).toBe(true);
@@ -4405,6 +4405,9 @@ test('chronologie du club : la série à son début officiel, un crochet jusqu�
   await expect(page.locator('svg.cc-crochet[data-crochet="e:e10"]')).toBeVisible();
   await expect(carte('Camp de ski').locator('.cc-jusqua')).toHaveText('→ 03.01.27');
   await expect(page.locator('svg.cc-crochet[data-crochet="e:e-ski"]')).toBeVisible();
+  // La série aussi : son crochet dès le 25 octobre ; elle finit en 2027 : sa date de fin, crochet ouvert.
+  await expect(leJour('2026-10-25').locator('.cc-el.k-serie .cc-jusqua')).toHaveText('→ 28.03.27');
+  await expect(page.locator('svg.cc-crochet[data-crochet="se:se-hiver"]')).toBeVisible();
 
   // Glisser le comité de décembre sur la date d'une ligne (le camp de ski, le 28) : ce jour-là, sans fenêtre.
   // La frise défile dans son cadre : chaque élément amené à l'écran avant d'y aller.
@@ -4443,6 +4446,13 @@ test('chronologie du club : la série à son début officiel, un crochet jusqu�
   await expect(page.locator('.toast')).toContainText('Comité de décembre 2026 déplacée au 17.12.2026');
   await expect(page.locator('.cc-zoom')).toHaveCount(0);
   expect((await seance()).date).toBe('2026-12-17');
+
+  // 2027 : le crochet du programme hivernal jusqu'à sa fin officielle (28 mars), celui du championnat jusqu'à sa finale.
+  await page.getByRole('button', { name: 'Période suivante' }).click();
+  await expect(leJour('2027-03-28').locator('.cc-fin')).toHaveText('fin · Programme hivernal 2026-27');
+  await expect(page.locator('svg.cc-crochet[data-crochet="se:se-hiver"]')).toBeVisible();
+  await expect(leJour('2027-09-18').locator('.cc-fin')).toHaveText('fin · Championnat interne 2027');
+  await expect(page.locator('svg.cc-crochet[data-crochet="se:se-championnat"]')).toBeVisible();
 });
 
 test('un événement de ce soir : « ce soir à 19h00 » à l’accueil et dans les événements, « en cours » pendant, « terminé » après', async ({ page }) => {

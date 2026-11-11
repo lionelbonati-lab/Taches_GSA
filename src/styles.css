@@ -2546,3 +2546,5 @@ ol.serie-ev-liste > .serie-ev::before { counter-increment: manche; content: coun
 body.glisse-en-cours .toast { pointer-events: none; opacity: 0.35; }
 /* Téléphone, une colonne : séances et événements au même bord (la marge du crochet pour les deux). */
 @media (max-width: 767px) { .cc-gauche { padding-left: 12px; } }
+/* Le crochet passe derrière le nom des mois (comme l'axe de la frise). */
+.cc-mois-nom { z-index: 2; }
