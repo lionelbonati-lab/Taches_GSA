@@ -61,6 +61,13 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       const fresh = await sync.fetchRows(rows);
       setData((prev) => applyRows(prev, fresh, sync.posOf));
     };
+    // Élément modifié en même temps par quelqu'un d'autre : les deux versions réunies (cloud.ts, fusion.ts). Rien n'est
+    // perdu sans le dire : un même champ changé des deux côtés, ou un élément supprimé par l'autre, est signalé.
+    sync.onFusion = (rows, sorte) => {
+      setData((prev) => applyRows(prev, rows, sync.posOf));
+      if (sorte === 'conflit') setToast('⚠️ Modifié en même temps par quelqu’un d’autre : les deux versions ont été réunies, ta saisie l’emporte là où vous avez changé la même chose. Vérifie le résultat.');
+      else if (sorte === 'efface') setToast('⚠️ Cet élément a été supprimé entre-temps par quelqu’un d’autre : ta modification n’a pas été gardée.');
+    };
     return sync.listen((rows) => setData((prev) => applyRows(prev, rows, sync.posOf)));
   }, [cloud]);
 

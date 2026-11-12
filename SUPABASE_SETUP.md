@@ -392,6 +392,29 @@ assemblées générales protégées des applis pas à jour**, comme les étiquet
   « Newsletter » retirée le 10.11.2026 à 22h18 depuis l'appli (geste voulu) n'est pas rétablie.
 - **Retour en arrière** : voir l'en-tête du fichier (puis rejouer 065).
 
+`supabase/migrations/070_gsa_versions.sql` (**à appliquer**, avant de publier l'appli qui l'utilise) : **une modification
+partie d'une version dépassée est refusée** (deux personnes sur le même élément).
+
+- **Pourquoi** : chaque élément (sondage, séance, point…) est envoyé en entier et le serveur gardait la dernière version
+  reçue. Deux votes à moins d'une seconde d'écart, ou un appareil revenu en ligne avec une version ancienne, effaçaient
+  sans message ce que les autres avaient fait entre-temps sur cet élément (tous leurs votes, par exemple).
+- **Règle** : l'appli joint à chaque modification la version du serveur dont elle part (`data.versionDe` = `updated_at`
+  de la ligne qu'elle connaissait). Si la ligne a changé (ou a été supprimée) depuis, la modification est refusée (code
+  `P0409`) ; l'appli relit la version du serveur, y fusionne ses propres changements (`src/data/fusion.ts` : champ par
+  champ, fiches d'une liste par id, listes simples par ajouts et retraits) et renvoie. Un même champ changé des deux
+  côtés : la dernière saisie l'emporte, avec un message ; un élément supprimé entre-temps reste supprimé, avec un message.
+  Le contrôle se fait ligne verrouillée : deux envois simultanés ne passent pas tous les deux.
+- **Sans marque** (appli pas encore à jour, fonctions du serveur, nouvel élément) : rien ne change. La marque n'est
+  jamais enregistrée. Premier déclencheur « avant » (`gsa_items_a_version_garde`), les suivants ne la voient pas.
+- **Ordre** : appliquer la migration, puis publier l'appli. Une appli publiée avant n'est pas protégée et ses envois
+  laisseraient la marque dans les données (sans effet : l'appli la retire à la lecture).
+- **Vérifiée** sur la base de test (`outils/base-test/versions_verif.sh`, 22 cas, « Tout est bon » : création, bonne
+  version, version dépassée refusée sans rien écrire, code P0409, sans marque, marque illisible, mise à jour simple,
+  supprimé entre-temps, point (date du contenu inchangée), membre non admin, aucune marque enregistrée) ; deux envois
+  simultanés : le second attend le premier, puis est refusé. Côté appli : `tests/synchro.spec.ts` (deux votes à la
+  fois, appareil hors ligne rouvert plus tard, même champ des deux côtés, élément supprimé, appli pas à jour).
+- **Retour en arrière** : voir l'en-tête du fichier. L'appli continue alors d'envoyer la marque, sans protection.
+
 Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.

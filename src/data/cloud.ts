@@ -9,6 +9,8 @@ import type { HistoriqueTache } from './historique';
 import { noterErreur, type ErreurAppli, type RapportErreur } from './rapportErreurs';
 import { fichiersDe, type EntiteSauvegardee, type SauvegardeClub } from './backup';
 import { lireFichierDe } from './files';
+import { stable } from './stable';
+import { fusionner } from './fusion';
 
 // Version réelle : synchronisation des données de l'espace du club avec Supabase.
 // Chaque élément de l'appli (tâche, séance, responsable, entrée du journal…) est une ligne de la table
@@ -79,6 +81,12 @@ export interface Row {
   pos: number;
   data: unknown;
   deleted?: boolean;
+  /**
+   * Modification en attente d'envoi : version du serveur d'où elle part (updated_at, migration 070) et son contenu. Le
+   * serveur refuse l'envoi si l'élément a changé depuis ; l'appli fusionne alors les deux (fusion.ts) et renvoie.
+   */
+  base?: string;
+  baseData?: unknown;
 }
 interface DbRow extends Row {
   committee_id: string;
@@ -92,17 +100,20 @@ interface Known {
 
 const keyOf = (kind: string, id: string) => `${kind}|${id}`;
 
-/** JSON à clés triées : jsonb ne garde pas l'ordre des clés, la comparaison doit l'ignorer. */
-export function stable(v: unknown): string {
-  if (v === null || typeof v !== 'object') return JSON.stringify(v) ?? 'null';
-  if (Array.isArray(v)) return `[${v.map((x) => (x === undefined ? 'null' : stable(x))).join(',')}]`;
-  const o = v as Record<string, unknown>;
-  return `{${Object.keys(o)
-    .filter((k) => o[k] !== undefined)
-    .sort()
-    .map((k) => `${JSON.stringify(k)}:${stable(o[k])}`)
-    .join(',')}}`;
+/** Marque de version jointe aux envois (070) : jamais enregistrée par le serveur, retirée si elle l'a été quand même. */
+const MARQUE = 'versionDe';
+/** Refus du serveur : l'élément a changé depuis la version d'où partait la modification (070). */
+const CONFLIT = 'P0409';
+const estObjet = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+function lu<R extends Row>(r: R): R {
+  if (estObjet(r.data) && MARQUE in r.data) {
+    const { [MARQUE]: _, ...data } = r.data;
+    r.data = data;
+  }
+  return r;
 }
+
+export { stable };
 
 type Entry = { kind: string; id: string; data: unknown; json: string; pos?: number };
 
@@ -193,6 +204,13 @@ export class CloudSync {
   status: SyncStatus = 'ok';
   /** Modifications refusées par le serveur (message à afficher, éléments à recharger). */
   onRejected: (message: string, rows: Row[]) => void = () => {};
+  /**
+   * Élément modifié entre-temps par quelqu'un d'autre : la version fusionnée (ou l'effacement fait par l'autre) à afficher.
+   * conflit : un même champ changé des deux côtés (la version locale est gardée) ; efface : supprimé par l'autre.
+   */
+  onFusion: (rows: Row[], sorte: 'fusion' | 'conflit' | 'efface') => void = () => {};
+  /** Dernière version connue de chaque élément sur le serveur (date et contenu) : point de départ des modifications. */
+  private serveur = new Map<string, { le: string; data: unknown }>();
 
   constructor(
     readonly committeeId: string,
@@ -237,6 +255,11 @@ export class CloudSync {
     if (r.deleted) this.known.delete(key);
     else this.known.set(key, { json: stable(r.data), pos: r.pos });
   }
+  private noterServeur(r: Row & { updated_at?: string }) {
+    const key = keyOf(r.kind, r.id);
+    if (r.deleted) this.serveur.delete(key);
+    else if (r.updated_at) this.serveur.set(key, { le: r.updated_at, data: r.data });
+  }
   private seen(rows: DbRow[]) {
     rows.forEach((r) => r.updated_at && r.updated_at > this.lastSeen && (this.lastSeen = r.updated_at));
   }
@@ -257,8 +280,13 @@ export class CloudSync {
       rows.push(...((data ?? []) as DbRow[]));
       if (!data || data.length < 1000) break;
     }
+    rows.forEach(lu);
     this.known.clear();
-    rows.forEach((r) => this.remember(r));
+    this.serveur.clear();
+    rows.forEach((r) => {
+      this.remember(r);
+      this.noterServeur(r);
+    });
     this.seen(rows);
     const merged = new Map(rows.map((r) => [keyOf(r.kind, r.id), r as Row]));
     this.pending.forEach((r, k) => merged.set(k, r));
@@ -328,8 +356,20 @@ export class CloudSync {
     const rows = this.diff(this.latest);
     if (!rows.length) return;
     rows.forEach((r) => {
+      const key = keyOf(r.kind, r.id);
+      // Point de départ : celui de la modification déjà en attente (elle part de la même version), sinon la version
+      // connue du serveur. Un effacement n'en a pas : il passe toujours.
+      const avant = this.pending.get(key);
+      const s = this.serveur.get(key);
+      if (!r.deleted && avant && !avant.deleted) {
+        r.base = avant.base;
+        r.baseData = avant.baseData;
+      } else if (!r.deleted && !avant && s) {
+        r.base = s.le;
+        r.baseData = s.data;
+      }
       this.remember(r);
-      this.pending.set(keyOf(r.kind, r.id), r);
+      this.pending.set(key, r);
     });
     this.saveOutbox();
     void this.flush();
@@ -355,36 +395,120 @@ export class CloudSync {
     return sb()
       .from('gsa_items')
       .upsert(
-        rows.map((r) => ({ committee_id: this.committeeId, kind: r.kind, id: r.id, pos: r.pos, data: r.data ?? null, deleted: !!r.deleted, client_id: this.clientId })),
+        rows.map((r) => ({
+          committee_id: this.committeeId,
+          kind: r.kind,
+          id: r.id,
+          pos: r.pos,
+          data: r.base && !r.deleted && estObjet(r.data) ? { ...r.data, [MARQUE]: r.base } : (r.data ?? null),
+          deleted: !!r.deleted,
+          client_id: this.clientId,
+        })),
         { onConflict: 'committee_id,kind,id' },
-      );
+      )
+      .select('kind, id, updated_at');
+  }
+
+  /** Envoi accepté : nouvelle version du serveur ; une modification faite depuis part de celle-ci. */
+  private envoye(rows: Row[], retour: { kind: string; id: string; updated_at: string }[] | null) {
+    const le = new Map((retour ?? []).map((x) => [keyOf(x.kind, x.id), x.updated_at]));
+    for (const r of rows) {
+      const key = keyOf(r.kind, r.id);
+      const v = le.get(key);
+      if (r.deleted) this.serveur.delete(key);
+      else if (v) this.serveur.set(key, { le: v, data: r.data });
+      const suite = this.pending.get(key);
+      if (suite === r) this.pending.delete(key);
+      else if (suite && v && !suite.deleted && suite.base === r.base) {
+        suite.base = v;
+        suite.baseData = r.data;
+      }
+    }
+  }
+
+  /**
+   * Envoi refusé, l'élément ayant changé sur le serveur depuis (070) : relu, puis la modification locale y est fusionnée
+   * (fusion.ts) et repart de cette version. false : serveur injoignable (la modification reste en attente).
+   */
+  private async reprendre(r: Row): Promise<boolean> {
+    // Une saisie pas encore passée dans la file d'attente y entre d'abord : la fusion part de la toute dernière version.
+    this.commit();
+    const key = keyOf(r.kind, r.id);
+    const { data, error } = await sb()
+      .from('gsa_items')
+      .select('kind, id, pos, data, deleted, updated_at')
+      .eq('committee_id', this.committeeId)
+      .eq('kind', r.kind)
+      .eq('id', r.id)
+      .maybeSingle();
+    if (error) return false;
+    const s = data ? lu(data as DbRow) : null;
+    const locale = this.pending.get(key);
+    // Effacé ici depuis : l'effacement part tel quel.
+    if (!locale || locale.deleted) return true;
+    if (!s || s.deleted) {
+      // Supprimé entre-temps par quelqu'un d'autre : la suppression est gardée.
+      this.pending.delete(key);
+      this.serveur.delete(key);
+      const efface: Row = { kind: r.kind, id: r.id, pos: locale.pos, data: null, deleted: true };
+      this.remember(efface);
+      this.saveOutbox();
+      this.voir([efface]);
+      this.onFusion([efface], 'efface');
+      return true;
+    }
+    const { valeur, conflit } = fusionner(locale.baseData, locale.data, s.data);
+    this.noterServeur(s);
+    const fusionnee: Row = { kind: r.kind, id: r.id, pos: locale.pos, data: valeur, base: s.updated_at, baseData: s.data };
+    this.pending.set(key, fusionnee);
+    this.remember(fusionnee);
+    this.saveOutbox();
+    const affichee: Row = { kind: r.kind, id: r.id, pos: locale.pos, data: valeur };
+    this.voir([affichee]);
+    this.onFusion([affichee], conflit ? 'conflit' : 'fusion');
+    return true;
+  }
+
+  /** Les données de l'appli gardées ici suivent la fusion (sinon le prochain envoi renverrait l'ancienne version). */
+  private voir(rows: Row[]) {
+    if (this.latest) this.latest = applyRows(this.latest, rows, this.posOf);
   }
 
   private async send() {
     this.setStatus('envoi');
     clearTimeout(this.retry);
+    let reprises = 0;
     while (this.pending.size) {
       const batch = [...this.pending.values()].slice(0, 150);
-      let { error } = await this.upsert(batch);
+      const res = await this.upsert(batch);
+      let error: { message: string; code?: string } | null = res.error;
       const rejected: Row[] = [];
+      const conflits: Row[] = [];
       let message = '';
-      if (error && permanent(error)) {
+      if (!error) this.envoye(batch, res.data);
+      else if (permanent(error) || error.code === CONFLIT) {
         // Un élément refusé ne doit pas bloquer les autres : envoi un par un.
         error = null;
         for (const r of batch) {
-          const res = await this.upsert([r]);
-          if (res.error && permanent(res.error)) {
+          const un = await this.upsert([r]);
+          if (!un.error) this.envoye([r], un.data);
+          else if (un.error.code === CONFLIT) conflits.push(r);
+          else if (permanent(un.error)) {
             rejected.push(r);
-            message = res.error.message;
-          } else if (res.error) error = res.error;
+            message = un.error.message;
+          } else error = un.error;
         }
       }
+      // Modifié entre-temps par quelqu'un d'autre : fusion, puis nouvel envoi au tour suivant.
+      for (const r of conflits) if (!error && !(await this.reprendre(r))) error = { message: 'réseau' };
+      if (conflits.length && ++reprises > 10) error = { message: 'trop de reprises' };
       if (error) {
+        this.saveOutbox();
         this.setStatus('horsLigne');
         this.retry = setTimeout(() => void this.flush(), 15000);
         return;
       }
-      batch.forEach((r) => {
+      rejected.forEach((r) => {
         const key = keyOf(r.kind, r.id);
         if (this.pending.get(key) === r) this.pending.delete(key);
       });
@@ -399,9 +523,10 @@ export class CloudSync {
   async fetchRows(rows: { kind: string; id: string }[]): Promise<Row[]> {
     const out: Row[] = [];
     for (const r of rows) {
-      const { data } = await sb().from('gsa_items').select('kind, id, pos, data, deleted').eq('committee_id', this.committeeId).eq('kind', r.kind).eq('id', r.id).maybeSingle();
-      const row = (data as Row | null) ?? { ...r, pos: 0, data: null, deleted: true };
+      const { data } = await sb().from('gsa_items').select('kind, id, pos, data, deleted, updated_at').eq('committee_id', this.committeeId).eq('kind', r.kind).eq('id', r.id).maybeSingle();
+      const row = data ? lu(data as DbRow) : { ...r, pos: 0, data: null, deleted: true };
       this.remember(row);
+      this.noterServeur(row);
       out.push(row);
     }
     return out;
@@ -410,7 +535,11 @@ export class CloudSync {
   /** Garde la ligne reçue si elle change quelque chose (et si aucune modification locale n'est en attente). */
   private incoming(r: DbRow): Row | null {
     if (r.client_id === this.clientId) return null;
+    lu(r);
+    this.noterServeur(r);
     const key = keyOf(r.kind, r.id);
+    // Modification locale en attente : elle passe par-dessus (le serveur la refusera si elle part d'une version dépassée,
+    // et l'appli fusionnera alors les deux).
     if (this.pending.has(key)) return null;
     const prev = this.known.get(key);
     if (r.deleted ? !prev : prev && prev.json === stable(r.data) && prev.pos === r.pos) return null;

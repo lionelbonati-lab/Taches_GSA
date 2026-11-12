@@ -92,3 +92,10 @@ outils/base-test/refaire.sh
 psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/donnees.sql
 outils/base-test/effacements_verif.sh
 ```
+
+Essai du contrôle des versions (migration 070 : une modification partie d'une version dépassée est refusée), sur une base
+neuve avec `donnees.sql` (« Tout est bon » attendu) :
+
+```bash
+outils/base-test/versions_verif.sh
+```
