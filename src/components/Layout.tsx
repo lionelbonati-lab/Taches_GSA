@@ -25,6 +25,7 @@ import { cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 import { Icone, type IconeNom } from './icones';
 import { newTask } from '../data/utils';
+import { BrouillonsEnAttente } from './BrouillonsEnAttente';
 
 export function Layout() {
   const { data, user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
@@ -204,6 +205,8 @@ export function Layout() {
 
       <main className="content">
         <SousOnglets />
+        {/* Points restés ouverts sans être enregistrés (appli fermée, rechargée…) : à reprendre. */}
+        <BrouillonsEnAttente />
         <ErrorBoundary page={loc.pathname}>
           <Suspense fallback={<ChargementPage />}>
             <Outlet />

@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { DocsField, type DocTracking } from './DocsField';
 import { PollCard } from './PollCard';
@@ -35,6 +35,7 @@ import { clePlace, etiquettePassee, etiquettesDesLieux, nomLieu, placesPassees, 
 import { etiquettesDe } from '../data/permissions';
 import { titreAvecEtiquettes } from '../data/discussions';
 import { IconeEtiquette } from './IconesEtiquette';
+import { brouillonDe, effacerBrouillon, ficheOuverte, garderBrouillon } from '../data/brouillons';
 
 /** `ouvrirDiscussion` : la fenêtre de discussion ouverte d'emblée (notification 💬). */
 export type TaskModalProps = { task: Task; isNew: boolean; onClose: () => void; openEmailId?: string; ouvrirDiscussion?: boolean };
@@ -100,7 +101,8 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   // Statut inconnu (statuts personnalisés) : le premier statut ouvert.
   // Place qu'on ne peut pas prendre, ou pas encore de place quand on ne peut ranger ses points que dans certaines sections
   // (membre d'une étiquette : la sienne) : la première permise.
-  const [t, setT] = useState<Task>(() => {
+  // Le point tel qu'il est enregistré (nouveau : prérempli).
+  const [base] = useState<Task>(() => {
     if (!isNew) return task;
     const restreint = creatableSections().length < data.sections.length;
     const premiere = () =>
@@ -113,6 +115,15 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       statusId: data.statuses.some((s) => s.id === task.statusId) ? task.statusId : (data.statuses.find((s) => !s.done) ?? data.statuses[0])?.id ?? task.statusId,
     };
   });
+  // Modifications pas encore enregistrées d'une fiche fermée sans les enregistrer (appli coupée, rechargée…), gardées sur
+  // cet appareil (brouillons.ts) : reprises à l'ouverture. Plus le droit de modifier le point : oubliées.
+  const peutModifier = isNew || canEditTask(task);
+  const [repris, setRepris] = useState(() => {
+    const b = user ? brouillonDe(user.id, task.id) : undefined;
+    if (b && !peutModifier && user) effacerBrouillon(user.id, task.id);
+    return b && peutModifier ? b : undefined;
+  });
+  const [t, setT] = useState<Task>(() => repris?.t ?? base);
   // Tâche liée (ou principale) ouverte par-dessus cette fenêtre.
   const [other, setOther] = useState<{ task: Task; isNew: boolean } | null>(null);
   const [err, setErr] = useState('');
@@ -131,6 +142,18 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const [vuIci, setVuIci] = useState<VuPourInfo | null>(null);
   // Suivi (052) : les personnes attendues (avec un compte).
   const attendus = useSuiviPourInfo(isNew ? [] : [task])[task.id] ?? null;
+  // Modifié (ou repris d'un brouillon) : fermer la fiche l'enregistre ; en attendant, gardé sur l'appareil à chaque
+  // changement.
+  const json = JSON.stringify(t);
+  const [depart] = useState(() => JSON.stringify(base));
+  const modifie = peutModifier && (json !== depart || !!repris);
+  useEffect(() => ficheOuverte(task.id), [task.id]);
+  useEffect(() => {
+    if (!user || !peutModifier) return;
+    if (modifie) garderBrouillon(user.id, { t, isNew, base: isNew ? undefined : task.updatedAt, le: new Date().toISOString() });
+    else effacerBrouillon(user.id, task.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [json, modifie]);
   if (!user) return null;
 
   const editable = isNew ? true : canEditTask(task);
@@ -181,25 +204,39 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   // Fichiers encore joints à une autre tâche (occurrences d'une tâche répétée, qui les reprennent) : gardés.
   const libres = (ids: string[]) => ids.filter((id) => !data.tasks.some((x) => x.id !== task.id && x.documents?.some((d) => d.id === id)));
 
-  const submit = () => {
-    if (!t.titre.trim()) return setErr('Le titre du point est obligatoire.');
-    if (!t.sectionId) return setErr('Choisis une section.');
-    if (isNew && !can('tasks.createAny', t.sectionId) && !can('tasks.editOwn', t.sectionId)) return setErr('Ton rôle ne permet pas de créer un point dans cette section.');
+  // Ce qui empêche d'enregistrer le point (rien : '').
+  const valider = (): string => {
+    if (!t.titre.trim()) return 'Le titre du point est obligatoire.';
+    if (!t.sectionId) return 'Choisis une section.';
+    if (isNew && !can('tasks.createAny', t.sectionId) && !can('tasks.editOwn', t.sectionId)) return 'Ton rôle ne permet pas de créer un point dans cette section.';
     if (!permise(t.sectionId, t.sousSection))
-      return setErr('Tu ne peux ranger un point que dans la place de tes étiquettes (section ou sous-section de ton groupe ou de ton événement).');
+      return 'Tu ne peux ranger un point que dans la place de tes étiquettes (section ou sous-section de ton groupe ou de ton événement).';
     // Étiquettes : celles de sa place d'office, et à la main seulement celles dont on est membre.
     const auto = autoDe(t.sectionId, t.sousSection, t.eventId);
     const ajoutees = (t.etiquettes ?? []).filter((id) => !auto.includes(id) && !task.etiquettes?.includes(id) && !peutEtiqueter(id));
-    if (ajoutees.length) return setErr(`Tu n’es pas membre de l’étiquette « ${data.etiquettes?.find((e) => e.id === ajoutees[0])?.nom ?? '?'} » : tu ne peux pas la mettre.`);
+    if (ajoutees.length) return `Tu n’es pas membre de l’étiquette « ${data.etiquettes?.find((e) => e.id === ajoutees[0])?.nom ?? '?'} » : tu ne peux pas la mettre.`;
     if (!canAssign(t.sectionId) && t.responsables.some((id) => id !== user.id) && JSON.stringify(t.responsables) !== JSON.stringify(task.responsables))
-      return setErr('Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.');
+      return 'Ton rôle ne permet pas d’assigner d’autres personnes dans cette section.';
+    return '';
+  };
+  /** Enregistre le point (le brouillon est effacé) ; dit si c'est fait. */
+  const enregistrer = (): boolean => {
+    const e = valider();
+    if (e) {
+      setErr(e);
+      return false;
+    }
     const fin = finAnticipee(data, isNew ? undefined : task, t);
-    if (fin && !confirm(fin)) return;
+    if (fin && !confirm(fin)) return false;
     // Fichiers retirés : effacés une fois la tâche enregistrée.
     const retires = libres(track.current.removed);
-    saveTask({ ...t, titre: t.titre.trim(), etiquettes: recaler(t.etiquettes, [], auto) }, isNew);
+    saveTask({ ...t, titre: t.titre.trim(), etiquettes: recaler(t.etiquettes, [], autoDe(t.sectionId, t.sousSection, t.eventId)) }, isNew);
     void deleteFiles(retires);
-    onClose();
+    effacerBrouillon(user.id, task.id);
+    return true;
+  };
+  const submit = () => {
+    if (enregistrer()) onClose();
   };
 
   // Tâche à prendre proposée à la personne connectée : « 🙋 Je m'en charge » ou « Pas dispo ».
@@ -261,10 +298,36 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     });
   };
 
-  // Annuler : on efface les fichiers ajoutés pendant cette édition.
-  const cancel = () => {
-    deleteFiles(track.current.added);
+  // Fermer sans enregistrer : les fichiers ajoutés (pendant cette édition, ou repris d'un brouillon) sont effacés.
+  const abandonner = () => {
+    const ajoutes = (t.documents ?? []).filter((d) => d.kind === 'fichier' && !(base.documents ?? []).some((b) => b.id === d.id)).map((d) => d.id);
+    deleteFiles(libres([...new Set([...track.current.added, ...ajoutes])]));
+    effacerBrouillon(user.id, task.id);
     onClose();
+  };
+  // Fermer (✕, Échap, « Fermer ») : enregistré tout seul s'il a changé. S'il ne peut pas l'être (titre manquant…), on
+  // demande avant d'abandonner les modifications.
+  const fermer = () => {
+    if (!modifie) return abandonner();
+    const e = valider();
+    if (e) {
+      if (confirm(`${e}\n\nCe point ne peut pas être enregistré ainsi. Le fermer en abandonnant tes modifications ?`)) abandonner();
+      else setErr(e);
+      return;
+    }
+    if (!enregistrer()) return;
+    setToast(isNew ? `✓ Point « ${t.titre.trim()} » créé.` : `✓ Modifications de « ${t.titre.trim()} » enregistrées.`);
+    onClose();
+  };
+  const nePasEnregistrer = () => {
+    if (confirm(isNew ? 'Ne pas créer ce point ? Ce que tu as saisi sera perdu.' : 'Abandonner tes modifications de ce point ?')) abandonner();
+  };
+  // Brouillon repris : « Les abandonner » revient au point enregistré (nouveau : la fiche se ferme).
+  const oublierRepris = () => {
+    if (isNew) return nePasEnregistrer();
+    if (!confirm('Abandonner les modifications reprises ?')) return;
+    setT(base);
+    setRepris(undefined);
   };
 
   const remove = () => {
@@ -343,7 +406,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   return (
     <Modal
       title={isNew ? 'Nouveau point' : editable ? 'Modifier le point' : 'Détail du point'}
-      onClose={cancel}
+      onClose={fermer}
       wide
       actions={
         !isNew && (
@@ -375,6 +438,16 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
         )
       }
     >
+      {repris && (
+        <p className="brouillon-repris" role="status">
+          <Icone n="enregistrer" />
+          <span className="grow">
+            {isNew ? `Ce point n’a pas encore été créé : ce que tu avais saisi (${fmtDateTime(repris.le)}) est repris.` : `Tes modifications non enregistrées du ${fmtDateTime(repris.le)} sont reprises.`}
+            {!isNew && repris.base && repris.base !== task.updatedAt && ' Le point a été modifié depuis : en l’enregistrant, ta version remplace la nouvelle.'}
+          </span>
+          <button type="button" className="btn small" onClick={oublierRepris}>Les abandonner</button>
+        </p>
+      )}
       <div className="form">
         {parent && (
           <button type="button" className="full parent-banner" onClick={() => setOther({ task: parent, isNew: false })}>
@@ -599,7 +672,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       <div className="modal-foot">
         {!isNew && canDeleteTask(task) && <button className="btn danger" onClick={remove} title="Supprimer le point" aria-label="Supprimer le point"><Icone n="supprimer" /></button>}
         <span className="grow" />
-        <button className="btn" onClick={cancel}>{editable ? 'Annuler' : 'Fermer'}</button>
+        {modifie ? <button className="btn" onClick={nePasEnregistrer}>Ne pas enregistrer</button> : <button className="btn" onClick={abandonner}>Fermer</button>}
         {editable && <button className="btn primary" disabled={busy} onClick={submit}>{busy ? 'Enregistrement…' : isNew ? 'Créer' : 'Enregistrer'}</button>}
       </div>
       {newPoll && <PollEditor taskId={task.id} onClose={() => setNewPoll(false)} />}

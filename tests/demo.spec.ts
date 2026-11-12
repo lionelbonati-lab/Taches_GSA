@@ -4596,3 +4596,73 @@ test('appli pas à jour : nouvelle version publiée, l’appli bloquée jusqu’
   await allerA(page, '/taches');
   await expect(page.getByText('Point à finir avant la mise à jour').first()).toBeVisible();
 });
+
+test('enregistrement automatique d’un point : fermer la fiche l’enregistre, une fiche restée ouverte se reprend après un rechargement', async ({ page }) => {
+  await page.goto('./?demo#/taches');
+  const stocke = (titre: string) =>
+    page.evaluate((x) => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.filter((t: { titre: string }) => t.titre === x).length, titre);
+  // Nouveau point fermé par ✕ : créé.
+  let fiche = await nouvelleTache(page, 'Point fermé sans cliquer Créer');
+  await fiche.getByRole('button', { name: 'Fermer', exact: true }).first().click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.toast')).toContainText('Point « Point fermé sans cliquer Créer » créé');
+  expect(await stocke('Point fermé sans cliquer Créer')).toBe(1);
+  // Point modifié puis Échap : enregistré.
+  const ouvrir = async (titre: string) => {
+    await page.locator('main').getByText(titre).filter({ visible: true }).first().click();
+    return page.getByRole('dialog', { name: 'Modifier le point' });
+  };
+  fiche = await ouvrir('Point fermé sans cliquer Créer');
+  await expect(fiche.getByRole('button', { name: 'Fermer', exact: true })).toHaveCount(2);
+  await fiche.getByPlaceholder('Détails utiles (facultatif)').fill('Remarque gardée');
+  await expect(fiche.getByRole('button', { name: 'Ne pas enregistrer' })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(page.locator('.toast')).toContainText('enregistrées');
+  fiche = await ouvrir('Point fermé sans cliquer Créer');
+  await expect(fiche.getByPlaceholder('Détails utiles (facultatif)')).toHaveValue('Remarque gardée');
+  // « Ne pas enregistrer » : après confirmation, rien ne change.
+  await fiche.getByPlaceholder('Détails utiles (facultatif)').fill('Remarque abandonnée');
+  page.once('dialog', (d) => void d.accept());
+  await fiche.getByRole('button', { name: 'Ne pas enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  fiche = await ouvrir('Point fermé sans cliquer Créer');
+  await expect(fiche.getByPlaceholder('Détails utiles (facultatif)')).toHaveValue('Remarque gardée');
+  // Pas enregistrable (titre vide) : on demande ; « Annuler » garde la fiche ouverte, avec la raison.
+  await fiche.getByPlaceholder('Que faut-il faire ou savoir ?').fill('');
+  let message = '';
+  page.once('dialog', (d) => {
+    message = d.message();
+    void d.dismiss();
+  });
+  await page.keyboard.press('Escape');
+  await expect(fiche.locator('.error')).toHaveText('Le titre du point est obligatoire.');
+  expect(message).toContain('Le fermer en abandonnant tes modifications ?');
+  await fiche.getByPlaceholder('Que faut-il faire ou savoir ?').fill('Point fermé sans cliquer Créer');
+
+  // Appli rechargée la fiche ouverte (téléphone qui coupe l'appli, mise à jour…) : rien n'est perdu.
+  await fiche.getByPlaceholder('Détails utiles (facultatif)').fill('Tapé avant la coupure');
+  await page.reload();
+  const rappel = page.getByRole('region', { name: 'Points pas encore enregistrés' });
+  await expect(rappel).toContainText('Un point pas encore enregistré');
+  await expect(rappel).toContainText('« Point fermé sans cliquer Créer »');
+  await rappel.getByRole('button', { name: 'Reprendre' }).click();
+  fiche = page.getByRole('dialog', { name: 'Modifier le point' });
+  await expect(fiche.getByRole('status')).toContainText('Tes modifications non enregistrées du');
+  await expect(fiche.getByPlaceholder('Détails utiles (facultatif)')).toHaveValue('Tapé avant la coupure');
+  await expect(rappel).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(rappel).toHaveCount(0);
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.find((t: { titre: string }) => t.titre === 'Point fermé sans cliquer Créer').remarque)).toBe('Tapé avant la coupure');
+
+  // Nouveau point pas encore créé, appli rechargée : « Abandonner » l'oublie.
+  await nouvelleTache(page, 'Point jamais créé');
+  await page.reload();
+  await expect(rappel).toContainText('« Point jamais créé »');
+  await expect(rappel).toContainText('nouveau point');
+  page.once('dialog', (d) => void d.accept());
+  await rappel.getByRole('button', { name: 'Abandonner' }).click();
+  await expect(rappel).toHaveCount(0);
+  expect(await stocke('Point jamais créé')).toBe(0);
+});

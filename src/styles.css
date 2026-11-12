@@ -183,6 +183,13 @@ input[type='color'] { padding: 2px; width: 40px; height: 36px; }
 .aide-gestes dt { font-weight: 600; }
 .aide-gestes dd { margin: 2px 0 0; color: var(--muted); }
 .bienvenue { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; border-left: 4px solid var(--primary); }
+/* Points pas encore enregistrés (BrouillonsEnAttente.tsx) et modifications reprises dans la fiche (TaskModal.tsx). */
+.brouillons { margin-bottom: 16px; border-left: 4px solid var(--warning, #d97706); display: flex; flex-direction: column; gap: 6px; }
+.brouillons strong { display: flex; align-items: center; gap: 6px; }
+.brouillons ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.brouillons li { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.brouillon-repris { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 12px; padding: 8px 12px; border-radius: 8px; background: var(--primary-soft); font-size: 0.9rem; }
+.brouillon-repris > svg { color: var(--primary); flex-shrink: 0; }
 .content { padding: 24px; max-width: 1920px; margin: 0 auto; }
 .narrow { max-width: 720px; }
 
