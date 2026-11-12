@@ -392,7 +392,8 @@ assemblées générales protégées des applis pas à jour**, comme les étiquet
   « Newsletter » retirée le 10.11.2026 à 22h18 depuis l'appli (geste voulu) n'est pas rétablie.
 - **Retour en arrière** : voir l'en-tête du fichier (puis rejouer 065).
 
-`supabase/migrations/070_gsa_versions.sql` (**à appliquer**, avant de publier l'appli qui l'utilise) : **une modification
+`supabase/migrations/070_gsa_versions.sql` (**appliquée le 12.11.2026**, vérifiée sur le serveur : déclencheur
+`gsa_items_a_version_garde` en place, actif et premier des déclencheurs « avant », fonction fermée aux comptes) : **une modification
 partie d'une version dépassée est refusée** (deux personnes sur le même élément).
 
 - **Pourquoi** : chaque élément (sondage, séance, point…) est envoyé en entier et le serveur gardait la dernière version
