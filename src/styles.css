@@ -548,6 +548,24 @@ legend { font-size: 0.85rem; color: var(--muted); padding: 0 4px; }
 body:has(.pilule.defaut) .toast { bottom: 140px; }
 @media (max-width: 767px) { body:has(.pilule.defaut) .toast { bottom: calc(270px + env(safe-area-inset-bottom)); } }
 
+/* Nouvelle version de l'appli publiée (MiseAJour.tsx) : en bas, sous les fenêtres ; les messages passent au-dessus. */
+.maj-appli {
+  position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; z-index: 45;
+  width: max-content; max-width: min(640px, calc(100vw - 32px)); display: flex; align-items: center; gap: 10px 12px; flex-wrap: wrap;
+  padding: 12px 14px; border-radius: 12px; background: var(--surface); color: var(--text); border: 2px solid var(--primary);
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.25);
+}
+.maj-appli > svg { color: var(--primary); flex-shrink: 0; width: 22px; height: 22px; }
+.maj-appli-texte { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
+.maj-appli-texte small { color: var(--muted); }
+.maj-appli-boutons { display: flex; gap: 8px; flex-wrap: wrap; }
+body:has(.maj-appli) .toast { bottom: 150px; }
+@media (max-width: 767px) {
+  .maj-appli { bottom: calc(80px + env(safe-area-inset-bottom)); }
+  body:has(.maj-appli) .toast { bottom: calc(230px + env(safe-area-inset-bottom)); }
+}
+@media print { .maj-appli { display: none; } }
+
 /* ---------- Documents joints ---------- */
 .docs .doc-list { list-style: none; margin: 0 0 6px; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .docs .doc-list li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; background: var(--surface2); min-width: 0; }

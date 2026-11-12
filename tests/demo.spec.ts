@@ -4541,3 +4541,46 @@ test('console admin : ordre des rôles par glisser-déposer, au clavier ou depui
   const roles = await page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).roles.map((r: { label: string }) => r.label));
   expect(roles[0]).toBe('Membre');
 });
+
+test('appli pas à jour : nouvelle version publiée, bandeau « Mettre à jour l’application », « Plus tard », puis la mise à jour recharge', async ({ page }) => {
+  await expect(page.locator('h1')).toBeVisible();
+  // Rien de publié depuis l'ouverture : pas de bandeau, même après une vérification (retour de la connexion).
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.waitForTimeout(500);
+  await expect(page.getByRole('region', { name: 'Mise à jour de l’application' })).toHaveCount(0);
+  // Une nouvelle version publiée : la page du serveur charge un autre script principal.
+  const racine = new URL('./', page.url()).href;
+  let relue = 0;
+  await page.route((u) => u.href === racine, async (route) => {
+    relue++;
+    const res = await route.fetch();
+    const html = (await res.text()).replace(/assets\/index-[^"]+\.js/, 'assets/index-NouvelleVersion.js');
+    await route.fulfill({ response: res, body: html });
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  const bandeau = page.getByRole('region', { name: 'Mise à jour de l’application' });
+  await expect(bandeau).toContainText('Une nouvelle version de l’appli est disponible.');
+  // Plus tard : caché (il revient dans une heure).
+  await bandeau.getByRole('button', { name: 'Plus tard' }).click();
+  await expect(bandeau).toHaveCount(0);
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await page.waitForTimeout(500);
+  await expect(bandeau).toHaveCount(0);
+  await page.clock.install();
+  await page.clock.fastForward('01:01:00');
+  await page.evaluate(() => window.dispatchEvent(new Event('online')));
+  await expect(bandeau).toBeVisible();
+  // Mettre à jour : la page publiée relue sans le cache du navigateur, puis l'appli rechargée.
+  await page.unroute((u) => u.href === racine);
+  const avant = relue;
+  await page.route((u) => u.href === racine, (route) => {
+    relue++;
+    return route.continue();
+  });
+  const recharge = page.waitForEvent('load');
+  await bandeau.getByRole('button', { name: 'Mettre à jour l’application' }).click();
+  await recharge;
+  expect(relue).toBeGreaterThan(avant);
+  await expect(page.locator('h1')).toBeVisible();
+  await expect(bandeau).toHaveCount(0);
+});
