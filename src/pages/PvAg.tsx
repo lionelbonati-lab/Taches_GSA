@@ -24,12 +24,14 @@ import { PvViewer } from './Agenda';
 
 // Onglet « Assemblée générale » › PV (PLAN_ASSEMBLEE_GENERALE.md, étape AG2), pour les rôles qui ont le droit
 // « Assemblée générale ». Pour l'AG choisie (son ordre du jour : OrdreDuJourAg.tsx) :
-// - « Prise de notes » : la séance (heures), la présidence, le secrétaire du PV, les scrutateurs, les votants, présents,
-//   excusés et invités ; puis chaque point et sous-point de l'ordre du jour, avec ses notes et le résultat de ses votes
-//   (« À l'unanimité », « Par acclamation », ou compté : pour, contre, abstentions, avec les noms si on veut) ;
+// - « Prise de notes » : la séance (heures), la présidence, le secrétaire du PV, les votants, présents, excusés et
+//   invités ; puis chaque point et sous-point de l'ordre du jour, avec ses notes et le résultat de ses votes (« À
+//   l'unanimité », « Par acclamation », ou compté : pour, contre, abstentions, avec les noms si on veut) ; les noms des
+//   scrutateurs sous le point « Nomination des scrutateurs » (sans ce point : dans la séance) ;
 // - « PV » : le document (en-tête et mise en forme des documents du club), PDF, impression, texte copié ; « Valider et
 //   archiver » le fige (archive dans l'AG), « Corriger le PV » le rouvre (la validation suivante crée la version 2).
-// À venir : la vue en 3 fenêtres et la projection (AG3), la liste de présence après coup (AG4), les signatures (AG5).
+// « Vue en fenêtres » : point par point, comme le PV du comité (FicheAg, Fenetres.tsx). À venir : la liste de présence
+// après coup (AG4), les signatures (AG5).
 
 /** « samedi 14 mars 2026 ». */
 const longDate = (date: string) => {
@@ -38,6 +40,10 @@ const longDate = (date: string) => {
 };
 const shortDate = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(2, 4)}`;
 const VIDE: DonneesPvAg = { notes: {} };
+
+/** Le point (ou sous-point) où l'on nomme les scrutateurs : leurs noms s'y écrivent ; aucun : dans la séance. */
+const estScrutateurs = (p: Pick<PointAg, 'titre'>) => /scrutateur/i.test(p.titre);
+const pointScrutateurs = (points: PointAg[]) => tousLesPoints(points).find(estScrutateurs);
 
 // Options retenues sur l'appareil (vue en fenêtres, projection), à part de celles du PV du comité.
 const CLE_FENETRES = 'taches-gsa-ag-pv-fenetres';
@@ -343,6 +349,7 @@ function PriseDeNotes({ ag, points, pv, personnes, lecture, modifier, setNote, s
     <div key={p.id} className={sous ? 'min-sub ag-pv-point sous' : 'ag-pv-point'}>
       {sous ? <div className="min-sub-title">{numero} {p.titre}</div> : null}
       {p.texte?.trim() && <p className="muted small ag-pv-texte"><AvecLiens texte={p.texte.trim()} /></p>}
+      {p.id === pointScrutateurs(points)?.id && <ScrutateursChamp ag={ag} pv={pv} lecture={lecture} modifier={modifier} />}
       {(p.votes ?? []).map((v) => (
         <ResultatVoteChamp key={v.id} vote={v} resultat={pv.resultats?.[v.id]} votants={pv.votants} lecture={lecture} onChange={(r) => setResultat(v, r)} />
       ))}
@@ -369,7 +376,7 @@ function PriseDeNotes({ ag, points, pv, personnes, lecture, modifier, setNote, s
 
       <section className="panel ag-pv-seance">
         <h2 className="min-h2">Présidence et présences</h2>
-        <PresencesAg ag={ag} pv={pv} personnes={personnes} lecture={lecture} modifier={modifier} />
+        <PresencesAg ag={ag} pv={pv} personnes={personnes} lecture={lecture} modifier={modifier} scrutateurs={!pointScrutateurs(points)} />
       </section>
 
       <section className="min-agenda">
@@ -385,15 +392,40 @@ function PriseDeNotes({ ag, points, pv, personnes, lecture, modifier, setNote, s
   );
 }
 
-/** Présidence, secrétaire du PV, scrutateurs, votants, présents, excusés et invités (prise de notes, fenêtre « Séance »). */
-function PresencesAg({ ag, pv, personnes, lecture, modifier }: {
+/** Noms des scrutateurs (sous le point « Nomination des scrutateurs », sinon dans la séance). */
+function ScrutateursChamp({ ag, pv, lecture, modifier }: {
+  ag: AgAgenda;
+  pv: DonneesPvAg;
+  lecture: boolean;
+  modifier: (fn: (pv: DonneesPvAg) => void, action: string) => void;
+}) {
+  const valider = (v: string) =>
+    (pv.scrutateurs ?? '') !== v.trim() &&
+    modifier((x) => {
+      if (v.trim()) x.scrutateurs = v.trim();
+      else delete x.scrutateurs;
+    }, 'scrutateurs');
+  return (
+    <label className="ag-scrutateurs">
+      Scrutateurs
+      <input key={`s-${ag.cle}-${pv.scrutateurs ?? ''}`} defaultValue={pv.scrutateurs ?? ''} readOnly={lecture} placeholder="Noms des scrutateurs nommés" onBlur={(e) => valider(e.target.value)} />
+    </label>
+  );
+}
+
+/**
+ * Présidence, secrétaire du PV, votants, présents, excusés et invités (prise de notes, fenêtre « Séance ») ; les
+ * scrutateurs aussi quand l'ordre du jour n'a pas de point « Nomination des scrutateurs » (`scrutateurs`).
+ */
+function PresencesAg({ ag, pv, personnes, lecture, modifier, scrutateurs }: {
   ag: AgAgenda;
   pv: DonneesPvAg;
   personnes: Person[];
   lecture: boolean;
   modifier: (fn: (pv: DonneesPvAg) => void, action: string) => void;
+  scrutateurs: boolean;
 }) {
-  const champ = (k: 'scrutateurs' | 'presents' | 'excuses' | 'invites', v: string) =>
+  const champ = (k: 'presents' | 'excuses' | 'invites', v: string) =>
     (pv[k] ?? '') !== v.trim() &&
     modifier((x) => {
       if (v.trim()) x[k] = v.trim();
@@ -417,10 +449,7 @@ function PresencesAg({ ag, pv, personnes, lecture, modifier }: {
             {personnes.map((p) => <option key={p.id} value={p.id}>{fullName(p)}{p.poste ? ` (${p.poste})` : ''}</option>)}
           </select>
         </label>
-        <label>
-          Scrutateurs
-          <input key={`s-${ag.cle}`} defaultValue={pv.scrutateurs ?? ''} readOnly={lecture} placeholder="Noms des scrutateurs" onBlur={(e) => champ('scrutateurs', e.target.value)} />
-        </label>
+        {scrutateurs && <ScrutateursChamp ag={ag} pv={pv} lecture={lecture} modifier={modifier} />}
         <label>
           Membres présents ayant droit de vote
           <input
@@ -593,7 +622,7 @@ function FicheAg({ ag, pv, arrets, i, aller, personnes, lecture, modifier, setNo
             <label className="inline">Ouverture <input type="time" value={pv.heureDebut ?? ''} disabled={lecture} onChange={(e) => modifier((x) => (x.heureDebut = e.target.value || undefined), 'heure d’ouverture')} /></label>
             <label className="inline">Séance levée <input type="time" value={pv.heureFin ?? ''} disabled={lecture} onChange={(e) => modifier((x) => (x.heureFin = e.target.value || undefined), 'heure de fin')} /></label>
           </div>
-          <PresencesAg ag={ag} pv={pv} personnes={personnes} lecture={lecture} modifier={modifier} />
+          <PresencesAg ag={ag} pv={pv} personnes={personnes} lecture={lecture} modifier={modifier} scrutateurs={!arrets.some((x) => x.point && estScrutateurs(x.point))} />
         </div>
       ),
     },
@@ -606,6 +635,7 @@ function FicheAg({ ag, pv, arrets, i, aller, personnes, lecture, modifier, setNo
             <h2>{a.ou.split(' › ').pop()}</h2>
             {a.parent && <p className="muted small">Sous-point de « {a.parent.titre} »</p>}
             {p.texte?.trim() ? <p className="ag-pv-texte"><AvecLiens texte={p.texte.trim()} /></p> : <p className="muted small">Pas de texte pour ce point.</p>}
+            {estScrutateurs(p) && arrets.find((x) => x.point && estScrutateurs(x.point))?.cle === p.id && <ScrutateursChamp ag={ag} pv={pv} lecture={lecture} modifier={modifier} />}
             {(p.sous?.length ?? 0) > 0 && (
               <ol className="ag-fiche-sous">
                 {p.sous!.map((s) => (
@@ -724,6 +754,7 @@ function FeuillePvAg({ ag, fiche, pv, style, feuilleRef }: {
   const details = (p: PointAg) => (
     <>
       {pv.textes && p.texte?.trim() && <div className="odj-rem ag-texte-point"><AvecLiens texte={p.texte.trim()} /></div>}
+      {pv.scrutateurs && p.id === pointScrutateurs(points)?.id && <p className="min-pv-note">Scrutateurs : {pv.scrutateurs}</p>}
       {pv.notes[p.id] && <p className="min-pv-note"><TexteNote note={pv.notes[p.id]} /></p>}
       {(p.votes ?? []).map((v) => {
         const r = pv.resultats?.[v.id];
@@ -749,7 +780,7 @@ function FeuillePvAg({ ag, fiche, pv, style, feuilleRef }: {
         {ligne('Séance levée', heureTexte(pv.heureFin) || undefined)}
         {ligne('Présidence', nom(pv.president) || undefined)}
         {ligne('Procès-verbal', nom(pv.secretaire) || undefined)}
-        {ligne('Scrutateurs', pv.scrutateurs)}
+        {!pointScrutateurs(points) && ligne('Scrutateurs', pv.scrutateurs)}
         {ligne('Présents', pv.presents)}
         {ligne('Membres présents ayant droit de vote', pv.votants ? `${pv.votants} (majorité absolue : ${Math.floor(pv.votants / 2) + 1})` : undefined)}
         {ligne('Excusés', pv.excuses)}
@@ -823,13 +854,15 @@ function textePv(ag: AgAgenda, fiche: Assemblee | undefined, people: Person[]): 
   ajout('Séance levée', heureTexte(pv.heureFin));
   ajout('Présidence', nom(pv.president));
   ajout('Procès-verbal', nom(pv.secretaire));
-  ajout('Scrutateurs', pv.scrutateurs);
+  const auPoint = pointScrutateurs(fiche?.points ?? []);
+  if (!auPoint) ajout('Scrutateurs', pv.scrutateurs);
   ajout('Présents', pv.presents);
   ajout('Membres présents ayant droit de vote', pv.votants ? String(pv.votants) : undefined);
   ajout('Excusés', pv.excuses);
   ajout('Invités', pv.invites);
   l.push('', 'POINTS TRAITÉS');
   const details = (p: PointAg, retrait: string) => {
+    if (pv.scrutateurs && p.id === auPoint?.id) l.push(`${retrait}Scrutateurs : ${pv.scrutateurs}`);
     if (pv.notes[p.id]) l.push(...texteDe(pv.notes[p.id]).split('\n').map((x) => `${retrait}${x}`));
     (p.votes ?? []).forEach((v) => {
       const r = pv.resultats?.[v.id];

@@ -222,7 +222,10 @@ test('PV de l’AG : séance, présences, notes, votes (unanimité, comptés), d
   await expect(page.getByRole('button', { name: 'Lever la séance' })).toBeVisible();
   await expect(page.getByLabel('Président(e) de l’assemblée').locator('option:checked')).toHaveText(/Julien Moreau/);
   await expect(page.getByLabel('Secrétaire du PV').locator('option:checked')).toHaveText(/Sophie Girard/);
-  await page.getByLabel('Scrutateurs', { exact: true }).fill('A. Exemple et B. Exemple');
+  // Les noms des scrutateurs : sous le point « Nomination des scrutateurs » (plus dans la séance).
+  await expect(page.locator('.ag-pv-seance').getByLabel('Scrutateurs', { exact: true })).toHaveCount(0);
+  const nomination = page.locator('.min-section', { hasText: '2. Nomination des scrutateurs' });
+  await nomination.getByLabel('Scrutateurs', { exact: true }).fill('A. Exemple et B. Exemple');
   await page.getByLabel('Membres présents ayant droit de vote').fill('38');
   await expect(page.locator('.ag-pv-seance small', { hasText: 'Majorité absolue : 20' })).toBeVisible();
   await page.getByLabel('Excusés', { exact: true }).fill('C. Exemple, D. Exemple');
@@ -254,11 +257,13 @@ test('PV de l’AG : séance, présences, notes, votes (unanimité, comptés), d
   const feuille = page.locator('.pv-preview .pv-sheet');
   await expect(feuille.locator('.pv-kicker')).toHaveText('Procès-verbal');
   await expect(feuille.locator('.odj-head')).toContainText('Présidence : Julien Moreau');
-  await expect(feuille.locator('.odj-head')).toContainText('Scrutateurs : A. Exemple et B. Exemple');
+  // Les scrutateurs : sous le point « Nomination des scrutateurs », pas dans l'en-tête.
+  await expect(feuille.locator('.odj-head')).not.toContainText('Scrutateurs');
   await expect(feuille.locator('.odj-head')).toContainText('Membres présents ayant droit de vote : 38 (majorité absolue : 20)');
   await expect(feuille.locator('.odj-head')).toContainText('Excusés : C. Exemple, D. Exemple');
   const traites = feuille.locator('.pv-part', { hasText: 'Points traités' });
   await expect(traites.locator('ol.ag-odj > li').nth(0)).toContainText('La présidence salue l’assemblée.');
+  await expect(traites.locator('ol.ag-odj > li').nth(1)).toContainText('Scrutateurs : A. Exemple et B. Exemple');
   await expect(traites.locator('ol.ag-odj > li').nth(0)).toContainText('Vote : Approbation de l’ordre du jour – accepté à l’unanimité');
   await expect(traites.locator('ol.ag-odj > li').nth(2)).toContainText('Vote : Approbation du PV 2026 – accepté par 30 voix contre 3, 5 abstentions');
   await expect(traites.locator('ol.ag-odj > li').nth(9)).toContainText('Vote : Budget 2027 – accepté par acclamation');
