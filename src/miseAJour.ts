@@ -5,15 +5,14 @@ import { useSyncExternalStore } from 'react';
 // les données (10.11.2026 et 12.11.2026 : les séries d'événements effacées par un appareil pas à jour ; le serveur les
 // protège maintenant, migration 069). L'appli relit donc la page publiée (index.html) de temps en temps et compare son
 // script principal (« assets/index-<empreinte>.js », dont le nom change à chaque publication du code) au sien : s'il
-// diffère, le bandeau « Mettre à jour l'application » s'affiche (MiseAJour.tsx).
+// diffère, le bandeau « Mettre à jour l'application » s'affiche (MiseAJour.tsx), sans « Plus tard » : il reste jusqu'à la
+// mise à jour, pour qu'une version dépassée ne serve pas plus longtemps.
 // Quand : 5 s après l'ouverture, toutes les 15 minutes, au retour sur l'appli (après au moins une minute) et au retour
 // de la connexion. En développement (vite dev, pas de script « assets/index-… ») : jamais.
 
 const PREMIERE = 5_000;
 const PERIODE = 15 * 60_000;
 const ECART_MIN = 60_000;
-/** « Plus tard » : le bandeau revient après une heure. */
-export const PLUS_TARD = 60 * 60_000;
 
 /** Script principal de la page (`src` d'un `<script type="module">` dans `assets/`). */
 const ENTREE = /<script[^>]*type="module"[^>]*src="([^"]*assets\/index-[^"]+\.js)"/;
@@ -25,7 +24,6 @@ function scriptCourant(): string | undefined {
 }
 
 let nouvelle = false;
-let masqueJusqua = 0;
 let derniere = 0;
 const abonnes = new Set<() => void>();
 const prevenir = () => abonnes.forEach((f) => f());
@@ -48,8 +46,7 @@ export async function verifierMiseAJour(): Promise<boolean> {
     // Page sans script principal (portail d'un wifi public, page d'erreur) : rien à conclure.
     if (!m) return nouvelle;
     const publie = new URL(m[1], res.url || racine(courant)).href;
-    // Prévenu à chaque vérification : le bandeau caché une heure (« Plus tard ») revient à la suivante.
-    if (publie !== courant) {
+    if (publie !== courant && !nouvelle) {
       nouvelle = true;
       prevenir();
     }
@@ -86,15 +83,9 @@ export async function mettreAJour() {
   location.reload();
 }
 
-/** « Plus tard » : le bandeau se cache une heure (il revient à la vérification qui suit). */
-export function plusTard() {
-  masqueJusqua = Date.now() + PLUS_TARD;
-  prevenir();
-}
+const etat = () => nouvelle;
 
-const etat = () => nouvelle && Date.now() >= masqueJusqua;
-
-/** Une nouvelle version est publiée et le bandeau n'est pas caché (« Plus tard »). */
+/** Une nouvelle version est publiée depuis l'ouverture de l'appli. */
 export function useMiseAJourDisponible() {
   return useSyncExternalStore(
     (f) => {

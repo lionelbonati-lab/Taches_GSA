@@ -4542,7 +4542,7 @@ test('console admin : ordre des rôles par glisser-déposer, au clavier ou depui
   expect(roles[0]).toBe('Membre');
 });
 
-test('appli pas à jour : nouvelle version publiée, bandeau « Mettre à jour l’application », « Plus tard », puis la mise à jour recharge', async ({ page }) => {
+test('appli pas à jour : nouvelle version publiée, bandeau « Mettre à jour l’application » sans « Plus tard », la mise à jour recharge', async ({ page }) => {
   await expect(page.locator('h1')).toBeVisible();
   // Rien de publié depuis l'ouverture : pas de bandeau, même après une vérification (retour de la connexion).
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
@@ -4560,16 +4560,11 @@ test('appli pas à jour : nouvelle version publiée, bandeau « Mettre à jour l
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   const bandeau = page.getByRole('region', { name: 'Mise à jour de l’application' });
   await expect(bandeau).toContainText('Une nouvelle version de l’appli est disponible.');
-  // Plus tard : caché (il revient dans une heure).
-  await bandeau.getByRole('button', { name: 'Plus tard' }).click();
-  await expect(bandeau).toHaveCount(0);
-  await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  await page.waitForTimeout(500);
-  await expect(bandeau).toHaveCount(0);
-  await page.clock.install();
-  await page.clock.fastForward('01:01:00');
-  await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  await expect(bandeau).toBeVisible();
+  // Pas de « Plus tard » : un seul bouton, et le bandeau reste en changeant de page.
+  await expect(bandeau.getByRole('button')).toHaveCount(1);
+  await page.goto('./?demo#/taches');
+  await expect(page.locator('main h1, main h2').first()).toBeVisible();
+  await expect(bandeau).toHaveCount(1);
   // Mettre à jour : la page publiée relue sans le cache du navigateur, puis l'appli rechargée.
   await page.unroute((u) => u.href === racine);
   const avant = relue;

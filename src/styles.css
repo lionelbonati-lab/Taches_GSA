@@ -558,7 +558,6 @@ body:has(.pilule.defaut) .toast { bottom: 140px; }
 .maj-appli > svg { color: var(--primary); flex-shrink: 0; width: 22px; height: 22px; }
 .maj-appli-texte { display: flex; flex-direction: column; gap: 2px; flex: 1 1 220px; min-width: 0; }
 .maj-appli-texte small { color: var(--muted); }
-.maj-appli-boutons { display: flex; gap: 8px; flex-wrap: wrap; }
 body:has(.maj-appli) .toast { bottom: 150px; }
 @media (max-width: 767px) {
   .maj-appli { bottom: calc(80px + env(safe-area-inset-bottom)); }
