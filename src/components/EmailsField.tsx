@@ -6,7 +6,7 @@ import {
   type EmailState,
 } from '../data/emails';
 import { EMAIL_RE, ajouter, candidats, chercher, choisis, nomsDestinataires, recipients, retirer, type Destinataire } from '../data/destinataires';
-import { fmtDate, fmtDateTime, fullName } from '../data/utils';
+import { fmtDate, fmtDateTime, fullName, today } from '../data/utils';
 import { Modal } from './ui';
 import { Icone } from './icones';
 
@@ -119,7 +119,7 @@ function EmailEditor({ task, email, isNew, onClose }: { task: Task; email: Sched
               const v = ev.target.value;
               const heure = e.quand.heure;
               set('quand', v === 'date'
-                ? { type: 'date', date: at?.slice(0, 10) ?? new Date().toISOString().slice(0, 10), heure }
+                ? { type: 'date', date: at?.slice(0, 10) ?? today(), heure }
                 : { type: 'delai', jours: Number(v), heure });
             }}
           >

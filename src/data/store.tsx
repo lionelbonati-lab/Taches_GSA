@@ -152,7 +152,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       // Terminée depuis le PV d'une séance passée (le corriger, c'est être le soir de la séance) : le jour de la séance,
       // donné par le PV ; sinon aujourd'hui.
       if (!isDone(data, task)) task.termineeLe = undefined;
-      else if (!(before && isDone(data, before))) task.termineeLe = task.termineeLe ?? new Date().toISOString().slice(0, 10);
+      else if (!(before && isDone(data, before))) task.termineeLe = task.termineeLe ?? today();
 
       // Clôture d'une tâche récurrente → création de l'occurrence suivante. Tâche annuelle liée à une séance : elle passe à
       // la séance du même mois l'an prochain (créée au besoin) ; tâche « à chaque séance » : à la séance suivante.
@@ -492,7 +492,7 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
       update((d) => {
         const x = d.polls?.find((y) => y.id === pollId);
         if (!x) return;
-        x.clotureLe = closed ? new Date().toISOString().slice(0, 10) : undefined;
+        x.clotureLe = closed ? today() : undefined;
         // Rouvrir un sondage clôturé automatiquement (date et heure limite passées) : on retire la date limite.
         if (!closed && (finSondage(x) ?? Infinity) <= Date.now()) {
           x.dateLimite = undefined;

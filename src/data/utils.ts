@@ -1,8 +1,10 @@
 import type { AppData, ClubEvent, DelaiRef, DelaiUnite, Meeting, Person, Recurrence, Task } from './types';
 import { aPrendreSuivante, sansVolontaires } from './aPrendre';
+import { jourDe } from './compteur';
 import { derniereOccurrence, estOccurrence, occurrenceApres, occurrenceDu, occurrenceProche } from './repetition';
 
-export const today = () => new Date().toISOString().slice(0, 10);
+/** Aujourd'hui (AAAA-MM-JJ) à l'heure de l'appareil, pas en UTC : sinon le jour change à 1 h ou 2 h du matin en Suisse. */
+export const today = () => jourDe(Date.now());
 
 /** Couleurs proposées (personnes, étiquettes). */
 export const COULEURS = ['#1d4ed8', '#059669', '#ea580c', '#db2777', '#7c3aed', '#0891b2', '#b45309', '#475569'];

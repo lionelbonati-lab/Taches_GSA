@@ -1,5 +1,5 @@
 import type { AppData, EmailWhen, Meeting, ScheduledEmail, Task } from './types';
-import { addDays, dateSuivante, fmtDate, fullName, isDone, localNow, uid } from './utils';
+import { addDays, dateSuivante, fmtDate, fullName, isDone, localNow, today, uid } from './utils';
 import { lienAppli, lienMailto } from './lienPartage';
 
 // Emails programmés au sujet d'une tâche.
@@ -25,7 +25,7 @@ export const DEFAULT_MESSAGE =
   'Bonjour,\n\nPetit rappel concernant le point « {point} » ({section}), à faire pour le {délai}.\n\nVoir le point : {lien}\n\nMeilleures salutations\n{expéditeur}';
 
 export function newEmail(task: Task, userId: string): ScheduledEmail {
-  const tomorrow = addDays(new Date().toISOString().slice(0, 10), 1);
+  const tomorrow = addDays(today(), 1);
   return {
     id: uid('e'),
     taskId: task.id,

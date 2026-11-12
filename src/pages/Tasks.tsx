@@ -240,7 +240,7 @@ function ListeTaches() {
     const csv = [head, ...rows].map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(';')).join('\r\n');
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-    a.download = `taches-gsa-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `taches-gsa-${today()}.csv`;
     a.click();
   };
 
@@ -372,7 +372,7 @@ function ListeTaches() {
 
       {f.type && <CircuitPaiements total={list.length > 1 ? list.reduce((n, t) => n + (t.paiement?.montant ?? 0), 0) : undefined} />}
 
-      <p className="print-only">{nomAppli()} – export du {fmtDate(new Date().toISOString().slice(0, 10))} – {list.length} points</p>
+      <p className="print-only">{nomAppli()} – export du {fmtDate(today())} – {list.length} points</p>
 
       {activeFilters > 0 && nTous > list.length && (
         <p className="archives-note filtre-mes no-print">
