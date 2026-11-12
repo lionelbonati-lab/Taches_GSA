@@ -64,6 +64,12 @@ const SERVEUR_SEUL = new Set<string>(['discussions']);
  * effacées par un appareil à l'ouverture de l'appli).
  */
 const PROTEGEES = new Set<string>(['people', 'statuses', 'sections', 'roles', 'tasks', 'meetings', 'events', 'etiquettes', 'seriesEvenements', 'assemblees']);
+/**
+ * Sortes de lignes que le serveur n'efface que si la demande le dit (data.retiree = true ; 065, 069) : celles qu'une appli
+ * restée sur une version d'avant leur ajout effacerait sans le vouloir. Une sorte de ligne ajoutée plus tard : ici et au
+ * serveur (069).
+ */
+const RETRAIT_VOULU = new Set<string>(['etiquettes', 'seriesEvenements', 'assemblees']);
 /** Listes dont l'ordre est choisi par l'utilisateur (sinon l'ordre d'ajout est conservé). */
 const ORDERED = new Set<string>(['people', 'statuses', 'sections', 'roles', 'etiquettes']);
 
@@ -303,8 +309,8 @@ export class CloudSync {
         // n'a simplement pas de place dans ses données (03.11.2026 : une appli d'avant les étiquettes les a toutes effacées).
         if (kind !== 'meta' && !(ARRAY_KINDS as readonly string[]).includes(kind) && !(MAP_KINDS as readonly string[]).includes(kind)) continue;
         const data = JSON.parse(k.json);
-        // Étiquette retirée exprès : le serveur ne l'efface que si la demande le dit (065).
-        out.push({ kind, id: id.join('|'), pos: k.pos, data: kind === 'etiquettes' && data && typeof data === 'object' ? { ...data, retiree: true } : data, deleted: true });
+        // Étiquette, série, assemblée retirée exprès : le serveur ne l'efface que si la demande le dit (065, 069).
+        out.push({ kind, id: id.join('|'), pos: k.pos, data: RETRAIT_VOULU.has(kind) && data && typeof data === 'object' ? { ...data, retiree: true } : data, deleted: true });
       }
     return out;
   }

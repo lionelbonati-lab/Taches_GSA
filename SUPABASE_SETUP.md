@@ -372,6 +372,26 @@ personnel** (`PLAN_COMPTEUR_TEMPS.md`, README « Mon compteur de temps »).
 - Sans elle, le compteur reste sur l'appareil (Réglages le dit) et il est envoyé une fois la mise à jour faite.
 - **Retour en arrière** : `drop table public.gsa_temps; drop function public.gsa_temps_modifie();`
 
+`supabase/migrations/069_gsa_effacements_proteges.sql` (**appliquée le 12.11.2026** avec l'accord du président, vérifiée
+sur le serveur : déclencheur `gsa_items_effacement_garde` en place, celui de 065 retiré) : **séries d'événements et
+assemblées générales protégées des applis pas à jour**, comme les étiquettes (065).
+
+- **Pourquoi** : le 10.11.2026 à 22h08 puis le 12.11.2026 à 11h57, un appareil resté sur une version de l'appli d'avant
+  le 03.11.2026 a effacé les trois séries d'événements du club (et, la seconde fois, les deux assemblées générales), sans
+  aucune action de sa part : cette version ne connaît pas ces sortes de lignes et demande à les effacer. Les étiquettes
+  (065) n'ont rien eu.
+- **Garde** (celle de 065, étendue) : une ligne « etiquettes », « seriesEvenements » ou « assemblees » n'est retirée par
+  l'appli que si la demande porte `data.retiree = true` (envoyée par l'appli depuis le 12.11.2026, `cloud.ts`,
+  `RETRAIT_VOULU`) ; sinon la demande est ignorée sans erreur. Le serveur (SQL, sans compte connecté) n'est pas concerné.
+  Une sorte de ligne ajoutée plus tard : à ajouter dans la migration et dans `RETRAIT_VOULU`.
+- **Vérifiée** sur la base de test (`outils/base-test/effacements_verif.sh`, 30 cas, « Tout est bon » : pour chacune des
+  trois sortes, effacement sans marque ignoré en insertion comme en mise à jour, effacement voulu, rétablissement par
+  l'appli et par le serveur ; un événement s'efface comme avant).
+- **Restauration** faite ensuite en SQL : les lignes effacées le 12.11.2026 à 11h57 par cet appareil (3 séries, 2
+  assemblées) rétablies ; les liens (événements `dansSerie`, étiquettes `serieId`) étaient intacts. La série
+  « Newsletter » retirée le 10.11.2026 à 22h18 depuis l'appli (geste voulu) n'est pas rétablie.
+- **Retour en arrière** : voir l'en-tête du fichier (puis rejouer 065).
+
 Anciennes clés de l'organigramme dans `committees.info` (restées dans les entités archivées ; l'appli ne les lit plus) :
 
 - `info.dependDe` : le comité dont dépend l'entité ; absent, inconnu (l'ancien `aucun`) ou en boucle : le comité central ; une ancienne valeur vers un groupe ou un événement : le comité dont celui-ci dépend. La carte d'un groupe (et l'événement sous le groupe qui l'organise) se plaçait par les postes liés ⛓, pas par cette clé.

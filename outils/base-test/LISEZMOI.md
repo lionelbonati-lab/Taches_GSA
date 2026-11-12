@@ -82,3 +82,13 @@ outils/base-test/refaire.sh
 psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/donnees.sql
 outils/base-test/temps_verif.sh
 ```
+
+Essai de la garde des effacements (migrations 065 et 069 : une étiquette, une série d'événements ou une assemblée générale
+n'est effacée par l'appli que si la demande le dit) : `refaire.sh` les applique avec les autres ; sur une base neuve avec
+`donnees.sql` (« Tout est bon » attendu) :
+
+```bash
+outils/base-test/refaire.sh
+psql -h $P -p 5433 -U postgres -d gsa -f outils/base-test/donnees.sql
+outils/base-test/effacements_verif.sh
+```
