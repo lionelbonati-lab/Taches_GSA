@@ -280,3 +280,53 @@ test('PV de l’AG : séance, présences, notes, votes (unanimité, comptés), d
   await expect(page.locator('.ag-pv-archives .chip')).toHaveCount(2);
   await expect(page.locator('.ag-pv-archives .chip').first()).toContainText('version 2');
 });
+
+test('PV de l’AG en 3 fenêtres : séance, point par point (votes, notes), projection, ↑ ↓, retour à la prise de notes', async ({ page }) => {
+  await allerA(page, '/ag');
+  await page.getByRole('button', { name: /Partir du modèle/ }).click();
+  await page.getByRole('link', { name: /PV de cette AG/ }).click();
+  await page.getByRole('button', { name: 'Vue en fenêtres' }).click();
+  const ecran = page.getByRole('dialog', { name: /PV de l’AG en fenêtres/ });
+  await expect(ecran).toBeVisible();
+
+  // D'abord la séance : présidence et secrétariat déjà proposés ; le bandeau dit où on en est.
+  await expect(ecran.locator('.pv-fiche-ou')).toHaveText('Séance et présences · 1 / 23');
+  await expect(ecran.getByRole('tab', { name: 'Séance et présences' })).toBeVisible();
+  await expect(ecran.getByLabel('Président(e) de l’assemblée').locator('option:checked')).toHaveText(/Julien Moreau/);
+  await ecran.getByLabel('Membres présents ayant droit de vote').fill('38');
+  await ecran.getByRole('button', { name: 'Ouvrir l’assemblée' }).click();
+
+  // Point suivant : son onglet « Point », ses votes (1 à faire), ses notes en bas.
+  await ecran.getByRole('button', { name: /^Suivant : 1\. Ouverture/ }).click();
+  await expect(ecran.locator('.pv-fiche-ou')).toHaveText('1. Ouverture de l’assemblée · 2 / 23');
+  await expect(ecran.locator('.ag-fiche-point h2')).toHaveText('1. Ouverture de l’assemblée');
+  await ecran.getByRole('tab', { name: /Votes/ }).click();
+  await ecran.getByRole('button', { name: 'À l’unanimité' }).click();
+  await expect(ecran.getByRole('tab', { name: /Votes/ })).toContainText('1/1');
+  await ecran.getByRole('textbox', { name: 'Notes pour « Ouverture de l’assemblée »…' }).fill('Bienvenue à tous.');
+
+  // Au clavier (hors d'un champ) : ↓ passe au point suivant ; double flèche : point principal suivant.
+  await ecran.locator('.pv-fiche-entete').click();
+  await page.keyboard.press('ArrowDown');
+  await expect(ecran.locator('.pv-fiche-ou')).toHaveText('2. Nomination des scrutateurs · 3 / 23');
+  await ecran.getByRole('button', { name: /^Point suivant : 3\./ }).click();
+  await ecran.getByRole('button', { name: /^Point suivant : 4\./ }).click();
+  await ecran.getByRole('button', { name: /^Suivant : 5\. Rapport des différents responsables$/ }).click();
+  await ecran.getByRole('button', { name: /^Suivant : 5\. Rapport des différents responsables › a\. École de cyclisme/ }).click();
+  await expect(ecran.locator('.ag-fiche-point')).toContainText('Sous-point de « Rapport des différents responsables »');
+
+  // Projection : la fenêtre de droite (pièces jointes), retenue sur l'appareil.
+  await expect(ecran.locator('.pv-fenetre.f-droite')).toHaveCount(0);
+  await ecran.getByRole('button', { name: /^Projection/ }).click();
+  await expect(ecran.locator('.pv-fenetre.f-droite')).toContainText('Pièces jointes');
+
+  // Échap : retour à la prise de notes, où le vote et la note sont là.
+  await page.keyboard.press('Escape');
+  await expect(ecran).toHaveCount(0);
+  await expect(page.locator('.ag-vote-res', { hasText: 'Approbation de l’ordre du jour' }).locator('.ag-vote-issue')).toHaveText('accepté à l’unanimité');
+  await expect(page.getByRole('textbox', { name: 'Notes pour « Ouverture de l’assemblée »…' })).toHaveText('Bienvenue à tous.');
+  await expect(page.getByRole('button', { name: 'Vue en fenêtres' })).toHaveAttribute('aria-pressed', 'false');
+  // Rouverte : la projection est restée choisie.
+  await page.getByRole('button', { name: 'Vue en fenêtres' }).click();
+  await expect(page.getByRole('dialog', { name: /PV de l’AG en fenêtres/ }).locator('.pv-fenetre.f-droite')).toBeVisible();
+});

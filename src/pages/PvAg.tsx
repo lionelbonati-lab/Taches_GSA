@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } 
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
 import type { Assemblee, Person, PointAg, PvAg as DonneesPvAg, PvArchive, ResultatVote, StyleDocs, VoteAg } from '../data/types';
-import { agDuClub, agParDefaut, ficheDe, heureTexte, lettre, majoriteTexte, nouvelleFiche, texteResultat, type AgAgenda } from '../data/assemblee';
+import { agDuClub, agParDefaut, ficheDe, heureTexte, lettre, majoriteTexte, nouvelleFiche, tacheDuPoint, texteResultat, tousLesPoints, type AgAgenda } from '../data/assemblee';
 import { fmtDate, fmtDateTime, fullName, localNow, today, uid } from '../data/utils';
 import { archiveHtml } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
@@ -13,6 +13,11 @@ import { PageIntro } from '../components/Nav';
 import { BoutonPdf, usePiedImprime } from '../components/BoutonPdf';
 import { AvecLiens } from '../components/Liens';
 import { NoteField, TexteNote } from '../components/NoteField';
+import { EcranFenetres, type ContenuPanneau, type Disposition } from '../components/Fenetres';
+import { BarreOutils, type OutilPilule } from '../components/Pilule';
+import { OutilsTexte } from '../components/OutilsTexte';
+import { PiecesJointesPoint } from '../components/PiecesJointesPoint';
+import { DocsTache, useOuvrirDocs } from '../components/Annexes';
 import { ZoneTexte } from '../components/ZoneTexte';
 import { Icone } from '../components/icones';
 import { PvViewer } from './Agenda';
@@ -33,6 +38,37 @@ const longDate = (date: string) => {
 };
 const shortDate = (d: string) => `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(2, 4)}`;
 const VIDE: DonneesPvAg = { notes: {} };
+
+// Options retenues sur l'appareil (vue en fenêtres, projection), à part de celles du PV du comité.
+const CLE_FENETRES = 'taches-gsa-ag-pv-fenetres';
+const CLE_PROJECTION = 'taches-gsa-ag-pv-projection';
+const lireOption = (cle: string) => {
+  try {
+    return localStorage.getItem(cle) === '1';
+  } catch {
+    return false;
+  }
+};
+const ecrireOption = (cle: string, oui: boolean) => {
+  try {
+    if (oui) localStorage.setItem(cle, '1');
+    else localStorage.removeItem(cle);
+  } catch {
+    /* navigation privée : non retenue */
+  }
+};
+/** Écran de téléphone (comme les règles « max-width: 767px » de styles.css) : pas de vue en fenêtres. */
+const ETROIT = '(max-width: 767px)';
+function useEcranEtroit() {
+  const [etroit, setEtroit] = useState(() => matchMedia(ETROIT).matches);
+  useEffect(() => {
+    const q = matchMedia(ETROIT);
+    const suivre = () => setEtroit(q.matches);
+    q.addEventListener('change', suivre);
+    return () => q.removeEventListener('change', suivre);
+  }, []);
+  return etroit;
+}
 
 /** AG proposée en ouvrant le PV : celle du jour, sinon la plus récente des 90 derniers jours dont le PV n'est pas validé, sinon la prochaine. */
 function agPourPv(ags: AgAgenda[], fiche: (a: AgAgenda) => Assemblee | undefined, jour = today()) {
@@ -57,10 +93,20 @@ export function PvAg() {
   }, [demandee]);
   const ag = ags.find((a) => a.cle === cle) ?? agParDefaut(ags);
   const fiche = ficheDe(data, ag);
-  const pv: DonneesPvAg = fiche?.pv ?? VIDE;
+  // Fiches proposées pour la présidence et le secrétariat : d'abord les postes du club (Président, Secrétaire) ; un PV pas
+  // encore commencé les montre déjà.
+  const personnes = useMemo(() => data.people.filter((p) => p.actif).sort((a, b) => fullName(a).localeCompare(fullName(b))), [data.people]);
+  const parPoste = (re: RegExp) => personnes.find((p) => re.test(p.poste ?? ''))?.id;
+  const pvNeuf = (): DonneesPvAg => ({ notes: {}, president: parPoste(/^pr[ée]sident/i), secretaire: parPoste(/^secr[ée]taire/i) });
+  const pv: DonneesPvAg = fiche?.pv ?? pvNeuf();
   const [vue, setVue] = useState<'notes' | 'pv'>('notes');
   const [msg, setMsg] = useState('');
   const [archive, setArchive] = useState<PvArchive | null>(null);
+  // Vue en fenêtres et projection : retenues sur l'appareil ; pas sur téléphone (le PV ne s'y tient pas).
+  const telephone = useEcranEtroit();
+  const [fenetres, setFenetres] = useState(() => lireOption(CLE_FENETRES));
+  const [projection, setProjection] = useState(() => lireOption(CLE_PROJECTION));
+  const [arret, setArret] = useState(0);
   const sheetRef = useRef<HTMLDivElement>(null);
   usePiedImprime(sheetRef);
   const valide = !!pv.valideLe;
@@ -73,9 +119,6 @@ export function PvAg() {
     };
   }, [nomDoc]);
 
-  // Fiches proposées pour la présidence et le secrétariat : d'abord les postes du club (Président, Secrétaire).
-  const personnes = useMemo(() => data.people.filter((p) => p.actif).sort((a, b) => fullName(a).localeCompare(fullName(b))), [data.people]);
-  const parPoste = (re: RegExp) => personnes.find((p) => re.test(p.poste ?? ''))?.id;
 
   /** Modifie le PV de l'AG affichée (sa fiche créée au premier changement) ; `action` : pour « Annuler ». */
   const modifier = (fn: (pv: DonneesPvAg, f: Assemblee) => void, action: string) => {
@@ -88,7 +131,7 @@ export function PvAg() {
           f = nouvelleFiche(ag, user.id);
           d.assemblees.push(f);
         }
-        if (!f.pv) f.pv = { notes: {}, president: parPoste(/^pr[ée]sident/i), secretaire: parPoste(/^secr[ée]taire/i) };
+        if (!f.pv) f.pv = pvNeuf();
         fn(f.pv, f);
       },
       { annulable: `PV « ${ag.nom} » : ${action}` },
@@ -144,6 +187,14 @@ export function PvAg() {
   };
 
   const style = data.reglagesOdj?.style;
+  const ouvrirFenetres = (oui: boolean) => {
+    setFenetres(oui);
+    ecrireOption(CLE_FENETRES, oui);
+  };
+  const basculerProjection = () => {
+    setProjection(!projection);
+    ecrireOption(CLE_PROJECTION, !projection);
+  };
 
   if (!ag)
     return (
@@ -162,6 +213,15 @@ export function PvAg() {
   const passees = ags.filter((a) => a.date < today() && a.cle !== ag.cle).reverse();
   const feuille = <FeuillePvAg ag={ag} fiche={fiche} pv={pv} style={style} feuilleRef={sheetRef} />;
   const archives = pv.archives ?? [];
+  const arrets = arretsAg(points);
+  const enFenetres = fenetres && !telephone && vue === 'notes' && points.length > 0;
+  // Retour à la prise de notes : au point où l'on en était.
+  const fermerFenetres = () => {
+    ouvrirFenetres(false);
+    const a = arrets[Math.min(arret, arrets.length - 1)];
+    const cle = a?.parent?.id ?? a?.point?.id;
+    requestAnimationFrame(() => document.querySelector(cle ? `[data-arret="${cle}"]` : '.min-session')?.scrollIntoView({ block: 'start' }));
+  };
 
   return (
     <div className="pv-page ag-page ag-pv">
@@ -200,6 +260,11 @@ export function PvAg() {
           <button type="button" role="tab" aria-selected={vue === 'notes'} className={vue === 'notes' ? 'on' : ''} onClick={() => setVue('notes')}><Icone n="notes" /> Prise de notes</button>
           <button type="button" role="tab" aria-selected={vue === 'pv'} className={vue === 'pv' ? 'on' : ''} onClick={() => setVue('pv')}><Icone n="pv" /> PV</button>
         </div>
+        {!telephone && vue === 'notes' && points.length > 0 && (
+          <button type="button" className={`btn ${fenetres ? 'on' : ''}`} aria-pressed={fenetres} onClick={() => ouvrirFenetres(!fenetres)} title="Point par point, en fenêtres (projection au beamer)">
+            <Icone n="colonnes" /> Vue en fenêtres
+          </button>
+        )}
         {valide && <span className="pbadge closed">PV validé le {fmtDateTime(pv.valideLe!)}{(pv.version ?? 1) > 1 ? ` (version ${pv.version})` : ''}</span>}
         {archives.length > 0 && (
           <span className="ag-pv-archives">
@@ -237,6 +302,25 @@ export function PvAg() {
       ) : (
         <div className="pv-preview">{feuille}</div>
       )}
+      {enFenetres && (
+        <FicheAg
+          ag={ag}
+          pv={pv}
+          arrets={arrets}
+          i={Math.min(arret, arrets.length - 1)}
+          aller={setArret}
+          personnes={personnes}
+          lecture={valide}
+          modifier={modifier}
+          setNote={setNote}
+          setResultat={setResultat}
+          demarrer={demarrer}
+          terminer={terminer}
+          projection={projection}
+          basculerProjection={basculerProjection}
+          fermer={fermerFenetres}
+        />
+      )}
       {archive && <PvViewer pv={archive} kind="pv" canDelete={false} onDelete={() => undefined} onClose={() => setArchive(null)} />}
     </div>
   );
@@ -255,13 +339,6 @@ function PriseDeNotes({ ag, points, pv, personnes, lecture, modifier, setNote, s
   demarrer: () => void;
   terminer: () => void;
 }) {
-  const champ = (k: 'scrutateurs' | 'presents' | 'excuses' | 'invites', v: string) =>
-    (pv[k] ?? '') !== v.trim() &&
-    modifier((x) => {
-      if (v.trim()) x[k] = v.trim();
-      else delete x[k];
-    }, k);
-  const fichePar = (id?: string) => personnes.find((p) => p.id === id);
   const point = (p: PointAg, numero: string, sous: boolean) => (
     <div key={p.id} className={sous ? 'min-sub ag-pv-point sous' : 'ag-pv-point'}>
       {sous ? <div className="min-sub-title">{numero} {p.titre}</div> : null}
@@ -292,53 +369,7 @@ function PriseDeNotes({ ag, points, pv, personnes, lecture, modifier, setNote, s
 
       <section className="panel ag-pv-seance">
         <h2 className="min-h2">Présidence et présences</h2>
-        <div className="form">
-          <label>
-            Président(e) de l’assemblée
-            <select value={pv.president ?? ''} disabled={lecture} onChange={(e) => modifier((x) => (x.president = e.target.value || undefined), 'présidence')}>
-              <option value="">—</option>
-              {personnes.map((p) => <option key={p.id} value={p.id}>{fullName(p)}{p.poste ? ` (${p.poste})` : ''}</option>)}
-            </select>
-          </label>
-          <label>
-            Secrétaire du PV
-            <select value={pv.secretaire ?? ''} disabled={lecture} onChange={(e) => modifier((x) => (x.secretaire = e.target.value || undefined), 'secrétaire du PV')}>
-              <option value="">—</option>
-              {personnes.map((p) => <option key={p.id} value={p.id}>{fullName(p)}{p.poste ? ` (${p.poste})` : ''}</option>)}
-            </select>
-          </label>
-          <label>
-            Scrutateurs
-            <input key={`s-${ag.cle}`} defaultValue={pv.scrutateurs ?? ''} readOnly={lecture} placeholder="Noms des scrutateurs" onBlur={(e) => champ('scrutateurs', e.target.value)} />
-          </label>
-          <label>
-            Membres présents ayant droit de vote
-            <input
-              type="number"
-              min={0}
-              inputMode="numeric"
-              value={pv.votants ?? ''}
-              readOnly={lecture}
-              onChange={(e) => modifier((x) => (x.votants = e.target.value === '' ? undefined : Math.max(0, Math.round(Number(e.target.value)))), 'votants')}
-            />
-            {pv.votants ? <small className="muted">Majorité absolue : {Math.floor(pv.votants / 2) + 1}</small> : null}
-          </label>
-          <label className="full">
-            Présents
-            <input key={`p-${ag.cle}`} defaultValue={pv.presents ?? ''} readOnly={lecture} placeholder="Ex. 38 membres (liste de présence en annexe)" onBlur={(e) => champ('presents', e.target.value)} />
-          </label>
-          <label className="full">
-            Excusés
-            <ZoneTexte key={`e-${ag.cle}`} defaultValue={pv.excuses ?? ''} readOnly={lecture} rows={2} placeholder="Noms des excusés, séparés par des virgules" onBlur={(e) => champ('excuses', e.target.value)} />
-          </label>
-          <label className="full">
-            Invités
-            <input key={`i-${ag.cle}`} defaultValue={pv.invites ?? ''} readOnly={lecture} placeholder="Commune, presse, membres d’honneur…" onBlur={(e) => champ('invites', e.target.value)} />
-          </label>
-        </div>
-        {(fichePar(pv.president) || fichePar(pv.secretaire)) && (
-          <p className="muted small">Ils signeront le PV (signatures dans l’appli : prochaine étape).</p>
-        )}
+        <PresencesAg ag={ag} pv={pv} personnes={personnes} lecture={lecture} modifier={modifier} />
       </section>
 
       <section className="min-agenda">
@@ -351,6 +382,74 @@ function PriseDeNotes({ ag, points, pv, personnes, lecture, modifier, setNote, s
         ))}
       </section>
     </div>
+  );
+}
+
+/** Présidence, secrétaire du PV, scrutateurs, votants, présents, excusés et invités (prise de notes, fenêtre « Séance »). */
+function PresencesAg({ ag, pv, personnes, lecture, modifier }: {
+  ag: AgAgenda;
+  pv: DonneesPvAg;
+  personnes: Person[];
+  lecture: boolean;
+  modifier: (fn: (pv: DonneesPvAg) => void, action: string) => void;
+}) {
+  const champ = (k: 'scrutateurs' | 'presents' | 'excuses' | 'invites', v: string) =>
+    (pv[k] ?? '') !== v.trim() &&
+    modifier((x) => {
+      if (v.trim()) x[k] = v.trim();
+      else delete x[k];
+    }, k);
+  const fichePar = (id?: string) => personnes.find((p) => p.id === id);
+  return (
+    <>
+      <div className="form">
+        <label>
+          Président(e) de l’assemblée
+          <select value={pv.president ?? ''} disabled={lecture} onChange={(e) => modifier((x) => (x.president = e.target.value || undefined), 'présidence')}>
+            <option value="">—</option>
+            {personnes.map((p) => <option key={p.id} value={p.id}>{fullName(p)}{p.poste ? ` (${p.poste})` : ''}</option>)}
+          </select>
+        </label>
+        <label>
+          Secrétaire du PV
+          <select value={pv.secretaire ?? ''} disabled={lecture} onChange={(e) => modifier((x) => (x.secretaire = e.target.value || undefined), 'secrétaire du PV')}>
+            <option value="">—</option>
+            {personnes.map((p) => <option key={p.id} value={p.id}>{fullName(p)}{p.poste ? ` (${p.poste})` : ''}</option>)}
+          </select>
+        </label>
+        <label>
+          Scrutateurs
+          <input key={`s-${ag.cle}`} defaultValue={pv.scrutateurs ?? ''} readOnly={lecture} placeholder="Noms des scrutateurs" onBlur={(e) => champ('scrutateurs', e.target.value)} />
+        </label>
+        <label>
+          Membres présents ayant droit de vote
+          <input
+            type="number"
+            min={0}
+            inputMode="numeric"
+            value={pv.votants ?? ''}
+            readOnly={lecture}
+            onChange={(e) => modifier((x) => (x.votants = e.target.value === '' ? undefined : Math.max(0, Math.round(Number(e.target.value)))), 'votants')}
+          />
+          {pv.votants ? <small className="muted">Majorité absolue : {Math.floor(pv.votants / 2) + 1}</small> : null}
+        </label>
+        <label className="full">
+          Présents
+          <input key={`p-${ag.cle}`} defaultValue={pv.presents ?? ''} readOnly={lecture} placeholder="Ex. 38 membres (liste de présence en annexe)" onBlur={(e) => champ('presents', e.target.value)} />
+        </label>
+        <label className="full">
+          Excusés
+          <ZoneTexte key={`e-${ag.cle}`} defaultValue={pv.excuses ?? ''} readOnly={lecture} rows={2} placeholder="Noms des excusés, séparés par des virgules" onBlur={(e) => champ('excuses', e.target.value)} />
+        </label>
+        <label className="full">
+          Invités
+          <input key={`i-${ag.cle}`} defaultValue={pv.invites ?? ''} readOnly={lecture} placeholder="Commune, presse, membres d’honneur…" onBlur={(e) => champ('invites', e.target.value)} />
+        </label>
+      </div>
+      {(fichePar(pv.president) || fichePar(pv.secretaire)) && (
+        <p className="muted small">Ils signeront le PV (signatures dans l’appli : prochaine étape).</p>
+      )}
+    </>
   );
 }
 
@@ -391,6 +490,217 @@ function ResultatVoteChamp({ vote, resultat: r, votants, lecture, onChange }: {
       )}
       {r && <p className="ag-vote-issue"><Icone n="ok" /> {texteResultat(vote, r, votants)}</p>}
     </div>
+  );
+}
+
+/** Arrêt de la vue en fenêtres : la séance (présences), puis chaque point et sous-point, dans l'ordre du jour. */
+interface ArretAg {
+  cle: string;
+  nom: string;
+  /** « 5. Rapport des différents responsables › a. École de cyclisme ». */
+  ou: string;
+  point?: PointAg;
+  /** Sous-point : son point. */
+  parent?: PointAg;
+}
+
+export function arretsAg(points: PointAg[]): ArretAg[] {
+  return [
+    { cle: 'seance', nom: 'Séance et présences', ou: 'Séance et présences' },
+    ...points.flatMap((p, i) => [
+      { cle: p.id, nom: p.titre, ou: `${i + 1}. ${p.titre}`, point: p },
+      ...(p.sous ?? []).map((s, j) => ({ cle: s.id, nom: s.titre, ou: `${i + 1}. ${p.titre} › ${lettre(j)}. ${s.titre}`, point: s, parent: p })),
+    ]),
+  ];
+}
+
+/** Ce que le PV de l'AG d'avant dit du point repris (notes, résultats des votes). */
+function pointPrecedent(assemblees: Assemblee[], p: PointAg) {
+  if (!p.repriseDe) return undefined;
+  for (const f of assemblees)
+    for (const x of tousLesPoints(f.points))
+      if (x.id === p.repriseDe) {
+        const note = f.pv?.notes[x.id];
+        const votes = (x.votes ?? []).flatMap((v) => (f.pv?.resultats?.[v.id] ? [{ v, r: f.pv.resultats[v.id] }] : []));
+        return note || votes.length ? { fiche: f, point: x, note, votes } : undefined;
+      }
+  return undefined;
+}
+
+type PanneauAg = 'seance' | 'point' | 'votes' | 'documents' | 'precedente' | 'notes' | 'pieces';
+/** À l'origine : la séance et le point en haut (avec ses votes, documents, AG précédente), ses notes en bas, ses pièces jointes à droite. */
+const ORIGINE_AG: Disposition<PanneauAg> = {
+  fenetres: { haut: ['seance', 'point', 'votes', 'documents', 'precedente'], bas: ['notes'], droite: ['pieces'] },
+  actifs: {},
+};
+const CLES_AG = { onglets: 'taches-gsa-ag-pv-onglets', hauteur: 'taches-gsa-ag-pv-hauteur', largeur: 'taches-gsa-ag-pv-largeur' };
+
+/**
+ * PV de l'AG en fenêtres (comme celui du comité : Fenetres.tsx) : la séance, puis point après point, avec ses votes, ses
+ * notes et, à droite en projection, ses pièces jointes. Bandeau de l'AG en haut, outils en barre fixe dessous.
+ */
+function FicheAg({ ag, pv, arrets, i, aller, personnes, lecture, modifier, setNote, setResultat, demarrer, terminer, projection, basculerProjection, fermer }: {
+  ag: AgAgenda;
+  pv: DonneesPvAg;
+  arrets: ArretAg[];
+  i: number;
+  aller: (i: number) => void;
+  personnes: Person[];
+  lecture: boolean;
+  modifier: (fn: (pv: DonneesPvAg) => void, action: string) => void;
+  setNote: (id: string, v: string) => void;
+  setResultat: (v: VoteAg, r: ResultatVote | undefined) => void;
+  demarrer: () => void;
+  terminer: () => void;
+  projection: boolean;
+  basculerProjection: () => void;
+  fermer: () => void;
+}) {
+  const { data, annulable, annuler, refaisable, refaire } = useStore();
+  const choixPieces = useState<Record<string, string>>({});
+  useOuvrirDocs();
+  const a = arrets[Math.min(i, arrets.length - 1)];
+  const p = a.point;
+  const prec = p ? pointPrecedent(data.assemblees ?? [], p) : undefined;
+  // Points principaux (et la séance) : les doubles flèches y vont.
+  const principaux = arrets.map((x, k) => (!x.parent ? k : -1)).filter((k) => k >= 0);
+  const sectionPrec = [...principaux].reverse().find((k) => k < i);
+  const sectionSuiv = principaux.find((k) => k > i);
+
+  // Au clavier : ↓ ↑ d'un point à l'autre (hors d'un champ), Échap : retour à la prise de notes.
+  useEffect(() => {
+    const touche = (e: globalThis.KeyboardEvent) => {
+      if (e.key === 'Escape' && !document.querySelector('.modal-back, .visionneuse')) return fermer();
+      if ((e.key !== 'ArrowDown' && e.key !== 'ArrowUp') || e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+      const el = e.target as HTMLElement | null;
+      if (el?.closest('input, select, textarea, [contenteditable="true"], [role="tab"], [role="separator"]')) return;
+      e.preventDefault();
+      aller(Math.max(0, Math.min(arrets.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1))));
+    };
+    window.addEventListener('keydown', touche);
+    return () => window.removeEventListener('keydown', touche);
+  }, [i, arrets.length, aller, fermer]);
+
+  const votes = p?.votes ?? [];
+  const faits = votes.filter((v) => pv.resultats?.[v.id]).length;
+  const panneaux: Record<PanneauAg, ContenuPanneau> = {
+    seance: {
+      nom: 'Séance et présences',
+      dispo: !p,
+      rendu: () => (
+        <div className="ag-fiche-seance">
+          <div className="min-session-row">
+            <label className="inline">Ouverture <input type="time" value={pv.heureDebut ?? ''} disabled={lecture} onChange={(e) => modifier((x) => (x.heureDebut = e.target.value || undefined), 'heure d’ouverture')} /></label>
+            <label className="inline">Séance levée <input type="time" value={pv.heureFin ?? ''} disabled={lecture} onChange={(e) => modifier((x) => (x.heureFin = e.target.value || undefined), 'heure de fin')} /></label>
+          </div>
+          <PresencesAg ag={ag} pv={pv} personnes={personnes} lecture={lecture} modifier={modifier} />
+        </div>
+      ),
+    },
+    point: {
+      nom: 'Point',
+      dispo: !!p,
+      rendu: () =>
+        p && (
+          <div className="ag-fiche-point">
+            <h2>{a.ou.split(' › ').pop()}</h2>
+            {a.parent && <p className="muted small">Sous-point de « {a.parent.titre} »</p>}
+            {p.texte?.trim() ? <p className="ag-pv-texte"><AvecLiens texte={p.texte.trim()} /></p> : <p className="muted small">Pas de texte pour ce point.</p>}
+            {(p.sous?.length ?? 0) > 0 && (
+              <ol className="ag-fiche-sous">
+                {p.sous!.map((s) => (
+                  <li key={s.id}>
+                    <button type="button" className="link-btn" onClick={() => aller(arrets.findIndex((x) => x.cle === s.id))}>{s.titre}</button>
+                  </li>
+                ))}
+              </ol>
+            )}
+          </div>
+        ),
+    },
+    votes: {
+      nom: 'Votes',
+      nb: votes.length ? `${faits}/${votes.length}` : undefined,
+      dispo: votes.length > 0,
+      rendu: () => (
+        <div className="ag-fiche-votes">
+          {votes.map((v) => <ResultatVoteChamp key={v.id} vote={v} resultat={pv.resultats?.[v.id]} votants={pv.votants} lecture={lecture} onChange={(r) => setResultat(v, r)} />)}
+          {pv.votants ? <p className="muted small">{pv.votants} votants · majorité absolue : {Math.floor(pv.votants / 2) + 1}</p> : null}
+        </div>
+      ),
+    },
+    documents: {
+      nom: 'Documents',
+      nb: p?.documents?.length ? String(p.documents.length) : undefined,
+      dispo: !!p?.documents?.length,
+      rendu: () => p && <p className="ag-fiche-docs"><DocsTache t={tacheDuPoint(p)} annexes={[]} /></p>,
+    },
+    precedente: {
+      nom: 'AG précédente',
+      dispo: !!prec,
+      rendu: () =>
+        prec && (
+          <div className="ag-fiche-precedente">
+            <p className="muted small">PV de l’AG du {fmtDate(prec.fiche.date)} : « {prec.point.titre} »</p>
+            {prec.note && <p className="min-pv-note"><TexteNote note={prec.note} /></p>}
+            {prec.votes.map(({ v, r }) => <p key={v.id} className="small"><b>Vote : {v.objet}</b> – {texteResultat(v, r, prec.fiche.pv?.votants)}</p>)}
+          </div>
+        ),
+    },
+    notes: {
+      nom: 'Notes de la séance',
+      dispo: !!p,
+      rendu: () => p && <NoteField value={pv.notes[p.id] ?? ''} onCommit={(v) => setNote(p.id, v)} placeholder={`Notes pour « ${p.titre} »…`} readOnly={lecture} />,
+    },
+    pieces: {
+      nom: 'Pièces jointes',
+      dispo: !!p,
+      rendu: () => p && <PiecesJointesPoint point={{ nom: p.titre, tache: tacheDuPoint(p) }} choix={choixPieces} fenetre />,
+    },
+  };
+
+  const outils: OutilPilule[] = [
+    { icone: 'annuler', titre: annulable ? `Annuler : ${annulable.action}` : 'Annuler (rien à annuler)', onClick: annuler, disabled: !annulable },
+    { icone: 'refaire', titre: refaisable ? `Refaire : ${refaisable.action}` : 'Refaire (rien à refaire)', onClick: refaire, disabled: !refaisable },
+    { icone: 'sectionPrec', titre: sectionPrec !== undefined ? `Point précédent : ${arrets[sectionPrec].ou}` : 'Point précédent', onClick: () => sectionPrec !== undefined && aller(sectionPrec), disabled: sectionPrec === undefined, separe: true },
+    { icone: 'pointPrec', titre: i > 0 ? `Précédent : ${arrets[i - 1].ou}` : 'Précédent', onClick: () => aller(i - 1), disabled: i === 0 },
+    { icone: 'pointSuiv', titre: i < arrets.length - 1 ? `Suivant : ${arrets[i + 1].ou}` : 'Suivant', onClick: () => aller(i + 1), disabled: i >= arrets.length - 1 },
+    { icone: 'sectionSuiv', titre: sectionSuiv !== undefined ? `Point suivant : ${arrets[sectionSuiv].ou}` : 'Point suivant', onClick: () => sectionSuiv !== undefined && aller(sectionSuiv), disabled: sectionSuiv === undefined },
+    { icone: 'colonnes', titre: 'Vue en fenêtres (re-clic : retour à la prise de notes)', onClick: fermer, actif: true, separe: true },
+    { icone: 'projection', titre: projection ? 'Projection : arrêter' : 'Projection : les pièces jointes du point à droite', onClick: basculerProjection, actif: projection },
+    ...(lecture
+      ? []
+      : [
+          !pv.heureDebut
+            ? { icone: 'demarrer' as const, titre: 'Ouvrir l’assemblée', onClick: demarrer, separe: true }
+            : { icone: 'terminer' as const, titre: pv.heureFin ? `Séance levée à ${heureTexte(pv.heureFin)}` : 'Lever la séance', onClick: terminer, disabled: !!pv.heureFin, separe: true },
+        ]),
+  ];
+
+  return (
+    <EcranFenetres
+      cle={a.cle}
+      cles={CLES_AG}
+      id="ag"
+      origine={ORIGINE_AG}
+      panneaux={panneaux}
+      projection={projection}
+      editable={!lecture}
+      entete={
+        <>
+          <strong className="pv-fiche-comite">{ag.nom}</strong>
+          <span>
+            {longDate(ag.date)}
+            {(pv.heureDebut ?? ag.heure) && ` · ${heureTexte(pv.heureDebut ?? ag.heure)}${pv.heureFin ? ` – ${heureTexte(pv.heureFin)}` : ''}`}
+          </span>
+          {ag.lieu && <span>Lieu : {ag.lieu}</span>}
+          {pv.votants ? <span>{pv.votants} votants</span> : null}
+        </>
+      }
+      ou={`${a.ou} · ${i + 1} / ${arrets.length}`}
+      barre={<BarreOutils label="Outils du PV de l’AG" outils={outils} ligne2={lecture ? undefined : <OutilsTexte />} />}
+      label={`PV de l’AG en fenêtres : ${a.nom}`}
+    />
   );
 }
 

@@ -177,3 +177,12 @@ test('ordre des rôles au doigt : la poignée glissée jusqu’à une autre colo
   // La page n'a pas défilé de côté pendant le glisser.
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
+
+test('PV de l’AG sur téléphone : pas de vue en fenêtres', async ({ page }) => {
+  await page.goto('./?demo#/ag');
+  await page.getByRole('button', { name: /Partir du modèle/ }).click();
+  await page.goto('./?demo#/ag-pv?ag=e12');
+  await expect(page.locator('.ag-vote-res').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Vue en fenêtres' })).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
+});

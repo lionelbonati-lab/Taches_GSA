@@ -261,7 +261,9 @@ sont mis à jour à chaque étape.
    correction (versions). Reste : la barre d'outils flottante, l'email et le dépôt du PV, les points ajoutés en
    séance.
 3. **AG3 — Vue en 3 fenêtres** : le cadre des fenêtres est sorti de `FichePv.tsx` pour servir aux deux PV (sans rien
-   changer pour le comité) ; onglets de l'AG ; vote en grand au beamer. **2 à 3 M.**
+   changer pour le comité) ; onglets de l'AG ; vote en grand au beamer. **2 à 3 M.** **Fait le 12.11.2026** : cadre
+   commun `src/components/Fenetres.tsx` (le PV du comité garde ses réglages) ; PV de l'AG en fenêtres
+   (`src/pages/PvAg.tsx`, `FicheAg`).
 4. **AG4 — Liste de présence après coup** : liste du club, recherche, présent ou excusé, personnes hors liste, limite à
    une étiquette, annexe du PV. **1 à 2 M.**
 5. **AG5 — Signatures** (démo) : valider et faire signer, signer, demander une correction, versions, archive signée,
