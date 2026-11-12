@@ -4542,13 +4542,17 @@ test('console admin : ordre des rôles par glisser-déposer, au clavier ou depui
   expect(roles[0]).toBe('Membre');
 });
 
-test('appli pas à jour : nouvelle version publiée, bandeau « Mettre à jour l’application » sans « Plus tard », la mise à jour recharge', async ({ page }) => {
+test('appli pas à jour : nouvelle version publiée, l’appli bloquée jusqu’à sa mise à jour (après la saisie en cours)', async ({ page }) => {
   await expect(page.locator('h1')).toBeVisible();
-  // Rien de publié depuis l'ouverture : pas de bandeau, même après une vérification (retour de la connexion).
+  const avis = page.getByRole('status', { name: 'Mise à jour de l’application' });
+  const ecran = page.getByRole('alertdialog', { name: 'Mise à jour de l’appli' });
+  // Rien de publié depuis l'ouverture : rien, même après une vérification (retour de la connexion).
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
   await page.waitForTimeout(500);
-  await expect(page.getByRole('region', { name: 'Mise à jour de l’application' })).toHaveCount(0);
-  // Une nouvelle version publiée : la page du serveur charge un autre script principal.
+  await expect(avis).toHaveCount(0);
+  await expect(ecran).toHaveCount(0);
+  // Un point en cours de saisie, puis une nouvelle version publiée (la page du serveur charge un autre script principal).
+  const fiche = await nouvelleTache(page, 'Point à finir avant la mise à jour');
   const racine = new URL('./', page.url()).href;
   let relue = 0;
   await page.route((u) => u.href === racine, async (route) => {
@@ -4558,14 +4562,24 @@ test('appli pas à jour : nouvelle version publiée, bandeau « Mettre à jour l
     await route.fulfill({ response: res, body: html });
   });
   await page.evaluate(() => window.dispatchEvent(new Event('online')));
-  const bandeau = page.getByRole('region', { name: 'Mise à jour de l’application' });
-  await expect(bandeau).toContainText('Une nouvelle version de l’appli est disponible.');
-  // Pas de « Plus tard » : un seul bouton, et le bandeau reste en changeant de page.
-  await expect(bandeau.getByRole('button')).toHaveCount(1);
-  await page.goto('./?demo#/taches');
-  await expect(page.locator('main h1, main h2').first()).toBeVisible();
-  await expect(bandeau).toHaveCount(1);
-  // Mettre à jour : la page publiée relue sans le cache du navigateur, puis l'appli rechargée.
+  // La saisie d'abord : un avis seulement, la fiche reste utilisable.
+  await expect(avis).toContainText('termine et enregistre ce que tu fais');
+  await page.waitForTimeout(1500);
+  await expect(ecran).toHaveCount(0);
+  await fiche.getByRole('button', { name: /^Créer$/ }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  // Enregistré : l'appli bloquée, un seul bouton, pas de « Plus tard » ; le reste ne réagit plus (clic, clavier).
+  await expect(ecran).toBeVisible();
+  await expect(ecran.getByRole('button')).toHaveCount(1);
+  await expect(ecran.getByRole('button', { name: 'Mettre à jour l’application' })).toBeFocused();
+  await expect(page.locator('#root')).toHaveAttribute('inert', '');
+  const adresse = page.url();
+  await page.mouse.click(10, 10);
+  await page.keyboard.press('Control+z');
+  await page.waitForTimeout(300);
+  expect(page.url()).toBe(adresse);
+  await expect(ecran).toBeVisible();
+  // Mettre à jour : la page publiée relue, puis l'appli rechargée ; le point enregistré est là.
   await page.unroute((u) => u.href === racine);
   const avant = relue;
   await page.route((u) => u.href === racine, (route) => {
@@ -4573,9 +4587,12 @@ test('appli pas à jour : nouvelle version publiée, bandeau « Mettre à jour l
     return route.continue();
   });
   const recharge = page.waitForEvent('load');
-  await bandeau.getByRole('button', { name: 'Mettre à jour l’application' }).click();
+  await ecran.getByRole('button', { name: 'Mettre à jour l’application' }).click();
   await recharge;
   expect(relue).toBeGreaterThan(avant);
   await expect(page.locator('h1')).toBeVisible();
-  await expect(bandeau).toHaveCount(0);
+  await expect(ecran).toHaveCount(0);
+  await expect(page.locator('#root')).not.toHaveAttribute('inert', '');
+  await allerA(page, '/taches');
+  await expect(page.getByText('Point à finir avant la mise à jour').first()).toBeVisible();
 });

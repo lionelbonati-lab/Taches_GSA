@@ -5,8 +5,9 @@ import { useSyncExternalStore } from 'react';
 // les données (10.11.2026 et 12.11.2026 : les séries d'événements effacées par un appareil pas à jour ; le serveur les
 // protège maintenant, migration 069). L'appli relit donc la page publiée (index.html) de temps en temps et compare son
 // script principal (« assets/index-<empreinte>.js », dont le nom change à chaque publication du code) au sien : s'il
-// diffère, le bandeau « Mettre à jour l'application » s'affiche (MiseAJour.tsx), sans « Plus tard » : il reste jusqu'à la
-// mise à jour, pour qu'une version dépassée ne serve pas plus longtemps.
+// diffère, l'appli est bloquée jusqu'à sa mise à jour (MiseAJour.tsx : un écran avec le seul bouton « Mettre à jour
+// l'application », sans « Plus tard » ; un formulaire ouvert ou une saisie en cours est d'abord terminé, le bandeau
+// prévient en attendant).
 // Quand : 5 s après l'ouverture, toutes les 15 minutes, au retour sur l'appli (après au moins une minute) et au retour
 // de la connexion. En développement (vite dev, pas de script « assets/index-… ») : jamais.
 
@@ -32,15 +33,16 @@ const prevenir = () => abonnes.forEach((f) => f());
 const racine = (script: string) => new URL('../', script).href;
 
 /**
- * Relit la page publiée et dit si son script principal n'est plus celui de cette appli. Lue sans le cache du navigateur,
- * qu'elle remplace : le rechargement prend ensuite la nouvelle page.
+ * Relit la page publiée et dit si son script principal n'est plus celui de cette appli. Lue sans aucun cache, et gardée
+ * nulle part (sw.js ne garde pas une réponse « no-store ») : hors connexion, l'appli rouvre la version dont elle a les
+ * fichiers.
  */
 export async function verifierMiseAJour(): Promise<boolean> {
   const courant = scriptCourant();
   if (!courant || !navigator.onLine) return nouvelle;
   derniere = Date.now();
   try {
-    const res = await fetch(racine(courant), { cache: 'reload', credentials: 'same-origin' });
+    const res = await fetch(racine(courant), { cache: 'no-store', credentials: 'same-origin' });
     if (!res.ok) return nouvelle;
     const m = ENTREE.exec(await res.text());
     // Page sans script principal (portail d'un wifi public, page d'erreur) : rien à conclure.
@@ -70,7 +72,10 @@ export function suivreMisesAJour() {
   window.addEventListener('online', verifier);
 }
 
-/** Met l'appli à jour : le service worker relu (s'il a changé), la nouvelle page reprise du serveur, puis rechargée. */
+/**
+ * Met l'appli à jour : le service worker relu (s'il a changé), la nouvelle page reprise du serveur (elle remplace celle
+ * du cache du navigateur), puis rechargée.
+ */
 export async function mettreAJour() {
   try {
     const reg = await navigator.serviceWorker?.getRegistration();

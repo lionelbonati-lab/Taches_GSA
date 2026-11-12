@@ -2,7 +2,7 @@
 // - Pages : réseau d'abord, repli sur la dernière version en cache (hors-ligne).
 // - Fichiers /assets/ (noms uniques à chaque build) : cache d'abord. Ceux des versions précédentes restent sur le site
 //   (scripts/anciens-assets.mjs) : une appli ouverte avant une publication charge encore le PDF, la carte…
-// Seules les réponses valides sont gardées (pas un fichier introuvable).
+// Seules les réponses valides sont gardées (pas un fichier introuvable), et pas celles demandées « no-store ».
 const CACHE = 'taches-gsa-v4';
 const SHELL = ['./', './index.html', './manifest.webmanifest', './icon-192.png', './icon-512.png', './favicon-32.png', './icon.svg'];
 
@@ -43,7 +43,9 @@ self.addEventListener('fetch', (e) => {
   e.respondWith(
     fetch(req)
       .then((res) => {
-        if (res.ok) {
+        // « no-store » : la page publiée relue pour savoir si l'appli est à jour (miseAJour.ts) ; gardée, elle
+        // remplacerait la page de cette version sans ses fichiers, et l'appli ne s'ouvrirait plus hors connexion.
+        if (res.ok && req.cache !== 'no-store') {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(req, copy));
         }
