@@ -119,10 +119,16 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
   expect(donnees.assemblees[0].eventId).toBe('e12');
 });
 
-test('AG suivante : ses points repris de l’AG précédente, années avancées d’un an', async ({ page }) => {
+test('AG suivante : ses points repris de l’AG précédente, années des intitulés avancées d’un an, textes tels quels', async ({ page }) => {
   await allerA(page, '/ag');
   await page.getByRole('button', { name: /Partir du modèle/ }).click();
   await expect(page.locator('.ag-points > .ag-liste > li')).toHaveCount(12);
+  // Un texte qui raconte l'année : il ne doit pas changer à la reprise.
+  const TEXTE = 'Exercice 2026 bouclé en février 2027 ; Charline, née le 24 février 2027.';
+  await page.locator('.ag-points > .ag-liste > li').nth(5).locator('.ag-titre').first().click();
+  await page.getByRole('dialog').getByLabel(/^Texte/).fill(TEXTE);
+  await page.getByRole('dialog').getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
 
   // Nouvelle AG (événement de type « Assemblée générale »), le 11.03.2028 : choisie d'office.
   await page.getByRole('button', { name: 'Nouvelle AG' }).click();
@@ -138,6 +144,12 @@ test('AG suivante : ses points repris de l’AG précédente, années avancées 
   await expect(page.locator('.ag-points > .ag-liste > li').nth(2).locator('.ag-titre').first()).toContainText('Approbation du PV 2027');
   await expect(page.locator('.ag-points > .ag-liste > li').nth(5).locator('.ag-titre').first()).toContainText('Comptes exercices 2027');
   await expect(page.locator('.ag-points > .ag-liste > li').nth(9).locator('.ag-titre').first()).toContainText('Budget 2028');
+  // Les votes avancent aussi ; le texte, non.
+  await expect(page.locator('.ag-points > .ag-liste > li').nth(2).locator('.ag-vote')).toHaveAttribute('title', 'Approbation du PV 2027');
+  await page.locator('.ag-points > .ag-liste > li').nth(5).locator('.ag-titre').first().click();
+  await expect(page.getByRole('dialog').getByLabel(/^Texte/)).toHaveValue(TEXTE);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.modal')).toHaveCount(0);
   // L'ordre du jour de l'AG 2027 n'a pas changé.
   await page.getByLabel('Assemblée générale à préparer').selectOption('e12');
   await page.getByRole('tab', { name: /Points/ }).click();

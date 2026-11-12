@@ -33,7 +33,7 @@ import { MeetingModal, PvViewer } from './Agenda';
 // le droit « Assemblée générale » (console admin › Rôles et droits). Pour l'AG choisie (celles de l'agenda, assemblee.ts) :
 // - « Points » : ses points à elle (ni statut, ni délai, ni responsable), dans l'ordre (glisser, ou ↑ ↓), chacun avec son
 //   texte, ses sous-points (a., b.…), ses documents et ses votes prévus ; pour commencer, ceux de l'AG précédente (années
-//   avancées d'un an) ou un modèle ;
+//   des intitulés et des votes avancées d'un an, textes tels quels) ou un modèle ;
 // - « Convocation » : le document (en-tête et mise en forme communs aux documents du club), PDF, impression, texte modifié
 //   à la main, archive dans l'AG, email au comité ou aux membres (copie cachée), texte copié.
 
@@ -192,7 +192,7 @@ export function OrdreDuJourAg() {
       if (!f.fin && precedente.fiche.fin) f.fin = precedente.fiche.fin;
       if (!f.odjOptions && precedente.fiche.odjOptions) f.odjOptions = { ...precedente.fiche.odjOptions };
     }, `AG « ${ag.nom} » : ordre du jour repris de « ${precedente.ag.nom} »`);
-    setMsg(`↩ ${repris.length} points repris de « ${precedente.ag.nom} » (sans les documents) ; les années ont avancé d’un an : relis-les.`);
+    setMsg(`↩ ${repris.length} points repris de « ${precedente.ag.nom} » (sans les documents) ; les années des intitulés ont avancé d’un an, les textes sont ceux de l’an dernier : relis-les.`);
   };
   const partirDuModele = () => {
     if (!ag) return;

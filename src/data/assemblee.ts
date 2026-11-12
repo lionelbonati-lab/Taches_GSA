@@ -77,8 +77,10 @@ export function avancerAnnees(texte: string, anOrigine: number, ecart: number): 
 }
 
 /**
- * Points repris d'une AG précédente (nouveaux identifiants, années avancées) : intitulés, textes, sous-points et votes,
- * sans les documents (ceux de l'an dernier ne valent plus) ; `repriseDe` : le point d'origine.
+ * Points repris d'une AG précédente (nouveaux identifiants) : intitulés, textes, sous-points et votes, sans les documents
+ * (ceux de l'an dernier ne valent plus) ; `repriseDe` : le point d'origine. Les années avancent dans les intitulés et
+ * les questions des votes (« Comptes 2026 » → « Comptes 2027 ») ; pas dans les textes (12.11.2026) : ils disent ce qui
+ * s'est passé (« née le 24 février 2026 »), une année avancée y serait fausse ; on les relit et on les réécrit.
  */
 export function reprendrePoints(points: PointAg[], deLa: string, versLa: string): PointAg[] {
   const an = Number(deLa.slice(0, 4));
@@ -87,7 +89,7 @@ export function reprendrePoints(points: PointAg[], deLa: string, versLa: string)
   const copie = (p: PointAg, sous: boolean): PointAg => ({
     id: uid('pa'),
     titre: av(p.titre),
-    ...(p.texte ? { texte: av(p.texte) } : {}),
+    ...(p.texte ? { texte: p.texte } : {}),
     ...(p.votes?.length ? { votes: p.votes.map((v) => ({ ...v, id: uid('va'), objet: av(v.objet) })) } : {}),
     ...(sous && p.sous?.length ? { sous: p.sous.map((x) => copie(x, false)) } : {}),
     repriseDe: p.id,
