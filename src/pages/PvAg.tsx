@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { useStore } from '../data/store';
-import type { Assemblee, Person, PointAg, PvAg as DonneesPvAg, PvArchive, ResultatVote, StyleDocs, VoteAg } from '../data/types';
-import { agDuClub, agParDefaut, ficheDe, heureTexte, lettre, majoriteTexte, nouvelleFiche, tacheDuPoint, texteResultat, tousLesPoints, type AgAgenda } from '../data/assemblee';
+import type { Assemblee, Person, PointAg, PvAg as DonneesPvAg, PvArchive, ResultatVote, StyleDocs, VerificateursAg, VoteAg } from '../data/types';
+import {
+  agDuClub, agParDefaut, estVerificateurs, ficheDe, heureTexte, lettre, majoriteTexte, nouvelleFiche, pointVerificateurs, rotationVerificateurs,
+  tacheDuPoint, texteResultat, texteVerificateurs, tousLesPoints, verificateursDe, type AgAgenda,
+} from '../data/assemblee';
 import { fmtDate, fmtDateTime, fullName, localNow, today, uid } from '../data/utils';
 import { archiveHtml } from '../data/entete';
 import { nomAppli } from '../data/nomAppli';
@@ -27,7 +30,9 @@ import { PvViewer } from './Agenda';
 // - « Prise de notes » : la séance (heures), la présidence, le secrétaire du PV, les votants, présents, excusés et
 //   invités ; puis chaque point et sous-point de l'ordre du jour, avec ses notes et le résultat de ses votes (« À
 //   l'unanimité », « Par acclamation », ou compté : pour, contre, abstentions, avec les noms si on veut) ; les noms des
-//   scrutateurs sous le point « Nomination des scrutateurs » (sans ce point : dans la séance) ;
+//   scrutateurs sous le point « Nomination des scrutateurs » (sans ce point : dans la séance) ; les vérificateurs des
+//   comptes (premier, second, suppléant) sous le point « Rapport des vérificateurs », le second de l'AG précédente
+//   proposé comme premier ;
 // - « PV » : le document (en-tête et mise en forme des documents du club), PDF, impression, texte copié ; « Valider et
 //   archiver » le fige (archive dans l'AG), « Corriger le PV » le rouvre (la validation suivante crée la version 2).
 // « Vue en fenêtres » : point par point, comme le PV du comité (FicheAg, Fenetres.tsx). À venir : la liste de présence
@@ -180,7 +185,7 @@ export function PvAg() {
   const copier = async () => {
     if (!ag) return;
     try {
-      await navigator.clipboard.writeText(textePv(ag, fiche, data.people));
+      await navigator.clipboard.writeText(textePv(ag, fiche, data.people, texteVerificateurs(verificateursDe(data, ag, pv).v)));
       setMsg('📋 Texte du PV copié.');
     } catch {
       setMsg('Copie impossible dans ce navigateur.');
@@ -353,6 +358,7 @@ function PriseDeNotes({ ag, points, pv, personnes, lecture, modifier, setNote, s
       {(p.votes ?? []).map((v) => (
         <ResultatVoteChamp key={v.id} vote={v} resultat={pv.resultats?.[v.id]} votants={pv.votants} lecture={lecture} onChange={(r) => setResultat(v, r)} />
       ))}
+      {p.id === pointVerificateurs(points)?.id && <VerificateursChamp ag={ag} pv={pv} lecture={lecture} modifier={modifier} />}
       <NoteField value={pv.notes[p.id] ?? ''} onCommit={(v) => setNote(p.id, v)} placeholder={`Notes pour « ${p.titre} »…`} readOnly={lecture} />
     </div>
   );
@@ -388,6 +394,54 @@ function PriseDeNotes({ ag, points, pv, personnes, lecture, modifier, setNote, s
           </div>
         ))}
       </section>
+    </div>
+  );
+}
+
+/**
+ * Vérificateurs des comptes (sous le point « Rapport des vérificateurs ») : premier, second, suppléant. Rien de noté : le
+ * second de l'AG précédente est proposé comme premier ; enregistrés dès qu'on quitte un des champs.
+ */
+function VerificateursChamp({ ag, pv, lecture, modifier }: {
+  ag: AgAgenda;
+  pv: DonneesPvAg;
+  lecture: boolean;
+  modifier: (fn: (pv: DonneesPvAg) => void, action: string) => void;
+}) {
+  const { data } = useStore();
+  const groupe = useRef<HTMLDivElement>(null);
+  const rotation = rotationVerificateurs(data, ag);
+  const { v, propose } = verificateursDe(data, ag, pv);
+  const CHAMPS: [keyof VerificateursAg, string][] = [['premier', 'Premier vérificateur'], ['second', 'Second vérificateur'], ['suppleant', 'Suppléant']];
+  const valider = () => {
+    const el = groupe.current;
+    if (!el || lecture) return;
+    const nv: VerificateursAg = {};
+    for (const [k] of CHAMPS) {
+      const x = el.querySelector<HTMLInputElement>(`input[name="${k}"]`)?.value.trim();
+      if (x) nv[k] = x;
+    }
+    const avant = pv.verificateurs ?? {};
+    if (CHAMPS.every(([k]) => (avant[k] ?? '') === (nv[k] ?? ''))) return;
+    modifier((x) => {
+      if (Object.keys(nv).length) x.verificateurs = nv;
+      else delete x.verificateurs;
+    }, 'vérificateurs des comptes');
+  };
+  return (
+    <div ref={groupe} className="ag-verif" role="group" aria-label="Vérificateurs des comptes">
+      <p className="small">
+        <b>Vérificateurs des comptes</b>
+        {rotation && <span className="muted"> · AG {rotation.an} : {texteVerificateurs(rotation.avant)}</span>}
+        {propose && <span className="muted"> · le second passe premier ; à élire : un second et un suppléant.</span>}
+      </p>
+      {CHAMPS.map(([k, label]) => (
+        <label key={k}>
+          {label}
+          {/* Clé : la valeur enregistrée de ce champ seulement (pas des autres : on passe d'un champ à l'autre sans perdre la main). */}
+          <input key={`${k}-${ag.cle}-${pv.verificateurs?.[k] ?? ''}`} name={k} defaultValue={v?.[k] ?? ''} readOnly={lecture} placeholder={k === 'premier' ? 'Nom' : 'Élu(e) par l’AG'} onBlur={valider} />
+        </label>
+      ))}
     </div>
   );
 }
@@ -636,6 +690,7 @@ function FicheAg({ ag, pv, arrets, i, aller, personnes, lecture, modifier, setNo
             {a.parent && <p className="muted small">Sous-point de « {a.parent.titre} »</p>}
             {p.texte?.trim() ? <p className="ag-pv-texte"><AvecLiens texte={p.texte.trim()} /></p> : <p className="muted small">Pas de texte pour ce point.</p>}
             {estScrutateurs(p) && arrets.find((x) => x.point && estScrutateurs(x.point))?.cle === p.id && <ScrutateursChamp ag={ag} pv={pv} lecture={lecture} modifier={modifier} />}
+            {estVerificateurs(p) && arrets.find((x) => x.point && estVerificateurs(x.point))?.cle === p.id && <VerificateursChamp ag={ag} pv={pv} lecture={lecture} modifier={modifier} />}
             {(p.sous?.length ?? 0) > 0 && (
               <ol className="ag-fiche-sous">
                 {p.sous!.map((s) => (
@@ -751,6 +806,7 @@ function FeuillePvAg({ ag, fiche, pv, style, feuilleRef }: {
     return p ? fullName(p) : '';
   };
   const ligne = (label: string, v?: ReactNode) => (v ? <p><b>{label} :</b> {v}</p> : null);
+  const verif = texteVerificateurs(verificateursDe(data, ag, pv).v);
   const details = (p: PointAg) => (
     <>
       {pv.textes && p.texte?.trim() && <div className="odj-rem ag-texte-point"><AvecLiens texte={p.texte.trim()} /></div>}
@@ -764,6 +820,7 @@ function FeuillePvAg({ ag, fiche, pv, style, feuilleRef }: {
           </p>
         );
       })}
+      {verif && p.id === pointVerificateurs(points)?.id && <p className="min-pv-note">Vérificateurs des comptes : {verif}</p>}
     </>
   );
   return (
@@ -841,7 +898,7 @@ function FeuillePvAg({ ag, fiche, pv, style, feuilleRef }: {
 }
 
 /** Version texte du PV (copier). */
-function textePv(ag: AgAgenda, fiche: Assemblee | undefined, people: Person[]): string {
+function textePv(ag: AgAgenda, fiche: Assemblee | undefined, people: Person[], verif = ''): string {
   const pv = fiche?.pv ?? VIDE;
   const nom = (id?: string) => {
     const p = people.find((x) => x.id === id);
@@ -868,6 +925,7 @@ function textePv(ag: AgAgenda, fiche: Assemblee | undefined, people: Person[]): 
       const r = pv.resultats?.[v.id];
       l.push(`${retrait}Vote : ${v.objet} – ${r ? texteResultat(v, r, pv.votants) : 'pas de résultat noté'}`);
     });
+    if (verif && p.id === pointVerificateurs(fiche?.points ?? [])?.id) l.push(`${retrait}Vérificateurs des comptes : ${verif}`);
   };
   (fiche?.points ?? []).forEach((p, i) => {
     l.push('', `${i + 1}. ${p.titre}`);

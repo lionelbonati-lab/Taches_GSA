@@ -1,4 +1,4 @@
-import type { AppData, Assemblee, ClubEvent, DetailAg, MajoriteAg, Meeting, OptionsOdjAg, PointAg, ResultatVote, Task, TaskDoc, VoteAg } from './types';
+import type { AppData, Assemblee, ClubEvent, DetailAg, MajoriteAg, Meeting, OptionsOdjAg, PointAg, PvAg, ResultatVote, Task, TaskDoc, VerificateursAg, VoteAg } from './types';
 import { newTask, today, uid } from './utils';
 import { occurrencesEntre } from './repetition';
 import { decalerAns } from './chronologieClub';
@@ -63,6 +63,45 @@ export function agPrecedente(data: Pick<AppData, 'events' | 'meetings' | 'assemb
   return undefined;
 }
 
+// ---------- Vérificateurs des comptes ----------
+
+/** Le point (ou sous-point) où les vérificateurs font leur rapport et où l'AG les élit : « Rapport des vérificateurs ». */
+export const estVerificateurs = (p: Pick<PointAg, 'titre'>) => /v[ée]rificateur/i.test(p.titre);
+export const pointVerificateurs = (points: PointAg[]) => tousLesPoints(points).find(estVerificateurs);
+
+const aDesVerificateurs = (v?: VerificateursAg): v is VerificateursAg => !!(v?.premier || v?.second || v?.suppleant);
+
+/** Vérificateurs en place après l'AG précédente (son PV) : point de départ de la rotation. */
+export function rotationVerificateurs(data: Pick<AppData, 'events' | 'meetings' | 'assemblees'>, ag: AgAgenda): { an: string; avant: VerificateursAg } | undefined {
+  const prec = agPrecedente(data, ag);
+  const avant = prec?.fiche.pv?.verificateurs;
+  return prec && aDesVerificateurs(avant) ? { an: prec.ag.date.slice(0, 4), avant } : undefined;
+}
+
+/**
+ * Vérificateurs de l'AG : ceux notés à son PV ; sinon, proposés d'après l'AG précédente : son second vérificateur passe
+ * premier (le second et le suppléant restent à élire).
+ */
+export function verificateursDe(data: Pick<AppData, 'events' | 'meetings' | 'assemblees'>, ag: AgAgenda, pv?: Pick<PvAg, 'verificateurs'>): { v?: VerificateursAg; propose: boolean } {
+  if (aDesVerificateurs(pv?.verificateurs)) return { v: pv!.verificateurs, propose: false };
+  const second = rotationVerificateurs(data, ag)?.avant.second;
+  return second ? { v: { premier: second }, propose: true } : { propose: false };
+}
+
+/** « Clément Schaffter (premier), Gabriel Varé (second) ; suppléant : Maurice Périat ». */
+export function texteVerificateurs(v?: VerificateursAg): string {
+  if (!v) return '';
+  const deux = [v.premier && `${v.premier} (premier)`, v.second && `${v.second} (second)`].filter(Boolean).join(', ');
+  return [deux, v.suppleant && `suppléant : ${v.suppleant}`].filter(Boolean).join(' ; ');
+}
+
+/** Ligne de l'ordre du jour au point des vérificateurs : qui passe premier, qui est à élire. */
+export function texteRotation(r?: { an: string; avant: VerificateursAg }): string {
+  if (!r) return '';
+  const suite = r.avant.second ? `${r.avant.second} passe premier vérificateur ; à élire : un second vérificateur et un suppléant.` : 'À élire : un second vérificateur et un suppléant.';
+  return `Vérificateurs des comptes (AG ${r.an} : ${texteVerificateurs(r.avant)}). ${suite}`;
+}
+
 /**
  * Années d'un intitulé avancées de `ecart` (« Comptes 2026 » → « Comptes 2027 » d'une AG à la suivante) : seulement
  * celles proches de l'AG d'origine (deux ans avant, un an après), pas « fondé en 1952 ».
@@ -121,9 +160,9 @@ export function modeleAg(an: number): PointAg[] {
       sous: [p('École de cyclisme'), p('Groupe compétition'), p('Bruntrutaine'), p('Course de préparation'), p('Critérium de Porrentruy'), p('Col de Montvoie')],
     }),
     p(`Comptes exercices ${passe}`),
-    // Les vérificateurs font leur rapport, l'AG approuve les comptes, puis elle élit les vérificateurs de l'exercice en
-    // cours : dans le même point (12.11.2026).
-    p('Rapport des vérificateurs', { vote: [`Approbation des comptes ${passe}`, `Élection des vérificateurs des comptes ${an}`] }),
+    // Les vérificateurs font leur rapport, l'AG approuve les comptes, puis elle élit, dans le même point, un second
+    // vérificateur et un suppléant : le second de l'an dernier passe premier (12.11.2026).
+    p('Rapport des vérificateurs', { vote: [`Approbation des comptes ${passe}`, 'Élection du second vérificateur et du suppléant'] }),
     p('Renouvellement du comité'),
     p('Élection du/de la président/e et du comité', { vote: ['Élection du/de la président/e', 'Élection du comité'] }),
     p(`Budget ${an}`, { vote: true }),
@@ -200,7 +239,7 @@ export const fichierUtilise = (data: Pick<AppData, 'tasks' | 'assemblees'>, id: 
   (data.assemblees ?? []).some((f) => tousLesPoints(f.points).some((p) => !sauf.includes(p.id) && p.documents?.some((d) => d.id === id)));
 
 /** Version texte de la convocation (copier, email). */
-export function texteConvocation(ag: AgAgenda, fiche: Assemblee | undefined, o: Required<OptionsOdjAg>, longDate: (d: string) => string, detail: DetailAg = 'complet'): string {
+export function texteConvocation(ag: AgAgenda, fiche: Assemblee | undefined, o: Required<OptionsOdjAg>, longDate: (d: string) => string, detail: DetailAg = 'complet', rotation = ''): string {
   const lignes: string[] = [ag.nom, [longDate(ag.date), ag.heure && ag.heure.replace(':', 'h')].filter(Boolean).join(', ')];
   if (ag.lieu) lignes.push(`Lieu : ${ag.lieu}`);
   if (fiche?.intro?.trim()) lignes.push('', fiche.intro.trim());
@@ -208,6 +247,7 @@ export function texteConvocation(ag: AgAgenda, fiche: Assemblee | undefined, o: 
   const pts = fiche?.points ?? [];
   if (!pts.length) lignes.push('(aucun point pour l’instant)');
   const complet = detail === 'complet';
+  const verif = pointVerificateurs(pts);
   // Complet : chaque vote sur sa ligne, avec sa majorité ; sinon « (vote) » à côté de l'intitulé.
   const marque = (p: PointAg) => (o.votes && !complet ? texteVotes(p) : '');
   const details = (p: PointAg, retrait: string) =>
@@ -216,6 +256,7 @@ export function texteConvocation(ag: AgAgenda, fiche: Assemblee | undefined, o: 
       : [
           ...(o.textes && p.texte?.trim() ? p.texte.trim().split('\n').map((l) => `${retrait}${l}`) : []),
           ...(o.votes ? (p.votes ?? []).map((v) => `${retrait}◦ ${ligneVote(v)}`) : []),
+          ...((o.votes || o.textes) && rotation && p.id === verif?.id ? [`${retrait}${rotation}`] : []),
           ...(o.documents && p.documents?.length ? [`${retrait}📎 ${p.documents.map((d) => d.nom).join(', ')}`] : []),
         ];
   pts.forEach((p, i) => {

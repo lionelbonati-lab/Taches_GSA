@@ -83,7 +83,7 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
   const verif = feuille.locator('ol.odj > li', { hasText: 'Rapport des vérificateurs' });
   await expect(verif.locator('.ag-votes-point li')).toHaveText([
     'Vote : Approbation des comptes 2026 – majorité des voix exprimées',
-    'Vote : Élection des vérificateurs des comptes 2027 – majorité des voix exprimées',
+    'Vote : Élection du second vérificateur et du suppléant – majorité des voix exprimées',
   ]);
   await expect(feuille.locator('ol.odj > li', { hasText: 'Élection du/de la président/e' }).locator('.ag-votes-point li')).toHaveText([
     'Vote : Élection du/de la président/e – majorité des voix exprimées',
@@ -164,6 +164,47 @@ test('AG suivante : ses points repris de l’AG précédente, années des intitu
   await page.getByLabel('Assemblée générale à préparer').selectOption('e12');
   await page.getByRole('tab', { name: /Points/ }).click();
   await expect(page.locator('.ag-points > .ag-liste > li').nth(5).locator('.ag-titre').first()).toContainText('Comptes exercices 2026');
+});
+
+test('vérificateurs des comptes : premier, second et suppléant au PV ; à l’AG suivante, le second passe premier', async ({ page }) => {
+  await allerA(page, '/ag');
+  await page.getByRole('button', { name: /Partir du modèle/ }).click();
+  await page.getByRole('link', { name: /PV de cette AG/ }).click();
+  // Sous le point « Rapport des vérificateurs », après ses votes (approbation des comptes, élection).
+  const point = page.locator('.min-section', { hasText: 'Rapport des vérificateurs' });
+  await expect(point.locator('.ag-vote-res')).toHaveCount(2);
+  const groupe = point.getByRole('group', { name: 'Vérificateurs des comptes' });
+  await groupe.getByLabel('Premier vérificateur').fill('A. Premier');
+  await groupe.getByLabel('Second vérificateur').fill('B. Second');
+  await groupe.getByLabel('Suppléant').fill('C. Suppléant');
+  await groupe.getByLabel('Premier vérificateur').focus();
+  await expect(groupe.getByLabel('Second vérificateur')).toHaveValue('B. Second');
+  await page.getByRole('tab', { name: 'PV' }).click();
+  const traites = page.locator('.pv-preview .pv-sheet .pv-part', { hasText: 'Points traités' });
+  await expect(traites.locator('ol.ag-odj > li', { hasText: 'Rapport des vérificateurs' })).toContainText(
+    'Vérificateurs des comptes : A. Premier (premier), B. Second (second) ; suppléant : C. Suppléant',
+  );
+
+  // AG suivante (2028), reprise de l'AG 2027 : la convocation dit qui passe premier et qui est à élire.
+  await allerA(page, '/ag');
+  await page.getByRole('button', { name: 'Nouvelle AG' }).click();
+  const f = page.getByRole('dialog', { name: 'Nouvel événement' });
+  await f.getByLabel('Premier jour').fill('2028-03-11');
+  await f.getByRole('button', { name: 'Enregistrer' }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await page.getByRole('button', { name: /^Reprendre « Assemblée générale 2027 »/ }).click();
+  await page.getByRole('tab', { name: 'Convocation' }).click();
+  await expect(page.locator('.pv-sheet ol.odj > li', { hasText: 'Rapport des vérificateurs' }).locator('.ag-rotation')).toHaveText(
+    'Vérificateurs des comptes (AG 2027 : A. Premier (premier), B. Second (second) ; suppléant : C. Suppléant). B. Second passe premier vérificateur ; à élire : un second vérificateur et un suppléant.',
+  );
+  // Son PV propose B. Second comme premier vérificateur ; le second et le suppléant sont à élire.
+  await page.getByRole('link', { name: /PV de cette AG/ }).click();
+  const groupe2 = page.locator('.min-section', { hasText: 'Rapport des vérificateurs' }).getByRole('group', { name: 'Vérificateurs des comptes' });
+  await expect(groupe2).toContainText('AG 2027 : A. Premier (premier), B. Second (second) ; suppléant : C. Suppléant');
+  await expect(groupe2.getByLabel('Premier vérificateur')).toHaveValue('B. Second');
+  await expect(groupe2.getByLabel('Second vérificateur')).toHaveValue('');
+  await page.getByRole('tab', { name: 'PV' }).click();
+  await expect(traites.locator('ol.ag-odj > li', { hasText: 'Rapport des vérificateurs' })).toContainText('Vérificateurs des comptes : B. Second (premier)');
 });
 
 test('carte de l’AG dans les événements : lien vers son ordre du jour', async ({ page }) => {

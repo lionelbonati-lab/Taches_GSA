@@ -4,7 +4,8 @@ import { useStore } from '../data/store';
 import type { Assemblee, ClubEvent, DetailAg, MajoriteAg, OptionsOdjAg, PointAg, PvArchive, StyleDocs } from '../data/types';
 import {
   DETAILS_AG, MAJORITES, agDuClub, agParDefaut, agPrecedente, ficheDe, fichierUtilise, lettre, majoriteTexte, modeleAg, nouveauVote, nouvelleFiche, optionsOdjAg,
-  reprendrePoints, tacheDuPoint, texteConvocation, texteVotes, tousLesPoints, type AgAgenda,
+  pointVerificateurs, reprendrePoints, rotationVerificateurs, tacheDuPoint, texteConvocation, texteRotation, texteVotes, tousLesPoints,
+  type AgAgenda,
 } from '../data/assemblee';
 import { fmtDate, fmtDateTime, fullName, today, uid } from '../data/utils';
 import { cleanHtml } from '../data/sanitize';
@@ -248,7 +249,7 @@ export function OrdreDuJourAg() {
     setMsg('📁 Convocation archivée dans l’AG (« Archives », dans les réglages).');
   };
   const texteEdite = () => (sheetRef.current?.innerText ?? '').replace(/\n{3,}/g, '\n\n').trim();
-  const docTexte = () => ((edite || draft !== null) && sheetRef.current ? texteEdite() : ag ? texteConvocation(ag, fiche, o, longDate, detail) : '');
+  const docTexte = () => ((edite || draft !== null) && sheetRef.current ? texteEdite() : ag ? texteConvocation(ag, fiche, o, longDate, detail, texteRotation(rotationVerificateurs(data, ag))) : '');
   const copier = async () => {
     try {
       await navigator.clipboard.writeText(docTexte());
@@ -544,11 +545,16 @@ function FeuilleAg({ ag, fiche, o, detail, style, feuilleRef, onOuvrir }: {
   /** Clic sur un point (convocation affichée) : sa fiche. */
   onOuvrir?: (p: PointAg, parentId?: string) => void;
 }) {
-  const { user } = useStore();
+  const { data, user } = useStore();
   const logo = useUnitLogo();
   const entete = useEntete();
   const points = fiche?.points ?? [];
   const complet = detail === 'complet';
+  // Au point des vérificateurs : le second de l'AG précédente passe premier ; un second et un suppléant à élire.
+  const rotation = texteRotation(rotationVerificateurs(data, ag));
+  const verif = pointVerificateurs(points);
+  // Montrée avec les textes ou avec les votes des points.
+  const ligneRotation = (p: PointAg) => (complet && (o.votes || o.textes) && rotation && p.id === verif?.id ? <p className="odj-rem ag-rotation">{rotation}</p> : null);
   const annexes = o.annexes ? annexesDe(tousLesPoints(points).map(tacheDuPoint)) : [];
   const titre = (p: PointAg, parentId?: string) => (
     <span className="odj-task" onClick={onOuvrir && (() => onOuvrir(p, parentId))}>{p.titre}</span>
@@ -593,6 +599,7 @@ function FeuilleAg({ ag, fiche, o, detail, style, feuilleRef, onOuvrir }: {
                 <span className="odj-sec">{titre(p)}{votes(p)}</span>
                 {texte(p)}
                 {lignesVotes(p)}
+                {ligneRotation(p)}
                 {docs(p)}
                 {detail !== 'points' && (p.sous?.length ?? 0) > 0 && (
                   <ol className="odj-l1">
@@ -601,6 +608,7 @@ function FeuilleAg({ ag, fiche, o, detail, style, feuilleRef, onOuvrir }: {
                         {titre(s, p.id)}{votes(s)}
                         {texte(s)}
                         {lignesVotes(s)}
+                        {ligneRotation(s)}
                         {docs(s)}
                       </li>
                     ))}
@@ -834,7 +842,7 @@ function EnvoiAg({ ag, fiche, o, detailAffiche, edite, nomDoc, style, onClose }:
     setDetail(d);
     setPrefs({ agEnvoiDetail: d });
   };
-  const texte = edite ? edite.texte : texteConvocation(ag, fiche, o, longDate, detail);
+  const texte = edite ? edite.texte : texteConvocation(ag, fiche, o, longDate, detail, texteRotation(rotationVerificateurs(data, ag)));
   const feuillePdf = useRef<HTMLDivElement>(null);
   const [membres, setMembres] = useState<{ nom: string; email: string }[] | null>(null);
   useEffect(() => {

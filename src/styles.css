@@ -1300,6 +1300,11 @@ body:has(.pv-fiche-ecran) { overflow: hidden; }
 .ag-pv-point.sous { margin-top: 10px; }
 .ag-pv-texte { white-space: pre-line; margin: 2px 0 6px; }
 .ag-pv-point .ag-scrutateurs, .ag-fiche-point .ag-scrutateurs { display: flex; flex-direction: column; gap: 4px; margin: 6px 0 8px; max-width: 520px; }
+.ag-verif { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 10px; margin: 6px 0 8px; }
+.ag-verif > p { grid-column: 1 / -1; margin: 0; }
+.ag-verif label { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.ag-verif input { min-width: 0; }
+@media (max-width: 640px) { .ag-verif { grid-template-columns: 1fr; } }
 .ag-vote-res { border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; margin: 6px 0; background: var(--surface2); }
 .ag-vote-res.fait { border-color: var(--poll-fg); }
 .ag-vote-res-ligne { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; }

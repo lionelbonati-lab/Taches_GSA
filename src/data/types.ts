@@ -846,6 +846,8 @@ export interface PvAg {
   president?: string;
   secretaire?: string;
   scrutateurs?: string;
+  /** Vérificateurs des comptes en place après l'AG (sous le point « Rapport des vérificateurs »). */
+  verificateurs?: VerificateursAg;
   /** Membres présents ayant droit de vote, comptés en salle (sert à la majorité absolue). */
   votants?: number;
   presents?: string;
@@ -863,6 +865,16 @@ export interface PvAg {
   version?: number;
   /** PV validés (copie figée), le plus récent d'abord. */
   archives?: PvArchive[];
+}
+
+/**
+ * Vérificateurs des comptes : un premier, un second et un suppléant. L'année d'après, le second passe premier ; l'AG élit
+ * un nouveau second et un nouveau suppléant (12.11.2026).
+ */
+export interface VerificateursAg {
+  premier?: string;
+  second?: string;
+  suppleant?: string;
 }
 
 /**
