@@ -79,6 +79,16 @@ test('ordre du jour de l’AG : modèle, points sans statut ni délai, sous-poin
   await expect(statuts.locator('.ag-votes-point li')).toHaveText('Vote : Modification des statuts – deux tiers');
   await expect(statuts.locator('ol.odj-l1 > li')).toHaveText('Article 12 : cotisations');
   await expect(feuille.locator('ol.odj > li').nth(2).locator('.ag-votes-point li')).toHaveText('Vote : Approbation du PV 2026 – majorité des voix exprimées');
+  // Les vérificateurs : approbation des comptes, puis élection des vérificateurs, dans le même point ; pas à l'élection du comité.
+  const verif = feuille.locator('ol.odj > li', { hasText: 'Rapport des vérificateurs' });
+  await expect(verif.locator('.ag-votes-point li')).toHaveText([
+    'Vote : Approbation des comptes 2026 – majorité des voix exprimées',
+    'Vote : Élection des vérificateurs des comptes 2027 – majorité des voix exprimées',
+  ]);
+  await expect(feuille.locator('ol.odj > li', { hasText: 'Élection du/de la président/e' }).locator('.ag-votes-point li')).toHaveText([
+    'Vote : Élection du/de la président/e – majorité des voix exprimées',
+    'Vote : Élection du comité – majorité des voix exprimées',
+  ]);
   await expect(feuille).not.toContainText('À faire');
 
   // Plus simple (réglage à soi) : points et sous-points, « (vote) » à côté ; puis les points seulement.

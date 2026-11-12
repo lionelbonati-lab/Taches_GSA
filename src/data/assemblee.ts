@@ -121,9 +121,11 @@ export function modeleAg(an: number): PointAg[] {
       sous: [p('École de cyclisme'), p('Groupe compétition'), p('Bruntrutaine'), p('Course de préparation'), p('Critérium de Porrentruy'), p('Col de Montvoie')],
     }),
     p(`Comptes exercices ${passe}`),
-    p('Rapport des vérificateurs', { vote: `Approbation des comptes ${passe}` }),
+    // Les vérificateurs font leur rapport, l'AG approuve les comptes, puis elle élit les vérificateurs de l'exercice en
+    // cours : dans le même point (12.11.2026).
+    p('Rapport des vérificateurs', { vote: [`Approbation des comptes ${passe}`, `Élection des vérificateurs des comptes ${an}`] }),
     p('Renouvellement du comité'),
-    p('Élection du/de la président/e et du comité', { vote: ['Élection du/de la président/e', 'Élection du comité', `Vérificateurs des comptes ${an}`] }),
+    p('Élection du/de la président/e et du comité', { vote: ['Élection du/de la président/e', 'Élection du comité'] }),
     p(`Budget ${an}`, { vote: true }),
     p('Admissions / démissions', { vote: 'Admission des nouveaux membres' }),
     p('Divers', { sous: [p(`Programme ${an}`), p('Remerciements'), p('Remise des prix du championnat d’hiver VTT'), p('Naissances / mariages / décès')] }),
