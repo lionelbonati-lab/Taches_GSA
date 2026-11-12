@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import type { Locator, Page } from '@playwright/test';
-import { allerA, compter, deplier, evenementEtiquete, expect, groupe, nouvelleTache, ouvrirDemo, test, verifierUnSeulEspace } from './outils';
+import { ajouterEtiquette, allerA, choixEtiquettes, compter, deplier, evenementEtiquete, expect, groupe, nouvelleTache, ouvrirDemo, puceEtiquette, test, verifierUnSeulEspace } from './outils';
 
 // Parcours essentiels de la démo, sur ordinateur.
 
@@ -911,7 +911,7 @@ test('discussion d’une tâche étiquetée : réservée aux membres de l’éti
   await groupe(page, 'Section natation', ['Émilie Rossi']);
   const fiche = await nouvelleTache(page, 'Réserver les tentes');
   await section(fiche).selectOption({ label: 'Section natation' });
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Section natation/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(puceEtiquette(fiche, 'Section natation')).toHaveClass(/d-office/);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
@@ -986,9 +986,9 @@ test('étiquette d’un événement : sa sous-section dans « Événements », �
   const fiche = await nouvelleTache(page, 'Monter le stand');
   await section(fiche).selectOption({ label: 'Événements' });
   await sousSection(fiche).selectOption('Marché de Noël');
-  const chip = fiche.locator('.etiquettes-choix').getByRole('button', { name: /Marché de Noël/ });
-  await expect(chip).toHaveAttribute('aria-pressed', 'true');
-  await expect(chip).toBeDisabled();
+  const chip = puceEtiquette(fiche, 'Marché de Noël');
+  await expect(chip).toHaveClass(/d-office/);
+  await expect(chip.getByRole('button', { name: /Retirer/ })).toHaveCount(0);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
@@ -1051,7 +1051,7 @@ test('statuts : réglés dans la console admin ; accueil, liste, filtre et fiche
 test('tâches : le filtre « Étiquette » ; « Événement » ne propose que des choix qui ont des tâches', async ({ page }) => {
   await allerA(page, '/taches');
   const fiche = await nouvelleTache(page, 'Louer la sono');
-  await fiche.locator('.etiquettes-choix').getByRole('button', { name: 'Soirée récréative' }).click();
+  await ajouterEtiquette(fiche, 'Soirée récréative');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   const autre = await nouvelleTache(page, 'Commander les flyers');
@@ -1137,7 +1137,7 @@ test('point rattaché à un événement qui a son étiquette : il la porte ; son
   await expect(page.getByRole('option', { name: /^Marché de Noël \(/ })).toHaveCount(1);
   await page.getByRole('option', { name: /^Marché de Noël \(/ }).click();
   await fiche.getByLabel('Nombre').fill('2');
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Marché de Noël/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(puceEtiquette(fiche, 'Marché de Noël')).toHaveClass(/d-office/);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   const donnees = () => page.evaluate(() => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!));
@@ -1202,16 +1202,19 @@ test('étiquettes d’office : groupe, événement, « Comité » pour le reste 
   // Un point du comité reçoit « Comité » d'office ; rangé dans « Groupe compétition », il prend l'étiquette du groupe.
   let fiche = await nouvelleTache(page, 'Renouveler la licence');
   await section(fiche).selectOption({ label: 'Administration' });
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Comité/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Comité/ })).toBeDisabled();
+  await expect(puceEtiquette(fiche, 'Comité')).toHaveClass(/d-office/);
+  await expect(puceEtiquette(fiche, 'Comité').getByRole('button', { name: /Retirer/ })).toHaveCount(0);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(() => etiquettesDe('Renouveler la licence')).toEqual(['Comité']);
   await page.locator('main').getByText('Renouveler la licence').filter({ visible: true }).first().click();
   fiche = page.locator('.modal').first();
   await section(fiche).selectOption({ label: 'Groupe compétition' });
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Groupe compétition/ })).toHaveAttribute('aria-pressed', 'true');
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Comité/ })).toHaveAttribute('aria-pressed', 'false');
+  // Seules les étiquettes du point sont affichées : « Comité » n'est plus là ; « ＋ » la propose.
+  await expect(puceEtiquette(fiche, 'Groupe compétition')).toHaveClass(/d-office/);
+  await expect(puceEtiquette(fiche, 'Comité')).toHaveCount(0);
+  await expect((await choixEtiquettes(fiche)).getByRole('option', { name: 'Comité' })).toHaveCount(1);
+  await page.keyboard.press('Escape');
   await fiche.getByRole('button', { name: /^Enregistrer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(() => etiquettesDe('Renouveler la licence')).toEqual(['Groupe compétition']);
@@ -1224,10 +1227,12 @@ test('étiquettes d’office : groupe, événement, « Comité » pour le reste 
   await expect(section(fiche).locator('option')).toHaveText(['— Choisir —', 'Événements']);
   await expect(sousSection(fiche)).toHaveValue('Bruntrutaine 27.02.27');
   await expect(sousSection(fiche).locator('option')).toHaveText(['Bruntrutaine 27.02.27']);
-  const choix = fiche.locator('.etiquettes-choix .chip');
+  const choix = fiche.locator('.etiquettes-point .chip');
   await expect(choix).toHaveCount(1);
   await expect(choix).toHaveText(/Bruntrutaine/);
-  await expect(choix).toBeDisabled();
+  await expect(choix.getByRole('button', { name: /Retirer/ })).toHaveCount(0);
+  // Aucune autre étiquette à ajouter : pas de « ＋ ».
+  await expect(fiche.getByRole('combobox', { name: 'Ajouter une étiquette' })).toHaveCount(0);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(() => etiquettesDe('Commander les dossards')).toEqual(['Bruntrutaine']);
@@ -1237,9 +1242,15 @@ test('étiquettes d’office : groupe, événement, « Comité » pour le reste 
   await allerA(page, '/taches');
   fiche = await nouvelleTache(page, 'Préparer le budget');
   await section(fiche).selectOption({ label: 'Comptabilité' });
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Bruntrutaine/ })).toBeEnabled();
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /École de cyclisme/ })).toHaveCount(0);
-  await fiche.locator('.etiquettes-choix').getByRole('button', { name: /Bruntrutaine/ }).click();
+  await expect(puceEtiquette(fiche, 'Bruntrutaine')).toHaveCount(0);
+  const proposees = await choixEtiquettes(fiche);
+  await expect(proposees.getByRole('option', { name: 'Bruntrutaine' })).toHaveCount(1);
+  await expect(proposees.getByRole('option', { name: 'École de cyclisme' })).toHaveCount(0);
+  await proposees.getByRole('option', { name: 'Bruntrutaine' }).click();
+  // Mise à la main : on peut la retirer (✕), puis la remettre.
+  await puceEtiquette(fiche, 'Bruntrutaine').getByRole('button', { name: 'Retirer l’étiquette Bruntrutaine' }).click();
+  await expect(puceEtiquette(fiche, 'Bruntrutaine')).toHaveCount(0);
+  await ajouterEtiquette(fiche, 'Bruntrutaine');
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
   await expect.poll(() => etiquettesDe('Préparer le budget')).toEqual(['Bruntrutaine', 'Comité']);
@@ -1323,7 +1334,7 @@ test('page Étiquettes, dans le menu Club : tout le réglage ; une icône choisi
   // Sur la pastille d'un point du groupe : l'icône, puis le nom.
   const fiche = await nouvelleTache(page, 'Inscrire l’équipe');
   await fiche.locator('label', { hasText: /^\s*Section/ }).locator('select').first().selectOption({ label: 'Groupe compétition' });
-  await expect(fiche.locator('.etiquettes-choix').getByRole('button', { name: /Groupe compétition/ }).locator('svg')).toHaveCount(1);
+  await expect(puceEtiquette(fiche, 'Groupe compétition').locator('svg')).toHaveCount(1);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await allerA(page, '/taches');
   const badge = page.locator('main tr', { hasText: 'Inscrire l’équipe' }).locator('.badge.etiquette');
@@ -2140,15 +2151,16 @@ test('événement passé : à part dans les listes ; son étiquette reste sur se
   await expect(champSousSection(fiche).locator('optgroup option', { hasText: 'Tournoi d’automne' })).toHaveCount(0);
   await expect(champSousSection(fiche).locator('option', { hasText: 'Tournoi d’automne' })).toHaveCount(1);
   await champSousSection(fiche).selectOption('Tournoi de printemps');
-  const chips = fiche.locator('.etiquettes-choix');
-  await expect(chips.getByRole('button', { name: /Tournoi de printemps/ })).toHaveAttribute('aria-pressed', 'true');
+  await expect(puceEtiquette(fiche, 'Tournoi de printemps')).toHaveClass(/d-office/);
   await fiche.getByRole('button', { name: /^Créer$/ }).click();
   await expect(page.locator('.modal')).toHaveCount(0);
 
   // Un autre point : l'étiquette de l'événement passé n'est plus proposée ; celle de l'événement à venir, oui.
   const autre = await nouvelleTache(page, 'Préparer le budget');
-  await expect(autre.locator('.etiquettes-choix').getByRole('button', { name: /Tournoi de printemps/ })).toHaveCount(0);
-  await expect(autre.locator('.etiquettes-choix').getByRole('button', { name: /Tournoi d’automne/ })).toHaveCount(1);
+  const proposees = await choixEtiquettes(autre);
+  await expect(proposees.getByRole('option', { name: /Tournoi de printemps/ })).toHaveCount(0);
+  await expect(proposees.getByRole('option', { name: /Tournoi d’automne/ })).toHaveCount(1);
+  await page.keyboard.press('Escape');
   await autre.getByRole('button', { name: 'Fermer' }).first().click();
   await expect(page.locator('.modal')).toHaveCount(0);
 

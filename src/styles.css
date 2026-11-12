@@ -2328,6 +2328,17 @@ h2.with-action { display: flex; align-items: center; justify-content: space-betw
 .etiquette-personnes legend { font-size: 0.85rem; color: var(--muted); padding: 0; margin-bottom: 4px; }
 /* Étiquette mise d'office par la place du point : pleine, pas grisée. */
 .etiquettes-choix .chip.d-office:disabled { opacity: 1; cursor: default; }
+/* Fiche d'un point : une seule ligne, le titre puis les étiquettes du point, plus petites ; « ＋ » rond pour en ajouter. */
+.etiquettes-point { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; }
+.etiquettes-point > .field-label { display: inline-flex; align-items: center; gap: 4px; margin: 0 2px 0 0; cursor: help; }
+.etiquettes-point .chip { color: #fff; padding: 2px 9px; font-size: 0.8rem; cursor: default; }
+.etiquettes-point .chip.d-office { opacity: 1; }
+.etiquettes-point .chip .chip-x { padding: 0 0 0 4px; font-size: 0.75rem; }
+.etiquettes-point .deroulante.puce .deroulante-bouton { padding: 1px 0; width: 1.65rem; height: 1.65rem; justify-content: center; font-size: 0.95rem; line-height: 1; color: var(--muted); }
+.etiquettes-point .deroulante.puce .deroulante-bouton:hover { color: var(--primary); border-color: var(--primary); }
+.etiquettes-point .deroulante-valeur { flex: 0 0 auto; }
+.etiquettes-point .deroulante-fleche { display: none; }
+.etiquette-puce { display: inline-flex; }
 .etiquette-lieux { align-items: center; gap: 6px; }
 .etiquette-lieux select { max-width: 100%; }
 .etiquette-comite { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }

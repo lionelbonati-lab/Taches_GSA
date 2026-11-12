@@ -333,13 +333,12 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const auteur = data.people.find((p) => p.id === auteurAPrendre(task));
   const pourMoiAPrendre = !isNew && peutPrendre(task, user.id) && !isDone(data, task);
   const jeDecline = aDecline(task, user.id);
-  // Étiquettes : celles d'office (sa place ; en lecture, seulement celles que le point porte déjà), celles déjà sur le
-  // point, et celles qu'on peut mettre (dont on est membre).
+  // Étiquettes : seulement celles du point, d'office (sa place ; en lecture, seulement celles que le point porte déjà) ou
+  // mises à la main ; « ＋ » propose celles qu'on peut ajouter (dont on est membre).
   // Celle d'un événement passé n'est plus proposée (elle reste sur les points qui la portent).
   const auto = dis ? [] : autoDe(t.sectionId, t.sousSection, t.eventId);
-  const etiquettes = (data.etiquettes ?? []).filter(
-    (e) => auto.includes(e.id) || t.etiquettes?.includes(e.id) || (!dis && peutEtiqueter(e.id) && !etiquettePassee(e, data.events)),
-  );
+  const etiquettes = (data.etiquettes ?? []).filter((e) => auto.includes(e.id) || t.etiquettes?.includes(e.id));
+  const aEtiqueter = dis ? [] : (data.etiquettes ?? []).filter((e) => !etiquettes.includes(e) && peutEtiqueter(e.id) && !etiquettePassee(e, data.events));
   const placeDe = nomLieu({ sectionId: t.sectionId, sousSection: t.sousSection || undefined }, data.sections);
   return (
     <Modal
@@ -413,23 +412,40 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
           Point
           <input autoFocus={isNew} value={t.titre} disabled={dis} onChange={(e) => set('titre', e.target.value)} placeholder="Que faut-il faire ou savoir ?" />
         </label>
-        {etiquettes.length > 0 && (
-          <div className="full etiquettes-choix">
-            <span className="field-label"><Icone n="etiquette" /> Étiquettes <small className="muted">(leurs membres voient le point ; celle de son groupe, de sa sous-section ou de son événement est mise d’office)</small></span>
-            <div className="chips">
-              {etiquettes.map((e) => {
-                const dOffice = auto.includes(e.id);
-                const on = dOffice || !!t.etiquettes?.includes(e.id);
-                const fige = dis || dOffice || !peutEtiqueter(e.id);
-                return (
-                  <button key={e.id} type="button" className={`chip ${on ? 'on' : ''} ${dOffice ? 'd-office' : ''}`} style={on ? { background: e.couleur, borderColor: e.couleur } : { borderColor: e.couleur }} disabled={fige} aria-pressed={on}
-                    title={dOffice ? `D’office : le point est rangé dans ${placeDe}${t.eventId ? ' ou rattaché à son événement' : ''}` : !dis && fige ? 'Tu n’es pas membre de cette étiquette' : undefined}
-                    onClick={() => setT((x) => ({ ...x, etiquettes: on ? (x.etiquettes ?? []).filter((y) => y !== e.id) : [...(x.etiquettes ?? []), e.id] }))}>
-                    <IconeEtiquette e={e} /> {e.nom}{dOffice ? ' 🔒' : ''}
-                  </button>
-                );
-              })}
-            </div>
+        {/* Étiquettes : une ligne, rien que celles du point ; ✕ pour en retirer une, « ＋ » pour en ajouter. */}
+        {(etiquettes.length > 0 || aEtiqueter.length > 0) && (
+          <div className="full etiquettes-choix etiquettes-point">
+            <span className="field-label" title="Leurs membres voient le point ; celle de son groupe, de sa sous-section ou de son événement est mise d’office">
+              <Icone n="etiquette" /> Étiquettes
+            </span>
+            {etiquettes.map((e) => {
+              const dOffice = auto.includes(e.id);
+              const retirable = !dis && !dOffice && peutEtiqueter(e.id);
+              return (
+                <span key={e.id} className={`chip on ${dOffice ? 'd-office' : ''} ${retirable ? '' : 'locked'}`} style={{ background: e.couleur, borderColor: e.couleur }}
+                  title={dOffice ? `D’office : le point est rangé dans ${placeDe}${t.eventId ? ' ou rattaché à son événement' : ''}` : !dis && !retirable ? 'Tu n’es pas membre de cette étiquette' : undefined}>
+                  <IconeEtiquette e={e} /> {e.nom}{dOffice ? ' 🔒' : ''}
+                  {retirable && (
+                    <button type="button" className="chip-x" aria-label={`Retirer l’étiquette ${e.nom}`} title="Retirer l’étiquette"
+                      onClick={() => setT((x) => ({ ...x, etiquettes: (x.etiquettes ?? []).filter((y) => y !== e.id) }))}>✕</button>
+                  )}
+                </span>
+              );
+            })}
+            {aEtiqueter.length > 0 && (
+              <Deroulante
+                puce
+                value=""
+                libelle="＋"
+                aria-label="Ajouter une étiquette"
+                title="Ajouter une étiquette"
+                onChange={(v) => v && setT((x) => ({ ...x, etiquettes: [...(x.etiquettes ?? []), v] }))}
+                options={[{
+                  groupe: 'Ajouter une étiquette : ses membres voient le point',
+                  options: aEtiqueter.map((e) => ({ value: e.id, label: e.nom, icone: <span className="etiquette-puce" style={{ color: e.couleur }}><IconeEtiquette e={e} /></span> })),
+                }]}
+              />
+            )}
           </div>
         )}
         {/* Section, Sous-section et Statut l'un sous l'autre, « Pour quand ? » à côté ; sur téléphone (une colonne), après eux. */}

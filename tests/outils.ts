@@ -44,6 +44,25 @@ export async function deplier(fiche: Locator, titre: string) {
   return partie;
 }
 
+/** Fiche d'un point : la pastille d'une étiquette que le point porte (seules celles-là sont affichées). */
+export function puceEtiquette(fiche: Locator, nom: string | RegExp) {
+  return fiche.locator('.etiquettes-point .chip', { hasText: nom });
+}
+
+/** Fiche d'un point : « ＋ » des étiquettes, la liste de celles qu'on peut ajouter ouverte. */
+export async function choixEtiquettes(fiche: Locator) {
+  await fiche.getByRole('combobox', { name: 'Ajouter une étiquette' }).click();
+  const liste = fiche.page().getByRole('listbox', { name: 'Ajouter une étiquette' });
+  await expect(liste).toBeVisible();
+  return liste;
+}
+
+/** Fiche d'un point : une étiquette ajoutée par « ＋ ». */
+export async function ajouterEtiquette(fiche: Locator, nom: string | RegExp) {
+  await (await choixEtiquettes(fiche)).getByRole('option', { name: nom }).click();
+  await expect(puceEtiquette(fiche, nom)).toHaveCount(1);
+}
+
 /** Nouveau point ouvert depuis le bouton « + », titre et section remplis (pas encore enregistrée). */
 export async function nouvelleTache(page: Page, titre: string) {
   await page.locator('.fab').click();
