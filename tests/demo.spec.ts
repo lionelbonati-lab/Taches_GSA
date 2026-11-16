@@ -1291,7 +1291,11 @@ test('anciennes étiquettes reprises : en cochant « Groupe » sur la section, o
   // Événement du même jour (« Sortie de la St-Martin », 14.11) : sa case « Étiquette » propose de reprendre l'ancienne ;
   // elle prend le nom de l'événement et garde sa sous-section (et ses points).
   await allerA(page, '/evenements');
-  await page.locator('article.agenda-item', { hasText: 'Sortie de la St-Martin' }).getByRole('button', { name: 'Modifier' }).click();
+  // Passé (après le 14.11.2026) : dans « Événements passés », replié.
+  const stMartin = page.locator('article.agenda-item', { hasText: 'Sortie de la St-Martin' });
+  await expect(page.locator('main article.agenda-item').first()).toBeVisible();
+  if (!(await stMartin.isVisible())) await page.locator('details.evenements-passes > summary').click();
+  await stMartin.getByRole('button', { name: 'Modifier' }).click();
   const f = page.getByRole('dialog', { name: 'Événement' });
   await f.locator('.case-etiquette').getByRole('checkbox').check();
   await expect(f.locator('.case-etiquette select')).toHaveValue('et-st-martin');
