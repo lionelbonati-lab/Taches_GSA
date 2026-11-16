@@ -138,12 +138,15 @@ export function StoreProvider({ children, cloud = null, demo = null }: { childre
   );
 
   const saveTask = useCallback(
-    (t: Task, isNew: boolean) => {
+    (t: Task, nouveau: boolean) => {
       const task: Task = { ...t, updatedAt: new Date().toISOString() };
       task.pourInfo = task.paiement ? undefined : epurerPourInfo(task.pourInfo, task.responsables);
       task.aPrendre = task.paiement ? undefined : epurerAPrendre(task.aPrendre, task.responsables);
       if (!task.etiquettes?.length) task.etiquettes = undefined;
       const before = data.tasks.find((x) => x.id === task.id);
+      // Déjà créé (fiche d'un nouveau point reprise après sa création…) : enregistré comme une modification, jamais ajouté
+      // une seconde fois (deux points du même identifiant : en supprimer un supprimait les deux).
+      const isNew = nouveau && !before;
       // Écrits par le serveur (discussion, « Vu ») : ceux de la tâche enregistrée, pas ceux de la fenêtre ouverte plus tôt.
       task.commentaires = isNew ? undefined : before?.commentaires;
       task.pourInfoVus = isNew ? undefined : before?.pourInfoVus;

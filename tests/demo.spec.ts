@@ -4666,3 +4666,60 @@ test('enregistrement automatique d’un point : fermer la fiche l’enregistre, 
   await expect(rappel).toHaveCount(0);
   expect(await stocke('Point jamais créé')).toBe(0);
 });
+
+test('point créé par le bouton « + » : plus de brouillon qui reste, ni de point en double à la reprise', async ({ page }) => {
+  await page.goto('./?demo#/');
+  type T = { id: string; titre: string; updatedAt: string; createdBy: string; remarque: string };
+  const points = (titre: string) =>
+    page.evaluate((x) => JSON.parse(localStorage.getItem('taches-gsa-demo-v7')!).tasks.filter((t: T) => t.titre === x) as T[], titre);
+  const rappel = page.getByRole('region', { name: 'Points pas encore enregistrés' });
+  // Fiche ouverte par « + », la page change derrière elle (autre page, données relues…) : son brouillon ne s'affiche pas
+  // dans le rappel, et « Créer » l'efface.
+  const creer = async (titre: string) => {
+    const fiche = await nouvelleTache(page, titre);
+    await allerA(page, '/agenda');
+    await expect(page.locator('main h1, main h2').first()).toBeVisible();
+    await allerA(page, '/');
+    await page.getByPlaceholder('Détails utiles (facultatif)').fill('Tapé après le changement de page');
+    await expect(rappel).toHaveCount(0);
+    await fiche.getByRole('button', { name: 'Créer', exact: true }).click();
+    await expect(page.locator('.modal')).toHaveCount(0);
+    await expect(rappel).toHaveCount(0);
+    const l = await points(titre);
+    expect(l).toHaveLength(1);
+    expect(l[0].remarque).toBe('Tapé après le changement de page');
+    return l[0];
+  };
+  const a = await creer('T-shirt sponsorisé');
+  const b = await creer('Commander les vestes');
+  await page.reload();
+  await expect(page.locator('main h1, main h2').first()).toBeVisible();
+  await expect(rappel).toHaveCount(0);
+
+  // Brouillons laissés par l'ancienne version (point créé, brouillon resté « nouveau point ») : celui d'avant la création
+  // disparaît tout seul ; celui modifié après se reprend comme une modification du point, sans en créer un second.
+  const cle = `taches-gsa-brouillons-demo-${a.createdBy}`;
+  const avant = new Date(Date.parse(a.updatedAt) - 1000).toISOString();
+  const apres = new Date(Date.parse(b.updatedAt) + 1000).toISOString();
+  await page.evaluate(
+    ([k, x, y, le1, le2]) =>
+      localStorage.setItem(k, JSON.stringify({ [x.id]: { t: x, isNew: true, le: le1 }, [y.id]: { t: { ...y, remarque: 'Ajouté après la création' }, isNew: true, le: le2 } })),
+    [cle, a, b, avant, apres] as const,
+  );
+  await page.reload();
+  await expect(rappel).toContainText('Un point pas encore enregistré');
+  await expect(rappel).toContainText('« Commander les vestes » · modifié');
+  await expect(rappel).not.toContainText('T-shirt sponsorisé');
+  expect(await page.evaluate((k) => Object.keys(JSON.parse(localStorage.getItem(k)!)), cle)).toEqual([b.id]);
+  await rappel.getByRole('button', { name: 'Reprendre' }).click();
+  const fiche = page.getByRole('dialog', { name: 'Modifier le point' });
+  await expect(fiche.getByPlaceholder('Détails utiles (facultatif)')).toHaveValue('Ajouté après la création');
+  await expect(fiche.getByRole('button', { name: 'Enregistrer', exact: true })).toBeVisible();
+  await fiche.getByRole('button', { name: 'Enregistrer', exact: true }).click();
+  await expect(page.locator('.modal')).toHaveCount(0);
+  await expect(rappel).toHaveCount(0);
+  const l = await points('Commander les vestes');
+  expect(l).toHaveLength(1);
+  expect(l[0].remarque).toBe('Ajouté après la création');
+  expect(await points('T-shirt sponsorisé')).toHaveLength(1);
+});

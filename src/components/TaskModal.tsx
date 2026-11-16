@@ -115,12 +115,15 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
       statusId: data.statuses.some((s) => s.id === task.statusId) ? task.statusId : (data.statuses.find((s) => !s.done) ?? data.statuses[0])?.id ?? task.statusId,
     };
   });
+  // Identifiant du point, pris à l'ouverture de la fiche : son brouillon est rangé sous celui-ci, même si la fenêtre qui
+  // l'a ouverte en redonne un autre ensuite.
+  const id = base.id;
   // Modifications pas encore enregistrées d'une fiche fermée sans les enregistrer (appli coupée, rechargée…), gardées sur
   // cet appareil (brouillons.ts) : reprises à l'ouverture. Plus le droit de modifier le point : oubliées.
   const peutModifier = isNew || canEditTask(task);
   const [repris, setRepris] = useState(() => {
-    const b = user ? brouillonDe(user.id, task.id) : undefined;
-    if (b && !peutModifier && user) effacerBrouillon(user.id, task.id);
+    const b = user ? brouillonDe(user.id, id) : undefined;
+    if (b && !peutModifier && user) effacerBrouillon(user.id, id);
     return b && peutModifier ? b : undefined;
   });
   const [t, setT] = useState<Task>(() => repris?.t ?? base);
@@ -147,11 +150,11 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const json = JSON.stringify(t);
   const [depart] = useState(() => JSON.stringify(base));
   const modifie = peutModifier && (json !== depart || !!repris);
-  useEffect(() => ficheOuverte(task.id), [task.id]);
+  useEffect(() => ficheOuverte(id), [id]);
   useEffect(() => {
     if (!user || !peutModifier) return;
     if (modifie) garderBrouillon(user.id, { t, isNew, base: isNew ? undefined : task.updatedAt, le: new Date().toISOString() });
-    else effacerBrouillon(user.id, task.id);
+    else effacerBrouillon(user.id, id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [json, modifie]);
   if (!user) return null;
@@ -232,7 +235,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
     const retires = libres(track.current.removed);
     saveTask({ ...t, titre: t.titre.trim(), etiquettes: recaler(t.etiquettes, [], autoDe(t.sectionId, t.sousSection, t.eventId)) }, isNew);
     void deleteFiles(retires);
-    effacerBrouillon(user.id, task.id);
+    effacerBrouillon(user.id, id);
     return true;
   };
   const submit = () => {
@@ -302,7 +305,7 @@ function TaskEditor({ task, isNew, onClose, openEmailId, ouvrirDiscussion }: Tas
   const abandonner = () => {
     const ajoutes = (t.documents ?? []).filter((d) => d.kind === 'fichier' && !(base.documents ?? []).some((b) => b.id === d.id)).map((d) => d.id);
     deleteFiles(libres([...new Set([...track.current.added, ...ajoutes])]));
-    effacerBrouillon(user.id, task.id);
+    effacerBrouillon(user.id, id);
     onClose();
   };
   // Fermer (✕, Échap, « Fermer ») : enregistré tout seul s'il a changé. S'il ne peut pas l'être (titre manquant…), on

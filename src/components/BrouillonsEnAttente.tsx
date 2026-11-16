@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useStore } from '../data/store';
 import { effacerBrouillon, useBrouillons, type Brouillon } from '../data/brouillons';
 import { deleteFiles } from '../data/files';
@@ -13,14 +13,22 @@ import { Icone } from './icones';
  */
 export function BrouillonsEnAttente() {
   const { data, user } = useStore();
-  const liste = useBrouillons(user?.id);
+  const tous = useBrouillons(user?.id);
   const [ouvert, setOuvert] = useState<Brouillon | null>(null);
+  // Le point tel qu'il est enregistré (pas encore créé, ou supprimé depuis : repris comme un nouveau point).
+  const enregistre = (b: Brouillon) => data.tasks.find((x) => x.id === b.t.id);
+  // Nouveau point créé depuis la dernière modification de son brouillon (« Créer », fiche fermée) : il ne sert plus.
+  const perimes = tous.filter((b) => b.isNew && (enregistre(b)?.updatedAt ?? '') >= b.le).map((b) => b.t.id);
+  const liste = tous.filter((b) => !perimes.includes(b.t.id));
+  const cles = perimes.join();
+  const userId = user?.id;
+  useEffect(() => {
+    if (userId && cles) cles.split(',').forEach((id) => effacerBrouillon(userId, id));
+  }, [userId, cles]);
   if (!user || (!liste.length && !ouvert)) return null;
-  // Point supprimé depuis : repris comme un nouveau point.
-  const enregistre = (b: Brouillon) => (b.isNew ? undefined : data.tasks.find((x) => x.id === b.t.id));
   const nom = (b: Brouillon) => `« ${b.t.titre.trim() || 'sans titre'} »`;
   const abandonner = (b: Brouillon) => {
-    if (!confirm(`Abandonner les modifications non enregistrées de ${nom(b)} ?${b.isNew ? ' Ce point n’a pas été créé : il sera perdu.' : ''}`)) return;
+    if (!confirm(`Abandonner les modifications non enregistrées de ${nom(b)} ?${!enregistre(b) ? ' Ce point n’a pas été créé : il sera perdu.' : ''}`)) return;
     // Fichiers joints dans le brouillon seulement (pas au point enregistré, ni à un autre) : effacés.
     const avant = enregistre(b)?.documents ?? [];
     const fichiers = (b.t.documents ?? [])
@@ -38,7 +46,7 @@ export function BrouillonsEnAttente() {
             {liste.map((b) => (
               <li key={b.t.id}>
                 <span className="grow">
-                  {nom(b)} <small className="muted">· {b.isNew || !enregistre(b) ? 'nouveau point' : 'modifié'} le {fmtDateTime(b.le)}</small>
+                  {nom(b)} <small className="muted">· {!enregistre(b) ? 'nouveau point' : 'modifié'} le {fmtDateTime(b.le)}</small>
                 </span>
                 <button className="btn primary small" onClick={() => setOuvert(b)}>Reprendre</button>
                 <button className="btn small" onClick={() => abandonner(b)}>Abandonner</button>

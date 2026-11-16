@@ -25,12 +25,15 @@ import { cacheLogo } from '../data/logo';
 import { applyAppColor, cacheColor } from '../data/couleur';
 import { Icone, type IconeNom } from './icones';
 import { newTask } from '../data/utils';
+import type { Task } from '../data/types';
 import { BrouillonsEnAttente } from './BrouillonsEnAttente';
 
 export function Layout() {
   const { data, user, myRoles, login, prefs, setToast, cloud, creatableSections } = useStore();
   const club = useClubOptional();
-  const [quick, setQuick] = useState(false);
+  // Ajout rapide : le nouveau point, préparé une fois à l'ouverture (son identifiant ne doit pas changer tant que la
+  // fiche est ouverte : son brouillon, sur l'appareil, est rangé sous cet identifiant).
+  const [quick, setQuick] = useState<Task | null>(null);
   const [ticket, setTicket] = useState<GenreTicket | null>(null);
   const [fab, setFab] = useState(false);
   const [menu, setMenu] = useState(false);
@@ -51,14 +54,19 @@ export function Layout() {
   const signalerErreur = club?.signalerErreur;
   useEffect(() => (signalerErreur ? brancherRapport(signalerErreur) : undefined), [signalerErreur]);
   // Raccourcis de l'application installée (appui long sur l'icône) : « Nouvelle tâche », « Remboursement », « Paiement ».
+  const userId = user?.id;
+  const meetings = data.meetings;
   useEffect(() => {
     const q = new URLSearchParams(loc.search);
     const n = q.get('nouveau');
     if (!q.has('ajout') && !n) return;
-    if (q.has('ajout')) setQuick(true);
-    else if (n === 'paiement' || n === 'remboursement') setTicket(n === 'paiement' ? 'facture' : 'remboursement');
+    if (q.has('ajout')) {
+      // Pas encore connecté : le raccourci attend.
+      if (!userId) return;
+      setQuick(newTask(userId, versProchaineSeance(meetings)));
+    } else if (n === 'paiement' || n === 'remboursement') setTicket(n === 'paiement' ? 'facture' : 'remboursement');
     navigate(loc.pathname, { replace: true });
-  }, [loc.search, loc.pathname, navigate]);
+  }, [loc.search, loc.pathname, navigate, userId, meetings]);
 
   useEffect(() => {
     const dark = prefs.theme === 'sombre' || (prefs.theme === 'auto' && window.matchMedia('(prefers-color-scheme: dark)').matches);
@@ -128,7 +136,7 @@ export function Layout() {
   const canCreate = creatableSections().length > 0;
   // Bouton flottant « + » : tâche (ajout rapide), remboursement, paiement de facture.
   const ajouts = [
-    ...(canCreate ? [{ label: 'Nouveau point', icone: 'taches' as IconeNom, title: 'Ajout rapide d’un point', run: () => setQuick(true) }] : []),
+    ...(canCreate ? [{ label: 'Nouveau point', icone: 'taches' as IconeNom, title: 'Ajout rapide d’un point', run: () => setQuick(newTask(user.id, versProchaineSeance(data.meetings))) }] : []),
     ...(['remboursement', 'facture'] as const).map((g) => ({
       label: GENRES[g].nouveau,
       icone: g as IconeNom,
@@ -281,7 +289,7 @@ export function Layout() {
 
       <Toast />
       <Visionneuse />
-      {quick && canCreate && <TaskModal isNew task={newTask(user.id, versProchaineSeance(data.meetings))} onClose={() => setQuick(false)} />}
+      {quick && canCreate && <TaskModal isNew task={quick} onClose={() => setQuick(null)} />}
       {ticket && <TicketForm type={ticket} onClose={() => setTicket(null)} />}
       {reglerBarre && <BarreBasModal onClose={() => setReglerBarre(false)} />}
     </div>
